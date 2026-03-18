@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patient-navigator-bff"
+version = "0.1.0"
+description = "Local FastAPI MVP for Beacon Friendly Format JSON"
+requires-python = ">=3.8"
+dependencies = [
+  "fastapi>=0.115,<0.116",
+  "uvicorn>=0.30,<0.31",
+  "pydantic>=2.10,<2.11",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.3,<9",
+  "httpx>=0.28,<0.29",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

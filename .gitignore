@@ -1,0 +1,11 @@
+.venv/
+.deps/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.coverage
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+data/*.json
