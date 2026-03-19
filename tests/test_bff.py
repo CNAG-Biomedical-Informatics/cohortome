@@ -2,6 +2,7 @@ import json
 
 from fastapi import HTTPException
 
+import app.query as query_module
 from app.bff import (
     build_patient_navigator,
     get_patient_context,
@@ -17,6 +18,7 @@ from app.main import (
     get_patients,
     search_medication_cohort,
 )
+from app.query import answer_query
 
 
 def write_json(tmp_path, name, payload):
@@ -259,3 +261,92 @@ def test_medication_cohort_counts_unique_patients(tmp_path):
     search_payload = search_medication_cohort(medication="Azathioprine", data_dir=str(tmp_path))
     assert search_payload["patient_count"] == 1
     assert search_payload["patients"][0]["matched_medications"] == ["Azathioprine"]
+
+
+def test_query_uses_lm_studio_fallback_when_enabled(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "patient_id": "PAT-1",
+                "visit_id": "VIS-1",
+                "event_date": "2025-01-01",
+                "diagnosis": "Crohn Disease",
+                "patient": {"sex": "female"},
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    def fake_http_json(url, payload=None):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        assert url.endswith("/chat/completions")
+        assert payload is not None
+        assert payload["model"] == "local-model"
+        assert payload["messages"][1]["content"].find("Prior question") == -1
+        return {"choices": [{"message": {"content": "LM Studio answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(str(tmp_path), "What happened to this cohort over time?")
+    assert payload["intent"] == "llm_fallback"
+    assert payload["reply"] == "LM Studio answer"
+    assert payload["data"]["model"] == "local-model"
+    assert payload["data"]["base_url"] == "http://192.168.1.41:1234/v1"
+
+
+def test_query_reports_missing_lm_studio_model(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [])
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "1")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+    monkeypatch.setattr(query_module, "_http_json", lambda url, payload=None: {"data": []})
+
+    payload = answer_query(str(tmp_path), "Explain the cohort")
+    assert payload["intent"] == "llm_unavailable"
+    assert "no loaded model" in payload["reply"].lower()
+
+
+def test_query_needs_clarification_for_short_prompt(tmp_path):
+    write_json(tmp_path, "records.json", [])
+
+    payload = answer_query(str(tmp_path), "why")
+    assert payload["intent"] == "needs_clarification"
+    assert "too short" in payload["reply"].lower()
+    assert payload["data"]["follow_up_suggestions"]
+
+
+def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [])
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "Context-aware answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "What changed after that?",
+        history=[
+            {"role": "user", "content": "Show patient 107"},
+            {"role": "assistant", "content": "Patient 107 has 2 visits."},
+        ],
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    assert payload["reply"] == "Context-aware answer"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert "conversation_history" in user_message
+    assert "Show patient 107" in user_message

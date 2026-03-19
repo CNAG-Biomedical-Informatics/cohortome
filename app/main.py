@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 
 from app.bff import (
     build_patient_navigator,
@@ -21,6 +22,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = str((BASE_DIR / "data").resolve())
 
 app = FastAPI(title="Patient Navigator BFF MVP")
+
+
+class QueryTurn(BaseModel):
+    role: str
+    content: str
+
+
+class QueryRequest(BaseModel):
+    q: str
+    data_dir: str = DEFAULT_DATA_DIR
+    history: List[QueryTurn] = Field(default_factory=list)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -61,6 +73,30 @@ def index() -> str:
         max-width: 1240px;
         margin: 0 auto;
         padding: 36px 20px 52px;
+      }
+      .tab-bar {
+        display: flex;
+        gap: 10px;
+        margin: 20px 0 18px;
+      }
+      .tab-btn {
+        width: auto;
+        padding: 12px 18px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--ink);
+        box-shadow: none;
+      }
+      .tab-btn.active {
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        color: white;
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
       }
       .hero {
         margin-bottom: 28px;
@@ -132,6 +168,36 @@ def index() -> str:
         font-weight: 700;
         letter-spacing: 0.02em;
         box-shadow: 0 10px 24px rgba(122, 52, 25, 0.2);
+      }
+      .query-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .query-row button {
+        width: auto;
+        min-width: 120px;
+        padding: 12px 16px;
+        border-radius: 999px;
+      }
+      .query-status {
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .query-status.loading {
+        color: var(--accent-deep);
+      }
+      .load-status {
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .load-status.loading {
+        color: var(--accent-deep);
       }
       .dashboard-shell {
         display: grid;
@@ -322,11 +388,30 @@ def index() -> str:
         font-weight: 700;
       }
       #queryReply {
-        padding: 16px 18px;
+        padding: 14px 16px;
         border-radius: 18px;
+        min-height: 72px;
         background: linear-gradient(135deg, var(--teal-soft), #f0f9ff);
         border: 1px solid rgba(37, 99, 235, 0.12);
         color: var(--ink);
+      }
+      #queryReply p,
+      #queryReply ul {
+        margin: 0 0 10px;
+      }
+      #queryReply p:last-child,
+      #queryReply ul:last-child {
+        margin-bottom: 0;
+      }
+      #queryReply ul {
+        padding-left: 20px;
+      }
+      #queryReply code {
+        padding: 2px 6px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid var(--line);
+        font-size: 0.92em;
       }
       .section-note {
         font-size: 0.92rem;
@@ -345,56 +430,91 @@ def index() -> str:
         <p>Explore patient timelines, inspect visit evidence, and answer common clinical questions from local records through a compact navigator interface.</p>
       </div>
 
-      <div class="controls">
-        <label for="dataDir">Local data directory</label>
-        <input id="dataDir" value="/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/data">
-        <button id="loadBtn">Load patients</button>
+      <div class="tab-bar">
+        <button id="cohortTabBtn" class="tab-btn active" type="button">Cohort</button>
+        <button id="queryTabBtn" class="tab-btn" type="button">Query</button>
       </div>
 
-      <div class="controls">
-        <label for="question">Ask a question</label>
-        <input id="question" value="How many patients have Prednisolone?">
-        <button id="askBtn">Run query</button>
-        <div id="queryReply" class="empty">Ask about medications, diseases, or a patient timeline.</div>
-        <details id="queryDetails">
-          <summary>Show structured data</summary>
-          <pre id="queryData"></pre>
-        </details>
-      </div>
-
-      <div class="dashboard-shell">
-        <section>
-          <h2>Cohort</h2>
-          <div class="section-note">Search and filter the patient list. The panel stays usable when the cohort grows.</div>
-          <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
-          <div id="patients" class="patient-list empty">No patients loaded.</div>
-        </section>
-        <div>
-          <section>
-            <h2>Dashboard</h2>
-            <div class="section-note">Overview metrics and quick cohort patterns to orient large datasets before drilling into one patient.</div>
-            <div id="dashboard" class="empty">Load patients to build the dashboard.</div>
-          </section>
-          <div class="detail-shell" style="margin-top:18px;">
-            <h2>Patient Workspace</h2>
-            <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
-            <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
-          </div>
+      <section id="cohortTab" class="tab-panel active">
+        <div class="controls">
+          <label for="dataDir">Local data directory</label>
+          <input id="dataDir" value="/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/data">
+          <button id="loadBtn" type="button">Load patients</button>
+          <div id="loadStatus" class="load-status">Choose a folder and click Load patients.</div>
         </div>
-      </div>
+
+          <section>
+            <div class="dashboard-shell">
+              <section>
+                <h2>Cohort</h2>
+                <div class="section-note">Search and filter the patient list. The panel stays usable when the cohort grows.</div>
+                <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
+                <div id="patients" class="patient-list empty">No patients loaded.</div>
+              </section>
+              <div>
+                <section>
+                  <h2>Dashboard</h2>
+                  <div class="section-note">Overview metrics and quick cohort patterns to orient large datasets before drilling into one patient.</div>
+                  <div id="dashboard" class="empty">Load patients to build the dashboard.</div>
+                </section>
+                <div class="detail-shell" style="margin-top:18px;">
+                  <h2>Patient Workspace</h2>
+                  <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
+                  <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+      </section>
+
+      <section id="queryTab" class="tab-panel">
+        <div class="controls">
+          <label for="question">Ask a question</label>
+          <div class="query-row">
+            <input id="question" value="How many patients have Prednisolone?">
+            <button id="askBtn" type="button">Run query</button>
+          </div>
+          <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
+          <div id="queryReply" class="empty">Ask about medications, diseases, or a patient timeline.</div>
+          <details id="queryDetails">
+            <summary>Show structured data</summary>
+            <pre id="queryData"></pre>
+          </details>
+        </div>
+      </section>
     </main>
 
     <script>
+      const cohortTabBtnEl = document.getElementById("cohortTabBtn");
+      const queryTabBtnEl = document.getElementById("queryTabBtn");
+      const cohortTabEl = document.getElementById("cohortTab");
+      const queryTabEl = document.getElementById("queryTab");
       const patientsEl = document.getElementById("patients");
       const dashboardEl = document.getElementById("dashboard");
       const detailEl = document.getElementById("detail");
       const dataDirEl = document.getElementById("dataDir");
+      const loadStatusEl = document.getElementById("loadStatus");
       const queryReplyEl = document.getElementById("queryReply");
+      const queryStatusEl = document.getElementById("queryStatus");
       const queryDataEl = document.getElementById("queryData");
       const queryDetailsEl = document.getElementById("queryDetails");
+      const questionEl = document.getElementById("question");
+      const askBtnEl = document.getElementById("askBtn");
+      const loadBtnEl = document.getElementById("loadBtn");
       const patientSearchEl = document.getElementById("patientSearch");
+      const MAX_VISIBLE_PATIENTS = 80;
       let selectedPatientId = null;
       let currentPatients = [];
+      let queryInFlight = false;
+      let loadInFlight = false;
+
+      function setActiveTab(tabName) {
+        const showCohort = tabName === "cohort";
+        cohortTabBtnEl.classList.toggle("active", showCohort);
+        queryTabBtnEl.classList.toggle("active", !showCohort);
+        cohortTabEl.classList.toggle("active", showCohort);
+        queryTabEl.classList.toggle("active", !showCohort);
+      }
 
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
@@ -534,13 +654,42 @@ def index() -> str:
           patientsEl.innerHTML = '<div class="empty">No patients match the current filter.</div>';
           return;
         }
-        patientsEl.innerHTML = items.map(summaryCard).join("");
-        patientsEl.querySelectorAll(".patient-card").forEach((node) => {
-          node.addEventListener("click", () => loadPatient(node.dataset.patientId));
-        });
+        const visibleItems = items.slice(0, MAX_VISIBLE_PATIENTS);
+        const summary = items.length > MAX_VISIBLE_PATIENTS
+          ? `<div class="section-note">Showing first ${MAX_VISIBLE_PATIENTS} of ${items.length} matching patients. Use search to narrow the list.</div>`
+          : "";
+        patientsEl.innerHTML = summary + visibleItems.map(summaryCard).join("");
       }
 
       function renderDetail(patient) {
+        const previewPayload = {
+          patient_id: patient.patient_id,
+          summary: patient.summary,
+          patient_context: patient.patient_context,
+          evidence: patient.evidence,
+          key_fragments: (patient.key_fragments || []).slice(0, 12).map((fragment) => ({
+            category: fragment.category,
+            label: fragment.label,
+            visit_id: fragment.visit_id,
+            event_type: fragment.event_type,
+            event_date: fragment.event_date,
+            source_file: fragment.source_file,
+            record_index: fragment.record_index,
+            path: fragment.path,
+          })),
+          visits: (patient.visits || []).slice(0, 8).map((visit) => ({
+            visit_id: visit.visit_id,
+            event_type: visit.event_type,
+            event_date: visit.event_date,
+            diagnosis: visit.diagnosis,
+            evidence: visit.evidence,
+            key_fragments: (visit.key_fragments || []).slice(0, 6).map((fragment) => ({
+              category: fragment.category,
+              label: fragment.label,
+              path: fragment.path,
+            })),
+          })),
+        };
         const fragments = (patient.key_fragments || []).map((fragment) => `
           <div class="fragment-card">
             <strong>${fragment.label}</strong>
@@ -577,45 +726,116 @@ def index() -> str:
             <h3>Key Fragments</h3>
             <div class="fragment-grid">${fragments || '<div class="empty">No key fragments available.</div>'}</div>
             <details>
-              <summary>Show full structured patient data</summary>
-              <pre>${JSON.stringify(patient, null, 2)}</pre>
+              <summary>Show structured patient preview</summary>
+              <pre>${JSON.stringify(previewPayload, null, 2)}</pre>
             </details>
           </div>
         `;
       }
 
+      function escapeHtml(value) {
+        return String(value)
+          .split("&").join("&amp;")
+          .split("<").join("&lt;")
+          .split(">").join("&gt;")
+          .split('"').join("&quot;")
+          .split("'").join("&#39;");
+      }
+
+      function renderInlineCode(value) {
+        const parts = String(value).split("`");
+        return parts.map((part, index) => {
+          if (index % 2 === 1) {
+            return `<code>${escapeHtml(part)}</code>`;
+          }
+          return escapeHtml(part);
+        }).join("");
+      }
+
+      function renderQueryReply(value) {
+        const blocks = String(value || "").split("\\r\\n").join("\\n").split("\\n\\n");
+        return blocks.map((block) => {
+          const lines = block.split("\\n").map((line) => line.trim()).filter(Boolean);
+          if (!lines.length) {
+            return "";
+          }
+          if (lines.every((line) => line.startsWith("- "))) {
+            return `<ul>${lines.map((line) => `<li>${renderInlineCode(line.slice(2))}</li>`).join("")}</ul>`;
+          }
+          return `<p>${lines.map((line) => renderInlineCode(line)).join("<br>")}</p>`;
+        }).join("");
+      }
+
+      function nextFrame() {
+        return new Promise((resolve) => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      }
+
       async function loadPatients() {
-        const dataDir = encodeURIComponent(dataDirEl.value.trim());
-        const [patientResponse, dashboardResponse] = await Promise.all([
-          fetch(`/patients?data_dir=${dataDir}`),
-          fetch(`/dashboard?data_dir=${dataDir}`)
-        ]);
-        if (!patientResponse.ok) {
-          const error = await patientResponse.json();
-          patientsEl.innerHTML = `<div class="empty">${error.detail}</div>`;
-          detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
-          dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+        if (loadInFlight) {
           return;
         }
+        loadInFlight = true;
+        loadBtnEl.disabled = true;
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Loading patients and dashboard...";
+        await nextFrame();
 
-        const patients = await patientResponse.json();
-        currentPatients = patients;
-        if (dashboardResponse.ok) {
-          renderDashboard(await dashboardResponse.json());
-        } else {
+        try {
+          const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
+          if (!patientResponse.ok) {
+            const error = await patientResponse.json();
+            patientsEl.innerHTML = `<div class="empty">${error.detail}</div>`;
+            detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
+            dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+            loadStatusEl.className = "load-status";
+            loadStatusEl.textContent = "Load failed.";
+            return;
+          }
+
+          const patients = await patientResponse.json();
+          currentPatients = patients;
+          if (!patients.length) {
+            selectedPatientId = null;
+            patientsEl.innerHTML = '<div class="empty">No patient records found in the selected directory.</div>';
+            detailEl.innerHTML = '<div class="empty">No timeline to display.</div>';
+            dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
+            loadStatusEl.className = "load-status";
+            loadStatusEl.textContent = "No patients found.";
+            return;
+          }
+
+          renderPatientList(filterPatients(patientSearchEl.value));
+          selectedPatientId = null;
+          detailEl.innerHTML = '<div class="empty">Select a patient to inspect the patient workspace.</div>';
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = `Loaded ${patients.length} patients.`;
+
+          dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
+          window.setTimeout(() => {
+            fetch(`/dashboard?data_dir=${dataDir}`)
+            .then(async (response) => {
+              if (!response.ok) {
+                dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+                return;
+              }
+              renderDashboard(await response.json());
+            })
+            .catch(() => {
+              dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+            });
+          }, 0);
+        } catch (error) {
+          patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
+          detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
           dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-        }
-        if (!patients.length) {
-          patientsEl.innerHTML = '<div class="empty">No patient records found in the selected directory.</div>';
-          detailEl.innerHTML = '<div class="empty">No timeline to display.</div>';
-          dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
-          return;
-        }
-
-        renderPatientList(filterPatients(patientSearchEl.value));
-
-        if (!selectedPatientId) {
-          await loadPatient(patients[0].patient_id);
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = error && error.message ? error.message : "Load failed.";
+        } finally {
+          loadInFlight = false;
+          loadBtnEl.disabled = false;
         }
       }
 
@@ -636,28 +856,74 @@ def index() -> str:
         }
         const patient = await response.json();
         renderDetail(patient);
-        await loadPatients();
+        renderPatientList(filterPatients(patientSearchEl.value));
       }
 
       async function askQuery() {
-        const dataDir = encodeURIComponent(dataDirEl.value.trim());
-        const question = encodeURIComponent(document.getElementById("question").value.trim());
-        const response = await fetch(`/query?data_dir=${dataDir}&q=${question}`);
-        if (!response.ok) {
-          const error = await response.json();
-          queryReplyEl.textContent = error.detail;
-          queryDataEl.textContent = "";
-          queryDetailsEl.open = false;
+        if (queryInFlight) {
           return;
         }
-        const payload = await response.json();
-        queryReplyEl.textContent = payload.reply;
-        queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
-        queryDetailsEl.open = false;
+        const dataDir = encodeURIComponent(dataDirEl.value.trim());
+        const question = questionEl.value.trim();
+        if (!question) {
+          queryStatusEl.textContent = "Enter a question first.";
+          return;
+        }
+        queryInFlight = true;
+        askBtnEl.disabled = true;
+        queryStatusEl.className = "query-status loading";
+        queryStatusEl.textContent = "Running query. Waiting for response...";
+        queryReplyEl.innerHTML = "<p><strong>Running query...</strong><br>Please wait.</p>";
+        await nextFrame();
+
+        try {
+          const response = await fetch(`/query?data_dir=${dataDir}&q=${encodeURIComponent(question)}`);
+          if (!response.ok) {
+            const error = await response.json();
+            queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
+            queryDataEl.textContent = "";
+            queryDetailsEl.open = false;
+            queryStatusEl.className = "query-status";
+            queryStatusEl.textContent = "Query failed.";
+            return;
+          }
+          const payload = await response.json();
+          queryReplyEl.innerHTML = renderQueryReply(payload.reply);
+          queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
+          queryDetailsEl.open = false;
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = "Done.";
+        } catch (error) {
+          queryReplyEl.innerHTML = `<p>${escapeHtml(error && error.message ? error.message : "Request failed.")}</p>`;
+          queryDataEl.textContent = "";
+          queryDetailsEl.open = false;
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = "Network error.";
+        } finally {
+          queryInFlight = false;
+          askBtnEl.disabled = false;
+        }
       }
 
-      document.getElementById("loadBtn").addEventListener("click", loadPatients);
-      document.getElementById("askBtn").addEventListener("click", askQuery);
+      loadBtnEl.addEventListener("click", loadPatients);
+      askBtnEl.addEventListener("click", askQuery);
+      cohortTabBtnEl.addEventListener("click", () => setActiveTab("cohort"));
+      queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
+      window.__patientNavigatorLoadPatients = loadPatients;
+      window.__patientNavigatorAskQuery = askQuery;
+      patientsEl.addEventListener("click", (event) => {
+        const card = event.target.closest(".patient-card");
+        if (!card || !patientsEl.contains(card)) {
+          return;
+        }
+        loadPatient(card.dataset.patientId);
+      });
+      questionEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          askQuery();
+        }
+      });
       patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
     </script>
   </body>
@@ -724,6 +990,18 @@ def query_app(
 ) -> Dict:
     try:
         return answer_query(data_dir, q)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/query")
+def query_app_post(request: QueryRequest) -> Dict:
+    try:
+        return answer_query(
+            request.data_dir,
+            request.q,
+            history=[turn.model_dump() for turn in request.history],
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
