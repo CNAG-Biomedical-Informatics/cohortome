@@ -350,3 +350,92 @@ def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
     user_message = captured["payload"]["messages"][1]["content"]
     assert "conversation_history" in user_message
     assert "Show patient 107" in user_message
+
+
+def test_query_lists_patients_with_more_than_one_medication(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}},
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Azathioprine"}},
+                ],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}
+                ],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "treatments": [],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients take more than 1 medication?")
+    assert payload["intent"] == "patient_medication_count_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patients"][0]["patient_id"] == "101"
+    assert "more than 1 medication" in payload["reply"]
+
+
+def test_query_counts_patients_with_exactly_one_medication(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}},
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Azathioprine"}},
+                ],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}
+                ],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "treatments": [],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients take exactly 1 medication?")
+    assert payload["intent"] == "patient_medication_count_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patients"][0]["patient_id"] == "202"
+    assert payload["reply"] == "1 patient has exactly 1 medication."
+
+
+def test_query_lists_patients_with_no_medications(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}
+                ],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "treatments": [],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients have no medications?")
+    assert payload["intent"] == "patient_medication_count_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patients"][0]["patient_id"] == "202"
+    assert "no medications" in payload["reply"]

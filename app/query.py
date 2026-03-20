@@ -8,6 +8,7 @@ from app.bff import (
     build_patient_navigator,
     dashboard_summary,
     ensure_data_dir,
+    extract_treatment_labels,
     group_patients,
     list_patient_summaries,
     medication_cohort,
@@ -115,6 +116,109 @@ def _extract_patient_id(text: str) -> Optional[str]:
     return None
 
 
+def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
+    resolved_dir = ensure_data_dir(data_dir)
+    bundles = group_patients(resolved_dir)
+    rows: List[Dict[str, Any]] = []
+
+    for patient_id, bundle in sorted(bundles.items()):
+        medication_labels: List[str] = []
+        disease_labels: List[str] = []
+
+        for visit in bundle.context.visits:
+            for label in extract_treatment_labels(visit.provenance.raw_bff):
+                if label not in medication_labels:
+                    medication_labels.append(label)
+            for label in _extract_disease_labels(visit.provenance.raw_bff):
+                if label not in disease_labels:
+                    disease_labels.append(label)
+
+        rows.append(
+            {
+                "patient_id": patient_id,
+                "sex": bundle.context.sex,
+                "visit_count": len(bundle.context.visits),
+                "medications": medication_labels,
+                "medication_count": len(medication_labels),
+                "diseases": disease_labels,
+                "disease_count": len(disease_labels),
+            }
+        )
+
+    return rows
+
+
+def _medication_count_constraint(query: str) -> Optional[Dict[str, Any]]:
+    lowered = query.lower()
+    if not any(keyword in lowered for keyword in ("medication", "medications", "drug", "drugs", "treatment", "treatments")):
+        return None
+
+    patterns = [
+        (r"\bmore than\s+(\d+)\s+(?:medications?|drugs?|treatments?)\b", "gt"),
+        (r"\bat least\s+(\d+)\s+(?:medications?|drugs?|treatments?)\b", "gte"),
+        (r"\bless than\s+(\d+)\s+(?:medications?|drugs?|treatments?)\b", "lt"),
+        (r"\bat most\s+(\d+)\s+(?:medications?|drugs?|treatments?)\b", "lte"),
+        (r"\bexactly\s+(\d+)\s+(?:medications?|drugs?|treatments?)\b", "eq"),
+    ]
+    for pattern, operator in patterns:
+        match = re.search(pattern, lowered)
+        if match:
+            return {"operator": operator, "value": int(match.group(1))}
+
+    if re.search(r"\bno\s+(?:medications?|drugs?|treatments?)\b", lowered):
+        return {"operator": "eq", "value": 0}
+    if re.search(r"\bmore than one\s+(?:medications?|drugs?|treatments?)\b", lowered):
+        return {"operator": "gt", "value": 1}
+    if re.search(r"\bmore than 1\s+(?:medications?|drugs?|treatments?)\b", lowered):
+        return {"operator": "gt", "value": 1}
+    if re.search(r"\bone medication\b", lowered) and "more than" not in lowered and "less than" not in lowered:
+        return {"operator": "eq", "value": 1}
+    return None
+
+
+def _matches_numeric_constraint(value: int, operator: str, target: int) -> bool:
+    if operator == "gt":
+        return value > target
+    if operator == "gte":
+        return value >= target
+    if operator == "lt":
+        return value < target
+    if operator == "lte":
+        return value <= target
+    return value == target
+
+
+def patient_medication_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+    patients = []
+    for row in _patient_query_index(data_dir):
+        if _matches_numeric_constraint(row["medication_count"], operator, target):
+            patients.append(row)
+
+    return {
+        "operator": operator,
+        "target": target,
+        "patient_count": len(patients),
+        "patients": patients,
+    }
+
+
+def _format_medication_count_constraint(operator: str, target: int) -> str:
+    noun = "medication" if target == 1 else "medications"
+    if operator == "gt":
+        return f"more than {target} {noun}"
+    if operator == "gte":
+        return f"at least {target} {noun}"
+    if operator == "lt":
+        return f"less than {target} {noun}"
+    if operator == "lte":
+        return f"at most {target} {noun}"
+    if target == 0:
+        return "no medications"
+    if target == 1:
+        return "exactly 1 medication"
+    return f"exactly {target} medications"
+
+
 def _render_patient_summary(navigator: Dict[str, Any]) -> str:
     summary = navigator["summary"]
     context = navigator["patient_context"]
@@ -146,7 +250,7 @@ def _lm_studio_enabled() -> bool:
 
 
 def _lm_studio_base_url() -> str:
-    return os.getenv("LM_STUDIO_BASE_URL", "http://192.168.1.41:1234/v1").rstrip("/")
+    return os.getenv("LM_STUDIO_BASE_URL", "http://192.168.1.42:1234/v1").rstrip("/")
 
 
 def _lm_studio_timeout() -> float:
@@ -465,6 +569,41 @@ def answer_query(
             "data": {
                 "follow_up_suggestions": _follow_up_suggestions(text),
                 "conversation_history": history[-8:] if history else [],
+            },
+        }
+
+    medication_count_constraint = _medication_count_constraint(text)
+    if medication_count_constraint is not None and (
+        lowered.startswith("which patients")
+        or lowered.startswith("how many patients")
+        or lowered.startswith("list patients")
+    ):
+        operator = medication_count_constraint["operator"]
+        target = medication_count_constraint["value"]
+        cohort = patient_medication_count_cohort(data_dir, operator, target)
+        label = _format_medication_count_constraint(operator, target)
+        if lowered.startswith("how many"):
+            verb = "has" if cohort["patient_count"] == 1 else "have"
+            noun = "patient" if cohort["patient_count"] == 1 else "patients"
+            reply = "%s %s %s %s." % (cohort["patient_count"], noun, verb, label)
+        else:
+            patient_ids = [item["patient_id"] for item in cohort["patients"]]
+            reply = "Patients with %s: %s." % (
+                label,
+                ", ".join(patient_ids) if patient_ids else "none",
+            )
+        return {
+            "query": query,
+            "intent": "patient_medication_count_cohort",
+            "reply": reply,
+            "data": {
+                **cohort,
+                "constraint_label": label,
+                "follow_up_suggestions": [
+                    "How many patients have %s?" % label,
+                    "Which patients have no medications?",
+                    "Which patients have exactly 1 medication?",
+                ],
             },
         }
 

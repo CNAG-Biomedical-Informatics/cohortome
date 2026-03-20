@@ -1,0 +1,201 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Patient-Navigator</title>
+        <link rel="stylesheet" href="/static/app.css">
+
+  </head>
+  <body>
+    <main>
+      <div class="hero">
+        <h1>Patient-Navigator</h1>
+        <p>Explore patient timelines, inspect visit evidence, and answer common clinical questions from local records through a compact navigator interface.</p>
+      </div>
+
+      <div class="tab-bar">
+        <button id="cohortTabBtn" class="tab-btn active" type="button">Cohort</button>
+        <button id="queryTabBtn" class="tab-btn" type="button">Query</button>
+        <button id="phenoTabBtn" class="tab-btn" type="button">Pheno-Ranker</button>
+      </div>
+
+      <section id="cohortTab" class="tab-panel active">
+        <div class="controls">
+          <label for="dataDir">Local data directory</label>
+          <input id="dataDir" value="{{ default_data_dir }}">
+          <button id="loadBtn" type="button">Load patients</button>
+          <div id="loadStatus" class="load-status">Choose a folder and click Load patients.</div>
+        </div>
+
+          <section>
+            <div class="dashboard-shell">
+              <section>
+                <h2>Cohort</h2>
+                <div class="section-note">Search and filter the patient list. The panel stays usable when the cohort grows.</div>
+                <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
+                <div id="patients" class="patient-list empty">No patients loaded.</div>
+              </section>
+              <div>
+                <section>
+                  <h2>Dashboard</h2>
+                  <div class="section-note">Overview metrics and quick cohort patterns to orient large datasets before drilling into one patient.</div>
+                  <div id="dashboard" class="empty">Load patients to build the dashboard.</div>
+                </section>
+                <div class="detail-shell" style="margin-top:18px;">
+                  <h2>Patient Workspace</h2>
+                  <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
+                  <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+      </section>
+
+      <section id="queryTab" class="tab-panel">
+        <div class="controls">
+          <label for="question">Ask a question</label>
+          <div class="query-row">
+            <textarea id="question">How many patients have Prednisolone?</textarea>
+            <button id="askBtn" type="button">Run query</button>
+          </div>
+          <div class="query-examples" id="queryExamples">
+            <button type="button" class="query-chip" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
+            <button type="button" class="query-chip" data-prompt="List medications in this cohort">List medications in this cohort</button>
+            <button type="button" class="query-chip" data-prompt="Show patient 107">Show patient 107</button>
+            <button type="button" class="query-chip" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
+          </div>
+          <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
+          <div id="queryMeta" class="query-meta"></div>
+          <div class="query-section">
+            <h3>Answer</h3>
+            <div id="queryReply" class="empty">Ask about medications, diseases, or a patient timeline.</div>
+          </div>
+          <div class="query-section">
+            <h3>Why This Answer</h3>
+            <div id="queryReason" class="empty">Run a query to see how the answer was produced.</div>
+          </div>
+          <div id="queryFollowups" class="query-followups"></div>
+          <details id="queryDetails" class="query-section">
+            <summary>Show structured data</summary>
+            <pre id="queryData"></pre>
+          </details>
+        </div>
+      </section>
+
+      <section id="phenoTab" class="tab-panel">
+        <div class="controls">
+          <label for="phenoMode">Pheno-Ranker</label>
+          <div class="section-note">Uses the selected data directory above. The backend will prefer <code>bff.json</code>, then <code>individuals.json</code>. Disease filtering below is an app-side cohort subset, not a native <code>pheno-ranker</code> CLI flag.</div>
+          <div class="query-section">
+            <label for="phenoPrompt">Describe run</label>
+            <textarea id="phenoPrompt" rows="3" placeholder="Compare patient 107 to all others and generate MDS"></textarea>
+            <div class="pheno-actions" style="margin-top:12px;">
+              <button id="phenoPlanBtn" type="button">Interpret request</button>
+              <button id="phenoPlanRunBtn" type="button">Interpret and run</button>
+            </div>
+            <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language, then interpret it into a validated plan.</div>
+          </div>
+          <div class="pheno-result-grid">
+            <div class="pheno-result-card">
+              <h3>Interpreted Plan</h3>
+              <pre id="phenoPlan">No interpreted plan yet.</pre>
+            </div>
+            <div class="pheno-result-card">
+              <h3>Planner Reasoning</h3>
+              <div id="phenoPlanReasoning" class="empty">No planner reasoning yet.</div>
+            </div>
+          </div>
+          <div class="pheno-grid">
+            <div>
+              <label for="phenoAction">Action</label>
+              <select id="phenoAction">
+                <option value="compare">Compare</option>
+                <option value="extract">Extract patients of interest</option>
+              </select>
+            </div>
+            <div>
+              <label for="phenoMode">Mode</label>
+              <select id="phenoMode">
+                <option value="cohort">Cohort mode (-r)</option>
+                <option value="patient">Patient mode (-r -t)</option>
+              </select>
+            </div>
+            <div id="phenoPatientField" class="is-hidden">
+              <label for="phenoPatientId">Patient ID</label>
+              <input id="phenoPatientId" placeholder="107">
+            </div>
+            <div>
+              <label for="phenoSelectedPatientIds">Selected patient IDs</label>
+              <input id="phenoSelectedPatientIds" placeholder="107,108,109">
+            </div>
+            <div>
+              <label for="phenoIncludeTerms">Include terms</label>
+              <input id="phenoIncludeTerms" placeholder="diseases,phenotypicFeatures,treatments">
+            </div>
+            <div>
+              <label for="phenoExcludeTerms">Exclude terms</label>
+              <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures">
+            </div>
+            <div>
+              <label for="phenoSimilarityMetric">Cohort metric</label>
+              <select id="phenoSimilarityMetric">
+                <option value="">Default</option>
+                <option value="hamming">Hamming</option>
+                <option value="jaccard">Jaccard</option>
+              </select>
+            </div>
+            <div>
+              <label for="phenoSortBy">Sort by</label>
+              <select id="phenoSortBy">
+                <option value="">Default</option>
+                <option value="hamming">Hamming</option>
+                <option value="jaccard">Jaccard</option>
+              </select>
+            </div>
+            <div id="phenoMaxOutField">
+              <label for="phenoMaxOut">Max output rows</label>
+              <input id="phenoMaxOut" type="number" min="1" value="10">
+            </div>
+          </div>
+          <div class="pheno-checks" id="phenoPlotChecks">
+            <label><input id="phenoRenderHeatmap" type="checkbox" checked> Render heatmap</label>
+            <label><input id="phenoRenderMds" type="checkbox" checked> Render MDS</label>
+          </div>
+          <div class="pheno-actions">
+            <button id="phenoRunBtn" type="button">Run Pheno-Ranker</button>
+          </div>
+          <div id="phenoStatus" class="pheno-status">Choose a mode and run Pheno-Ranker.</div>
+          <div class="pheno-result-grid">
+            <div class="pheno-result-card">
+              <h3>Command</h3>
+              <pre id="phenoCommand">No run yet.</pre>
+            </div>
+            <div class="pheno-result-card">
+              <h3>Files</h3>
+              <div id="phenoFiles" class="empty">No output files yet.</div>
+            </div>
+          </div>
+          <div class="pheno-result-grid">
+            <div class="pheno-result-card">
+              <h3>Output Preview</h3>
+              <div id="phenoOutputPreview" class="empty">No output preview yet.</div>
+            </div>
+            <div class="pheno-result-card">
+              <h3>Logs</h3>
+              <pre id="phenoLogs">No logs yet.</pre>
+            </div>
+            <div class="pheno-result-card">
+              <h3>Plots</h3>
+              <div id="phenoPreviews" class="pheno-preview-grid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+        <script src="/static/app.js"></script>
+
+  </body>
+</html>
