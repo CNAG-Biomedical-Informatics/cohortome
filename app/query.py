@@ -14,6 +14,16 @@ from app.bff import (
     medication_cohort,
     medication_counts,
     normalize_value,
+    read_bff_records,
+)
+from app.query_store import (
+    disease_cohort as store_disease_cohort,
+    disease_counts as store_disease_counts,
+    duckdb_available,
+    medication_cohort as store_medication_cohort,
+    medication_counts as store_medication_counts,
+    patient_medication_count_cohort as store_patient_medication_count_cohort,
+    patient_query_index as store_patient_query_index,
 )
 
 
@@ -49,17 +59,22 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
     for patient_id, bundle in sorted(bundles.items()):
         matched_visits: List[Dict[str, Any]] = []
         matched_labels: List[str] = []
+        original_record_ids: List[str] = []
         for visit in bundle.context.visits:
             labels = _extract_disease_labels(visit.provenance.raw_bff)
             visit_matches = [label for label in labels if query in label.lower()]
             if not visit_matches:
                 continue
+            original_id = normalize_value(visit.provenance.raw_bff.get("id"))
+            if isinstance(original_id, str) and original_id not in original_record_ids:
+                original_record_ids.append(original_id)
             for label in visit_matches:
                 if label not in matched_labels:
                     matched_labels.append(label)
             matched_visits.append(
                 {
                     "visit_id": visit.visit_id,
+                    "original_id": str(original_id) if isinstance(original_id, str) else None,
                     "event_type": visit.event_type,
                     "event_date": visit.event_date,
                     "matched_diseases": visit_matches,
@@ -75,6 +90,7 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
                     "sex": bundle.context.sex,
                     "visit_count": len(matched_visits),
                     "matched_diseases": matched_labels,
+                    "original_record_ids": original_record_ids,
                     "visits": matched_visits,
                 }
             )
@@ -109,6 +125,57 @@ def disease_counts(data_dir: str) -> List[Dict[str, Any]]:
     return sorted(counts.values(), key=lambda item: (-item["patient_count"], item["disease"]))
 
 
+def _patient_inventory(data_dir: str) -> List[str]:
+    resolved_dir = ensure_data_dir(data_dir)
+    ids: List[str] = []
+    seen = set()
+    for _, _, record in read_bff_records(resolved_dir):
+        raw_id = normalize_value(record.get("id"))
+        patient_id = normalize_value(record.get("patient_id"))
+        candidate = str(raw_id or patient_id or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        ids.append(candidate)
+    return sorted(ids)
+
+
+def _medication_counts(data_dir: str) -> List[Dict[str, Any]]:
+    if duckdb_available():
+        try:
+            return store_medication_counts(data_dir)
+        except Exception:
+            pass
+    return medication_counts(data_dir)
+
+
+def _disease_counts(data_dir: str) -> List[Dict[str, Any]]:
+    if duckdb_available():
+        try:
+            return store_disease_counts(data_dir)
+        except Exception:
+            pass
+    return disease_counts(data_dir)
+
+
+def _medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
+    if duckdb_available():
+        try:
+            return store_medication_cohort(data_dir, medication_query)
+        except Exception:
+            pass
+    return medication_cohort(data_dir, medication_query)
+
+
+def _disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
+    if duckdb_available():
+        try:
+            return store_disease_cohort(data_dir, disease_query)
+        except Exception:
+            pass
+    return disease_cohort(data_dir, disease_query)
+
+
 def _extract_patient_id(text: str) -> Optional[str]:
     match = re.search(r"\bpatient\s+([A-Za-z0-9:_-]+)\b", text, flags=re.IGNORECASE)
     if match:
@@ -117,6 +184,8 @@ def _extract_patient_id(text: str) -> Optional[str]:
 
 
 def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
+    if duckdb_available():
+        return store_patient_query_index(data_dir)
     resolved_dir = ensure_data_dir(data_dir)
     bundles = group_patients(resolved_dir)
     rows: List[Dict[str, Any]] = []
@@ -189,6 +258,11 @@ def _matches_numeric_constraint(value: int, operator: str, target: int) -> bool:
 
 
 def patient_medication_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+    if duckdb_available():
+        try:
+            return store_patient_medication_count_cohort(data_dir, operator, target)
+        except Exception:
+            pass
     patients = []
     for row in _patient_query_index(data_dir):
         if _matches_numeric_constraint(row["medication_count"], operator, target):
@@ -217,6 +291,23 @@ def _format_medication_count_constraint(operator: str, target: int) -> str:
     if target == 1:
         return "exactly 1 medication"
     return f"exactly {target} medications"
+
+
+def _is_patient_list_query(text: str) -> bool:
+    lowered = text.lower()
+    patterns = (
+        "list patients",
+        "list of patients",
+        "patients in the cohort",
+        "patient ids in the cohort",
+        "patient ids",
+        "list all patients",
+        "show all patients",
+        "tell me the list of patients",
+        "which patients are in the cohort",
+        "who is in the cohort",
+    )
+    return any(pattern in lowered for pattern in patterns)
 
 
 def _render_patient_summary(navigator: Dict[str, Any]) -> str:
@@ -379,8 +470,8 @@ def _lm_studio_context(data_dir: str, query: str, history: Optional[List[Dict[st
     context: Dict[str, Any] = {
         "question": query,
         "dataset_overview": dashboard_summary(data_dir)["totals"],
-        "top_medications": [item["medication"] for item in medication_counts(data_dir)[:10]],
-        "top_diseases": [item["disease"] for item in disease_counts(data_dir)[:10]],
+        "top_medications": [item["medication"] for item in _medication_counts(data_dir)[:10]],
+        "top_diseases": [item["disease"] for item in _disease_counts(data_dir)[:10]],
         "patient_summaries": [
             {
                 "patient_id": summary.patient_id,
@@ -607,10 +698,29 @@ def answer_query(
             },
         }
 
+    if _is_patient_list_query(text):
+        patient_ids = _patient_inventory(data_dir)
+        reply_lines = ["Patients in the cohort (%s):" % len(patient_ids)]
+        reply_lines.extend("- %s" % patient_id for patient_id in patient_ids)
+        return {
+            "query": query,
+            "intent": "patient_inventory",
+            "reply": "\n".join(reply_lines),
+            "data": {
+                "patient_count": len(patient_ids),
+                "patient_ids": patient_ids,
+                "follow_up_suggestions": [
+                    "How many patients are in this cohort?",
+                    "Show patient %s" % (patient_ids[0] if patient_ids else "107"),
+                    "Which patients have more than 1 medication?",
+                ],
+            },
+        }
+
     if lowered.startswith("how many patients have ") or lowered.startswith("which patients have "):
         term = re.sub(r"^(how many patients have|which patients have)\s+", "", text, flags=re.IGNORECASE).strip(" ?.")
-        medication = medication_cohort(data_dir, term)
-        disease = disease_cohort(data_dir, term)
+        medication = _medication_cohort(data_dir, term)
+        disease = _disease_cohort(data_dir, term)
         if medication["patient_count"] > 0 and disease["patient_count"] == 0:
             if lowered.startswith("how many"):
                 reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
@@ -630,7 +740,7 @@ def answer_query(
                 },
             }
 
-        disease = disease_cohort(data_dir, term)
+        disease = _disease_cohort(data_dir, term)
         if disease["patient_count"] > 0:
             if lowered.startswith("how many"):
                 reply = "%s patients match disease query '%s'." % (disease["patient_count"], term)
@@ -675,7 +785,7 @@ def answer_query(
     )
     if medication_match:
         medication = text[medication_match.start(1):].strip(" ?.")
-        cohort = medication_cohort(data_dir, medication)
+        cohort = _medication_cohort(data_dir, medication)
         patient_ids = [item["patient_id"] for item in cohort["patients"]]
         return {
             "query": query,
@@ -691,7 +801,7 @@ def answer_query(
         }
 
     if "what medications" in lowered or "list medications" in lowered:
-        counts = medication_counts(data_dir)
+        counts = _medication_counts(data_dir)
         meds = [item["medication"] for item in counts[:20]]
         return {
             "query": query,
@@ -708,7 +818,7 @@ def answer_query(
         }
 
     if "what diseases" in lowered or "list diseases" in lowered:
-        counts = disease_counts(data_dir)
+        counts = _disease_counts(data_dir)
         labels = [item["disease"] for item in counts[:20]]
         return {
             "query": query,

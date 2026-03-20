@@ -646,17 +646,22 @@ def medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
     for patient_id, bundle in sorted(bundles.items()):
         matched_visits: List[Dict[str, Any]] = []
         matched_labels: List[str] = []
+        original_record_ids: List[str] = []
         for visit in bundle.context.visits:
             labels = extract_treatment_labels(visit.provenance.raw_bff)
             visit_matches = [label for label in labels if query in label.lower()]
             if not visit_matches:
                 continue
+            original_id = normalize_value(visit.provenance.raw_bff.get("id"))
+            if isinstance(original_id, str) and original_id not in original_record_ids:
+                original_record_ids.append(original_id)
             for label in visit_matches:
                 if label not in matched_labels:
                     matched_labels.append(label)
             matched_visits.append(
                 {
                     "visit_id": visit.visit_id,
+                    "original_id": str(original_id) if isinstance(original_id, str) else None,
                     "event_type": visit.event_type,
                     "event_date": visit.event_date,
                     "matched_medications": visit_matches,
@@ -672,6 +677,7 @@ def medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
                     "sex": bundle.context.sex,
                     "visit_count": len(matched_visits),
                     "matched_medications": matched_labels,
+                    "original_record_ids": original_record_ids,
                     "visits": matched_visits,
                 }
             )

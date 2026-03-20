@@ -19,6 +19,7 @@ from app.main import (
     search_medication_cohort,
 )
 from app.query import answer_query
+from app.query_store import duckdb_available, medication_counts as store_medication_counts, patient_inventory as store_patient_inventory
 
 
 def write_json(tmp_path, name, payload):
@@ -296,7 +297,7 @@ def test_query_uses_lm_studio_fallback_when_enabled(tmp_path, monkeypatch):
     assert payload["intent"] == "llm_fallback"
     assert payload["reply"] == "LM Studio answer"
     assert payload["data"]["model"] == "local-model"
-    assert payload["data"]["base_url"] == "http://192.168.1.41:1234/v1"
+    assert payload["data"]["base_url"] == "http://192.168.1.42:1234/v1"
 
 
 def test_query_reports_missing_lm_studio_model(tmp_path, monkeypatch):
@@ -439,3 +440,78 @@ def test_query_lists_patients_with_no_medications(tmp_path):
     assert payload["data"]["patient_count"] == 1
     assert payload["data"]["patients"][0]["patient_id"] == "202"
     assert "no medications" in payload["reply"]
+
+
+def test_query_lists_all_patients_in_cohort(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {"id": "1:week_0_arm_1", "treatments": []},
+            {"id": "1004:week_0_arm_1", "treatments": []},
+            {"id": "1005:week_0_arm_1", "treatments": []},
+            {"id": "101:week_0_arm_1", "treatments": []},
+            {"id": "102:week_0_arm_1", "treatments": []},
+            {"id": "1022:week_0_arm_1", "treatments": []},
+            {"id": "1024:week_0_arm_1", "treatments": []},
+            {"id": "103:week_0_arm_1", "treatments": []},
+            {"id": "104:week_0_arm_1", "treatments": []},
+            {"id": "105:week_0_arm_1", "treatments": []},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "tell me the list of patients on the cohort")
+    assert payload["intent"] == "patient_inventory"
+    assert payload["data"]["patient_count"] == 10
+    assert payload["data"]["patient_ids"] == [
+        "1004:week_0_arm_1",
+        "1005:week_0_arm_1",
+        "101:week_0_arm_1",
+        "1022:week_0_arm_1",
+        "1024:week_0_arm_1",
+        "102:week_0_arm_1",
+        "103:week_0_arm_1",
+        "104:week_0_arm_1",
+        "105:week_0_arm_1",
+        "1:week_0_arm_1",
+    ]
+    assert "- 104:week_0_arm_1" in payload["reply"]
+    assert "- 105:week_0_arm_1" in payload["reply"]
+
+
+def test_duckdb_query_store_indexes_multiple_files(tmp_path):
+    if not duckdb_available():
+        return
+
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "Beacon_1",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "Beacon_2",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+    write_json(
+        tmp_path,
+        "omop-cdm.json",
+        [
+            {
+                "id": "101:week_0",
+                "treatments": [{"_visit": {"id": "week_0"}, "treatmentCode": {"label": "Infliximab"}}],
+            }
+        ],
+    )
+
+    assert store_patient_inventory(str(tmp_path)) == ["101", "Beacon_1", "Beacon_2"]
+    meds = store_medication_counts(str(tmp_path))
+    assert meds[0]["medication"] == "Infliximab"
+    assert meds[0]["patient_count"] == 2
+    assert meds[0]["patients"] == ["101", "Beacon_1"]

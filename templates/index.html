@@ -60,11 +60,22 @@
             <textarea id="question">How many patients have Prednisolone?</textarea>
             <button id="askBtn" type="button">Run query</button>
           </div>
+          <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-llm badge">LM-based</span></div>
           <div class="query-examples" id="queryExamples">
-            <button type="button" class="query-chip" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
-            <button type="button" class="query-chip" data-prompt="List medications in this cohort">List medications in this cohort</button>
-            <button type="button" class="query-chip" data-prompt="Show patient 107">Show patient 107</button>
-            <button type="button" class="query-chip" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients on the cohort">List all patients in the cohort</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this cohort">List medications in this cohort</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this cohort">List diseases in this cohort</button>
+            <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient 107">Show patient 107</button>
+            <button type="button" class="query-chip query-chip-llm" data-prompt="What happened to this cohort over time?">What happened to this cohort over time?</button>
+            <button type="button" class="query-chip query-chip-llm" data-prompt="Explain the cohort">Explain the cohort</button>
+            <button type="button" class="query-chip query-chip-llm" data-prompt="Summarize the main treatment patterns in this cohort">Summarize treatment patterns</button>
+            <button type="button" class="query-chip query-chip-llm" data-prompt="What are the main clinical themes in this dataset?">Main clinical themes</button>
+            <button type="button" class="query-chip query-chip-llm" data-prompt="What evidence supports the main cohort summary?">What evidence supports the summary?</button>
           </div>
           <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
           <div id="queryMeta" class="query-meta"></div>
@@ -76,6 +87,7 @@
             <h3>Why This Answer</h3>
             <div id="queryReason" class="empty">Run a query to see how the answer was produced.</div>
           </div>
+          <div id="queryActions" class="query-actions"></div>
           <div id="queryFollowups" class="query-followups"></div>
           <details id="queryDetails" class="query-section">
             <summary>Show structured data</summary>
@@ -87,15 +99,33 @@
       <section id="phenoTab" class="tab-panel">
         <div class="controls">
           <label for="phenoMode">Pheno-Ranker</label>
-          <div class="section-note">Uses the selected data directory above. The backend will prefer <code>bff.json</code>, then <code>individuals.json</code>. Disease filtering below is an app-side cohort subset, not a native <code>pheno-ranker</code> CLI flag.</div>
+          <div class="section-note">Uses the selected data directory and current scope.</div>
+          <div id="phenoReferenceFilesSummary" class="section-note">Active cohort files: loading...</div>
           <div class="query-section">
             <label for="phenoPrompt">Describe run</label>
             <textarea id="phenoPrompt" rows="3" placeholder="Compare patient 107 to all others and generate MDS"></textarea>
+            <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-llm badge">LM-based</span></div>
+            <div class="query-examples" id="phenoExamples">
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare all patients by phenotypicFeatures and diseases">Compare all by phenotypes and diseases</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Find closest matches to Beacon_5 by disease">Find closest matches to Beacon_5 by disease</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare patient Beacon_7 to all others using phenotypicFeatures">Compare one patient to all</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Extract patients Beacon_1, Beacon_2, Beacon_3">Extract selected patients</button>
+              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the selected patients by disease and explain the best matches">Compare selected patients by disease</button>
+              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Find the most relevant phenotypic matches for Beacon_12 and explain why they match">Explain why matches occur</button>
+              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare all patients using the most informative top-level terms and generate both plots">Use the most informative top-level terms</button>
+              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the current scope and focus on the clinically most relevant similarities">Focus on clinically relevant similarities</button>
+            </div>
+            <div style="margin-top:12px;">
+              <label for="phenoSelectedPatientIds">Scope</label>
+              <input id="phenoSelectedPatientIds" placeholder="Full cohort by default, or provide a subset like 107,108,109">
+              <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full cohort.</div>
+            </div>
             <div class="pheno-actions" style="margin-top:12px;">
               <button id="phenoPlanBtn" type="button">Interpret request</button>
               <button id="phenoPlanRunBtn" type="button">Interpret and run</button>
             </div>
-            <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language, then interpret it into a validated plan.</div>
+            <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
+            <div id="phenoPlanMeta" class="query-meta"></div>
           </div>
           <div class="pheno-result-grid">
             <div class="pheno-result-card">
@@ -127,10 +157,6 @@
               <input id="phenoPatientId" placeholder="107">
             </div>
             <div>
-              <label for="phenoSelectedPatientIds">Selected patient IDs</label>
-              <input id="phenoSelectedPatientIds" placeholder="107,108,109">
-            </div>
-            <div>
               <label for="phenoIncludeTerms">Include terms</label>
               <input id="phenoIncludeTerms" placeholder="diseases,phenotypicFeatures,treatments">
             </div>
@@ -159,36 +185,61 @@
               <input id="phenoMaxOut" type="number" min="1" value="10">
             </div>
           </div>
+          <div class="pheno-checks is-hidden" id="phenoAlignChecks">
+            <label><input id="phenoAlign" type="checkbox" checked> Generate alignment files (--align)</label>
+          </div>
           <div class="pheno-checks" id="phenoPlotChecks">
             <label><input id="phenoRenderHeatmap" type="checkbox" checked> Render heatmap</label>
             <label><input id="phenoRenderMds" type="checkbox" checked> Render MDS</label>
           </div>
           <div class="pheno-actions">
             <button id="phenoRunBtn" type="button">Run Pheno-Ranker</button>
+            <button id="phenoExplainBtn" type="button">Explain results</button>
+            <button id="phenoExplainLlmBtn" type="button">Explain with LLM</button>
           </div>
           <div id="phenoStatus" class="pheno-status">Choose a mode and run Pheno-Ranker.</div>
           <div class="pheno-result-grid">
-            <div class="pheno-result-card">
-              <h3>Command</h3>
-              <pre id="phenoCommand">No run yet.</pre>
+            <div class="pheno-result-card pheno-result-card-full">
+              <h3>Plots</h3>
+              <div id="phenoPreviews" class="pheno-preview-grid"></div>
             </div>
-            <div class="pheno-result-card">
-              <h3>Files</h3>
-              <div id="phenoFiles" class="empty">No output files yet.</div>
+          </div>
+          <div class="pheno-result-grid">
+            <div class="pheno-result-card pheno-result-card-full">
+              <h3>Explain Results</h3>
+              <div id="phenoExplainDetail" class="empty">Run patient mode, then click <code>Explain results</code> to summarize the top matches from <code>rank.txt</code>.</div>
             </div>
           </div>
           <div class="pheno-result-grid">
             <div class="pheno-result-card">
-              <h3>Output Preview</h3>
-              <div id="phenoOutputPreview" class="empty">No output preview yet.</div>
+              <details id="phenoOutputDetails" open>
+                <summary><h3>Output Preview</h3></summary>
+                <div id="phenoOutputPreview" class="empty">No output preview yet.</div>
+              </details>
             </div>
             <div class="pheno-result-card">
-              <h3>Logs</h3>
-              <pre id="phenoLogs">No logs yet.</pre>
+              <h3>Alignment Details</h3>
+              <div id="phenoAlignmentDetail" class="empty">Run patient mode, then click one row in <code>rank.txt</code> to inspect matched variables for that pair.</div>
+            </div>
+          </div>
+          <div class="pheno-result-grid pheno-result-grid-secondary">
+            <div class="pheno-result-card">
+              <details>
+                <summary><h3>Command</h3></summary>
+                <pre id="phenoCommand">No run yet.</pre>
+              </details>
             </div>
             <div class="pheno-result-card">
-              <h3>Plots</h3>
-              <div id="phenoPreviews" class="pheno-preview-grid"></div>
+              <details>
+                <summary><h3>Files</h3></summary>
+                <div id="phenoFiles" class="empty">No output files yet.</div>
+              </details>
+            </div>
+            <div class="pheno-result-card">
+              <details>
+                <summary><h3>Logs</h3></summary>
+                <pre id="phenoLogs">No logs yet.</pre>
+              </details>
             </div>
           </div>
         </div>

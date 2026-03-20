@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
+import csv
 from pathlib import Path
 from urllib import error, request
 from uuid import uuid4
@@ -34,6 +36,7 @@ PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranke
 PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
 PHENO_RANKER_R_DIR = PHENO_RANKER_DIR / "share" / "r"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
+JQ_BIN = shutil.which("jq") or "jq"
 
 app = FastAPI(title="Patient Navigator BFF MVP")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -63,6 +66,7 @@ class PhenoRankerRequest(BaseModel):
     similarity_metric_cohort: str = ""
     sort_by: str = ""
     max_out: int = 10
+    align: bool = True
     render_heatmap: bool = True
     render_mds: bool = True
 
@@ -81,6 +85,7 @@ class PhenoRankerRequest(BaseModel):
 class PhenoRankerPlanRequest(BaseModel):
     text: str
     data_dir: str = DEFAULT_DATA_DIR
+    selected_patient_ids: str = ""
 
 
 def _lm_studio_enabled() -> bool:
@@ -138,8 +143,6 @@ def _extract_record_patient_id(record: Dict) -> str | None:
         return patient_id.strip()
     record_id = record.get("id")
     if isinstance(record_id, str) and record_id.strip():
-        if ":" in record_id:
-            return record_id.split(":", 1)[0].strip()
         return record_id.strip()
     return None
 
@@ -168,15 +171,11 @@ def _load_pheno_ranker_records(data_dir: str) -> List[Dict]:
     return records
 
 
-def _resolve_pheno_ranker_reference_path(data_dir: str) -> Path:
+def _resolve_pheno_ranker_reference_paths(data_dir: str) -> List[Path]:
     resolved_dir = ensure_data_dir(data_dir)
-    for candidate_name in ("bff.json", "individuals.json"):
-        candidate = resolved_dir / candidate_name
-        if candidate.exists() and candidate.is_file():
-            return candidate
-    matches = sorted(resolved_dir.glob("*.json"))
+    matches = sorted(path for path in resolved_dir.glob("*.json") if path.is_file())
     if matches:
-        return matches[0]
+        return matches
     raise HTTPException(status_code=404, detail=f"No JSON reference file found for Pheno-Ranker in: {resolved_dir}")
 
 
@@ -316,15 +315,89 @@ def _extract_disease_filter_from_text(text: str, known_labels: List[str]) -> str
     return ""
 
 
+def _is_non_actionable_pheno_request(text: str) -> bool:
+    lowered = text.strip().lower()
+    if not lowered:
+        return True
+    normalized = re.sub(r"[^a-z0-9 ]+", " ", lowered)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if normalized in {
+        "hi",
+        "hello",
+        "hey",
+        "hola",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "ok",
+        "okay",
+    }:
+        return True
+    action_tokens = (
+        "compare",
+        "extract",
+        "export",
+        "match",
+        "matches",
+        "rank",
+        "align",
+        "heatmap",
+        "mds",
+        "phenotype",
+        "phenotypes",
+        "disease",
+        "diseases",
+        "treatment",
+        "treatments",
+        "exposure",
+        "exposures",
+        "procedure",
+        "procedures",
+        "measure",
+        "measures",
+        "patient",
+        "patients",
+        "cohort",
+        "scope",
+    )
+    return not any(token in normalized for token in action_tokens)
+
+
 def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Dict:
     text = plan_request.text.strip()
     lowered = text.lower()
+    if _is_non_actionable_pheno_request(text):
+        return {
+            "source": "deterministic",
+            "plan": None,
+            "reasoning": [
+                "The prompt is not an actionable Pheno-Ranker request yet.",
+                "Describe a comparison or extraction request, for example: compare the selected patients by disease.",
+            ],
+            "follow_up_suggestions": [
+                "Compare all patients by diseases",
+                "Find closest matches to Beacon_5 by phenotype",
+                "Extract the selected patients",
+            ],
+        }
     known_ids = _available_patient_ids(plan_request.data_dir)
     known_diseases = _available_disease_labels(plan_request.data_dir)
     patient_ids = _extract_patient_ids_from_text(text, known_ids)
+    scope_patient_ids = _split_terms(plan_request.selected_patient_ids)
     disease_filter = _extract_disease_filter_from_text(text, known_diseases)
 
     action = "extract" if any(keyword in lowered for keyword in ("extract", "export")) else "compare"
+    explicit_cohort_phrases = (
+        "all to all",
+        "compare all",
+        "compare everyone",
+        "compare the cohort",
+        "cohort mode",
+        "all patients",
+        "all individuals",
+    )
     patient_mode_phrases = (
         "patient mode",
         "to all",
@@ -339,10 +412,39 @@ def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Di
         "closest matches to",
         "similar patients to",
         "matches to",
+        "match patient",
+        "for patient",
+        "for beacon_",
+        "rank patient",
+        "rank beacon_",
     )
-    mode = "patient" if any(phrase in lowered for phrase in patient_mode_phrases) and patient_ids else "cohort"
+    implicit_single_patient_phrases = (
+        "i have a patient",
+        "this patient",
+        "that patient",
+        "my patient",
+        "one patient",
+        "a patient",
+        "the patient",
+        "which patients are closer",
+        "which patients are closest",
+        "patients are closer",
+        "patients are closest",
+        "closer patients",
+        "closest patients",
+    )
+    explicit_cohort = any(phrase in lowered for phrase in explicit_cohort_phrases)
+    has_patient_mode_phrase = any(phrase in lowered for phrase in patient_mode_phrases)
+    has_implicit_single_patient_phrase = any(phrase in lowered for phrase in implicit_single_patient_phrases)
+    single_patient_compare = action == "compare" and len(patient_ids) == 1 and not explicit_cohort
+    patient_mode_without_id = action == "compare" and not patient_ids and has_implicit_single_patient_phrase and not explicit_cohort
+    mode = "patient" if (patient_ids and (has_patient_mode_phrase or single_patient_compare)) or patient_mode_without_id else "cohort"
     patient_id = patient_ids[0] if mode == "patient" and patient_ids else ""
     selected_patient_ids = patient_ids if mode != "patient" else []
+    if not selected_patient_ids and mode == "cohort" and scope_patient_ids:
+        selected_patient_ids = scope_patient_ids
+    if mode == "patient" and not patient_id and len(scope_patient_ids) == 1:
+        patient_id = scope_patient_ids[0]
 
     include_terms = []
     exclude_terms = []
@@ -370,9 +472,24 @@ def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Di
 
     render_heatmap = "mds only" not in lowered and ("heatmap" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
     render_mds = "heatmap only" not in lowered and ("mds" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
+    align_requested = any(
+        phrase in lowered
+        for phrase in (
+            "align",
+            "alignment",
+            "which variables match",
+            "what variables match",
+            "shared variables",
+            "matching variables",
+            "why do they match",
+            "why they match",
+        )
+    )
+    align = mode == "patient" or align_requested
     if action == "extract":
         render_heatmap = False
         render_mds = False
+        align = False
 
     similarity_metric = _normalize_pheno_metric("jaccard" if "jaccard" in lowered else ("hamming" if "hamming" in lowered else ""))
     sort_by = _normalize_pheno_metric("jaccard" if "sort by jaccard" in lowered else ("hamming" if "sort by hamming" in lowered else ""))
@@ -380,12 +497,20 @@ def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Di
     reasoning = []
     reasoning.append(f"Detected action: {action}.")
     reasoning.append(f"Detected mode: {mode}.")
+    if single_patient_compare and not has_patient_mode_phrase:
+        reasoning.append("Defaulted to patient mode because the request targets one patient and did not explicitly ask for cohort/all-to-all mode.")
+    if patient_mode_without_id:
+        reasoning.append("Detected patient-mode intent, but no patient ID was provided. Select or provide one patient ID before running.")
     if patient_id:
         reasoning.append(f"Detected target patient: {patient_id}.")
     if selected_patient_ids:
-        reasoning.append(f"Detected selected patient IDs: {', '.join(selected_patient_ids)}.")
+        reasoning.append(f"Detected scope from selected patient IDs: {', '.join(selected_patient_ids)}.")
+    elif scope_patient_ids:
+        reasoning.append(f"Using existing scope from UI: {', '.join(scope_patient_ids)}.")
     if disease_filter:
         reasoning.append(f"Detected disease filter: {disease_filter}.")
+    if include_terms:
+        reasoning.append(f"Detected include terms: {', '.join(include_terms)}.")
 
     return {
         "source": "deterministic",
@@ -401,6 +526,7 @@ def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Di
             "similarity_metric_cohort": similarity_metric,
             "sort_by": sort_by,
             "max_out": 10,
+            "align": align,
             "render_heatmap": render_heatmap,
             "render_mds": render_mds,
         },
@@ -411,6 +537,50 @@ def _plan_pheno_ranker_deterministic(plan_request: PhenoRankerPlanRequest) -> Di
             "Extract patients with Crohn Disease",
         ],
     }
+
+
+def _pheno_execution_steps(plan: Dict) -> List[str]:
+    action = str(plan.get("action") or "compare")
+    mode = str(plan.get("mode") or "cohort")
+    selected_scope = str(plan.get("selected_patient_ids") or "").strip()
+    patient_id = str(plan.get("patient_id") or "").strip()
+    steps: List[str] = []
+
+    if action == "extract":
+        if selected_scope:
+            steps.append("Extract the current scope from the active reference files with jq into one subset JSON.")
+        else:
+            steps.append("Extract requires a non-empty scope.")
+        return steps
+
+    if mode == "cohort":
+        if selected_scope:
+            steps.append("Extract the current scope from the active reference files with jq into one subset JSON.")
+            steps.append("Run cohort comparison on the extracted subset reference.")
+        else:
+            steps.append("Run cohort comparison directly on the full reference cohort.")
+        return steps
+
+    if mode == "patient":
+        if patient_id:
+            steps.append(f"Extract target patient {patient_id} from the active reference files with jq.")
+            steps.append("Run patient-vs-reference ranking with -r -t.")
+        else:
+            steps.append("Patient mode requires exactly one target patient from Patient ID or Scope.")
+        return steps
+
+    return steps
+
+
+def _attach_execution_steps(payload: Dict) -> Dict:
+    plan = payload.get("plan")
+    if not isinstance(plan, dict):
+        return payload
+    enriched_plan = dict(plan)
+    enriched_plan["execution_steps"] = _pheno_execution_steps(enriched_plan)
+    enriched_payload = dict(payload)
+    enriched_payload["plan"] = enriched_plan
+    return enriched_payload
 
 
 def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
@@ -433,7 +603,7 @@ def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
                 "content": (
                     "Convert the user request into a JSON Pheno-Ranker plan. "
                     "Return JSON only with keys: action, mode, patient_id, selected_patient_ids, disease_filter, "
-                    "include_terms, exclude_terms, similarity_metric_cohort, sort_by, max_out, render_heatmap, render_mds, reasoning. "
+                    "include_terms, exclude_terms, similarity_metric_cohort, sort_by, max_out, align, render_heatmap, render_mds, reasoning. "
                     "Use arrays for include_terms and exclude_terms. "
                     "Use action compare or extract. Use mode cohort or patient."
                 ),
@@ -461,9 +631,10 @@ def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
         reasoning = [reasoning]
     if not isinstance(reasoning, list):
         reasoning = ["Planned by LM Studio."]
+    parsed_mode = parsed.get("mode") or "cohort"
     plan = {
         "action": parsed.get("action") or "compare",
-        "mode": parsed.get("mode") or "cohort",
+        "mode": parsed_mode,
         "data_dir": plan_request.data_dir,
         "patient_id": parsed.get("patient_id") or "",
         "selected_patient_ids": ",".join(parsed.get("selected_patient_ids") or []) if isinstance(parsed.get("selected_patient_ids"), list) else str(parsed.get("selected_patient_ids") or ""),
@@ -473,6 +644,7 @@ def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
         "similarity_metric_cohort": _normalize_pheno_metric(str(parsed.get("similarity_metric_cohort") or "")),
         "sort_by": _normalize_pheno_metric(str(parsed.get("sort_by") or "")),
         "max_out": int(parsed.get("max_out") or 10),
+        "align": bool(parsed.get("align", parsed_mode == "patient")),
         "render_heatmap": bool(parsed.get("render_heatmap", True)),
         "render_mds": bool(parsed.get("render_mds", True)),
     }
@@ -481,13 +653,24 @@ def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
 
 def _plan_pheno_ranker(plan_request: PhenoRankerPlanRequest) -> Dict:
     deterministic = _plan_pheno_ranker_deterministic(plan_request)
-    text = plan_request.text.strip().lower()
-    if deterministic["plan"]["patient_id"] or deterministic["plan"]["selected_patient_ids"] or deterministic["plan"]["disease_filter"] or "compare all" in text or "extract" in text:
+    if not isinstance(deterministic.get("plan"), dict):
         return deterministic
+    text = plan_request.text.strip().lower()
+    if (
+        deterministic["plan"]["patient_id"]
+        or deterministic["plan"]["mode"] == "patient"
+        or deterministic["plan"]["selected_patient_ids"]
+        or deterministic["plan"]["disease_filter"]
+        or deterministic["plan"]["include_terms"]
+        or deterministic["plan"]["exclude_terms"]
+        or "compare all" in text
+        or "extract" in text
+    ):
+        return _attach_execution_steps(deterministic)
     llm_plan = _plan_pheno_ranker_llm(plan_request)
     if llm_plan is not None:
-        return llm_plan
-    return deterministic
+        return _attach_execution_steps(llm_plan)
+    return _attach_execution_steps(deterministic)
 
 
 def _pheno_ranker_job_dir() -> Path:
@@ -496,15 +679,299 @@ def _pheno_ranker_job_dir() -> Path:
     return job_dir
 
 
+def _resolve_pheno_ranker_job_dir(job_id: str) -> Path:
+    safe_job_id = Path(job_id).name
+    job_dir = (PHENO_RANKER_RUNS_DIR / safe_job_id).resolve()
+    runs_root = PHENO_RANKER_RUNS_DIR.resolve()
+    if job_dir != runs_root and runs_root not in job_dir.parents:
+        raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
+    if not job_dir.exists() or not job_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
+    return job_dir
+
+
+def _alignment_bucket_from_json_path(json_path: str) -> str:
+    root = (json_path or "").split(".", 1)[0]
+    mapping = {
+        "diseases": "diseases",
+        "phenotypicFeatures": "phenotypicFeatures",
+        "treatments": "treatments",
+        "interventionsOrProcedures": "procedures",
+        "procedures": "procedures",
+        "exposures": "exposures",
+        "measures": "measures",
+        "sex": "sex",
+        "ethnicity": "ethnicity",
+        "id": "identifier",
+    }
+    return mapping.get(root, root or "other")
+
+
+def _load_alignment_rows(job_dir: Path) -> List[Dict]:
+    alignment_path = job_dir / "alignment.target.csv"
+    if not alignment_path.exists() or not alignment_path.is_file():
+        raise HTTPException(status_code=404, detail="Alignment output not found for this job.")
+
+    rows: List[Dict] = []
+    with alignment_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        for raw_row in reader:
+            reference_id = str(raw_row.get("id") or "").strip()
+            json_path = str(raw_row.get("json-path") or "").strip()
+            label = str(raw_row.get("label") or "").strip()
+            bucket = _alignment_bucket_from_json_path(json_path)
+            if not reference_id or not label or bucket == "identifier":
+                continue
+            ref_present = str(raw_row.get("ref") or "").strip() == "1"
+            target_present = str(raw_row.get("tar") or "").strip() == "1"
+            rows.append(
+                {
+                    "reference_id": reference_id,
+                    "bucket": bucket,
+                    "label": label,
+                    "json_path": json_path,
+                    "indicator": str(raw_row.get("indicator") or "").strip(),
+                    "weight": str(raw_row.get("weight") or "").strip(),
+                    "hamming_distance": str(raw_row.get("hamming-distance") or "").strip(),
+                    "ref_present": ref_present,
+                    "target_present": target_present,
+                }
+            )
+    return rows
+
+
+def _read_rank_rows(job_dir: Path) -> tuple[List[str], List[Dict[str, str]]]:
+    rank_path = job_dir / "rank.txt"
+    if not rank_path.exists() or not rank_path.is_file():
+        raise HTTPException(status_code=404, detail="rank.txt not found for this job.")
+    with rank_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        fieldnames = list(reader.fieldnames or [])
+        if len(fieldnames) < 2:
+            raise HTTPException(status_code=500, detail="rank.txt has an unexpected TSV structure.")
+        rows = []
+        for row in reader:
+            normalized = {str(key): str(value or "").strip() for key, value in row.items() if key}
+            if any(normalized.values()):
+                rows.append(normalized)
+    return fieldnames, rows
+
+
+def _detect_rank_metric_columns(headers: List[str], rows: List[Dict[str, str]]) -> List[str]:
+    metric_headers: List[str] = []
+    ignored = {"REFERENCE(ID)", "TARGET(ID)", "REFERENCE", "TARGET"}
+    for header in headers:
+        if header in ignored:
+            continue
+        values = [row.get(header, "") for row in rows[:10]]
+        numeric_values = [value for value in values if value and re.fullmatch(r"-?\d+(?:\.\d+)?", value)]
+        if numeric_values:
+            metric_headers.append(header)
+    return metric_headers
+
+
+def _summarize_alignment_for_reference(rows: List[Dict], reference_id: str) -> Dict[str, Any]:
+    current = [row for row in rows if row["reference_id"] == reference_id]
+    shared = [row for row in current if row["ref_present"] and row["target_present"]]
+    reference_only = [row for row in current if row["ref_present"] and not row["target_present"]]
+    target_only = [row for row in current if row["target_present"] and not row["ref_present"]]
+
+    def _bucket_counts(items: List[Dict]) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for item in items:
+            bucket = item["bucket"]
+            counts[bucket] = counts.get(bucket, 0) + 1
+        return counts
+
+    def _top_labels(items: List[Dict], limit: int = 5) -> List[str]:
+        labels: List[str] = []
+        for item in items:
+            label = item.get("label")
+            if isinstance(label, str) and label and label not in labels:
+                labels.append(label)
+            if len(labels) >= limit:
+                break
+        return labels
+
+    return {
+        "reference_id": reference_id,
+        "shared_count": len(shared),
+        "reference_only_count": len(reference_only),
+        "target_only_count": len(target_only),
+        "shared_bucket_counts": _bucket_counts(shared),
+        "top_shared_labels": _top_labels(shared),
+        "top_reference_only_labels": _top_labels(reference_only),
+        "top_target_only_labels": _top_labels(target_only),
+    }
+
+
+def _explain_pheno_ranker_results(job_dir: Path, top_n: int = 3) -> Dict:
+    headers, rows = _read_rank_rows(job_dir)
+    if not rows:
+        raise HTTPException(status_code=404, detail="rank.txt is empty for this job.")
+
+    reference_key = "REFERENCE(ID)" if "REFERENCE(ID)" in headers else headers[0]
+    target_key = "TARGET(ID)" if "TARGET(ID)" in headers else (headers[1] if len(headers) > 1 else headers[0])
+    metric_headers = _detect_rank_metric_columns(headers, rows)
+    target_id = rows[0].get(target_key, "")
+    selected_rows = rows[: max(1, min(top_n, len(rows)))]
+
+    alignment_rows: List[Dict] = []
+    alignment_available = False
+    try:
+        alignment_rows = _load_alignment_rows(job_dir)
+        alignment_available = True
+    except HTTPException:
+        alignment_available = False
+
+    matches = []
+    for row in selected_rows:
+        reference_id = row.get(reference_key, "")
+        metrics = {header: row.get(header, "") for header in metric_headers}
+        match = {
+            "reference_id": reference_id,
+            "target_id": row.get(target_key, target_id),
+            "metrics": metrics,
+        }
+        if alignment_available and reference_id:
+            match["alignment"] = _summarize_alignment_for_reference(alignment_rows, reference_id)
+        matches.append(match)
+
+    summary_lines = [f"Top {len(matches)} matches for {target_id or 'the target patient'} from rank.txt."]
+    for match in matches:
+        line = match["reference_id"] or "unknown"
+        if match["metrics"]:
+            metric_text = ", ".join(f"{key}: {value}" for key, value in match["metrics"].items() if value != "")
+            if metric_text:
+                line += f" ({metric_text})"
+        alignment = match.get("alignment")
+        if isinstance(alignment, dict):
+            bucket_counts = alignment.get("shared_bucket_counts") or {}
+            bucket_text = ", ".join(f"{bucket}: {count}" for bucket, count in bucket_counts.items())
+            if bucket_text:
+                line += f" | shared variables: {bucket_text}"
+        summary_lines.append(line)
+
+    return {
+        "job_id": job_dir.name,
+        "mode": "patient",
+        "target_id": target_id,
+        "top_n": len(matches),
+        "alignment_available": alignment_available,
+        "metric_headers": metric_headers,
+        "matches": matches,
+        "summary_lines": summary_lines,
+        "source": "deterministic",
+    }
+
+
+def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
+    deterministic = _explain_pheno_ranker_results(job_dir, top_n=top_n)
+    if not _lm_studio_enabled():
+        return {
+            **deterministic,
+            "source": "llm_unavailable",
+            "llm_reply": "LM Studio is not enabled for Pheno-Ranker result explanations.",
+        }
+
+    model = _resolve_lm_studio_model()
+    if not model:
+        return {
+            **deterministic,
+            "source": "llm_unavailable",
+            "llm_reply": "LM Studio is enabled, but no model is currently loaded.",
+        }
+
+    explanation_context = {
+        "job_id": deterministic["job_id"],
+        "mode": deterministic["mode"],
+        "target_id": deterministic["target_id"],
+        "top_n": deterministic["top_n"],
+        "alignment_available": deterministic["alignment_available"],
+        "metric_headers": deterministic["metric_headers"],
+        "matches": deterministic["matches"],
+        "summary_lines": deterministic["summary_lines"],
+    }
+    payload = {
+        "model": model,
+        "temperature": 0.1,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You explain Pheno-Ranker patient-mode results. "
+                    "Use only the provided JSON evidence. "
+                    "Do not invent metrics or variables. "
+                    "Keep the explanation concise, factual, and clinically readable. "
+                    "Prefer bullet points."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "Deterministic explanation JSON:\n%s" % json.dumps(explanation_context, ensure_ascii=True, separators=(",", ":")),
+            },
+        ],
+    }
+    try:
+        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        return {
+            **deterministic,
+            "source": "llm_error",
+            "llm_reply": "LM Studio returned an HTTP error while explaining these results.",
+            "llm_error": {"status_code": exc.code, "detail": detail},
+        }
+    except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        return {
+            **deterministic,
+            "source": "llm_error",
+            "llm_reply": "LM Studio could not be reached for this explanation.",
+            "llm_error": {"detail": str(exc)},
+        }
+
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return {
+            **deterministic,
+            "source": "llm_error",
+            "llm_reply": "LM Studio returned an unexpected response for this explanation.",
+            "llm_error": {"response": response},
+        }
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                text_parts.append(item["text"])
+        content = "\n".join(text_parts).strip()
+    if not isinstance(content, str) or not content.strip():
+        return {
+            **deterministic,
+            "source": "llm_error",
+            "llm_reply": "LM Studio returned an empty explanation.",
+        }
+
+    return {
+        **deterministic,
+        "source": "lm_studio",
+        "model": model,
+        "llm_reply": content.strip(),
+    }
+
+
 def _run_plot_script(job_dir: Path, script_name: str) -> Dict[str, str]:
     script_path = PHENO_RANKER_R_DIR / script_name
+    command = ["Rscript", str(script_path)]
     proc = subprocess.run(
-        ["Rscript", str(script_path)],
+        command,
         cwd=job_dir,
         capture_output=True,
         text=True,
         check=False,
     )
+    _write_step_logs(job_dir, f"plot_{Path(script_name).stem}", command, proc)
     return {
         "script": script_name,
         "returncode": str(proc.returncode),
@@ -513,7 +980,21 @@ def _run_plot_script(job_dir: Path, script_name: str) -> Dict[str, str]:
     }
 
 
-def _serialize_pheno_result(job_dir: Path, command: List[str], proc: subprocess.CompletedProcess[str], mode: str, plot_runs: List[Dict[str, str]]) -> Dict:
+def _write_step_logs(job_dir: Path, step_name: str, command: List[str], proc: subprocess.CompletedProcess[str]) -> None:
+    safe_step = re.sub(r"[^a-z0-9._-]+", "_", step_name.strip().lower()) or "step"
+    (job_dir / f"{safe_step}.command.txt").write_text(" ".join(command), encoding="utf-8")
+    (job_dir / f"{safe_step}.stdout.txt").write_text(proc.stdout or "", encoding="utf-8")
+    (job_dir / f"{safe_step}.stderr.txt").write_text(proc.stderr or "", encoding="utf-8")
+
+
+def _serialize_pheno_result(
+    job_dir: Path,
+    command: List[str],
+    proc: subprocess.CompletedProcess[str],
+    mode: str,
+    plot_runs: List[Dict[str, str]],
+    pre_commands: List[str] | None = None,
+) -> Dict:
     files = []
     for path in sorted(job_dir.iterdir()):
         if not path.is_file():
@@ -529,12 +1010,81 @@ def _serialize_pheno_result(job_dir: Path, command: List[str], proc: subprocess.
         "job_id": job_dir.name,
         "mode": mode,
         "command": " ".join(command),
+        "pre_commands": pre_commands or [],
         "returncode": proc.returncode,
         "stdout": proc.stdout,
         "stderr": proc.stderr,
         "plots": plot_runs,
         "files": files,
     }
+
+
+def _jq_extract_records(reference_paths: List[Path], patient_ids: List[str], output_path: Path) -> tuple[List[str], subprocess.CompletedProcess[str], List[Dict]]:
+    if not patient_ids:
+        raise HTTPException(status_code=400, detail="At least one patient ID is required for scoped Pheno-Ranker extraction.")
+
+    jq_filter = (
+        "map(if type==\"array\" then . else [.] end) "
+        "| flatten "
+        "| map(select(type==\"object\" and (((.patient_id // .id // \"\") as $candidate | ($ids | index($candidate))) != null)))"
+    )
+    command = [
+        str(JQ_BIN),
+        "-s",
+        "--argjson",
+        "ids",
+        json.dumps(patient_ids, ensure_ascii=True),
+        jq_filter,
+        *[str(path) for path in reference_paths],
+    ]
+    proc = subprocess.run(command, capture_output=True, text=True, check=False)
+    _write_step_logs(output_path.parent, f"jq_extract_{output_path.stem}", command, proc)
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "jq extraction failed.",
+                "command": " ".join(command),
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+            },
+        )
+    try:
+        parsed = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="jq extraction returned invalid JSON.") from exc
+    if not isinstance(parsed, list):
+        raise HTTPException(status_code=500, detail="jq extraction did not return a JSON array.")
+
+    matched_ids = set()
+    normalized_records: List[Dict] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        normalized_records.append(item)
+        record_patient_id = _extract_record_patient_id(item)
+        record_id = item.get("id")
+        if isinstance(record_patient_id, str) and record_patient_id.strip():
+            matched_ids.add(record_patient_id.strip())
+        if isinstance(record_id, str) and record_id.strip():
+            matched_ids.add(record_id.strip())
+
+    missing_ids = [patient_id for patient_id in patient_ids if patient_id not in matched_ids]
+    if missing_ids:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": "One or more selected patient IDs were not found in the active Pheno-Ranker reference files.",
+                "missing_patient_ids": missing_ids,
+                "command": " ".join(command),
+            },
+        )
+
+    if not normalized_records:
+        raise HTTPException(status_code=404, detail="No records matched the selected patient IDs for Pheno-Ranker.")
+
+    output_path.write_text(json.dumps(normalized_records, ensure_ascii=False, indent=2), encoding="utf-8")
+    return command, proc, normalized_records
 
 
 def _run_pheno_ranker(request: PhenoRankerRequest) -> Dict:
@@ -546,8 +1096,33 @@ def _run_pheno_ranker(request: PhenoRankerRequest) -> Dict:
     mode = request.mode.strip().lower() or "cohort"
     records: List[Dict] = []
     selected_ids = _split_terms(request.selected_patient_ids)
+    patient_id = request.patient_id.strip()
+    valid_pheno_ids = set(_available_patient_ids(request.data_dir, limit=100000))
+    selected_extract_command: List[str] | None = None
+    selected_extract_proc: subprocess.CompletedProcess[str] | None = None
+    invalid_scope_ids = [patient_id for patient_id in selected_ids if patient_id not in valid_pheno_ids]
+    if invalid_scope_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Scope contains IDs that do not exist in the current Pheno-Ranker reference dataset.",
+                "invalid_scope_ids": invalid_scope_ids,
+            },
+        )
     if action == "compare" and mode == "patient":
+        if not patient_id and len(selected_ids) == 1:
+            patient_id = selected_ids[0]
+        elif len(selected_ids) > 1:
+            raise HTTPException(status_code=400, detail="Patient mode expects exactly one patient in scope, or one explicit Patient ID.")
         selected_ids = []
+    if mode == "patient" and patient_id and patient_id not in valid_pheno_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Patient ID does not exist in the current Pheno-Ranker reference dataset.",
+                "invalid_patient_id": patient_id,
+            },
+        )
     if request.disease_filter.strip() or mode == "patient" or selected_ids:
         records = _load_pheno_ranker_records(request.data_dir)
 
@@ -555,77 +1130,45 @@ def _run_pheno_ranker(request: PhenoRankerRequest) -> Dict:
         records = _filter_records_by_disease(records, request.disease_filter)
         if not records:
             raise HTTPException(status_code=404, detail="No records matched the selected disease filter for Pheno-Ranker.")
-    if selected_ids:
-        base_records = records if records else _load_pheno_ranker_records(request.data_dir)
-        records = _filter_records_by_patient_ids(base_records, selected_ids)
-        if not records:
-            raise HTTPException(status_code=404, detail="No records matched the selected patient IDs for Pheno-Ranker.")
 
-    use_temp_reference = bool(request.disease_filter.strip() or selected_ids)
+    use_temp_reference = bool(request.disease_filter.strip())
     if use_temp_reference:
-        reference_path = job_dir / "reference.json"
-        reference_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+        temp_reference_path = job_dir / "reference.json"
+        temp_reference_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+        reference_paths = [temp_reference_path]
     else:
-        reference_path = _resolve_pheno_ranker_reference_path(request.data_dir)
+        reference_paths = _resolve_pheno_ranker_reference_paths(request.data_dir)
 
-    command = [str(PHENO_RANKER_BIN), "-r", str(reference_path)]
+    if selected_ids and action == "compare" and mode == "cohort":
+        merged_reference_path = job_dir / "reference.selected.json"
+        selected_extract_command, selected_extract_proc, _ = _jq_extract_records(reference_paths, selected_ids, merged_reference_path)
+        reference_paths = [merged_reference_path]
+
+    command = [str(PHENO_RANKER_BIN), "-r", *[str(path) for path in reference_paths]]
     output_path = job_dir / ("matrix.txt" if mode == "cohort" else "rank.txt")
 
     if action == "extract":
         if not selected_ids:
             raise HTTPException(status_code=400, detail="Extraction mode requires one or more selected patient IDs.")
-        poi_dir = job_dir / "patients_of_interest"
-        poi_dir.mkdir(parents=True, exist_ok=True)
-        command.extend(["-poi", ",".join(selected_ids), "-poi-out-dir", str(poi_dir)])
-        proc = subprocess.run(command, cwd=job_dir, capture_output=True, text=True, check=False)
-        if proc.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "message": "Pheno-Ranker extraction failed.",
-                    "command": " ".join(command),
-                    "stdout": proc.stdout,
-                    "stderr": proc.stderr,
-                },
-            )
-        return _serialize_pheno_result(job_dir, command, proc, "extract", [])
+        extract_path = job_dir / "reference.selected.json"
+        extract_command, extract_proc, _ = _jq_extract_records(reference_paths, selected_ids, extract_path)
+        return _serialize_pheno_result(job_dir, extract_command, extract_proc, "extract", [])
 
     if mode == "patient":
         target_records = records if records else _load_pheno_ranker_records(request.data_dir)
-        target_record = _find_target_record(target_records, request.patient_id) or _find_target_record(_load_pheno_ranker_records(request.data_dir), request.patient_id)
+        target_record = _find_target_record(target_records, patient_id) or _find_target_record(_load_pheno_ranker_records(request.data_dir), patient_id)
         if target_record is None:
-            raise HTTPException(status_code=404, detail=f"Patient not found for Pheno-Ranker target mode: {request.patient_id}")
-        poi_dir = job_dir / "patient_target"
-        poi_dir.mkdir(parents=True, exist_ok=True)
-        extract_command = [
-            str(PHENO_RANKER_BIN),
-            "-r",
-            str(reference_path),
-            "-poi",
-            str(request.patient_id),
-            "-poi-out-dir",
-            str(poi_dir),
-        ]
-        extract_proc = subprocess.run(extract_command, cwd=job_dir, capture_output=True, text=True, check=False)
-        if extract_proc.returncode != 0:
+            raise HTTPException(status_code=404, detail=f"Patient not found for Pheno-Ranker target mode: {patient_id}")
+        target_path = job_dir / "target.json"
+        extract_command, extract_proc, target_records = _jq_extract_records(reference_paths, [patient_id], target_path)
+        if len(target_records) != 1:
             raise HTTPException(
                 status_code=500,
                 detail={
-                    "message": "Pheno-Ranker patient extraction failed.",
+                    "message": "Target extraction did not resolve to exactly one patient.",
+                    "patient_id": patient_id,
+                    "matched_records": len(target_records),
                     "command": " ".join(extract_command),
-                    "stdout": extract_proc.stdout,
-                    "stderr": extract_proc.stderr,
-                },
-            )
-        target_path = poi_dir / f"{request.patient_id}.json"
-        if not target_path.exists():
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "message": "Pheno-Ranker patient extraction did not produce the expected target file.",
-                    "command": " ".join(extract_command),
-                    "stdout": extract_proc.stdout,
-                    "stderr": extract_proc.stderr,
                 },
             )
         command.extend(["-t", str(target_path)])
@@ -654,17 +1197,25 @@ def _run_pheno_ranker(request: PhenoRankerRequest) -> Dict:
         command.extend(["-similarity-metric-cohort", similarity_metric])
     if action == "compare" and mode == "patient" and request.max_out > 0:
         command.extend(["-max-out", str(request.max_out)])
+    if action == "compare" and mode == "patient" and request.align:
+        command.extend(["--align", str(job_dir / "alignment")])
 
     proc = subprocess.run(command, cwd=job_dir, capture_output=True, text=True, check=False)
+    _write_step_logs(job_dir, "pheno_ranker_main", command, proc)
     if proc.returncode != 0:
+        detail = {
+            "message": "Pheno-Ranker command failed.",
+            "command": " ".join(command),
+            "stdout": proc.stdout,
+            "stderr": proc.stderr,
+        }
+        if selected_extract_command is not None and selected_extract_proc is not None:
+            detail["selection_extract_command"] = " ".join(selected_extract_command)
+            detail["selection_extract_stdout"] = selected_extract_proc.stdout
+            detail["selection_extract_stderr"] = selected_extract_proc.stderr
         raise HTTPException(
             status_code=500,
-            detail={
-                "message": "Pheno-Ranker command failed.",
-                "command": " ".join(command),
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
-            },
+            detail=detail,
         )
 
     plot_runs: List[Dict[str, str]] = []
@@ -674,7 +1225,13 @@ def _run_pheno_ranker(request: PhenoRankerRequest) -> Dict:
         if request.render_mds:
             plot_runs.append(_run_plot_script(job_dir, "mds.R"))
 
-    return _serialize_pheno_result(job_dir, command, proc, mode, plot_runs)
+    pre_commands: List[str] = []
+    if selected_extract_command is not None:
+        pre_commands.append(" ".join(selected_extract_command))
+    if mode == "patient":
+        pre_commands.append(" ".join(extract_command))
+
+    return _serialize_pheno_result(job_dir, command, proc, mode, plot_runs, pre_commands=pre_commands)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -773,17 +1330,78 @@ def plan_pheno_ranker(request: PhenoRankerPlanRequest) -> Dict:
     return _plan_pheno_ranker(request)
 
 
+@app.get("/pheno-ranker/patient-ids")
+def get_pheno_ranker_patient_ids(data_dir: str = Query(default=DEFAULT_DATA_DIR)) -> Dict:
+    reference_files = _resolve_pheno_ranker_reference_paths(data_dir)
+    return {
+        "patient_ids": _available_patient_ids(data_dir, limit=100000),
+        "reference_files": [str(path) for path in reference_files],
+    }
+
+
 @app.get("/pheno-ranker/results/{job_id}/{filename}")
 def get_pheno_ranker_result(job_id: str, filename: str) -> FileResponse:
-    safe_job_id = Path(job_id).name
+    job_dir = _resolve_pheno_ranker_job_dir(job_id)
     safe_filename = Path(filename).name
-    file_path = (PHENO_RANKER_RUNS_DIR / safe_job_id / safe_filename).resolve()
-    runs_root = PHENO_RANKER_RUNS_DIR.resolve()
-    if runs_root not in file_path.parents:
+    file_path = (job_dir / safe_filename).resolve()
+    if job_dir not in file_path.parents:
         raise HTTPException(status_code=404, detail="Result file not found.")
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Result file not found.")
     return FileResponse(file_path)
+
+
+@app.get("/pheno-ranker/alignment/{job_id}")
+def get_pheno_ranker_alignment(
+    job_id: str,
+    reference_id: str = Query(..., min_length=1),
+    target_id: str = Query(default=""),
+) -> Dict:
+    job_dir = _resolve_pheno_ranker_job_dir(job_id)
+    rows = [row for row in _load_alignment_rows(job_dir) if row["reference_id"] == reference_id]
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No alignment details found for reference patient: {reference_id}")
+
+    shared = [row for row in rows if row["ref_present"] and row["target_present"]]
+    reference_only = [row for row in rows if row["ref_present"] and not row["target_present"]]
+    target_only = [row for row in rows if row["target_present"] and not row["ref_present"]]
+
+    def _bucket_counts(items: List[Dict]) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for item in items:
+            bucket = item["bucket"]
+            counts[bucket] = counts.get(bucket, 0) + 1
+        return counts
+
+    return {
+        "job_id": job_dir.name,
+        "reference_id": reference_id,
+        "target_id": target_id,
+        "shared": shared,
+        "reference_only": reference_only,
+        "target_only": target_only,
+        "shared_bucket_counts": _bucket_counts(shared),
+        "reference_only_bucket_counts": _bucket_counts(reference_only),
+        "target_only_bucket_counts": _bucket_counts(target_only),
+    }
+
+
+@app.get("/pheno-ranker/explain/{job_id}")
+def explain_pheno_ranker_results(
+    job_id: str,
+    top_n: int = Query(default=3, ge=1, le=10),
+) -> Dict:
+    job_dir = _resolve_pheno_ranker_job_dir(job_id)
+    return _explain_pheno_ranker_results(job_dir, top_n=top_n)
+
+
+@app.get("/pheno-ranker/explain-llm/{job_id}")
+def explain_pheno_ranker_results_llm(
+    job_id: str,
+    top_n: int = Query(default=3, ge=1, le=10),
+) -> Dict:
+    job_dir = _resolve_pheno_ranker_job_dir(job_id)
+    return _explain_pheno_ranker_results_llm(job_dir, top_n=top_n)
 
 
 @app.get("/dashboard")

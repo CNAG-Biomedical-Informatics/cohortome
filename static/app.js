@@ -13,6 +13,7 @@
       const queryStatusEl = document.getElementById("queryStatus");
       const queryMetaEl = document.getElementById("queryMeta");
       const queryReasonEl = document.getElementById("queryReason");
+      const queryActionsEl = document.getElementById("queryActions");
       const queryFollowupsEl = document.getElementById("queryFollowups");
       const queryExamplesEl = document.getElementById("queryExamples");
       const queryDataEl = document.getElementById("queryData");
@@ -24,31 +25,53 @@
       const phenoActionEl = document.getElementById("phenoAction");
       const phenoModeEl = document.getElementById("phenoMode");
       const phenoPromptEl = document.getElementById("phenoPrompt");
+      const phenoExamplesEl = document.getElementById("phenoExamples");
       const phenoPlanBtnEl = document.getElementById("phenoPlanBtn");
       const phenoPlanRunBtnEl = document.getElementById("phenoPlanRunBtn");
       const phenoPlanStatusEl = document.getElementById("phenoPlanStatus");
+      const phenoPlanMetaEl = document.getElementById("phenoPlanMeta");
       const phenoPlanEl = document.getElementById("phenoPlan");
       const phenoPlanReasoningEl = document.getElementById("phenoPlanReasoning");
+      const phenoReferenceFilesSummaryEl = document.getElementById("phenoReferenceFilesSummary");
       const phenoPatientFieldEl = document.getElementById("phenoPatientField");
       const phenoPatientIdEl = document.getElementById("phenoPatientId");
       const phenoSelectedPatientIdsEl = document.getElementById("phenoSelectedPatientIds");
+      const phenoSelectedPatientIdsSummaryEl = document.getElementById("phenoSelectedPatientIdsSummary");
       const phenoIncludeTermsEl = document.getElementById("phenoIncludeTerms");
       const phenoExcludeTermsEl = document.getElementById("phenoExcludeTerms");
       const phenoSimilarityMetricEl = document.getElementById("phenoSimilarityMetric");
       const phenoSortByEl = document.getElementById("phenoSortBy");
       const phenoMaxOutFieldEl = document.getElementById("phenoMaxOutField");
       const phenoMaxOutEl = document.getElementById("phenoMaxOut");
+      const phenoAlignChecksEl = document.getElementById("phenoAlignChecks");
+      const phenoAlignEl = document.getElementById("phenoAlign");
       const phenoRenderHeatmapEl = document.getElementById("phenoRenderHeatmap");
       const phenoRenderMdsEl = document.getElementById("phenoRenderMds");
       const phenoPlotChecksEl = document.getElementById("phenoPlotChecks");
       const phenoRunBtnEl = document.getElementById("phenoRunBtn");
+      const phenoExplainBtnEl = document.getElementById("phenoExplainBtn");
+      const phenoExplainLlmBtnEl = document.getElementById("phenoExplainLlmBtn");
       const phenoStatusEl = document.getElementById("phenoStatus");
+      const phenoExplainDetailEl = document.getElementById("phenoExplainDetail");
       const phenoCommandEl = document.getElementById("phenoCommand");
       const phenoFilesEl = document.getElementById("phenoFiles");
+      const phenoOutputDetailsEl = document.getElementById("phenoOutputDetails");
       const phenoOutputPreviewEl = document.getElementById("phenoOutputPreview");
+      const phenoAlignmentDetailEl = document.getElementById("phenoAlignmentDetail");
       const phenoLogsEl = document.getElementById("phenoLogs");
       const phenoPreviewsEl = document.getElementById("phenoPreviews");
       const MAX_VISIBLE_PATIENTS = 80;
+      const PHENO_BUCKET_STYLES = {
+        diseases: { bg: "#dbeafe", ink: "#1d4ed8" },
+        phenotypicFeatures: { bg: "#dcfce7", ink: "#166534" },
+        treatments: { bg: "#fef3c7", ink: "#92400e" },
+        procedures: { bg: "#fee2e2", ink: "#b91c1c" },
+        exposures: { bg: "#ede9fe", ink: "#6d28d9" },
+        measures: { bg: "#cffafe", ink: "#0f766e" },
+        sex: { bg: "#fce7f3", ink: "#be185d" },
+        ethnicity: { bg: "#e0f2fe", ink: "#0369a1" },
+        other: { bg: "#e5e7eb", ink: "#374151" },
+      };
       let selectedPatientId = null;
       let currentPatients = [];
       let queryInFlight = false;
@@ -56,6 +79,11 @@
       let phenoInFlight = false;
       let phenoPlanInFlight = false;
       let phenoTableState = null;
+      let phenoRunState = null;
+      let phenoSelectedAlignmentKey = "";
+      let latestQueryPatientIds = [];
+      let phenoRankerPatientIds = [];
+      let phenoReferenceFiles = [];
 
       function setActiveTab(tabName) {
         const showCohort = tabName === "cohort";
@@ -307,8 +335,65 @@
         }).join("");
       }
 
-      function renderQueryReply(value) {
-        const lines = String(value || "").split("\\r\\n").join("\\n").split("\\n");
+      function renderQueryStructuredTable(payload) {
+        const data = payload && payload.data ? payload.data : {};
+        if (Array.isArray(data.medications) && data.medications.length) {
+          const rows = data.medications.slice(0, 100).map((item) => `
+            <tr>
+              <td>${escapeHtml(String(item.medication || ""))}</td>
+              <td>${escapeHtml(String(item.patient_count ?? ""))}</td>
+            </tr>
+          `).join("");
+          return `
+            <div class="section-note">Medication inventory (${data.medications.length}).</div>
+            <table>
+              <thead><tr><th>Medication</th><th>Patients</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `;
+        }
+        if (Array.isArray(data.diseases) && data.diseases.length) {
+          const rows = data.diseases.slice(0, 100).map((item) => `
+            <tr>
+              <td>${escapeHtml(String(item.disease || ""))}</td>
+              <td>${escapeHtml(String(item.patient_count ?? ""))}</td>
+            </tr>
+          `).join("");
+          return `
+            <div class="section-note">Disease inventory (${data.diseases.length}).</div>
+            <table>
+              <thead><tr><th>Disease</th><th>Patients</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `;
+        }
+        if (Array.isArray(data.patients) && data.patients.length && payload && payload.intent === "patient_medication_count_cohort") {
+          const rows = data.patients.slice(0, 100).map((item) => `
+            <tr>
+              <td>${escapeHtml(String(item.patient_id || ""))}</td>
+              <td>${escapeHtml(String(item.sex || ""))}</td>
+              <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
+              <td>${escapeHtml(String(item.medication_count ?? ""))}</td>
+            </tr>
+          `).join("");
+          return `
+            <div class="section-note">Matching patients (${data.patients.length}).</div>
+            <table>
+              <thead><tr><th>Patient</th><th>Sex</th><th>Visits</th><th>Medications</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `;
+        }
+        return "";
+      }
+
+      function renderQueryReply(payloadOrValue) {
+        const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue) : "";
+        if (structured) {
+          return structured;
+        }
+        const value = typeof payloadOrValue === "object" && payloadOrValue ? payloadOrValue.reply : payloadOrValue;
+        const lines = String(value || "").split("\r\n").join("\n").split("\n");
         const blocks = [];
         let paragraphLines = [];
         let listItems = [];
@@ -336,7 +421,7 @@
           if (!codeLines.length) {
             return;
           }
-          blocks.push(`<pre><code>${escapeHtml(codeLines.join("\\n"))}</code></pre>`);
+          blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
           codeLines = [];
         }
 
@@ -511,10 +596,167 @@
         `).join("");
       }
 
+      function inferPatientIdsFromQueryPayload(payload) {
+        const fromOriginalData = payload && payload.data && Array.isArray(payload.data.original_record_ids)
+          ? payload.data.original_record_ids.filter(Boolean)
+          : [];
+        if (fromOriginalData.length) {
+          return fromOriginalData;
+        }
+        const fromPatientOriginalIds = payload && payload.data && Array.isArray(payload.data.patients)
+          ? payload.data.patients
+              .flatMap((item) => Array.isArray(item && item.original_record_ids) ? item.original_record_ids : [])
+              .filter(Boolean)
+          : [];
+        if (fromPatientOriginalIds.length) {
+          return Array.from(new Set(fromPatientOriginalIds));
+        }
+        const fromData = payload && payload.data && Array.isArray(payload.data.patient_ids)
+          ? payload.data.patient_ids.filter(Boolean)
+          : [];
+        if (fromData.length) {
+          return fromData;
+        }
+        const fromPatientObjects = payload && payload.data && Array.isArray(payload.data.patients)
+          ? payload.data.patients
+              .map((item) => item && item.patient_id)
+              .filter(Boolean)
+          : [];
+        if (fromPatientObjects.length) {
+          return fromPatientObjects;
+        }
+        const replyText = String((payload && payload.reply) || "");
+        const knownIds = currentPatients.map((patient) => patient.patient_id).filter(Boolean);
+        const found = [];
+        for (const patientId of knownIds) {
+          const escaped = patientId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const pattern = new RegExp(`(^|[^A-Za-z0-9_])${escaped}($|[^A-Za-z0-9_])`, "i");
+          if (pattern.test(replyText) && !found.includes(patientId)) {
+            found.push(patientId);
+          }
+        }
+        if (found.length) {
+          return found;
+        }
+        const inferred = [];
+        const lines = replyText.split("\r\n").join("\n").split("\n");
+        for (const line of lines) {
+          const trimmed = line.trim().replace(/^[-*]\s+/, "");
+          if (!trimmed) {
+            continue;
+          }
+          const match = trimmed.match(/^([A-Za-z]*_?\d+(?::[A-Za-z0-9_-]+)?)$/);
+          if (match && !inferred.includes(match[1])) {
+            inferred.push(match[1]);
+          }
+        }
+        if (inferred.length) {
+          return inferred;
+        }
+        const inlineMatches = replyText.match(/\b(?:[A-Za-z]+_)?\d+(?::[A-Za-z0-9_-]+)?\b/g) || [];
+        for (const token of inlineMatches) {
+          if (!inferred.includes(token)) {
+            inferred.push(token);
+          }
+        }
+        return inferred;
+      }
+
+      function renderQueryActions(payload) {
+        const patientIds = inferPatientIdsFromQueryPayload(payload);
+        latestQueryPatientIds = patientIds;
+        if (!patientIds.length) {
+          queryActionsEl.innerHTML = "";
+          return;
+        }
+        const compatibleIds = phenoRankerPatientIds.length
+          ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId))
+          : [];
+        const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
+        queryActionsEl.innerHTML = `
+          <button type="button" class="query-chip" data-query-action="copy-ids">Copy patient IDs</button>
+          ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
+          ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
+        `;
+      }
+
+      async function copyPatientIdsFromQuery() {
+        if (!latestQueryPatientIds.length) {
+          return;
+        }
+        const payload = latestQueryPatientIds.join(",");
+        try {
+          await navigator.clipboard.writeText(payload);
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = `Copied ${latestQueryPatientIds.length} patient IDs.`;
+        } catch (_error) {
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = "Unable to copy patient IDs from the browser.";
+        }
+      }
+
+      function renderSelectedPatientIdsSummary() {
+        const ids = getCurrentScopeIds();
+        if (!ids.length) {
+          phenoSelectedPatientIdsSummaryEl.textContent = "Scope: full cohort.";
+          return;
+        }
+        const preview = ids.slice(0, 8).join(", ");
+        const suffix = ids.length > 8 ? ` ... (+${ids.length - 8} more)` : "";
+        const invalidIds = phenoRankerPatientIds.length
+          ? ids.filter((patientId) => !phenoRankerPatientIds.includes(patientId))
+          : [];
+        if (invalidIds.length) {
+          phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} IDs entered. Some are patient-level IDs, but Pheno-Ranker needs the original record IDs or timepoints for this reference: ${invalidIds.join(", ")}.`;
+          return;
+        }
+        phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} selected patients. ${preview}${suffix}`;
+      }
+
+      function sendPatientIdsToPhenoRanker() {
+        if (!latestQueryPatientIds.length) {
+          return;
+        }
+        phenoActionEl.value = "compare";
+        phenoModeEl.value = "cohort";
+        phenoSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+        renderSelectedPatientIdsSummary();
+        updatePhenoMode();
+        setActiveTab("pheno");
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} patient IDs from the query result into the current scope.`;
+      }
+
       function nextFrame() {
         return new Promise((resolve) => {
           window.requestAnimationFrame(() => resolve());
         });
+      }
+
+      async function loadPhenoRankerPatientIds() {
+        try {
+          const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          const response = await fetch(`/pheno-ranker/patient-ids?data_dir=${dataDir}`);
+          if (!response.ok) {
+            phenoRankerPatientIds = [];
+            phenoReferenceFiles = [];
+            phenoReferenceFilesSummaryEl.textContent = "Active cohort files: unavailable.";
+            return;
+          }
+          const payload = await response.json();
+          phenoRankerPatientIds = Array.isArray(payload.patient_ids) ? payload.patient_ids.filter(Boolean) : [];
+          phenoReferenceFiles = Array.isArray(payload.reference_files) ? payload.reference_files.filter(Boolean) : [];
+          if (!phenoReferenceFiles.length) {
+            phenoReferenceFilesSummaryEl.textContent = "Active cohort files: none.";
+          } else {
+            const labels = phenoReferenceFiles.map((item) => item.split("/").pop()).join(", ");
+            phenoReferenceFilesSummaryEl.textContent = `Active cohort files (${phenoReferenceFiles.length}): ${labels}`;
+          }
+        } catch (_error) {
+          phenoRankerPatientIds = [];
+          phenoReferenceFiles = [];
+          phenoReferenceFilesSummaryEl.textContent = "Active cohort files: unavailable.";
+        }
       }
 
       function updatePhenoMode() {
@@ -522,6 +764,7 @@
         const extractMode = phenoActionEl.value === "extract";
         phenoPatientFieldEl.classList.toggle("is-hidden", !patientMode || extractMode);
         phenoMaxOutFieldEl.classList.toggle("is-hidden", !patientMode || extractMode);
+        phenoAlignChecksEl.classList.toggle("is-hidden", !patientMode || extractMode);
         phenoPlotChecksEl.classList.toggle("is-hidden", patientMode || extractMode);
       }
 
@@ -532,6 +775,90 @@
           return;
         }
         phenoPlanReasoningEl.innerHTML = `<ul class="mini-list">${lines.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+      }
+
+      function getPhenoPlanBlockingIssues(plan) {
+        const normalized = plan || {};
+        const action = String(normalized.action || "compare");
+        const mode = String(normalized.mode || "cohort");
+        const patientId = String(normalized.patient_id || "").trim();
+        const scopeIds = typeof normalized.selected_patient_ids === "string"
+          ? normalized.selected_patient_ids.split(",").map((item) => item.trim()).filter(Boolean)
+          : (Array.isArray(normalized.selected_patient_ids) ? normalized.selected_patient_ids.map((item) => String(item || "").trim()).filter(Boolean) : []);
+        const issues = [];
+
+        if (action === "extract" && !scopeIds.length) {
+          issues.push("Extraction needs a non-empty Scope before it can run.");
+        }
+
+        if (mode === "patient") {
+          if (!patientId && scopeIds.length !== 1) {
+            issues.push("Patient mode needs exactly one target patient from Patient ID or Scope.");
+          }
+          if (!patientId && scopeIds.length === 1) {
+            issues.push(`Patient mode will use ${scopeIds[0]} as the target patient.`);
+          }
+          if (scopeIds.length > 1) {
+            issues.push("Patient mode cannot run with multiple IDs in Scope.");
+          }
+        }
+
+        return issues;
+      }
+
+      function renderPhenoPlanState(plan, reasoning) {
+        const issues = getPhenoPlanBlockingIssues(plan);
+        phenoPlanStatusEl.classList.remove("warning");
+        phenoPlanEl.classList.remove("is-blocking");
+        phenoPlanReasoningEl.classList.remove("is-blocking");
+
+        if (!issues.length) {
+          return;
+        }
+
+        phenoPlanStatusEl.classList.add("warning");
+        phenoPlanEl.classList.add("is-blocking");
+        phenoPlanReasoningEl.classList.add("is-blocking");
+
+        const warningHtml = `
+          <div class="planner-warning">
+            <strong>Planner output is not runnable yet.</strong>
+            <ul class="mini-list">${issues.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          </div>
+        `;
+
+        if (Array.isArray(reasoning) && reasoning.length) {
+          phenoPlanReasoningEl.innerHTML = `${warningHtml}${phenoPlanReasoningEl.innerHTML}`;
+        } else {
+          phenoPlanReasoningEl.innerHTML = warningHtml;
+        }
+      }
+
+      function renderPhenoPlanMeta(source) {
+        if (!source) {
+          phenoPlanMetaEl.innerHTML = "";
+          return;
+        }
+        const isLm = String(source) === "lm_studio";
+        const label = isLm ? "LM-based" : "Deterministic";
+        const className = isLm ? "query-chip query-chip-llm badge" : "query-chip query-chip-deterministic badge";
+        phenoPlanMetaEl.innerHTML = `<span class="${className}">${escapeHtml(label)}</span>`;
+      }
+
+      function renderPhenoNoPlanState(reasoning) {
+        phenoPlanStatusEl.className = "pheno-status warning";
+        phenoPlanStatusEl.textContent = "Planner did not find a runnable Pheno-Ranker request yet.";
+        phenoPlanEl.classList.add("is-blocking");
+        phenoPlanReasoningEl.classList.add("is-blocking");
+        phenoPlanEl.textContent = "No actionable plan.";
+        renderPhenoPlanReasoning(reasoning || []);
+        phenoPlanReasoningEl.innerHTML = `
+          <div class="planner-warning">
+            <strong>No runnable plan yet.</strong>
+            <div>Describe a comparison or extraction request instead of a greeting or generic note.</div>
+          </div>
+          ${phenoPlanReasoningEl.innerHTML}
+        `;
       }
 
       function compactPhenoPlan(plan) {
@@ -555,17 +882,40 @@
           .filter(Boolean);
       }
 
+      function getCurrentScopeIds() {
+        return String(phenoSelectedPatientIdsEl.value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
       function applyPhenoPlan(plan) {
         const normalized = plan || {};
         phenoActionEl.value = normalized.action || "compare";
         phenoModeEl.value = normalized.mode || "cohort";
+        const scopeIdsBeforePlan = getCurrentScopeIds();
         phenoPatientIdEl.value = normalized.patient_id || "";
-        phenoSelectedPatientIdsEl.value = normalized.selected_patient_ids || "";
+        if (typeof normalized.selected_patient_ids === "string" && normalized.selected_patient_ids.trim()) {
+          phenoSelectedPatientIdsEl.value = normalized.selected_patient_ids;
+        }
+        const scopeIdsAfterPlan = getCurrentScopeIds();
+        if (phenoModeEl.value === "patient" && !phenoPatientIdEl.value.trim() && scopeIdsAfterPlan.length === 1) {
+          phenoPatientIdEl.value = scopeIdsAfterPlan[0];
+        } else if (
+          phenoModeEl.value === "patient"
+          && !phenoPatientIdEl.value.trim()
+          && !scopeIdsAfterPlan.length
+          && scopeIdsBeforePlan.length === 1
+        ) {
+          phenoPatientIdEl.value = scopeIdsBeforePlan[0];
+        }
+        renderSelectedPatientIdsSummary();
         phenoIncludeTermsEl.value = Array.isArray(normalized.include_terms) ? normalized.include_terms.join(",") : (normalized.include_terms || "");
         phenoExcludeTermsEl.value = Array.isArray(normalized.exclude_terms) ? normalized.exclude_terms.join(",") : (normalized.exclude_terms || "");
         phenoSimilarityMetricEl.value = normalized.similarity_metric_cohort || "";
         phenoSortByEl.value = normalized.sort_by || "";
         phenoMaxOutEl.value = Number(normalized.max_out || 10);
+        phenoAlignEl.checked = Boolean(normalized.align);
         phenoRenderHeatmapEl.checked = Boolean(normalized.render_heatmap);
         phenoRenderMdsEl.checked = Boolean(normalized.render_mds);
         updatePhenoMode();
@@ -586,6 +936,7 @@
         phenoPlanRunBtnEl.disabled = true;
         phenoPlanStatusEl.className = "pheno-status loading";
         phenoPlanStatusEl.textContent = "Interpreting request...";
+        renderPhenoPlanMeta("");
         phenoPlanEl.textContent = "Waiting for interpreted plan...";
         renderPhenoPlanReasoning([]);
         await nextFrame();
@@ -597,6 +948,7 @@
             body: JSON.stringify({
               text,
               data_dir: dataDirEl.value.trim(),
+              selected_patient_ids: phenoSelectedPatientIdsEl.value.trim(),
             }),
           });
           if (!response.ok) {
@@ -604,20 +956,31 @@
             const detail = error.detail && typeof error.detail === "object" ? JSON.stringify(error.detail, null, 2) : String(error.detail || "Planner request failed.");
             phenoPlanStatusEl.className = "pheno-status";
             phenoPlanStatusEl.textContent = "Planner failed.";
+            renderPhenoPlanMeta("");
             phenoPlanEl.textContent = detail;
             renderPhenoPlanReasoning([]);
             return null;
           }
           const payload = await response.json();
+          renderPhenoPlanMeta(payload.source || "deterministic");
+          if (!payload.plan || typeof payload.plan !== "object") {
+            renderPhenoNoPlanState(payload.reasoning || []);
+            return payload;
+          }
           applyPhenoPlan(payload.plan || {});
           phenoPlanEl.textContent = JSON.stringify(compactPhenoPlan(payload.plan || {}), null, 2);
           renderPhenoPlanReasoning(payload.reasoning || []);
+          const blockingIssues = getPhenoPlanBlockingIssues(payload.plan || {});
           phenoPlanStatusEl.className = "pheno-status";
-          phenoPlanStatusEl.textContent = `Planner ready (${payload.source || "deterministic"}). Review the interpreted plan, then run it.`;
+          phenoPlanStatusEl.textContent = blockingIssues.length
+            ? "Planner found a blocking issue. Fix the highlighted fields before running."
+            : "Planner ready. Review the interpreted plan for the current scope, then run it.";
+          renderPhenoPlanState(payload.plan || {}, payload.reasoning || []);
           return payload;
         } catch (error) {
           phenoPlanStatusEl.className = "pheno-status";
           phenoPlanStatusEl.textContent = "Planner request failed.";
+          renderPhenoPlanMeta("");
           phenoPlanEl.textContent = error && error.message ? error.message : "Unexpected planner failure.";
           renderPhenoPlanReasoning([]);
           return null;
@@ -649,21 +1012,237 @@
       }
 
       function parseTsvLines(text) {
-        const lines = String(text || "").split("\\r\\n").join("\\n").split("\\n").filter((line) => line.trim() && line.includes("\\t"));
+        const lines = String(text || "").split("\r\n").join("\n").split("\n").filter((line) => line.trim() && line.includes("\t"));
         if (!lines.length) {
           return null;
         }
-        const header = lines[0].split("\\t").map((cell) => cell.trim());
+        const header = lines[0].split("\t").map((cell) => cell.trim());
         if (header.length < 2) {
           return null;
         }
         const bodyRows = lines.slice(1)
-          .map((line) => line.split("\\t").map((cell) => cell.trim()))
+          .map((line) => line.split("\t").map((cell) => cell.trim()))
           .filter((cells) => cells.length === header.length);
         if (!bodyRows.length) {
           return null;
         }
         return [header].concat(bodyRows);
+      }
+
+      function normalizePhenoBucketName(bucket) {
+        const value = String(bucket || "").trim();
+        if (!value) {
+          return "Other";
+        }
+        if (value === "phenotypicFeatures") {
+          return "Phenotypic Features";
+        }
+        if (value === "sex") {
+          return "Sex";
+        }
+        return value.charAt(0).toUpperCase() + value.slice(1);
+      }
+
+      function getPhenoBucketStyle(bucket) {
+        return PHENO_BUCKET_STYLES[bucket] || PHENO_BUCKET_STYLES.other;
+      }
+
+      function renderPhenoAlignmentPlaceholder(message) {
+        phenoAlignmentDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+      }
+
+      function renderPhenoExplainPlaceholder(message) {
+        phenoExplainDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+      }
+
+      function hasPhenoAlignmentFiles(files) {
+        return Array.isArray(files) && files.some((file) => file.name === "alignment.target.csv");
+      }
+
+      function groupAlignmentItemsByBucket(items) {
+        const groups = {};
+        for (const item of Array.isArray(items) ? items : []) {
+          const bucket = item.bucket || "other";
+          if (!groups[bucket]) {
+            groups[bucket] = [];
+          }
+          groups[bucket].push(item);
+        }
+        return Object.entries(groups).sort((left, right) => left[0].localeCompare(right[0]));
+      }
+
+      function renderAlignmentRows(entries) {
+        return entries.map((entry) => {
+          const bucket = entry.bucket || "other";
+          const style = getPhenoBucketStyle(bucket);
+          return `<tr>
+            <td>
+              <span class="alignment-bucket-pill" style="--bucket-bg:${style.bg};--bucket-ink:${style.ink};">
+                <span class="alignment-swatch"></span>
+                ${escapeHtml(normalizePhenoBucketName(bucket))}
+              </span>
+            </td>
+            <td>
+              <div class="alignment-label-cell">${escapeHtml(entry.label || "")}</div>
+              <div class="alignment-path-cell">${escapeHtml(entry.json_path || "")}</div>
+            </td>
+          </tr>`;
+        }).join("");
+      }
+
+      function renderAlignmentGroup(items, title) {
+        const groups = groupAlignmentItemsByBucket(items);
+        if (!groups.length) {
+          return `<div class="empty">${escapeHtml(title)}: none.</div>`;
+        }
+        return `<div class="alignment-section">
+          <h4>${escapeHtml(title)}</h4>
+          <div class="alignment-group-table-wrap">
+            <table class="alignment-group-table">
+              <thead>
+                <tr>
+                  <th>Term Type</th>
+                  <th>Matched Variable</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${groups.map(([, entries]) => renderAlignmentRows(entries)).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      }
+
+      function renderPhenoAlignmentDetail(payload) {
+        const referenceId = payload.reference_id || "unknown";
+        const targetId = payload.target_id || "unknown";
+        const shared = Array.isArray(payload.shared) ? payload.shared : [];
+        const referenceOnly = Array.isArray(payload.reference_only) ? payload.reference_only : [];
+        const targetOnly = Array.isArray(payload.target_only) ? payload.target_only : [];
+        phenoAlignmentDetailEl.innerHTML =
+          `<div class="section-note">Reference <strong>${escapeHtml(referenceId)}</strong> compared to target <strong>${escapeHtml(targetId)}</strong>.</div>` +
+          `<div class="alignment-summary">
+            <span class="alignment-stat">Shared ${shared.length}</span>
+            <span class="alignment-stat">Reference-only ${referenceOnly.length}</span>
+            <span class="alignment-stat">Target-only ${targetOnly.length}</span>
+          </div>` +
+          renderAlignmentGroup(shared, "Matched Variables") +
+          renderAlignmentGroup(referenceOnly, "Reference-Only Variables") +
+          renderAlignmentGroup(targetOnly, "Target-Only Variables");
+      }
+
+      function renderPhenoExplainDetail(payload) {
+        const matches = Array.isArray(payload.matches) ? payload.matches : [];
+        if (!matches.length) {
+          renderPhenoExplainPlaceholder("No explanation could be generated for this run.");
+          return;
+        }
+        const source = payload.source === "lm_studio"
+          ? '<span class="query-chip query-chip-llm badge">LM-based</span>'
+          : '<span class="query-chip query-chip-deterministic badge">Deterministic</span>';
+        const llmReply = payload.llm_reply
+          ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM Explanation</h4>${renderQueryReply(payload.llm_reply)}</div>`
+          : "";
+        phenoExplainDetailEl.innerHTML =
+          `<div class="section-note">${source} Explanation for target <strong>${escapeHtml(payload.target_id || "unknown")}</strong> using the top ${escapeHtml(String(payload.top_n || matches.length))} rows from <code>rank.txt</code>.</div>` +
+          llmReply +
+          `<ul class="mini-list">${(payload.summary_lines || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` +
+          matches.map((match) => {
+            const metrics = Object.entries(match.metrics || {})
+              .filter(([, value]) => value !== "")
+              .map(([key, value]) => `<span class="alignment-stat">${escapeHtml(key)} ${escapeHtml(String(value))}</span>`)
+              .join("");
+            const alignment = match.alignment || {};
+            const shared = Array.isArray(alignment.top_shared_labels) ? alignment.top_shared_labels : [];
+            const referenceOnly = Array.isArray(alignment.top_reference_only_labels) ? alignment.top_reference_only_labels : [];
+            const targetOnly = Array.isArray(alignment.top_target_only_labels) ? alignment.top_target_only_labels : [];
+            return `
+              <div class="alignment-section">
+                <h4>${escapeHtml(match.reference_id || "Unknown match")}</h4>
+                <div class="alignment-summary">${metrics || '<span class="alignment-stat">No numeric metrics detected</span>'}</div>
+                ${shared.length ? `<div><strong>Shared variables:</strong> ${escapeHtml(shared.join(", "))}</div>` : ""}
+                ${referenceOnly.length ? `<div><strong>Reference-only:</strong> ${escapeHtml(referenceOnly.join(", "))}</div>` : ""}
+                ${targetOnly.length ? `<div><strong>Target-only:</strong> ${escapeHtml(targetOnly.join(", "))}</div>` : ""}
+              </div>
+            `;
+          }).join("");
+      }
+
+      async function explainPhenoResults() {
+        if (!phenoRunState || !phenoRunState.jobId) {
+          renderPhenoExplainPlaceholder("Run Pheno-Ranker first.");
+          return;
+        }
+        if (phenoRunState.mode !== "patient") {
+          renderPhenoExplainPlaceholder("Explain results currently supports patient-mode runs only.");
+          return;
+        }
+        phenoExplainBtnEl.disabled = true;
+        phenoExplainDetailEl.innerHTML = '<div class="empty">Explaining results...</div>';
+        try {
+          const response = await fetch(`/pheno-ranker/explain/${encodeURIComponent(phenoRunState.jobId)}?top_n=3`);
+          if (!response.ok) {
+            const error = await response.json();
+            renderPhenoExplainPlaceholder(error.detail || "Unable to explain these results.");
+            return;
+          }
+          const payload = await response.json();
+          renderPhenoExplainDetail(payload);
+        } catch (error) {
+          renderPhenoExplainPlaceholder(error && error.message ? error.message : "Unable to explain these results.");
+        } finally {
+          phenoExplainBtnEl.disabled = false;
+        }
+      }
+
+      async function explainPhenoResultsWithLlm() {
+        if (!phenoRunState || !phenoRunState.jobId) {
+          renderPhenoExplainPlaceholder("Run Pheno-Ranker first.");
+          return;
+        }
+        if (phenoRunState.mode !== "patient") {
+          renderPhenoExplainPlaceholder("Explain with LLM currently supports patient-mode runs only.");
+          return;
+        }
+        phenoExplainLlmBtnEl.disabled = true;
+        phenoExplainDetailEl.innerHTML = '<div class="empty">Explaining results with LM Studio...</div>';
+        try {
+          const response = await fetch(`/pheno-ranker/explain-llm/${encodeURIComponent(phenoRunState.jobId)}?top_n=3`);
+          if (!response.ok) {
+            const error = await response.json();
+            renderPhenoExplainPlaceholder(error.detail || "Unable to explain these results with LM Studio.");
+            return;
+          }
+          const payload = await response.json();
+          renderPhenoExplainDetail(payload);
+        } catch (error) {
+          renderPhenoExplainPlaceholder(error && error.message ? error.message : "Unable to explain these results with LM Studio.");
+        } finally {
+          phenoExplainLlmBtnEl.disabled = false;
+        }
+      }
+
+      async function loadPhenoAlignment(referenceId, targetId) {
+        if (!phenoRunState || !phenoRunState.jobId || !phenoRunState.alignmentAvailable) {
+          renderPhenoAlignmentPlaceholder("No alignment output is available for this run.");
+          return;
+        }
+        const selectionKey = `${referenceId}::${targetId}`;
+        phenoSelectedAlignmentKey = selectionKey;
+        renderSortablePhenoTable();
+        phenoAlignmentDetailEl.innerHTML = "<div class=\"empty\">Loading alignment details...</div>";
+        try {
+          const response = await fetch(`/pheno-ranker/alignment/${encodeURIComponent(phenoRunState.jobId)}?reference_id=${encodeURIComponent(referenceId)}&target_id=${encodeURIComponent(targetId)}`);
+          if (!response.ok) {
+            const error = await response.json();
+            renderPhenoAlignmentPlaceholder(error.detail || "Alignment details are unavailable for this pair.");
+            return;
+          }
+          const payload = await response.json();
+          renderPhenoAlignmentDetail(payload);
+        } catch (error) {
+          renderPhenoAlignmentPlaceholder(error && error.message ? error.message : "Unable to load alignment details.");
+        }
       }
 
       function inferPhenoColumnType(rows, columnIndex) {
@@ -690,11 +1269,14 @@
           phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
           return;
         }
-        const { headers, rows, sortIndex, sortDirection, sourceName } = phenoTableState;
+        const { headers, rows, sortIndex, sortDirection, sourceName, interactive, referenceColumnIndex, targetColumnIndex } = phenoTableState;
         const type = inferPhenoColumnType(rows, sortIndex);
         const sortedRows = rows.slice().sort((left, right) => comparePhenoCells(left[sortIndex], right[sortIndex], type, sortDirection));
+        const note = interactive
+          ? `${sourceName} loaded as TSV. Click a column header to sort. Click one result row to inspect matched variables for that pair.`
+          : `${sourceName} loaded as TSV. Click a column header to sort.`;
         phenoOutputPreviewEl.innerHTML =
-          `<div class="section-note">${escapeHtml(sourceName)} loaded as TSV. Click a column header to sort.</div>` +
+          `<div class="section-note">${escapeHtml(note)}</div>` +
           `<div class="pheno-output-table-wrap"><table class="pheno-output-table"><thead><tr>${
             headers.map((cell, index) => {
               const active = index === sortIndex;
@@ -702,21 +1284,35 @@
               return `<th><button type="button" class="pheno-sort-btn" data-pheno-sort-index="${index}" data-active="${active ? "true" : "false"}">${escapeHtml(cell)}${arrow}</button></th>`;
             }).join("")
           }</tr></thead><tbody>${
-            sortedRows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")
+            sortedRows.map((row) => {
+              const referenceId = interactive && referenceColumnIndex >= 0 ? row[referenceColumnIndex] : "";
+              const targetId = interactive && targetColumnIndex >= 0 ? row[targetColumnIndex] : "";
+              const selectionKey = `${referenceId}::${targetId}`;
+              const isSelected = interactive && phenoSelectedAlignmentKey === selectionKey;
+              const rowClass = interactive ? ` class="is-clickable${isSelected ? " is-selected" : ""}"` : "";
+              const attrs = interactive
+                ? ` data-pheno-reference-id="${escapeHtml(referenceId)}" data-pheno-target-id="${escapeHtml(targetId)}"`
+                : "";
+              return `<tr${rowClass}${attrs}>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
+            }).join("")
           }</tbody></table></div>`;
       }
 
-      function setPhenoTable(rows, sourceName) {
+      function setPhenoTable(rows, sourceName, options) {
         if (!Array.isArray(rows) || rows.length < 2) {
           phenoTableState = null;
           return;
         }
+        const tableOptions = options || {};
         phenoTableState = {
           headers: rows[0],
           rows: rows.slice(1),
           sortIndex: 0,
           sortDirection: "asc",
           sourceName,
+          interactive: Boolean(tableOptions.interactive),
+          referenceColumnIndex: Number.isInteger(tableOptions.referenceColumnIndex) ? tableOptions.referenceColumnIndex : -1,
+          targetColumnIndex: Number.isInteger(tableOptions.targetColumnIndex) ? tableOptions.targetColumnIndex : -1,
         };
         renderSortablePhenoTable();
       }
@@ -740,13 +1336,20 @@
           if (preferred.name === "rank.txt") {
             const rows = parseTsvLines(text);
             if (rows && rows.length >= 2) {
-              setPhenoTable(rows, preferred.name);
+              const header = rows[0];
+              const referenceColumnIndex = header.indexOf("REFERENCE(ID)");
+              const targetColumnIndex = header.indexOf("TARGET(ID)");
+              setPhenoTable(rows, preferred.name, {
+                interactive: hasPhenoAlignmentFiles(items) && referenceColumnIndex >= 0 && targetColumnIndex >= 0,
+                referenceColumnIndex,
+                targetColumnIndex,
+              });
               return;
             }
           }
           phenoTableState = null;
           if (preferred.name === "matrix.txt") {
-            const previewLines = text.split("\\r\\n").join("\\n").split("\\n").slice(0, 20).join("\\n");
+            const previewLines = text.split("\r\n").join("\n").split("\n").slice(0, 20).join("\n");
             phenoOutputPreviewEl.innerHTML =
               '<div class="section-note">Matrix preview is intentionally limited. Use the file link or the plot outputs for full cohort inspection.</div>' +
               `<pre>${escapeHtml(previewLines)}</pre>`;
@@ -765,20 +1368,39 @@
           phenoPreviewsEl.innerHTML = '<div class="empty">No plot previews available.</div>';
           return;
         }
-        phenoPreviewsEl.innerHTML = images.map((file) => `<div><strong>${escapeHtml(file.name)}</strong><img src="${file.url}" alt="${escapeHtml(file.name)}"></div>`).join("");
+        phenoPreviewsEl.innerHTML = images
+          .map((file) => `<div class="pheno-preview-card"><strong>${escapeHtml(file.name)}</strong><img src="${file.url}" alt="${escapeHtml(file.name)}"></div>`)
+          .join("");
       }
 
       async function runPhenoRanker() {
         if (phenoInFlight) {
           return;
         }
-        if (phenoModeEl.value === "patient" && !phenoPatientIdEl.value.trim()) {
-          phenoStatusEl.textContent = "Enter a patient ID for patient mode.";
-          return;
+        const scopeIds = getCurrentScopeIds();
+        if (phenoModeEl.value === "patient") {
+          if (!phenoPatientIdEl.value.trim() && scopeIds.length === 1) {
+            phenoPatientIdEl.value = scopeIds[0];
+          }
+          if (scopeIds.length > 1) {
+            phenoStatusEl.textContent = "Patient mode expects exactly one patient in scope, or one explicit Patient ID.";
+            return;
+          }
+          if (!phenoPatientIdEl.value.trim()) {
+            phenoStatusEl.textContent = "Enter a patient ID for patient mode, or set the scope to exactly one patient.";
+            return;
+          }
         }
         if (phenoActionEl.value === "extract" && !phenoSelectedPatientIdsEl.value.trim()) {
-          phenoStatusEl.textContent = "Enter one or more selected patient IDs for extraction mode.";
+          phenoStatusEl.textContent = "Define a non-empty scope for extraction mode.";
           return;
+        }
+        if (phenoRankerPatientIds.length) {
+          const invalidScopeIds = scopeIds.filter((patientId) => !phenoRankerPatientIds.includes(patientId));
+          if (invalidScopeIds.length) {
+            phenoStatusEl.textContent = `Scope contains IDs not present in the current Pheno-Ranker reference: ${invalidScopeIds.join(", ")}.`;
+            return;
+          }
         }
 
         phenoInFlight = true;
@@ -787,8 +1409,12 @@
         phenoStatusEl.textContent = "Running Pheno-Ranker...";
         phenoCommandEl.textContent = "Preparing command...";
         phenoFilesEl.innerHTML = '<div class="empty">Waiting for Pheno-Ranker outputs.</div>';
+        phenoRunState = null;
+        phenoSelectedAlignmentKey = "";
         phenoTableState = null;
+        phenoOutputDetailsEl.open = phenoModeEl.value === "patient";
         phenoOutputPreviewEl.innerHTML = '<div class="empty">Waiting for output preview.</div>';
+        renderPhenoAlignmentPlaceholder("Waiting for alignment details.");
         phenoLogsEl.textContent = "Waiting for logs...";
         phenoPreviewsEl.innerHTML = '<div class="empty">Waiting for plot previews.</div>';
         await nextFrame();
@@ -808,6 +1434,7 @@
               similarity_metric_cohort: phenoSimilarityMetricEl.value,
               sort_by: phenoSortByEl.value,
               max_out: Number(phenoMaxOutEl.value || 10),
+              align: phenoAlignEl.checked,
               render_heatmap: phenoRenderHeatmapEl.checked,
               render_mds: phenoRenderMdsEl.checked,
             }),
@@ -828,17 +1455,40 @@
           }
 
           const payload = await response.json();
+          phenoRunState = {
+            jobId: payload.job_id,
+            mode: payload.mode,
+            alignmentAvailable: hasPhenoAlignmentFiles(payload.files),
+          };
+          phenoOutputDetailsEl.open = payload.mode === "patient";
           phenoStatusEl.className = "pheno-status";
           phenoStatusEl.textContent = `Completed ${payload.mode} run ${payload.job_id}.`;
-          phenoCommandEl.textContent = payload.command || "No command returned.";
-          phenoLogsEl.textContent = [payload.stderr || "", ...(payload.plots || []).map((item) => `${item.script}\\nstdout:\\n${item.stdout}\\nstderr:\\n${item.stderr}`)].filter(Boolean).join("\\n\\n") || "No diagnostic logs.";
+          phenoCommandEl.textContent = [
+            ...(Array.isArray(payload.pre_commands) ? payload.pre_commands.map((item, index) => `Preparation step ${index + 1}:\n${item}`) : []),
+            payload.command ? `Final run:\n${payload.command}` : "No command returned.",
+          ].join("\n\n");
+          phenoLogsEl.textContent = [payload.stderr || "", ...(payload.plots || []).map((item) => `${item.script}\nstdout:\n${item.stdout}\nstderr:\n${item.stderr}`)].filter(Boolean).join("\n\n") || "No diagnostic logs.";
           renderPhenoFiles(payload.files);
           await renderPhenoOutputPreview(payload.files);
+          if (payload.mode === "patient" && phenoRunState.alignmentAvailable) {
+            renderPhenoAlignmentPlaceholder("Alignment output is ready. Click one row in rank.txt to inspect matched variables for that pair.");
+          } else if (payload.mode === "patient") {
+            renderPhenoAlignmentPlaceholder("This patient-mode run did not generate alignment output. Alignment is enabled by default for patient mode, so this usually means it was turned off manually.");
+          } else {
+            renderPhenoAlignmentPlaceholder("Alignment details are only available for patient-mode runs with --align.");
+          }
+          if (payload.mode === "patient") {
+            renderPhenoExplainPlaceholder("Patient-mode results are ready. Click Explain results to summarize the top matches.");
+          } else {
+            renderPhenoExplainPlaceholder("Explain results currently focuses on patient-mode rank.txt outputs.");
+          }
           renderPhenoPreviews(payload.files);
         } catch (error) {
           phenoStatusEl.className = "pheno-status";
           phenoStatusEl.textContent = "Network error while running Pheno-Ranker.";
           phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
+          renderPhenoAlignmentPlaceholder("Alignment details are unavailable because the run failed.");
+          renderPhenoExplainPlaceholder("Explain results are unavailable because the run failed.");
           phenoLogsEl.textContent = error && error.message ? error.message : "Unexpected request failure.";
         } finally {
           phenoInFlight = false;
@@ -858,6 +1508,7 @@
 
         try {
           const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          await loadPhenoRankerPatientIds();
           const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
           if (!patientResponse.ok) {
             const error = await patientResponse.json();
@@ -950,6 +1601,8 @@
         queryReplyEl.innerHTML = "<p><strong>Running query...</strong><br>Please wait.</p>";
         queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
         queryMetaEl.innerHTML = "";
+        queryActionsEl.innerHTML = "";
+        latestQueryPatientIds = [];
         queryFollowupsEl.innerHTML = "";
         await nextFrame();
 
@@ -961,14 +1614,16 @@
             queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
             queryDataEl.textContent = "";
             queryDetailsEl.open = false;
+            queryActionsEl.innerHTML = "";
             queryStatusEl.className = "query-status";
             queryStatusEl.textContent = "Query failed.";
             return;
           }
           const payload = await response.json();
-          queryReplyEl.innerHTML = renderQueryReply(payload.reply);
+          queryReplyEl.innerHTML = renderQueryReply(payload);
           renderQueryMeta(payload);
           renderQueryReason(payload);
+          renderQueryActions(payload);
           renderFollowupButtons(payload.data && payload.data.follow_up_suggestions);
           queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
           queryDetailsEl.open = false;
@@ -979,6 +1634,8 @@
           queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";
           queryDataEl.textContent = "";
           queryDetailsEl.open = false;
+          queryActionsEl.innerHTML = "";
+          latestQueryPatientIds = [];
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Network error.";
         } finally {
@@ -995,8 +1652,11 @@
       phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
       phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
       phenoRunBtnEl.addEventListener("click", runPhenoRanker);
+      phenoExplainBtnEl.addEventListener("click", explainPhenoResults);
+      phenoExplainLlmBtnEl.addEventListener("click", explainPhenoResultsWithLlm);
       phenoModeEl.addEventListener("change", updatePhenoMode);
       phenoActionEl.addEventListener("change", updatePhenoMode);
+      phenoSelectedPatientIdsEl.addEventListener("input", renderSelectedPatientIdsSummary);
       window.__patientNavigatorLoadPatients = loadPatients;
       window.__patientNavigatorAskQuery = askQuery;
       patientsEl.addEventListener("click", (event) => {
@@ -1022,22 +1682,48 @@
         questionEl.value = button.dataset.prompt;
         questionEl.focus();
       });
+      phenoExamplesEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-pheno-prompt]");
+        if (!button || !phenoExamplesEl.contains(button)) {
+          return;
+        }
+        phenoPromptEl.value = button.dataset.phenoPrompt;
+        phenoPromptEl.focus();
+      });
+      queryActionsEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-query-action]");
+        if (!button || !queryActionsEl.contains(button)) {
+          return;
+        }
+        if (button.dataset.queryAction === "use-pheno") {
+          sendPatientIdsToPhenoRanker();
+          return;
+        }
+        if (button.dataset.queryAction === "copy-ids") {
+          copyPatientIdsFromQuery();
+        }
+      });
       phenoOutputPreviewEl.addEventListener("click", (event) => {
         const button = event.target.closest("[data-pheno-sort-index]");
-        if (!button || !phenoOutputPreviewEl.contains(button) || !phenoTableState) {
+        if (button && phenoOutputPreviewEl.contains(button) && phenoTableState) {
+          const nextIndex = Number(button.dataset.phenoSortIndex);
+          if (!Number.isInteger(nextIndex)) {
+            return;
+          }
+          if (phenoTableState.sortIndex === nextIndex) {
+            phenoTableState.sortDirection = phenoTableState.sortDirection === "asc" ? "desc" : "asc";
+          } else {
+            phenoTableState.sortIndex = nextIndex;
+            phenoTableState.sortDirection = inferPhenoColumnType(phenoTableState.rows, nextIndex) === "number" ? "desc" : "asc";
+          }
+          renderSortablePhenoTable();
           return;
         }
-        const nextIndex = Number(button.dataset.phenoSortIndex);
-        if (!Number.isInteger(nextIndex)) {
+        const row = event.target.closest("[data-pheno-reference-id]");
+        if (!row || !phenoOutputPreviewEl.contains(row) || !phenoTableState || !phenoTableState.interactive) {
           return;
         }
-        if (phenoTableState.sortIndex === nextIndex) {
-          phenoTableState.sortDirection = phenoTableState.sortDirection === "asc" ? "desc" : "asc";
-        } else {
-          phenoTableState.sortIndex = nextIndex;
-          phenoTableState.sortDirection = inferPhenoColumnType(phenoTableState.rows, nextIndex) === "number" ? "desc" : "asc";
-        }
-        renderSortablePhenoTable();
+        loadPhenoAlignment(row.dataset.phenoReferenceId || "", row.dataset.phenoTargetId || "");
       });
       questionEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -1047,4 +1733,8 @@
       });
       patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
       updatePhenoMode();
+      renderSelectedPatientIdsSummary();
+      loadPhenoRankerPatientIds();
+      renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
+      renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
     

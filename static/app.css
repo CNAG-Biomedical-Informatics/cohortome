@@ -143,6 +143,11 @@
         flex-wrap: wrap;
         gap: 8px;
       }
+      .query-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
       .query-chip {
         width: auto;
         padding: 8px 12px;
@@ -153,8 +158,23 @@
         box-shadow: none;
         font-weight: 600;
       }
+      .query-chip.query-chip-deterministic {
+        background: rgba(219, 234, 254, 0.92);
+        border-color: rgba(37, 99, 235, 0.24);
+        color: #1d4ed8;
+      }
+      .query-chip.query-chip-llm {
+        background: rgba(254, 243, 199, 0.92);
+        border-color: rgba(180, 83, 9, 0.24);
+        color: #92400e;
+      }
       .query-chip.badge {
         cursor: default;
+      }
+      .query-chip.action {
+        color: white;
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        border: none;
       }
       .query-section {
         padding: 16px 18px;
@@ -188,6 +208,9 @@
       .pheno-status.loading {
         color: var(--accent-deep);
       }
+      .pheno-status.warning {
+        color: #b91c1c;
+      }
       .pheno-actions {
         display: flex;
         align-items: center;
@@ -215,16 +238,73 @@
       .pheno-checks input[type="checkbox"] {
         width: auto;
       }
+      #phenoSelectedPatientIdsSummary {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        border: 1px solid var(--line);
+      }
       .pheno-result-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 14px;
+      }
+      .pheno-result-grid-secondary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .pheno-result-card {
         padding: 16px 18px;
         border-radius: 18px;
         background: rgba(255, 255, 255, 0.72);
         border: 1px solid var(--line);
+      }
+      #phenoPlan.is-blocking,
+      #phenoPlanReasoning.is-blocking {
+        border-color: rgba(185, 28, 28, 0.24);
+        background: rgba(254, 242, 242, 0.92);
+      }
+      .planner-warning {
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(185, 28, 28, 0.24);
+        background: rgba(254, 242, 242, 0.96);
+        color: #7f1d1d;
+      }
+      .planner-warning strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .pheno-result-card-full {
+        grid-column: 1 / -1;
+      }
+      .pheno-result-card details summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .pheno-result-card details summary::-webkit-details-marker {
+        display: none;
+      }
+      .pheno-result-card details summary::after {
+        content: "+";
+        color: var(--accent-deep);
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+      .pheno-result-card details[open] summary::after {
+        content: "-";
+      }
+      .pheno-result-card details summary h3 {
+        margin: 0;
+      }
+      .pheno-result-card details pre,
+      .pheno-result-card details .empty,
+      .pheno-result-card details .pheno-file-list {
+        margin-top: 12px;
       }
       .pheno-file-list {
         margin: 0;
@@ -245,6 +325,15 @@
         border-bottom: 1px solid var(--line);
         text-align: left;
         vertical-align: top;
+      }
+      .pheno-output-table tbody tr.is-clickable {
+        cursor: pointer;
+      }
+      .pheno-output-table tbody tr.is-clickable:hover {
+        background: rgba(37, 99, 235, 0.06);
+      }
+      .pheno-output-table tbody tr.is-selected {
+        background: rgba(37, 99, 235, 0.12);
       }
       .pheno-output-table th {
         position: sticky;
@@ -270,11 +359,104 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
       }
+      .pheno-preview-card {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--line);
+      }
+      .pheno-preview-card strong {
+        display: block;
+        margin-bottom: 10px;
+      }
       .pheno-preview-grid img {
         width: 100%;
         border-radius: 16px;
         border: 1px solid var(--line);
         background: white;
+      }
+      .alignment-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .alignment-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
+      .alignment-section {
+        margin-top: 14px;
+      }
+      .alignment-section h4 {
+        margin: 0 0 8px;
+      }
+      .alignment-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--bucket-color, var(--accent));
+        display: inline-block;
+      }
+      .alignment-group-table-wrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.86);
+      }
+      .alignment-group-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .alignment-group-table th,
+      .alignment-group-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      .alignment-group-table th {
+        background: #eef5ff;
+        color: var(--ink);
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .alignment-group-table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .alignment-bucket-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: var(--bucket-bg, rgba(37, 99, 235, 0.1));
+        color: var(--bucket-ink, var(--ink));
+        border: 1px solid rgba(19, 34, 56, 0.08);
+        font-size: 0.85rem;
+        line-height: 1.25;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .alignment-label-cell {
+        color: var(--ink);
+        font-size: 0.92rem;
+        font-weight: 600;
+      }
+      .alignment-path-cell {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        word-break: break-all;
       }
       .is-hidden {
         display: none;
