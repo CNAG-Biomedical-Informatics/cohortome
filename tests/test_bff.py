@@ -2,6 +2,7 @@ import json
 
 from fastapi import HTTPException
 
+import app.cohorts as cohorts_module
 import app.query as query_module
 from app.bff import (
     build_patient_navigator,
@@ -32,6 +33,72 @@ def write_json(tmp_path, name, payload):
     path = tmp_path / name
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(cohorts_module, "SAVED_COHORTS_PATH", tmp_path / "saved-cohorts.json")
+
+    saved = cohorts_module.save_cohort(
+        name="Crohn cohort",
+        data_dir="/data/a",
+        ids=["P1", "P2", "P2"],
+        id_type="patient",
+        source_kind="query",
+        source_prompt="Which patients have Crohn Disease?",
+    )
+    assert saved["name"] == "Crohn cohort"
+    assert saved["patient_ids"] == ["P1", "P2"]
+
+    other = cohorts_module.save_cohort(
+        name="Other cohort",
+        data_dir="/data/b",
+        ids=["X1"],
+        id_type="original_record",
+        source_kind="query",
+        source_prompt="Other",
+    )
+    assert other["id_type"] == "original_record"
+
+    listed = cohorts_module.list_saved_cohorts("/data/a")
+    assert len(listed) == 1
+    assert listed[0]["name"] == "Crohn cohort"
+
+    assert cohorts_module.delete_saved_cohort(saved["id"]) is True
+    assert cohorts_module.delete_saved_cohort("missing") is False
+    assert cohorts_module.list_saved_cohorts("/data/a") == []
+
+
+def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(cohorts_module, "SAVED_COHORTS_PATH", tmp_path / "saved-cohorts.json")
+
+    first = cohorts_module.save_cohort(
+        name="Crohn cohort",
+        data_dir="/data/a",
+        ids=["P1"],
+        id_type="patient",
+        source_kind="query",
+        source_prompt="First Crohn cohort",
+    )
+    second = cohorts_module.save_cohort(
+        name="Crohn cohort",
+        data_dir="/data/a",
+        ids=["P2"],
+        id_type="patient",
+        source_kind="query",
+        source_prompt="Second Crohn cohort",
+    )
+    third_other_dir = cohorts_module.save_cohort(
+        name="Crohn cohort",
+        data_dir="/data/b",
+        ids=["X1"],
+        id_type="patient",
+        source_kind="query",
+        source_prompt="Crohn cohort in another dataset",
+    )
+
+    assert first["name"] == "Crohn cohort"
+    assert second["name"] == "Crohn cohort (2)"
+    assert third_other_dir["name"] == "Crohn cohort"
 
 
 def test_normalize_placeholder_values():

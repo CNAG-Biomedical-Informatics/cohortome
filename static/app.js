@@ -6,6 +6,10 @@
       const queryTabEl = document.getElementById("queryTab");
       const analysisTabEl = document.getElementById("analysisTab");
       const phenoTabEl = document.getElementById("phenoTab");
+      const contextDataDirEl = document.getElementById("contextDataDir");
+      const contextCohortEl = document.getElementById("contextCohort");
+      const contextLmModelEl = document.getElementById("contextLmModel");
+      const contextScopeEl = document.getElementById("contextScope");
       const patientsEl = document.getElementById("patients");
       const dashboardEl = document.getElementById("dashboard");
       const detailEl = document.getElementById("detail");
@@ -28,6 +32,12 @@
       const analysisExamplesEl = document.getElementById("analysisExamples");
       const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
       const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
+      const analysisCompareModeEl = document.getElementById("analysisCompareMode");
+      const analysisCompareFieldEl = document.getElementById("analysisCompareField");
+      const analysisCompareSelectedPatientIdsEl = document.getElementById("analysisCompareSelectedPatientIds");
+      const analysisCompareSelectedPatientIdsSummaryEl = document.getElementById("analysisCompareSelectedPatientIdsSummary");
+      const savedCohortsEl = document.getElementById("savedCohorts");
+      const phenoSavedCohortsEl = document.getElementById("phenoSavedCohorts");
       const analysisStatusEl = document.getElementById("analysisStatus");
       const analysisMetaEl = document.getElementById("analysisMeta");
       const analysisLmStatusEl = document.getElementById("analysisLmStatus");
@@ -46,6 +56,7 @@
       const phenoPlanEl = document.getElementById("phenoPlan");
       const phenoPlanReasoningEl = document.getElementById("phenoPlanReasoning");
       const phenoReferenceFilesSummaryEl = document.getElementById("phenoReferenceFilesSummary");
+      const phenoSavedCohortsSelectionEl = document.getElementById("phenoSavedCohortsSelection");
       const phenoPatientFieldEl = document.getElementById("phenoPatientField");
       const phenoPatientIdEl = document.getElementById("phenoPatientId");
       const phenoSelectedPatientIdsEl = document.getElementById("phenoSelectedPatientIds");
@@ -68,6 +79,8 @@
       const phenoExplainDetailEl = document.getElementById("phenoExplainDetail");
       const phenoCommandEl = document.getElementById("phenoCommand");
       const phenoFilesEl = document.getElementById("phenoFiles");
+      const phenoResultEmptyStateEl = document.getElementById("phenoResultEmptyState");
+      const phenoResultWorkspaceEl = document.getElementById("phenoResultWorkspace");
       const phenoOutputDetailsEl = document.getElementById("phenoOutputDetails");
       const phenoOutputPreviewEl = document.getElementById("phenoOutputPreview");
       const phenoAlignmentDetailEl = document.getElementById("phenoAlignmentDetail");
@@ -97,10 +110,17 @@
       let phenoRunState = null;
       let phenoSelectedAlignmentKey = "";
       let latestQueryPatientIds = [];
+      let latestQueryIdType = "patient";
+      let latestQueryPrompt = "";
       let analysisHistory = [];
       let analysisTurns = [];
       let phenoRankerPatientIds = [];
       let phenoReferenceFiles = [];
+      let phenoSelectedSavedCohortIds = [];
+      let dashboardSummaryState = null;
+      let savedCohorts = [];
+      const MAX_VISIBLE_EXAMPLES = 10;
+      const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
 
       function setActiveTab(tabName) {
         const showCohort = tabName === "cohort";
@@ -115,10 +135,279 @@
         queryTabEl.classList.toggle("active", showQuery);
         analysisTabEl.classList.toggle("active", showAnalysis);
         phenoTabEl.classList.toggle("active", showPheno);
+        try {
+          window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
+        } catch (_error) {
+        }
+        renderGlobalContext();
       }
 
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
+      }
+
+      function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
+        if (!container) {
+          return;
+        }
+        const chips = Array.from(container.querySelectorAll(".query-chip"))
+          .filter((chip) => !chip.classList.contains("badge") && !chip.classList.contains("query-chip-toggle"));
+        if (chips.length <= maxVisible) {
+          return;
+        }
+        chips.forEach((chip, index) => {
+          chip.classList.toggle("is-extra-example", index >= maxVisible);
+        });
+        container.classList.add("is-collapsed");
+
+        const toggleWrap = document.createElement("div");
+        toggleWrap.className = "query-examples-toggle";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "query-chip query-chip-toggle";
+        toggleBtn.textContent = `See more (${chips.length - maxVisible})`;
+        toggleBtn.addEventListener("click", () => {
+          const expanded = container.classList.toggle("is-collapsed");
+          toggleBtn.textContent = expanded ? `See more (${chips.length - maxVisible})` : "Show fewer";
+        });
+
+        toggleWrap.appendChild(toggleBtn);
+        container.insertAdjacentElement("afterend", toggleWrap);
+      }
+
+      function renderSavedCohortsInto(container, mode) {
+        if (!container) {
+          return;
+        }
+        if (!savedCohorts.length) {
+          container.innerHTML = '<div class="empty">No saved cohorts yet.</div>';
+          return;
+        }
+        const primaryActionLabel = mode === "pheno" ? "Use in Pheno-Ranker" : "Use as Cohort A";
+        const primaryAction = mode === "pheno" ? "load-pheno" : "load-analysis";
+        container.innerHTML = `<div class="saved-cohort-list">${
+          savedCohorts.map((item) => {
+            const ids = Array.isArray(item.patient_ids) ? item.patient_ids : [];
+            const preview = ids.slice(0, 4).join(", ");
+            const suffix = ids.length > 4 ? ` ... (+${ids.length - 4} more)` : "";
+            const source = item.source && item.source.kind ? item.source.kind : "manual";
+            return `
+              <div class="saved-cohort-card">
+                <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
+                <small>${escapeHtml(String(ids.length))} IDs • ${escapeHtml(item.id_type || "patient")} • source: ${escapeHtml(source)}</small>
+                <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
+                <div class="saved-cohort-actions">
+                  <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
+                  ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
+                  <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
+                  <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}">Delete</button>
+                </div>
+              </div>
+            `;
+          }).join("")
+        }</div>`;
+      }
+
+      function renderSavedCohorts() {
+        renderSavedCohortsInto(savedCohortsEl, "analysis");
+        renderSavedCohortsInto(phenoSavedCohortsEl, "pheno");
+        renderPhenoSavedCohortsSelection();
+      }
+
+      function setSavedCohortStatus(message) {
+        if (currentTabName() === "pheno") {
+          phenoStatusEl.className = "pheno-status";
+          phenoStatusEl.textContent = message;
+          return;
+        }
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = message;
+      }
+
+      async function loadSavedCohorts() {
+        if (!savedCohortsEl && !phenoSavedCohortsEl) {
+          return;
+        }
+        try {
+          const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          const response = await fetch(`/saved-cohorts?data_dir=${dataDir}`);
+          if (!response.ok) {
+            savedCohorts = [];
+            renderSavedCohorts();
+            return;
+          }
+          const payload = await response.json();
+          savedCohorts = Array.isArray(payload.cohorts) ? payload.cohorts : [];
+          renderSavedCohorts();
+        } catch (_error) {
+          savedCohorts = [];
+          renderSavedCohorts();
+        }
+      }
+
+      async function saveLatestQueryAsCohort() {
+        if (!latestQueryPatientIds.length) {
+          return;
+        }
+        const defaultName = latestQueryPrompt
+          ? latestQueryPrompt.slice(0, 80)
+          : `Saved cohort ${new Date().toLocaleString()}`;
+        const name = window.prompt("Cohort name", defaultName);
+        if (name === null) {
+          return;
+        }
+        try {
+          const response = await fetch("/saved-cohorts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name,
+              data_dir: dataDirEl.value.trim(),
+              patient_ids: latestQueryPatientIds,
+              id_type: latestQueryIdType,
+              source_kind: "query",
+              source_prompt: latestQueryPrompt,
+            }),
+          });
+          if (!response.ok) {
+            const payload = await response.json();
+            throw new Error(String(payload.detail || "Unable to save cohort."));
+          }
+          await loadSavedCohorts();
+          setActiveTab("analysis");
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = `Saved cohort "${(name || defaultName).trim()}".`;
+        } catch (error) {
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = error && error.message ? error.message : "Unable to save cohort.";
+        }
+      }
+
+      async function deleteSavedCohortById(cohortId) {
+        try {
+          const response = await fetch(`/saved-cohorts/${encodeURIComponent(cohortId)}`, { method: "DELETE" });
+          if (!response.ok) {
+            throw new Error("Unable to delete saved cohort.");
+          }
+          await loadSavedCohorts();
+          setSavedCohortStatus("Deleted saved cohort.");
+        } catch (_error) {
+          setSavedCohortStatus("Unable to delete saved cohort.");
+        }
+      }
+
+      async function copySavedCohortIds(cohortId) {
+        const item = savedCohorts.find((entry) => entry.id === cohortId);
+        if (!item || !Array.isArray(item.patient_ids) || !item.patient_ids.length) {
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(item.patient_ids.join(","));
+          setSavedCohortStatus(`Copied ${item.patient_ids.length} IDs from ${item.name}.`);
+        } catch (_error) {
+          setSavedCohortStatus("Unable to copy saved cohort IDs.");
+        }
+      }
+
+      function useSavedCohortInAnalysis(cohortId) {
+        const item = savedCohorts.find((entry) => entry.id === cohortId);
+        if (!item || !Array.isArray(item.patient_ids)) {
+          return;
+        }
+        analysisSelectedPatientIdsEl.value = item.patient_ids.join(",");
+        renderAnalysisScopeSummary();
+        setActiveTab("analysis");
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Loaded saved cohort "${item.name}" into the analysis scope.`;
+      }
+
+      function useSavedCohortInAnalysisCompare(cohortId) {
+        const item = savedCohorts.find((entry) => entry.id === cohortId);
+        if (!item || !Array.isArray(item.patient_ids)) {
+          return;
+        }
+        if (analysisCompareModeEl) {
+          analysisCompareModeEl.checked = true;
+        }
+        renderAnalysisCompareMode();
+        analysisCompareSelectedPatientIdsEl.value = item.patient_ids.join(",");
+        renderAnalysisCompareScopeSummary();
+        setActiveTab("analysis");
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Loaded saved cohort "${item.name}" into Cohort B.`;
+      }
+
+      function useSavedCohortInPheno(cohortId) {
+        const item = savedCohorts.find((entry) => entry.id === cohortId);
+        if (!item || !Array.isArray(item.patient_ids)) {
+          return;
+        }
+        if (!phenoSelectedSavedCohortIds.includes(cohortId)) {
+          phenoSelectedSavedCohortIds.push(cohortId);
+        }
+        renderPhenoSavedCohortsSelection();
+        setActiveTab("pheno");
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = `Attached saved cohort "${item.name}" as a separate Pheno-Ranker reference.`;
+      }
+
+      function removeSavedCohortFromPheno(cohortId) {
+        phenoSelectedSavedCohortIds = phenoSelectedSavedCohortIds.filter((item) => item !== cohortId);
+        renderPhenoSavedCohortsSelection();
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = "Removed saved cohort from separate Pheno-Ranker references.";
+      }
+
+      function renderPhenoSavedCohortsSelection() {
+        if (!phenoSavedCohortsSelectionEl) {
+          return;
+        }
+        const selectedItems = phenoSelectedSavedCohortIds
+          .map((cohortId) => savedCohorts.find((entry) => entry.id === cohortId))
+          .filter(Boolean);
+        if (!selectedItems.length) {
+          phenoSavedCohortsSelectionEl.textContent = "No saved cohorts attached as separate references.";
+          phenoSelectedPatientIdsEl.disabled = false;
+          renderSelectedPatientIdsSummary();
+          renderGlobalContext();
+          return;
+        }
+        phenoSavedCohortsSelectionEl.innerHTML = `
+          <div class="saved-cohort-actions">
+            <span class="query-chip badge">Separate references</span>
+            ${selectedItems.map((item) => `<button type="button" class="query-chip query-chip-deterministic" data-pheno-selected-cohort-id="${escapeHtml(item.id)}">${escapeHtml(item.name || "Unnamed cohort")} ×</button>`).join("")}
+          </div>
+        `;
+        phenoSelectedPatientIdsEl.disabled = true;
+        phenoSelectedPatientIdsSummaryEl.textContent = "Scope is disabled while saved cohorts are attached as separate references.";
+        renderGlobalContext();
+      }
+
+      function handleSavedCohortAction(button) {
+        const cohortId = button.dataset.savedCohortId;
+        if (!cohortId) {
+          return;
+        }
+        if (button.dataset.savedCohortAction === "load-analysis") {
+          useSavedCohortInAnalysis(cohortId);
+          return;
+        }
+        if (button.dataset.savedCohortAction === "load-analysis-b") {
+          useSavedCohortInAnalysisCompare(cohortId);
+          return;
+        }
+        if (button.dataset.savedCohortAction === "load-pheno") {
+          useSavedCohortInPheno(cohortId);
+          return;
+        }
+        if (button.dataset.savedCohortAction === "copy") {
+          copySavedCohortIds(cohortId);
+          return;
+        }
+        if (button.dataset.savedCohortAction === "delete") {
+          deleteSavedCohortById(cohortId);
+        }
       }
 
       async function loadLmStatus() {
@@ -140,12 +429,86 @@
           lmStatusEl.textContent = text;
           phenoLmStatusEl.textContent = text;
           analysisLmStatusEl.textContent = text;
+          if (contextLmModelEl) {
+            contextLmModelEl.textContent = payload.enabled
+              ? (payload.model || "Enabled, no model loaded")
+              : "Disabled";
+          }
         } catch (error) {
           const text = "LM Studio model: unavailable";
           lmStatusEl.textContent = text;
           phenoLmStatusEl.textContent = text;
           analysisLmStatusEl.textContent = text;
+          if (contextLmModelEl) {
+            contextLmModelEl.textContent = "Unavailable";
+          }
         }
+        renderGlobalContext();
+      }
+
+      function currentTabName() {
+        if (phenoTabEl.classList.contains("active")) return "pheno";
+        if (analysisTabEl.classList.contains("active")) return "analysis";
+        if (queryTabEl.classList.contains("active")) return "query";
+        return "cohort";
+      }
+
+      function summarizeScopeForTab(tabName) {
+        if (tabName === "pheno") {
+          const ids = getCurrentScopeIds();
+          if (!ids.length && !phenoSelectedSavedCohortIds.length) {
+            return "Full cohort";
+          }
+          if (phenoSelectedSavedCohortIds.length) {
+            return `${phenoSelectedSavedCohortIds.length} saved cohort${phenoSelectedSavedCohortIds.length === 1 ? "" : "s"}`;
+          }
+          return `${ids.length} IDs in Pheno scope`;
+        }
+        if (tabName === "analysis") {
+          const ids = String(analysisSelectedPatientIdsEl.value || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          const compareIds = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          if (analysisCompareModeEl && analysisCompareModeEl.checked) {
+            const labelA = ids.length ? `${ids.length} in A` : "full cohort in A";
+            const labelB = compareIds.length ? `${compareIds.length} in B` : "full cohort in B";
+            return `${labelA} vs ${labelB}`;
+          }
+          if (!ids.length) {
+            return "Full cohort";
+          }
+          return `${ids.length} IDs in Analysis scope`;
+        }
+        return "Full cohort";
+      }
+
+      function renderGlobalContext() {
+        if (!contextDataDirEl || !contextCohortEl || !contextLmModelEl || !contextScopeEl) {
+          return;
+        }
+        const rawDir = String(dataDirEl && dataDirEl.value ? dataDirEl.value : "").trim();
+        contextDataDirEl.textContent = rawDir || "Not configured";
+
+        if (dashboardSummaryState && dashboardSummaryState.totals) {
+          const totals = dashboardSummaryState.totals;
+          contextCohortEl.textContent = `${formatNumber(totals.patients || 0)} patients, ${formatNumber(totals.visits || 0)} timepoints`;
+        } else if (currentPatients.length) {
+          const totalVisits = currentPatients.reduce((sum, patient) => sum + Number(patient.visit_count || 0), 0);
+          contextCohortEl.textContent = `${formatNumber(currentPatients.length)} patients, ${formatNumber(totalVisits)} timepoints`;
+        } else if (loadInFlight) {
+          contextCohortEl.textContent = "Loading...";
+        } else {
+          contextCohortEl.textContent = "No cohort loaded";
+        }
+
+        if (!contextLmModelEl.textContent.trim()) {
+          contextLmModelEl.textContent = "Checking...";
+        }
+        contextScopeEl.textContent = summarizeScopeForTab(currentTabName());
       }
 
       function renderBarChart(items, labelKey, valueKey, color) {
@@ -239,6 +602,46 @@
         if (!context) {
           return '<div class="empty">No analysis plots available.</div>';
         }
+        if (context.mode === "compare") {
+          const cohortA = context.cohort_a || {};
+          const cohortB = context.cohort_b || {};
+          const overviewItems = [
+            { label: "Patients", value: Number((cohortA.overview && cohortA.overview.patient_count) || 0) },
+            { label: "Timepoints", value: Number((cohortA.overview && cohortA.overview.timepoint_count) || 0) },
+            { label: "Patients", value: Number((cohortB.overview && cohortB.overview.patient_count) || 0) },
+            { label: "Timepoints", value: Number((cohortB.overview && cohortB.overview.timepoint_count) || 0) },
+          ];
+          const diseaseDeltaItems = (context.disease_deltas || [])
+            .slice(0, 8)
+            .map((item) => ({
+              label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`,
+              value: Math.abs(Number(item.delta || 0)),
+            }));
+          const medicationDeltaItems = (context.medication_deltas || [])
+            .slice(0, 8)
+            .map((item) => ({
+              label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`,
+              value: Math.abs(Number(item.delta || 0)),
+            }));
+          return `
+            <div class="viz-card">
+              <h3>Cohort A Profile</h3>
+              ${renderBarChart(overviewItems.slice(0, 2), "label", "value", "#2563eb")}
+            </div>
+            <div class="viz-card">
+              <h3>Cohort B Profile</h3>
+              ${renderBarChart(overviewItems.slice(2), "label", "value", "#0ea5e9")}
+            </div>
+            <div class="viz-card">
+              <h3>Disease Differences</h3>
+              ${renderBarChart(diseaseDeltaItems, "label", "value", "#0ea5e9")}
+            </div>
+            <div class="viz-card">
+              <h3>Medication Differences</h3>
+              ${renderBarChart(medicationDeltaItems, "label", "value", "#7c3aed")}
+            </div>
+          `;
+        }
         const diseaseItems = (context.top_diseases || []).slice(0, 8).map((item) => ({ label: item.disease, value: item.patient_count }));
         const medicationItems = (context.top_medications || []).slice(0, 8).map((item) => ({ label: item.medication, value: item.patient_count }));
         const periodItems = (context.timepoints_by_period || []).slice(0, 12).map((item) => ({ label: item.period, value: item.timepoint_count }));
@@ -289,6 +692,14 @@
         return `${ids.length} IDs: ${preview}${suffix}`;
       }
 
+      function renderAnalysisCompareMode() {
+        if (!analysisCompareModeEl || !analysisCompareFieldEl) {
+          return;
+        }
+        analysisCompareFieldEl.style.display = analysisCompareModeEl.checked ? "" : "none";
+        renderGlobalContext();
+      }
+
       function analysisPromptRequestsPlots(prompt) {
         const lowered = String(prompt || "").toLowerCase();
         return [
@@ -318,12 +729,16 @@
         }
         analysisThreadEl.innerHTML = analysisTurns.map((turn) => {
           if (turn.role === "user") {
+            const compareHtml = turn.compareScope
+              ? `<div class="analysis-turn-scope"><strong>Cohort B:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.compareScope || ""))}</div>`
+              : "";
             return `
               <article class="analysis-turn analysis-turn-user">
                 <div class="analysis-turn-label">You</div>
                 <div class="analysis-turn-body">
                   <p>${escapeHtml(turn.prompt)}</p>
-                  <div class="analysis-turn-scope"><strong>Scope:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>
+                  <div class="analysis-turn-scope"><strong>${turn.compareScope ? "Cohort A" : "Scope"}:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>
+                  ${compareHtml}
                 </div>
               </article>
             `;
@@ -830,6 +1245,10 @@
 
       function renderQueryActions(payload) {
         const patientIds = inferPatientIdsFromQueryPayload(payload);
+        latestQueryPrompt = questionEl.value.trim();
+        latestQueryIdType = payload && payload.data && Array.isArray(payload.data.original_record_ids) && payload.data.original_record_ids.length
+          ? "original_record"
+          : "patient";
         latestQueryPatientIds = patientIds;
         if (!patientIds.length) {
           queryActionsEl.innerHTML = "";
@@ -840,7 +1259,8 @@
           : [];
         const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
         queryActionsEl.innerHTML = `
-          <button type="button" class="query-chip" data-query-action="copy-ids">Copy patient IDs</button>
+          <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids">Copy patient IDs</button>
+          <button type="button" class="query-chip query-chip-deterministic" data-query-action="save-cohort">Save cohort</button>
           <button type="button" class="query-chip action" data-query-action="use-analysis">Use IDs in Analysis</button>
           ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
           ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
@@ -870,12 +1290,28 @@
         analysisSelectedPatientIdsSummaryEl.textContent = ids.length
           ? `Scope: ${ids.length} IDs in scope.`
           : "Scope: full cohort.";
+        renderGlobalContext();
+      }
+
+      function renderAnalysisCompareScopeSummary() {
+        if (!analysisCompareSelectedPatientIdsSummaryEl) {
+          return;
+        }
+        const ids = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        analysisCompareSelectedPatientIdsSummaryEl.textContent = ids.length
+          ? `Cohort B: ${ids.length} IDs in scope.`
+          : "Cohort B: full cohort.";
+        renderGlobalContext();
       }
 
       function renderSelectedPatientIdsSummary() {
         const ids = getCurrentScopeIds();
         if (!ids.length) {
           phenoSelectedPatientIdsSummaryEl.textContent = "Scope: full cohort.";
+          renderGlobalContext();
           return;
         }
         const preview = ids.slice(0, 8).join(", ");
@@ -885,9 +1321,11 @@
           : [];
         if (invalidIds.length) {
           phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} IDs entered. Some are patient-level IDs, but Pheno-Ranker needs the original record IDs or timepoints for this reference: ${invalidIds.join(", ")}.`;
+          renderGlobalContext();
           return;
         }
         phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} selected patients. ${preview}${suffix}`;
+        renderGlobalContext();
       }
 
       function sendPatientIdsToPhenoRanker() {
@@ -928,22 +1366,27 @@
           if (!response.ok) {
             phenoRankerPatientIds = [];
             phenoReferenceFiles = [];
-            phenoReferenceFilesSummaryEl.textContent = "Active cohort files: unavailable.";
+            phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">Unavailable</span>';
             return;
           }
           const payload = await response.json();
           phenoRankerPatientIds = Array.isArray(payload.patient_ids) ? payload.patient_ids.filter(Boolean) : [];
           phenoReferenceFiles = Array.isArray(payload.reference_files) ? payload.reference_files.filter(Boolean) : [];
           if (!phenoReferenceFiles.length) {
-            phenoReferenceFilesSummaryEl.textContent = "Active cohort files: none.";
+            phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">None</span>';
           } else {
-            const labels = phenoReferenceFiles.map((item) => item.split("/").pop()).join(", ");
-            phenoReferenceFilesSummaryEl.textContent = `Active cohort files (${phenoReferenceFiles.length}): ${labels}`;
+            const labels = phenoReferenceFiles.map((item) => item.split("/").pop());
+            phenoReferenceFilesSummaryEl.innerHTML = `
+              <div class="file-label-row">
+                <span class="query-chip badge">Active cohort files (${labels.length})</span>
+                ${labels.map((label) => `<span class="query-chip query-chip-deterministic badge">${escapeHtml(label)}</span>`).join("")}
+              </div>
+            `;
           }
         } catch (_error) {
           phenoRankerPatientIds = [];
           phenoReferenceFiles = [];
-          phenoReferenceFilesSummaryEl.textContent = "Active cohort files: unavailable.";
+          phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">Unavailable</span>';
         }
       }
 
@@ -1031,6 +1474,15 @@
         const label = isLm ? "LM-based" : "Deterministic";
         const className = isLm ? "query-chip query-chip-llm badge" : "query-chip query-chip-deterministic badge";
         phenoPlanMetaEl.innerHTML = `<span class="${className}">${escapeHtml(label)}</span>`;
+      }
+
+      function setPhenoResultWorkspaceVisible(visible) {
+        if (phenoResultEmptyStateEl) {
+          phenoResultEmptyStateEl.classList.toggle("is-hidden", Boolean(visible));
+        }
+        if (phenoResultWorkspaceEl) {
+          phenoResultWorkspaceEl.classList.toggle("is-hidden", !visible);
+        }
       }
 
       function renderPhenoNoPlanState(reasoning) {
@@ -1608,7 +2060,7 @@
         if (phenoInFlight) {
           return;
         }
-        const scopeIds = getCurrentScopeIds();
+        const scopeIds = phenoSelectedSavedCohortIds.length ? [] : getCurrentScopeIds();
         if (phenoModeEl.value === "patient") {
           if (!phenoPatientIdEl.value.trim() && scopeIds.length === 1) {
             phenoPatientIdEl.value = scopeIds[0];
@@ -1638,6 +2090,7 @@
         phenoRunBtnEl.disabled = true;
         phenoStatusEl.className = "pheno-status loading";
         phenoStatusEl.textContent = "Running Pheno-Ranker...";
+        setPhenoResultWorkspaceVisible(true);
         phenoCommandEl.textContent = "Preparing command...";
         phenoFilesEl.innerHTML = '<div class="empty">Waiting for Pheno-Ranker outputs.</div>';
         phenoRunState = null;
@@ -1659,7 +2112,8 @@
               mode: phenoModeEl.value,
               data_dir: dataDirEl.value.trim(),
               patient_id: phenoPatientIdEl.value.trim(),
-              selected_patient_ids: phenoSelectedPatientIdsEl.value.trim(),
+              selected_patient_ids: phenoSelectedSavedCohortIds.length ? "" : phenoSelectedPatientIdsEl.value.trim(),
+              selected_saved_cohort_ids: phenoSelectedSavedCohortIds,
               include_terms: parsePhenoTermsInput(phenoIncludeTermsEl.value),
               exclude_terms: parsePhenoTermsInput(phenoExcludeTermsEl.value),
               similarity_metric_cohort: phenoSimilarityMetricEl.value,
@@ -1732,6 +2186,7 @@
           return;
         }
         loadInFlight = true;
+        renderGlobalContext();
         loadBtnEl.disabled = true;
         loadStatusEl.className = "load-status loading";
         loadStatusEl.textContent = "Loading patients and dashboard...";
@@ -1739,6 +2194,7 @@
 
         try {
           const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          await loadSavedCohorts();
           await loadPhenoRankerPatientIds();
           const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
           if (!patientResponse.ok) {
@@ -1746,8 +2202,10 @@
             patientsEl.innerHTML = `<div class="empty">${error.detail}</div>`;
             detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
             dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+            dashboardSummaryState = null;
             loadStatusEl.className = "load-status";
             loadStatusEl.textContent = "Load failed.";
+            renderGlobalContext();
             return;
           }
 
@@ -1758,8 +2216,10 @@
             patientsEl.innerHTML = '<div class="empty">No patient records found in the selected directory.</div>';
             detailEl.innerHTML = '<div class="empty">No timeline to display.</div>';
             dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
+            dashboardSummaryState = null;
             loadStatusEl.className = "load-status";
             loadStatusEl.textContent = "No patients found.";
+            renderGlobalContext();
             return;
           }
 
@@ -1768,6 +2228,7 @@
           detailEl.innerHTML = '<div class="empty">Select a patient to inspect the patient workspace.</div>';
           loadStatusEl.className = "load-status";
           loadStatusEl.textContent = `Loaded ${patients.length} patients.`;
+          renderGlobalContext();
 
           dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
           window.setTimeout(() => {
@@ -1775,20 +2236,28 @@
             .then(async (response) => {
               if (!response.ok) {
                 dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+                dashboardSummaryState = null;
+                renderGlobalContext();
                 return;
               }
-              renderDashboard(await response.json());
+              dashboardSummaryState = await response.json();
+              renderDashboard(dashboardSummaryState);
+              renderGlobalContext();
             })
             .catch(() => {
               dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+              dashboardSummaryState = null;
+              renderGlobalContext();
             });
           }, 0);
         } catch (error) {
           patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
           detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
           dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+          dashboardSummaryState = null;
           loadStatusEl.className = "load-status";
           loadStatusEl.textContent = error && error.message ? error.message : "Load failed.";
+          renderGlobalContext();
         } finally {
           loadInFlight = false;
           loadBtnEl.disabled = false;
@@ -1891,8 +2360,11 @@
         analysisStatusEl.textContent = "Running analysis...";
         analysisMetaEl.innerHTML = "";
         const currentScope = analysisSelectedPatientIdsEl.value.trim();
+        const compareScope = analysisCompareModeEl && analysisCompareModeEl.checked
+          ? analysisCompareSelectedPatientIdsEl.value.trim()
+          : "";
         const showPlots = analysisPromptRequestsPlots(prompt);
-        analysisTurns.push({ role: "user", prompt, scope: currentScope });
+        analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
         renderAnalysisThread();
         try {
           const response = await fetch("/analysis", {
@@ -1902,6 +2374,8 @@
               prompt,
               data_dir: dataDirEl.value.trim() || dataDirEl.value,
               selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
+              compare_mode: Boolean(analysisCompareModeEl && analysisCompareModeEl.checked),
+              compare_selected_patient_ids: compareScope,
               history: analysisHistory.slice(-6),
             }),
           });
@@ -1960,6 +2434,18 @@
       phenoActionEl.addEventListener("change", updatePhenoMode);
       phenoSelectedPatientIdsEl.addEventListener("input", renderSelectedPatientIdsSummary);
       analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
+      analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
+      analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.addEventListener("input", renderAnalysisCompareScopeSummary);
+      initializeExampleToggle(queryExamplesEl);
+      initializeExampleToggle(phenoExamplesEl);
+      initializeExampleToggle(analysisExamplesEl);
+      try {
+        const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        if (savedTab && ["cohort", "query", "analysis", "pheno"].includes(savedTab)) {
+          setActiveTab(savedTab);
+        }
+      } catch (_error) {
+      }
       window.__patientNavigatorLoadPatients = loadPatients;
       window.__patientNavigatorAskQuery = askQuery;
       patientsEl.addEventListener("click", (event) => {
@@ -2016,7 +2502,32 @@
         }
         if (button.dataset.queryAction === "copy-ids") {
           copyPatientIdsFromQuery();
+          return;
         }
+        if (button.dataset.queryAction === "save-cohort") {
+          saveLatestQueryAsCohort();
+        }
+      });
+      savedCohortsEl && savedCohortsEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-saved-cohort-action]");
+        if (!button || !savedCohortsEl.contains(button)) {
+          return;
+        }
+        handleSavedCohortAction(button);
+      });
+      phenoSavedCohortsEl && phenoSavedCohortsEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-saved-cohort-action]");
+        if (!button || !phenoSavedCohortsEl.contains(button)) {
+          return;
+        }
+        handleSavedCohortAction(button);
+      });
+      phenoSavedCohortsSelectionEl && phenoSavedCohortsSelectionEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-pheno-selected-cohort-id]");
+        if (!button || !phenoSavedCohortsSelectionEl.contains(button)) {
+          return;
+        }
+        removeSavedCohortFromPheno(button.dataset.phenoSelectedCohortId || "");
       });
       phenoOutputPreviewEl.addEventListener("click", (event) => {
         const button = event.target.closest("[data-pheno-sort-index]");
@@ -2055,9 +2566,17 @@
       patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
       updatePhenoMode();
       renderSelectedPatientIdsSummary();
+      setPhenoResultWorkspaceVisible(false);
+      renderPhenoSavedCohortsSelection();
+      renderAnalysisCompareMode();
+      renderAnalysisScopeSummary();
+      renderAnalysisCompareScopeSummary();
       renderAnalysisScopeSummary();
       loadPhenoRankerPatientIds();
       loadLmStatus();
+      loadSavedCohorts();
+      renderGlobalContext();
+      loadPatients();
       renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
       renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
     
