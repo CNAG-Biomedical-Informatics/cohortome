@@ -19,7 +19,13 @@ from app.main import (
     search_medication_cohort,
 )
 from app.query import answer_query
-from app.query_store import duckdb_available, medication_counts as store_medication_counts, patient_inventory as store_patient_inventory
+from app.query_store import (
+    cohort_over_time_summary as store_cohort_over_time_summary,
+    duckdb_available,
+    medication_counts as store_medication_counts,
+    patient_inventory as store_patient_inventory,
+    patient_visit_count_cohort as store_patient_visit_count_cohort,
+)
 
 
 def write_json(tmp_path, name, payload):
@@ -282,7 +288,7 @@ def test_query_uses_lm_studio_fallback_when_enabled(tmp_path, monkeypatch):
     monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
     monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
 
-    def fake_http_json(url, payload=None):
+    def fake_http_json(url, payload=None, log_kind="generic"):
         if url.endswith("/models"):
             return {"data": [{"id": "local-model"}]}
         assert url.endswith("/chat/completions")
@@ -293,7 +299,7 @@ def test_query_uses_lm_studio_fallback_when_enabled(tmp_path, monkeypatch):
 
     monkeypatch.setattr(query_module, "_http_json", fake_http_json)
 
-    payload = answer_query(str(tmp_path), "What happened to this cohort over time?")
+    payload = answer_query(str(tmp_path), "What evidence supports the main cohort summary?")
     assert payload["intent"] == "llm_fallback"
     assert payload["reply"] == "LM Studio answer"
     assert payload["data"]["model"] == "local-model"
@@ -305,7 +311,7 @@ def test_query_reports_missing_lm_studio_model(tmp_path, monkeypatch):
 
     monkeypatch.setenv("LM_STUDIO_ENABLED", "1")
     monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
-    monkeypatch.setattr(query_module, "_http_json", lambda url, payload=None: {"data": []})
+    monkeypatch.setattr(query_module, "_http_json", lambda url, payload=None, log_kind="generic": {"data": []})
 
     payload = answer_query(str(tmp_path), "Explain the cohort")
     assert payload["intent"] == "llm_unavailable"
@@ -329,7 +335,7 @@ def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
 
     captured = {}
 
-    def fake_http_json(url, payload=None):
+    def fake_http_json(url, payload=None, log_kind="generic"):
         if url.endswith("/models"):
             return {"data": [{"id": "local-model"}]}
         captured["payload"] = payload
@@ -479,6 +485,334 @@ def test_query_lists_all_patients_in_cohort(tmp_path):
     assert "- 105:week_0_arm_1" in payload["reply"]
 
 
+def test_query_supports_negative_disease_cohort(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "diseases": [],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients don't have Crohn Disease?")
+    assert payload["intent"] == "negative_disease_cohort"
+    assert payload["data"]["patient_count"] == 2
+    assert payload["reply"] == "2 patients do not have 'Crohn Disease'."
+
+
+def test_query_supports_mixed_include_exclude_patient_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients don't have Crohn Disease but take Infliximab?")
+    assert payload["intent"] == "patient_filter_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["202"]
+    assert payload["data"]["patients"][0]["original_record_ids"] == ["202:week_0_arm_1"]
+    assert payload["data"]["conditions"] == [
+        {"mode": "exclude", "kind": "disease", "scope": "patient", "term": "Crohn Disease", "matched_patient_count": 1},
+        {"mode": "include", "kind": "medication", "scope": "patient", "term": "Infliximab", "matched_patient_count": 2},
+    ]
+
+
+def test_query_counts_mixed_include_exclude_patient_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients have Ulcerative Colitis but do not take Mesalamine?")
+    assert payload["intent"] == "patient_filter_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["202"]
+    assert payload["reply"] == "1 patient match: has 'Ulcerative Colitis' and does not take 'Mesalamine'."
+
+
+def test_query_supports_temporal_compound_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-01-15",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "event_date": "2024-02-18",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients have at least 2 timepoints with Prednisolone but do not have Crohn Disease?")
+    assert payload["intent"] == "patient_filter_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["202"]
+    assert payload["data"]["patients"][0]["original_record_ids"] == ["202:week_0_arm_1", "202:week_14_arm_1"]
+    assert payload["data"]["conditions"] == [
+        {
+            "mode": "include",
+            "kind": "medication",
+            "scope": "timepoint",
+            "term": "Prednisolone",
+            "operator": "gte",
+            "target": 2,
+            "matched_patient_count": 2,
+            "raw_term_patient_count": 2,
+        },
+        {
+            "mode": "exclude",
+            "kind": "disease",
+            "scope": "patient",
+            "term": "Crohn Disease",
+            "matched_patient_count": 1,
+        },
+    ]
+
+
+def test_query_counts_temporal_compound_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "303:week_0_arm_1",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients have at least 2 timepoints with Prednisolone and have Ulcerative Colitis?")
+    assert payload["intent"] == "patient_filter_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["202"]
+    assert payload["reply"] == "1 patient match: has at least 2 timepoints with 'Prednisolone' and has 'Ulcerative Colitis'."
+
+
+def test_query_supports_before_temporal_order_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-01-15",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "event_date": "2024-02-18",
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients had Prednisolone before Crohn Disease?")
+    assert payload["intent"] == "patient_temporal_order_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["101"]
+    assert payload["reply"] == "Patients who had 'Prednisolone' before 'Crohn Disease': 101."
+
+
+def test_query_supports_after_temporal_order_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-01-15",
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "event_date": "2024-02-18",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients had Infliximab after Crohn Disease?")
+    assert payload["intent"] == "patient_temporal_order_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["101"]
+    assert payload["reply"] == "1 patient had 'Infliximab' after 'Crohn Disease'."
+
+
+def test_query_supports_transition_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Ulcerative Colitis"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-01-15",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "event_date": "2024-02-18",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Which patients changed from Ulcerative Colitis to Crohn Disease?")
+    assert payload["intent"] == "patient_transition_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["101"]
+    assert payload["reply"] == "Patients who changed from 'Ulcerative Colitis' to 'Crohn Disease': 101."
+
+
+def test_query_supports_started_after_filters(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "diseases": [{"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "treatments": [{"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-01-15",
+                "treatments": [{"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "202:week_14_arm_1",
+                "event_date": "2024-02-18",
+                "diseases": [{"_visit": {"id": "week_14_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients started Infliximab after Crohn Disease?")
+    assert payload["intent"] == "patient_started_after_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patient_ids"] == ["101"]
+    assert payload["reply"] == "1 patient started 'Infliximab' after 'Crohn Disease'."
+
+
 def test_duckdb_query_store_indexes_multiple_files(tmp_path):
     if not duckdb_available():
         return
@@ -515,3 +849,97 @@ def test_duckdb_query_store_indexes_multiple_files(tmp_path):
     assert meds[0]["medication"] == "Infliximab"
     assert meds[0]["patient_count"] == 2
     assert meds[0]["patients"] == ["101", "Beacon_1"]
+
+
+def test_answer_query_supports_longitudinal_timepoint_queries(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}
+                ],
+                "diseases": [
+                    {"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}
+                ],
+            },
+            {
+                "id": "101:week_14_arm_1",
+                "event_date": "2024-02-20",
+                "treatments": [
+                    {"_visit": {"id": "week_14_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}
+                ],
+            },
+            {
+                "id": "202:week_0_arm_1",
+                "event_date": "2024-02-05",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Infliximab"}}
+                ],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many timepoints are in this cohort?")
+    assert payload["intent"] == "timepoint_inventory"
+    assert payload["data"]["timepoint_count"] == 3
+
+    payload = answer_query(str(tmp_path), "What happened to this cohort over time?")
+    assert payload["intent"] == "cohort_over_time"
+    assert payload["data"]["first_event_date"] == "2024-01-10"
+    assert payload["data"]["last_event_date"] == "2024-02-20"
+    assert payload["data"]["periods"][0]["period"] == "2024-01"
+
+    payload = answer_query(str(tmp_path), "Which patients have more than 1 timepoint?")
+    assert payload["intent"] == "patient_visit_count_cohort"
+    assert [item["patient_id"] for item in payload["data"]["patients"]] == ["101"]
+
+    payload = answer_query(str(tmp_path), "How many timepoints mention Prednisolone?")
+    assert payload["intent"] == "medication_timepoint_cohort"
+    assert payload["data"]["timepoint_count"] == 2
+
+    payload = answer_query(str(tmp_path), "Which patients have at least 2 timepoints with Prednisolone?")
+    assert payload["intent"] == "term_patient_visit_count_cohort"
+    assert [item["patient_id"] for item in payload["data"]["patients"]] == ["101"]
+
+    payload = answer_query(str(tmp_path), "Show the timeline for patient 101")
+    assert payload["intent"] == "patient_timeline"
+    assert "Timeline for patient 101:" in payload["reply"]
+    assert "week_0_arm_1" in payload["reply"]
+    assert "Prednisolone" in payload["reply"]
+
+
+def test_query_store_supports_longitudinal_helpers(tmp_path):
+    if not duckdb_available():
+        return
+
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "700:baseline",
+                "event_date": "2024-01-01",
+                "treatments": [{"_visit": {"id": "baseline"}, "treatmentCode": {"label": "Azathioprine"}}],
+            },
+            {
+                "id": "700:month_3",
+                "event_date": "2024-03-01",
+                "treatments": [{"_visit": {"id": "month_3"}, "treatmentCode": {"label": "Azathioprine"}}],
+            },
+            {
+                "id": "800:baseline",
+                "event_date": "2024-03-15",
+            },
+        ],
+    )
+
+    summary = store_cohort_over_time_summary(str(tmp_path))
+    assert summary["timepoint_count"] == 3
+    assert summary["periods"][0]["period"] == "2024-01"
+
+    cohort = store_patient_visit_count_cohort(str(tmp_path), "gt", 1)
+    assert [item["patient_id"] for item in cohort["patients"]] == ["700"]

@@ -330,6 +330,17 @@ def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
                 """
             ).fetchall()
         }
+        original_ids = {
+            patient_id: values
+            for patient_id, values in con.execute(
+                """
+                SELECT patient_id, list(DISTINCT original_id ORDER BY original_id)
+                FROM timepoints
+                WHERE original_id IS NOT NULL AND original_id <> ''
+                GROUP BY patient_id
+                """
+            ).fetchall()
+        }
     finally:
         con.close()
 
@@ -344,6 +355,7 @@ def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
                 "medication_count": medication_count,
                 "diseases": list(diseases.get(patient_id) or []),
                 "disease_count": disease_count,
+                "original_record_ids": list(original_ids.get(patient_id) or []),
             }
         )
     return payload
@@ -379,6 +391,97 @@ def patient_medication_count_cohort(data_dir: str, operator: str, target: int) -
             }
             for patient_id, sex, visit_count, medication_count, disease_count in rows
         ],
+    }
+
+
+def patient_visit_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+    sql_operator = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "="}.get(operator, "=")
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        rows = con.execute(
+            f"""
+            SELECT patient_id, sex, visit_count, medication_count, disease_count
+            FROM patients
+            WHERE visit_count {sql_operator} ?
+            ORDER BY patient_id
+            """,
+            [target],
+        ).fetchall()
+    finally:
+        con.close()
+    return {
+        "operator": operator,
+        "target": target,
+        "patient_count": len(rows),
+        "patients": [
+            {
+                "patient_id": patient_id,
+                "sex": sex,
+                "visit_count": visit_count,
+                "medication_count": medication_count,
+                "disease_count": disease_count,
+            }
+            for patient_id, sex, visit_count, medication_count, disease_count in rows
+        ],
+    }
+
+
+def cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        totals_row = con.execute(
+            """
+            SELECT
+                COUNT(*) AS timepoint_count,
+                COUNT(DISTINCT patient_id) AS patient_count,
+                COUNT(event_date) AS dated_timepoint_count,
+                MIN(event_date) AS first_event_date,
+                MAX(event_date) AS last_event_date
+            FROM timepoints
+            """
+        ).fetchone()
+        period_rows = con.execute(
+            """
+            SELECT
+                SUBSTR(event_date, 1, 7) AS period,
+                COUNT(*) AS timepoint_count,
+                COUNT(DISTINCT patient_id) AS patient_count
+            FROM timepoints
+            WHERE event_date IS NOT NULL AND event_date <> ''
+            GROUP BY period
+            ORDER BY period
+            """
+        ).fetchall()
+        undated_row = con.execute(
+            """
+            SELECT COUNT(*) FROM timepoints
+            WHERE event_date IS NULL OR event_date = ''
+            """
+        ).fetchone()
+    finally:
+        con.close()
+
+    timepoint_count, patient_count, dated_timepoint_count, first_event_date, last_event_date = totals_row or (0, 0, 0, None, None)
+    undated_timepoint_count = int(undated_row[0]) if undated_row else 0
+    periods = [
+        {
+            "period": period,
+            "timepoint_count": timepoint_total,
+            "patient_count": patient_total,
+        }
+        for period, timepoint_total, patient_total in period_rows
+        if period
+    ]
+    return {
+        "timepoint_count": int(timepoint_count or 0),
+        "patient_count": int(patient_count or 0),
+        "dated_timepoint_count": int(dated_timepoint_count or 0),
+        "undated_timepoint_count": undated_timepoint_count,
+        "first_event_date": first_event_date,
+        "last_event_date": last_event_date,
+        "periods": periods,
     }
 
 

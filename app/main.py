@@ -22,13 +22,22 @@ from app.bff import (
     build_patient_navigator,
     dashboard_summary,
     ensure_data_dir,
+    extract_treatment_labels,
     get_patient_context,
     list_patient_summaries,
     medication_cohort,
     medication_counts,
+    normalize_value,
     read_bff_records,
 )
 from app.query import answer_query
+from app.query_store import (
+    cohort_over_time_summary as store_cohort_over_time_summary,
+    disease_counts as store_disease_counts,
+    duckdb_available,
+    medication_counts as store_medication_counts,
+    patient_query_index as store_patient_query_index,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -53,6 +62,13 @@ class QueryTurn(BaseModel):
 class QueryRequest(BaseModel):
     q: str
     data_dir: str = DEFAULT_DATA_DIR
+    history: List[QueryTurn] = Field(default_factory=list)
+
+
+class AnalysisRequest(BaseModel):
+    prompt: str
+    data_dir: str = DEFAULT_DATA_DIR
+    selected_patient_ids: str = ""
     history: List[QueryTurn] = Field(default_factory=list)
 
 
@@ -252,6 +268,288 @@ def _resolve_lm_studio_model() -> str | None:
         return None
     model_id = first.get("id")
     return model_id if isinstance(model_id, str) and model_id.strip() else None
+
+
+def _parse_scope_ids(value: str) -> List[str]:
+    if not value.strip():
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _record_matches_scope(record: Dict[str, Any], scope_ids: set[str]) -> bool:
+    if not scope_ids:
+        return True
+    raw_id = normalize_value(record.get("id"))
+    patient_id = _extract_record_patient_id(record)
+    if isinstance(raw_id, str) and raw_id in scope_ids:
+        return True
+    if isinstance(patient_id, str) and patient_id in scope_ids:
+        return True
+    return False
+
+
+def _analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str, Any]:
+    resolved_dir = ensure_data_dir(data_dir)
+    scope_ids = set(_parse_scope_ids(selected_patient_ids))
+    if duckdb_available() and not scope_ids:
+        patient_rows = store_patient_query_index(str(resolved_dir))
+        top_diseases = store_disease_counts(str(resolved_dir))[:8]
+        top_medications = store_medication_counts(str(resolved_dir))[:8]
+        over_time = store_cohort_over_time_summary(str(resolved_dir))
+        source = "duckdb"
+    else:
+        source = "scoped_records" if scope_ids else "dashboard_fallback"
+        patient_stats: Dict[str, Dict[str, Any]] = {}
+        disease_patient_sets: Dict[str, set[str]] = {}
+        medication_patient_sets: Dict[str, set[str]] = {}
+        period_counts: Dict[str, Dict[str, Any]] = {}
+        dated_values: List[str] = []
+        undated_timepoint_count = 0
+
+        for _, _, record in read_bff_records(resolved_dir):
+            if not _record_matches_scope(record, scope_ids):
+                continue
+            patient_id = _extract_record_patient_id(record)
+            if not patient_id:
+                continue
+            stat = patient_stats.setdefault(
+                patient_id,
+                {
+                    "visit_count": 0,
+                    "medications": set(),
+                    "diseases": set(),
+                    "original_record_ids": set(),
+                },
+            )
+            stat["visit_count"] += 1
+            raw_id = normalize_value(record.get("id"))
+            if isinstance(raw_id, str) and raw_id:
+                stat["original_record_ids"].add(raw_id)
+            for label in _extract_record_disease_labels(record):
+                stat["diseases"].add(label)
+                disease_patient_sets.setdefault(label, set()).add(patient_id)
+            for label in extract_treatment_labels(record):
+                stat["medications"].add(label)
+                medication_patient_sets.setdefault(label, set()).add(patient_id)
+
+            event_date = normalize_value(record.get("event_date"))
+            if isinstance(event_date, str) and event_date.strip():
+                event_date = event_date.strip()
+                dated_values.append(event_date)
+                period = event_date[:7] if len(event_date) >= 7 else event_date
+                entry = period_counts.setdefault(period, {"period": period, "timepoint_count": 0, "patients": set()})
+                entry["timepoint_count"] += 1
+                entry["patients"].add(patient_id)
+            else:
+                undated_timepoint_count += 1
+
+        patient_rows = [
+            {
+                "patient_id": patient_id,
+                "visit_count": stat["visit_count"],
+                "medication_count": len(stat["medications"]),
+                "disease_count": len(stat["diseases"]),
+                "original_record_ids": sorted(stat["original_record_ids"]),
+                "medications": sorted(stat["medications"]),
+                "diseases": sorted(stat["diseases"]),
+            }
+            for patient_id, stat in sorted(patient_stats.items())
+        ]
+        top_diseases = [
+            {"disease": label, "patient_count": len(patients), "patients": sorted(patients)}
+            for label, patients in sorted(disease_patient_sets.items(), key=lambda item: (-len(item[1]), item[0]))[:8]
+        ]
+        top_medications = [
+            {"medication": label, "patient_count": len(patients), "patients": sorted(patients)}
+            for label, patients in sorted(medication_patient_sets.items(), key=lambda item: (-len(item[1]), item[0]))[:8]
+        ]
+        over_time = {
+            "timepoint_count": sum(stat["visit_count"] for stat in patient_stats.values()),
+            "patient_count": len(patient_stats),
+            "dated_timepoint_count": len(dated_values),
+            "undated_timepoint_count": undated_timepoint_count,
+            "first_event_date": min(dated_values) if dated_values else None,
+            "last_event_date": max(dated_values) if dated_values else None,
+            "periods": [
+                {
+                    "period": period,
+                    "timepoint_count": values["timepoint_count"],
+                    "patient_count": len(values["patients"]),
+                }
+                for period, values in sorted(period_counts.items())
+            ],
+        }
+
+    visit_distribution: Dict[str, int] = {}
+    multi_timepoint_patients = 0
+    poly_medication_patients = 0
+    for row in patient_rows:
+        visit_count = int(row.get("visit_count") or 0)
+        visit_distribution[str(visit_count)] = visit_distribution.get(str(visit_count), 0) + 1
+        if visit_count > 1:
+            multi_timepoint_patients += 1
+        if int(row.get("medication_count") or 0) > 1:
+            poly_medication_patients += 1
+
+    patient_count = over_time.get("patient_count") or len(patient_rows)
+    timepoint_count = over_time.get("timepoint_count") or sum(int(row.get("visit_count") or 0) for row in patient_rows)
+    notable = []
+    if top_diseases:
+        notable.append("Most common disease: %s (%s patients)" % (top_diseases[0]["disease"], top_diseases[0]["patient_count"]))
+    if top_medications:
+        notable.append("Most common medication: %s (%s patients)" % (top_medications[0]["medication"], top_medications[0]["patient_count"]))
+    if patient_count:
+        notable.append("%s/%s patients have more than one timepoint" % (multi_timepoint_patients, patient_count))
+        notable.append("%s/%s patients have more than one medication" % (poly_medication_patients, patient_count))
+
+    return {
+        "source": source,
+        "scope_ids": sorted(scope_ids),
+        "overview": {
+            "patient_count": patient_count,
+            "timepoint_count": timepoint_count,
+            "first_event_date": over_time.get("first_event_date"),
+            "last_event_date": over_time.get("last_event_date"),
+            "dated_timepoint_count": over_time.get("dated_timepoint_count", 0),
+            "undated_timepoint_count": over_time.get("undated_timepoint_count", 0),
+            "multi_timepoint_patients": multi_timepoint_patients,
+            "poly_medication_patients": poly_medication_patients,
+        },
+        "top_diseases": top_diseases,
+        "top_medications": top_medications,
+        "timepoints_by_period": over_time.get("periods", [])[:12],
+        "visit_distribution": [{"label": key, "value": value} for key, value in sorted(visit_distribution.items(), key=lambda item: int(item[0]))],
+        "notable_findings": notable,
+    }
+
+
+def _deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
+    overview = context["overview"]
+    notable = context.get("notable_findings", [])
+    top_disease = context["top_diseases"][0]["disease"] if context["top_diseases"] else "n/a"
+    top_medication = context["top_medications"][0]["medication"] if context["top_medications"] else "n/a"
+    lines = [
+        "This cohort has %s patients and %s timepoints." % (overview["patient_count"], overview["timepoint_count"]),
+        "Date range: %s to %s." % (overview.get("first_event_date") or "n/a", overview.get("last_event_date") or "n/a"),
+        "Most common disease: %s." % top_disease,
+        "Most common medication: %s." % top_medication,
+    ]
+    if notable:
+        lines.append("Notable findings: %s." % "; ".join(notable[:3]))
+    lines.append("LLM analysis is unavailable, so this is a deterministic cohort summary for: %s" % prompt.strip())
+    return " ".join(lines)
+
+
+def _analysis_llm_reply(
+    prompt: str,
+    data_dir: str,
+    selected_patient_ids: str = "",
+    history: List[Dict[str, str]] | None = None,
+) -> Dict[str, Any]:
+    context = _analysis_context(data_dir, selected_patient_ids=selected_patient_ids)
+    model = _resolve_lm_studio_model() if _lm_studio_enabled() else None
+    if not _lm_studio_enabled() or not model:
+        return {
+            "intent": "analysis_deterministic",
+            "reply": _deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+            },
+        }
+
+    trimmed_history = history[-4:] if history else []
+    prompt_payload = {
+        "analysis_request": prompt,
+        "conversation_history": trimmed_history,
+        "cohort_analysis_context": context,
+        "instructions": [
+            "Act as a clinical/bioinformatics analysis assistant.",
+            "Use only the provided cohort analysis context.",
+            "Summarize important patterns, call out uncertainty, and suggest next analyses.",
+            "Do not invent patient-level facts that are not present in the context.",
+            "Keep the answer concise but analytical.",
+        ],
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You analyze private clinical cohort summaries. Be precise, restrained, and evidence-based.",
+            },
+            {
+                "role": "user",
+                "content": json.dumps(prompt_payload, ensure_ascii=False),
+            },
+        ],
+        "temperature": 0.2,
+    }
+    try:
+        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload, log_kind="analysis_llm")
+    except Exception as exc:
+        return {
+            "intent": "analysis_deterministic",
+            "reply": _deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+                "llm_error": str(exc),
+            },
+        }
+    if isinstance(response.get("error"), str):
+        return {
+            "intent": "analysis_deterministic",
+            "reply": _deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+                "llm_error": response["error"],
+            },
+        }
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return {
+            "intent": "analysis_deterministic",
+            "reply": _deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+                "llm_error": "LM Studio returned an unexpected response format.",
+            },
+        }
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        return {
+            "intent": "analysis_deterministic",
+            "reply": _deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+                "llm_error": "LM Studio returned an empty analysis reply.",
+            },
+        }
+    return {
+        "intent": "analysis_llm",
+        "reply": _sanitize_lm_text(content),
+        "data": {
+            "source": "llm",
+            "context": context,
+            "model": model,
+            "base_url": _lm_studio_base_url(),
+        },
+    }
 
 
 def _extract_record_patient_id(record: Dict) -> str | None:
@@ -1560,6 +1858,19 @@ def query_app_post(request: QueryRequest) -> Dict:
         return answer_query(
             request.data_dir,
             request.q,
+            history=[turn.model_dump() for turn in request.history],
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/analysis")
+def analysis_app(request: AnalysisRequest) -> Dict:
+    try:
+        return _analysis_llm_reply(
+            request.prompt,
+            request.data_dir,
+            selected_patient_ids=request.selected_patient_ids,
             history=[turn.model_dump() for turn in request.history],
         )
     except FileNotFoundError as exc:

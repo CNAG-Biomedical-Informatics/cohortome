@@ -3,7 +3,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib import error, request
 from uuid import uuid4
 
@@ -20,6 +20,7 @@ from app.bff import (
     read_bff_records,
 )
 from app.query_store import (
+    cohort_over_time_summary as store_cohort_over_time_summary,
     disease_cohort as store_disease_cohort,
     disease_counts as store_disease_counts,
     duckdb_available,
@@ -27,6 +28,7 @@ from app.query_store import (
     medication_counts as store_medication_counts,
     patient_medication_count_cohort as store_patient_medication_count_cohort,
     patient_query_index as store_patient_query_index,
+    patient_visit_count_cohort as store_patient_visit_count_cohort,
 )
 
 
@@ -200,8 +202,12 @@ def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
     for patient_id, bundle in sorted(bundles.items()):
         medication_labels: List[str] = []
         disease_labels: List[str] = []
+        original_record_ids: List[str] = []
 
         for visit in bundle.context.visits:
+            original_id = normalize_value(visit.provenance.raw_bff.get("id"))
+            if isinstance(original_id, str) and original_id not in original_record_ids:
+                original_record_ids.append(original_id)
             for label in extract_treatment_labels(visit.provenance.raw_bff):
                 if label not in medication_labels:
                     medication_labels.append(label)
@@ -218,6 +224,7 @@ def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
                 "medication_count": len(medication_labels),
                 "diseases": disease_labels,
                 "disease_count": len(disease_labels),
+                "original_record_ids": original_record_ids,
             }
         )
 
@@ -248,6 +255,34 @@ def _medication_count_constraint(query: str) -> Optional[Dict[str, Any]]:
     if re.search(r"\bmore than 1\s+(?:medications?|drugs?|treatments?)\b", lowered):
         return {"operator": "gt", "value": 1}
     if re.search(r"\bone medication\b", lowered) and "more than" not in lowered and "less than" not in lowered:
+        return {"operator": "eq", "value": 1}
+    return None
+
+
+def _visit_count_constraint(query: str) -> Optional[Dict[str, Any]]:
+    lowered = query.lower()
+    if not any(keyword in lowered for keyword in ("visit", "visits", "timepoint", "timepoints")):
+        return None
+
+    patterns = [
+        (r"\bmore than\s+(\d+)\s+(?:visits?|timepoints?)\b", "gt"),
+        (r"\bat least\s+(\d+)\s+(?:visits?|timepoints?)\b", "gte"),
+        (r"\bless than\s+(\d+)\s+(?:visits?|timepoints?)\b", "lt"),
+        (r"\bat most\s+(\d+)\s+(?:visits?|timepoints?)\b", "lte"),
+        (r"\bexactly\s+(\d+)\s+(?:visits?|timepoints?)\b", "eq"),
+    ]
+    for pattern, operator in patterns:
+        match = re.search(pattern, lowered)
+        if match:
+            return {"operator": operator, "value": int(match.group(1))}
+
+    if re.search(r"\bno\s+(?:visits?|timepoints?)\b", lowered):
+        return {"operator": "eq", "value": 0}
+    if re.search(r"\bmore than one\s+(?:visits?|timepoints?)\b", lowered):
+        return {"operator": "gt", "value": 1}
+    if re.search(r"\bmore than 1\s+(?:visits?|timepoints?)\b", lowered):
+        return {"operator": "gt", "value": 1}
+    if re.search(r"\bone visit\b|\bone timepoint\b", lowered) and "more than" not in lowered and "less than" not in lowered:
         return {"operator": "eq", "value": 1}
     return None
 
@@ -300,6 +335,457 @@ def _format_medication_count_constraint(operator: str, target: int) -> str:
     return f"exactly {target} medications"
 
 
+def _format_visit_count_constraint(operator: str, target: int) -> str:
+    noun = "timepoint" if target == 1 else "timepoints"
+    if operator == "gt":
+        return f"more than {target} {noun}"
+    if operator == "gte":
+        return f"at least {target} {noun}"
+    if operator == "lt":
+        return f"less than {target} {noun}"
+    if operator == "lte":
+        return f"at most {target} {noun}"
+    if target == 0:
+        return "no timepoints"
+    if target == 1:
+        return "exactly 1 timepoint"
+    return f"exactly {target} timepoints"
+
+
+def patient_visit_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+    if duckdb_available():
+        try:
+            return store_patient_visit_count_cohort(data_dir, operator, target)
+        except Exception:
+            pass
+    patients = []
+    for row in _patient_query_index(data_dir):
+        if _matches_numeric_constraint(row["visit_count"], operator, target):
+            patients.append(row)
+    return {
+        "operator": operator,
+        "target": target,
+        "patient_count": len(patients),
+        "patients": patients,
+    }
+
+
+def _cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
+    if duckdb_available():
+        try:
+            return store_cohort_over_time_summary(data_dir)
+        except Exception:
+            pass
+    patient_rows = _patient_query_index(data_dir)
+    dated = []
+    undated = 0
+    period_counts: Dict[str, Dict[str, Any]] = {}
+    for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
+        date = normalize_value(record.get("event_date"))
+        if isinstance(date, str) and date.strip():
+            date = date.strip()
+            dated.append(date)
+            period = date[:7] if len(date) >= 7 else date
+            raw_patient_id = normalize_value(record.get("patient_id")) or normalize_value(record.get("id"))
+            entry = period_counts.setdefault(period, {"period": period, "timepoint_count": 0, "patients": set()})
+            entry["timepoint_count"] += 1
+            if isinstance(raw_patient_id, str) and raw_patient_id:
+                entry["patients"].add(raw_patient_id.split(":")[0])
+        else:
+            undated += 1
+    periods = [
+        {
+            "period": period,
+            "timepoint_count": values["timepoint_count"],
+            "patient_count": len(values["patients"]),
+        }
+        for period, values in sorted(period_counts.items())
+    ]
+    return {
+        "timepoint_count": len(dated) + undated,
+        "patient_count": len(patient_rows),
+        "dated_timepoint_count": len(dated),
+        "undated_timepoint_count": undated,
+        "first_event_date": min(dated) if dated else None,
+        "last_event_date": max(dated) if dated else None,
+        "periods": periods,
+    }
+
+
+def _term_timepoint_summary(data_dir: str, term: str) -> Optional[Dict[str, Any]]:
+    medication = _medication_cohort(data_dir, term)
+    disease = _disease_cohort(data_dir, term)
+    if medication["patient_count"] == 0 and disease["patient_count"] == 0:
+        return None
+    selected = medication if medication["patient_count"] >= disease["patient_count"] else disease
+    intent = "medication_timepoint_cohort" if selected is medication else "disease_timepoint_cohort"
+    matched_timepoint_count = sum(len(item.get("visits", [])) for item in selected["patients"])
+    return {
+        "intent": intent,
+        "term": term,
+        "patient_count": selected["patient_count"],
+        "timepoint_count": matched_timepoint_count,
+        "patients": selected["patients"],
+    }
+
+
+def _term_from_timepoint_query(text: str) -> str:
+    patterns = (
+        r"(?:timepoints?|visits?)\s+(?:mentioning|mention|with)\s+(.+)",
+        r"(?:with|for)\s+(.+?)\s*(?:over time)?$",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip(" ?.")
+    return ""
+
+
+def _negative_patient_term_query(text: str) -> Optional[Dict[str, str]]:
+    patterns = (
+        r"^how many patients do not have\s+(.+)$",
+        r"^how many patients don't have\s+(.+)$",
+        r"^which patients do not have\s+(.+)$",
+        r"^which patients don't have\s+(.+)$",
+        r"^list patients who do not have\s+(.+)$",
+        r"^list patients who don't have\s+(.+)$",
+        r"^which patients are not on\s+(.+)$",
+        r"^how many patients are not on\s+(.+)$",
+    )
+    stripped = text.strip().rstrip("?.")
+    lowered = stripped.lower()
+    for pattern in patterns:
+        match = re.match(pattern, lowered, flags=re.IGNORECASE)
+        if match:
+            term = stripped[match.start(1):].strip()
+            intent = "count" if lowered.startswith("how many") else "list"
+            return {"term": term, "intent": intent}
+    return None
+
+
+def _resolve_patient_filter_kind(data_dir: str, term: str, preferred_kind: Optional[str] = None) -> Tuple[Optional[str], Dict[str, Any]]:
+    if preferred_kind == "disease":
+        cohort = _disease_cohort(data_dir, term)
+        return "disease", cohort
+    if preferred_kind == "medication":
+        cohort = _medication_cohort(data_dir, term)
+        return "medication", cohort
+
+    disease = _disease_cohort(data_dir, term)
+    medication = _medication_cohort(data_dir, term)
+    if disease["patient_count"] == 0 and medication["patient_count"] == 0:
+        return None, {"patient_count": 0, "patients": []}
+    if disease["patient_count"] >= medication["patient_count"]:
+        return "disease", disease
+    return "medication", medication
+
+
+def _parse_patient_filter_clause(clause: str) -> Optional[Dict[str, str]]:
+    cleaned = clause.strip().strip("?.")
+    if not cleaned:
+        return None
+
+    timepoint_constraint = _visit_count_constraint(cleaned)
+    if timepoint_constraint is not None and any(keyword in cleaned.lower() for keyword in ("with", "mention")):
+        term = _term_from_timepoint_query(cleaned)
+        if term:
+            return {
+                "mode": "include",
+                "preferred_kind": "",
+                "term": term,
+                "scope": "timepoint",
+                "operator": timepoint_constraint["operator"],
+                "value": str(timepoint_constraint["value"]),
+            }
+
+    if re.search(r"\bno\s+(?:timepoints?|visits?)\s+(?:with|mentioning|mention)\s+", cleaned, flags=re.IGNORECASE):
+        term = _term_from_timepoint_query(cleaned)
+        if term:
+            return {
+                "mode": "exclude",
+                "preferred_kind": "",
+                "term": term,
+                "scope": "timepoint",
+                "operator": "gt",
+                "value": "0",
+            }
+
+    patterns = [
+        (r"^(?:do not|don't)\s+have\s+(.+)$", "exclude", "disease"),
+        (r"^(?:do not|don't)\s+take\s+(.+)$", "exclude", "medication"),
+        (r"^(?:are not on|not on)\s+(.+)$", "exclude", "medication"),
+        (r"^without\s+(.+)$", "exclude", None),
+        (r"^(?:have|has)\s+(.+)$", "include", "disease"),
+        (r"^(?:take|takes|taking)\s+(.+)$", "include", "medication"),
+        (r"^(?:are on|on|using|use|uses|treated with|receive|receives)\s+(.+)$", "include", "medication"),
+        (r"^with\s+(.+)$", "include", None),
+    ]
+    for pattern, mode, preferred_kind in patterns:
+        match = re.match(pattern, cleaned, flags=re.IGNORECASE)
+        if match:
+            term = match.group(1).strip().strip("?.")
+            if term:
+                return {
+                    "mode": mode,
+                    "preferred_kind": preferred_kind or "",
+                    "term": term,
+                    "scope": "patient",
+                    "operator": "",
+                    "value": "",
+                }
+    return None
+
+
+def _patient_filter_query(text: str) -> Optional[Dict[str, Any]]:
+    stripped = text.strip().rstrip("?.")
+    lowered = stripped.lower()
+    prefixes = (
+        "how many patients ",
+        "which patients ",
+        "list patients ",
+    )
+    prefix = next((item for item in prefixes if lowered.startswith(item)), None)
+    if prefix is None:
+        return None
+
+    body = stripped[len(prefix):].strip()
+    if not body:
+        return None
+
+    raw_clauses = re.split(r"\s+(?:but|and)\s+", body, flags=re.IGNORECASE)
+    if len(raw_clauses) < 2:
+        return None
+
+    conditions: List[Dict[str, str]] = []
+    for raw_clause in raw_clauses:
+        parsed = _parse_patient_filter_clause(raw_clause)
+        if parsed is None:
+            return None
+        conditions.append(parsed)
+
+    intent = "count" if lowered.startswith("how many") else "list"
+    return {"intent": intent, "conditions": conditions}
+
+
+def _resolve_timepoint_filter_condition(data_dir: str, term: str, operator: str, target: int) -> Tuple[Optional[str], List[Dict[str, Any]], int]:
+    result = _term_timepoint_summary(data_dir, term)
+    if result is None:
+        return None, [], 0
+    kind = "medication" if result["intent"] == "medication_timepoint_cohort" else "disease"
+    filtered = [
+        item
+        for item in result["patients"]
+        if _matches_numeric_constraint(len(item.get("visits", [])), operator, target)
+    ]
+    return kind, filtered, result["patient_count"]
+
+
+def _temporal_order_query(text: str) -> Optional[Dict[str, str]]:
+    stripped = text.strip().rstrip("?.")
+    lowered = stripped.lower()
+    prefixes = (
+        "which patients had ",
+        "how many patients had ",
+        "list patients who had ",
+    )
+    prefix = next((item for item in prefixes if lowered.startswith(item)), None)
+    if prefix is None:
+        return None
+
+    body = stripped[len(prefix):].strip()
+    for relation in (" before ", " after "):
+        if relation in body.lower():
+            parts = re.split(relation, body, maxsplit=1, flags=re.IGNORECASE)
+            if len(parts) != 2:
+                return None
+            earlier = parts[0].strip()
+            later = parts[1].strip()
+            if not earlier or not later:
+                return None
+            return {
+                "intent": "count" if lowered.startswith("how many") else "list",
+                "first_term": earlier,
+                "second_term": later,
+                "relation": relation.strip(),
+            }
+    return None
+
+
+def _transition_query(text: str) -> Optional[Dict[str, str]]:
+    stripped = text.strip().rstrip("?.")
+    lowered = stripped.lower()
+    prefixes = (
+        "which patients changed from ",
+        "how many patients changed from ",
+        "list patients who changed from ",
+    )
+    prefix = next((item for item in prefixes if lowered.startswith(item)), None)
+    if prefix is None:
+        return None
+
+    body = stripped[len(prefix):].strip()
+    parts = re.split(r"\s+to\s+", body, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) != 2:
+        return None
+    first_term = parts[0].strip()
+    second_term = parts[1].strip()
+    if not first_term or not second_term:
+        return None
+    return {
+        "intent": "count" if lowered.startswith("how many") else "list",
+        "first_term": first_term,
+        "second_term": second_term,
+    }
+
+
+def _start_after_query(text: str) -> Optional[Dict[str, str]]:
+    stripped = text.strip().rstrip("?.")
+    lowered = stripped.lower()
+    prefixes = (
+        "which patients started ",
+        "how many patients started ",
+        "list patients who started ",
+    )
+    prefix = next((item for item in prefixes if lowered.startswith(item)), None)
+    if prefix is None:
+        return None
+
+    body = stripped[len(prefix):].strip()
+    parts = re.split(r"\s+after\s+", body, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) != 2:
+        return None
+    started_term = parts[0].strip()
+    after_term = parts[1].strip()
+    if not started_term or not after_term:
+        return None
+    return {
+        "intent": "count" if lowered.startswith("how many") else "list",
+        "started_term": started_term,
+        "after_term": after_term,
+    }
+
+
+def _dated_patient_term_events(data_dir: str, term: str) -> Tuple[Optional[str], Dict[str, List[str]]]:
+    kind, cohort = _resolve_patient_filter_kind(data_dir, term)
+    if kind is None:
+        return None, {}
+
+    events: Dict[str, List[str]] = {}
+    for item in cohort["patients"]:
+        patient_id = item["patient_id"]
+        for visit in item.get("visits", []):
+            event_date = visit.get("event_date")
+            if isinstance(event_date, str) and event_date.strip():
+                events.setdefault(patient_id, []).append(event_date.strip())
+    for patient_id in list(events.keys()):
+        events[patient_id] = sorted(set(events[patient_id]))
+    return kind, events
+
+
+def _patient_temporal_order_cohort(data_dir: str, first_term: str, second_term: str, relation: str) -> Optional[Dict[str, Any]]:
+    first_kind, first_events = _dated_patient_term_events(data_dir, first_term)
+    second_kind, second_events = _dated_patient_term_events(data_dir, second_term)
+    if first_kind is None or second_kind is None:
+        return None
+
+    inventory = _patient_query_index(data_dir)
+    rows_by_id = {row["patient_id"]: row for row in inventory}
+    matched_rows: List[Dict[str, Any]] = []
+
+    candidate_ids = set(first_events) & set(second_events)
+    for patient_id in sorted(candidate_ids):
+        first_dates = first_events.get(patient_id, [])
+        second_dates = second_events.get(patient_id, [])
+        if not first_dates or not second_dates:
+            continue
+        condition_met = min(first_dates) < max(second_dates) if relation == "before" else max(first_dates) > min(second_dates)
+        if not condition_met:
+            continue
+        row = dict(rows_by_id.get(patient_id, {"patient_id": patient_id}))
+        row["first_term_dates"] = first_dates
+        row["second_term_dates"] = second_dates
+        matched_rows.append(row)
+
+    return {
+        "first_term": first_term,
+        "second_term": second_term,
+        "relation": relation,
+        "first_kind": first_kind,
+        "second_kind": second_kind,
+        "patient_count": len(matched_rows),
+        "patient_ids": [row["patient_id"] for row in matched_rows],
+        "patients": matched_rows,
+    }
+
+
+def _patient_transition_cohort(data_dir: str, first_term: str, second_term: str) -> Optional[Dict[str, Any]]:
+    first_kind, first_events = _dated_patient_term_events(data_dir, first_term)
+    second_kind, second_events = _dated_patient_term_events(data_dir, second_term)
+    if first_kind is None or second_kind is None:
+        return None
+
+    inventory = _patient_query_index(data_dir)
+    rows_by_id = {row["patient_id"]: row for row in inventory}
+    matched_rows: List[Dict[str, Any]] = []
+
+    candidate_ids = set(first_events) & set(second_events)
+    for patient_id in sorted(candidate_ids):
+        first_dates = first_events.get(patient_id, [])
+        second_dates = second_events.get(patient_id, [])
+        if not first_dates or not second_dates:
+            continue
+        if min(first_dates) >= max(second_dates):
+            continue
+        row = dict(rows_by_id.get(patient_id, {"patient_id": patient_id}))
+        row["from_term_dates"] = first_dates
+        row["to_term_dates"] = second_dates
+        matched_rows.append(row)
+
+    return {
+        "first_term": first_term,
+        "second_term": second_term,
+        "first_kind": first_kind,
+        "second_kind": second_kind,
+        "patient_count": len(matched_rows),
+        "patient_ids": [row["patient_id"] for row in matched_rows],
+        "patients": matched_rows,
+    }
+
+
+def _patient_started_after_cohort(data_dir: str, started_term: str, after_term: str) -> Optional[Dict[str, Any]]:
+    started_kind, started_events = _dated_patient_term_events(data_dir, started_term)
+    after_kind, after_events = _dated_patient_term_events(data_dir, after_term)
+    if started_kind is None or after_kind is None:
+        return None
+
+    inventory = _patient_query_index(data_dir)
+    rows_by_id = {row["patient_id"]: row for row in inventory}
+    matched_rows: List[Dict[str, Any]] = []
+
+    candidate_ids = set(started_events) & set(after_events)
+    for patient_id in sorted(candidate_ids):
+        started_dates = started_events.get(patient_id, [])
+        after_dates = after_events.get(patient_id, [])
+        if not started_dates or not after_dates:
+            continue
+        if min(started_dates) <= min(after_dates):
+            continue
+        row = dict(rows_by_id.get(patient_id, {"patient_id": patient_id}))
+        row["started_term_dates"] = started_dates
+        row["after_term_dates"] = after_dates
+        matched_rows.append(row)
+
+    return {
+        "started_term": started_term,
+        "after_term": after_term,
+        "started_kind": started_kind,
+        "after_kind": after_kind,
+        "patient_count": len(matched_rows),
+        "patient_ids": [row["patient_id"] for row in matched_rows],
+        "patients": matched_rows,
+    }
+
+
 def _is_patient_list_query(text: str) -> bool:
     lowered = text.lower()
     patterns = (
@@ -340,6 +826,26 @@ def _render_visit_list(navigator: Dict[str, Any]) -> str:
     for visit in visits:
         parts.append("%s (%s)" % (visit["visit_id"], visit.get("diagnosis") or visit.get("event_type") or "event"))
     return "Visits: " + ", ".join(parts)
+
+
+def _render_patient_timeline(navigator: Dict[str, Any]) -> str:
+    visits = navigator["visits"]
+    if not visits:
+        return "No timepoints found for that patient."
+    lines = [f"Timeline for patient {navigator['patient_id']}:"]
+    for visit in visits:
+        diseases = visit.get("evidence", {}).get("diseases", {}).get("examples", [])
+        treatments = visit.get("evidence", {}).get("treatments", {}).get("examples", [])
+        lines.append(
+            "- {visit_id} | date: {event_date} | diagnosis: {diagnosis} | diseases: {diseases} | treatments: {treatments}".format(
+                visit_id=visit.get("visit_id") or "n/a",
+                event_date=visit.get("event_date") or "n/a",
+                diagnosis=visit.get("diagnosis") or visit.get("event_type") or "n/a",
+                diseases=", ".join(diseases) if diseases else "none",
+                treatments=", ".join(treatments) if treatments else "none",
+            )
+        )
+    return "\n".join(lines)
 
 
 def _lm_studio_enabled() -> bool:
@@ -835,6 +1341,80 @@ def answer_query(
             },
         }
 
+    if (
+        "what happened to this cohort over time" in lowered
+        or "cohort over time" in lowered
+        or "timeline of this cohort" in lowered
+    ):
+        summary = _cohort_over_time_summary(data_dir)
+        periods = summary["periods"]
+        period_text = ", ".join(
+            "%s: %s timepoints across %s patients" % (item["period"], item["timepoint_count"], item["patient_count"])
+            for item in periods[:6]
+        )
+        if not period_text:
+            period_text = "No dated timepoints were available."
+        reply = (
+            "This cohort has %(timepoint_count)s timepoints across %(patient_count)s patients. "
+            "Dated range: %(first)s to %(last)s. %(period_text)s."
+        ) % {
+            "timepoint_count": summary["timepoint_count"],
+            "patient_count": summary["patient_count"],
+            "first": summary["first_event_date"] or "n/a",
+            "last": summary["last_event_date"] or "n/a",
+            "period_text": period_text,
+        }
+        return {
+            "query": query,
+            "intent": "cohort_over_time",
+            "reply": reply,
+            "data": {
+                **summary,
+                "follow_up_suggestions": [
+                    "How many timepoints are in this cohort?",
+                    "Which patients have more than 1 timepoint?",
+                    "Show patient 107",
+                ],
+            },
+        }
+
+    if re.search(r"\bhow many\s+(?:timepoints?|visits?)\b", lowered):
+        if any(keyword in lowered for keyword in ("mention", "with ", " for ")):
+            term = _term_from_timepoint_query(text)
+            if term:
+                result = _term_timepoint_summary(data_dir, term)
+                if result is not None:
+                    return {
+                        "query": query,
+                        "intent": result["intent"],
+                        "reply": "%s timepoints match '%s' across %s patients." % (
+                            result["timepoint_count"],
+                            term,
+                            result["patient_count"],
+                        ),
+                        "data": {
+                            **result,
+                            "follow_up_suggestions": _follow_up_suggestions(term),
+                        },
+                    }
+        summary = _cohort_over_time_summary(data_dir)
+        return {
+            "query": query,
+            "intent": "timepoint_inventory",
+            "reply": "This cohort contains %s timepoints across %s patients." % (
+                summary["timepoint_count"],
+                summary["patient_count"],
+            ),
+            "data": {
+                **summary,
+                "follow_up_suggestions": [
+                    "What happened to this cohort over time?",
+                    "Which patients have more than 1 timepoint?",
+                    "List all patients in the cohort",
+                ],
+            },
+        }
+
     if _is_patient_list_query(text):
         patient_ids = _patient_inventory(data_dir)
         reply_lines = ["Patients in the cohort (%s):" % len(patient_ids)]
@@ -850,6 +1430,292 @@ def answer_query(
                     "How many patients are in this cohort?",
                     "Show patient %s" % (patient_ids[0] if patient_ids else "107"),
                     "Which patients have more than 1 medication?",
+                ],
+            },
+        }
+
+    transition_query = _transition_query(text)
+    if transition_query is not None:
+        result = _patient_transition_cohort(
+            data_dir,
+            transition_query["first_term"],
+            transition_query["second_term"],
+        )
+        if result is not None:
+            first_term = transition_query["first_term"]
+            second_term = transition_query["second_term"]
+            if transition_query["intent"] == "count":
+                noun = "patient" if result["patient_count"] == 1 else "patients"
+                reply = "%s %s changed from '%s' to '%s'." % (
+                    result["patient_count"],
+                    noun,
+                    first_term,
+                    second_term,
+                )
+            else:
+                reply = "Patients who changed from '%s' to '%s': %s." % (
+                    first_term,
+                    second_term,
+                    ", ".join(result["patient_ids"]) if result["patient_ids"] else "none",
+                )
+            return {
+                "query": query,
+                "intent": "patient_transition_cohort",
+                "reply": reply,
+                "data": {
+                    **result,
+                    "follow_up_suggestions": [
+                        "Show the timeline for patient %s" % (result["patient_ids"][0] if result["patient_ids"] else "107"),
+                        "How many patients have %s?" % first_term,
+                        "How many patients have %s?" % second_term,
+                    ],
+                },
+            }
+
+    start_after_query = _start_after_query(text)
+    if start_after_query is not None:
+        result = _patient_started_after_cohort(
+            data_dir,
+            start_after_query["started_term"],
+            start_after_query["after_term"],
+        )
+        if result is not None:
+            started_term = start_after_query["started_term"]
+            after_term = start_after_query["after_term"]
+            if start_after_query["intent"] == "count":
+                noun = "patient" if result["patient_count"] == 1 else "patients"
+                reply = "%s %s started '%s' after '%s'." % (
+                    result["patient_count"],
+                    noun,
+                    started_term,
+                    after_term,
+                )
+            else:
+                reply = "Patients who started '%s' after '%s': %s." % (
+                    started_term,
+                    after_term,
+                    ", ".join(result["patient_ids"]) if result["patient_ids"] else "none",
+                )
+            return {
+                "query": query,
+                "intent": "patient_started_after_cohort",
+                "reply": reply,
+                "data": {
+                    **result,
+                    "follow_up_suggestions": [
+                        "Show the timeline for patient %s" % (result["patient_ids"][0] if result["patient_ids"] else "107"),
+                        "How many patients have %s?" % started_term,
+                        "Which patients had %s after %s?" % (started_term, after_term),
+                    ],
+                },
+            }
+
+    temporal_order_query = _temporal_order_query(text)
+    if temporal_order_query is not None:
+        result = _patient_temporal_order_cohort(
+            data_dir,
+            temporal_order_query["first_term"],
+            temporal_order_query["second_term"],
+            temporal_order_query["relation"],
+        )
+        if result is not None:
+            relation = temporal_order_query["relation"]
+            first_term = temporal_order_query["first_term"]
+            second_term = temporal_order_query["second_term"]
+            if temporal_order_query["intent"] == "count":
+                noun = "patient" if result["patient_count"] == 1 else "patients"
+                reply = "%s %s had '%s' %s '%s'." % (
+                    result["patient_count"],
+                    noun,
+                    first_term,
+                    relation,
+                    second_term,
+                )
+            else:
+                reply = "Patients who had '%s' %s '%s': %s." % (
+                    first_term,
+                    relation,
+                    second_term,
+                    ", ".join(result["patient_ids"]) if result["patient_ids"] else "none",
+                )
+            return {
+                "query": query,
+                "intent": "patient_temporal_order_cohort",
+                "reply": reply,
+                "data": {
+                    **result,
+                    "follow_up_suggestions": [
+                        "Show the timeline for patient %s" % (result["patient_ids"][0] if result["patient_ids"] else "107"),
+                        "How many timepoints mention %s?" % first_term,
+                        "How many patients have %s?" % second_term,
+                    ],
+                },
+            }
+
+    patient_filter_query = _patient_filter_query(text)
+    if patient_filter_query is not None:
+        inventory = _patient_query_index(data_dir)
+        rows_by_id = {row["patient_id"]: row for row in inventory}
+        remaining_ids = {row["patient_id"] for row in inventory}
+        resolved_conditions: List[Dict[str, Any]] = []
+
+        for condition in patient_filter_query["conditions"]:
+            if condition["scope"] == "timepoint":
+                operator = condition["operator"]
+                target = int(condition["value"])
+                kind, matched_rows, matched_patient_count = _resolve_timepoint_filter_condition(
+                    data_dir,
+                    condition["term"],
+                    operator,
+                    target,
+                )
+                if kind is None:
+                    return {
+                        "query": query,
+                        "intent": "patient_filter_cohort",
+                        "reply": "I could not resolve '%s' as a known disease or medication." % condition["term"],
+                        "data": {
+                            "conditions": patient_filter_query["conditions"],
+                            "patient_count": 0,
+                            "patients": [],
+                            "patient_ids": [],
+                            "follow_up_suggestions": _follow_up_suggestions(condition["term"]),
+                        },
+                    }
+                matched_ids = {item["patient_id"] for item in matched_rows}
+                if condition["mode"] == "include":
+                    remaining_ids &= matched_ids
+                else:
+                    remaining_ids -= matched_ids
+                resolved_conditions.append(
+                    {
+                        "mode": condition["mode"],
+                        "kind": kind,
+                        "scope": "timepoint",
+                        "term": condition["term"],
+                        "operator": operator,
+                        "target": target,
+                        "matched_patient_count": len(matched_rows),
+                        "raw_term_patient_count": matched_patient_count,
+                    }
+                )
+                continue
+
+            preferred_kind = condition["preferred_kind"] or None
+            kind, cohort = _resolve_patient_filter_kind(data_dir, condition["term"], preferred_kind=preferred_kind)
+            if kind is None:
+                return {
+                    "query": query,
+                    "intent": "patient_filter_cohort",
+                    "reply": "I could not resolve '%s' as a known disease or medication." % condition["term"],
+                    "data": {
+                        "conditions": patient_filter_query["conditions"],
+                        "patient_count": 0,
+                        "patients": [],
+                        "patient_ids": [],
+                        "follow_up_suggestions": _follow_up_suggestions(condition["term"]),
+                    },
+                }
+            matched_ids = {item["patient_id"] for item in cohort["patients"]}
+            if condition["mode"] == "include":
+                remaining_ids &= matched_ids
+            else:
+                remaining_ids -= matched_ids
+            resolved_conditions.append(
+                {
+                    "mode": condition["mode"],
+                    "kind": kind,
+                    "scope": "patient",
+                    "term": condition["term"],
+                    "matched_patient_count": cohort["patient_count"],
+                }
+            )
+
+        filtered_rows = [row for row in inventory if row["patient_id"] in remaining_ids]
+        condition_labels = []
+        for condition in resolved_conditions:
+            if condition["scope"] == "timepoint":
+                timepoint_label = _format_visit_count_constraint(condition["operator"], condition["target"])
+                if condition["mode"] == "exclude":
+                    condition_labels.append("does not have %s with '%s'" % (timepoint_label, condition["term"]))
+                else:
+                    condition_labels.append("has %s with '%s'" % (timepoint_label, condition["term"]))
+                continue
+
+            verb = "has" if condition["kind"] == "disease" else "takes"
+            if condition["mode"] == "exclude":
+                verb = "does not have" if condition["kind"] == "disease" else "does not take"
+            condition_labels.append("%s '%s'" % (verb, condition["term"]))
+        label_text = " and ".join(condition_labels)
+
+        if patient_filter_query["intent"] == "count":
+            noun = "patient" if len(filtered_rows) == 1 else "patients"
+            reply = "%s %s match: %s." % (len(filtered_rows), noun, label_text)
+        else:
+            reply = "Patients matching %s: %s." % (
+                label_text,
+                ", ".join(row["patient_id"] for row in filtered_rows) if filtered_rows else "none",
+            )
+
+        return {
+            "query": query,
+            "intent": "patient_filter_cohort",
+            "reply": reply,
+            "data": {
+                "patient_count": len(filtered_rows),
+                "patient_ids": [row["patient_id"] for row in filtered_rows],
+                "patients": filtered_rows,
+                "conditions": resolved_conditions,
+                "follow_up_suggestions": [
+                    "How many patients have %s?" % resolved_conditions[0]["term"],
+                    "Which patients have %s?" % resolved_conditions[0]["term"],
+                    "Show patient %s" % (filtered_rows[0]["patient_id"] if filtered_rows else "107"),
+                ],
+            },
+        }
+
+    negative_term_query = _negative_patient_term_query(text)
+    if negative_term_query is not None:
+        term = negative_term_query["term"]
+        inventory = _patient_query_index(data_dir)
+        all_patient_ids = [row["patient_id"] for row in inventory]
+
+        medication = _medication_cohort(data_dir, term)
+        disease = _disease_cohort(data_dir, term)
+
+        selected_intent = "negative_medication_cohort"
+        selected_matches = medication["patients"]
+        selected_count = medication["patient_count"]
+        if disease["patient_count"] > medication["patient_count"]:
+            selected_intent = "negative_disease_cohort"
+            selected_matches = disease["patients"]
+            selected_count = disease["patient_count"]
+
+        matched_ids = {item["patient_id"] for item in selected_matches}
+        complement_ids = [patient_id for patient_id in all_patient_ids if patient_id not in matched_ids]
+        complement_rows = [row for row in inventory if row["patient_id"] in set(complement_ids)]
+
+        if negative_term_query["intent"] == "count":
+            reply = "%s patients do not have '%s'." % (len(complement_ids), term)
+        else:
+            reply = "Patients without '%s': %s." % (
+                term,
+                ", ".join(complement_ids) if complement_ids else "none",
+            )
+        return {
+            "query": query,
+            "intent": selected_intent,
+            "reply": reply,
+            "data": {
+                "term": term,
+                "matched_patient_count": selected_count,
+                "patient_count": len(complement_ids),
+                "patient_ids": complement_ids,
+                "patients": complement_rows,
+                "follow_up_suggestions": [
+                    "How many patients have %s?" % term,
+                    "Which patients have %s?" % term,
+                    "Show patient %s" % (complement_ids[0] if complement_ids else "107"),
                 ],
             },
         }
@@ -989,7 +1855,10 @@ def answer_query(
                 },
             }
         payload = navigator.model_dump()
-        if "visit" in lowered or "timeline" in lowered:
+        if "timeline" in lowered or "over time" in lowered:
+            reply = _render_patient_timeline(payload)
+            intent = "patient_timeline"
+        elif "visit" in lowered:
             reply = _render_visit_list(payload)
             intent = "patient_visits"
         else:
@@ -1002,9 +1871,78 @@ def answer_query(
             "data": {
                 **payload,
                 "follow_up_suggestions": [
+                    "Show the timeline for patient %s" % patient_id,
                     "List visits for patient %s" % patient_id,
                     "What treatments are recorded for patient %s?" % patient_id,
                     "What diseases are recorded for patient %s?" % patient_id,
+                ],
+            },
+        }
+
+    visit_count_constraint = _visit_count_constraint(text)
+    if visit_count_constraint is not None and any(keyword in lowered for keyword in ("with", "mention")):
+        term = _term_from_timepoint_query(text)
+        if term:
+            result = _term_timepoint_summary(data_dir, term)
+            if result is not None:
+                operator = visit_count_constraint["operator"]
+                target = visit_count_constraint["value"]
+                filtered = [
+                    item for item in result["patients"]
+                    if _matches_numeric_constraint(len(item.get("visits", [])), operator, target)
+                ]
+                label = _format_visit_count_constraint(operator, target)
+                if lowered.startswith("how many"):
+                    reply = "%s patients have %s matching '%s'." % (len(filtered), label, term)
+                else:
+                    reply = "Patients with %s matching '%s': %s." % (
+                        label,
+                        term,
+                        ", ".join(item["patient_id"] for item in filtered) if filtered else "none",
+                    )
+                return {
+                    "query": query,
+                    "intent": "term_patient_visit_count_cohort",
+                    "reply": reply,
+                    "data": {
+                        "term": term,
+                        "constraint_label": label,
+                        "patient_count": len(filtered),
+                        "patients": filtered,
+                        "follow_up_suggestions": _follow_up_suggestions(term),
+                    },
+                }
+
+    if visit_count_constraint is not None and (
+        lowered.startswith("which patients")
+        or lowered.startswith("how many patients")
+        or lowered.startswith("list patients")
+    ):
+        operator = visit_count_constraint["operator"]
+        target = visit_count_constraint["value"]
+        cohort = patient_visit_count_cohort(data_dir, operator, target)
+        label = _format_visit_count_constraint(operator, target)
+        if lowered.startswith("how many"):
+            verb = "has" if cohort["patient_count"] == 1 else "have"
+            noun = "patient" if cohort["patient_count"] == 1 else "patients"
+            reply = "%s %s %s %s." % (cohort["patient_count"], noun, verb, label)
+        else:
+            patient_ids = [item["patient_id"] for item in cohort["patients"]]
+            reply = "Patients with %s: %s." % (
+                label,
+                ", ".join(patient_ids) if patient_ids else "none",
+            )
+        return {
+            "query": query,
+            "intent": "patient_visit_count_cohort",
+            "reply": reply,
+            "data": {
+                **cohort,
+                "constraint_label": label,
+                "follow_up_suggestions": [
+                    "How many timepoints are in this cohort?",
+                    "What happened to this cohort over time?",
+                    "Show patient %s" % (cohort["patients"][0]["patient_id"] if cohort["patients"] else "107"),
                 ],
             },
         }

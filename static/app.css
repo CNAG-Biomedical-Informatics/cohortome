@@ -163,6 +163,11 @@
         border-color: rgba(37, 99, 235, 0.24);
         color: #1d4ed8;
       }
+      .query-chip.query-chip-planner {
+        background: rgba(220, 252, 231, 0.92);
+        border-color: rgba(22, 163, 74, 0.24);
+        color: #15803d;
+      }
       .query-chip.query-chip-llm {
         background: rgba(254, 243, 199, 0.92);
         border-color: rgba(180, 83, 9, 0.24);
@@ -374,6 +379,53 @@
         border-radius: 16px;
         border: 1px solid var(--line);
         background: white;
+      }
+      .analysis-plot-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .analysis-thread {
+        display: grid;
+        gap: 16px;
+      }
+      .analysis-turn {
+        padding: 18px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: var(--shadow);
+      }
+      .analysis-turn-user {
+        background: linear-gradient(145deg, rgba(219, 234, 254, 0.72), rgba(255, 255, 255, 0.9));
+      }
+      .analysis-turn-assistant {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 255, 0.92));
+      }
+      .analysis-turn-label {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .analysis-turn-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .analysis-turn-body {
+        margin-bottom: 14px;
+      }
+      .analysis-turn-scope {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .analysis-turn-context {
+        margin-bottom: 14px;
+        color: var(--muted);
       }
       .alignment-summary {
         display: flex;

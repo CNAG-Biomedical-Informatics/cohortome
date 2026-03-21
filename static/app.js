@@ -1,8 +1,10 @@
       const cohortTabBtnEl = document.getElementById("cohortTabBtn");
       const queryTabBtnEl = document.getElementById("queryTabBtn");
+      const analysisTabBtnEl = document.getElementById("analysisTabBtn");
       const phenoTabBtnEl = document.getElementById("phenoTabBtn");
       const cohortTabEl = document.getElementById("cohortTab");
       const queryTabEl = document.getElementById("queryTab");
+      const analysisTabEl = document.getElementById("analysisTab");
       const phenoTabEl = document.getElementById("phenoTab");
       const patientsEl = document.getElementById("patients");
       const dashboardEl = document.getElementById("dashboard");
@@ -21,6 +23,15 @@
       const queryDetailsEl = document.getElementById("queryDetails");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
+      const analysisPromptEl = document.getElementById("analysisPrompt");
+      const analysisRunBtnEl = document.getElementById("analysisRunBtn");
+      const analysisExamplesEl = document.getElementById("analysisExamples");
+      const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
+      const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
+      const analysisStatusEl = document.getElementById("analysisStatus");
+      const analysisMetaEl = document.getElementById("analysisMeta");
+      const analysisLmStatusEl = document.getElementById("analysisLmStatus");
+      const analysisThreadEl = document.getElementById("analysisThread");
       const loadBtnEl = document.getElementById("loadBtn");
       const patientSearchEl = document.getElementById("patientSearch");
       const phenoActionEl = document.getElementById("phenoAction");
@@ -78,6 +89,7 @@
       let selectedPatientId = null;
       let currentPatients = [];
       let queryInFlight = false;
+      let analysisInFlight = false;
       let loadInFlight = false;
       let phenoInFlight = false;
       let phenoPlanInFlight = false;
@@ -85,18 +97,23 @@
       let phenoRunState = null;
       let phenoSelectedAlignmentKey = "";
       let latestQueryPatientIds = [];
+      let analysisHistory = [];
+      let analysisTurns = [];
       let phenoRankerPatientIds = [];
       let phenoReferenceFiles = [];
 
       function setActiveTab(tabName) {
         const showCohort = tabName === "cohort";
         const showQuery = tabName === "query";
+        const showAnalysis = tabName === "analysis";
         const showPheno = tabName === "pheno";
         cohortTabBtnEl.classList.toggle("active", showCohort);
         queryTabBtnEl.classList.toggle("active", showQuery);
+        analysisTabBtnEl.classList.toggle("active", showAnalysis);
         phenoTabBtnEl.classList.toggle("active", showPheno);
         cohortTabEl.classList.toggle("active", showCohort);
         queryTabEl.classList.toggle("active", showQuery);
+        analysisTabEl.classList.toggle("active", showAnalysis);
         phenoTabEl.classList.toggle("active", showPheno);
       }
 
@@ -105,7 +122,7 @@
       }
 
       async function loadLmStatus() {
-        if (!lmStatusEl || !phenoLmStatusEl) {
+        if (!lmStatusEl || !phenoLmStatusEl || !analysisLmStatusEl) {
           return;
         }
         try {
@@ -122,10 +139,12 @@
           }
           lmStatusEl.textContent = text;
           phenoLmStatusEl.textContent = text;
+          analysisLmStatusEl.textContent = text;
         } catch (error) {
           const text = "LM Studio model: unavailable";
           lmStatusEl.textContent = text;
           phenoLmStatusEl.textContent = text;
+          analysisLmStatusEl.textContent = text;
         }
       }
 
@@ -214,6 +233,125 @@
             </div>
           </div>
         `;
+      }
+
+      function renderAnalysisPlotsMarkup(context) {
+        if (!context) {
+          return '<div class="empty">No analysis plots available.</div>';
+        }
+        const diseaseItems = (context.top_diseases || []).slice(0, 8).map((item) => ({ label: item.disease, value: item.patient_count }));
+        const medicationItems = (context.top_medications || []).slice(0, 8).map((item) => ({ label: item.medication, value: item.patient_count }));
+        const periodItems = (context.timepoints_by_period || []).slice(0, 12).map((item) => ({ label: item.period, value: item.timepoint_count }));
+        const visitItems = (context.visit_distribution || []).slice(0, 12).map((item) => ({ label: item.label, value: item.value }));
+        return `
+          <div class="viz-card">
+            <h3>Top Diseases</h3>
+            ${renderBarChart(diseaseItems, "label", "value", "#0ea5e9")}
+          </div>
+          <div class="viz-card">
+            <h3>Top Medications</h3>
+            ${renderBarChart(medicationItems, "label", "value", "#2563eb")}
+          </div>
+          <div class="viz-card">
+            <h3>Timepoints Over Time</h3>
+            ${renderBarChart(periodItems, "label", "value", "#7c3aed")}
+          </div>
+          <div class="viz-card">
+            <h3>Visits Per Patient</h3>
+            ${renderBarChart(visitItems, "label", "value", "#059669")}
+          </div>
+        `;
+      }
+
+      function renderAnalysisMeta(payload) {
+        const source = payload && payload.data && payload.data.source === "llm" ? "LM-based" : "Deterministic";
+        const model = payload && payload.data ? payload.data.model : "";
+        const chips = [
+          `<span class="query-chip badge">${escapeHtml(payload.intent || "analysis")}</span>`,
+          `<span class="query-chip badge">${escapeHtml(source)}</span>`,
+        ];
+        if (model) {
+          chips.push(`<span class="query-chip badge">${escapeHtml(model)}</span>`);
+        }
+        analysisMetaEl.innerHTML = chips.join("");
+      }
+
+      function formatAnalysisScopeLabel(scopeValue) {
+        const ids = String(scopeValue || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        if (!ids.length) {
+          return "Full cohort";
+        }
+        const preview = ids.slice(0, 6).join(", ");
+        const suffix = ids.length > 6 ? ` ... (+${ids.length - 6} more)` : "";
+        return `${ids.length} IDs: ${preview}${suffix}`;
+      }
+
+      function analysisPromptRequestsPlots(prompt) {
+        const lowered = String(prompt || "").toLowerCase();
+        return [
+          "plot",
+          "plots",
+          "chart",
+          "charts",
+          "graph",
+          "graphs",
+          "visualize",
+          "visualise",
+          "distribution",
+          "distributions",
+          "histogram",
+          "bar plot",
+          "line plot",
+          "trend",
+          "trends",
+          "over time",
+        ].some((token) => lowered.includes(token));
+      }
+
+      function renderAnalysisThread() {
+        if (!analysisTurns.length) {
+          analysisThreadEl.innerHTML = '<div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>';
+          return;
+        }
+        analysisThreadEl.innerHTML = analysisTurns.map((turn) => {
+          if (turn.role === "user") {
+            return `
+              <article class="analysis-turn analysis-turn-user">
+                <div class="analysis-turn-label">You</div>
+                <div class="analysis-turn-body">
+                  <p>${escapeHtml(turn.prompt)}</p>
+                  <div class="analysis-turn-scope"><strong>Scope:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>
+                </div>
+              </article>
+            `;
+          }
+          const context = turn.payload && turn.payload.data ? turn.payload.data.context : null;
+          const notable = context && Array.isArray(context.notable_findings) ? context.notable_findings : [];
+          const source = context ? context.source : "unknown";
+          const model = turn.payload && turn.payload.data ? turn.payload.data.model : "";
+          return `
+            <article class="analysis-turn analysis-turn-assistant">
+              <div class="analysis-turn-label">Analysis</div>
+              <div class="analysis-turn-meta">
+                <span class="query-chip badge">${escapeHtml(turn.payload.intent || "analysis")}</span>
+                <span class="query-chip badge">${escapeHtml(turn.payload.data && turn.payload.data.source === "llm" ? "LM-based" : "Deterministic")}</span>
+                ${model ? `<span class="query-chip badge">${escapeHtml(model)}</span>` : ""}
+              </div>
+              <div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>
+              <div class="analysis-turn-context">
+                <p><strong>Context:</strong> ${escapeHtml(source)}${notable.length ? ` | ${escapeHtml(notable.join(" | "))}` : ""}</p>
+              </div>
+              ${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context)}</div>` : ""}
+              <details class="query-section">
+                <summary>Show analysis data</summary>
+                <pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre>
+              </details>
+            </article>
+          `;
+        }).join("");
       }
 
       function renderEvidence(evidence) {
@@ -703,6 +841,7 @@
         const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
         queryActionsEl.innerHTML = `
           <button type="button" class="query-chip" data-query-action="copy-ids">Copy patient IDs</button>
+          <button type="button" class="query-chip action" data-query-action="use-analysis">Use IDs in Analysis</button>
           ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
           ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
         `;
@@ -721,6 +860,16 @@
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Unable to copy patient IDs from the browser.";
         }
+      }
+
+      function renderAnalysisScopeSummary() {
+        const ids = String(analysisSelectedPatientIdsEl.value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        analysisSelectedPatientIdsSummaryEl.textContent = ids.length
+          ? `Scope: ${ids.length} IDs in scope.`
+          : "Scope: full cohort.";
       }
 
       function renderSelectedPatientIdsSummary() {
@@ -753,6 +902,17 @@
         setActiveTab("pheno");
         phenoStatusEl.className = "pheno-status";
         phenoStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} patient IDs from the query result into the current scope.`;
+      }
+
+      function sendPatientIdsToAnalysis() {
+        if (!latestQueryPatientIds.length) {
+          return;
+        }
+        analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+        renderAnalysisScopeSummary();
+        setActiveTab("analysis");
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} IDs from the query result into the current analysis scope.`;
       }
 
       function nextFrame() {
@@ -1715,10 +1875,81 @@
         }
       }
 
+      async function runAnalysis() {
+        if (analysisInFlight) {
+          return;
+        }
+        const prompt = analysisPromptEl.value.trim();
+        if (!prompt) {
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = "Enter an analysis prompt first.";
+          return;
+        }
+        analysisInFlight = true;
+        analysisRunBtnEl.disabled = true;
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = "Running analysis...";
+        analysisMetaEl.innerHTML = "";
+        const currentScope = analysisSelectedPatientIdsEl.value.trim();
+        const showPlots = analysisPromptRequestsPlots(prompt);
+        analysisTurns.push({ role: "user", prompt, scope: currentScope });
+        renderAnalysisThread();
+        try {
+          const response = await fetch("/analysis", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              data_dir: dataDirEl.value.trim() || dataDirEl.value,
+              selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
+              history: analysisHistory.slice(-6),
+            }),
+          });
+          if (!response.ok) {
+            let message = "Analysis failed.";
+            const raw = await response.text();
+            try {
+              const parsed = JSON.parse(raw);
+              message = parsed.detail || parsed.message || message;
+            } catch (_error) {
+              message = raw || message;
+            }
+            throw new Error(message);
+          }
+          const payload = await response.json();
+          renderAnalysisMeta(payload);
+          analysisTurns.push({ role: "assistant", payload, showPlots });
+          renderAnalysisThread();
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = "Analysis complete.";
+          analysisHistory.push({ role: "user", content: prompt });
+          analysisHistory.push({ role: "assistant", content: payload.reply || "" });
+          analysisHistory = analysisHistory.slice(-8);
+        } catch (error) {
+          analysisTurns.push({
+            role: "assistant",
+            payload: {
+              intent: "analysis_error",
+              reply: error && error.message ? error.message : "Analysis failed.",
+              data: { source: "error", context: null },
+            },
+            showPlots: false,
+          });
+          renderAnalysisThread();
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = "Analysis failed.";
+        } finally {
+          analysisInFlight = false;
+          analysisRunBtnEl.disabled = false;
+        }
+      }
+
       loadBtnEl.addEventListener("click", loadPatients);
       askBtnEl.addEventListener("click", askQuery);
+      analysisRunBtnEl.addEventListener("click", runAnalysis);
       cohortTabBtnEl.addEventListener("click", () => setActiveTab("cohort"));
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
+      analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
       phenoTabBtnEl.addEventListener("click", () => setActiveTab("pheno"));
       phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
       phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
@@ -1728,6 +1959,7 @@
       phenoModeEl.addEventListener("change", updatePhenoMode);
       phenoActionEl.addEventListener("change", updatePhenoMode);
       phenoSelectedPatientIdsEl.addEventListener("input", renderSelectedPatientIdsSummary);
+      analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
       window.__patientNavigatorLoadPatients = loadPatients;
       window.__patientNavigatorAskQuery = askQuery;
       patientsEl.addEventListener("click", (event) => {
@@ -1753,6 +1985,14 @@
         questionEl.value = button.dataset.prompt;
         questionEl.focus();
       });
+      analysisExamplesEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-analysis-prompt]");
+        if (!button || !analysisExamplesEl.contains(button)) {
+          return;
+        }
+        analysisPromptEl.value = button.dataset.analysisPrompt;
+        analysisPromptEl.focus();
+      });
       phenoExamplesEl.addEventListener("click", (event) => {
         const button = event.target.closest("[data-pheno-prompt]");
         if (!button || !phenoExamplesEl.contains(button)) {
@@ -1768,6 +2008,10 @@
         }
         if (button.dataset.queryAction === "use-pheno") {
           sendPatientIdsToPhenoRanker();
+          return;
+        }
+        if (button.dataset.queryAction === "use-analysis") {
+          sendPatientIdsToAnalysis();
           return;
         }
         if (button.dataset.queryAction === "copy-ids") {
@@ -1802,9 +2046,16 @@
           askQuery();
         }
       });
+      analysisPromptEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          runAnalysis();
+        }
+      });
       patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
       updatePhenoMode();
       renderSelectedPatientIdsSummary();
+      renderAnalysisScopeSummary();
       loadPhenoRankerPatientIds();
       loadLmStatus();
       renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
