@@ -79,6 +79,7 @@
           </div>
           <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
           <div id="queryMeta" class="query-meta"></div>
+          <div id="lmStatus" class="section-note">LM Studio model: checking...</div>
           <div class="query-section">
             <h3>Answer</h3>
             <div id="queryReply" class="empty">Ask about medications, diseases, or a patient timeline.</div>
@@ -126,6 +127,7 @@
             </div>
             <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
             <div id="phenoPlanMeta" class="query-meta"></div>
+            <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
           </div>
           <div class="pheno-result-grid">
             <div class="pheno-result-card">
@@ -162,7 +164,7 @@
             </div>
             <div>
               <label for="phenoExcludeTerms">Exclude terms</label>
-              <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures">
+              <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures,id">
             </div>
             <div>
               <label for="phenoSimilarityMetric">Cohort metric</label>

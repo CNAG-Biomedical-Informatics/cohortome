@@ -1,8 +1,11 @@
 import json
 import os
 import re
+import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib import error, request
+from uuid import uuid4
 
 from app.bff import (
     build_patient_navigator,
@@ -25,6 +28,10 @@ from app.query_store import (
     patient_medication_count_cohort as store_patient_medication_count_cohort,
     patient_query_index as store_patient_query_index,
 )
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
 
 
 def _contains_label(values: List[str], query: str) -> bool:
@@ -356,6 +363,41 @@ def _lm_studio_api_key() -> str:
     return os.getenv("LM_STUDIO_API_KEY", "lm-studio")
 
 
+def _lm_studio_debug_log_enabled() -> bool:
+    value = os.getenv("LM_STUDIO_DEBUG_LOG", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _write_lm_studio_debug_log(
+    *,
+    kind: str,
+    url: str,
+    payload: Optional[Dict[str, Any]],
+    response_body: Optional[Dict[str, Any]],
+    elapsed_ms: float,
+    error_text: Optional[str] = None,
+) -> None:
+    if not _lm_studio_debug_log_enabled():
+        return
+    try:
+        LM_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = LM_DEBUG_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{kind}-{uuid4().hex[:8]}.json"
+        content = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "kind": kind,
+            "url": url,
+            "elapsed_ms": round(elapsed_ms, 2),
+            "request_chars": len(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))) if payload is not None else 0,
+            "response_chars": len(json.dumps(response_body, ensure_ascii=True, separators=(",", ":"))) if response_body is not None else 0,
+            "request": payload,
+            "response": response_body,
+            "error": error_text,
+        }
+        log_path.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _lm_studio_max_patient_summaries() -> int:
     raw = os.getenv("LM_STUDIO_MAX_PATIENT_SUMMARIES", "8").strip()
     try:
@@ -433,7 +475,8 @@ def _needs_clarification(query: str) -> bool:
     return len(tokens) < 3
 
 
-def _http_json(url: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _http_json(url: str, payload: Optional[Dict[str, Any]] = None, *, log_kind: str = "generic") -> Dict[str, Any]:
+    started = time.time()
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {
         "Accept": "application/json",
@@ -442,8 +485,87 @@ def _http_json(url: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, 
     if body is not None:
         headers["Content-Type"] = "application/json"
     req = request.Request(url, data=body, headers=headers, method="POST" if body is not None else "GET")
-    with request.urlopen(req, timeout=_lm_studio_timeout()) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with request.urlopen(req, timeout=_lm_studio_timeout()) as response:
+            parsed = json.loads(response.read().decode("utf-8"))
+        _write_lm_studio_debug_log(
+            kind=log_kind,
+            url=url,
+            payload=payload,
+            response_body=parsed,
+            elapsed_ms=(time.time() - started) * 1000,
+        )
+        return parsed
+    except Exception as exc:
+        _write_lm_studio_debug_log(
+            kind=log_kind,
+            url=url,
+            payload=payload,
+            response_body=None,
+            elapsed_ms=(time.time() - started) * 1000,
+            error_text=str(exc),
+        )
+        raise
+
+
+def _sanitize_lm_text(content: str) -> str:
+    original = content.strip()
+    split_markers = re.findall(r"<unused\d+>", original, flags=re.IGNORECASE)
+    if split_markers:
+        parts = re.split(r"<unused\d+>", original, flags=re.IGNORECASE)
+        tail = parts[-1].strip()
+        if tail:
+            return tail
+
+    text = re.sub(r"^\s*<unused\d+>thought\s*", "", original, flags=re.IGNORECASE)
+    text = re.sub(r"^\s*thought\s*", "", text, flags=re.IGNORECASE)
+    lines = text.splitlines()
+    if not lines:
+        return text.strip()
+
+    reasoning_markers = (
+        "the user wants to",
+        "identify the core question",
+        "analyze the request",
+        "scan the context",
+        "formulate the answer",
+        "synthesize the findings",
+        "evaluate if",
+        "examine the",
+        "look for data points",
+        "read through the json",
+        "provided json context",
+    )
+
+    def _is_reasoning_line(line: str) -> bool:
+        lowered = line.strip().lower()
+        if not lowered:
+            return False
+        if re.match(r"^\d+\.\s", lowered):
+            return True
+        if lowered.startswith(("*", "-", "•")):
+            return True
+        return any(marker in lowered for marker in reasoning_markers)
+
+    first_non_empty = next((line for line in lines if line.strip()), "")
+    if not _is_reasoning_line(first_non_empty):
+        return text.strip()
+
+    kept: List[str] = []
+    started_answer = False
+    for line in lines:
+        stripped = line.strip()
+        if not started_answer:
+            if not stripped:
+                continue
+            if _is_reasoning_line(stripped):
+                continue
+            started_answer = True
+        if started_answer:
+            kept.append(line)
+
+    cleaned = "\n".join(kept).strip()
+    return cleaned or text.strip()
 
 
 def _resolve_lm_studio_model() -> Optional[str]:
@@ -451,7 +573,7 @@ def _resolve_lm_studio_model() -> Optional[str]:
     if configured:
         return configured
     try:
-        payload = _http_json(f"{_lm_studio_base_url()}/models")
+        payload = _http_json(f"{_lm_studio_base_url()}/models", log_kind="query_models")
     except (error.URLError, TimeoutError, json.JSONDecodeError):
         return None
     data = payload.get("data")
@@ -553,7 +675,7 @@ def _lm_studio_reply(
         ],
     }
     try:
-        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload)
+        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload, log_kind="query_fallback")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         reply = "LM Studio returned an HTTP error while answering this query."
@@ -582,6 +704,19 @@ def _lm_studio_reply(
                 "provider": "lm_studio",
                 "base_url": _lm_studio_base_url(),
                 "detail": str(exc),
+            },
+        }
+
+    explicit_error = response.get("error")
+    if isinstance(explicit_error, str) and explicit_error.strip():
+        return {
+            "query": query,
+            "intent": "llm_error",
+            "reply": f"LM Studio error: {explicit_error.strip()}",
+            "data": {
+                "provider": "lm_studio",
+                "base_url": _lm_studio_base_url(),
+                "response": response,
             },
         }
 
@@ -619,10 +754,12 @@ def _lm_studio_reply(
             },
         }
 
+    cleaned_content = _sanitize_lm_text(content)
+
     return {
         "query": query,
         "intent": "llm_fallback",
-        "reply": content.strip(),
+        "reply": cleaned_content,
         "data": {
             "provider": "lm_studio",
             "model": model,

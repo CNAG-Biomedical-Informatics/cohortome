@@ -6,10 +6,11 @@ import re
 import shutil
 import subprocess
 import csv
+import time
 from pathlib import Path
 from urllib import error, request
 from uuid import uuid4
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
@@ -36,6 +37,7 @@ PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranke
 PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
 PHENO_RANKER_R_DIR = PHENO_RANKER_DIR / "share" / "r"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
+LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
 JQ_BIN = shutil.which("jq") or "jq"
 
 app = FastAPI(title="Patient Navigator BFF MVP")
@@ -109,14 +111,129 @@ def _lm_studio_api_key() -> str:
     return os.getenv("LM_STUDIO_API_KEY", "lm-studio")
 
 
-def _http_json(url: str, payload: Dict | None = None) -> Dict:
+def _lm_studio_debug_log_enabled() -> bool:
+    value = os.getenv("LM_STUDIO_DEBUG_LOG", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _write_lm_studio_debug_log(
+    *,
+    kind: str,
+    url: str,
+    payload: Dict | None,
+    response_body: Dict | None,
+    elapsed_ms: float,
+    error_text: str | None = None,
+) -> None:
+    if not _lm_studio_debug_log_enabled():
+        return
+    try:
+        LM_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = LM_DEBUG_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{kind}-{uuid4().hex[:8]}.json"
+        content = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "kind": kind,
+            "url": url,
+            "elapsed_ms": round(elapsed_ms, 2),
+            "request_chars": len(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))) if payload is not None else 0,
+            "response_chars": len(json.dumps(response_body, ensure_ascii=True, separators=(",", ":"))) if response_body is not None else 0,
+            "request": payload,
+            "response": response_body,
+            "error": error_text,
+        }
+        log_path.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _http_json(url: str, payload: Dict | None = None, *, log_kind: str = "generic") -> Dict:
+    started = time.time()
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {"Accept": "application/json", "Authorization": f"Bearer {_lm_studio_api_key()}"}
     if body is not None:
         headers["Content-Type"] = "application/json"
     req = request.Request(url, data=body, headers=headers, method="POST" if body is not None else "GET")
-    with request.urlopen(req, timeout=_lm_studio_timeout()) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with request.urlopen(req, timeout=_lm_studio_timeout()) as response:
+            parsed = json.loads(response.read().decode("utf-8"))
+        _write_lm_studio_debug_log(
+            kind=log_kind,
+            url=url,
+            payload=payload,
+            response_body=parsed,
+            elapsed_ms=(time.time() - started) * 1000,
+        )
+        return parsed
+    except Exception as exc:
+        _write_lm_studio_debug_log(
+            kind=log_kind,
+            url=url,
+            payload=payload,
+            response_body=None,
+            elapsed_ms=(time.time() - started) * 1000,
+            error_text=str(exc),
+        )
+        raise
+
+
+def _sanitize_lm_text(content: str) -> str:
+    original = content.strip()
+    split_markers = re.findall(r"<unused\d+>", original, flags=re.IGNORECASE)
+    if split_markers:
+        parts = re.split(r"<unused\d+>", original, flags=re.IGNORECASE)
+        tail = parts[-1].strip()
+        if tail:
+            return tail
+
+    text = re.sub(r"^\s*<unused\d+>thought\s*", "", original, flags=re.IGNORECASE)
+    text = re.sub(r"^\s*thought\s*", "", text, flags=re.IGNORECASE)
+    lines = text.splitlines()
+    if not lines:
+        return text.strip()
+
+    reasoning_markers = (
+        "the user wants to",
+        "identify the core question",
+        "analyze the request",
+        "scan the context",
+        "formulate the answer",
+        "synthesize the findings",
+        "evaluate if",
+        "examine the",
+        "look for data points",
+        "read through the json",
+        "provided json context",
+    )
+
+    def _is_reasoning_line(line: str) -> bool:
+        lowered = line.strip().lower()
+        if not lowered:
+            return False
+        if re.match(r"^\d+\.\s", lowered):
+            return True
+        if lowered.startswith(("*", "-", "•")):
+            return True
+        return any(marker in lowered for marker in reasoning_markers)
+
+    first_non_empty = next((line for line in lines if line.strip()), "")
+    if not _is_reasoning_line(first_non_empty):
+        return text.strip()
+
+    kept: List[str] = []
+    started_answer = False
+    for line in lines:
+        stripped = line.strip()
+        if not started_answer:
+            if not stripped:
+                continue
+            if _is_reasoning_line(stripped):
+                continue
+            started_answer = True
+        if started_answer:
+            kept.append(line)
+
+    cleaned = "\n".join(kept).strip()
+    return cleaned or text.strip()
 
 
 def _resolve_lm_studio_model() -> str | None:
@@ -124,7 +241,7 @@ def _resolve_lm_studio_model() -> str | None:
     if configured:
         return configured
     try:
-        payload = _http_json(f"{_lm_studio_base_url()}/models")
+        payload = _http_json(f"{_lm_studio_base_url()}/models", log_kind="pheno_models")
     except (error.URLError, TimeoutError, json.JSONDecodeError):
         return None
     data = payload.get("data")
@@ -234,6 +351,8 @@ def _normalize_pheno_term(value: str) -> str:
         "exposure": "exposures",
         "sex": "sex",
         "ethnicity": "ethnicity",
+        "id": "id",
+        "identifier": "id",
     }
     return aliases.get(lowered, "")
 
@@ -612,7 +731,7 @@ def _plan_pheno_ranker_llm(plan_request: PhenoRankerPlanRequest) -> Dict | None:
         ],
     }
     try:
-        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload)
+        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload, log_kind="pheno_planner")
     except (error.HTTPError, error.URLError, TimeoutError, json.JSONDecodeError):
         return None
     choices = response.get("choices")
@@ -720,7 +839,7 @@ def _load_alignment_rows(job_dir: Path) -> List[Dict]:
             json_path = str(raw_row.get("json-path") or "").strip()
             label = str(raw_row.get("label") or "").strip()
             bucket = _alignment_bucket_from_json_path(json_path)
-            if not reference_id or not label or bucket == "identifier":
+            if not reference_id or not label:
                 continue
             ref_present = str(raw_row.get("ref") or "").strip() == "1"
             target_present = str(raw_row.get("tar") or "").strip() == "1"
@@ -770,6 +889,70 @@ def _detect_rank_metric_columns(headers: List[str], rows: List[Dict[str, str]]) 
     return metric_headers
 
 
+PHENO_RANK_METRIC_DEFINITIONS: Dict[str, str] = {
+    "LENGTH": "Count of variables present in either the reference or target alignment.",
+    "HAMMING-DISTANCE": "Number of mismatched positions between the reference and target vectors. Lower means more similar.",
+    "DISTANCE-Z-SCORE": "Empirical Z-score of the Hamming distance against all patient-vs-cohort comparisons.",
+    "DISTANCE-P-VALUE": "Statistical significance associated with the distance Z-score.",
+    "DISTANCE-Z-SCORE(RAND)": "Expected Hamming-distance Z-score under a random binary-vector model with the same alignment length.",
+    "JACCARD-INDEX": "Overlap similarity between reference and target. Higher means more shared variables.",
+    "JACCARD-Z-SCORE": "Empirical Z-score of the Jaccard index against all patient-vs-cohort comparisons.",
+    "JACCARD-P-VALUE": "Statistical significance associated with the Jaccard Z-score.",
+    "REFERENCE-VARS": "Total number of variables present in the reference individual.",
+    "TARGET-VARS": "Total number of variables present in the target individual.",
+    "INTERSECT": "Number of variables shared by reference and target.",
+    "INTERSECT-RATE(%)": "Percentage of target variables covered by the shared intersection.",
+    "COMPLETENESS(%)": "Percentage of reference variables covered by the shared intersection.",
+}
+
+
+def _parse_float(value: str) -> float | None:
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _describe_jaccard(value: float) -> str:
+    if value >= 0.9:
+        return "very high overlap"
+    if value >= 0.75:
+        return "high overlap"
+    if value >= 0.5:
+        return "moderate overlap"
+    return "limited overlap"
+
+
+def _build_rank_metric_highlights(metrics: Dict[str, str]) -> List[str]:
+    highlights: List[str] = []
+    jaccard = _parse_float(metrics.get("JACCARD-INDEX", ""))
+    intersect = _parse_float(metrics.get("INTERSECT", ""))
+    target_vars = _parse_float(metrics.get("TARGET-VARS", ""))
+    ref_vars = _parse_float(metrics.get("REFERENCE-VARS", ""))
+    intersect_rate = _parse_float(metrics.get("INTERSECT-RATE(%)", ""))
+    completeness = _parse_float(metrics.get("COMPLETENESS(%)", ""))
+    hamming = _parse_float(metrics.get("HAMMING-DISTANCE", ""))
+    length = _parse_float(metrics.get("LENGTH", ""))
+
+    if jaccard is not None:
+        highlights.append(f"Jaccard index {jaccard:.3f} indicates {_describe_jaccard(jaccard)}.")
+    if intersect is not None and target_vars is not None and ref_vars is not None:
+        highlights.append(
+            f"{int(intersect)} variables are shared, across {int(target_vars)} target variables and {int(ref_vars)} reference variables."
+        )
+    elif intersect is not None:
+        highlights.append(f"{int(intersect)} variables are shared between reference and target.")
+    if intersect_rate is not None and completeness is not None:
+        highlights.append(
+            f"Shared variables cover {intersect_rate:.2f}% of the target and {completeness:.2f}% of the reference."
+        )
+    if hamming is not None:
+        highlights.append(f"Hamming distance is {int(hamming) if hamming.is_integer() else hamming:g}; lower values indicate fewer mismatches.")
+    if length is not None:
+        highlights.append(f"Alignment length is {int(length) if length.is_integer() else length:g}, meaning that many variables were present in either profile.")
+    return highlights[:4]
+
+
 def _summarize_alignment_for_reference(rows: List[Dict], reference_id: str) -> Dict[str, Any]:
     current = [row for row in rows if row["reference_id"] == reference_id]
     shared = [row for row in current if row["ref_present"] and row["target_present"]]
@@ -793,6 +976,25 @@ def _summarize_alignment_for_reference(rows: List[Dict], reference_id: str) -> D
                 break
         return labels
 
+    def _top_items(items: List[Dict], limit: int = 5) -> List[Dict[str, str]]:
+        top: List[Dict[str, str]] = []
+        seen: set[str] = set()
+        for item in items:
+            label = item.get("label")
+            bucket = item.get("bucket")
+            if not isinstance(label, str) or not label:
+                continue
+            if label in seen:
+                continue
+            seen.add(label)
+            top.append({
+                "label": label,
+                "bucket": str(bucket or "other"),
+            })
+            if len(top) >= limit:
+                break
+        return top
+
     return {
         "reference_id": reference_id,
         "shared_count": len(shared),
@@ -802,6 +1004,9 @@ def _summarize_alignment_for_reference(rows: List[Dict], reference_id: str) -> D
         "top_shared_labels": _top_labels(shared),
         "top_reference_only_labels": _top_labels(reference_only),
         "top_target_only_labels": _top_labels(target_only),
+        "top_shared_items": _top_items(shared),
+        "top_reference_only_items": _top_items(reference_only),
+        "top_target_only_items": _top_items(target_only),
     }
 
 
@@ -832,6 +1037,7 @@ def _explain_pheno_ranker_results(job_dir: Path, top_n: int = 3) -> Dict:
             "reference_id": reference_id,
             "target_id": row.get(target_key, target_id),
             "metrics": metrics,
+            "metric_highlights": _build_rank_metric_highlights(metrics),
         }
         if alignment_available and reference_id:
             match["alignment"] = _summarize_alignment_for_reference(alignment_rows, reference_id)
@@ -840,10 +1046,9 @@ def _explain_pheno_ranker_results(job_dir: Path, top_n: int = 3) -> Dict:
     summary_lines = [f"Top {len(matches)} matches for {target_id or 'the target patient'} from rank.txt."]
     for match in matches:
         line = match["reference_id"] or "unknown"
-        if match["metrics"]:
-            metric_text = ", ".join(f"{key}: {value}" for key, value in match["metrics"].items() if value != "")
-            if metric_text:
-                line += f" ({metric_text})"
+        highlights = match.get("metric_highlights") or []
+        if highlights:
+            line += f" | {highlights[0]}"
         alignment = match.get("alignment")
         if isinstance(alignment, dict):
             bucket_counts = alignment.get("shared_bucket_counts") or {}
@@ -859,6 +1064,7 @@ def _explain_pheno_ranker_results(job_dir: Path, top_n: int = 3) -> Dict:
         "top_n": len(matches),
         "alignment_available": alignment_available,
         "metric_headers": metric_headers,
+        "metric_definitions": {header: PHENO_RANK_METRIC_DEFINITIONS.get(header, "") for header in metric_headers},
         "matches": matches,
         "summary_lines": summary_lines,
         "source": "deterministic",
@@ -882,6 +1088,21 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
             "llm_reply": "LM Studio is enabled, but no model is currently loaded.",
         }
 
+    compact_matches: List[Dict[str, Any]] = []
+    for match in deterministic["matches"]:
+        alignment = match.get("alignment") if isinstance(match.get("alignment"), dict) else {}
+        compact_matches.append(
+            {
+                "reference_id": match.get("reference_id"),
+                "metrics": match.get("metrics", {}),
+                "metric_highlights": match.get("metric_highlights", []),
+                "shared_bucket_counts": alignment.get("shared_bucket_counts", {}) if isinstance(alignment, dict) else {},
+                "top_shared_items": (alignment.get("top_shared_items", []) if isinstance(alignment, dict) else [])[:3],
+                "top_reference_only_items": (alignment.get("top_reference_only_items", []) if isinstance(alignment, dict) else [])[:2],
+                "top_target_only_items": (alignment.get("top_target_only_items", []) if isinstance(alignment, dict) else [])[:2],
+            }
+        )
+
     explanation_context = {
         "job_id": deterministic["job_id"],
         "mode": deterministic["mode"],
@@ -889,7 +1110,8 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
         "top_n": deterministic["top_n"],
         "alignment_available": deterministic["alignment_available"],
         "metric_headers": deterministic["metric_headers"],
-        "matches": deterministic["matches"],
+        "metric_definitions": deterministic.get("metric_definitions", {}),
+        "matches": compact_matches,
         "summary_lines": deterministic["summary_lines"],
     }
     payload = {
@@ -899,12 +1121,13 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
             {
                 "role": "system",
                 "content": (
-                    "You explain Pheno-Ranker patient-mode results. "
-                    "Use only the provided JSON evidence. "
-                    "Do not invent metrics or variables. "
-                    "Keep the explanation concise, factual, and clinically readable. "
-                    "Prefer bullet points."
-                ),
+                "You explain Pheno-Ranker patient-mode results. "
+                "Use only the provided JSON evidence. "
+                "Do not invent metrics or variables. "
+                "Use the provided metric_definitions to interpret rank.txt columns correctly. "
+                "Keep the explanation concise, factual, and clinically readable. "
+                "Prefer bullet points."
+            ),
             },
             {
                 "role": "user",
@@ -913,7 +1136,7 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
         ],
     }
     try:
-        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload)
+        response = _http_json(f"{_lm_studio_base_url()}/chat/completions", payload, log_kind="pheno_explain_llm")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         return {
@@ -928,6 +1151,15 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
             "source": "llm_error",
             "llm_reply": "LM Studio could not be reached for this explanation.",
             "llm_error": {"detail": str(exc)},
+        }
+
+    explicit_error = response.get("error")
+    if isinstance(explicit_error, str) and explicit_error.strip():
+        return {
+            **deterministic,
+            "source": "llm_error",
+            "llm_reply": f"LM Studio error: {explicit_error.strip()}",
+            "llm_error": {"response": response},
         }
 
     choices = response.get("choices")
@@ -953,11 +1185,13 @@ def _explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
             "llm_reply": "LM Studio returned an empty explanation.",
         }
 
+    cleaned_content = _sanitize_lm_text(content)
+
     return {
         **deterministic,
         "source": "lm_studio",
         "model": model,
-        "llm_reply": content.strip(),
+        "llm_reply": cleaned_content,
     }
 
 
@@ -1306,6 +1540,18 @@ def query_app(
         return answer_query(data_dir, q)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/lm-status")
+def get_lm_status() -> Dict:
+    enabled = _lm_studio_enabled()
+    model = _resolve_lm_studio_model() if enabled else None
+    base_url = _lm_studio_base_url()
+    return {
+        "enabled": enabled,
+        "base_url": base_url,
+        "model": model,
+    }
 
 
 @app.post("/query")

@@ -458,6 +458,111 @@
         font-size: 0.8rem;
         word-break: break-all;
       }
+      .pheno-explain-header {
+        margin-bottom: 12px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .pheno-explain-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .pheno-explain-title-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .pheno-explain-title-block strong {
+        font-size: 1rem;
+      }
+      .pheno-explain-title-block span {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .pheno-explain-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pheno-explain-match-grid {
+        display: grid;
+        gap: 14px;
+      }
+      .pheno-explain-match-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .pheno-explain-match-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .pheno-explain-match-head h4 {
+        margin: 0;
+      }
+      .pheno-explain-match-rank {
+        margin-bottom: 4px;
+        color: var(--accent-deep);
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .pheno-explain-groups {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .pheno-explain-highlight-list {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        color: var(--ink);
+      }
+      .pheno-explain-highlight-list li {
+        margin: 6px 0;
+      }
+      .pheno-explain-group {
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+      }
+      .pheno-explain-group.is-shared {
+        background: rgba(220, 252, 231, 0.7);
+        border-color: rgba(22, 163, 74, 0.18);
+      }
+      .pheno-explain-group.is-reference {
+        background: rgba(254, 243, 199, 0.75);
+        border-color: rgba(180, 83, 9, 0.18);
+      }
+      .pheno-explain-group.is-target {
+        background: rgba(219, 234, 254, 0.78);
+        border-color: rgba(37, 99, 235, 0.18);
+      }
+      .pheno-explain-group-title {
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .pheno-explain-chip-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .pheno-explain-chip {
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
       .is-hidden {
         display: none;
       }

@@ -12,6 +12,7 @@
       const queryReplyEl = document.getElementById("queryReply");
       const queryStatusEl = document.getElementById("queryStatus");
       const queryMetaEl = document.getElementById("queryMeta");
+      const lmStatusEl = document.getElementById("lmStatus");
       const queryReasonEl = document.getElementById("queryReason");
       const queryActionsEl = document.getElementById("queryActions");
       const queryFollowupsEl = document.getElementById("queryFollowups");
@@ -30,6 +31,7 @@
       const phenoPlanRunBtnEl = document.getElementById("phenoPlanRunBtn");
       const phenoPlanStatusEl = document.getElementById("phenoPlanStatus");
       const phenoPlanMetaEl = document.getElementById("phenoPlanMeta");
+      const phenoLmStatusEl = document.getElementById("phenoLmStatus");
       const phenoPlanEl = document.getElementById("phenoPlan");
       const phenoPlanReasoningEl = document.getElementById("phenoPlanReasoning");
       const phenoReferenceFilesSummaryEl = document.getElementById("phenoReferenceFilesSummary");
@@ -70,6 +72,7 @@
         measures: { bg: "#cffafe", ink: "#0f766e" },
         sex: { bg: "#fce7f3", ink: "#be185d" },
         ethnicity: { bg: "#e0f2fe", ink: "#0369a1" },
+        identifier: { bg: "#f3f4f6", ink: "#111827" },
         other: { bg: "#e5e7eb", ink: "#374151" },
       };
       let selectedPatientId = null;
@@ -99,6 +102,31 @@
 
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
+      }
+
+      async function loadLmStatus() {
+        if (!lmStatusEl || !phenoLmStatusEl) {
+          return;
+        }
+        try {
+          const response = await fetch("/lm-status");
+          if (!response.ok) {
+            throw new Error("Unable to load LM status.");
+          }
+          const payload = await response.json();
+          let text = "LM Studio: disabled";
+          if (payload.enabled) {
+            text = payload.model
+              ? `LM Studio model: ${payload.model}`
+              : "LM Studio: enabled, but no model is loaded";
+          }
+          lmStatusEl.textContent = text;
+          phenoLmStatusEl.textContent = text;
+        } catch (error) {
+          const text = "LM Studio model: unavailable";
+          lmStatusEl.textContent = text;
+          phenoLmStatusEl.textContent = text;
+        }
       }
 
       function renderBarChart(items, labelKey, valueKey, color) {
@@ -1037,6 +1065,9 @@
         if (value === "phenotypicFeatures") {
           return "Phenotypic Features";
         }
+        if (value === "identifier") {
+          return "Identifier";
+        }
         if (value === "sex") {
           return "Sex";
         }
@@ -1137,6 +1168,8 @@
           renderPhenoExplainPlaceholder("No explanation could be generated for this run.");
           return;
         }
+        const targetId = payload.target_id || "unknown";
+        const topN = String(payload.top_n || matches.length);
         const source = payload.source === "lm_studio"
           ? '<span class="query-chip query-chip-llm badge">LM-based</span>'
           : '<span class="query-chip query-chip-deterministic badge">Deterministic</span>';
@@ -1144,28 +1177,66 @@
           ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM Explanation</h4>${renderQueryReply(payload.llm_reply)}</div>`
           : "";
         phenoExplainDetailEl.innerHTML =
-          `<div class="section-note">${source} Explanation for target <strong>${escapeHtml(payload.target_id || "unknown")}</strong> using the top ${escapeHtml(String(payload.top_n || matches.length))} rows from <code>rank.txt</code>.</div>` +
+          `<div class="pheno-explain-header">
+            <div class="pheno-explain-title-row">
+              <div class="pheno-explain-title-block">
+                <strong>Target ${escapeHtml(targetId)}</strong>
+                <span>Top ${escapeHtml(topN)} matches from <code>rank.txt</code></span>
+              </div>
+              <div class="pheno-explain-meta">${source}</div>
+            </div>
+          </div>` +
           llmReply +
-          `<ul class="mini-list">${(payload.summary_lines || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` +
-          matches.map((match) => {
+          `<div class="pheno-explain-match-grid">` +
+          matches.map((match, index) => {
             const metrics = Object.entries(match.metrics || {})
               .filter(([, value]) => value !== "")
               .map(([key, value]) => `<span class="alignment-stat">${escapeHtml(key)} ${escapeHtml(String(value))}</span>`)
               .join("");
+            const highlights = Array.isArray(match.metric_highlights) ? match.metric_highlights : [];
             const alignment = match.alignment || {};
-            const shared = Array.isArray(alignment.top_shared_labels) ? alignment.top_shared_labels : [];
-            const referenceOnly = Array.isArray(alignment.top_reference_only_labels) ? alignment.top_reference_only_labels : [];
-            const targetOnly = Array.isArray(alignment.top_target_only_labels) ? alignment.top_target_only_labels : [];
+            const shared = Array.isArray(alignment.top_shared_items) ? alignment.top_shared_items : [];
+            const referenceOnly = Array.isArray(alignment.top_reference_only_items) ? alignment.top_reference_only_items : [];
+            const targetOnly = Array.isArray(alignment.top_target_only_items) ? alignment.top_target_only_items : [];
+            const renderLabelGroup = (title, items, toneClass) => {
+              if (!items.length) {
+                return "";
+              }
+              return `
+                <div class="pheno-explain-group ${toneClass}">
+                  <div class="pheno-explain-group-title">${escapeHtml(title)}</div>
+                  <div class="pheno-explain-chip-wrap">
+                    ${items.map((item) => {
+                      const bucket = item.bucket || "other";
+                      const style = getPhenoBucketStyle(bucket);
+                      return `<span class="alignment-bucket-pill pheno-explain-chip" style="--bucket-bg:${style.bg};--bucket-ink:${style.ink};">
+                        <span class="alignment-swatch"></span>
+                        ${escapeHtml(item.label || "")}
+                      </span>`;
+                    }).join("")}
+                  </div>
+                </div>
+              `;
+            };
             return `
-              <div class="alignment-section">
-                <h4>${escapeHtml(match.reference_id || "Unknown match")}</h4>
+              <div class="pheno-explain-match-card">
+                <div class="pheno-explain-match-head">
+                  <div>
+                    <div class="pheno-explain-match-rank">Match ${index + 1}</div>
+                    <h4>${escapeHtml(match.reference_id || "Unknown match")}</h4>
+                  </div>
+                </div>
                 <div class="alignment-summary">${metrics || '<span class="alignment-stat">No numeric metrics detected</span>'}</div>
-                ${shared.length ? `<div><strong>Shared variables:</strong> ${escapeHtml(shared.join(", "))}</div>` : ""}
-                ${referenceOnly.length ? `<div><strong>Reference-only:</strong> ${escapeHtml(referenceOnly.join(", "))}</div>` : ""}
-                ${targetOnly.length ? `<div><strong>Target-only:</strong> ${escapeHtml(targetOnly.join(", "))}</div>` : ""}
+                ${highlights.length ? `<ul class="pheno-explain-highlight-list">${highlights.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : ""}
+                <div class="pheno-explain-groups">
+                  ${renderLabelGroup("Shared variables", shared, "is-shared")}
+                  ${renderLabelGroup("Match-only variables", referenceOnly, "is-reference")}
+                  ${renderLabelGroup("Target-only variables", targetOnly, "is-target")}
+                </div>
               </div>
             `;
-          }).join("");
+          }).join("") +
+          `</div>`;
       }
 
       async function explainPhenoResults() {
@@ -1735,6 +1806,7 @@
       updatePhenoMode();
       renderSelectedPatientIdsSummary();
       loadPhenoRankerPatientIds();
+      loadLmStatus();
       renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
       renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
     
