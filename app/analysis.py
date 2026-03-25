@@ -22,6 +22,23 @@ from app.query_store import (
 )
 
 
+def _extract_lm_response_text(response: Dict[str, Any]) -> str | None:
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                text_parts.append(item["text"])
+        content = "\n".join(text_parts).strip()
+    if not isinstance(content, str) or not content.strip():
+        return None
+    return sanitize_lm_text(content)
+
+
 def _parse_iso_date(value: Any) -> date | None:
     normalized = normalize_value(value)
     if not isinstance(normalized, str) or not normalized.strip():
@@ -591,6 +608,227 @@ def record_matches_scope(record: Dict[str, Any], scope_ids: set[str]) -> bool:
     return False
 
 
+def _analysis_catalog(data_dir: str, selected_patient_ids: str = "", compare_mode: bool = False) -> Dict[str, Any]:
+    resolved_dir = ensure_data_dir(data_dir)
+    scope_ids = set(parse_scope_ids(selected_patient_ids))
+    measures: List[str] = []
+    treatments: List[str] = []
+    for _, _, record in read_bff_records(resolved_dir):
+        if not record_matches_scope(record, scope_ids):
+            continue
+        for label in extract_treatment_labels(record):
+            if label not in treatments:
+                treatments.append(label)
+        record_measures = record.get("measures")
+        if not isinstance(record_measures, list):
+            continue
+        for item in record_measures:
+            if not isinstance(item, dict):
+                continue
+            label = _measure_label(item)
+            if label and label not in measures:
+                measures.append(label)
+    return {
+        "compare_mode": bool(compare_mode),
+        "supported_analysis_types": ["summary", "compare_summary", "trajectory", "survival"],
+        "supported_survival_operators": [">", ">=", "<", "<="],
+        "available_measures": sorted(measures)[:60],
+        "available_treatments": sorted(treatments)[:60],
+    }
+
+
+def _validate_analysis_plan(plan: Dict[str, Any], compare_mode: bool = False) -> Dict[str, Any] | None:
+    if plan.get("intent") != "analysis_plan":
+        return None
+    analysis_type = str(plan.get("analysis_type", "")).strip().lower()
+    if analysis_type not in {"summary", "compare_summary", "trajectory", "survival"}:
+        return None
+    if analysis_type == "compare_summary" and not compare_mode:
+        return None
+
+    validated: Dict[str, Any] = {"intent": "analysis_plan", "analysis_type": analysis_type}
+    if analysis_type == "trajectory":
+        measure_query = normalize_value(plan.get("measure_query"))
+        if not isinstance(measure_query, str) or not measure_query.strip():
+            return None
+        validated["measure_query"] = measure_query.strip()
+        treatment_query = normalize_value(plan.get("treatment_query"))
+        if isinstance(treatment_query, str) and treatment_query.strip():
+            validated["treatment_query"] = treatment_query.strip()
+        return validated
+
+    if analysis_type == "survival":
+        measure_query = normalize_value(plan.get("measure_query"))
+        operator = normalize_value(plan.get("operator"))
+        threshold = plan.get("threshold")
+        if not isinstance(measure_query, str) or not measure_query.strip():
+            return None
+        if operator not in {">", ">=", "<", "<="}:
+            return None
+        if not isinstance(threshold, (int, float)) or isinstance(threshold, bool):
+            return None
+        validated["measure_query"] = measure_query.strip()
+        validated["operator"] = operator
+        validated["threshold"] = float(threshold)
+        return validated
+
+    return validated
+
+
+def _execute_analysis_plan(
+    plan: Dict[str, Any],
+    prompt: str,
+    data_dir: str,
+    selected_patient_ids: str = "",
+    compare_mode: bool = False,
+    compare_selected_patient_ids: str = "",
+    planner_model: str = "",
+) -> Dict[str, Any]:
+    analysis_type = plan["analysis_type"]
+    if analysis_type == "survival":
+        if compare_mode:
+            context = compare_survival_analysis_context(
+                data_dir,
+                plan["measure_query"],
+                plan["operator"],
+                plan["threshold"],
+                selected_patient_ids,
+                compare_selected_patient_ids,
+            )
+            intent = "analysis_survival_compare"
+        else:
+            context = survival_analysis_context(
+                data_dir,
+                plan["measure_query"],
+                plan["operator"],
+                plan["threshold"],
+                selected_patient_ids=selected_patient_ids,
+            )
+            intent = "analysis_survival"
+    elif analysis_type == "trajectory":
+        if compare_mode:
+            context = compare_trajectory_context(
+                data_dir,
+                plan["measure_query"],
+                selected_patient_ids,
+                compare_selected_patient_ids,
+                treatment_query=plan.get("treatment_query", ""),
+            )
+            intent = "analysis_trajectory_compare"
+        else:
+            context = _build_trajectory_context(
+                data_dir,
+                plan["measure_query"],
+                selected_patient_ids=selected_patient_ids,
+                treatment_query=plan.get("treatment_query", ""),
+            )
+            intent = "analysis_trajectory"
+    elif analysis_type == "compare_summary":
+        context = compare_analysis_context(data_dir, selected_patient_ids, compare_selected_patient_ids)
+        intent = "analysis_compare"
+    else:
+        context = analysis_context(data_dir, selected_patient_ids=selected_patient_ids)
+        intent = "analysis_deterministic"
+
+    return {
+        "intent": intent,
+        "reply": deterministic_analysis_reply(prompt, context),
+        "data": {
+            "source": "deterministic",
+            "context": context,
+            "model": None,
+            "base_url": lm_studio_base_url(),
+            "planner": {
+                "provider": "lm_studio",
+                "model": planner_model,
+                "plan": plan,
+            },
+            "execution": "deterministic",
+        },
+    }
+
+
+def _analysis_semantic_plan(
+    prompt: str,
+    data_dir: str,
+    selected_patient_ids: str = "",
+    compare_mode: bool = False,
+    compare_selected_patient_ids: str = "",
+    history: List[Dict[str, str]] | None = None,
+) -> Dict[str, Any] | None:
+    if not lm_studio_enabled():
+        return None
+    model = resolve_lm_studio_model(log_kind="analysis_planner_models")
+    if not model:
+        return None
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You translate clinical analysis requests into a constrained JSON plan. "
+                    "Return JSON only. Do not write an analysis answer. "
+                    "If unsupported, return {\"intent\":\"unsupported\",\"reason\":\"...\"}. "
+                    "Supported schema: "
+                    "{\"intent\":\"analysis_plan\",\"analysis_type\":\"summary|compare_summary|trajectory|survival\","
+                    "\"measure_query\":\"string optional\",\"treatment_query\":\"string optional\","
+                    "\"operator\":\">|>=|<|<= optional\",\"threshold\":0 optional}. "
+                    "Use compare_summary only when compare_mode is true. "
+                    "Use trajectory only when a specific measure is implied. "
+                    "Use survival only when you can infer a specific measure, threshold, and operator from the request."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "analysis_request": prompt,
+                        "compare_mode": compare_mode,
+                        "selected_patient_ids": parse_scope_ids(selected_patient_ids)[:20],
+                        "compare_selected_patient_ids": parse_scope_ids(compare_selected_patient_ids)[:20],
+                        "conversation_history": history[-4:] if history else [],
+                        "analysis_catalog": _analysis_catalog(data_dir, selected_patient_ids=selected_patient_ids, compare_mode=compare_mode),
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ],
+        "temperature": 0,
+    }
+    try:
+        response = http_json(f"{lm_studio_base_url()}/chat/completions", payload, log_kind="analysis_planner")
+    except Exception:
+        return None
+    content = _extract_lm_response_text(response)
+    if content is None:
+        return None
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+        if not match:
+            return None
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(parsed, dict):
+        return None
+    validated = _validate_analysis_plan(parsed, compare_mode=compare_mode)
+    if validated is None:
+        return None
+    return _execute_analysis_plan(
+        validated,
+        prompt,
+        data_dir,
+        selected_patient_ids=selected_patient_ids,
+        compare_mode=compare_mode,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+        planner_model=model,
+    )
+
+
 def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
     scope_ids = set(parse_scope_ids(selected_patient_ids))
@@ -1011,6 +1249,7 @@ def analysis_llm_reply(
     selected_patient_ids: str = "",
     compare_mode: bool = False,
     compare_selected_patient_ids: str = "",
+    llm_only: bool = False,
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
     survival_request = _parse_survival_request(prompt)
@@ -1079,6 +1318,19 @@ def analysis_llm_reply(
     else:
         context = analysis_context(data_dir, selected_patient_ids=selected_patient_ids)
         intent = "analysis_deterministic"
+
+    if not llm_only:
+        semantic_plan = _analysis_semantic_plan(
+            prompt,
+            data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_mode=compare_mode,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            history=history,
+        )
+        if semantic_plan is not None:
+            return semantic_plan
+
     model = resolve_lm_studio_model(log_kind="pheno_models") if lm_studio_enabled() else None
     if not lm_studio_enabled() or not model:
         return {

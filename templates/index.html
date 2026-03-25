@@ -119,13 +119,15 @@
                 <div class="section-note">Use Query to find cohorts, counts, and patient lists. Use Analysis to interpret a selected cohort.</div>
               </div>
             </div>
-            <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Cohort lookup</span> <span class="query-chip query-chip-planner badge">Mixed-filter planner</span> <span class="query-chip query-chip-llm badge">Narrative prompt</span></div>
+            <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-planner badge">LLM planned</span> <span class="query-chip query-chip-llm badge">LM interpretation</span></div>
             <div class="query-examples" id="queryExamples">
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients on the cohort">List all patients in the cohort</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients do not have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics?">How many patients take biologics?</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Interpret this cohort like a clinician and summarize the main patterns.">Interpret this cohort in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What are the main clinical themes in this dataset? Summarize them in a table.">Main clinical themes in Analysis</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have Ulcerative Colitis but do not take Mesalamine?">UC patients not taking Mesalamine</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
@@ -144,10 +146,8 @@
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients had Infliximab after Crohn Disease?">Infliximab after Crohn</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients changed from Ulcerative Colitis to Crohn Disease?">Changed from UC to Crohn</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients started Infliximab after Crohn Disease?">Started Infliximab after Crohn</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-prompt="Interpret this cohort like a clinician and summarize the main patterns.">Interpret this cohort in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-prompt="Summarize the main treatment patterns in this cohort and suggest what I should inspect next.">Summarize treatment patterns in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-prompt="What are the main clinical themes in this dataset? Summarize them in a table.">Main clinical themes in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-prompt="What evidence supports the main cohort summary and what should I inspect next?">Evidence-supported summary in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this cohort and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main cohort summary?">Evidence-supported summary in Analysis</button>
             </div>
           </div>
           <div class="analysis-history-header">
@@ -416,9 +416,15 @@
                   <div class="section-note">Broader cohort interpretation grounded in DuckDB-backed summaries, with plots and LM commentary.</div>
                 </div>
               </div>
-              <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">Comparison / scoped analysis</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
+              <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">LLM planned</span> <span class="query-chip query-chip-llm badge">LM interpretation</span></div>
               <div class="query-examples" id="analysisExamples">
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Summarize the main clinical patterns in this cohort and tell me what stands out.">Main cohort patterns</button>
+                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Analyze CRP response after infliximab.">Analyze CRP response after infliximab</button>
+                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare inflammatory burden between these cohorts.">Compare inflammatory burden</button>
+                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B by disease burden, medication burden, and timepoint distribution.">Compare A vs B core profiles</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret these cohort summaries like a clinician and summarize the main patterns and uncertainties.">Clinical interpretation</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise cohort briefing for a clinician, including what stands out and what needs validation.">Clinician-facing cohort briefing</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare Cohort A and Cohort B like a clinical reviewer and summarize the main similarities, differences, and uncertainties.">Clinical review of A vs B</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="What stands out in treatment usage over time?">Treatment usage over time</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this cohort.">Disease, medication, and visit burden</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Describe how this cohort changes over time and point out the most active periods.">How the cohort changes over time</button>
@@ -429,16 +435,12 @@
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Show a Kaplan-Meier curve for time to Leukocyte Count > 10">Kaplan-Meier for Leukocyte Count &gt; 10</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Show a Kaplan-Meier curve for time to Hemoglobin < 11">Kaplan-Meier for Hemoglobin &lt; 11</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the currently selected cohort against the rest of the cohort and summarize the main differences.">Compare selected cohort vs rest</button>
-                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B by disease burden, medication burden, and timepoint distribution.">Compare A vs B core profiles</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Tell me which diseases and medications most separate Cohort A from Cohort B.">What separates A from B</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare these cohorts and focus on temporal differences and possible treatment-intensity differences.">Temporal and treatment-intensity differences</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B using Leukocyte Count trajectories">Compare Leukocyte Count trajectories</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B with Kaplan-Meier for time to Leukocyte Count > 10">Compare Kaplan-Meier A vs B</button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-prompt="Interpret these cohort summaries like a clinician and suggest what I should inspect next.">Clinical interpretation</button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-prompt="Compare the disease and medication profiles in this cohort and suggest the next analyses.">Compare disease and medication profiles</button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-prompt="Write a concise cohort briefing for a clinician, including what stands out and what needs validation.">Clinician-facing cohort briefing</button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-prompt="Interpret the selected cohort as a possible clinical subgroup and explain what evidence supports that interpretation.">Interpret selected subgroup</button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-prompt="Compare Cohort A and Cohort B like a clinical reviewer and suggest the next questions to investigate.">Clinical review of A vs B</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this cohort and summarize the main themes.">Interpret disease and medication profiles</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected cohort as a possible clinical subgroup and explain what evidence supports that interpretation.">Interpret selected subgroup</button>
               </div>
             </div>
             <div class="analysis-history-header">

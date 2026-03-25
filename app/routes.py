@@ -7,6 +7,12 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.analysis import analysis_llm_reply
+from app.analysis_sessions import (
+    delete_analysis_session,
+    list_analysis_sessions,
+    rename_analysis_session,
+    save_analysis_session,
+)
 from app.bff import (
     build_patient_navigator,
     dashboard_summary,
@@ -27,7 +33,15 @@ from app.pheno import (
     plan_pheno_ranker,
     run_pheno_ranker,
 )
-from app.schemas import AnalysisRequest, PhenoRankerPlanRequest, PhenoRankerRequest, QueryRequest, SavedCohortRequest
+from app.schemas import (
+    AnalysisRequest,
+    AnalysisSessionRenameRequest,
+    AnalysisSessionRequest,
+    PhenoRankerPlanRequest,
+    PhenoRankerRequest,
+    QueryRequest,
+    SavedCohortRequest,
+)
 from app.query import answer_query
 
 
@@ -166,10 +180,36 @@ def analysis_app(request: AnalysisRequest) -> Dict:
             selected_patient_ids=request.selected_patient_ids,
             compare_mode=request.compare_mode,
             compare_selected_patient_ids=request.compare_selected_patient_ids,
+            llm_only=request.llm_only,
             history=[turn.model_dump() for turn in request.history],
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_analysis_sessions() -> Dict:
+    return {"sessions": list_analysis_sessions()}
+
+
+def create_or_update_analysis_session(request: AnalysisSessionRequest) -> Dict:
+    try:
+        return save_analysis_session(request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def update_analysis_session_title(session_id: str, request: AnalysisSessionRenameRequest) -> Dict:
+    item = rename_analysis_session(session_id, request.title)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Analysis session not found.")
+    return item
+
+
+def remove_analysis_session(session_id: str) -> Dict:
+    deleted = delete_analysis_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Analysis session not found.")
+    return {"deleted": True, "id": session_id}
 
 
 def run_pheno_ranker_route(request: PhenoRankerRequest) -> Dict:
@@ -225,6 +265,10 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"])
     app.add_api_route("/query", query_app_post, methods=["POST"])
     app.add_api_route("/analysis", analysis_app, methods=["POST"])
+    app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"])
+    app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"])
+    app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"])
+    app.add_api_route("/analysis-sessions/{session_id}", remove_analysis_session, methods=["DELETE"])
     app.add_api_route("/pheno-ranker/run", run_pheno_ranker_route, methods=["POST"])
     app.add_api_route("/pheno-ranker/plan", plan_pheno_ranker_route, methods=["POST"])
     app.add_api_route("/pheno-ranker/patient-ids", get_pheno_ranker_patient_ids, methods=["GET"])

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,7 +25,26 @@ class AnalysisRequest(BaseModel):
     selected_patient_ids: str = ""
     compare_mode: bool = False
     compare_selected_patient_ids: str = ""
+    llm_only: bool = False
     history: List[QueryTurn] = Field(default_factory=list)
+
+
+class AnalysisSessionRequest(BaseModel):
+    id: str
+    title: str = ""
+    data_dir: str = DEFAULT_DATA_DIR
+    prompt_draft: str = ""
+    scope: str = ""
+    compare_mode: bool = False
+    compare_scope: str = ""
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+    turns: List[Dict[str, Any]] = Field(default_factory=list)
+    updated_at: str = ""
+    created_at: str = ""
+
+
+class AnalysisSessionRenameRequest(BaseModel):
+    title: str = ""
 
 
 class PhenoRankerRequest(BaseModel):

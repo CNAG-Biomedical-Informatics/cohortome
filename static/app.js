@@ -130,6 +130,7 @@
       let analysisTurns = [];
       let analysisProgressTimer = null;
       let analysisExamplesPinnedOpen = false;
+      let analysisExecutionMode = "auto";
       let analysisSessions = [];
       let currentAnalysisSessionId = "";
       let phenoRankerPatientIds = [];
@@ -1470,16 +1471,54 @@
         if (!analysisMetaEl) {
           return;
         }
-        const source = payload && payload.data && payload.data.source === "llm" ? "LM-based" : "Deterministic";
-        const model = payload && payload.data ? payload.data.model : "";
-        const chips = [
-          `<span class="query-chip badge">${escapeHtml(payload.intent || "analysis")}</span>`,
-          `<span class="query-chip badge">${escapeHtml(source)}</span>`,
-        ];
-        if (model) {
-          chips.push(`<span class="query-chip badge">${escapeHtml(model)}</span>`);
+        analysisMetaEl.innerHTML = getAnalysisProvenanceChips(payload).join("");
+      }
+
+      function analysisIntentPresentation(intent) {
+        const value = String(intent || "analysis");
+        const labels = {
+          analysis_deterministic: { label: "Cohort summary", title: "Deterministic cohort summary produced by the app." },
+          analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
+          analysis_survival: { label: "Kaplan-Meier analysis", title: "Deterministic Kaplan-Meier survival analysis." },
+          analysis_survival_compare: { label: "Kaplan-Meier comparison", title: "Deterministic Kaplan-Meier comparison between two cohorts." },
+          analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
+          analysis_trajectory_compare: { label: "Trajectory comparison", title: "Deterministic trajectory comparison between two cohorts." },
+          analysis_llm: { label: "LM interpretation", title: "LM Studio narrative interpretation grounded in the provided analysis context." },
+          analysis_compare_llm: { label: "LM comparison", title: "LM Studio narrative comparison grounded in the provided cohort context." },
+        };
+        if (labels[value]) {
+          return labels[value];
         }
-        analysisMetaEl.innerHTML = chips.join("");
+        return {
+          label: value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+          title: `Internal analysis intent: ${value}`,
+        };
+      }
+
+      function renderAnalysisBadge(label, title) {
+        const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
+        return `<span class="query-chip badge"${safeTitle}>${escapeHtml(label)}</span>`;
+      }
+
+      function getAnalysisProvenanceChips(payload) {
+        const data = payload && payload.data ? payload.data : {};
+        const intentInfo = analysisIntentPresentation(payload && payload.intent ? payload.intent : "analysis");
+        const chips = [renderAnalysisBadge(intentInfo.label, intentInfo.title)];
+        if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
+          chips.push(renderAnalysisBadge("LLM planned", "LM Studio translated the prompt into a constrained internal analysis plan."));
+          chips.push(renderAnalysisBadge("Deterministic execution", "The app executed the planned analysis deterministically against local cohort data."));
+          if (data.planner.model) {
+            chips.push(renderAnalysisBadge(data.planner.model, "LM Studio model used for analysis planning."));
+          }
+          return chips;
+        }
+        chips.push(renderAnalysisBadge(data.source === "llm" ? "LM-based" : "Deterministic", data.source === "llm"
+          ? "LM Studio generated the narrative interpretation from the provided analysis context."
+          : "The app executed this analysis deterministically."));
+        if (data.model) {
+          chips.push(renderAnalysisBadge(data.model, "LM Studio model used for this analysis reply."));
+        }
+        return chips;
       }
 
       function formatAnalysisScopeLabel(scopeValue) {
@@ -1527,6 +1566,19 @@
           "trends",
           "over time",
         ].some((token) => lowered.includes(token));
+      }
+
+      function analysisPayloadHasPlots(payload) {
+        const context = payload && payload.data ? payload.data.context : null;
+        const mode = context && typeof context.mode === "string" ? context.mode : "";
+        return [
+          "trajectory",
+          "trajectory_response",
+          "trajectory_compare",
+          "trajectory_compare_response",
+          "survival",
+          "survival_compare",
+        ].includes(mode);
       }
 
       function stopAnalysisProgressUpdates() {
@@ -1623,9 +1675,7 @@
             <article class="analysis-turn analysis-turn-assistant">
               <div class="analysis-turn-label">Analysis</div>
               <div class="analysis-turn-meta">
-                <span class="query-chip badge">${escapeHtml(turn.payload.intent || "analysis")}</span>
-                <span class="query-chip badge">${escapeHtml(turn.payload.data && turn.payload.data.source === "llm" ? "LM-based" : "Deterministic")}</span>
-                ${model ? `<span class="query-chip badge">${escapeHtml(model)}</span>` : ""}
+                ${getAnalysisProvenanceChips(turn.payload).join("")}
               </div>
               <div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>
               <div class="analysis-turn-context">
@@ -2395,12 +2445,14 @@
         analysisStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`;
       }
 
-      function sendPromptToAnalysis(prompt) {
+      function sendPromptToAnalysis(prompt, options) {
+        const settings = options || {};
         const normalizedPrompt = String(prompt || "").trim();
         if (!normalizedPrompt) {
           return;
         }
         analysisPromptEl.value = normalizedPrompt;
+        analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
         setActiveTab("analysis");
         renderAnalysisScopeSummary();
         syncCurrentAnalysisSessionFromUi({ render: true });
@@ -3479,6 +3531,7 @@
         const compareScope = analysisCompareModeEl && analysisCompareModeEl.checked
           ? analysisCompareSelectedPatientIdsEl.value.trim()
           : "";
+        const llmOnly = analysisExecutionMode === "llm_only";
         const showPlots = analysisPromptRequestsPlots(prompt);
         const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
         analysisExamplesPinnedOpen = false;
@@ -3497,6 +3550,7 @@
               selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
               compare_mode: compareMode,
               compare_selected_patient_ids: compareScope,
+              llm_only: llmOnly,
               history: analysisHistory.slice(-6),
             }),
           });
@@ -3512,9 +3566,10 @@
             throw new Error(message);
           }
           const payload = await response.json();
+          const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
           stopAnalysisProgressUpdates();
           renderAnalysisMeta(payload);
-          analysisTurns[analysisTurns.length - 1] = { role: "assistant", payload, showPlots };
+          analysisTurns[analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots };
           renderAnalysisThread();
           syncCurrentAnalysisSessionFromUi({ render: true });
           analysisStatusEl.className = "query-status";
@@ -3522,6 +3577,7 @@
           analysisHistory.push({ role: "user", content: prompt });
           analysisHistory.push({ role: "assistant", content: payload.reply || "" });
           analysisHistory = analysisHistory.slice(-8);
+          analysisExecutionMode = "auto";
           syncCurrentAnalysisSessionFromUi({ render: true });
         } catch (error) {
           analysisTurns[analysisTurns.length - 1] = {
@@ -3538,6 +3594,7 @@
           syncCurrentAnalysisSessionFromUi({ render: true });
           analysisStatusEl.className = "query-status";
           analysisStatusEl.textContent = "Analysis failed.";
+          analysisExecutionMode = "auto";
         } finally {
           stopAnalysisProgressUpdates();
           analysisInFlight = false;
@@ -3607,7 +3664,9 @@
           if (latestQueryPatientIds.length) {
             analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
           }
-          sendPromptToAnalysis(analysisButton.dataset.analysisPrompt);
+          sendPromptToAnalysis(analysisButton.dataset.analysisPrompt, {
+            llmOnly: analysisButton.dataset.analysisLlmOnly === "true",
+          });
           return;
         }
         const button = event.target.closest("[data-prompt]");
@@ -3631,10 +3690,14 @@
           return;
         }
         analysisPromptEl.value = button.dataset.analysisPrompt;
+        analysisExecutionMode = button.dataset.analysisLlmOnly === "true" ? "llm_only" : "auto";
         analysisExamplesPinnedOpen = false;
         syncCurrentAnalysisSessionFromUi({ render: true });
         renderAnalysisStarterPrompts();
         analysisPromptEl.focus();
+      });
+      analysisPromptEl && analysisPromptEl.addEventListener("input", () => {
+        analysisExecutionMode = "auto";
       });
       analysisSessionListEl && analysisSessionListEl.addEventListener("click", (event) => {
         const deleteButton = event.target.closest("[data-analysis-session-delete]");

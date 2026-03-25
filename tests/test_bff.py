@@ -527,6 +527,151 @@ def test_analysis_compare_trajectory(tmp_path):
     assert context["cohort_b"]["patient_count"] == 2
 
 
+def test_analysis_uses_semantic_planner_for_broad_trajectory_prompt(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "P1:followup",
+                "event_date": "2024-01-15",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 5.0}}}],
+            },
+            {
+                "id": "P2:baseline",
+                "event_date": "2024-01-02",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "P2:followup",
+                "event_date": "2024-01-16",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 7.0}}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        calls.append(log_kind)
+        if log_kind == "analysis_planner":
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "analysis_plan",
+                                    "analysis_type": "trajectory",
+                                    "measure_query": "CRP",
+                                    "treatment_query": "Infliximab",
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Analyze CRP response after infliximab",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_trajectory"
+    assert payload["data"]["execution"] == "deterministic"
+    assert payload["data"]["planner"]["model"] == "local-model"
+    assert payload["data"]["context"]["mode"] == "trajectory_response"
+    assert calls == ["analysis_planner"]
+
+
+def test_analysis_falls_back_to_llm_narrative_when_planner_is_unsupported(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        calls.append(log_kind)
+        if log_kind == "analysis_planner":
+            return {"choices": [{"message": {"content": "{\"intent\":\"unsupported\"}"}}]}
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "What should I inspect next in this cohort?",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["reply"] == "Narrative analysis"
+    assert calls == ["analysis_planner", "analysis_llm"]
+
+
+def test_analysis_llm_only_skips_planner(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Compare Cohort A and Cohort B like a clinical reviewer and summarize the main similarities, differences, and uncertainties.",
+        str(tmp_path),
+        llm_only=True,
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["reply"] == "Narrative analysis"
+    assert calls == ["analysis_llm"]
+
+
 def test_api_endpoints(tmp_path):
     write_json(
         tmp_path,
