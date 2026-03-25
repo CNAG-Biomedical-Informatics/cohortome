@@ -28,6 +28,7 @@
       const queryDataEl = document.getElementById("queryData");
       const queryDetailsEl = document.getElementById("queryDetails");
       const queryThreadEl = document.getElementById("queryThread");
+      const queryPlannerBtnEl = document.getElementById("queryPlannerBtn");
       const queryClearBtnEl = document.getElementById("queryClearBtn");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
@@ -112,6 +113,7 @@
       let queryInFlight = false;
       let queryHistory = [];
       let queryTurns = [];
+      let queryExecutionMode = "auto";
       let queryProgressTimer = null;
       let analysisInFlight = false;
       let loadInFlight = false;
@@ -603,6 +605,18 @@
         if (siblingToggle) {
           siblingToggle.hidden = false;
         }
+      }
+
+      function renderQueryExecutionMode() {
+        if (!queryPlannerBtnEl) {
+          return;
+        }
+        const active = queryExecutionMode === "planner_only";
+        queryPlannerBtnEl.classList.toggle("is-active", active);
+        queryPlannerBtnEl.setAttribute("aria-pressed", active ? "true" : "false");
+        queryPlannerBtnEl.title = active
+          ? "Semantic planner is enabled for the next query."
+          : "Skip deterministic matching for the next query and use the semantic planner first.";
       }
 
       function renderAnalysisStarterPrompts() {
@@ -2164,16 +2178,20 @@
       function resetQueryWorkspace() {
         queryHistory = [];
         queryTurns = [];
+        queryExecutionMode = "auto";
         latestQueryPatientIds = [];
         latestQueryPrompt = "";
         latestQueryAnalysisPrompt = "";
         queryMetaEl.innerHTML = "";
         queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
         queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
-        queryActionsEl.innerHTML = "";
+        if (queryActionsEl) {
+          queryActionsEl.innerHTML = "";
+        }
         queryFollowupsEl.innerHTML = "";
         queryDataEl.textContent = "";
         queryDetailsEl.open = false;
+        renderQueryExecutionMode();
         renderQueryStarterPrompts();
         renderQueryThread();
       }
@@ -2190,7 +2208,15 @@
           queryThreadEl.innerHTML = '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
           return;
         }
-        queryThreadEl.innerHTML = queryTurns.map((turn) => {
+        const latestAssistantIndex = (() => {
+          for (let index = queryTurns.length - 1; index >= 0; index -= 1) {
+            if (queryTurns[index] && queryTurns[index].role === "assistant" && !queryTurns[index].pending) {
+              return index;
+            }
+          }
+          return -1;
+        })();
+        queryThreadEl.innerHTML = queryTurns.map((turn, index) => {
           if (turn.role === "user") {
             return `
               <article class="analysis-turn query-thread-turn query-thread-turn-user">
@@ -2214,7 +2240,11 @@
                   ${getQueryProvenanceChips(payload).join("")}
                 </div>
               `}
-              <div class="analysis-turn-body">${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}</div>
+              <div class="analysis-turn-body">
+                ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}
+                ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload) : ""}
+                ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(payload.data && payload.data.follow_up_suggestions) : ""}
+              </div>
             </article>
           `;
         }).join("");
@@ -2245,17 +2275,22 @@
       }
 
       function renderFollowupButtons(items) {
+        queryFollowupsEl.innerHTML = "";
+      }
+
+      function renderFollowupButtonsMarkup(items) {
         const followups = Array.isArray(items) ? items.slice(0, 4) : [];
         if (!followups.length) {
-          queryFollowupsEl.innerHTML = "";
-          return;
+          return "";
         }
-        queryFollowupsEl.innerHTML = `
-          <div class="query-followups-label">Suggested follow-up queries</div>
-          <div class="query-followups-list">
-            ${followups.map((item) => `
-              <button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>
-            `).join("")}
+        return `
+          <div class="query-followups" style="margin-top:12px;">
+            <div class="query-followups-label">Suggested follow-up queries</div>
+            <div class="query-followups-list">
+              ${followups.map((item) => `
+                <button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>
+              `).join("")}
+            </div>
           </div>
         `;
       }
@@ -2326,7 +2361,7 @@
         return inferred;
       }
 
-      function renderQueryActions(payload) {
+      function queryActionsMarkup(payload) {
         const patientIds = inferPatientIdsFromQueryPayload(payload);
         latestQueryPrompt = questionEl.value.trim();
         latestQueryAnalysisPrompt = patientIds.length
@@ -2337,34 +2372,95 @@
           : "patient";
         latestQueryPatientIds = patientIds;
         if (!patientIds.length) {
-          queryActionsEl.innerHTML = "";
-          return;
+          return "";
         }
         const compatibleIds = phenoRankerPatientIds.length
           ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId))
           : [];
         const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
-        queryActionsEl.innerHTML = `
-          <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis">Open cohort in Analysis</button>
-          <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort">Save cohort</button>
-          <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids">Copy patient IDs</button>
-          ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
-          ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
+        const idsPayload = escapeHtml(patientIds.join(","));
+        return `
+          <div class="query-actions query-actions-inline" style="margin-top:12px;">
+            <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}"><span class="query-action-label">Open cohort in Analysis</span></button>
+            <details class="query-inline-actions">
+              <summary>More actions</summary>
+              <div class="query-actions">
+                <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="query-action-label">Save cohort</span></button>
+                <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids" data-query-patient-ids="${idsPayload}"><span class="query-action-label">Copy patient IDs</span></button>
+                ${allCompatible ? `<button type="button" class="query-chip action" data-query-action="use-pheno" data-query-patient-ids="${idsPayload}"><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
+                ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
+              </div>
+            </details>
+          </div>
         `;
       }
 
-      async function copyPatientIdsFromQuery() {
-        if (!latestQueryPatientIds.length) {
+      function renderQueryActions(payload) {
+        if (queryActionsEl) {
+          queryActionsEl.innerHTML = queryActionsMarkup(payload);
+        }
+      }
+
+      function flashQueryActionFeedback(button, label) {
+        if (!button) {
           return;
         }
-        const payload = latestQueryPatientIds.join(",");
+        const textEl = button.querySelector(".query-action-label");
+        const target = textEl || button;
+        const previous = textEl ? textEl.textContent : button.textContent;
+        target.textContent = label;
+        window.setTimeout(() => {
+          target.textContent = previous;
+        }, 1400);
+      }
+
+      function fallbackCopyText(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        textArea.style.pointerEvents = "none";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        let copied = false;
         try {
-          await navigator.clipboard.writeText(payload);
+          copied = document.execCommand("copy");
+        } catch (_error) {
+          copied = false;
+        }
+        document.body.removeChild(textArea);
+        return copied;
+      }
+
+      async function copyPatientIdsFromQuery(idsOverride, triggerButton) {
+        const ids = Array.isArray(idsOverride) && idsOverride.length ? idsOverride : latestQueryPatientIds;
+        if (!ids.length) {
           queryStatusEl.className = "query-status";
-          queryStatusEl.textContent = `Copied ${latestQueryPatientIds.length} patient IDs.`;
+          queryStatusEl.textContent = "No patient IDs are available to copy from this answer.";
+          flashQueryActionFeedback(triggerButton, "No IDs");
+          return;
+        }
+        const payload = ids.join(",");
+        try {
+          let copied = false;
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(payload);
+            copied = true;
+          } else {
+            copied = fallbackCopyText(payload);
+          }
+          if (!copied) {
+            throw new Error("copy_failed");
+          }
+          queryStatusEl.className = "query-status";
+          queryStatusEl.textContent = `Copied ${ids.length} patient IDs.`;
+          flashQueryActionFeedback(triggerButton, "Copied");
         } catch (_error) {
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Unable to copy patient IDs from the browser.";
+          flashQueryActionFeedback(triggerButton, "Unavailable");
         }
       }
 
@@ -3412,6 +3508,7 @@
         }
         const dataDir = encodeURIComponent(dataDirEl.value.trim());
         const question = questionEl.value.trim();
+        const queryMode = queryExecutionMode;
         if (!question) {
           queryStatusEl.textContent = "Enter a question first.";
           return;
@@ -3423,7 +3520,9 @@
         queryReplyEl.innerHTML = "<p><strong>Running query...</strong><br>Please wait.</p>";
         queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
         queryMetaEl.innerHTML = "";
-        queryActionsEl.innerHTML = "";
+        if (queryActionsEl) {
+          queryActionsEl.innerHTML = "";
+        }
         latestQueryPatientIds = [];
         queryFollowupsEl.innerHTML = "";
         queryTurns.push({ role: "user", prompt: question });
@@ -3445,6 +3544,7 @@
             body: JSON.stringify({
               q: question,
               data_dir: dataDirEl.value.trim(),
+              query_mode: queryMode,
               history: queryHistory.slice(-6),
             }),
           });
@@ -3454,7 +3554,9 @@
             queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
             queryDataEl.textContent = "";
             queryDetailsEl.open = false;
-            queryActionsEl.innerHTML = "";
+            if (queryActionsEl) {
+              queryActionsEl.innerHTML = "";
+            }
             queryTurns[queryTurns.length - 1] = {
               role: "assistant",
               payload: {
@@ -3482,6 +3584,8 @@
           queryHistory.push({ role: "user", content: question });
           queryHistory.push({ role: "assistant", content: payload.reply || "" });
           queryHistory = queryHistory.slice(-8);
+          queryExecutionMode = "auto";
+          renderQueryExecutionMode();
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Done.";
         } catch (error) {
@@ -3490,7 +3594,9 @@
           queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";
           queryDataEl.textContent = "";
           queryDetailsEl.open = false;
-          queryActionsEl.innerHTML = "";
+          if (queryActionsEl) {
+            queryActionsEl.innerHTML = "";
+          }
           latestQueryPatientIds = [];
           queryTurns[queryTurns.length - 1] = {
             role: "assistant",
@@ -3501,6 +3607,8 @@
             },
           };
           renderQueryThread();
+          queryExecutionMode = "auto";
+          renderQueryExecutionMode();
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Network error.";
         } finally {
@@ -3604,6 +3712,10 @@
 
       loadBtnEl.addEventListener("click", loadPatients);
       askBtnEl.addEventListener("click", askQuery);
+      queryPlannerBtnEl && queryPlannerBtnEl.addEventListener("click", () => {
+        queryExecutionMode = queryExecutionMode === "planner_only" ? "auto" : "planner_only";
+        renderQueryExecutionMode();
+      });
       queryClearBtnEl && queryClearBtnEl.addEventListener("click", () => {
         resetQueryWorkspace();
         queryStatusEl.className = "query-status";
@@ -3674,6 +3786,8 @@
           return;
         }
         questionEl.value = button.dataset.prompt;
+        queryExecutionMode = "auto";
+        renderQueryExecutionMode();
         questionEl.focus();
       });
       queryFollowupsEl.addEventListener("click", (event) => {
@@ -3682,6 +3796,8 @@
           return;
         }
         questionEl.value = button.dataset.prompt;
+        queryExecutionMode = "auto";
+        renderQueryExecutionMode();
         questionEl.focus();
       });
       analysisExamplesEl.addEventListener("click", (event) => {
@@ -3724,25 +3840,40 @@
         phenoPromptEl.value = button.dataset.phenoPrompt;
         phenoPromptEl.focus();
       });
-      queryActionsEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-query-action]");
-        if (!button || !queryActionsEl.contains(button)) {
-          return;
+      document.addEventListener("click", (event) => {
+        const queryActionButton = event.target.closest("[data-query-action]");
+        if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
+          const ids = String(queryActionButton.dataset.queryPatientIds || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          if (ids.length) {
+            latestQueryPatientIds = ids;
+          }
+          if (queryActionButton.dataset.queryAction === "use-pheno") {
+            sendPatientIdsToPhenoRanker();
+            return;
+          }
+          if (queryActionButton.dataset.queryAction === "use-analysis") {
+            sendPatientIdsToAnalysis();
+            return;
+          }
+          if (queryActionButton.dataset.queryAction === "copy-ids") {
+            copyPatientIdsFromQuery(ids, queryActionButton);
+            return;
+          }
+          if (queryActionButton.dataset.queryAction === "save-cohort") {
+            saveLatestQueryAsCohort();
+            return;
+          }
         }
-        if (button.dataset.queryAction === "use-pheno") {
-          sendPatientIdsToPhenoRanker();
-          return;
-        }
-        if (button.dataset.queryAction === "use-analysis") {
-          sendPatientIdsToAnalysis();
-          return;
-        }
-        if (button.dataset.queryAction === "copy-ids") {
-          copyPatientIdsFromQuery();
-          return;
-        }
-        if (button.dataset.queryAction === "save-cohort") {
-          saveLatestQueryAsCohort();
+
+        const queryPromptButton = event.target.closest("[data-prompt]");
+        if (queryPromptButton && queryThreadEl && queryThreadEl.contains(queryPromptButton)) {
+          questionEl.value = queryPromptButton.dataset.prompt;
+          queryExecutionMode = "auto";
+          renderQueryExecutionMode();
+          questionEl.focus();
         }
       });
       savedCohortsEl && savedCohortsEl.addEventListener("click", (event) => {
@@ -3794,6 +3925,9 @@
           askQuery();
         }
       });
+      questionEl.addEventListener("input", () => {
+        renderQueryExecutionMode();
+      });
       analysisPromptEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -3803,6 +3937,7 @@
       patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
       updatePhenoMode();
       renderSelectedPatientIdsSummary();
+      renderQueryExecutionMode();
       setPhenoResultWorkspaceVisible(false);
       renderPhenoSavedCohortsSelection();
       ensureAnalysisSessionsLoaded();
