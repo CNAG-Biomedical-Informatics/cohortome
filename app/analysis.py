@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import date
 from typing import Any, Dict, List
 
-from app.bff import ensure_data_dir, extract_treatment_labels, normalize_value, read_bff_records
+from app.bff import ensure_data_dir, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
 from app.lm import (
     http_json,
     lm_studio_base_url,
@@ -18,6 +20,491 @@ from app.query_store import (
     medication_counts as store_medication_counts,
     patient_query_index as store_patient_query_index,
 )
+
+
+def _parse_iso_date(value: Any) -> date | None:
+    normalized = normalize_value(value)
+    if not isinstance(normalized, str) or not normalized.strip():
+        return None
+    text = normalized.strip()
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _measure_label(item: Dict[str, Any]) -> str | None:
+    assay = item.get("assayCode")
+    if isinstance(assay, dict):
+        label = normalize_value(assay.get("label")) or normalize_value(assay.get("id"))
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    notes = normalize_value(item.get("notes"))
+    if isinstance(notes, str) and notes.strip():
+        return notes.strip()
+    return None
+
+
+def _measure_numeric_value(item: Dict[str, Any]) -> float | None:
+    candidates = [
+        item.get("value"),
+        (item.get("measurementValue") or {}).get("value") if isinstance(item.get("measurementValue"), dict) else None,
+    ]
+    measurement_value = item.get("measurementValue")
+    if isinstance(measurement_value, dict):
+        quantity = measurement_value.get("quantity")
+        if isinstance(quantity, dict):
+            candidates.append(quantity.get("value"))
+    for candidate in candidates:
+        normalized = normalize_value(candidate)
+        if isinstance(normalized, (int, float)):
+            return float(normalized)
+        if isinstance(normalized, str):
+            try:
+                return float(normalized)
+            except ValueError:
+                continue
+    return None
+
+
+def _measure_unit_label(item: Dict[str, Any]) -> str | None:
+    measurement_value = item.get("measurementValue")
+    if not isinstance(measurement_value, dict):
+        return None
+    quantity = measurement_value.get("quantity")
+    if not isinstance(quantity, dict):
+        return None
+    unit = quantity.get("unit")
+    if isinstance(unit, dict):
+        label = normalize_value(unit.get("label")) or normalize_value(unit.get("id"))
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    return None
+
+
+def _matches_operator(value: float, operator: str, threshold: float) -> bool:
+    if operator == ">":
+        return value > threshold
+    if operator == ">=":
+        return value >= threshold
+    if operator == "<":
+        return value < threshold
+    if operator == "<=":
+        return value <= threshold
+    return False
+
+
+def _parse_survival_request(prompt: str) -> Dict[str, Any] | None:
+    lowered = prompt.lower()
+    if not any(token in lowered for token in ("kaplan", "survival")):
+        return None
+    pattern = re.search(
+        r"(?:kaplan[\s-]*meier|survival)(?:\s+curve)?(?:\s+for)?(?:\s+time\s+to)?\s+(.+?)\s*(>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    if not pattern:
+        return None
+    raw_label = re.sub(r"^(?:time\s+to)\s+", "", pattern.group(1).strip(), flags=re.IGNORECASE)
+    raw_label = re.sub(r"^(?:first\s+)", "", raw_label, flags=re.IGNORECASE).strip(" .:")
+    if not raw_label:
+        return None
+    return {
+        "measure_query": raw_label,
+        "operator": pattern.group(2),
+        "threshold": float(pattern.group(3)),
+    }
+
+
+def _resolve_measure_name(query: str, labels: List[str]) -> str | None:
+    normalized_query = query.strip().lower()
+    if not normalized_query:
+        return None
+    for label in labels:
+        if label.lower() == normalized_query:
+            return label
+    for label in labels:
+        if normalized_query in label.lower():
+            return label
+    return None
+
+
+def _resolve_treatment_name(query: str, labels: List[str]) -> str | None:
+    normalized_query = query.strip().lower()
+    if not normalized_query:
+        return None
+    for label in labels:
+        if label.lower() == normalized_query:
+            return label
+    for label in labels:
+        if normalized_query in label.lower():
+            return label
+    return None
+
+
+def _parse_trajectory_request(prompt: str) -> Dict[str, Any] | None:
+    lowered = prompt.lower()
+    if "kaplan" in lowered or "survival" in lowered:
+        return None
+    if "response to" in lowered and "using" in lowered:
+        match = re.search(r"response to\s+(.+?)\s+using\s+(.+)", prompt, flags=re.IGNORECASE)
+        if match:
+            treatment_query = match.group(1).strip(" .:")
+            measure_query = re.sub(r"\s+over\s+time.*$", "", match.group(2).strip(" .:"), flags=re.IGNORECASE)
+            measure_query = re.sub(r"^cohort\s+a\s+and\s+cohort\s+b\s+(?:by|for)\s+", "", measure_query, flags=re.IGNORECASE)
+            measure_query = re.sub(r"^(?:compare|show|plot)\s+", "", measure_query, flags=re.IGNORECASE)
+            if treatment_query and measure_query:
+                return {"mode": "treatment_response", "treatment_query": treatment_query, "measure_query": measure_query}
+    if "trajectory" in lowered or "trajectories" in lowered:
+        for pattern in (
+            r"trajectory(?:\s+of)?\s+(.+?)(?:\s+over\s+time)?$",
+            r"(.+?)\s+trajectories(?:\s+over\s+time)?$",
+        ):
+            match = re.search(pattern, prompt.strip(), flags=re.IGNORECASE)
+            if not match:
+                continue
+            measure_query = re.sub(r"^(?:show|compare|plot)\s+", "", match.group(1).strip(" .:"), flags=re.IGNORECASE)
+            measure_query = re.sub(r"^cohort\s+a\s+and\s+cohort\s+b\s+(?:by|for)\s+", "", measure_query, flags=re.IGNORECASE)
+            measure_query = re.sub(r"^(?:the\s+)?", "", measure_query, flags=re.IGNORECASE).strip()
+            if measure_query:
+                return {"mode": "trajectory", "measure_query": measure_query}
+    return None
+
+
+def _median(values: List[float]) -> float | None:
+    if not values:
+        return None
+    sorted_values = sorted(values)
+    mid = len(sorted_values) // 2
+    if len(sorted_values) % 2 == 1:
+        return float(sorted_values[mid])
+    return (sorted_values[mid - 1] + sorted_values[mid]) / 2.0
+
+
+def _build_trajectory_context(
+    data_dir: str,
+    measure_query: str,
+    selected_patient_ids: str = "",
+    treatment_query: str = "",
+) -> Dict[str, Any]:
+    resolved_dir = ensure_data_dir(data_dir)
+    scope_ids = set(parse_scope_ids(selected_patient_ids))
+    patient_measure_events: Dict[str, List[Dict[str, Any]]] = {}
+    patient_treatment_dates: Dict[str, Dict[str, List[date]]] = {}
+    known_measures: List[str] = []
+    known_treatments: List[str] = []
+
+    for _, _, record in read_bff_records(resolved_dir):
+        if not record_matches_scope(record, scope_ids):
+            continue
+        patient_id = extract_record_patient_id(record)
+        if not patient_id:
+            continue
+        event_date = _parse_iso_date(record.get("event_date") or record.get("date"))
+        if event_date is None:
+            continue
+        for treatment in extract_treatment_labels(record):
+            if treatment not in known_treatments:
+                known_treatments.append(treatment)
+            patient_treatment_dates.setdefault(patient_id, {}).setdefault(treatment, []).append(event_date)
+        measures = record.get("measures")
+        if not isinstance(measures, list):
+            continue
+        for item in measures:
+            if not isinstance(item, dict):
+                continue
+            label = _measure_label(item)
+            if not label:
+                continue
+            if label not in known_measures:
+                known_measures.append(label)
+            value = _measure_numeric_value(item)
+            if value is None:
+                continue
+            patient_measure_events.setdefault(patient_id, []).append(
+                {
+                    "date": event_date,
+                    "label": label,
+                    "value": value,
+                    "unit": _measure_unit_label(item),
+                }
+            )
+
+    resolved_measure = _resolve_measure_name(measure_query, known_measures)
+    if not resolved_measure:
+        return {
+            "mode": "trajectory_response" if treatment_query else "trajectory",
+            "source": "deterministic_trajectory",
+            "scope_ids": sorted(scope_ids),
+            "error": f"Measure not found for trajectory analysis: {measure_query}",
+            "available_measures": sorted(known_measures)[:40],
+            "available_treatments": sorted(known_treatments)[:40],
+        }
+
+    resolved_treatment = ""
+    if treatment_query:
+        resolved_treatment = _resolve_treatment_name(treatment_query, known_treatments) or ""
+        if not resolved_treatment:
+            return {
+                "mode": "trajectory_response",
+                "source": "deterministic_trajectory",
+                "scope_ids": sorted(scope_ids),
+                "measure": resolved_measure,
+                "measure_query": measure_query,
+                "error": f"Treatment not found for trajectory analysis: {treatment_query}",
+                "available_measures": sorted(known_measures)[:40],
+                "available_treatments": sorted(known_treatments)[:40],
+            }
+
+    patient_series: List[Dict[str, Any]] = []
+    summary_buckets: Dict[str, List[float]] = {}
+    unit_label = None
+    for patient_id, events in sorted(patient_measure_events.items()):
+        matching = [item for item in events if item["label"] == resolved_measure]
+        if not matching:
+            continue
+        matching.sort(key=lambda item: item["date"])
+        if resolved_treatment:
+            treatment_dates = (patient_treatment_dates.get(patient_id) or {}).get(resolved_treatment, [])
+            if not treatment_dates:
+                continue
+            baseline_date = min(treatment_dates)
+            aligned_points = []
+            for item in matching:
+                if item["date"] < baseline_date:
+                    continue
+                day = (item["date"] - baseline_date).days
+                aligned_points.append({"x": day, "x_label": str(day), "date": item["date"].isoformat(), "value": item["value"]})
+                summary_buckets.setdefault(str(day), []).append(float(item["value"]))
+            if not aligned_points:
+                continue
+            unit_label = unit_label or matching[0].get("unit")
+            patient_series.append(
+                {
+                    "patient_id": patient_id,
+                    "points": aligned_points,
+                    "baseline_date": baseline_date.isoformat(),
+                }
+            )
+        else:
+            points = []
+            for item in matching:
+                key = item["date"].isoformat()
+                points.append({"x": key, "x_label": key, "date": key, "value": item["value"]})
+                summary_buckets.setdefault(key, []).append(float(item["value"]))
+            if not points:
+                continue
+            unit_label = unit_label or matching[0].get("unit")
+            patient_series.append({"patient_id": patient_id, "points": points})
+
+    if len(patient_series) < 2:
+        analysis_mode = "trajectory_response" if resolved_treatment else "trajectory"
+        return {
+            "mode": analysis_mode,
+            "source": "deterministic_trajectory",
+            "scope_ids": sorted(scope_ids),
+            "measure": resolved_measure,
+            "measure_query": measure_query,
+            "treatment": resolved_treatment or None,
+            "unit": unit_label,
+            "error": (
+                f"Trajectory analysis is unavailable for {resolved_measure}"
+                + (f" after {resolved_treatment}" if resolved_treatment else "")
+                + " because this scope contains fewer than 2 patients with dated numeric observations."
+            ),
+            "available_measures": sorted(known_measures)[:40],
+            "available_treatments": sorted(known_treatments)[:40],
+            "patient_count": len(patient_series),
+        }
+
+    summary_points = []
+    for key in sorted(summary_buckets, key=lambda item: int(item) if item.isdigit() or (item.startswith("-") and item[1:].isdigit()) else item):
+        median_value = _median(summary_buckets[key])
+        if median_value is None:
+            continue
+        if resolved_treatment:
+            summary_points.append({"x": int(key), "x_label": key, "value": round(median_value, 4)})
+        else:
+            summary_points.append({"x": key, "x_label": key, "value": round(median_value, 4)})
+
+    analysis_mode = "trajectory_response" if resolved_treatment else "trajectory"
+    return {
+        "mode": analysis_mode,
+        "source": "deterministic_trajectory",
+        "scope_ids": sorted(scope_ids),
+        "measure": resolved_measure,
+        "measure_query": measure_query,
+        "treatment": resolved_treatment or None,
+        "unit": unit_label,
+        "patient_count": len(patient_series),
+        "summary_points": summary_points,
+        "patient_series": patient_series[:24],
+        "available_measures": sorted(known_measures)[:40],
+        "available_treatments": sorted(known_treatments)[:40],
+    }
+
+
+def compare_trajectory_context(data_dir: str, measure_query: str, selected_patient_ids_a: str, selected_patient_ids_b: str, treatment_query: str = "") -> Dict[str, Any]:
+    context_a = _build_trajectory_context(data_dir, measure_query, selected_patient_ids=selected_patient_ids_a, treatment_query=treatment_query)
+    context_b = _build_trajectory_context(data_dir, measure_query, selected_patient_ids=selected_patient_ids_b, treatment_query=treatment_query)
+    return {
+        "mode": "trajectory_compare_response" if treatment_query else "trajectory_compare",
+        "source": "deterministic_trajectory_compare",
+        "measure": context_a.get("measure") or context_b.get("measure") or measure_query,
+        "measure_query": measure_query,
+        "treatment": context_a.get("treatment") or context_b.get("treatment") or None,
+        "unit": context_a.get("unit") or context_b.get("unit"),
+        "cohort_a": context_a,
+        "cohort_b": context_b,
+    }
+
+
+def _kaplan_meier_points(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    at_risk = len(rows)
+    if at_risk <= 0:
+        return [{"time_days": 0, "survival_probability": 1.0, "at_risk": 0, "events": 0, "censored": 0}]
+    points = [{"time_days": 0, "survival_probability": 1.0, "at_risk": at_risk, "events": 0, "censored": 0}]
+    survival = 1.0
+    event_times = sorted({int(row["time_to_event_days"]) for row in rows if row.get("event_observed")})
+    for event_time in event_times:
+        events = sum(1 for row in rows if row.get("event_observed") and int(row["time_to_event_days"]) == event_time)
+        censored = sum(1 for row in rows if not row.get("event_observed") and int(row["time_to_event_days"]) == event_time)
+        if at_risk > 0:
+            survival *= (at_risk - events) / at_risk
+        points.append(
+            {
+                "time_days": event_time,
+                "survival_probability": round(survival, 6),
+                "at_risk": at_risk,
+                "events": events,
+                "censored": censored,
+            }
+        )
+        at_risk -= events + censored
+    return points
+
+
+def _median_survival_days(points: List[Dict[str, Any]]) -> int | None:
+    for point in points:
+        probability = point.get("survival_probability")
+        if isinstance(probability, (int, float)) and float(probability) <= 0.5:
+            time_days = point.get("time_days")
+            return int(time_days) if isinstance(time_days, (int, float)) else None
+    return None
+
+
+def survival_analysis_context(data_dir: str, measure_query: str, operator: str, threshold: float, selected_patient_ids: str = "") -> Dict[str, Any]:
+    resolved_dir = ensure_data_dir(data_dir)
+    scope_ids = set(parse_scope_ids(selected_patient_ids))
+    patient_events: Dict[str, List[Dict[str, Any]]] = {}
+    known_labels: List[str] = []
+
+    for _, _, record in read_bff_records(resolved_dir):
+        if not record_matches_scope(record, scope_ids):
+            continue
+        patient_id = extract_record_patient_id(record)
+        if not patient_id:
+            continue
+        event_date = _parse_iso_date(record.get("event_date") or record.get("date"))
+        if event_date is None:
+            continue
+        measures = record.get("measures")
+        if not isinstance(measures, list):
+            continue
+        for item in measures:
+            if not isinstance(item, dict):
+                continue
+            label = _measure_label(item)
+            if not label:
+                continue
+            if label not in known_labels:
+                known_labels.append(label)
+            value = _measure_numeric_value(item)
+            if value is None:
+                continue
+            patient_events.setdefault(patient_id, []).append(
+                {
+                    "date": event_date,
+                    "label": label,
+                    "value": value,
+                    "unit": _measure_unit_label(item),
+                }
+            )
+
+    resolved_measure = _resolve_measure_name(measure_query, known_labels)
+    if not resolved_measure:
+        return {
+            "mode": "survival",
+            "source": "deterministic_survival",
+            "scope_ids": sorted(scope_ids),
+            "error": f"Measure not found for Kaplan-Meier analysis: {measure_query}",
+            "available_measures": sorted(known_labels)[:40],
+        }
+
+    patient_rows: List[Dict[str, Any]] = []
+    unit_label = None
+    for patient_id, items in sorted(patient_events.items()):
+        matching = [item for item in items if item["label"] == resolved_measure]
+        if not matching:
+            continue
+        matching.sort(key=lambda item: item["date"])
+        baseline = matching[0]["date"]
+        unit_label = unit_label or matching[0].get("unit")
+        event_item = next((item for item in matching if _matches_operator(float(item["value"]), operator, threshold)), None)
+        last_date = matching[-1]["date"]
+        observed = event_item is not None
+        target_date = event_item["date"] if event_item is not None else last_date
+        patient_rows.append(
+            {
+                "patient_id": patient_id,
+                "time_to_event_days": max((target_date - baseline).days, 0),
+                "event_observed": observed,
+                "baseline_date": baseline.isoformat(),
+                "target_date": target_date.isoformat(),
+                "baseline_value": matching[0]["value"],
+                "target_value": event_item["value"] if event_item is not None else matching[-1]["value"],
+            }
+        )
+
+    if len(patient_rows) < 2:
+        return {
+            "mode": "survival",
+            "source": "deterministic_survival",
+            "scope_ids": sorted(scope_ids),
+            "measure": resolved_measure,
+            "measure_query": measure_query,
+            "operator": operator,
+            "threshold": threshold,
+            "unit": unit_label,
+            "error": (
+                f"Kaplan-Meier is unavailable for {resolved_measure} because this scope contains fewer than 2 patients "
+                "with dated numeric observations for that measure."
+            ),
+            "patient_count": len(patient_rows),
+            "available_measures": sorted(known_labels)[:40],
+        }
+
+    points = _kaplan_meier_points(patient_rows)
+    event_count = sum(1 for row in patient_rows if row["event_observed"])
+    censored_count = sum(1 for row in patient_rows if not row["event_observed"])
+    median_days = _median_survival_days(points)
+    return {
+        "mode": "survival",
+        "source": "deterministic_survival",
+        "scope_ids": sorted(scope_ids),
+        "measure": resolved_measure,
+        "measure_query": measure_query,
+        "operator": operator,
+        "threshold": threshold,
+        "unit": unit_label,
+        "patient_count": len(patient_rows),
+        "event_count": event_count,
+        "censored_count": censored_count,
+        "median_survival_days": median_days,
+        "curve_points": points,
+        "patient_rows": patient_rows[:200],
+        "available_measures": sorted(known_labels)[:40],
+    }
 
 
 def _top_item_name(items: List[Dict[str, Any]], key: str) -> str:
@@ -63,12 +550,9 @@ def _top_deltas(items_a: List[Dict[str, Any]], items_b: List[Dict[str, Any]], la
 
 
 def extract_record_patient_id(record: Dict[str, Any]) -> str | None:
-    patient_id = record.get("patient_id")
-    if isinstance(patient_id, str) and patient_id.strip():
-        return patient_id.strip()
-    record_id = record.get("id")
-    if isinstance(record_id, str) and record_id.strip():
-        return record_id.strip()
+    resolved = extract_patient_id(record)
+    if isinstance(resolved, str) and resolved.strip():
+        return resolved.strip()
     return None
 
 
@@ -243,6 +727,63 @@ def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str,
 
 
 def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
+    if context.get("mode") in {"trajectory", "trajectory_response"}:
+        if context.get("error"):
+            available = context.get("available_measures") or []
+            suffix = f" Known measures include: {', '.join(available[:6])}." if available else ""
+            return f"{context['error']}.{suffix}"
+        treatment = context.get("treatment")
+        treatment_text = f" after first exposure to {treatment}" if isinstance(treatment, str) and treatment.strip() else ""
+        unit = f" {context['unit']}" if context.get("unit") else ""
+        return (
+            f"Trajectory analysis for {context.get('measure', 'measure')}{treatment_text} includes "
+            f"{context.get('patient_count', 0)} patients with dated numeric observations. "
+            f"The plot shows patient-level trajectories and the cohort median trajectory{unit}."
+        )
+    if context.get("mode") in {"trajectory_compare", "trajectory_compare_response"}:
+        cohort_a = context.get("cohort_a", {})
+        cohort_b = context.get("cohort_b", {})
+        if cohort_a.get("error") or cohort_b.get("error"):
+            problems = [item for item in [cohort_a.get("error"), cohort_b.get("error")] if isinstance(item, str) and item.strip()]
+            return " ".join(problems) if problems else "Trajectory comparison is unavailable for the current cohorts."
+        treatment = context.get("treatment")
+        treatment_text = f" after first exposure to {treatment}" if isinstance(treatment, str) and treatment.strip() else ""
+        return (
+            f"Trajectory comparison for {context.get('measure', 'measure')}{treatment_text} shows "
+            f"Cohort A with {cohort_a.get('patient_count', 0)} patients and Cohort B with {cohort_b.get('patient_count', 0)} patients."
+        )
+    if context.get("mode") == "survival":
+        if context.get("error"):
+            available = context.get("available_measures") or []
+            suffix = f" Known measures include: {', '.join(available[:6])}." if available else ""
+            return f"{context['error']}.{suffix}"
+        measure = context.get("measure", "measure")
+        operator = context.get("operator", "")
+        threshold = context.get("threshold", "")
+        unit = f" {context['unit']}" if context.get("unit") else ""
+        median = context.get("median_survival_days")
+        median_text = f" Median time to event is {median} days." if isinstance(median, int) else " Median time to event is not estimable from the observed follow-up."
+        return (
+            f"Kaplan-Meier analysis for time to {measure} {operator} {threshold}{unit} includes "
+            f"{context.get('patient_count', 0)} patients, with {context.get('event_count', 0)} observed events and "
+            f"{context.get('censored_count', 0)} censored patients.{median_text}"
+        )
+    if context.get("mode") == "survival_compare":
+        cohort_a = context.get("cohort_a", {})
+        cohort_b = context.get("cohort_b", {})
+        if cohort_a.get("error") or cohort_b.get("error"):
+            problems = [item for item in [cohort_a.get("error"), cohort_b.get("error")] if isinstance(item, str) and item.strip()]
+            return " ".join(problems) if problems else "Kaplan-Meier comparison is unavailable for the current cohorts."
+        cohort_a = context.get("cohort_a", {})
+        cohort_b = context.get("cohort_b", {})
+        measure = context.get("measure", "measure")
+        operator = context.get("operator", "")
+        threshold = context.get("threshold", "")
+        return (
+            f"Kaplan-Meier comparison for time to {measure} {operator} {threshold} shows "
+            f"Cohort A with {cohort_a.get('patient_count', 0)} patients and {cohort_a.get('event_count', 0)} events, "
+            f"and Cohort B with {cohort_b.get('patient_count', 0)} patients and {cohort_b.get('event_count', 0)} events."
+        )
     if context.get("mode") == "compare":
         cohort_a = context.get("cohort_a", {})
         cohort_b = context.get("cohort_b", {})
@@ -305,7 +846,56 @@ def compare_analysis_context(data_dir: str, selected_patient_ids_a: str, selecte
     }
 
 
+def compare_survival_analysis_context(
+    data_dir: str,
+    measure_query: str,
+    operator: str,
+    threshold: float,
+    selected_patient_ids_a: str,
+    selected_patient_ids_b: str,
+) -> Dict[str, Any]:
+    context_a = survival_analysis_context(data_dir, measure_query, operator, threshold, selected_patient_ids=selected_patient_ids_a)
+    context_b = survival_analysis_context(data_dir, measure_query, operator, threshold, selected_patient_ids=selected_patient_ids_b)
+    return {
+        "mode": "survival_compare",
+        "source": "deterministic_survival_compare",
+        "measure": context_a.get("measure") or context_b.get("measure") or measure_query,
+        "measure_query": measure_query,
+        "operator": operator,
+        "threshold": threshold,
+        "unit": context_a.get("unit") or context_b.get("unit"),
+        "cohort_a": context_a,
+        "cohort_b": context_b,
+    }
+
+
 def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
+    if context.get("mode") in {"trajectory_compare", "trajectory_compare_response"}:
+        return {
+            "mode": context.get("mode"),
+            "source": context.get("source"),
+            "measure": context.get("measure"),
+            "treatment": context.get("treatment"),
+            "unit": context.get("unit"),
+            "cohort_a": {
+                "patient_count": context.get("cohort_a", {}).get("patient_count"),
+                "summary_points": (context.get("cohort_a", {}).get("summary_points") or [])[:40],
+            },
+            "cohort_b": {
+                "patient_count": context.get("cohort_b", {}).get("patient_count"),
+                "summary_points": (context.get("cohort_b", {}).get("summary_points") or [])[:40],
+            },
+        }
+    if context.get("mode") in {"trajectory", "trajectory_response"}:
+        return {
+            "mode": context.get("mode"),
+            "source": context.get("source"),
+            "measure": context.get("measure"),
+            "treatment": context.get("treatment"),
+            "unit": context.get("unit"),
+            "patient_count": context.get("patient_count"),
+            "summary_points": (context.get("summary_points") or [])[:40],
+        }
     if context.get("mode") == "compare":
         return {
             "mode": "compare",
@@ -334,6 +924,43 @@ def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
                 for item in (context.get("medication_deltas") or [])[:8]
                 if isinstance(item, dict)
             ],
+        }
+    if context.get("mode") == "survival_compare":
+        return {
+            "mode": "survival_compare",
+            "source": context.get("source"),
+            "measure": context.get("measure"),
+            "operator": context.get("operator"),
+            "threshold": context.get("threshold"),
+            "unit": context.get("unit"),
+            "cohort_a": {
+                "patient_count": context.get("cohort_a", {}).get("patient_count"),
+                "event_count": context.get("cohort_a", {}).get("event_count"),
+                "censored_count": context.get("cohort_a", {}).get("censored_count"),
+                "median_survival_days": context.get("cohort_a", {}).get("median_survival_days"),
+                "curve_points": (context.get("cohort_a", {}).get("curve_points") or [])[:60],
+            },
+            "cohort_b": {
+                "patient_count": context.get("cohort_b", {}).get("patient_count"),
+                "event_count": context.get("cohort_b", {}).get("event_count"),
+                "censored_count": context.get("cohort_b", {}).get("censored_count"),
+                "median_survival_days": context.get("cohort_b", {}).get("median_survival_days"),
+                "curve_points": (context.get("cohort_b", {}).get("curve_points") or [])[:60],
+            },
+        }
+    if context.get("mode") == "survival":
+        return {
+            "mode": "survival",
+            "source": context.get("source"),
+            "measure": context.get("measure"),
+            "operator": context.get("operator"),
+            "threshold": context.get("threshold"),
+            "unit": context.get("unit"),
+            "patient_count": context.get("patient_count"),
+            "event_count": context.get("event_count"),
+            "censored_count": context.get("censored_count"),
+            "median_survival_days": context.get("median_survival_days"),
+            "curve_points": (context.get("curve_points") or [])[:60],
         }
 
     return {
@@ -386,6 +1013,66 @@ def analysis_llm_reply(
     compare_selected_patient_ids: str = "",
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
+    survival_request = _parse_survival_request(prompt)
+    if survival_request is not None:
+        if compare_mode:
+            context = compare_survival_analysis_context(
+                data_dir,
+                survival_request["measure_query"],
+                survival_request["operator"],
+                survival_request["threshold"],
+                selected_patient_ids,
+                compare_selected_patient_ids,
+            )
+            intent = "analysis_survival_compare"
+        else:
+            context = survival_analysis_context(
+                data_dir,
+                survival_request["measure_query"],
+                survival_request["operator"],
+                survival_request["threshold"],
+                selected_patient_ids=selected_patient_ids,
+            )
+            intent = "analysis_survival"
+        return {
+            "intent": intent,
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
+    trajectory_request = _parse_trajectory_request(prompt)
+    if trajectory_request is not None:
+        if compare_mode:
+            context = compare_trajectory_context(
+                data_dir,
+                trajectory_request["measure_query"],
+                selected_patient_ids,
+                compare_selected_patient_ids,
+                treatment_query=trajectory_request.get("treatment_query", ""),
+            )
+            intent = "analysis_trajectory_compare"
+        else:
+            context = _build_trajectory_context(
+                data_dir,
+                trajectory_request["measure_query"],
+                selected_patient_ids=selected_patient_ids,
+                treatment_query=trajectory_request.get("treatment_query", ""),
+            )
+            intent = "analysis_trajectory"
+        return {
+            "intent": intent,
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
     if compare_mode:
         context = compare_analysis_context(data_dir, selected_patient_ids, compare_selected_patient_ids)
         intent = "analysis_compare"

@@ -2,6 +2,7 @@ import json
 
 from fastapi import HTTPException
 
+import app.analysis as analysis_module
 import app.cohorts as cohorts_module
 import app.query as query_module
 from app.bff import (
@@ -152,6 +153,378 @@ def test_grouping_and_summary(tmp_path):
     assert patient.visits[0].event_date is None
     assert patient.visits[0].age_at_visit is None
     assert patient.visits[0].provenance.raw_bff["diagnosis"] == "Dx 3"
+
+
+def test_analysis_survival_kaplan_meier_for_measure_threshold(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:week0",
+                "event_date": "2024-01-01",
+                "measures": [
+                    {
+                        "assayCode": {"label": "Leukocyte Count"},
+                        "measurementValue": {"quantity": {"value": 8.0, "unit": {"label": "Cells per Microliter"}}},
+                    }
+                ],
+            },
+            {
+                "id": "P1:week4",
+                "event_date": "2024-01-15",
+                "measures": [
+                    {
+                        "assayCode": {"label": "Leukocyte Count"},
+                        "measurementValue": {"quantity": {"value": 11.2, "unit": {"label": "Cells per Microliter"}}},
+                    }
+                ],
+            },
+            {
+                "id": "P2:week0",
+                "event_date": "2024-01-03",
+                "measures": [
+                    {
+                        "assayCode": {"label": "Leukocyte Count"},
+                        "measurementValue": {"quantity": {"value": 7.1, "unit": {"label": "Cells per Microliter"}}},
+                    }
+                ],
+            },
+            {
+                "id": "P2:week4",
+                "event_date": "2024-01-21",
+                "measures": [
+                    {
+                        "assayCode": {"label": "Leukocyte Count"},
+                        "measurementValue": {"quantity": {"value": 8.4, "unit": {"label": "Cells per Microliter"}}},
+                    }
+                ],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show a Kaplan-Meier curve for time to Leukocyte Count > 10",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_survival"
+    context = payload["data"]["context"]
+    assert context["mode"] == "survival"
+    assert context["measure"] == "Leukocyte Count"
+    assert context["patient_count"] == 2
+    assert context["event_count"] == 1
+    assert context["censored_count"] == 1
+    assert context["median_survival_days"] == 14
+    assert context["curve_points"][0]["survival_probability"] == 1.0
+    assert context["curve_points"][1]["time_days"] == 14
+    assert context["curve_points"][1]["survival_probability"] == 0.5
+
+
+def test_analysis_survival_compare_kaplan_meier(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "A1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "A1:week2",
+                "event_date": "2024-01-10",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 10.4}}}],
+            },
+            {
+                "id": "A2:week0",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.8}}}],
+            },
+            {
+                "id": "A2:week2",
+                "event_date": "2024-01-12",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.1}}}],
+            },
+            {
+                "id": "B1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.5}}}],
+            },
+            {
+                "id": "B1:week2",
+                "event_date": "2024-01-10",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.1}}}],
+            },
+            {
+                "id": "B2:week0",
+                "event_date": "2024-01-03",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.7}}}],
+            },
+            {
+                "id": "B2:week2",
+                "event_date": "2024-01-11",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Compare Cohort A and Cohort B with Kaplan-Meier for time to Hemoglobin < 11",
+        str(tmp_path),
+        selected_patient_ids="A1,A2",
+        compare_mode=True,
+        compare_selected_patient_ids="B1,B2",
+    )
+
+    assert payload["intent"] == "analysis_survival_compare"
+    context = payload["data"]["context"]
+    assert context["mode"] == "survival_compare"
+    assert context["cohort_a"]["event_count"] == 1
+    assert context["cohort_b"]["event_count"] == 0
+
+
+def test_analysis_survival_reports_unavailable_when_insufficient_dated_measure_data(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "P2:week0",
+                "event_date": "1900-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 11.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show a Kaplan-Meier curve for time to CRP > 10",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_survival"
+    context = payload["data"]["context"]
+    assert context["mode"] == "survival"
+    assert "Kaplan-Meier is unavailable" in context["error"]
+    assert context["patient_count"] == 1
+
+
+def test_analysis_trajectory_for_measure_over_time(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "P1:week2",
+                "event_date": "2024-01-10",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 6.0}}}],
+            },
+            {
+                "id": "P2:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "P2:week2",
+                "event_date": "2024-01-10",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 4.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show the trajectory of CRP over time",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_trajectory"
+    context = payload["data"]["context"]
+    assert context["mode"] == "trajectory"
+    assert context["measure"] == "CRP"
+    assert context["patient_count"] == 2
+    assert len(context["summary_points"]) == 2
+
+
+def test_analysis_treatment_response_trajectory(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "P1:treat",
+                "event_date": "2024-01-05",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 11.0}}}],
+            },
+            {
+                "id": "P1:followup",
+                "event_date": "2024-01-15",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 5.0}}}],
+            },
+            {
+                "id": "P2:baseline",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 14.0}}}],
+            },
+            {
+                "id": "P2:treat",
+                "event_date": "2024-01-06",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 13.0}}}],
+            },
+            {
+                "id": "P2:followup",
+                "event_date": "2024-01-16",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 7.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show response to Infliximab using CRP",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_trajectory"
+    context = payload["data"]["context"]
+    assert context["mode"] == "trajectory_response"
+    assert context["treatment"] == "Infliximab"
+    assert context["measure"] == "CRP"
+    assert context["patient_count"] == 2
+
+
+def test_analysis_treatment_response_trajectory_uses_requested_treatment(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:adalimumab",
+                "event_date": "2024-01-03",
+                "treatments": [{"treatmentCode": {"label": "Adalimumab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "P1:infliximab",
+                "event_date": "2024-01-10",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 9.0}}}],
+            },
+            {
+                "id": "P1:followup",
+                "event_date": "2024-01-20",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 4.0}}}],
+            },
+            {
+                "id": "P2:adalimumab",
+                "event_date": "2024-01-04",
+                "treatments": [{"treatmentCode": {"label": "Adalimumab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "P2:infliximab",
+                "event_date": "2024-01-12",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "P2:followup",
+                "event_date": "2024-01-22",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 5.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show response to Infliximab using CRP",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_trajectory"
+    context = payload["data"]["context"]
+    assert context["mode"] == "trajectory_response"
+    assert context["treatment"] == "Infliximab"
+    assert context["summary_points"][0]["x"] == 0
+    assert context["summary_points"][-1]["x"] == 10
+
+
+def test_analysis_compare_trajectory(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "A1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "A1:week2",
+                "event_date": "2024-01-15",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "A2:week0",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 11.0}}}],
+            },
+            {
+                "id": "A2:week2",
+                "event_date": "2024-01-16",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 7.0}}}],
+            },
+            {
+                "id": "B1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 9.0}}}],
+            },
+            {
+                "id": "B1:week2",
+                "event_date": "2024-01-15",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "B2:week0",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "B2:week2",
+                "event_date": "2024-01-16",
+                "measures": [{"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 9.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Compare Cohort A and Cohort B by Leukocyte Count trajectories",
+        str(tmp_path),
+        selected_patient_ids="A1,A2",
+        compare_mode=True,
+        compare_selected_patient_ids="B1,B2",
+    )
+
+    assert payload["intent"] == "analysis_trajectory_compare"
+    context = payload["data"]["context"]
+    assert context["mode"] == "trajectory_compare"
+    assert context["measure"] == "Leukocyte Count"
+    assert context["cohort_a"]["patient_count"] == 2
+    assert context["cohort_b"]["patient_count"] == 2
 
 
 def test_api_endpoints(tmp_path):
@@ -392,6 +765,15 @@ def test_query_needs_clarification_for_short_prompt(tmp_path):
     assert payload["intent"] == "needs_clarification"
     assert "too short" in payload["reply"].lower()
     assert payload["data"]["follow_up_suggestions"]
+
+
+def test_follow_up_suggestions_normalize_question_shaped_terms():
+    suggestions = query_module._follow_up_suggestions("How many patients have Crohn Disease?")
+    assert suggestions == [
+        "How many patients have Crohn Disease?",
+        "Which patients have Crohn Disease?",
+        "What treatments are associated with Crohn Disease?",
+    ]
 
 
 def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):

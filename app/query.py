@@ -934,8 +934,12 @@ def _follow_up_suggestions(query: str) -> List[str]:
             "Show patient 107",
         ]
 
+    normalized_subject = re.sub(r"^(?:how many patients have|which patients have)\s+", "", text, flags=re.IGNORECASE).strip()
+    normalized_subject = re.sub(r"^(?:what treatments are associated with|show the visits mentioning)\s+", "", normalized_subject, flags=re.IGNORECASE).strip()
+    normalized_subject = normalized_subject.rstrip("?.").strip()
+    subject = normalized_subject or text
     lowered = text.lower()
-    if "patient" in lowered:
+    if _extract_patient_id(text) or re.search(r"\bpatient\s+[A-Za-z0-9:_-]+\b", text, flags=re.IGNORECASE):
         return [
             f"List visits for {text}",
             f"What treatments are recorded for {text}?",
@@ -943,15 +947,15 @@ def _follow_up_suggestions(query: str) -> List[str]:
         ]
     if any(keyword in lowered for keyword in ("disease", "diagnosis", "crohn", "colitis")):
         return [
-            f"How many patients have {text}?",
-            f"Which patients have {text}?",
-            f"What treatments are associated with {text}?",
+            f"How many patients have {subject}?",
+            f"Which patients have {subject}?",
+            f"What treatments are associated with {subject}?",
         ]
     if any(keyword in lowered for keyword in ("medication", "drug", "treatment", "prednisolone", "infliximab")):
         return [
-            f"How many patients have {text}?",
-            f"Which patients have {text}?",
-            f"Show the visits mentioning {text}.",
+            f"How many patients have {subject}?",
+            f"Which patients have {subject}?",
+            f"Show the visits mentioning {subject}.",
         ]
     return [
         f"{text} by patient",

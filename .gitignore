@@ -1,6 +1,7 @@
 .venv/
 .deps/
 __pycache__/
+bck/
 .pytest_cache/
 .mypy_cache/
 .coverage

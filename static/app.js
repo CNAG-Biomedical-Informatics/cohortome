@@ -2,6 +2,7 @@
       const queryTabBtnEl = document.getElementById("queryTabBtn");
       const analysisTabBtnEl = document.getElementById("analysisTabBtn");
       const phenoTabBtnEl = document.getElementById("phenoTabBtn");
+      const tabHelperTextEl = document.getElementById("tabHelperText");
       const cohortTabEl = document.getElementById("cohortTab");
       const queryTabEl = document.getElementById("queryTab");
       const analysisTabEl = document.getElementById("analysisTab");
@@ -23,13 +24,22 @@
       const queryActionsEl = document.getElementById("queryActions");
       const queryFollowupsEl = document.getElementById("queryFollowups");
       const queryExamplesEl = document.getElementById("queryExamples");
+      const queryStarterPanelEl = document.getElementById("queryStarterPanel");
+      const queryExamplesToggleBtnEl = document.getElementById("queryExamplesToggleBtn");
+      const queryComposerExamplesBtnEl = document.getElementById("queryComposerExamplesBtn");
       const queryDataEl = document.getElementById("queryData");
       const queryDetailsEl = document.getElementById("queryDetails");
+      const queryThreadEl = document.getElementById("queryThread");
+      const queryClearBtnEl = document.getElementById("queryClearBtn");
+      const queryWorkflowHintEl = document.getElementById("queryWorkflowHint");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
       const analysisPromptEl = document.getElementById("analysisPrompt");
       const analysisRunBtnEl = document.getElementById("analysisRunBtn");
       const analysisExamplesEl = document.getElementById("analysisExamples");
+      const analysisStarterPanelEl = document.getElementById("analysisStarterPanel");
+      const analysisExamplesToggleBtnEl = document.getElementById("analysisExamplesToggleBtn");
+      const analysisComposerExamplesBtnEl = document.getElementById("analysisComposerExamplesBtn");
       const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
       const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
       const analysisCompareModeEl = document.getElementById("analysisCompareMode");
@@ -42,6 +52,8 @@
       const analysisMetaEl = document.getElementById("analysisMeta");
       const analysisLmStatusEl = document.getElementById("analysisLmStatus");
       const analysisThreadEl = document.getElementById("analysisThread");
+      const analysisSessionListEl = document.getElementById("analysisSessionList");
+      const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
       const loadBtnEl = document.getElementById("loadBtn");
       const patientSearchEl = document.getElementById("patientSearch");
       const phenoActionEl = document.getElementById("phenoAction");
@@ -102,18 +114,29 @@
       let selectedPatientId = null;
       let currentPatients = [];
       let queryInFlight = false;
+      let queryHistory = [];
+      let queryTurns = [];
+      let queryExamplesPinnedOpen = false;
+      let queryProgressTimer = null;
       let analysisInFlight = false;
       let loadInFlight = false;
       let phenoInFlight = false;
       let phenoPlanInFlight = false;
+      let phenoPlanProgressTimer = null;
+      let phenoRunProgressTimer = null;
       let phenoTableState = null;
       let phenoRunState = null;
       let phenoSelectedAlignmentKey = "";
       let latestQueryPatientIds = [];
       let latestQueryIdType = "patient";
       let latestQueryPrompt = "";
+      let latestQueryAnalysisPrompt = "";
       let analysisHistory = [];
       let analysisTurns = [];
+      let analysisProgressTimer = null;
+      let analysisExamplesPinnedOpen = false;
+      let analysisSessions = [];
+      let currentAnalysisSessionId = "";
       let phenoRankerPatientIds = [];
       let phenoReferenceFiles = [];
       let phenoSelectedSavedCohortIds = [];
@@ -121,6 +144,367 @@
       let savedCohorts = [];
       const MAX_VISIBLE_EXAMPLES = 10;
       const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
+      const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
+      const TAB_HELPER_TEXT = {
+        cohort: "Browse patients and orient yourself in the loaded dataset",
+        query: "Build and refine cohorts (LLM-assisted, deterministic results)",
+        analysis: "Interpret and compare cohorts (LLM-assisted insights)",
+        pheno: "Compare patients or cohorts and inspect similarity results",
+      };
+
+      function renderTabHelperText(tabName) {
+        if (!tabHelperTextEl) {
+          return;
+        }
+        tabHelperTextEl.textContent = TAB_HELPER_TEXT[tabName] || "";
+      }
+
+      function nowIso() {
+        return new Date().toISOString();
+      }
+
+      function shortTimestamp(value) {
+        if (!value) {
+          return "Just now";
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+          return "Just now";
+        }
+        return parsed.toLocaleString([], {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function analysisSessionId() {
+        return `analysis-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+
+      function createAnalysisSession(overrides) {
+        const session = overrides || {};
+        return {
+          id: session.id || analysisSessionId(),
+          title: typeof session.title === "string" ? session.title : "",
+          dataDir: typeof session.dataDir === "string" ? session.dataDir : (dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : ""),
+          promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
+          scope: typeof session.scope === "string" ? session.scope : "",
+          compareMode: Boolean(session.compareMode),
+          compareScope: typeof session.compareScope === "string" ? session.compareScope : "",
+          history: Array.isArray(session.history) ? session.history : [],
+          turns: Array.isArray(session.turns) ? session.turns : [],
+          updatedAt: typeof session.updatedAt === "string" ? session.updatedAt : nowIso(),
+        };
+      }
+
+      function currentAnalysisSession() {
+        return analysisSessions.find((session) => session.id === currentAnalysisSessionId) || null;
+      }
+
+      function analysisSessionTitle(session) {
+        const customTitle = String(session.title || "").trim();
+        if (customTitle) {
+          return customTitle;
+        }
+        const firstUserTurn = (session.turns || []).find((turn) => turn.role === "user" && turn.prompt);
+        const raw = (firstUserTurn && firstUserTurn.prompt)
+          || (session.compareMode ? "Compare cohorts" : "")
+          || (String(session.scope || "").trim() ? "Scoped analysis" : "")
+          || session.promptDraft
+          || "New analysis";
+        const trimmed = String(raw).trim();
+        if (!trimmed) {
+          return "New analysis";
+        }
+        return trimmed.length > 56 ? `${trimmed.slice(0, 56)}...` : trimmed;
+      }
+
+      function analysisSessionScopeSummary(session) {
+        const scopeCount = String(session.scope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
+        const compareCount = String(session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
+        if (session.compareMode) {
+          const aLabel = scopeCount ? `${scopeCount} in A` : "full cohort in A";
+          const bLabel = compareCount ? `${compareCount} in B` : "full cohort in B";
+          return `${aLabel} vs ${bLabel}`;
+        }
+        return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
+      }
+
+      function persistAnalysisSessions() {
+        try {
+          window.localStorage.setItem(
+            ANALYSIS_SESSIONS_STORAGE_KEY,
+            JSON.stringify({
+              currentId: currentAnalysisSessionId,
+              sessions: analysisSessions,
+            })
+          );
+        } catch (_error) {
+        }
+      }
+
+      async function upsertAnalysisSessionToBackend(session) {
+        try {
+          await fetch("/analysis-sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: session.id,
+              title: session.title || "",
+              data_dir: session.dataDir || "",
+              prompt_draft: session.promptDraft || "",
+              scope: session.scope || "",
+              compare_mode: Boolean(session.compareMode),
+              compare_scope: session.compareScope || "",
+              history: Array.isArray(session.history) ? session.history : [],
+              turns: Array.isArray(session.turns) ? session.turns : [],
+              updated_at: session.updatedAt || "",
+            }),
+          });
+        } catch (_error) {
+        }
+      }
+
+      async function renameAnalysisSessionInBackend(sessionId, title) {
+        try {
+          await fetch(`/analysis-sessions/${encodeURIComponent(sessionId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title }),
+          });
+        } catch (_error) {
+        }
+      }
+
+      async function deleteAnalysisSessionFromBackend(sessionId) {
+        try {
+          await fetch(`/analysis-sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+        } catch (_error) {
+        }
+      }
+
+      async function loadAnalysisSessionsFromBackend() {
+        try {
+          const response = await fetch("/analysis-sessions");
+          if (!response.ok) {
+            return false;
+          }
+          const payload = await response.json();
+          const sessions = Array.isArray(payload.sessions) ? payload.sessions.map((item) => createAnalysisSession({
+            id: item.id,
+            title: item.title,
+            dataDir: item.data_dir,
+            promptDraft: item.prompt_draft,
+            scope: item.scope,
+            compareMode: item.compare_mode,
+            compareScope: item.compare_scope,
+            history: item.history,
+            turns: item.turns,
+            updatedAt: item.updated_at,
+          })) : [];
+          if (!sessions.length) {
+            return false;
+          }
+          analysisSessions = sessions;
+          if (!analysisSessions.some((session) => session.id === currentAnalysisSessionId)) {
+            currentAnalysisSessionId = analysisSessions[0].id;
+          }
+          applyAnalysisSession(currentAnalysisSession() || analysisSessions[0]);
+          persistAnalysisSessions();
+          return true;
+        } catch (_error) {
+          return false;
+        }
+      }
+
+      function renderAnalysisSessionList() {
+        if (!analysisSessionListEl) {
+          return;
+        }
+        if (!analysisSessions.length) {
+          analysisSessionListEl.innerHTML = '<div class="empty">No analysis sessions yet.</div>';
+          return;
+        }
+        const ordered = analysisSessions.slice().sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+        analysisSessionListEl.innerHTML = ordered.map((session) => {
+          const dataDir = String(session.dataDir || "").trim();
+          const dirLabel = dataDir ? dataDir.split("/").filter(Boolean).slice(-1)[0] : "No dataset";
+          const turnCount = Array.isArray(session.turns) ? session.turns.length : 0;
+          const active = session.id === currentAnalysisSessionId ? " is-active" : "";
+          return `
+            <div class="analysis-session-card${active}">
+              <button type="button" class="analysis-session-main" data-analysis-session-id="${escapeHtml(session.id)}">
+                <div class="analysis-session-title">${escapeHtml(analysisSessionTitle(session))}</div>
+                <div class="analysis-session-meta">
+                  <div>${escapeHtml(dirLabel)}</div>
+                  <div>${escapeHtml(analysisSessionScopeSummary(session))}</div>
+                  <div>${escapeHtml(String(turnCount))} turns • ${escapeHtml(shortTimestamp(session.updatedAt))}</div>
+                </div>
+              </button>
+              <div class="analysis-session-actions">
+                <button type="button" class="analysis-session-icon" data-analysis-session-rename="${escapeHtml(session.id)}" title="Rename analysis">✎</button>
+                <button type="button" class="analysis-session-icon" data-analysis-session-delete="${escapeHtml(session.id)}" title="Delete analysis">×</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function syncCurrentAnalysisSessionFromUi(options) {
+        const settings = options || {};
+        const session = currentAnalysisSession();
+        if (!session) {
+          return;
+        }
+        session.promptDraft = analysisPromptEl.value;
+        session.scope = analysisSelectedPatientIdsEl.value.trim();
+        session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+        session.compareScope = analysisCompareSelectedPatientIdsEl ? analysisCompareSelectedPatientIdsEl.value.trim() : "";
+        session.dataDir = dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : session.dataDir;
+        session.history = analysisHistory;
+        session.turns = analysisTurns;
+        session.updatedAt = settings.touch === false ? session.updatedAt : nowIso();
+        persistAnalysisSessions();
+        void upsertAnalysisSessionToBackend(session);
+        if (settings.render !== false) {
+          renderAnalysisSessionList();
+        }
+      }
+
+      function applyAnalysisSession(session) {
+        analysisExamplesPinnedOpen = false;
+        analysisPromptEl.value = session.promptDraft || "";
+        analysisSelectedPatientIdsEl.value = session.scope || "";
+        if (analysisCompareModeEl) {
+          analysisCompareModeEl.checked = Boolean(session.compareMode);
+        }
+        if (analysisCompareSelectedPatientIdsEl) {
+          analysisCompareSelectedPatientIdsEl.value = session.compareScope || "";
+        }
+        analysisHistory = Array.isArray(session.history) ? session.history : [];
+        analysisTurns = Array.isArray(session.turns) ? session.turns : [];
+        renderAnalysisCompareMode();
+        renderAnalysisScopeSummary();
+        renderAnalysisCompareScopeSummary();
+        renderAnalysisStarterPrompts();
+        renderAnalysisThread();
+        const latestAssistantTurn = analysisTurns.slice().reverse().find((turn) => turn.role === "assistant" && turn.payload && !turn.pending);
+        if (latestAssistantTurn && latestAssistantTurn.payload) {
+          renderAnalysisMeta(latestAssistantTurn.payload);
+        } else {
+          analysisMetaEl.innerHTML = "";
+        }
+        renderAnalysisSessionList();
+      }
+
+      function selectAnalysisSession(sessionId) {
+        syncCurrentAnalysisSessionFromUi({ touch: false, render: false });
+        const session = analysisSessions.find((item) => item.id === sessionId);
+        if (!session) {
+          return;
+        }
+        currentAnalysisSessionId = session.id;
+        applyAnalysisSession(session);
+        persistAnalysisSessions();
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Loaded analysis session: ${analysisSessionTitle(session)}.`;
+      }
+
+      function createAndSelectAnalysisSession(overrides) {
+        syncCurrentAnalysisSessionFromUi({ touch: false, render: false });
+        const session = createAnalysisSession(overrides);
+        analysisSessions.push(session);
+        currentAnalysisSessionId = session.id;
+        applyAnalysisSession(session);
+        persistAnalysisSessions();
+        void upsertAnalysisSessionToBackend(session);
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = "Started a new analysis session.";
+      }
+
+      function ensureAnalysisSessionsLoaded() {
+        if (analysisSessions.length) {
+          return;
+        }
+        let stored = null;
+        try {
+          stored = JSON.parse(window.localStorage.getItem(ANALYSIS_SESSIONS_STORAGE_KEY) || "null");
+        } catch (_error) {
+          stored = null;
+        }
+        const sessions = stored && Array.isArray(stored.sessions) ? stored.sessions.map((item) => createAnalysisSession(item)) : [];
+        analysisSessions = sessions.length ? sessions : [createAnalysisSession()];
+        currentAnalysisSessionId = stored && typeof stored.currentId === "string" ? stored.currentId : analysisSessions[0].id;
+        if (!analysisSessions.some((session) => session.id === currentAnalysisSessionId)) {
+          currentAnalysisSessionId = analysisSessions[0].id;
+        }
+        applyAnalysisSession(currentAnalysisSession());
+      }
+
+      function renameAnalysisSession(sessionId) {
+        const session = analysisSessions.find((item) => item.id === sessionId);
+        if (!session) {
+          return;
+        }
+        const nextTitle = window.prompt("Analysis session title", String(session.title || analysisSessionTitle(session)));
+        if (nextTitle === null) {
+          return;
+        }
+        session.title = String(nextTitle || "").trim();
+        session.updatedAt = nowIso();
+        persistAnalysisSessions();
+        renderAnalysisSessionList();
+        if (session.id === currentAnalysisSessionId) {
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = `Renamed analysis session to "${analysisSessionTitle(session)}".`;
+        }
+        void renameAnalysisSessionInBackend(session.id, session.title);
+        void upsertAnalysisSessionToBackend(session);
+      }
+
+      function deleteAnalysisSessionById(sessionId) {
+        const session = analysisSessions.find((item) => item.id === sessionId);
+        if (!session) {
+          return;
+        }
+        const confirmed = window.confirm(`Delete analysis session "${analysisSessionTitle(session)}"?`);
+        if (!confirmed) {
+          return;
+        }
+        analysisSessions = analysisSessions.filter((item) => item.id !== sessionId);
+        if (!analysisSessions.length) {
+          createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
+        } else if (currentAnalysisSessionId === sessionId) {
+          currentAnalysisSessionId = analysisSessions[0].id;
+          applyAnalysisSession(currentAnalysisSession());
+        } else {
+          renderAnalysisSessionList();
+          persistAnalysisSessions();
+        }
+        persistAnalysisSessions();
+        void deleteAnalysisSessionFromBackend(sessionId);
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = "Analysis session deleted.";
+      }
+
+      function prepareAnalysisSessionForDataDir(nextDataDir) {
+        ensureAnalysisSessionsLoaded();
+        const session = currentAnalysisSession();
+        if (!session) {
+          return;
+        }
+        const normalizedNext = String(nextDataDir || "").trim();
+        const normalizedCurrent = String(session.dataDir || "").trim();
+        const hasWork = (session.turns || []).length > 0 || (session.history || []).length > 0;
+        if (normalizedCurrent && normalizedCurrent !== normalizedNext && hasWork) {
+          createAndSelectAnalysisSession({ dataDir: normalizedNext, promptDraft: analysisPromptEl.value || "Summarize the main clinical patterns in this cohort and tell me what stands out." });
+          return;
+        }
+        session.dataDir = normalizedNext;
+        syncCurrentAnalysisSessionFromUi({ render: true });
+      }
 
       function setActiveTab(tabName) {
         const showCohort = tabName === "cohort";
@@ -139,11 +523,27 @@
           window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
         } catch (_error) {
         }
+        renderTabHelperText(tabName);
         renderGlobalContext();
       }
 
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
+      }
+
+      function renderActivityCard(label, detail) {
+        return `
+          <div class="analysis-pending-card">
+            <div class="analysis-turn-meta">
+              <span class="query-chip badge">pending</span>
+              <span class="query-chip badge">${escapeHtml(label || "Working")}</span>
+            </div>
+            <div class="analysis-pending-row">
+              <div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span>${escapeHtml(detail || "Working on your request.")}</span>
+            </div>
+          </div>
+        `;
       }
 
       function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -174,6 +574,140 @@
 
         toggleWrap.appendChild(toggleBtn);
         container.insertAdjacentElement("afterend", toggleWrap);
+      }
+
+      function renderStarterPanelVisibility(panelEl, headerToggleEl, composerToggleEl, hasTurns, pinnedOpen) {
+        if (!panelEl || !headerToggleEl || !composerToggleEl) {
+          return;
+        }
+        const visible = hasTurns ? pinnedOpen : true;
+        panelEl.hidden = !visible;
+        composerToggleEl.hidden = !hasTurns;
+        composerToggleEl.textContent = visible ? "Hide starter prompts" : "Starter prompts";
+        headerToggleEl.hidden = !hasTurns;
+        headerToggleEl.textContent = "Hide starter prompts";
+      }
+
+      function renderQueryStarterPrompts() {
+        renderStarterPanelVisibility(
+          queryStarterPanelEl,
+          queryExamplesToggleBtnEl,
+          queryComposerExamplesBtnEl,
+          Array.isArray(queryTurns) && queryTurns.length > 0,
+          queryExamplesPinnedOpen
+        );
+      }
+
+      function renderAnalysisStarterPrompts() {
+        renderStarterPanelVisibility(
+          analysisStarterPanelEl,
+          analysisExamplesToggleBtnEl,
+          analysisComposerExamplesBtnEl,
+          Array.isArray(analysisTurns) && analysisTurns.length > 0,
+          analysisExamplesPinnedOpen
+        );
+      }
+
+      function stopQueryProgressUpdates() {
+        if (queryProgressTimer !== null) {
+          window.clearInterval(queryProgressTimer);
+          queryProgressTimer = null;
+        }
+      }
+
+      function queryPendingStages() {
+        return [
+          { label: "Parsing request", detail: "Interpreting the cohort question and selecting the right query path." },
+          { label: "Checking cohort facts", detail: "Reviewing counts, patient IDs, and dataset-backed matches." },
+          { label: "Preparing answer", detail: "Formatting the reply, actions, and follow-up suggestions." },
+        ];
+      }
+
+      function startQueryProgressUpdates() {
+        stopQueryProgressUpdates();
+        const stages = queryPendingStages();
+        let index = 0;
+        const applyStage = () => {
+          const lastTurn = queryTurns[queryTurns.length - 1];
+          if (!lastTurn || !lastTurn.pending) {
+            stopQueryProgressUpdates();
+            return;
+          }
+          const stage = stages[Math.min(index, stages.length - 1)];
+          lastTurn.pendingLabel = stage.label;
+          lastTurn.pendingDetail = stage.detail;
+          renderQueryThread();
+          if (index < stages.length - 1) {
+            index += 1;
+          }
+        };
+        applyStage();
+        queryProgressTimer = window.setInterval(applyStage, 1400);
+      }
+
+      function stopPhenoPlanProgressUpdates() {
+        if (phenoPlanProgressTimer !== null) {
+          window.clearInterval(phenoPlanProgressTimer);
+          phenoPlanProgressTimer = null;
+        }
+      }
+
+      function startPhenoPlanProgressUpdates() {
+        stopPhenoPlanProgressUpdates();
+        const stages = [
+          { label: "Interpreting request", detail: "Reading the natural-language request and extracting a runnable Pheno-Ranker plan." },
+          { label: "Checking scope", detail: "Aligning the request with the current dataset and selected patient scope." },
+          { label: "Preparing plan", detail: "Formatting the interpreted command, options, and reasoning for review." },
+        ];
+        let index = 0;
+        const applyStage = () => {
+          const stage = stages[Math.min(index, stages.length - 1)];
+          phenoPlanStatusEl.className = "pheno-status loading";
+          phenoPlanStatusEl.textContent = stage.label;
+          phenoPlanEl.innerHTML = renderActivityCard(stage.label, stage.detail);
+          phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
+          if (index < stages.length - 1) {
+            index += 1;
+          }
+        };
+        applyStage();
+        phenoPlanProgressTimer = window.setInterval(applyStage, 1600);
+      }
+
+      function stopPhenoRunProgressUpdates() {
+        if (phenoRunProgressTimer !== null) {
+          window.clearInterval(phenoRunProgressTimer);
+          phenoRunProgressTimer = null;
+        }
+      }
+
+      function startPhenoRunProgressUpdates() {
+        stopPhenoRunProgressUpdates();
+        const patientMode = phenoModeEl.value === "patient";
+        const stages = patientMode
+          ? [
+              { label: "Preparing run", detail: "Building the patient-comparison command and validating the selected scope." },
+              { label: "Running similarity job", detail: "Executing the comparison and waiting for rank and alignment outputs." },
+              { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
+            ]
+          : [
+              { label: "Preparing run", detail: "Building the cohort or extraction command and validating the selected scope." },
+              { label: "Running Pheno-Ranker", detail: "Executing the job and waiting for result files and plots." },
+              { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
+            ];
+        let index = 0;
+        const applyStage = () => {
+          const stage = stages[Math.min(index, stages.length - 1)];
+          phenoStatusEl.className = "pheno-status loading";
+          phenoStatusEl.textContent = stage.label;
+          phenoOutputPreviewEl.innerHTML = renderActivityCard(stage.label, stage.detail);
+          phenoPreviewsEl.innerHTML = renderActivityCard("Preparing previews", "Waiting for files and plot previews from the active run.");
+          if (index < stages.length - 1) {
+            index += 1;
+          }
+        };
+        applyStage();
+        phenoRunProgressTimer = window.setInterval(applyStage, 1800);
       }
 
       function renderSavedCohortsInto(container, mode) {
@@ -529,6 +1063,180 @@
         return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">${bars}</svg>`;
       }
 
+      function renderKaplanMeierPlot(seriesList) {
+        const series = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
+        if (!series.length) {
+          return '<div class="empty">No survival curve data available.</div>';
+        }
+        const width = 560;
+        const height = 260;
+        const margin = { top: 16, right: 24, bottom: 36, left: 42 };
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+        const maxTime = Math.max(
+          1,
+          ...series.flatMap((item) => item.points.map((point) => Number(point.time_days || 0)))
+        );
+        const colors = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed"];
+        const xFor = (value) => margin.left + (Number(value || 0) / maxTime) * innerWidth;
+        const yFor = (value) => margin.top + (1 - Number(value || 0)) * innerHeight;
+        const axes = `
+          <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+          <line x1="${margin.left}" y1="${margin.top + innerHeight}" x2="${margin.left + innerWidth}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+          <text x="${margin.left}" y="${height - 8}" fill="#61758c" font-size="12">Days from baseline</text>
+          <text x="8" y="${margin.top - 2}" fill="#61758c" font-size="12">Survival</text>
+        `;
+        const ticks = [0, 0.25, 0.5, 0.75, 1].map((value) => `
+          <g>
+            <line x1="${margin.left - 4}" y1="${yFor(value)}" x2="${margin.left + innerWidth}" y2="${yFor(value)}" stroke="rgba(148,163,184,0.18)" />
+            <text x="8" y="${yFor(value) + 4}" fill="#61758c" font-size="11">${Math.round(value * 100)}%</text>
+          </g>
+        `).join("");
+        const lines = series.map((item, index) => {
+          const color = colors[index % colors.length];
+          const points = item.points;
+          let path = `M ${xFor(points[0].time_days)} ${yFor(points[0].survival_probability)}`;
+          for (let i = 1; i < points.length; i += 1) {
+            const prev = points[i - 1];
+            const current = points[i];
+            path += ` L ${xFor(current.time_days)} ${yFor(prev.survival_probability)}`;
+            path += ` L ${xFor(current.time_days)} ${yFor(current.survival_probability)}`;
+          }
+          return `<path d="${path}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></path>`;
+        }).join("");
+        const legend = series.map((item, index) => {
+          const color = colors[index % colors.length];
+          return `<div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:12px;border-radius:999px;background:${color};display:inline-block;"></span><small>${escapeHtml(item.label || `Series ${index + 1}`)}</small></div>`;
+        }).join("");
+        return `
+          <div>
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">
+              ${ticks}
+              ${axes}
+              ${lines}
+            </svg>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">${legend}</div>
+          </div>
+        `;
+      }
+
+      function renderTrajectoryPlot(seriesList, summarySeries) {
+        const patientSeries = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
+        const summary = summarySeries && Array.isArray(summarySeries.points) ? summarySeries.points : [];
+        const combined = patientSeries.flatMap((item) => item.points);
+        const summaryIncluded = combined.concat(summary);
+        if (!summaryIncluded.length) {
+          return '<div class="empty">No trajectory data available.</div>';
+        }
+        const width = 560;
+        const height = 280;
+        const margin = { top: 16, right: 20, bottom: 36, left: 44 };
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+        const labels = Array.from(new Set(summaryIncluded.map((point) => String(point.x_label || point.x || ""))));
+        const xIndex = new Map(labels.map((label, index) => [label, index]));
+        const yValues = summaryIncluded.map((point) => Number(point.value || 0));
+        const yMin = Math.min(...yValues);
+        const yMax = Math.max(...yValues);
+        const ySpan = Math.max(yMax - yMin, 1);
+        const xFor = (label) => margin.left + ((xIndex.get(String(label)) || 0) / Math.max(labels.length - 1, 1)) * innerWidth;
+        const yFor = (value) => margin.top + (1 - ((Number(value || 0) - yMin) / ySpan)) * innerHeight;
+        const renderPath = (points, color, widthPx, opacity) => {
+          if (!points.length) {
+            return "";
+          }
+          const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${xFor(point.x_label || point.x)} ${yFor(point.value)}`).join(" ");
+          return `<path d="${path}" fill="none" stroke="${color}" stroke-width="${widthPx}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"></path>`;
+        };
+        const faintPalette = ["#93c5fd", "#7dd3fc", "#a7f3d0", "#c4b5fd", "#f9a8d4", "#fcd34d"];
+        const patientPaths = patientSeries.slice(0, 12).map((item, index) => renderPath(item.points, faintPalette[index % faintPalette.length], 1.5, 0.7)).join("");
+        const summaryPath = renderPath(summary, "#1d4ed8", 3.2, 1);
+        const yTicks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+          const value = yMin + ySpan * fraction;
+          return `
+            <g>
+              <line x1="${margin.left}" y1="${yFor(value)}" x2="${margin.left + innerWidth}" y2="${yFor(value)}" stroke="rgba(148,163,184,0.18)" />
+              <text x="8" y="${yFor(value) + 4}" fill="#61758c" font-size="11">${value.toFixed(1)}</text>
+            </g>
+          `;
+        }).join("");
+        const xTicks = labels.filter((_, index) => index === 0 || index === labels.length - 1 || index === Math.floor((labels.length - 1) / 2)).map((label) => `
+          <text x="${xFor(label)}" y="${height - 10}" fill="#61758c" font-size="11" text-anchor="middle">${escapeHtml(label)}</text>
+        `).join("");
+        return `
+          <div>
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">
+              ${yTicks}
+              <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+              <line x1="${margin.left}" y1="${margin.top + innerHeight}" x2="${margin.left + innerWidth}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+              ${patientPaths}
+              ${summaryPath}
+              ${xTicks}
+            </svg>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:12px;border-radius:999px;background:#1d4ed8;display:inline-block;"></span><small>${escapeHtml(summarySeries.label || "Cohort median")}</small></div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:12px;border-radius:999px;background:#93c5fd;display:inline-block;"></span><small>Individual patient trajectories</small></div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderTrajectoryComparisonPlot(seriesList) {
+        const series = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
+        if (!series.length) {
+          return '<div class="empty">No comparison trajectory data available.</div>';
+        }
+        const width = 560;
+        const height = 280;
+        const margin = { top: 16, right: 20, bottom: 36, left: 44 };
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+        const allPoints = series.flatMap((item) => item.points || []);
+        const labels = Array.from(new Set(allPoints.map((point) => String(point.x_label || point.x || ""))));
+        const xIndex = new Map(labels.map((label, index) => [label, index]));
+        const yValues = allPoints.map((point) => Number(point.value || 0));
+        const yMin = Math.min(...yValues);
+        const yMax = Math.max(...yValues);
+        const ySpan = Math.max(yMax - yMin, 1);
+        const palette = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed"];
+        const xFor = (label) => margin.left + ((xIndex.get(String(label)) || 0) / Math.max(labels.length - 1, 1)) * innerWidth;
+        const yFor = (value) => margin.top + (1 - ((Number(value || 0) - yMin) / ySpan)) * innerHeight;
+        const paths = series.map((item, index) => {
+          const path = item.points.map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${xFor(point.x_label || point.x)} ${yFor(point.value)}`).join(" ");
+          return `<path d="${path}" fill="none" stroke="${palette[index % palette.length]}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"></path>`;
+        }).join("");
+        const yTicks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+          const value = yMin + ySpan * fraction;
+          return `
+            <g>
+              <line x1="${margin.left}" y1="${yFor(value)}" x2="${margin.left + innerWidth}" y2="${yFor(value)}" stroke="rgba(148,163,184,0.18)" />
+              <text x="8" y="${yFor(value) + 4}" fill="#61758c" font-size="11">${value.toFixed(1)}</text>
+            </g>
+          `;
+        }).join("");
+        const xTicks = labels.filter((_, index) => index === 0 || index === labels.length - 1 || index === Math.floor((labels.length - 1) / 2)).map((label) => `
+          <text x="${xFor(label)}" y="${height - 10}" fill="#61758c" font-size="11" text-anchor="middle">${escapeHtml(label)}</text>
+        `).join("");
+        const legend = series.map((item, index) => `
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:12px;height:12px;border-radius:999px;background:${palette[index % palette.length]};display:inline-block;"></span>
+            <small>${escapeHtml(item.label || `Series ${index + 1}`)}</small>
+          </div>
+        `).join("");
+        return `
+          <div>
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">
+              ${yTicks}
+              <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+              <line x1="${margin.left}" y1="${margin.top + innerHeight}" x2="${margin.left + innerWidth}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
+              ${paths}
+              ${xTicks}
+            </svg>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">${legend}</div>
+          </div>
+        `;
+      }
+
       function renderDonutChart(entries, colors) {
         const items = Object.entries(entries || {});
         if (!items.length) return '<div class="empty">No data.</div>';
@@ -601,6 +1309,93 @@
       function renderAnalysisPlotsMarkup(context) {
         if (!context) {
           return '<div class="empty">No analysis plots available.</div>';
+        }
+        if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
+          const cohortA = context.cohort_a || {};
+          const cohortB = context.cohort_b || {};
+          const unit = context.unit ? ` (${context.unit})` : "";
+          return `
+            <div class="viz-card" style="grid-column: 1 / -1;">
+              <h3>Trajectory Comparison${unit}</h3>
+              ${renderTrajectoryComparisonPlot([
+                { label: `Cohort A median`, points: cohortA.summary_points || [] },
+                { label: `Cohort B median`, points: cohortB.summary_points || [] },
+              ])}
+            </div>
+          `;
+        }
+        if (context.mode === "trajectory" || context.mode === "trajectory_response") {
+          const unit = context.unit ? ` (${context.unit})` : "";
+          const heading = context.treatment ? `Response to ${context.treatment}${unit}` : `Trajectory of ${context.measure || "measure"}${unit}`;
+          return `
+            <div class="viz-card" style="grid-column: 1 / -1;">
+              <h3>${escapeHtml(heading)}</h3>
+              ${renderTrajectoryPlot(context.patient_series || [], {
+                label: context.treatment ? "Median response" : "Cohort median",
+                points: context.summary_points || [],
+              })}
+            </div>
+            <div class="viz-card">
+              <h3>Trajectory Coverage</h3>
+              ${renderBarChart([
+                { label: "Patients", value: Number(context.patient_count || 0) },
+                { label: "Summary points", value: Number((context.summary_points || []).length) },
+              ], "label", "value", "#2563eb")}
+            </div>
+          `;
+        }
+        if (context.mode === "survival_compare") {
+          const cohortA = context.cohort_a || {};
+          const cohortB = context.cohort_b || {};
+          return `
+            <div class="viz-card" style="grid-column: 1 / -1;">
+              <h3>Kaplan-Meier Comparison</h3>
+              ${renderKaplanMeierPlot([
+                { label: `Cohort A (${cohortA.patient_count || 0} patients)`, points: cohortA.curve_points || [] },
+                { label: `Cohort B (${cohortB.patient_count || 0} patients)`, points: cohortB.curve_points || [] },
+              ])}
+            </div>
+            <div class="viz-card">
+              <h3>Cohort A Survival Summary</h3>
+              ${renderBarChart([
+                { label: "Patients", value: Number(cohortA.patient_count || 0) },
+                { label: "Events", value: Number(cohortA.event_count || 0) },
+                { label: "Censored", value: Number(cohortA.censored_count || 0) },
+              ], "label", "value", "#2563eb")}
+            </div>
+            <div class="viz-card">
+              <h3>Cohort B Survival Summary</h3>
+              ${renderBarChart([
+                { label: "Patients", value: Number(cohortB.patient_count || 0) },
+                { label: "Events", value: Number(cohortB.event_count || 0) },
+                { label: "Censored", value: Number(cohortB.censored_count || 0) },
+              ], "label", "value", "#0ea5e9")}
+            </div>
+          `;
+        }
+        if (context.mode === "survival") {
+          return `
+            <div class="viz-card" style="grid-column: 1 / -1;">
+              <h3>Kaplan-Meier Curve</h3>
+              ${renderKaplanMeierPlot([
+                { label: `${context.measure || "Measure"} ${context.operator || ""} ${context.threshold || ""}`, points: context.curve_points || [] },
+              ])}
+            </div>
+            <div class="viz-card">
+              <h3>Event Summary</h3>
+              ${renderBarChart([
+                { label: "Patients", value: Number(context.patient_count || 0) },
+                { label: "Events", value: Number(context.event_count || 0) },
+                { label: "Censored", value: Number(context.censored_count || 0) },
+              ], "label", "value", "#2563eb")}
+            </div>
+            <div class="viz-card">
+              <h3>Median Time</h3>
+              ${renderBarChart([
+                { label: "Median days", value: Number(context.median_survival_days || 0) },
+              ], "label", "value", "#0ea5e9")}
+            </div>
+          `;
         }
         if (context.mode === "compare") {
           const cohortA = context.cohort_a || {};
@@ -703,6 +1498,10 @@
       function analysisPromptRequestsPlots(prompt) {
         const lowered = String(prompt || "").toLowerCase();
         return [
+          "trajectory",
+          "response to",
+          "kaplan",
+          "survival",
           "plot",
           "plots",
           "chart",
@@ -722,7 +1521,55 @@
         ].some((token) => lowered.includes(token));
       }
 
+      function stopAnalysisProgressUpdates() {
+        if (analysisProgressTimer !== null) {
+          window.clearInterval(analysisProgressTimer);
+          analysisProgressTimer = null;
+        }
+      }
+
+      function analysisPendingStages(compareMode, showPlots) {
+        const stages = compareMode
+          ? [
+              { label: "Comparing cohorts", detail: "Preparing the two cohort scopes and summary context." },
+              { label: "Computing differences", detail: "Reviewing disease, medication, and timepoint deltas." },
+              { label: "Waiting for response", detail: "Waiting for the model or deterministic comparison reply." },
+            ]
+          : [
+              { label: "Summarizing cohort", detail: "Preparing the scoped cohort summary and main signals." },
+              { label: "Reviewing patterns", detail: "Checking disease, medication, and timepoint distributions." },
+              { label: "Waiting for response", detail: "Waiting for the model or deterministic analysis reply." },
+            ];
+        if (showPlots) {
+          stages.push({ label: "Preparing plots", detail: "Getting the analysis view ready for charts and structured output." });
+        }
+        return stages;
+      }
+
+      function startAnalysisProgressUpdates(compareMode, showPlots) {
+        stopAnalysisProgressUpdates();
+        const stages = analysisPendingStages(compareMode, showPlots);
+        let index = 0;
+        const applyStage = () => {
+          const lastTurn = analysisTurns[analysisTurns.length - 1];
+          if (!lastTurn || !lastTurn.pending) {
+            stopAnalysisProgressUpdates();
+            return;
+          }
+          const stage = stages[Math.min(index, stages.length - 1)];
+          lastTurn.pendingLabel = stage.label;
+          lastTurn.pendingDetail = stage.detail;
+          renderAnalysisThread();
+          if (index < stages.length - 1) {
+            index += 1;
+          }
+        };
+        applyStage();
+        analysisProgressTimer = window.setInterval(applyStage, 1600);
+      }
+
       function renderAnalysisThread() {
+        renderAnalysisStarterPrompts();
         if (!analysisTurns.length) {
           analysisThreadEl.innerHTML = '<div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>';
           return;
@@ -739,6 +1586,23 @@
                   <p>${escapeHtml(turn.prompt)}</p>
                   <div class="analysis-turn-scope"><strong>${turn.compareScope ? "Cohort A" : "Scope"}:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>
                   ${compareHtml}
+                </div>
+              </article>
+            `;
+          }
+          if (turn.pending) {
+            return `
+              <article class="analysis-turn analysis-turn-pending">
+                <div class="analysis-turn-label">Analysis</div>
+                <div class="analysis-turn-meta">
+                  <span class="query-chip badge">pending</span>
+                  <span class="query-chip badge">${escapeHtml(turn.pendingLabel || "Preparing response")}</span>
+                </div>
+                <div class="analysis-turn-body">
+                  <div class="analysis-pending-row">
+                    <div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                    <span>${escapeHtml(turn.pendingDetail || "Building cohort context and waiting for the model reply.")}</span>
+                  </div>
                 </div>
               </article>
             `;
@@ -1141,6 +2005,61 @@
         queryMetaEl.innerHTML = chips.join("");
       }
 
+      function resetQueryWorkspace() {
+        queryExamplesPinnedOpen = false;
+        queryHistory = [];
+        queryTurns = [];
+        latestQueryPatientIds = [];
+        latestQueryPrompt = "";
+        latestQueryAnalysisPrompt = "";
+        queryMetaEl.innerHTML = "";
+        queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
+        queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
+        queryActionsEl.innerHTML = "";
+        queryFollowupsEl.innerHTML = "";
+        queryDataEl.textContent = "";
+        queryDetailsEl.open = false;
+        if (queryWorkflowHintEl) {
+          queryWorkflowHintEl.innerHTML = "<strong>Recommended flow:</strong> build or refine a cohort in Query, then open that cohort in Analysis for interpretation and plots.";
+        }
+        renderQueryStarterPrompts();
+        renderQueryThread();
+      }
+
+      function renderQueryThread() {
+        renderQueryStarterPrompts();
+        if (!queryThreadEl) {
+          return;
+        }
+        if (!queryTurns.length) {
+          queryThreadEl.innerHTML = '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
+          return;
+        }
+        queryThreadEl.innerHTML = queryTurns.map((turn) => {
+          if (turn.role === "user") {
+            return `
+              <article class="analysis-turn query-thread-turn query-thread-turn-user">
+                <div class="analysis-turn-label">You</div>
+                <div class="analysis-turn-body"><p>${escapeHtml(turn.prompt || "")}</p></div>
+              </article>
+            `;
+          }
+          const payload = turn.payload || {};
+          const data = payload.data || {};
+          const toneClass = turn.pending
+            ? "query-thread-turn-pending"
+            : data.source === "error"
+              ? "query-thread-turn-error"
+              : "query-thread-turn-assistant";
+          return `
+            <article class="analysis-turn query-thread-turn ${toneClass}">
+              <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
+              <div class="analysis-turn-body">${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}</div>
+            </article>
+          `;
+        }).join("");
+      }
+
       function renderQueryReason(payload) {
         const data = payload.data || {};
         const provider = data.provider;
@@ -1172,9 +2091,14 @@
           queryFollowupsEl.innerHTML = "";
           return;
         }
-        queryFollowupsEl.innerHTML = followups.map((item) => `
-          <button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>
-        `).join("");
+        queryFollowupsEl.innerHTML = `
+          <div class="query-followups-label">Suggested follow-up queries</div>
+          <div class="query-followups-list">
+            ${followups.map((item) => `
+              <button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>
+            `).join("")}
+          </div>
+        `;
       }
 
       function inferPatientIdsFromQueryPayload(payload) {
@@ -1246,12 +2170,18 @@
       function renderQueryActions(payload) {
         const patientIds = inferPatientIdsFromQueryPayload(payload);
         latestQueryPrompt = questionEl.value.trim();
+        latestQueryAnalysisPrompt = patientIds.length
+          ? "Interpret this selected cohort and summarize the main clinical and treatment patterns."
+          : "";
         latestQueryIdType = payload && payload.data && Array.isArray(payload.data.original_record_ids) && payload.data.original_record_ids.length
           ? "original_record"
           : "patient";
         latestQueryPatientIds = patientIds;
         if (!patientIds.length) {
           queryActionsEl.innerHTML = "";
+          if (queryWorkflowHintEl) {
+            queryWorkflowHintEl.innerHTML = "<strong>Recommended flow:</strong> build or refine a cohort in Query, then open that cohort in Analysis for interpretation and plots.";
+          }
           return;
         }
         const compatibleIds = phenoRankerPatientIds.length
@@ -1259,12 +2189,15 @@
           : [];
         const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
         queryActionsEl.innerHTML = `
+          <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis">Open cohort in Analysis</button>
+          <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort">Save cohort</button>
           <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids">Copy patient IDs</button>
-          <button type="button" class="query-chip query-chip-deterministic" data-query-action="save-cohort">Save cohort</button>
-          <button type="button" class="query-chip action" data-query-action="use-analysis">Use IDs in Analysis</button>
           ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
           ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
         `;
+        if (queryWorkflowHintEl) {
+          queryWorkflowHintEl.innerHTML = `<strong>Cohort ready:</strong> this query returned ${escapeHtml(String(patientIds.length))} IDs. Open it in Analysis to interpret the subgroup, compare it, or generate plots.`;
+        }
       }
 
       async function copyPatientIdsFromQuery() {
@@ -1291,6 +2224,7 @@
           ? `Scope: ${ids.length} IDs in scope.`
           : "Scope: full cohort.";
         renderGlobalContext();
+        syncCurrentAnalysisSessionFromUi({ render: true });
       }
 
       function renderAnalysisCompareScopeSummary() {
@@ -1305,6 +2239,7 @@
           ? `Cohort B: ${ids.length} IDs in scope.`
           : "Cohort B: full cohort.";
         renderGlobalContext();
+        syncCurrentAnalysisSessionFromUi({ render: true });
       }
 
       function renderSelectedPatientIdsSummary() {
@@ -1347,10 +2282,30 @@
           return;
         }
         analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+        if (latestQueryAnalysisPrompt && !analysisPromptEl.value.trim()) {
+          analysisPromptEl.value = latestQueryAnalysisPrompt;
+        }
         renderAnalysisScopeSummary();
         setActiveTab("analysis");
+        syncCurrentAnalysisSessionFromUi({ render: true });
         analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} IDs from the query result into the current analysis scope.`;
+        analysisStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`;
+      }
+
+      function sendPromptToAnalysis(prompt) {
+        const normalizedPrompt = String(prompt || "").trim();
+        if (!normalizedPrompt) {
+          return;
+        }
+        analysisPromptEl.value = normalizedPrompt;
+        setActiveTab("analysis");
+        renderAnalysisScopeSummary();
+        syncCurrentAnalysisSessionFromUi({ render: true });
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = latestQueryPatientIds.length
+          ? `Analysis prompt prepared for the ${latestQueryPatientIds.length}-ID cohort currently loaded from Query.`
+          : "Analysis prompt prepared. Select a scope or use the full cohort.";
+        analysisPromptEl.focus();
       }
 
       function nextFrame() {
@@ -1577,8 +2532,9 @@
         phenoPlanStatusEl.className = "pheno-status loading";
         phenoPlanStatusEl.textContent = "Interpreting request...";
         renderPhenoPlanMeta("");
-        phenoPlanEl.textContent = "Waiting for interpreted plan...";
-        renderPhenoPlanReasoning([]);
+        phenoPlanEl.innerHTML = renderActivityCard("Interpreting request", "Reading the natural-language request and extracting a runnable plan.");
+        phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
+        startPhenoPlanProgressUpdates();
         await nextFrame();
 
         try {
@@ -1594,6 +2550,7 @@
           if (!response.ok) {
             const error = await response.json();
             const detail = error.detail && typeof error.detail === "object" ? JSON.stringify(error.detail, null, 2) : String(error.detail || "Planner request failed.");
+            stopPhenoPlanProgressUpdates();
             phenoPlanStatusEl.className = "pheno-status";
             phenoPlanStatusEl.textContent = "Planner failed.";
             renderPhenoPlanMeta("");
@@ -1602,6 +2559,7 @@
             return null;
           }
           const payload = await response.json();
+          stopPhenoPlanProgressUpdates();
           renderPhenoPlanMeta(payload.source || "deterministic");
           if (!payload.plan || typeof payload.plan !== "object") {
             renderPhenoNoPlanState(payload.reasoning || []);
@@ -1618,6 +2576,7 @@
           renderPhenoPlanState(payload.plan || {}, payload.reasoning || []);
           return payload;
         } catch (error) {
+          stopPhenoPlanProgressUpdates();
           phenoPlanStatusEl.className = "pheno-status";
           phenoPlanStatusEl.textContent = "Planner request failed.";
           renderPhenoPlanMeta("");
@@ -1625,6 +2584,7 @@
           renderPhenoPlanReasoning([]);
           return null;
         } finally {
+          stopPhenoPlanProgressUpdates();
           phenoPlanInFlight = false;
           phenoPlanBtnEl.disabled = false;
           phenoPlanRunBtnEl.disabled = false;
@@ -2097,10 +3057,11 @@
         phenoSelectedAlignmentKey = "";
         phenoTableState = null;
         phenoOutputDetailsEl.open = phenoModeEl.value === "patient";
-        phenoOutputPreviewEl.innerHTML = '<div class="empty">Waiting for output preview.</div>';
+        phenoOutputPreviewEl.innerHTML = renderActivityCard("Preparing run", "Building the command and validating the selected scope.");
         renderPhenoAlignmentPlaceholder("Waiting for alignment details.");
         phenoLogsEl.textContent = "Waiting for logs...";
-        phenoPreviewsEl.innerHTML = '<div class="empty">Waiting for plot previews.</div>';
+        phenoPreviewsEl.innerHTML = renderActivityCard("Preparing previews", "Waiting for result files and plot previews from the active run.");
+        startPhenoRunProgressUpdates();
         await nextFrame();
 
         try {
@@ -2129,6 +3090,7 @@
             const error = await response.json();
             const detailObject = error.detail && typeof error.detail === "object" ? error.detail : null;
             const detail = detailObject ? JSON.stringify(detailObject, null, 2) : String(error.detail || "Pheno-Ranker request failed.");
+            stopPhenoRunProgressUpdates();
             phenoStatusEl.className = "pheno-status";
             phenoStatusEl.textContent = "Pheno-Ranker failed.";
             phenoCommandEl.textContent = detailObject && detailObject.command ? detailObject.command : "Command failed before completion.";
@@ -2140,6 +3102,7 @@
           }
 
           const payload = await response.json();
+          stopPhenoRunProgressUpdates();
           phenoRunState = {
             jobId: payload.job_id,
             mode: payload.mode,
@@ -2169,6 +3132,7 @@
           }
           renderPhenoPreviews(payload.files);
         } catch (error) {
+          stopPhenoRunProgressUpdates();
           phenoStatusEl.className = "pheno-status";
           phenoStatusEl.textContent = "Network error while running Pheno-Ranker.";
           phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
@@ -2176,6 +3140,7 @@
           renderPhenoExplainPlaceholder("Explain results are unavailable because the run failed.");
           phenoLogsEl.textContent = error && error.message ? error.message : "Unexpected request failure.";
         } finally {
+          stopPhenoRunProgressUpdates();
           phenoInFlight = false;
           phenoRunBtnEl.disabled = false;
         }
@@ -2194,6 +3159,8 @@
 
         try {
           const dataDir = encodeURIComponent(dataDirEl.value.trim());
+          prepareAnalysisSessionForDataDir(dataDirEl.value.trim());
+          resetQueryWorkspace();
           await loadSavedCohorts();
           await loadPhenoRankerPatientIds();
           const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
@@ -2304,10 +3271,29 @@
         queryActionsEl.innerHTML = "";
         latestQueryPatientIds = [];
         queryFollowupsEl.innerHTML = "";
+        queryExamplesPinnedOpen = false;
+        queryTurns.push({ role: "user", prompt: question });
+        queryTurns.push({
+          role: "assistant",
+          pending: true,
+          pendingLabel: "Parsing request",
+          pendingDetail: "Interpreting the cohort question and selecting the right query path.",
+          payload: { reply: "Running query..." },
+        });
+        renderQueryThread();
+        startQueryProgressUpdates();
         await nextFrame();
 
         try {
-          const response = await fetch(`/query?data_dir=${dataDir}&q=${encodeURIComponent(question)}`);
+          const response = await fetch("/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              q: question,
+              data_dir: dataDirEl.value.trim(),
+              history: queryHistory.slice(-6),
+            }),
+          });
           if (!response.ok) {
             const error = await response.json();
             queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
@@ -2315,11 +3301,23 @@
             queryDataEl.textContent = "";
             queryDetailsEl.open = false;
             queryActionsEl.innerHTML = "";
+            queryTurns[queryTurns.length - 1] = {
+              role: "assistant",
+              payload: {
+                intent: "query_error",
+                reply: String(error.detail || "Query failed."),
+                data: { source: "error", provider: "deterministic" },
+              },
+            };
+            renderQueryThread();
             queryStatusEl.className = "query-status";
             queryStatusEl.textContent = "Query failed.";
             return;
           }
           const payload = await response.json();
+          stopQueryProgressUpdates();
+          queryTurns[queryTurns.length - 1] = { role: "assistant", payload };
+          renderQueryThread();
           queryReplyEl.innerHTML = renderQueryReply(payload);
           renderQueryMeta(payload);
           renderQueryReason(payload);
@@ -2327,18 +3325,32 @@
           renderFollowupButtons(payload.data && payload.data.follow_up_suggestions);
           queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
           queryDetailsEl.open = false;
+          queryHistory.push({ role: "user", content: question });
+          queryHistory.push({ role: "assistant", content: payload.reply || "" });
+          queryHistory = queryHistory.slice(-8);
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Done.";
         } catch (error) {
+          stopQueryProgressUpdates();
           queryReplyEl.innerHTML = `<p>${escapeHtml(error && error.message ? error.message : "Request failed.")}</p>`;
           queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";
           queryDataEl.textContent = "";
           queryDetailsEl.open = false;
           queryActionsEl.innerHTML = "";
           latestQueryPatientIds = [];
+          queryTurns[queryTurns.length - 1] = {
+            role: "assistant",
+            payload: {
+              intent: "query_error",
+              reply: error && error.message ? error.message : "Request failed.",
+              data: { source: "error", provider: "deterministic" },
+            },
+          };
+          renderQueryThread();
           queryStatusEl.className = "query-status";
           queryStatusEl.textContent = "Network error.";
         } finally {
+          stopQueryProgressUpdates();
           queryInFlight = false;
           askBtnEl.disabled = false;
         }
@@ -2364,8 +3376,13 @@
           ? analysisCompareSelectedPatientIdsEl.value.trim()
           : "";
         const showPlots = analysisPromptRequestsPlots(prompt);
+        const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+        analysisExamplesPinnedOpen = false;
         analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
+        analysisTurns.push({ role: "assistant", pending: true, pendingLabel: "Preparing response", pendingDetail: "Building cohort context and waiting for the model reply." });
         renderAnalysisThread();
+        syncCurrentAnalysisSessionFromUi({ render: true });
+        startAnalysisProgressUpdates(compareMode, showPlots);
         try {
           const response = await fetch("/analysis", {
             method: "POST",
@@ -2374,7 +3391,7 @@
               prompt,
               data_dir: dataDirEl.value.trim() || dataDirEl.value,
               selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
-              compare_mode: Boolean(analysisCompareModeEl && analysisCompareModeEl.checked),
+              compare_mode: compareMode,
               compare_selected_patient_ids: compareScope,
               history: analysisHistory.slice(-6),
             }),
@@ -2391,16 +3408,19 @@
             throw new Error(message);
           }
           const payload = await response.json();
+          stopAnalysisProgressUpdates();
           renderAnalysisMeta(payload);
-          analysisTurns.push({ role: "assistant", payload, showPlots });
+          analysisTurns[analysisTurns.length - 1] = { role: "assistant", payload, showPlots };
           renderAnalysisThread();
+          syncCurrentAnalysisSessionFromUi({ render: true });
           analysisStatusEl.className = "query-status";
           analysisStatusEl.textContent = "Analysis complete.";
           analysisHistory.push({ role: "user", content: prompt });
           analysisHistory.push({ role: "assistant", content: payload.reply || "" });
           analysisHistory = analysisHistory.slice(-8);
+          syncCurrentAnalysisSessionFromUi({ render: true });
         } catch (error) {
-          analysisTurns.push({
+          analysisTurns[analysisTurns.length - 1] = {
             role: "assistant",
             payload: {
               intent: "analysis_error",
@@ -2408,11 +3428,14 @@
               data: { source: "error", context: null },
             },
             showPlots: false,
-          });
+          };
+          stopAnalysisProgressUpdates();
           renderAnalysisThread();
+          syncCurrentAnalysisSessionFromUi({ render: true });
           analysisStatusEl.className = "query-status";
           analysisStatusEl.textContent = "Analysis failed.";
         } finally {
+          stopAnalysisProgressUpdates();
           analysisInFlight = false;
           analysisRunBtnEl.disabled = false;
         }
@@ -2420,7 +3443,39 @@
 
       loadBtnEl.addEventListener("click", loadPatients);
       askBtnEl.addEventListener("click", askQuery);
+      queryClearBtnEl && queryClearBtnEl.addEventListener("click", () => {
+        resetQueryWorkspace();
+        queryStatusEl.className = "query-status";
+        queryStatusEl.textContent = "Query thread cleared.";
+      });
       analysisRunBtnEl.addEventListener("click", runAnalysis);
+      queryExamplesToggleBtnEl && queryExamplesToggleBtnEl.addEventListener("click", () => {
+        queryExamplesPinnedOpen = false;
+        renderQueryStarterPrompts();
+      });
+      queryComposerExamplesBtnEl && queryComposerExamplesBtnEl.addEventListener("click", () => {
+        const shouldOpen = !queryExamplesPinnedOpen;
+        queryExamplesPinnedOpen = shouldOpen;
+        renderQueryStarterPrompts();
+        if (shouldOpen && queryStarterPanelEl && !queryStarterPanelEl.hidden) {
+          queryStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+      analysisExamplesToggleBtnEl && analysisExamplesToggleBtnEl.addEventListener("click", () => {
+        analysisExamplesPinnedOpen = false;
+        renderAnalysisStarterPrompts();
+      });
+      analysisComposerExamplesBtnEl && analysisComposerExamplesBtnEl.addEventListener("click", () => {
+        const shouldOpen = !analysisExamplesPinnedOpen;
+        analysisExamplesPinnedOpen = shouldOpen;
+        renderAnalysisStarterPrompts();
+        if (shouldOpen && analysisStarterPanelEl && !analysisStarterPanelEl.hidden) {
+          analysisStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+      analysisNewSessionBtnEl && analysisNewSessionBtnEl.addEventListener("click", () => {
+        createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
+      });
       cohortTabBtnEl.addEventListener("click", () => setActiveTab("cohort"));
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
       analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
@@ -2436,9 +3491,12 @@
       analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
       analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
       analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.addEventListener("input", renderAnalysisCompareScopeSummary);
+      analysisPromptEl.addEventListener("input", () => syncCurrentAnalysisSessionFromUi({ render: true }));
       initializeExampleToggle(queryExamplesEl);
       initializeExampleToggle(phenoExamplesEl);
       initializeExampleToggle(analysisExamplesEl);
+      renderQueryStarterPrompts();
+      renderAnalysisStarterPrompts();
       try {
         const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
         if (savedTab && ["cohort", "query", "analysis", "pheno"].includes(savedTab)) {
@@ -2456,11 +3514,21 @@
         loadPatient(card.dataset.patientId);
       });
       queryExamplesEl.addEventListener("click", (event) => {
+        const analysisButton = event.target.closest("[data-analysis-prompt]");
+        if (analysisButton && queryExamplesEl.contains(analysisButton)) {
+          if (latestQueryPatientIds.length) {
+            analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+          }
+          sendPromptToAnalysis(analysisButton.dataset.analysisPrompt);
+          return;
+        }
         const button = event.target.closest("[data-prompt]");
         if (!button || !queryExamplesEl.contains(button)) {
           return;
         }
         questionEl.value = button.dataset.prompt;
+        queryExamplesPinnedOpen = false;
+        renderQueryStarterPrompts();
         questionEl.focus();
       });
       queryFollowupsEl.addEventListener("click", (event) => {
@@ -2477,7 +3545,27 @@
           return;
         }
         analysisPromptEl.value = button.dataset.analysisPrompt;
+        analysisExamplesPinnedOpen = false;
+        syncCurrentAnalysisSessionFromUi({ render: true });
+        renderAnalysisStarterPrompts();
         analysisPromptEl.focus();
+      });
+      analysisSessionListEl && analysisSessionListEl.addEventListener("click", (event) => {
+        const deleteButton = event.target.closest("[data-analysis-session-delete]");
+        if (deleteButton && analysisSessionListEl.contains(deleteButton)) {
+          deleteAnalysisSessionById(deleteButton.dataset.analysisSessionDelete || "");
+          return;
+        }
+        const renameButton = event.target.closest("[data-analysis-session-rename]");
+        if (renameButton && analysisSessionListEl.contains(renameButton)) {
+          renameAnalysisSession(renameButton.dataset.analysisSessionRename || "");
+          return;
+        }
+        const button = event.target.closest("[data-analysis-session-id]");
+        if (!button || !analysisSessionListEl.contains(button)) {
+          return;
+        }
+        selectAnalysisSession(button.dataset.analysisSessionId || "");
       });
       phenoExamplesEl.addEventListener("click", (event) => {
         const button = event.target.closest("[data-pheno-prompt]");
@@ -2568,10 +3656,10 @@
       renderSelectedPatientIdsSummary();
       setPhenoResultWorkspaceVisible(false);
       renderPhenoSavedCohortsSelection();
+      ensureAnalysisSessionsLoaded();
+      void loadAnalysisSessionsFromBackend();
       renderAnalysisCompareMode();
-      renderAnalysisScopeSummary();
       renderAnalysisCompareScopeSummary();
-      renderAnalysisScopeSummary();
       loadPhenoRankerPatientIds();
       loadLmStatus();
       loadSavedCohorts();
