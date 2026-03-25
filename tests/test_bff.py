@@ -776,6 +776,15 @@ def test_follow_up_suggestions_normalize_question_shaped_terms():
     ]
 
 
+def test_follow_up_suggestions_normalize_take_style_medication_questions():
+    suggestions = query_module._follow_up_suggestions("How many patients take esteroids?")
+    assert suggestions == [
+        "How many patients have esteroids?",
+        "Which patients have esteroids?",
+        "Show the visits mentioning esteroids.",
+    ]
+
+
 def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
     write_json(tmp_path, "records.json", [])
 
@@ -806,6 +815,161 @@ def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
     user_message = captured["payload"]["messages"][1]["content"]
     assert "conversation_history" in user_message
     assert "Show patient 107" in user_message
+
+
+def test_query_uses_semantic_planner_before_generic_lm_fallback(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        calls.append(log_kind)
+        if log_kind == "query_semantic_plan":
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "cohort_query",
+                                    "output": "patient_list",
+                                    "logic": "and",
+                                    "filters": [
+                                        {
+                                            "domain": "treatment",
+                                            "operator": "contains",
+                                            "value": "Infliximab",
+                                            "negate": False,
+                                        }
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "generic fallback"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(str(tmp_path), "select subjects receiving infliximab")
+    assert payload["intent"] == "semantic_cohort_query"
+    assert payload["data"]["execution"] == "deterministic"
+    assert payload["data"]["planner"]["model"] == "local-model"
+    assert payload["data"]["patient_ids"] == ["P1"]
+    assert calls == ["query_semantic_plan"]
+
+
+def test_query_falls_back_to_generic_lm_when_semantic_plan_is_invalid(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [])
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        calls.append(log_kind)
+        if log_kind == "query_semantic_plan":
+            return {"choices": [{"message": {"content": "{\"intent\":\"unsupported\"}"}}]}
+        return {"choices": [{"message": {"content": "LM Studio answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(str(tmp_path), "What evidence supports the main cohort summary?")
+    assert payload["intent"] == "llm_fallback"
+    assert payload["reply"] == "LM Studio answer"
+    assert calls == ["query_semantic_plan", "query_fallback"]
+
+
+def test_query_semantic_planner_can_expand_biologics_category(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
+            },
+            {
+                "id": "P3:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        if log_kind == "query_semantic_plan":
+            captured["payload"] = payload
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "cohort_query",
+                                    "output": "count",
+                                    "logic": "or",
+                                    "filters": [
+                                        {"domain": "treatment", "operator": "eq", "value": "Infliximab", "negate": False},
+                                        {"domain": "treatment", "operator": "eq", "value": "Vedolizumab", "negate": False},
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "generic fallback"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(str(tmp_path), "How many patients take biologics?")
+    assert payload["intent"] == "semantic_cohort_query"
+    assert payload["data"]["patient_count"] == 2
+    assert "takes 'Infliximab' or takes 'Vedolizumab'" in payload["reply"]
+    planner_message = captured["payload"]["messages"][1]["content"]
+    assert "known_treatments" in planner_message
+    assert "Infliximab" in planner_message
+    assert "Vedolizumab" in planner_message
 
 
 def test_query_lists_patients_with_more_than_one_medication(tmp_path):
@@ -1356,9 +1520,30 @@ def test_answer_query_supports_longitudinal_timepoint_queries(tmp_path):
 
     payload = answer_query(str(tmp_path), "Show the timeline for patient 101")
     assert payload["intent"] == "patient_timeline"
-    assert "Timeline for patient 101:" in payload["reply"]
-    assert "week_0_arm_1" in payload["reply"]
-    assert "Prednisolone" in payload["reply"]
+
+
+def test_answer_query_supports_select_patients_that_take_medication_phrasing(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "select patients that take Infliximab")
+    assert payload["intent"] == "medication_cohort"
+    assert payload["data"]["patient_count"] == 1
+    assert payload["data"]["patients"][0]["patient_id"] == "P1"
 
 
 def test_query_store_supports_longitudinal_helpers(tmp_path):

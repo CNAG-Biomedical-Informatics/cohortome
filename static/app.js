@@ -25,20 +25,16 @@
       const queryFollowupsEl = document.getElementById("queryFollowups");
       const queryExamplesEl = document.getElementById("queryExamples");
       const queryStarterPanelEl = document.getElementById("queryStarterPanel");
-      const queryExamplesToggleBtnEl = document.getElementById("queryExamplesToggleBtn");
-      const queryComposerExamplesBtnEl = document.getElementById("queryComposerExamplesBtn");
       const queryDataEl = document.getElementById("queryData");
       const queryDetailsEl = document.getElementById("queryDetails");
       const queryThreadEl = document.getElementById("queryThread");
       const queryClearBtnEl = document.getElementById("queryClearBtn");
-      const queryWorkflowHintEl = document.getElementById("queryWorkflowHint");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
       const analysisPromptEl = document.getElementById("analysisPrompt");
       const analysisRunBtnEl = document.getElementById("analysisRunBtn");
       const analysisExamplesEl = document.getElementById("analysisExamples");
       const analysisStarterPanelEl = document.getElementById("analysisStarterPanel");
-      const analysisExamplesToggleBtnEl = document.getElementById("analysisExamplesToggleBtn");
       const analysisComposerExamplesBtnEl = document.getElementById("analysisComposerExamplesBtn");
       const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
       const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
@@ -116,7 +112,6 @@
       let queryInFlight = false;
       let queryHistory = [];
       let queryTurns = [];
-      let queryExamplesPinnedOpen = false;
       let queryProgressTimer = null;
       let analysisInFlight = false;
       let loadInFlight = false;
@@ -393,7 +388,7 @@
         const latestAssistantTurn = analysisTurns.slice().reverse().find((turn) => turn.role === "assistant" && turn.payload && !turn.pending);
         if (latestAssistantTurn && latestAssistantTurn.payload) {
           renderAnalysisMeta(latestAssistantTurn.payload);
-        } else {
+        } else if (analysisMetaEl) {
           analysisMetaEl.innerHTML = "";
         }
         renderAnalysisSessionList();
@@ -576,32 +571,42 @@
         container.insertAdjacentElement("afterend", toggleWrap);
       }
 
-      function renderStarterPanelVisibility(panelEl, headerToggleEl, composerToggleEl, hasTurns, pinnedOpen) {
-        if (!panelEl || !headerToggleEl || !composerToggleEl) {
+      function renderStarterPanelVisibility(panelEl, composerToggleEl, hasTurns, pinnedOpen) {
+        if (!panelEl || !composerToggleEl) {
           return;
         }
         const visible = hasTurns ? pinnedOpen : true;
         panelEl.hidden = !visible;
+        const inlineToggle = panelEl.querySelector(".query-examples-toggle");
+        if (inlineToggle) {
+          inlineToggle.hidden = !visible;
+        }
+        const siblingToggle = panelEl.nextElementSibling && panelEl.nextElementSibling.classList && panelEl.nextElementSibling.classList.contains("query-examples-toggle")
+          ? panelEl.nextElementSibling
+          : null;
+        if (siblingToggle) {
+          siblingToggle.hidden = !visible;
+        }
         composerToggleEl.hidden = !hasTurns;
         composerToggleEl.textContent = visible ? "Hide starter prompts" : "Starter prompts";
-        headerToggleEl.hidden = !hasTurns;
-        headerToggleEl.textContent = "Hide starter prompts";
       }
 
       function renderQueryStarterPrompts() {
-        renderStarterPanelVisibility(
-          queryStarterPanelEl,
-          queryExamplesToggleBtnEl,
-          queryComposerExamplesBtnEl,
-          Array.isArray(queryTurns) && queryTurns.length > 0,
-          queryExamplesPinnedOpen
-        );
+        if (!queryStarterPanelEl) {
+          return;
+        }
+        queryStarterPanelEl.hidden = false;
+        const siblingToggle = queryStarterPanelEl.nextElementSibling && queryStarterPanelEl.nextElementSibling.classList && queryStarterPanelEl.nextElementSibling.classList.contains("query-examples-toggle")
+          ? queryStarterPanelEl.nextElementSibling
+          : null;
+        if (siblingToggle) {
+          siblingToggle.hidden = false;
+        }
       }
 
       function renderAnalysisStarterPrompts() {
         renderStarterPanelVisibility(
           analysisStarterPanelEl,
-          analysisExamplesToggleBtnEl,
           analysisComposerExamplesBtnEl,
           Array.isArray(analysisTurns) && analysisTurns.length > 0,
           analysisExamplesPinnedOpen
@@ -1083,7 +1088,7 @@
         const axes = `
           <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
           <line x1="${margin.left}" y1="${margin.top + innerHeight}" x2="${margin.left + innerWidth}" y2="${margin.top + innerHeight}" stroke="#94a3b8" />
-          <text x="${margin.left}" y="${height - 8}" fill="#61758c" font-size="12">Days from baseline</text>
+          <text x="${margin.left}" y="${height - 8}" fill="#61758c" font-size="12">Days since first dated observation of the selected measure</text>
           <text x="8" y="${margin.top - 2}" fill="#61758c" font-size="12">Survival</text>
         `;
         const ticks = [0, 0.25, 0.5, 0.75, 1].map((value) => `
@@ -1462,6 +1467,9 @@
       }
 
       function renderAnalysisMeta(payload) {
+        if (!analysisMetaEl) {
+          return;
+        }
         const source = payload && payload.data && payload.data.source === "llm" ? "LM-based" : "Deterministic";
         const model = payload && payload.data ? payload.data.model : "";
         const chips = [
@@ -1998,15 +2006,112 @@
       }
 
       function renderQueryMeta(payload) {
-        const chips = [];
-        const provider = payload && payload.data && payload.data.provider;
-        chips.push(`<span class="query-chip badge">${escapeHtml(payload.intent || "unknown")}</span>`);
-        chips.push(`<span class="query-chip badge">${escapeHtml(provider === "lm_studio" ? "LM Studio" : "Deterministic")}</span>`);
+        const chips = getQueryProvenanceChips(payload);
         queryMetaEl.innerHTML = chips.join("");
       }
 
+      function queryIntentPresentation(intent) {
+        const value = String(intent || "unknown");
+        const labels = {
+          semantic_cohort_query: {
+            label: "Cohort query",
+            title: "A cohort-style query result returned by the app.",
+          },
+          medication_cohort: {
+            label: "Medication cohort",
+            title: "Deterministic cohort lookup based on treatment labels in the dataset.",
+          },
+          disease_cohort: {
+            label: "Disease cohort",
+            title: "Deterministic cohort lookup based on disease labels in the dataset.",
+          },
+          patient_filter_cohort: {
+            label: "Patient filter query",
+            title: "Deterministic cohort filtering across multiple include or exclude conditions.",
+          },
+          patient_transition_cohort: {
+            label: "Transition query",
+            title: "Deterministic query over patients who changed from one term to another over time.",
+          },
+          patient_started_after_cohort: {
+            label: "Started-after query",
+            title: "Deterministic temporal query over patients who started one term after another.",
+          },
+          patient_temporal_order_cohort: {
+            label: "Temporal order query",
+            title: "Deterministic temporal query over the order of events in patient timelines.",
+          },
+          patient_inventory: {
+            label: "Patient inventory",
+            title: "Deterministic listing of patients in the current cohort.",
+          },
+          llm_fallback: {
+            label: "LM fallback answer",
+            title: "LM Studio answered directly from the provided context because no deterministic route or semantic plan was used.",
+          },
+          llm_unavailable: {
+            label: "LM unavailable",
+            title: "LM Studio fallback is enabled, but no loaded model was available.",
+          },
+          llm_error: {
+            label: "LM error",
+            title: "LM Studio fallback was attempted but did not return a usable answer.",
+          },
+          unsupported: {
+            label: "Unsupported query",
+            title: "The app could not map this prompt to a supported deterministic or LM-planned query path.",
+          },
+          needs_clarification: {
+            label: "Needs clarification",
+            title: "The prompt is too vague to answer reliably, so the app is asking for a more specific query.",
+          },
+        };
+        const mapped = labels[value];
+        if (mapped) {
+          return mapped;
+        }
+        return {
+          label: value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+          title: `Internal query intent: ${value}`,
+        };
+      }
+
+      function renderQueryBadge(label, title) {
+        const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
+        return `<span class="query-chip badge"${safeTitle}>${escapeHtml(label)}</span>`;
+      }
+
+      function getQueryProvenanceChips(payload) {
+        const data = payload && payload.data ? payload.data : {};
+        const intentInfo = queryIntentPresentation(payload && payload.intent ? payload.intent : "unknown");
+        const chips = [renderQueryBadge(intentInfo.label, intentInfo.title)];
+        if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
+          chips.push(renderQueryBadge("LLM planned", "LM Studio translated the prompt into a constrained internal cohort plan."));
+          chips.push(renderQueryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result."));
+          if (data.planner.model) {
+            chips.push(renderQueryBadge(data.planner.model, "LM Studio model used for semantic query planning."));
+          }
+          return chips;
+        }
+        chips.push(renderQueryBadge(data.provider === "lm_studio" ? "LM-based" : "Deterministic", data.provider === "lm_studio"
+          ? "LM Studio answered directly from the provided context."
+          : "The app answered using deterministic dataset logic."));
+        if (data.model) {
+          chips.push(renderQueryBadge(data.model, "LM Studio model used for this answer."));
+        }
+        return chips;
+      }
+
+      function describeQueryProvenance(payload) {
+        const data = payload && payload.data ? payload.data : {};
+        if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
+          const model = data.planner.model ? ` using ${data.planner.model}` : "";
+          return `LM Studio semantic planner${model} translated the request into an internal cohort plan, and the result was executed with deterministic dataset logic.`;
+        }
+        return `Provider: ${data.provider === "lm_studio" ? "LM Studio fallback" : "deterministic dataset logic"}.`;
+      }
+
       function resetQueryWorkspace() {
-        queryExamplesPinnedOpen = false;
         queryHistory = [];
         queryTurns = [];
         latestQueryPatientIds = [];
@@ -2019,9 +2124,6 @@
         queryFollowupsEl.innerHTML = "";
         queryDataEl.textContent = "";
         queryDetailsEl.open = false;
-        if (queryWorkflowHintEl) {
-          queryWorkflowHintEl.innerHTML = "<strong>Recommended flow:</strong> build or refine a cohort in Query, then open that cohort in Analysis for interpretation and plots.";
-        }
         renderQueryStarterPrompts();
         renderQueryThread();
       }
@@ -2030,6 +2132,9 @@
         renderQueryStarterPrompts();
         if (!queryThreadEl) {
           return;
+        }
+        if (queryTabEl) {
+          queryTabEl.classList.toggle("query-tab-empty", !queryTurns.length);
         }
         if (!queryTurns.length) {
           queryThreadEl.innerHTML = '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
@@ -2054,6 +2159,11 @@
           return `
             <article class="analysis-turn query-thread-turn ${toneClass}">
               <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
+              ${turn.pending ? "" : `
+                <div class="query-thread-turn-meta">
+                  ${getQueryProvenanceChips(payload).join("")}
+                </div>
+              `}
               <div class="analysis-turn-body">${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}</div>
             </article>
           `;
@@ -2062,10 +2172,9 @@
 
       function renderQueryReason(payload) {
         const data = payload.data || {};
-        const provider = data.provider;
         const reasons = [];
         reasons.push(`Intent: ${payload.intent || "unknown"}.`);
-        reasons.push(`Provider: ${provider === "lm_studio" ? "LM Studio fallback" : "deterministic dataset logic"}.`);
+        reasons.push(describeQueryProvenance(payload));
         if (data.context && data.context.dataset_overview) {
           const totals = data.context.dataset_overview;
           reasons.push(`Context included cohort totals for ${totals.patients} patients and ${totals.visits} visits.`);
@@ -2179,9 +2288,6 @@
         latestQueryPatientIds = patientIds;
         if (!patientIds.length) {
           queryActionsEl.innerHTML = "";
-          if (queryWorkflowHintEl) {
-            queryWorkflowHintEl.innerHTML = "<strong>Recommended flow:</strong> build or refine a cohort in Query, then open that cohort in Analysis for interpretation and plots.";
-          }
           return;
         }
         const compatibleIds = phenoRankerPatientIds.length
@@ -2195,9 +2301,6 @@
           ${allCompatible ? '<button type="button" class="query-chip action" data-query-action="use-pheno">Use IDs in Pheno-Ranker</button>' : ""}
           ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
         `;
-        if (queryWorkflowHintEl) {
-          queryWorkflowHintEl.innerHTML = `<strong>Cohort ready:</strong> this query returned ${escapeHtml(String(patientIds.length))} IDs. Open it in Analysis to interpret the subgroup, compare it, or generate plots.`;
-        }
       }
 
       async function copyPatientIdsFromQuery() {
@@ -3271,7 +3374,6 @@
         queryActionsEl.innerHTML = "";
         latestQueryPatientIds = [];
         queryFollowupsEl.innerHTML = "";
-        queryExamplesPinnedOpen = false;
         queryTurns.push({ role: "user", prompt: question });
         queryTurns.push({
           role: "assistant",
@@ -3370,7 +3472,9 @@
         analysisRunBtnEl.disabled = true;
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = "Running analysis...";
-        analysisMetaEl.innerHTML = "";
+        if (analysisMetaEl) {
+          analysisMetaEl.innerHTML = "";
+        }
         const currentScope = analysisSelectedPatientIdsEl.value.trim();
         const compareScope = analysisCompareModeEl && analysisCompareModeEl.checked
           ? analysisCompareSelectedPatientIdsEl.value.trim()
@@ -3449,22 +3553,6 @@
         queryStatusEl.textContent = "Query thread cleared.";
       });
       analysisRunBtnEl.addEventListener("click", runAnalysis);
-      queryExamplesToggleBtnEl && queryExamplesToggleBtnEl.addEventListener("click", () => {
-        queryExamplesPinnedOpen = false;
-        renderQueryStarterPrompts();
-      });
-      queryComposerExamplesBtnEl && queryComposerExamplesBtnEl.addEventListener("click", () => {
-        const shouldOpen = !queryExamplesPinnedOpen;
-        queryExamplesPinnedOpen = shouldOpen;
-        renderQueryStarterPrompts();
-        if (shouldOpen && queryStarterPanelEl && !queryStarterPanelEl.hidden) {
-          queryStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      });
-      analysisExamplesToggleBtnEl && analysisExamplesToggleBtnEl.addEventListener("click", () => {
-        analysisExamplesPinnedOpen = false;
-        renderAnalysisStarterPrompts();
-      });
       analysisComposerExamplesBtnEl && analysisComposerExamplesBtnEl.addEventListener("click", () => {
         const shouldOpen = !analysisExamplesPinnedOpen;
         analysisExamplesPinnedOpen = shouldOpen;
@@ -3527,8 +3615,6 @@
           return;
         }
         questionEl.value = button.dataset.prompt;
-        queryExamplesPinnedOpen = false;
-        renderQueryStarterPrompts();
         questionEl.focus();
       });
       queryFollowupsEl.addEventListener("click", (event) => {

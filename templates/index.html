@@ -112,22 +112,21 @@
           <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
           <div id="queryMeta" class="query-meta"></div>
           <div id="lmStatus" class="section-note">LM Studio model: checking...</div>
-          <div id="queryWorkflowHint" class="workflow-hint">
-            <strong>Recommended flow:</strong> build or refine a cohort in Query, then open that cohort in Analysis for interpretation and plots.
-          </div>
           <div id="queryStarterPanel" class="query-starter-panel">
             <div class="query-starter-header">
               <div>
                 <label for="question">Ask a question</label>
                 <div class="section-note">Use Query to find cohorts, counts, and patient lists. Use Analysis to interpret a selected cohort.</div>
               </div>
-              <button id="queryExamplesToggleBtn" type="button" class="query-chip action">Hide starter prompts</button>
             </div>
             <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Cohort lookup</span> <span class="query-chip query-chip-planner badge">Mixed-filter planner</span> <span class="query-chip query-chip-llm badge">Narrative prompt</span></div>
             <div class="query-examples" id="queryExamples">
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients on the cohort">List all patients in the cohort</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients do not have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics?">How many patients take biologics?</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have Ulcerative Colitis but do not take Mesalamine?">UC patients not taking Mesalamine</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
@@ -139,8 +138,6 @@
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have more than 1 timepoint?">Which patients have more than 1 timepoint?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Prednisolone?">How many timepoints mention Prednisolone?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient 107">Show the timeline for patient 107</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients don't have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have Ulcerative Colitis but do not take Mesalamine?">UC patients not taking Mesalamine</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients have at least 2 timepoints with Prednisolone but do not have Crohn Disease?">2 Prednisolone timepoints without Crohn</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have at least 2 timepoints with Prednisolone and have Ulcerative Colitis?">2 Prednisolone timepoints with UC</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients had Prednisolone before Crohn Disease?">Prednisolone before Crohn</button>
@@ -175,13 +172,31 @@
             <div class="query-composer-header">
               <strong>Continue Query</strong>
               <div class="query-composer-actions">
-                <button id="queryComposerExamplesBtn" type="button" class="query-chip">Starter prompts</button>
-                <button id="queryClearBtn" type="button" class="query-chip">Clear thread</button>
+                <button id="queryClearBtn" type="button" class="query-chip">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18"></path>
+                      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path>
+                      <path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                      <path d="M10 11v6"></path>
+                      <path d="M14 11v6"></path>
+                    </svg>
+                  </span>
+                  <span>Clear thread</span>
+                </button>
               </div>
             </div>
             <div class="query-row">
               <textarea id="question">How many patients have Prednisolone?</textarea>
-              <button id="askBtn" type="button">Run query</button>
+              <button id="askBtn" type="button">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 2 11 13"></path>
+                    <path d="m22 2-7 20-4-9-9-4Z"></path>
+                  </svg>
+                </span>
+                <span>Run query</span>
+              </button>
             </div>
           </div>
         </div>
@@ -390,16 +405,16 @@
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span></summary>
               <div id="savedCohorts" class="empty">No saved cohorts yet.</div>
             </details>
-            <div id="analysisStatus" class="query-status">Use this tab for broader cohort interpretation and plot-driven analysis.</div>
-            <div id="analysisMeta" class="query-meta"></div>
-            <div id="analysisLmStatus" class="section-note">LM Studio model: checking...</div>
+            <div class="analysis-workspace-bar">
+              <div id="analysisStatus" class="analysis-workspace-status">Use this tab for broader cohort interpretation and plot-driven analysis.</div>
+              <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>
+            </div>
             <div id="analysisStarterPanel" class="analysis-starter-panel">
               <div class="analysis-starter-header">
                 <div>
                   <label for="analysisPrompt">Analysis</label>
                   <div class="section-note">Broader cohort interpretation grounded in DuckDB-backed summaries, with plots and LM commentary.</div>
                 </div>
-                <button id="analysisExamplesToggleBtn" type="button" class="query-chip action">Hide starter prompts</button>
               </div>
               <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">Comparison / scoped analysis</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
               <div class="query-examples" id="analysisExamples">

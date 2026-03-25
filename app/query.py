@@ -934,7 +934,12 @@ def _follow_up_suggestions(query: str) -> List[str]:
             "Show patient 107",
         ]
 
-    normalized_subject = re.sub(r"^(?:how many patients have|which patients have)\s+", "", text, flags=re.IGNORECASE).strip()
+    normalized_subject = re.sub(
+        r"^(?:how many patients (?:have|take|takes|are taking|receive|received|are on|use|used)|which patients (?:have|take|takes|are taking|receive|received|are on|use|used))\s+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
     normalized_subject = re.sub(r"^(?:what treatments are associated with|show the visits mentioning)\s+", "", normalized_subject, flags=re.IGNORECASE).strip()
     normalized_subject = normalized_subject.rstrip("?.").strip()
     subject = normalized_subject or text
@@ -951,7 +956,7 @@ def _follow_up_suggestions(query: str) -> List[str]:
             f"Which patients have {subject}?",
             f"What treatments are associated with {subject}?",
         ]
-    if any(keyword in lowered for keyword in ("medication", "drug", "treatment", "prednisolone", "infliximab")):
+    if any(keyword in lowered for keyword in ("medication", "drug", "treatment", "prednisolone", "infliximab", "take ", "takes ", "taking ", "receive ", "received ", "use ", "used ", " on ")):
         return [
             f"How many patients have {subject}?",
             f"Which patients have {subject}?",
@@ -1140,6 +1145,266 @@ def _lm_studio_context(data_dir: str, query: str, history: Optional[List[Dict[st
     return context
 
 
+def _extract_lm_response_text(response: Dict[str, Any]) -> Optional[str]:
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        content = "\n".join(parts).strip()
+
+    if not isinstance(content, str) or not content.strip():
+        return None
+    return _sanitize_lm_text(content)
+
+
+def _semantic_query_catalog(data_dir: str) -> Dict[str, Any]:
+    return {
+        "patient_count": len(_patient_inventory(data_dir)),
+        "supported_domains": ["disease", "treatment", "medication_count", "visit_count"],
+        "supported_outputs": ["count", "patient_list"],
+        "supported_logic": ["and", "or"],
+        "supported_string_operators": ["contains", "eq"],
+        "supported_numeric_operators": ["eq", "gt", "gte", "lt", "lte"],
+        "known_diseases": [item["disease"] for item in _disease_counts(data_dir)[:50]],
+        "known_treatments": [item["medication"] for item in _medication_counts(data_dir)[:50]],
+    }
+
+
+def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _validate_semantic_query_plan(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if plan.get("intent") != "cohort_query":
+        return None
+
+    output = plan.get("output")
+    logic = str(plan.get("logic", "and")).lower()
+    filters = plan.get("filters")
+    if output not in {"count", "patient_list"} or logic not in {"and", "or"} or not isinstance(filters, list) or not filters:
+        return None
+
+    validated_filters: List[Dict[str, Any]] = []
+    for item in filters[:6]:
+        if not isinstance(item, dict):
+            return None
+        domain = str(item.get("domain", "")).strip().lower()
+        operator = str(item.get("operator", "")).strip().lower()
+        negate = bool(item.get("negate", False))
+        if domain in {"disease", "treatment"}:
+            if operator not in {"contains", "eq"}:
+                return None
+            value = normalize_value(item.get("value"))
+            if not isinstance(value, str) or not value.strip():
+                return None
+            validated_filters.append(
+                {"domain": domain, "operator": operator, "value": value.strip(), "negate": negate}
+            )
+            continue
+        if domain in {"medication_count", "visit_count"}:
+            if operator not in {"eq", "gt", "gte", "lt", "lte"}:
+                return None
+            value = item.get("value")
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                return None
+            validated_filters.append(
+                {"domain": domain, "operator": operator, "value": int(value), "negate": negate}
+            )
+            continue
+        return None
+
+    if not validated_filters:
+        return None
+
+    return {"intent": "cohort_query", "output": output, "logic": logic, "filters": validated_filters}
+
+
+def _semantic_filter_matches(row: Dict[str, Any], condition: Dict[str, Any]) -> bool:
+    domain = condition["domain"]
+    operator = condition["operator"]
+    value = condition["value"]
+
+    if domain == "disease":
+        labels = [str(item) for item in row.get("diseases", [])]
+        matched = any(
+            value.lower() == label.lower() if operator == "eq" else value.lower() in label.lower()
+            for label in labels
+        )
+    elif domain == "treatment":
+        labels = [str(item) for item in row.get("medications", [])]
+        matched = any(
+            value.lower() == label.lower() if operator == "eq" else value.lower() in label.lower()
+            for label in labels
+        )
+    elif domain == "medication_count":
+        matched = _matches_numeric_constraint(int(row.get("medication_count", 0)), operator, int(value))
+    else:
+        matched = _matches_numeric_constraint(int(row.get("visit_count", 0)), operator, int(value))
+
+    return not matched if condition.get("negate") else matched
+
+
+def _semantic_condition_label(condition: Dict[str, Any]) -> str:
+    domain = condition["domain"]
+    operator = condition["operator"]
+    value = condition["value"]
+    negate = condition.get("negate", False)
+
+    if domain == "disease":
+        return ("does not have disease '%s'" if negate else "has disease '%s'") % value
+    if domain == "treatment":
+        return ("does not take '%s'" if negate else "takes '%s'") % value
+    if domain == "medication_count":
+        prefix = "does not have " if negate else "has "
+        return prefix + _format_medication_count_constraint(operator, int(value))
+    prefix = "does not have " if negate else "has "
+    return prefix + _format_visit_count_constraint(operator, int(value))
+
+
+def _semantic_query_follow_ups(plan: Dict[str, Any], filtered_rows: List[Dict[str, Any]]) -> List[str]:
+    first = plan["filters"][0]
+    if first["domain"] in {"disease", "treatment"}:
+        return _follow_up_suggestions(str(first["value"]))
+    if first["domain"] == "medication_count":
+        label = _format_medication_count_constraint(first["operator"], int(first["value"]))
+    else:
+        label = _format_visit_count_constraint(first["operator"], int(first["value"]))
+    return [
+        "How many patients have %s?" % label,
+        "Which patients have %s?" % label,
+        "Show patient %s" % (filtered_rows[0]["patient_id"] if filtered_rows else "107"),
+    ]
+
+
+def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any], model: str) -> Dict[str, Any]:
+    inventory = _patient_query_index(data_dir)
+    conditions = plan["filters"]
+    if plan["logic"] == "or":
+        filtered_rows = [row for row in inventory if any(_semantic_filter_matches(row, item) for item in conditions)]
+    else:
+        filtered_rows = [row for row in inventory if all(_semantic_filter_matches(row, item) for item in conditions)]
+
+    patient_ids = [row["patient_id"] for row in filtered_rows]
+    labels = [_semantic_condition_label(condition) for condition in conditions]
+    label_text = (" %s " % plan["logic"]).join(labels)
+
+    if plan["output"] == "count":
+        noun = "patient" if len(filtered_rows) == 1 else "patients"
+        reply = "%s %s match: %s." % (len(filtered_rows), noun, label_text)
+    else:
+        reply = "Patients matching %s: %s." % (label_text, ", ".join(patient_ids) if patient_ids else "none")
+
+    return {
+        "query": query,
+        "intent": "semantic_cohort_query",
+        "reply": reply,
+        "data": {
+            "patient_count": len(filtered_rows),
+            "patient_ids": patient_ids,
+            "patients": filtered_rows,
+            "semantic_plan": plan,
+            "execution": "deterministic",
+            "planner": {
+                "provider": "lm_studio",
+                "model": model,
+                "base_url": _lm_studio_base_url(),
+            },
+            "follow_up_suggestions": _semantic_query_follow_ups(plan, filtered_rows),
+        },
+    }
+
+
+def _semantic_query_plan(
+    data_dir: str,
+    query: str,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> Optional[Dict[str, Any]]:
+    if not _lm_studio_enabled():
+        return None
+
+    model = _resolve_lm_studio_model()
+    if model is None:
+        return None
+
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You translate clinician cohort questions into a constrained JSON plan. "
+                    "Return JSON only. Do not answer the question. "
+                    "If unsupported, return {\"intent\":\"unsupported\",\"reason\":\"...\"}. "
+                    "Supported schema: "
+                    "{\"intent\":\"cohort_query\",\"output\":\"count|patient_list\",\"logic\":\"and|or\","
+                    "\"filters\":[{\"domain\":\"disease|treatment|medication_count|visit_count\","
+                    "\"operator\":\"contains|eq|gt|gte|lt|lte\",\"value\":\"string or number\",\"negate\":false}]}. "
+                    "Use string operators only for disease/treatment and numeric operators only for medication_count/visit_count. "
+                    "If the question uses a category term such as biologics, expand it into explicit treatment filters using the known treatments in the catalog."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "Catalog JSON:\n%s\n\nQuestion: %s%s" % (
+                    json.dumps(_semantic_query_catalog(data_dir), ensure_ascii=True, separators=(",", ":")),
+                    query,
+                    (
+                        "\n\nRecent conversation history JSON:\n%s"
+                        % json.dumps(history[-4:], ensure_ascii=True, separators=(",", ":"))
+                    )
+                    if history
+                    else "",
+                ),
+            },
+        ],
+    }
+    try:
+        response = _http_json(
+            f"{_lm_studio_base_url()}/chat/completions",
+            payload,
+            log_kind="query_semantic_plan",
+        )
+    except (error.HTTPError, error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+
+    content = _extract_lm_response_text(response)
+    if content is None:
+        return None
+    parsed = _extract_json_object(content)
+    if not isinstance(parsed, dict):
+        return None
+    validated = _validate_semantic_query_plan(parsed)
+    if validated is None:
+        return None
+    return _execute_semantic_query_plan(data_dir, query, validated, model)
+
+
 def _lm_studio_reply(
     data_dir: str,
     query: str,
@@ -1230,41 +1495,18 @@ def _lm_studio_reply(
             },
         }
 
-    choices = response.get("choices")
-    if not isinstance(choices, list) or not choices:
+    cleaned_content = _extract_lm_response_text(response)
+    if cleaned_content is None:
         return {
             "query": query,
             "intent": "llm_error",
-            "reply": "LM Studio returned an unexpected response format.",
+            "reply": "LM Studio returned an unexpected or empty answer.",
             "data": {
                 "provider": "lm_studio",
                 "base_url": _lm_studio_base_url(),
                 "response": response,
             },
         }
-
-    message = choices[0].get("message", {})
-    content = message.get("content")
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        content = "\n".join(parts).strip()
-
-    if not isinstance(content, str) or not content.strip():
-        return {
-            "query": query,
-            "intent": "llm_error",
-            "reply": "LM Studio returned an empty answer.",
-            "data": {
-                "provider": "lm_studio",
-                "base_url": _lm_studio_base_url(),
-                "response": response,
-            },
-        }
-
-    cleaned_content = _sanitize_lm_text(content)
 
     return {
         "query": query,
@@ -1786,6 +2028,28 @@ def answer_query(
                 },
             }
 
+    select_take_match = re.search(
+        r"^(?:select|find|show|list)\s+patients?\s+(?:that|who)\s+(?:take|takes|are taking|receive|received|are on|on|use|used)\s+(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if select_take_match:
+        medication = select_take_match.group(1).strip(" ?.")
+        cohort = _medication_cohort(data_dir, medication)
+        patient_ids = [item["patient_id"] for item in cohort["patients"]]
+        return {
+            "query": query,
+            "intent": "medication_cohort",
+            "reply": "Patients matching medication query '%s': %s." % (
+                medication,
+                ", ".join(patient_ids) if patient_ids else "none",
+            ),
+            "data": {
+                **cohort,
+                "follow_up_suggestions": _follow_up_suggestions(medication),
+            },
+        }
+
     medication_match = re.search(
         r"(?:medication|drug|treatment)\s+(.+)",
         lowered,
@@ -1950,6 +2214,10 @@ def answer_query(
                 ],
             },
         }
+
+    semantic_fallback = _semantic_query_plan(data_dir, query, history=history)
+    if semantic_fallback is not None:
+        return semantic_fallback
 
     fallback = _lm_studio_reply(data_dir, query, history=history)
     if fallback is not None:
