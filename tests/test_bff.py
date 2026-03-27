@@ -5,6 +5,7 @@ from fastapi import HTTPException
 import app.analysis as analysis_module
 import app.cohorts as cohorts_module
 import app.query as query_module
+import app.query_store as query_store_module
 from app.bff import (
     build_patient_navigator,
     get_patient_context,
@@ -25,6 +26,9 @@ from app.query_store import (
     cohort_over_time_summary as store_cohort_over_time_summary,
     duckdb_available,
     medication_counts as store_medication_counts,
+    molecular_dataset_inventory as store_molecular_dataset_inventory,
+    molecular_expression_summary as store_molecular_expression_summary,
+    molecular_gene_inventory as store_molecular_gene_inventory,
     patient_inventory as store_patient_inventory,
     patient_visit_count_cohort as store_patient_visit_count_cohort,
 )
@@ -1117,6 +1121,58 @@ def test_query_semantic_planner_can_expand_biologics_category(tmp_path, monkeypa
     assert "Vedolizumab" in planner_message
 
 
+def test_query_planner_only_can_filter_patient_ids_by_substring(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P10:visit1", "event_date": "2024-01-01"},
+            {"id": "P210:visit1", "event_date": "2024-01-01"},
+            {"id": "P345:visit1", "event_date": "2024-01-01"},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        if log_kind == "query_semantic_plan":
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "cohort_query",
+                                    "output": "patient_list",
+                                    "logic": "and",
+                                    "filters": [
+                                        {"domain": "patient_id", "operator": "contains", "value": "10", "negate": False}
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "generic fallback"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "Tell me the list of patients with a 10 in the name",
+        query_mode="planner_only",
+    )
+
+    assert payload["intent"] == "semantic_cohort_query"
+    assert payload["data"]["patient_ids"] == ["P10", "P210"]
+    assert calls == ["query_semantic_plan"]
+
+
 def test_query_lists_patients_with_more_than_one_medication(tmp_path):
     write_json(
         tmp_path,
@@ -1722,3 +1778,180 @@ def test_query_store_supports_longitudinal_helpers(tmp_path):
 
     cohort = store_patient_visit_count_cohort(str(tmp_path), "gt", 1)
     assert [item["patient_id"] for item in cohort["patients"]] == ["700"]
+
+
+def test_query_store_ingests_molecular_count_matrices(tmp_path):
+    if not duckdb_available():
+        return
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002",
+                "ENSG00000111111;10;20",
+                "ENSG00000122222;30;40",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        inventory = store_molecular_dataset_inventory(str(tmp_path))
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert len(inventory) == 1
+    item = inventory[0]
+    assert item["dataset_name"] == "synthetic_transcriptome_raw_counts"
+    assert item["modality"] == "transcriptomics_raw_counts"
+    assert item["sample_count"] == 2
+    assert item["patient_count"] == 2
+    assert item["gene_count"] == 2
+    assert item["clinical_overlap_patient_count"] == 2
+    assert item["sample_ids"] == ["SYN001", "SYN002"]
+    assert item["patient_ids"] == ["SYN001", "SYN002"]
+    assert len(item["top_genes"]) == 2
+
+
+def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
+    if not duckdb_available():
+        return
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN003:baseline", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002;SYN003",
+                "ENSG00000111111;10;20;30",
+                "ENSG00000122222;7;8;9",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        inventory = store_molecular_dataset_inventory(str(tmp_path))
+        genes = store_molecular_gene_inventory(str(tmp_path), "synthetic_transcriptome_raw_counts", search="111")
+        payload = store_molecular_expression_summary(
+            str(tmp_path),
+            "synthetic_transcriptome_raw_counts",
+            "ENSG00000111111",
+            selected_patient_ids="SYN001,SYN002",
+            compare_selected_patient_ids="SYN003",
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert genes == ["ENSG00000111111"]
+    assert inventory[0]["clinical_overlap_patient_count"] == 3
+    assert inventory[0]["mean_total_counts_per_sample"] == 28
+    assert inventory[0]["mean_detected_genes_per_sample"] == 2
+    assert payload["scope_a"]["sample_count"] == 2
+    assert payload["scope_a"]["mean"] == 15
+    assert payload["scope_b"]["sample_count"] == 1
+    assert payload["scope_b"]["max"] == 30
+
+
+def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN003:baseline", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002;SYN003",
+                "ENSG00000169429;100;120;140",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        payload = analysis_module.analysis_llm_reply(
+            "Show expression of ENSG00000169429 in the current Analysis scope.",
+            str(tmp_path),
+            selected_patient_ids="SYN001,SYN002",
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_molecular_expression"
+    assert payload["data"]["source"] == "deterministic"
+    assert payload["data"]["context"]["mode"] == "molecular_expression"
+    assert payload["data"]["context"]["datasets"][0]["scope_a"]["sample_count"] == 2
+    assert "Molecular expression summary" in payload["reply"]
+
+
+def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN003:baseline", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002;SYN003",
+                "ENSG00000169429;100;120;140",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        payload = analysis_module.analysis_llm_reply(
+            "Compare expression of ENSG00000169429 between Cohort A and Cohort B.",
+            str(tmp_path),
+            selected_patient_ids="SYN001,SYN002",
+            compare_mode=True,
+            compare_selected_patient_ids="SYN003",
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_molecular_expression"
+    assert payload["data"]["context"]["compare_mode"] is True
+    assert payload["data"]["context"]["datasets"][0]["scope_b"]["sample_count"] == 1
+    assert "Cohort A and Cohort B" in payload["reply"]

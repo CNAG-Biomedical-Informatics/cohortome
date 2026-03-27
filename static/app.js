@@ -1,11 +1,13 @@
       const cohortTabBtnEl = document.getElementById("cohortTabBtn");
       const queryTabBtnEl = document.getElementById("queryTabBtn");
       const analysisTabBtnEl = document.getElementById("analysisTabBtn");
+      const molecularTabBtnEl = document.getElementById("molecularTabBtn");
       const phenoTabBtnEl = document.getElementById("phenoTabBtn");
       const tabHelperTextEl = document.getElementById("tabHelperText");
       const cohortTabEl = document.getElementById("cohortTab");
       const queryTabEl = document.getElementById("queryTab");
       const analysisTabEl = document.getElementById("analysisTab");
+      const molecularTabEl = document.getElementById("molecularTab");
       const phenoTabEl = document.getElementById("phenoTab");
       const contextDataDirEl = document.getElementById("contextDataDir");
       const contextCohortEl = document.getElementById("contextCohort");
@@ -37,6 +39,14 @@
       const analysisExamplesEl = document.getElementById("analysisExamples");
       const analysisStarterPanelEl = document.getElementById("analysisStarterPanel");
       const analysisComposerExamplesBtnEl = document.getElementById("analysisComposerExamplesBtn");
+      const molecularDashboardStatusEl = document.getElementById("molecularDashboardStatus");
+      const molecularDashboardCardsEl = document.getElementById("molecularDashboardCards");
+      const analysisMolecularDatasetListEl = document.getElementById("analysisMolecularDatasetList");
+      const analysisMolecularGeneEl = document.getElementById("analysisMolecularGene");
+      const analysisMolecularGenesEl = document.getElementById("analysisMolecularGenes");
+      const analysisMolecularRunBtnEl = document.getElementById("analysisMolecularRunBtn");
+      const analysisMolecularStatusEl = document.getElementById("analysisMolecularStatus");
+      const analysisMolecularResultEl = document.getElementById("analysisMolecularResult");
       const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
       const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
       const analysisCompareModeEl = document.getElementById("analysisCompareMode");
@@ -110,6 +120,8 @@
       };
       let selectedPatientId = null;
       let currentPatients = [];
+      let molecularDatasetsState = [];
+      let selectedMolecularDatasets = [];
       let queryInFlight = false;
       let queryHistory = [];
       let queryTurns = [];
@@ -140,13 +152,14 @@
       let phenoSelectedSavedCohortIds = [];
       let dashboardSummaryState = null;
       let savedCohorts = [];
-      const MAX_VISIBLE_EXAMPLES = 10;
+      const MAX_VISIBLE_EXAMPLES = 8;
       const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
       const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
       const TAB_HELPER_TEXT = {
         cohort: "Browse patients and orient yourself in the loaded dataset",
         query: "Build and refine cohorts (LLM-assisted, deterministic results)",
         analysis: "Interpret and compare cohorts (LLM-assisted insights)",
+        molecular: "Inspect loaded molecular datasets and run deterministic expression summaries",
         pheno: "Compare patients or cohorts and inspect similarity results",
       };
 
@@ -508,14 +521,17 @@
         const showCohort = tabName === "cohort";
         const showQuery = tabName === "query";
         const showAnalysis = tabName === "analysis";
+        const showMolecular = tabName === "molecular";
         const showPheno = tabName === "pheno";
         cohortTabBtnEl.classList.toggle("active", showCohort);
         queryTabBtnEl.classList.toggle("active", showQuery);
         analysisTabBtnEl.classList.toggle("active", showAnalysis);
+        molecularTabBtnEl.classList.toggle("active", showMolecular);
         phenoTabBtnEl.classList.toggle("active", showPheno);
         cohortTabEl.classList.toggle("active", showCohort);
         queryTabEl.classList.toggle("active", showQuery);
         analysisTabEl.classList.toggle("active", showAnalysis);
+        molecularTabEl.classList.toggle("active", showMolecular);
         phenoTabEl.classList.toggle("active", showPheno);
         try {
           window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
@@ -1002,6 +1018,7 @@
 
       function currentTabName() {
         if (phenoTabEl.classList.contains("active")) return "pheno";
+        if (molecularTabEl.classList.contains("active")) return "molecular";
         if (analysisTabEl.classList.contains("active")) return "analysis";
         if (queryTabEl.classList.contains("active")) return "query";
         return "cohort";
@@ -1036,6 +1053,25 @@
             return "Full cohort";
           }
           return `${ids.length} IDs in Analysis scope`;
+        }
+        if (tabName === "molecular") {
+          const ids = String(analysisSelectedPatientIdsEl.value || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          const compareIds = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          if (analysisCompareModeEl && analysisCompareModeEl.checked) {
+            const labelA = ids.length ? `${ids.length} in A` : "full cohort in A";
+            const labelB = compareIds.length ? `${compareIds.length} in B` : "full cohort in B";
+            return `${labelA} vs ${labelB}`;
+          }
+          if (!ids.length) {
+            return "Full cohort";
+          }
+          return `${ids.length} IDs in Molecular scope`;
         }
         return "Full cohort";
       }
@@ -1493,6 +1529,7 @@
         const labels = {
           analysis_deterministic: { label: "Cohort summary", title: "Deterministic cohort summary produced by the app." },
           analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
+          analysis_molecular_expression: { label: "Molecular expression", title: "Deterministic molecular expression summary across the loaded molecular datasets." },
           analysis_survival: { label: "Kaplan-Meier analysis", title: "Deterministic Kaplan-Meier survival analysis." },
           analysis_survival_compare: { label: "Kaplan-Meier comparison", title: "Deterministic Kaplan-Meier comparison between two cohorts." },
           analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
@@ -1683,8 +1720,24 @@
           }
           const context = turn.payload && turn.payload.data ? turn.payload.data.context : null;
           const notable = context && Array.isArray(context.notable_findings) ? context.notable_findings : [];
-          const source = context ? context.source : "unknown";
+          const source = context && typeof context.source === "string" && context.source.trim() ? context.source : "";
           const model = turn.payload && turn.payload.data ? turn.payload.data.model : "";
+          const contextParts = [];
+          if (source) {
+            contextParts.push(source);
+          }
+          if (context && context.mode === "molecular_expression") {
+            const datasetCount = Array.isArray(context.datasets) ? context.datasets.length : 0;
+            if (datasetCount) {
+              contextParts.push(`${datasetCount} molecular dataset${datasetCount === 1 ? "" : "s"}`);
+            }
+            if (context.gene_id) {
+              contextParts.push(`gene ${context.gene_id}`);
+            }
+          }
+          if (notable.length) {
+            contextParts.push(...notable);
+          }
           return `
             <article class="analysis-turn analysis-turn-assistant">
               <div class="analysis-turn-label">Analysis</div>
@@ -1692,9 +1745,11 @@
                 ${getAnalysisProvenanceChips(turn.payload).join("")}
               </div>
               <div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>
-              <div class="analysis-turn-context">
-                <p><strong>Context:</strong> ${escapeHtml(source)}${notable.length ? ` | ${escapeHtml(notable.join(" | "))}` : ""}</p>
-              </div>
+              ${contextParts.length ? `
+                <div class="analysis-turn-context">
+                  <p><strong>Context:</strong> ${escapeHtml(contextParts.join(" | "))}</p>
+                </div>
+              ` : ""}
               ${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context)}</div>` : ""}
               <details class="query-section">
                 <summary>Show analysis data</summary>
@@ -2472,6 +2527,7 @@
         analysisSelectedPatientIdsSummaryEl.textContent = ids.length
           ? `Scope: ${ids.length} IDs in scope.`
           : "Scope: full cohort.";
+        renderMolecularDashboardCards(molecularDatasetsState);
         renderGlobalContext();
         syncCurrentAnalysisSessionFromUi({ render: true });
       }
@@ -2487,8 +2543,297 @@
         analysisCompareSelectedPatientIdsSummaryEl.textContent = ids.length
           ? `Cohort B: ${ids.length} IDs in scope.`
           : "Cohort B: full cohort.";
+        renderMolecularDashboardCards(molecularDatasetsState);
         renderGlobalContext();
         syncCurrentAnalysisSessionFromUi({ render: true });
+      }
+
+      function renderMolecularScopeCard(scope) {
+        const mean = typeof scope.mean === "number" ? scope.mean.toFixed(1) : "n/a";
+        const median = typeof scope.median === "number" ? scope.median.toFixed(1) : "n/a";
+        const min = scope.min === null || scope.min === undefined ? "n/a" : String(scope.min);
+        const max = scope.max === null || scope.max === undefined ? "n/a" : String(scope.max);
+        const values = Array.isArray(scope.values) ? scope.values : [];
+        const preview = values.slice(0, 8).map((item) => (
+          `<tr><td>${escapeHtml(item.patient_id)}</td><td>${escapeHtml(item.sample_id)}</td><td>${escapeHtml(String(item.raw_count))}</td></tr>`
+        )).join("");
+        const more = values.length > 8
+          ? `<div class="section-note">Showing 8 of ${values.length} measurements.</div>`
+          : "";
+        return `
+          <div class="molecular-scope-card">
+            <h4>${escapeHtml(scope.label || "Scope")}</h4>
+            <div class="molecular-stats">
+              <span class="query-chip badge">Samples: ${escapeHtml(String(scope.sample_count || 0))}</span>
+              <span class="query-chip badge">Patients: ${escapeHtml(String(scope.patient_count || 0))}</span>
+              <span class="query-chip badge">Mean: ${escapeHtml(mean)}</span>
+              <span class="query-chip badge">Median: ${escapeHtml(median)}</span>
+              <span class="query-chip badge">Range: ${escapeHtml(min)} to ${escapeHtml(max)}</span>
+            </div>
+            ${values.length ? `
+              <div class="molecular-table-wrap">
+                <table class="molecular-table">
+                  <thead><tr><th>Patient</th><th>Sample</th><th>Raw count</th></tr></thead>
+                  <tbody>${preview}</tbody>
+                </table>
+              </div>
+              ${more}
+            ` : '<div class="empty">No molecular samples matched this scope for the selected gene.</div>'}
+          </div>
+        `;
+      }
+
+      function renderMolecularExpressionResult(payload) {
+        if (!analysisMolecularResultEl) {
+          return;
+        }
+        if (!payload) {
+          analysisMolecularResultEl.className = "molecular-result empty";
+          analysisMolecularResultEl.textContent = "No molecular expression summary yet.";
+          return;
+        }
+        const payloads = Array.isArray(payload) ? payload : [payload];
+        if (!payloads.length) {
+          analysisMolecularResultEl.className = "molecular-result empty";
+          analysisMolecularResultEl.textContent = "No molecular expression summary yet.";
+          return;
+        }
+        analysisMolecularResultEl.className = "molecular-result";
+        analysisMolecularResultEl.innerHTML = payloads.map((item) => {
+          const sections = [renderMolecularScopeCard(item.scope_a)];
+          if (item.scope_b) {
+            sections.push(renderMolecularScopeCard(item.scope_b));
+          }
+          return `
+            <div class="molecular-expression-card">
+              <div class="molecular-result-header">
+                <strong>${escapeHtml(item.gene_id)}</strong>
+                <span class="query-chip badge">${escapeHtml(item.dataset_name)}</span>
+              </div>
+              <div class="molecular-result-grid">${sections.join("")}</div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function selectedMolecularDatasetNames() {
+        return selectedMolecularDatasets.slice();
+      }
+
+      function renderMolecularDatasetSelector() {
+        if (!analysisMolecularDatasetListEl) {
+          return;
+        }
+        if (!molecularDatasetsState.length) {
+          analysisMolecularDatasetListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
+          return;
+        }
+        const selected = new Set(selectedMolecularDatasets);
+        analysisMolecularDatasetListEl.innerHTML = molecularDatasetsState.map((item) => `
+          <label class="molecular-dataset-option">
+            <input type="checkbox" value="${escapeHtml(item.dataset_name)}"${selected.has(item.dataset_name) ? " checked" : ""}>
+            <span>
+              <strong>${escapeHtml(item.dataset_name)}</strong>
+              <small>${escapeHtml(String(item.sample_count || 0))} samples, ${escapeHtml(String(item.gene_count || 0))} genes</small>
+            </span>
+          </label>
+        `).join("");
+      }
+
+      function syncSelectedMolecularDatasets() {
+        const available = new Set(molecularDatasetsState.map((item) => item.dataset_name));
+        selectedMolecularDatasets = selectedMolecularDatasets.filter((item) => available.has(item));
+        if (!selectedMolecularDatasets.length && molecularDatasetsState.length) {
+          selectedMolecularDatasets = molecularDatasetsState.map((item) => item.dataset_name);
+        }
+        renderMolecularDatasetSelector();
+      }
+
+      function currentMolecularScopeOverlap(patientIds) {
+        const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map((item) => String(item)));
+        const scopeA = String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const scopeB = String(analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value ? analysisCompareSelectedPatientIdsEl.value : "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const overlapA = scopeA.filter((item) => datasetPatientIds.has(item)).length;
+        const overlapB = scopeB.filter((item) => datasetPatientIds.has(item)).length;
+        return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
+      }
+
+      function renderMolecularDashboardCards(datasets) {
+        if (!molecularDashboardCardsEl) {
+          return;
+        }
+        if (!Array.isArray(datasets) || !datasets.length) {
+          molecularDashboardCardsEl.innerHTML = '<div class="empty">No molecular datasets loaded.</div>';
+          return;
+        }
+        molecularDashboardCardsEl.innerHTML = datasets.map((item) => {
+          const overlap = currentMolecularScopeOverlap(item.patient_ids);
+          const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
+          const topGenesMarkup = topGenes.length
+            ? topGenes.map((gene) => `<span class="molecular-gene-pill" title="Total raw count: ${escapeHtml(String(gene.total_raw_count))}">${escapeHtml(gene.gene_id)}</span>`).join("")
+            : '<span class="section-note">No top-gene summary available.</span>';
+          const overlapMarkup = overlap.scopeASize || overlap.scopeBSize
+            ? `
+              <div class="molecular-card-section">
+                <strong>Current Analysis scope</strong>
+                <div class="molecular-stats">
+                  <span class="query-chip badge">A overlap: ${escapeHtml(String(overlap.overlapA))} / ${escapeHtml(String(overlap.scopeASize || item.clinical_overlap_patient_count || 0))}</span>
+                  ${analysisCompareModeEl && analysisCompareModeEl.checked ? `<span class="query-chip badge">B overlap: ${escapeHtml(String(overlap.overlapB))} / ${escapeHtml(String(overlap.scopeBSize || item.clinical_overlap_patient_count || 0))}</span>` : ""}
+                </div>
+              </div>
+            `
+            : "";
+          return `
+            <article class="molecular-dashboard-card">
+              <div class="molecular-card-header">
+                <div>
+                  <div class="molecular-card-eyebrow">Loaded dataset</div>
+                  <strong class="molecular-card-title">${escapeHtml(item.dataset_name)}</strong>
+                </div>
+                <span class="query-chip badge">${escapeHtml(item.modality || "molecular")}</span>
+              </div>
+              <div class="molecular-kpi-grid">
+                <div class="molecular-kpi"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
+                <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
+                <div class="molecular-kpi"><span class="molecular-kpi-label">Genes</span><strong class="molecular-kpi-value">${escapeHtml(String(item.gene_count || 0))}</strong></div>
+                <div class="molecular-kpi"><span class="molecular-kpi-label">Clinical overlap</span><strong class="molecular-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
+              </div>
+              <div class="molecular-card-section">
+                <strong>Sample-level summary</strong>
+                <div class="molecular-summary-grid">
+                  <div class="molecular-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
+                  <div class="molecular-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
+                </div>
+              </div>
+              ${overlapMarkup}
+              <div class="molecular-card-section">
+                <strong>Top abundant genes</strong>
+                <div class="molecular-gene-list">${topGenesMarkup}</div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      async function loadMolecularGeneSuggestions() {
+        if (!analysisMolecularGenesEl) {
+          return;
+        }
+        const datasetNames = selectedMolecularDatasetNames();
+        if (!datasetNames.length) {
+          analysisMolecularGenesEl.innerHTML = "";
+          return;
+        }
+        const query = encodeURIComponent(String(analysisMolecularGeneEl && analysisMolecularGeneEl.value ? analysisMolecularGeneEl.value.trim() : ""));
+        const dataDir = encodeURIComponent(dataDirEl.value.trim());
+        try {
+          const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
+            const dataset = encodeURIComponent(datasetName);
+            const response = await fetch(`/molecular/genes?data_dir=${dataDir}&dataset_name=${dataset}&q=${query}&limit=50`);
+            if (!response.ok) {
+              throw new Error("Unable to load molecular genes.");
+            }
+            return response.json();
+          }));
+          const genes = Array.from(new Set(payloads.flatMap((payload) => Array.isArray(payload.genes) ? payload.genes : []))).sort();
+          analysisMolecularGenesEl.innerHTML = genes.map((geneId) => `<option value="${escapeHtml(geneId)}"></option>`).join("");
+        } catch (_error) {
+          analysisMolecularGenesEl.innerHTML = "";
+        }
+      }
+
+      async function loadMolecularDatasets() {
+        if (!analysisMolecularStatusEl || !molecularDashboardStatusEl) {
+          return;
+        }
+        const dataDir = encodeURIComponent(dataDirEl.value.trim());
+        analysisMolecularStatusEl.className = "query-status loading";
+        analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
+        molecularDashboardStatusEl.className = "query-status loading";
+        molecularDashboardStatusEl.textContent = "Checking molecular datasets...";
+        try {
+          const response = await fetch(`/molecular/datasets?data_dir=${dataDir}`);
+          if (!response.ok) {
+            throw new Error("Unable to load molecular datasets.");
+          }
+          const payload = await response.json();
+          const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
+          molecularDatasetsState = datasets;
+          syncSelectedMolecularDatasets();
+          renderMolecularDashboardCards(molecularDatasetsState);
+          if (!datasets.length) {
+            analysisMolecularStatusEl.className = "query-status";
+            analysisMolecularStatusEl.textContent = "No molecular datasets are currently available for quick expression checks.";
+            molecularDashboardStatusEl.className = "query-status";
+            molecularDashboardStatusEl.textContent = "No molecular datasets are currently available.";
+            renderMolecularExpressionResult(null);
+            return;
+          }
+          analysisMolecularStatusEl.className = "query-status";
+          analysisMolecularStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"} for quick expression checks.`;
+          molecularDashboardStatusEl.className = "query-status";
+          molecularDashboardStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"}.`;
+          await loadMolecularGeneSuggestions();
+        } catch (error) {
+          analysisMolecularStatusEl.className = "query-status";
+          analysisMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
+          molecularDashboardStatusEl.className = "query-status";
+          molecularDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
+          molecularDatasetsState = [];
+          selectedMolecularDatasets = [];
+          renderMolecularDatasetSelector();
+          renderMolecularDashboardCards(molecularDatasetsState);
+          renderMolecularExpressionResult(null);
+        }
+      }
+
+      async function runMolecularExpressionAnalysis() {
+        if (!analysisMolecularGeneEl || !analysisMolecularStatusEl) {
+          return;
+        }
+        const datasetNames = selectedMolecularDatasetNames();
+        const geneId = String(analysisMolecularGeneEl.value || "").trim();
+        if (!datasetNames.length || !geneId) {
+          analysisMolecularStatusEl.className = "query-status";
+          analysisMolecularStatusEl.textContent = "Choose at least one molecular dataset and a gene ID first.";
+          return;
+        }
+        analysisMolecularStatusEl.className = "query-status loading";
+        analysisMolecularStatusEl.textContent = "Fetching molecular expression summary...";
+        try {
+          const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
+            const response = await fetch("/molecular/expression", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                data_dir: dataDirEl.value.trim(),
+                dataset_name: datasetName,
+                gene_id: geneId,
+                selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
+                compare_selected_patient_ids: analysisCompareModeEl && analysisCompareModeEl.checked
+                  ? analysisCompareSelectedPatientIdsEl.value.trim()
+                  : "",
+              }),
+            });
+            if (!response.ok) {
+              throw new Error("Unable to fetch molecular expression.");
+            }
+            return response.json();
+          }));
+          renderMolecularExpressionResult(payloads);
+          analysisMolecularStatusEl.className = "query-status";
+          analysisMolecularStatusEl.textContent = `Expression summary ready for ${geneId} across ${datasetNames.length} dataset${datasetNames.length === 1 ? "" : "s"}.`;
+        } catch (error) {
+          renderMolecularExpressionResult(null);
+          analysisMolecularStatusEl.className = "query-status";
+          analysisMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to fetch molecular expression.";
+        }
       }
 
       function renderSelectedPatientIdsSummary() {
@@ -3413,6 +3758,7 @@
           prepareAnalysisSessionForDataDir(dataDirEl.value.trim());
           resetQueryWorkspace();
           await loadSavedCohorts();
+          await loadMolecularDatasets();
           await loadPhenoRankerPatientIds();
           const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
           if (!patientResponse.ok) {
@@ -3736,6 +4082,7 @@
       cohortTabBtnEl.addEventListener("click", () => setActiveTab("cohort"));
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
       analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
+      molecularTabBtnEl.addEventListener("click", () => setActiveTab("molecular"));
       phenoTabBtnEl.addEventListener("click", () => setActiveTab("pheno"));
       phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
       phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
@@ -3749,6 +4096,21 @@
       analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
       analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.addEventListener("input", renderAnalysisCompareScopeSummary);
       analysisPromptEl.addEventListener("input", () => syncCurrentAnalysisSessionFromUi({ render: true }));
+      analysisMolecularDatasetListEl && analysisMolecularDatasetListEl.addEventListener("change", (event) => {
+        const checkbox = event.target.closest('input[type="checkbox"]');
+        if (!checkbox) {
+          return;
+        }
+        const selected = Array.from(analysisMolecularDatasetListEl.querySelectorAll('input[type="checkbox"]:checked'))
+          .map((item) => item.value)
+          .filter(Boolean);
+        selectedMolecularDatasets = selected;
+        void loadMolecularGeneSuggestions();
+      });
+      analysisMolecularGeneEl && analysisMolecularGeneEl.addEventListener("input", () => {
+        void loadMolecularGeneSuggestions();
+      });
+      analysisMolecularRunBtnEl && analysisMolecularRunBtnEl.addEventListener("click", runMolecularExpressionAnalysis);
       initializeExampleToggle(queryExamplesEl);
       initializeExampleToggle(phenoExamplesEl);
       initializeExampleToggle(analysisExamplesEl);
@@ -3763,6 +4125,7 @@
       }
       window.__patientNavigatorLoadPatients = loadPatients;
       window.__patientNavigatorAskQuery = askQuery;
+      void loadMolecularDatasets();
       patientsEl.addEventListener("click", (event) => {
         const card = event.target.closest(".patient-card");
         if (!card || !patientsEl.contains(card)) {

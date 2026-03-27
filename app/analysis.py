@@ -18,6 +18,8 @@ from app.query_store import (
     disease_counts as store_disease_counts,
     duckdb_available,
     medication_counts as store_medication_counts,
+    molecular_dataset_inventory as store_molecular_dataset_inventory,
+    molecular_expression_summary as store_molecular_expression_summary,
     patient_query_index as store_patient_query_index,
 )
 
@@ -186,6 +188,54 @@ def _parse_trajectory_request(prompt: str) -> Dict[str, Any] | None:
             if measure_query:
                 return {"mode": "trajectory", "measure_query": measure_query}
     return None
+
+
+def _parse_molecular_expression_request(prompt: str) -> Dict[str, Any] | None:
+    lowered = prompt.lower()
+    if "expression" not in lowered:
+        return None
+    compare = any(token in lowered for token in ("compare expression", "expression between cohort a and cohort b"))
+    match = re.search(r"(?:show|compare)\s+expression\s+of\s+([A-Za-z0-9._-]+)", prompt, flags=re.IGNORECASE)
+    if not match:
+        match = re.search(r"expression\s+of\s+([A-Za-z0-9._-]+)", prompt, flags=re.IGNORECASE)
+    if not match:
+        return None
+    gene_id = match.group(1).strip(" .:")
+    if not gene_id:
+        return None
+    return {"gene_id": gene_id, "compare": compare}
+
+
+def molecular_expression_context(
+    data_dir: str,
+    gene_id: str,
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+) -> Dict[str, Any]:
+    datasets = store_molecular_dataset_inventory(data_dir)
+    if not datasets:
+        return {
+            "mode": "molecular_expression",
+            "gene_id": gene_id,
+            "datasets": [],
+            "error": "No molecular datasets are currently available.",
+        }
+    summaries = [
+        store_molecular_expression_summary(
+            data_dir,
+            item["dataset_name"],
+            gene_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+        )
+        for item in datasets
+    ]
+    return {
+        "mode": "molecular_expression",
+        "gene_id": gene_id,
+        "datasets": summaries,
+        "compare_mode": bool(compare_selected_patient_ids.strip()),
+    }
 
 
 def _median(values: List[float]) -> float | None:
@@ -965,6 +1015,38 @@ def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str,
 
 
 def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
+    if context.get("mode") == "molecular_expression":
+        if context.get("error"):
+            return str(context["error"])
+        datasets = [item for item in (context.get("datasets") or []) if isinstance(item, dict)]
+        if not datasets:
+            return f"No molecular expression summaries are available for {context.get('gene_id', 'the requested gene')}."
+        gene_id = context.get("gene_id", "the requested gene")
+        lines: List[str] = [f"{gene_id} was found in {len(datasets)} molecular dataset{'s' if len(datasets) != 1 else ''}."]
+        for item in datasets:
+            dataset_name = item.get("dataset_name", "dataset")
+            scope_a = item.get("scope_a", {}) if isinstance(item.get("scope_a"), dict) else {}
+            scope_b = item.get("scope_b", {}) if isinstance(item.get("scope_b"), dict) else {}
+            if context.get("compare_mode"):
+                lines.append(
+                    (
+                        f"In {dataset_name}, Cohort A has {scope_a.get('sample_count', 0)} samples "
+                        f"(mean {scope_a.get('mean', 'n/a')}, median {scope_a.get('median', 'n/a')}, "
+                        f"range {scope_a.get('min', 'n/a')} to {scope_a.get('max', 'n/a')}); "
+                        f"Cohort B has {scope_b.get('sample_count', 0)} samples "
+                        f"(mean {scope_b.get('mean', 'n/a')}, median {scope_b.get('median', 'n/a')}, "
+                        f"range {scope_b.get('min', 'n/a')} to {scope_b.get('max', 'n/a')})."
+                    )
+                )
+            else:
+                lines.append(
+                    (
+                        f"In {dataset_name}, {scope_a.get('sample_count', 0)} samples matched the current scope "
+                        f"(mean {scope_a.get('mean', 'n/a')}, median {scope_a.get('median', 'n/a')}, "
+                        f"range {scope_a.get('min', 'n/a')} to {scope_a.get('max', 'n/a')})."
+                    )
+                )
+        return " ".join(lines)
     if context.get("mode") in {"trajectory", "trajectory_response"}:
         if context.get("error"):
             available = context.get("available_measures") or []
@@ -1108,6 +1190,35 @@ def compare_survival_analysis_context(
 
 
 def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
+    if context.get("mode") == "molecular_expression":
+        return {
+            "mode": "molecular_expression",
+            "gene_id": context.get("gene_id"),
+            "compare_mode": context.get("compare_mode"),
+            "datasets": [
+                {
+                    "dataset_name": item.get("dataset_name"),
+                    "scope_a": {
+                        "sample_count": item.get("scope_a", {}).get("sample_count"),
+                        "patient_count": item.get("scope_a", {}).get("patient_count"),
+                        "min": item.get("scope_a", {}).get("min"),
+                        "median": item.get("scope_a", {}).get("median"),
+                        "mean": item.get("scope_a", {}).get("mean"),
+                        "max": item.get("scope_a", {}).get("max"),
+                    },
+                    "scope_b": {
+                        "sample_count": item.get("scope_b", {}).get("sample_count"),
+                        "patient_count": item.get("scope_b", {}).get("patient_count"),
+                        "min": item.get("scope_b", {}).get("min"),
+                        "median": item.get("scope_b", {}).get("median"),
+                        "mean": item.get("scope_b", {}).get("mean"),
+                        "max": item.get("scope_b", {}).get("max"),
+                    } if isinstance(item.get("scope_b"), dict) else None,
+                }
+                for item in (context.get("datasets") or [])[:8]
+                if isinstance(item, dict)
+            ],
+        }
     if context.get("mode") in {"trajectory_compare", "trajectory_compare_response"}:
         return {
             "mode": context.get("mode"),
@@ -1252,6 +1363,24 @@ def analysis_llm_reply(
     llm_only: bool = False,
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
+    molecular_request = _parse_molecular_expression_request(prompt)
+    if molecular_request is not None:
+        context = molecular_expression_context(
+            data_dir,
+            molecular_request["gene_id"],
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
+        )
+        return {
+            "intent": "analysis_molecular_expression",
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
     survival_request = _parse_survival_request(prompt)
     if survival_request is not None:
         if compare_mode:

@@ -34,6 +34,19 @@
           </span>
           <span>Cohort</span>
         </button>
+        <button id="molecularTabBtn" class="tab-btn" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 3v18"></path>
+              <path d="M18 3v18"></path>
+              <path d="M3 7h18"></path>
+              <path d="M3 17h18"></path>
+              <path d="M9 7v10"></path>
+              <path d="M15 7v10"></path>
+            </svg>
+          </span>
+          <span>Molecular</span>
+        </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -107,6 +120,42 @@
           </section>
       </section>
 
+      <section id="molecularTab" class="tab-panel">
+        <div class="controls">
+          <section class="molecular-hero">
+            <h2>Molecular</h2>
+            <div class="section-note">Overview of all loaded molecular datasets, their coverage, and basic transcriptomics-oriented summary statistics.</div>
+            <div class="molecular-hero-note">This tab is for orientation. Deeper clinical+molecular interpretation will stay in Analysis.</div>
+          </section>
+          <div id="molecularDashboardStatus" class="query-status molecular-status-strip">Checking molecular datasets...</div>
+          <div id="molecularDashboardCards" class="molecular-dashboard-grid">
+            <div class="empty">No molecular datasets loaded.</div>
+          </div>
+          <details class="query-section">
+            <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Quick expression check</span></span></summary>
+            <div class="section-note">A small deterministic lookup tool using the current Analysis scope. Real multimodal interpretation will stay in Analysis.</div>
+            <div class="molecular-grid" style="margin-top:12px;">
+              <div>
+                <label>Transcriptomics datasets</label>
+                <div id="analysisMolecularDatasetList" class="molecular-dataset-select">
+                  <div class="empty">No molecular dataset loaded</div>
+                </div>
+              </div>
+              <div>
+                <label for="analysisMolecularGene">Gene ID</label>
+                <input id="analysisMolecularGene" list="analysisMolecularGenes" placeholder="e.g. ENSG00000169429">
+                <datalist id="analysisMolecularGenes"></datalist>
+              </div>
+            </div>
+            <div class="query-row" style="margin-top:12px;">
+              <button id="analysisMolecularRunBtn" type="button">Show expression</button>
+            </div>
+            <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
+            <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
+          </details>
+        </div>
+      </section>
+
       <section id="queryTab" class="tab-panel">
         <div class="controls">
           <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
@@ -157,21 +206,29 @@
           <div id="queryThread" class="analysis-thread">
             <div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>
           </div>
-          <div class="query-section">
-            <h3>Latest Query Inspector</h3>
+          <details class="query-section">
+            <summary>Latest query details</summary>
             <div id="queryReply" class="is-hidden" aria-hidden="true">Ask about medications, diseases, or a patient timeline.</div>
             <div id="queryReason" class="empty">Run a query to see how the answer was produced.</div>
-            <div id="queryActions" class="query-actions" style="margin-top:12px;"></div>
             <div id="queryFollowups" class="query-followups"></div>
             <details id="queryDetails" class="query-section" style="margin-top:12px;">
               <summary>Show structured data</summary>
               <pre id="queryData"></pre>
             </details>
-          </div>
+          </details>
           <div class="query-composer">
             <div class="query-composer-header">
               <strong>Continue Query</strong>
               <div class="query-composer-actions">
+                <button id="queryPlannerBtn" type="button" class="query-chip query-chip-planner" title="Skip deterministic matching for the next query and use the semantic planner first.">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3Z"></path>
+                      <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"></path>
+                    </svg>
+                  </span>
+                  <span>Use semantic planner</span>
+                </button>
                 <button id="queryClearBtn" type="button" class="query-chip">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -419,11 +476,13 @@
               <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">LLM planned</span> <span class="query-chip query-chip-llm badge">LM interpretation</span></div>
               <div class="query-examples" id="analysisExamples">
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Summarize the main clinical patterns in this cohort and tell me what stands out.">Main cohort patterns</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Show expression of ENSG00000169429 in the current Analysis scope.">Expression of ENSG00000169429</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Analyze CRP response after infliximab.">Analyze CRP response after infliximab</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare inflammatory burden between these cohorts.">Compare inflammatory burden</button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B by disease burden, medication burden, and timepoint distribution.">Compare A vs B core profiles</button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret these cohort summaries like a clinician and summarize the main patterns and uncertainties.">Clinical interpretation</button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise cohort briefing for a clinician, including what stands out and what needs validation.">Clinician-facing cohort briefing</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the cohort profile and the observed molecular expression findings.">Clinical + molecular summary</button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare Cohort A and Cohort B like a clinical reviewer and summarize the main similarities, differences, and uncertainties.">Clinical review of A vs B</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="What stands out in treatment usage over time?">Treatment usage over time</button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this cohort.">Disease, medication, and visit burden</button>

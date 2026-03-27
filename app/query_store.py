@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -22,6 +23,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
+MOLECULAR_DATA_DIR = BASE_DIR / "data" / "molecular"
 
 
 def duckdb_available() -> bool:
@@ -60,6 +62,16 @@ def _store_paths(data_dir: str) -> Tuple[Path, Path]:
     return QUERY_STORE_DIR / f"{key}.duckdb", QUERY_STORE_DIR / f"{key}.meta.json"
 
 
+def _molecular_matrix_files() -> List[Path]:
+    if not MOLECULAR_DATA_DIR.exists() or not MOLECULAR_DATA_DIR.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(MOLECULAR_DATA_DIR.glob("*.csv"))
+        if path.is_file()
+    ]
+
+
 def _source_files_signature(data_dir: str) -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
     files = []
@@ -74,7 +86,54 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
             }
         )
-    return {"data_dir": str(resolved_dir), "files": files}
+    molecular_files = []
+    for path in _molecular_matrix_files():
+        stat = path.stat()
+        molecular_files.append(
+            {
+                "path": str(path),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    return {"data_dir": str(resolved_dir), "files": files, "molecular_files": molecular_files}
+
+
+def _detect_matrix_delimiter(header_line: str) -> str:
+    return ";" if header_line.count(";") >= header_line.count(",") else ","
+
+
+def _read_molecular_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, List[int]]]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        first_line = handle.readline()
+        if not first_line:
+            return path.stem, [], []
+        delimiter = _detect_matrix_delimiter(first_line)
+        handle.seek(0)
+        reader = csv.reader(handle, delimiter=delimiter)
+        try:
+            header = next(reader)
+        except StopIteration:
+            return path.stem, [], []
+        if len(header) < 2:
+            return path.stem, [], []
+        sample_ids = [str(item).strip() for item in header[1:] if str(item).strip()]
+        rows: List[Tuple[str, List[int]]] = []
+        for raw_row in reader:
+            if not raw_row:
+                continue
+            gene_id = str(raw_row[0]).strip()
+            if not gene_id:
+                continue
+            values: List[int] = []
+            for index, sample_id in enumerate(sample_ids, start=1):
+                token = raw_row[index].strip() if index < len(raw_row) else ""
+                try:
+                    values.append(int(float(token or "0")))
+                except ValueError:
+                    values.append(0)
+            rows.append((gene_id, values))
+        return path.stem, sample_ids, rows
 
 
 def _connect(data_dir: str):
@@ -164,6 +223,27 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             );
             """
         )
+        con.execute(
+            """
+            CREATE TABLE molecular_samples (
+                dataset_name TEXT,
+                sample_id TEXT,
+                patient_id TEXT,
+                modality TEXT
+            );
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE transcript_counts (
+                dataset_name TEXT,
+                sample_id TEXT,
+                patient_id TEXT,
+                gene_id TEXT,
+                raw_count BIGINT
+            );
+            """
+        )
 
         patient_stats: Dict[str, Dict[str, Any]] = {}
         patient_disease_rows: List[Tuple[str, str]] = []
@@ -171,6 +251,8 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         timepoint_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], Optional[str], str, int]] = []
         disease_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
         medication_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
+        molecular_sample_rows: List[Tuple[str, str, str, str]] = []
+        transcript_count_rows: List[Tuple[str, str, str, str, int]] = []
         seen_patient_diseases = set()
         seen_patient_medications = set()
 
@@ -250,6 +332,19 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                     )
                 )
 
+        seen_molecular_samples = set()
+        for matrix_path in _molecular_matrix_files():
+            dataset_name, sample_ids, rows = _read_molecular_matrix(matrix_path)
+            for sample_id in sample_ids:
+                patient_id = sample_id
+                key = (dataset_name, sample_id)
+                if key not in seen_molecular_samples:
+                    seen_molecular_samples.add(key)
+                    molecular_sample_rows.append((dataset_name, sample_id, patient_id, "transcriptomics_raw_counts"))
+            for gene_id, values in rows:
+                for sample_id, raw_count in zip(sample_ids, values):
+                    transcript_count_rows.append((dataset_name, sample_id, sample_id, gene_id, raw_count))
+
         patient_rows: List[Tuple[str, Optional[str], int, int, int, Optional[str], Optional[str], int]] = []
         for patient_id in sorted(patient_stats):
             stat = patient_stats[patient_id]
@@ -278,11 +373,19 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             con.executemany("INSERT INTO disease_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)", disease_event_rows)
         if medication_event_rows:
             con.executemany("INSERT INTO medication_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)", medication_event_rows)
+        if molecular_sample_rows:
+            con.executemany("INSERT INTO molecular_samples VALUES (?, ?, ?, ?)", molecular_sample_rows)
+        if transcript_count_rows:
+            con.executemany("INSERT INTO transcript_counts VALUES (?, ?, ?, ?, ?)", transcript_count_rows)
 
         con.execute("CREATE INDEX idx_patients_patient_id ON patients(patient_id)")
         con.execute("CREATE INDEX idx_timepoints_patient_id ON timepoints(patient_id)")
         con.execute("CREATE INDEX idx_disease_events_disease ON disease_events(disease)")
         con.execute("CREATE INDEX idx_medication_events_medication ON medication_events(medication)")
+        con.execute("CREATE INDEX idx_molecular_samples_sample_id ON molecular_samples(sample_id)")
+        con.execute("CREATE INDEX idx_molecular_samples_patient_id ON molecular_samples(patient_id)")
+        con.execute("CREATE INDEX idx_transcript_counts_gene_id ON transcript_counts(gene_id)")
+        con.execute("CREATE INDEX idx_transcript_counts_sample_id ON transcript_counts(sample_id)")
     finally:
         con.close()
 
@@ -297,6 +400,259 @@ def patient_inventory(data_dir: str) -> List[str]:
     finally:
         con.close()
     return [row[0] for row in rows]
+
+
+def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        rows = con.execute(
+            """
+            WITH sample_stats AS (
+                SELECT
+                    dataset_name,
+                    sample_id,
+                    patient_id,
+                    sum(raw_count) AS total_counts,
+                    sum(CASE WHEN raw_count > 0 THEN 1 ELSE 0 END) AS detected_gene_count
+                FROM transcript_counts
+                GROUP BY dataset_name, sample_id, patient_id
+            ),
+            dataset_stats AS (
+                SELECT
+                    dataset_name,
+                    count(DISTINCT sample_id) AS sample_count,
+                    count(DISTINCT patient_id) AS patient_count,
+                    avg(total_counts) AS mean_total_counts_per_sample,
+                    avg(detected_gene_count) AS mean_detected_genes_per_sample
+                FROM sample_stats
+                GROUP BY dataset_name
+            ),
+            gene_stats AS (
+                SELECT
+                    dataset_name,
+                    count(DISTINCT gene_id) AS gene_count
+                FROM transcript_counts
+                GROUP BY dataset_name
+            ),
+            overlap_stats AS (
+                SELECT
+                    s.dataset_name,
+                    count(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN s.patient_id END) AS clinical_overlap_patient_count
+                FROM molecular_samples AS s
+                LEFT JOIN patients AS p
+                    ON s.patient_id = p.patient_id
+                GROUP BY s.dataset_name
+            )
+            SELECT
+                s.dataset_name,
+                max(s.modality) AS modality,
+                max(ds.sample_count) AS sample_count,
+                max(ds.patient_count) AS patient_count,
+                max(gs.gene_count) AS gene_count,
+                max(os.clinical_overlap_patient_count) AS clinical_overlap_patient_count,
+                max(ds.mean_total_counts_per_sample) AS mean_total_counts_per_sample,
+                max(ds.mean_detected_genes_per_sample) AS mean_detected_genes_per_sample
+            FROM molecular_samples AS s
+            LEFT JOIN dataset_stats AS ds
+                ON s.dataset_name = ds.dataset_name
+            LEFT JOIN gene_stats AS gs
+                ON s.dataset_name = gs.dataset_name
+            LEFT JOIN overlap_stats AS os
+                ON s.dataset_name = os.dataset_name
+            GROUP BY s.dataset_name
+            ORDER BY s.dataset_name
+            """
+        ).fetchall()
+        dataset_names = [str(row[0]) for row in rows]
+        sample_ids_map = {
+            dataset_name: list(values or [])
+            for dataset_name, values in con.execute(
+                """
+                SELECT dataset_name, list(sample_id ORDER BY sample_id)
+                FROM molecular_samples
+                GROUP BY dataset_name
+                """
+            ).fetchall()
+        }
+        patient_ids_map = {
+            dataset_name: list(values or [])
+            for dataset_name, values in con.execute(
+                """
+                SELECT dataset_name, list(DISTINCT patient_id ORDER BY patient_id)
+                FROM molecular_samples
+                GROUP BY dataset_name
+                """
+            ).fetchall()
+        }
+        top_genes_map: Dict[str, List[Dict[str, Any]]] = {}
+        for dataset_name in dataset_names:
+            top_rows = con.execute(
+                """
+                SELECT gene_id, sum(raw_count) AS total_raw_count
+                FROM transcript_counts
+                WHERE dataset_name = ?
+                GROUP BY gene_id
+                ORDER BY total_raw_count DESC, gene_id
+                LIMIT 5
+                """,
+                [dataset_name],
+            ).fetchall()
+            top_genes_map[dataset_name] = [
+                {"gene_id": str(gene_id), "total_raw_count": int(total_raw_count)}
+                for gene_id, total_raw_count in top_rows
+            ]
+    finally:
+        con.close()
+    return [
+        {
+            "dataset_name": dataset_name,
+            "modality": modality,
+            "sample_count": int(sample_count),
+            "patient_count": int(patient_count),
+            "gene_count": int(gene_count),
+            "clinical_overlap_patient_count": int(clinical_overlap_patient_count),
+            "mean_total_counts_per_sample": float(mean_total_counts_per_sample or 0),
+            "mean_detected_genes_per_sample": float(mean_detected_genes_per_sample or 0),
+            "sample_ids": list(sample_ids_map.get(dataset_name) or []),
+            "patient_ids": list(patient_ids_map.get(dataset_name) or []),
+            "top_genes": list(top_genes_map.get(dataset_name) or []),
+        }
+        for (
+            dataset_name,
+            modality,
+            sample_count,
+            patient_count,
+            gene_count,
+            clinical_overlap_patient_count,
+            mean_total_counts_per_sample,
+            mean_detected_genes_per_sample,
+        ) in rows
+    ]
+
+
+def molecular_gene_inventory(data_dir: str, dataset_name: str, search: str = "", limit: int = 50) -> List[str]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        if search.strip():
+            rows = con.execute(
+                """
+                SELECT DISTINCT gene_id
+                FROM transcript_counts
+                WHERE dataset_name = ? AND lower(gene_id) LIKE ?
+                ORDER BY gene_id
+                LIMIT ?
+                """,
+                [dataset_name, f"%{search.strip().lower()}%", int(limit)],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT DISTINCT gene_id
+                FROM transcript_counts
+                WHERE dataset_name = ?
+                ORDER BY gene_id
+                LIMIT ?
+                """,
+                [dataset_name, int(limit)],
+            ).fetchall()
+    finally:
+        con.close()
+    return [str(row[0]) for row in rows]
+
+
+def _parse_patient_scope(scope: str) -> List[str]:
+    return [item.strip() for item in str(scope or "").split(",") if item.strip()]
+
+
+def _expression_summary_rows(
+    con,
+    dataset_name: str,
+    gene_id: str,
+    patient_ids: List[str],
+) -> List[Tuple[str, str, int]]:
+    if patient_ids:
+        placeholders = ", ".join(["?"] * len(patient_ids))
+        return con.execute(
+            f"""
+            SELECT patient_id, sample_id, raw_count
+            FROM transcript_counts
+            WHERE dataset_name = ? AND gene_id = ? AND patient_id IN ({placeholders})
+            ORDER BY patient_id, sample_id
+            """,
+            [dataset_name, gene_id, *patient_ids],
+        ).fetchall()
+    return con.execute(
+        """
+        SELECT patient_id, sample_id, raw_count
+        FROM transcript_counts
+        WHERE dataset_name = ? AND gene_id = ?
+        ORDER BY patient_id, sample_id
+        """,
+        [dataset_name, gene_id],
+    ).fetchall()
+
+
+def _summarize_expression_rows(rows: List[Tuple[str, str, int]], label: str) -> Dict[str, Any]:
+    values = [int(row[2]) for row in rows]
+    if not values:
+        return {
+            "label": label,
+            "sample_count": 0,
+            "patient_count": 0,
+            "min": None,
+            "median": None,
+            "mean": None,
+            "max": None,
+            "values": [],
+        }
+    sorted_values = sorted(values)
+    middle = len(sorted_values) // 2
+    if len(sorted_values) % 2:
+        median = float(sorted_values[middle])
+    else:
+        median = (sorted_values[middle - 1] + sorted_values[middle]) / 2
+    mean = sum(sorted_values) / len(sorted_values)
+    return {
+        "label": label,
+        "sample_count": len(rows),
+        "patient_count": len({row[0] for row in rows}),
+        "min": sorted_values[0],
+        "median": median,
+        "mean": mean,
+        "max": sorted_values[-1],
+        "values": [
+            {"patient_id": str(patient_id), "sample_id": str(sample_id), "raw_count": int(raw_count)}
+            for patient_id, sample_id, raw_count in rows
+        ],
+    }
+
+
+def molecular_expression_summary(
+    data_dir: str,
+    dataset_name: str,
+    gene_id: str,
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+) -> Dict[str, Any]:
+    ensure_query_store(data_dir)
+    cohort_a_ids = _parse_patient_scope(selected_patient_ids)
+    cohort_b_ids = _parse_patient_scope(compare_selected_patient_ids)
+    con = _connect(data_dir)
+    try:
+        cohort_a_rows = _expression_summary_rows(con, dataset_name, gene_id, cohort_a_ids)
+        cohort_b_rows = _expression_summary_rows(con, dataset_name, gene_id, cohort_b_ids) if cohort_b_ids else []
+    finally:
+        con.close()
+    payload = {
+        "dataset_name": dataset_name,
+        "gene_id": gene_id,
+        "scope_a": _summarize_expression_rows(cohort_a_rows, "Cohort A" if cohort_b_ids else "Selected scope"),
+    }
+    if cohort_b_ids:
+        payload["scope_b"] = _summarize_expression_rows(cohort_b_rows, "Cohort B")
+    return payload
 
 
 def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:

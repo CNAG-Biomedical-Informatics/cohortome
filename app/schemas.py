@@ -16,6 +16,7 @@ class QueryTurn(BaseModel):
 class QueryRequest(BaseModel):
     q: str
     data_dir: str = DEFAULT_DATA_DIR
+    query_mode: str = "auto"
     history: List[QueryTurn] = Field(default_factory=list)
 
 
@@ -27,6 +28,14 @@ class AnalysisRequest(BaseModel):
     compare_selected_patient_ids: str = ""
     llm_only: bool = False
     history: List[QueryTurn] = Field(default_factory=list)
+
+
+class MolecularExpressionRequest(BaseModel):
+    dataset_name: str
+    gene_id: str
+    data_dir: str = DEFAULT_DATA_DIR
+    selected_patient_ids: str = ""
+    compare_selected_patient_ids: str = ""
 
 
 class AnalysisSessionRequest(BaseModel):

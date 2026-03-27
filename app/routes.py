@@ -33,10 +33,12 @@ from app.pheno import (
     plan_pheno_ranker,
     run_pheno_ranker,
 )
+from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_inventory
 from app.schemas import (
     AnalysisRequest,
     AnalysisSessionRenameRequest,
     AnalysisSessionRequest,
+    MolecularExpressionRequest,
     PhenoRankerPlanRequest,
     PhenoRankerRequest,
     QueryRequest,
@@ -166,6 +168,7 @@ def query_app_post(request: QueryRequest) -> Dict:
         return answer_query(
             request.data_dir,
             request.q,
+            query_mode=request.query_mode,
             history=[turn.model_dump() for turn in request.history],
         )
     except FileNotFoundError as exc:
@@ -182,6 +185,36 @@ def analysis_app(request: AnalysisRequest) -> Dict:
             compare_selected_patient_ids=request.compare_selected_patient_ids,
             llm_only=request.llm_only,
             history=[turn.model_dump() for turn in request.history],
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_molecular_datasets(data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+    try:
+        return {"datasets": molecular_dataset_inventory(data_dir)}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_molecular_genes(dataset_name: str, data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
+    try:
+        return {
+            "dataset_name": dataset_name,
+            "genes": molecular_gene_inventory(data_dir, dataset_name, search=q, limit=limit),
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_molecular_expression(request: MolecularExpressionRequest) -> Dict:
+    try:
+        return molecular_expression_summary(
+            request.data_dir,
+            request.dataset_name,
+            request.gene_id,
+            selected_patient_ids=request.selected_patient_ids,
+            compare_selected_patient_ids=request.compare_selected_patient_ids,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -265,6 +298,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"])
     app.add_api_route("/query", query_app_post, methods=["POST"])
     app.add_api_route("/analysis", analysis_app, methods=["POST"])
+    app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"])
+    app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"])
+    app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"])
     app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"])
     app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"])
     app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"])
