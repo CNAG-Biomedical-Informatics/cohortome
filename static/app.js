@@ -1,14 +1,16 @@
-      const cohortTabBtnEl = document.getElementById("cohortTabBtn");
+      const dashboardTabBtnEl = document.getElementById("dashboardTabBtn");
       const queryTabBtnEl = document.getElementById("queryTabBtn");
       const analysisTabBtnEl = document.getElementById("analysisTabBtn");
-      const molecularTabBtnEl = document.getElementById("molecularTabBtn");
       const phenoTabBtnEl = document.getElementById("phenoTabBtn");
+      const dashboardClinicalBtnEl = document.getElementById("dashboardClinicalBtn");
+      const dashboardMolecularBtnEl = document.getElementById("dashboardMolecularBtn");
       const tabHelperTextEl = document.getElementById("tabHelperText");
-      const cohortTabEl = document.getElementById("cohortTab");
+      const dashboardTabEl = document.getElementById("dashboardTab");
       const queryTabEl = document.getElementById("queryTab");
       const analysisTabEl = document.getElementById("analysisTab");
-      const molecularTabEl = document.getElementById("molecularTab");
       const phenoTabEl = document.getElementById("phenoTab");
+      const dashboardClinicalPanelEl = document.getElementById("dashboardClinicalPanel");
+      const dashboardMolecularPanelEl = document.getElementById("dashboardMolecularPanel");
       const contextDataDirEl = document.getElementById("contextDataDir");
       const contextCohortEl = document.getElementById("contextCohort");
       const contextLmModelEl = document.getElementById("contextLmModel");
@@ -72,6 +74,7 @@
       const phenoPlanStatusEl = document.getElementById("phenoPlanStatus");
       const phenoPlanMetaEl = document.getElementById("phenoPlanMeta");
       const phenoLmStatusEl = document.getElementById("phenoLmStatus");
+      const phenoPlanDetailsEl = document.getElementById("phenoPlanDetails");
       const phenoPlanEl = document.getElementById("phenoPlan");
       const phenoPlanReasoningEl = document.getElementById("phenoPlanReasoning");
       const phenoReferenceFilesSummaryEl = document.getElementById("phenoReferenceFilesSummary");
@@ -154,17 +157,25 @@
       let savedCohorts = [];
       const MAX_VISIBLE_EXAMPLES = 8;
       const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
+      const DASHBOARD_SUBTAB_STORAGE_KEY = "patient-navigator.dashboard-subtab";
       const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
       const TAB_HELPER_TEXT = {
-        cohort: "Browse patients and orient yourself in the loaded dataset",
+        dashboard: "Browse the loaded clinical and molecular data",
         query: "Build and refine cohorts (LLM-assisted, deterministic results)",
         analysis: "Interpret and compare cohorts (LLM-assisted insights)",
-        molecular: "Inspect loaded molecular datasets and run deterministic expression summaries",
         pheno: "Compare patients or cohorts and inspect similarity results",
       };
 
+      let currentDashboardSubtab = "clinical";
+
       function renderTabHelperText(tabName) {
         if (!tabHelperTextEl) {
+          return;
+        }
+        if (tabName === "dashboard") {
+          tabHelperTextEl.textContent = currentDashboardSubtab === "molecular"
+            ? "Inspect loaded molecular datasets and quick transcriptomics summaries"
+            : "Browse patients and orient yourself in the loaded clinical dataset";
           return;
         }
         tabHelperTextEl.textContent = TAB_HELPER_TEXT[tabName] || "";
@@ -518,20 +529,17 @@
       }
 
       function setActiveTab(tabName) {
-        const showCohort = tabName === "cohort";
+        const showDashboard = tabName === "dashboard";
         const showQuery = tabName === "query";
         const showAnalysis = tabName === "analysis";
-        const showMolecular = tabName === "molecular";
         const showPheno = tabName === "pheno";
-        cohortTabBtnEl.classList.toggle("active", showCohort);
+        dashboardTabBtnEl.classList.toggle("active", showDashboard);
         queryTabBtnEl.classList.toggle("active", showQuery);
         analysisTabBtnEl.classList.toggle("active", showAnalysis);
-        molecularTabBtnEl.classList.toggle("active", showMolecular);
         phenoTabBtnEl.classList.toggle("active", showPheno);
-        cohortTabEl.classList.toggle("active", showCohort);
+        dashboardTabEl.classList.toggle("active", showDashboard);
         queryTabEl.classList.toggle("active", showQuery);
         analysisTabEl.classList.toggle("active", showAnalysis);
-        molecularTabEl.classList.toggle("active", showMolecular);
         phenoTabEl.classList.toggle("active", showPheno);
         try {
           window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
@@ -539,6 +547,22 @@
         }
         renderTabHelperText(tabName);
         renderGlobalContext();
+      }
+
+      function setDashboardSubtab(subtabName) {
+        currentDashboardSubtab = subtabName === "molecular" ? "molecular" : "clinical";
+        dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", currentDashboardSubtab === "clinical");
+        dashboardMolecularBtnEl && dashboardMolecularBtnEl.classList.toggle("active", currentDashboardSubtab === "molecular");
+        dashboardClinicalPanelEl && dashboardClinicalPanelEl.classList.toggle("active", currentDashboardSubtab === "clinical");
+        dashboardMolecularPanelEl && dashboardMolecularPanelEl.classList.toggle("active", currentDashboardSubtab === "molecular");
+        try {
+          window.localStorage.setItem(DASHBOARD_SUBTAB_STORAGE_KEY, currentDashboardSubtab);
+        } catch (_error) {
+        }
+        if (currentTabName() === "dashboard") {
+          renderTabHelperText("dashboard");
+          renderGlobalContext();
+        }
       }
 
       function formatNumber(value) {
@@ -1018,10 +1042,10 @@
 
       function currentTabName() {
         if (phenoTabEl.classList.contains("active")) return "pheno";
-        if (molecularTabEl.classList.contains("active")) return "molecular";
+        if (dashboardTabEl.classList.contains("active")) return "dashboard";
         if (analysisTabEl.classList.contains("active")) return "analysis";
         if (queryTabEl.classList.contains("active")) return "query";
-        return "cohort";
+        return "dashboard";
       }
 
       function summarizeScopeForTab(tabName) {
@@ -1054,7 +1078,7 @@
           }
           return `${ids.length} IDs in Analysis scope`;
         }
-        if (tabName === "molecular") {
+        if (tabName === "dashboard" && currentDashboardSubtab === "molecular") {
           const ids = String(analysisSelectedPatientIdsEl.value || "")
             .split(",")
             .map((item) => item.trim())
@@ -1530,6 +1554,7 @@
           analysis_deterministic: { label: "Cohort summary", title: "Deterministic cohort summary produced by the app." },
           analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
           analysis_molecular_expression: { label: "Molecular expression", title: "Deterministic molecular expression summary across the loaded molecular datasets." },
+          analysis_molecular_medication_compare: { label: "Molecular by medication", title: "Deterministic molecular comparison aligned to medication-specific datasets." },
           analysis_survival: { label: "Kaplan-Meier analysis", title: "Deterministic Kaplan-Meier survival analysis." },
           analysis_survival_compare: { label: "Kaplan-Meier comparison", title: "Deterministic Kaplan-Meier comparison between two cohorts." },
           analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
@@ -2672,6 +2697,15 @@
           molecularDashboardCardsEl.innerHTML = '<div class="empty">No molecular datasets loaded.</div>';
           return;
         }
+        const formatMolecularModality = (value) => {
+          const text = String(value || "molecular").trim();
+          if (!text) {
+            return "Molecular";
+          }
+          return text
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+        };
         molecularDashboardCardsEl.innerHTML = datasets.map((item) => {
           const overlap = currentMolecularScopeOverlap(item.patient_ids);
           const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
@@ -2696,7 +2730,7 @@
                   <div class="molecular-card-eyebrow">Loaded dataset</div>
                   <strong class="molecular-card-title">${escapeHtml(item.dataset_name)}</strong>
                 </div>
-                <span class="query-chip badge">${escapeHtml(item.modality || "molecular")}</span>
+                <span class="query-chip badge molecular-modality-badge">${escapeHtml(formatMolecularModality(item.modality))}</span>
               </div>
               <div class="molecular-kpi-grid">
                 <div class="molecular-kpi"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
@@ -3036,6 +3070,18 @@
         }
       }
 
+      function updatePhenoExplainActions() {
+        const canExplain = Boolean(phenoRunState && phenoRunState.jobId && phenoRunState.mode === "patient");
+        if (phenoExplainBtnEl) {
+          phenoExplainBtnEl.disabled = !canExplain;
+          phenoExplainBtnEl.title = canExplain ? "" : "Available after a patient-mode run.";
+        }
+        if (phenoExplainLlmBtnEl) {
+          phenoExplainLlmBtnEl.disabled = !canExplain;
+          phenoExplainLlmBtnEl.title = canExplain ? "" : "Available after a patient-mode run.";
+        }
+      }
+
       function renderPhenoNoPlanState(reasoning) {
         phenoPlanStatusEl.className = "pheno-status warning";
         phenoPlanStatusEl.textContent = "Planner did not find a runnable Pheno-Ranker request yet.";
@@ -3125,6 +3171,10 @@
         phenoPlanInFlight = true;
         phenoPlanBtnEl.disabled = true;
         phenoPlanRunBtnEl.disabled = true;
+        if (phenoPlanDetailsEl) {
+          phenoPlanDetailsEl.open = true;
+          phenoPlanDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
         phenoPlanStatusEl.className = "pheno-status loading";
         phenoPlanStatusEl.textContent = "Interpreting request...";
         renderPhenoPlanMeta("");
@@ -3650,6 +3700,7 @@
         phenoCommandEl.textContent = "Preparing command...";
         phenoFilesEl.innerHTML = '<div class="empty">Waiting for Pheno-Ranker outputs.</div>';
         phenoRunState = null;
+        updatePhenoExplainActions();
         phenoSelectedAlignmentKey = "";
         phenoTableState = null;
         phenoOutputDetailsEl.open = phenoModeEl.value === "patient";
@@ -3704,6 +3755,7 @@
             mode: payload.mode,
             alignmentAvailable: hasPhenoAlignmentFiles(payload.files),
           };
+          updatePhenoExplainActions();
           phenoOutputDetailsEl.open = payload.mode === "patient";
           phenoStatusEl.className = "pheno-status";
           phenoStatusEl.textContent = `Completed ${payload.mode} run ${payload.job_id}.`;
@@ -3739,6 +3791,7 @@
           stopPhenoRunProgressUpdates();
           phenoInFlight = false;
           phenoRunBtnEl.disabled = false;
+          updatePhenoExplainActions();
         }
       }
 
@@ -4079,11 +4132,12 @@
       analysisNewSessionBtnEl && analysisNewSessionBtnEl.addEventListener("click", () => {
         createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
       });
-      cohortTabBtnEl.addEventListener("click", () => setActiveTab("cohort"));
+      dashboardTabBtnEl.addEventListener("click", () => setActiveTab("dashboard"));
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
       analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
-      molecularTabBtnEl.addEventListener("click", () => setActiveTab("molecular"));
       phenoTabBtnEl.addEventListener("click", () => setActiveTab("pheno"));
+      dashboardClinicalBtnEl && dashboardClinicalBtnEl.addEventListener("click", () => setDashboardSubtab("clinical"));
+      dashboardMolecularBtnEl && dashboardMolecularBtnEl.addEventListener("click", () => setDashboardSubtab("molecular"));
       phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
       phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
       phenoRunBtnEl.addEventListener("click", runPhenoRanker);
@@ -4091,6 +4145,7 @@
       phenoExplainLlmBtnEl.addEventListener("click", explainPhenoResultsWithLlm);
       phenoModeEl.addEventListener("change", updatePhenoMode);
       phenoActionEl.addEventListener("change", updatePhenoMode);
+      updatePhenoExplainActions();
       phenoSelectedPatientIdsEl.addEventListener("input", renderSelectedPatientIdsSummary);
       analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
       analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
@@ -4116,10 +4171,23 @@
       initializeExampleToggle(analysisExamplesEl);
       renderQueryStarterPrompts();
       renderAnalysisStarterPrompts();
+      setDashboardSubtab(currentDashboardSubtab);
       try {
         const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
-        if (savedTab && ["cohort", "query", "analysis", "pheno"].includes(savedTab)) {
-          setActiveTab(savedTab);
+        const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
+        if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
+          setDashboardSubtab(savedDashboardSubtab);
+        }
+        if (savedTab && ["dashboard", "cohort", "molecular", "query", "analysis", "pheno"].includes(savedTab)) {
+          if (savedTab === "cohort") {
+            setDashboardSubtab("clinical");
+            setActiveTab("dashboard");
+          } else if (savedTab === "molecular") {
+            setDashboardSubtab("molecular");
+            setActiveTab("dashboard");
+          } else {
+            setActiveTab(savedTab);
+          }
         }
       } catch (_error) {
       }

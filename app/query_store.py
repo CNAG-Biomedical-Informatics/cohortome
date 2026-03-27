@@ -13,6 +13,7 @@ from app.bff import (
     extract_treatment_labels,
     normalize_value,
     read_bff_records,
+    resolve_project_data_dir,
 )
 
 try:
@@ -23,7 +24,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
-MOLECULAR_DATA_DIR = BASE_DIR / "data" / "molecular"
+MOLECULAR_DATA_DIR: Path | None = None
 
 
 def duckdb_available() -> bool:
@@ -62,12 +63,23 @@ def _store_paths(data_dir: str) -> Tuple[Path, Path]:
     return QUERY_STORE_DIR / f"{key}.duckdb", QUERY_STORE_DIR / f"{key}.meta.json"
 
 
-def _molecular_matrix_files() -> List[Path]:
-    if not MOLECULAR_DATA_DIR.exists() or not MOLECULAR_DATA_DIR.is_dir():
+def _resolve_molecular_data_dir(data_dir: str) -> Path | None:
+    if MOLECULAR_DATA_DIR is not None:
+        return Path(MOLECULAR_DATA_DIR).expanduser().resolve()
+    project_root = resolve_project_data_dir(data_dir)
+    candidate = project_root / "molecular"
+    if candidate.exists() and candidate.is_dir():
+        return candidate.resolve()
+    return None
+
+
+def _molecular_matrix_files(data_dir: str) -> List[Path]:
+    molecular_dir = _resolve_molecular_data_dir(data_dir)
+    if molecular_dir is None:
         return []
     return [
         path
-        for path in sorted(MOLECULAR_DATA_DIR.glob("*.csv"))
+        for path in sorted(molecular_dir.glob("*.csv"))
         if path.is_file()
     ]
 
@@ -87,7 +99,7 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
             }
         )
     molecular_files = []
-    for path in _molecular_matrix_files():
+    for path in _molecular_matrix_files(data_dir):
         stat = path.stat()
         molecular_files.append(
             {
@@ -134,6 +146,13 @@ def _read_molecular_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, 
                     values.append(0)
             rows.append((gene_id, values))
         return path.stem, sample_ids, rows
+
+
+def _patient_id_from_molecular_sample(sample_id: str) -> str:
+    value = str(sample_id).strip()
+    if ":" in value:
+        return value.split(":", 1)[0].strip() or value
+    return value
 
 
 def _connect(data_dir: str):
@@ -333,17 +352,17 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                 )
 
         seen_molecular_samples = set()
-        for matrix_path in _molecular_matrix_files():
+        for matrix_path in _molecular_matrix_files(data_dir):
             dataset_name, sample_ids, rows = _read_molecular_matrix(matrix_path)
             for sample_id in sample_ids:
-                patient_id = sample_id
+                patient_id = _patient_id_from_molecular_sample(sample_id)
                 key = (dataset_name, sample_id)
                 if key not in seen_molecular_samples:
                     seen_molecular_samples.add(key)
                     molecular_sample_rows.append((dataset_name, sample_id, patient_id, "transcriptomics_raw_counts"))
             for gene_id, values in rows:
                 for sample_id, raw_count in zip(sample_ids, values):
-                    transcript_count_rows.append((dataset_name, sample_id, sample_id, gene_id, raw_count))
+                    transcript_count_rows.append((dataset_name, sample_id, _patient_id_from_molecular_sample(sample_id), gene_id, raw_count))
 
         patient_rows: List[Tuple[str, Optional[str], int, int, int, Optional[str], Optional[str], int]] = []
         for patient_id in sorted(patient_stats):
@@ -653,6 +672,85 @@ def molecular_expression_summary(
     if cohort_b_ids:
         payload["scope_b"] = _summarize_expression_rows(cohort_b_rows, "Cohort B")
     return payload
+
+
+def molecular_dataset_gene_means(data_dir: str, dataset_name: str, limit: int = 20) -> List[Dict[str, Any]]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        rows = con.execute(
+            """
+            SELECT
+                gene_id,
+                avg(raw_count) AS mean_raw_count,
+                min(raw_count) AS min_raw_count,
+                max(raw_count) AS max_raw_count,
+                count(*) AS sample_count
+            FROM transcript_counts
+            WHERE dataset_name = ?
+            GROUP BY gene_id
+            ORDER BY mean_raw_count DESC, gene_id
+            LIMIT ?
+            """,
+            [dataset_name, int(limit)],
+        ).fetchall()
+    finally:
+        con.close()
+    return [
+        {
+            "gene_id": str(gene_id),
+            "mean_raw_count": float(mean_raw_count),
+            "min_raw_count": int(min_raw_count),
+            "max_raw_count": int(max_raw_count),
+            "sample_count": int(sample_count),
+        }
+        for gene_id, mean_raw_count, min_raw_count, max_raw_count, sample_count in rows
+    ]
+
+
+def molecular_dataset_pairwise_gene_differences(
+    data_dir: str,
+    dataset_a: str,
+    dataset_b: str,
+    limit: int = 12,
+) -> List[Dict[str, Any]]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        rows = con.execute(
+            """
+            WITH dataset_means AS (
+                SELECT dataset_name, gene_id, avg(raw_count) AS mean_raw_count
+                FROM transcript_counts
+                WHERE dataset_name IN (?, ?)
+                GROUP BY dataset_name, gene_id
+            )
+            SELECT
+                a.gene_id,
+                a.mean_raw_count AS mean_a,
+                b.mean_raw_count AS mean_b,
+                abs(a.mean_raw_count - b.mean_raw_count) AS abs_delta
+            FROM dataset_means AS a
+            INNER JOIN dataset_means AS b
+                ON a.gene_id = b.gene_id
+            WHERE a.dataset_name = ? AND b.dataset_name = ?
+            ORDER BY abs_delta DESC, a.gene_id
+            LIMIT ?
+            """,
+            [dataset_a, dataset_b, dataset_a, dataset_b, int(limit)],
+        ).fetchall()
+    finally:
+        con.close()
+    return [
+        {
+            "gene_id": str(gene_id),
+            "mean_a": float(mean_a),
+            "mean_b": float(mean_b),
+            "abs_delta": float(abs_delta),
+            "dominant_dataset": dataset_a if float(mean_a) >= float(mean_b) else dataset_b,
+        }
+        for gene_id, mean_a, mean_b, abs_delta in rows
+    ]
 
 
 def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:

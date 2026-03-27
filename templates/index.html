@@ -23,7 +23,7 @@
       </div>
 
       <div class="tab-bar">
-        <button id="cohortTabBtn" class="tab-btn active" type="button">
+        <button id="dashboardTabBtn" class="tab-btn active" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -32,20 +32,7 @@
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </span>
-          <span>Cohort</span>
-        </button>
-        <button id="molecularTabBtn" class="tab-btn" type="button">
-          <span class="tab-btn-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 3v18"></path>
-              <path d="M18 3v18"></path>
-              <path d="M3 7h18"></path>
-              <path d="M3 17h18"></path>
-              <path d="M9 7v10"></path>
-              <path d="M15 7v10"></path>
-            </svg>
-          </span>
-          <span>Molecular</span>
+          <span>Dashboard</span>
         </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
@@ -88,72 +75,98 @@
         <div class="context-pill"><span>Scope</span><strong id="contextScope">Full cohort</strong></div>
       </div>
 
-      <section id="cohortTab" class="tab-panel active">
-        <div class="controls">
-          <label for="dataDir">Local data directory</label>
-          <input id="dataDir" value="{{ default_data_dir }}">
-          <button id="loadBtn" type="button">Load patients</button>
-          <div id="loadStatus" class="load-status">Choose a folder and click Load patients.</div>
+      <section id="dashboardTab" class="tab-panel active">
+        <div class="controls dashboard-loader">
+          <div class="dashboard-loader-row">
+            <label for="dataDir">Dataset</label>
+            <input id="dataDir" value="{{ default_data_dir }}">
+            <button id="loadBtn" type="button">Load dataset</button>
+          </div>
+          <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
         </div>
-
-          <section>
+        <div class="dashboard-subtabs">
+          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">Clinical</button>
+          <button id="dashboardMolecularBtn" type="button" class="dashboard-subtab">Molecular</button>
+        </div>
+        <section id="dashboardClinicalPanel" class="dashboard-subpanel active">
+          <div class="controls dashboard-panel-frame">
+            <section class="dashboard-hero dashboard-hero-clinical">
+              <h2>Clinical</h2>
+              <div class="section-note">Overview of the loaded clinical cohort, patient roster, and focused patient workspace.</div>
+              <div class="dashboard-hero-note">Use this view to understand what is loaded before building cohorts in Query or interpreting them in Analysis.</div>
+            </section>
             <div class="dashboard-shell">
-              <section>
-                <h2>Cohort</h2>
+              <section class="dashboard-section-card">
+                <div class="dashboard-section-header">
+                  <div>
+                    <div class="dashboard-card-eyebrow">Patient roster</div>
+                    <h3>Clinical patients</h3>
+                  </div>
+                </div>
                 <div class="section-note">Search and filter the patient list. The panel stays usable when the cohort grows.</div>
                 <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
                 <div id="patients" class="patient-list empty">No patients loaded.</div>
               </section>
-              <div>
-                <section>
-                  <h2>Dashboard</h2>
+              <div class="dashboard-section-stack">
+                <section class="dashboard-section-card">
+                  <div class="dashboard-section-header">
+                    <div>
+                      <div class="dashboard-card-eyebrow">Loaded overview</div>
+                      <h3>Clinical dashboard</h3>
+                    </div>
+                  </div>
                   <div class="section-note">Overview metrics and quick cohort patterns to orient large datasets before drilling into one patient.</div>
-                  <div id="dashboard" class="empty">Load patients to build the dashboard.</div>
+                  <div id="dashboard" class="empty">Load dataset to build the dashboard.</div>
                 </section>
-                <div class="detail-shell" style="margin-top:18px;">
-                  <h2>Patient Workspace</h2>
+                <div class="detail-shell dashboard-section-card">
+                  <div class="dashboard-section-header">
+                    <div>
+                      <div class="dashboard-card-eyebrow">Focused review</div>
+                      <h3>Patient workspace</h3>
+                    </div>
+                  </div>
                   <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
                   <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
                 </div>
               </div>
             </div>
-          </section>
-      </section>
-
-      <section id="molecularTab" class="tab-panel">
-        <div class="controls">
-          <section class="molecular-hero">
-            <h2>Molecular</h2>
-            <div class="section-note">Overview of all loaded molecular datasets, their coverage, and basic transcriptomics-oriented summary statistics.</div>
-            <div class="molecular-hero-note">This tab is for orientation. Deeper clinical+molecular interpretation will stay in Analysis.</div>
-          </section>
-          <div id="molecularDashboardStatus" class="query-status molecular-status-strip">Checking molecular datasets...</div>
-          <div id="molecularDashboardCards" class="molecular-dashboard-grid">
-            <div class="empty">No molecular datasets loaded.</div>
           </div>
-          <details class="query-section">
-            <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Quick expression check</span></span></summary>
-            <div class="section-note">A small deterministic lookup tool using the current Analysis scope. Real multimodal interpretation will stay in Analysis.</div>
-            <div class="molecular-grid" style="margin-top:12px;">
-              <div>
-                <label>Transcriptomics datasets</label>
-                <div id="analysisMolecularDatasetList" class="molecular-dataset-select">
-                  <div class="empty">No molecular dataset loaded</div>
+        </section>
+        <section id="dashboardMolecularPanel" class="dashboard-subpanel">
+          <div class="controls dashboard-panel-frame">
+            <section class="molecular-hero">
+              <h2>Molecular</h2>
+              <div class="section-note">Overview of all loaded molecular datasets, their coverage, and basic transcriptomics-oriented summary statistics.</div>
+              <div class="molecular-hero-note">This tab is for orientation. Deeper clinical+molecular interpretation will stay in Analysis.</div>
+            </section>
+            <div id="molecularDashboardStatus" class="query-status molecular-status-strip">Checking molecular datasets...</div>
+            <div id="molecularDashboardCards" class="molecular-dashboard-grid">
+              <div class="empty">No molecular datasets loaded.</div>
+            </div>
+            <details class="query-section">
+              <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Quick expression check</span></span></summary>
+              <div class="section-note">A small deterministic lookup tool using the current Analysis scope. Real multimodal interpretation will stay in Analysis.</div>
+              <div class="molecular-grid" style="margin-top:12px;">
+                <div>
+                  <label>Transcriptomics datasets</label>
+                  <div id="analysisMolecularDatasetList" class="molecular-dataset-select">
+                    <div class="empty">No molecular dataset loaded</div>
+                  </div>
+                </div>
+                <div>
+                  <label for="analysisMolecularGene">Gene ID</label>
+                  <input id="analysisMolecularGene" list="analysisMolecularGenes" placeholder="e.g. ENSG00000169429">
+                  <datalist id="analysisMolecularGenes"></datalist>
                 </div>
               </div>
-              <div>
-                <label for="analysisMolecularGene">Gene ID</label>
-                <input id="analysisMolecularGene" list="analysisMolecularGenes" placeholder="e.g. ENSG00000169429">
-                <datalist id="analysisMolecularGenes"></datalist>
+              <div class="query-row" style="margin-top:12px;">
+                <button id="analysisMolecularRunBtn" type="button">Show expression</button>
               </div>
-            </div>
-            <div class="query-row" style="margin-top:12px;">
-              <button id="analysisMolecularRunBtn" type="button">Show expression</button>
-            </div>
-            <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
-            <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
-          </details>
-        </div>
+              <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
+              <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
+            </details>
+          </div>
+        </section>
       </section>
 
       <section id="queryTab" class="tab-panel">
@@ -288,17 +301,18 @@
               <div id="phenoSavedCohortsSelection" class="section-note">No saved cohorts attached as separate references.</div>
               <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
             </details>
-            <div class="pheno-actions" style="margin-top:12px;">
-              <button id="phenoPlanBtn" type="button">Interpret request</button>
-              <button id="phenoPlanRunBtn" type="button">Interpret and run</button>
+            <div class="pheno-actions pheno-actions-primary" style="margin-top:12px;">
+              <button id="phenoPlanBtn" type="button" class="query-chip">Preview plan</button>
+              <button id="phenoRunBtn" type="button">Run Pheno-Ranker</button>
             </div>
+            <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
             <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
             <div id="phenoPlanMeta" class="query-meta"></div>
             <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
           </div>
           <div class="pheno-result-card">
-            <details>
-              <summary><h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V18h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 2z"></path></svg></span><span>Interpretation</span></h3></summary>
+            <details id="phenoPlanDetails">
+              <summary><h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V18h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 2z"></path></svg></span><span>Plan preview</span></h3></summary>
               <div class="pheno-interpretation-grid">
                 <div>
                   <h4>Interpreted Plan</h4>
@@ -371,15 +385,10 @@
               </div>
             </div>
           </details>
-          <div class="pheno-actions">
-            <button id="phenoRunBtn" type="button">Run Pheno-Ranker</button>
-            <button id="phenoExplainBtn" type="button">Explain results</button>
-            <button id="phenoExplainLlmBtn" type="button">Explain with LLM</button>
-          </div>
           <div id="phenoStatus" class="pheno-status">Choose a mode and run Pheno-Ranker.</div>
           <div id="phenoResultEmptyState" class="pheno-result-card pheno-empty-state">
             <strong>No run yet.</strong>
-            <div>Interpret a request or run Pheno-Ranker directly to reveal plots, output preview, explanations, and diagnostics.</div>
+            <div>Preview a plan or run Pheno-Ranker to reveal plots, output preview, explanations, and diagnostics.</div>
           </div>
           <div id="phenoResultWorkspace" class="is-hidden">
             <div class="pheno-result-grid">
@@ -390,7 +399,13 @@
             </div>
             <div class="pheno-result-grid">
               <div class="pheno-result-card pheno-result-card-full">
-                <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m19 5-14 14"></path><path d="m5 5 14 14"></path></svg></span><span>Explain Results</span></h3>
+                <div class="pheno-result-card-toolbar">
+                  <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m19 5-14 14"></path><path d="m5 5 14 14"></path></svg></span><span>Explain Results</span></h3>
+                  <div class="pheno-actions pheno-actions-secondary">
+                    <button id="phenoExplainBtn" type="button" class="query-chip">Explain results</button>
+                    <button id="phenoExplainLlmBtn" type="button" class="query-chip">Explain with LLM</button>
+                  </div>
+                </div>
                 <div id="phenoExplainDetail" class="empty">Run patient mode, then click <code>Explain results</code> to summarize the top matches from <code>rank.txt</code>.</div>
               </div>
             </div>
