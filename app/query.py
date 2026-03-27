@@ -11,6 +11,7 @@ from app.bff import (
     build_patient_navigator,
     dashboard_summary,
     ensure_data_dir,
+    extract_event_date,
     extract_treatment_labels,
     group_patients,
     list_patient_summaries,
@@ -381,7 +382,7 @@ def _cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
     undated = 0
     period_counts: Dict[str, Dict[str, Any]] = {}
     for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
-        date = normalize_value(record.get("event_date"))
+        date = normalize_value(extract_event_date(record))
         if isinstance(date, str) and date.strip():
             date = date.strip()
             dated.append(date)
@@ -1167,7 +1168,7 @@ def _extract_lm_response_text(response: Dict[str, Any]) -> Optional[str]:
 def _semantic_query_catalog(data_dir: str) -> Dict[str, Any]:
     return {
         "patient_count": len(_patient_inventory(data_dir)),
-        "supported_domains": ["disease", "treatment", "medication_count", "visit_count"],
+        "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
         "supported_outputs": ["count", "patient_list"],
         "supported_logic": ["and", "or"],
         "supported_string_operators": ["contains", "eq"],
@@ -1216,7 +1217,7 @@ def _validate_semantic_query_plan(plan: Dict[str, Any]) -> Optional[Dict[str, An
         domain = str(item.get("domain", "")).strip().lower()
         operator = str(item.get("operator", "")).strip().lower()
         negate = bool(item.get("negate", False))
-        if domain in {"disease", "treatment"}:
+        if domain in {"patient_id", "disease", "treatment"}:
             if operator not in {"contains", "eq"}:
                 return None
             value = normalize_value(item.get("value"))
@@ -1249,7 +1250,10 @@ def _semantic_filter_matches(row: Dict[str, Any], condition: Dict[str, Any]) -> 
     operator = condition["operator"]
     value = condition["value"]
 
-    if domain == "disease":
+    if domain == "patient_id":
+        patient_id = str(row.get("patient_id", ""))
+        matched = value.lower() == patient_id.lower() if operator == "eq" else value.lower() in patient_id.lower()
+    elif domain == "disease":
         labels = [str(item) for item in row.get("diseases", [])]
         matched = any(
             value.lower() == label.lower() if operator == "eq" else value.lower() in label.lower()
@@ -1275,6 +1279,8 @@ def _semantic_condition_label(condition: Dict[str, Any]) -> str:
     value = condition["value"]
     negate = condition.get("negate", False)
 
+    if domain == "patient_id":
+        return ("patient ID does not match '%s'" if negate else "patient ID matches '%s'") % value
     if domain == "disease":
         return ("does not have disease '%s'" if negate else "has disease '%s'") % value
     if domain == "treatment":
@@ -1288,7 +1294,7 @@ def _semantic_condition_label(condition: Dict[str, Any]) -> str:
 
 def _semantic_query_follow_ups(plan: Dict[str, Any], filtered_rows: List[Dict[str, Any]]) -> List[str]:
     first = plan["filters"][0]
-    if first["domain"] in {"disease", "treatment"}:
+    if first["domain"] in {"patient_id", "disease", "treatment"}:
         return _follow_up_suggestions(str(first["value"]))
     if first["domain"] == "medication_count":
         label = _format_medication_count_constraint(first["operator"], int(first["value"]))
@@ -1363,9 +1369,9 @@ def _semantic_query_plan(
                     "If unsupported, return {\"intent\":\"unsupported\",\"reason\":\"...\"}. "
                     "Supported schema: "
                     "{\"intent\":\"cohort_query\",\"output\":\"count|patient_list\",\"logic\":\"and|or\","
-                    "\"filters\":[{\"domain\":\"disease|treatment|medication_count|visit_count\","
+                    "\"filters\":[{\"domain\":\"patient_id|disease|treatment|medication_count|visit_count\","
                     "\"operator\":\"contains|eq|gt|gte|lt|lte\",\"value\":\"string or number\",\"negate\":false}]}. "
-                    "Use string operators only for disease/treatment and numeric operators only for medication_count/visit_count. "
+                    "Use string operators only for patient_id/disease/treatment and numeric operators only for medication_count/visit_count. "
                     "If the question uses a category term such as biologics, expand it into explicit treatment filters using the known treatments in the catalog."
                 ),
             },
@@ -1525,10 +1531,12 @@ def _lm_studio_reply(
 def answer_query(
     data_dir: str,
     query: str,
+    query_mode: str = "auto",
     history: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     text = query.strip()
     lowered = text.lower()
+    mode = str(query_mode or "auto").strip().lower()
 
     if not text:
         return {
@@ -1545,6 +1553,27 @@ def answer_query(
             "reply": (
                 "That prompt is too short to answer reliably. Try naming a patient, disease, medication, "
                 "or the cohort question you want to answer."
+            ),
+            "data": {
+                "follow_up_suggestions": _follow_up_suggestions(text),
+                "conversation_history": history[-8:] if history else [],
+            },
+        }
+
+    if mode in {"planner_only", "llm_only"}:
+        if mode == "planner_only":
+            semantic_fallback = _semantic_query_plan(data_dir, query, history=history)
+            if semantic_fallback is not None:
+                return semantic_fallback
+        fallback = _lm_studio_reply(data_dir, query, history=history)
+        if fallback is not None:
+            return fallback
+        return {
+            "query": query,
+            "intent": "unsupported",
+            "reply": (
+                "I could not answer that query with the current semantic planner or LM fallback. "
+                "Try rephrasing the filter more explicitly."
             ),
             "data": {
                 "follow_up_suggestions": _follow_up_suggestions(text),

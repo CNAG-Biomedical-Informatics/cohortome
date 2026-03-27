@@ -5,7 +5,7 @@ import re
 from datetime import date
 from typing import Any, Dict, List
 
-from app.bff import ensure_data_dir, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
+from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
 from app.lm import (
     http_json,
     lm_studio_base_url,
@@ -18,6 +18,8 @@ from app.query_store import (
     disease_counts as store_disease_counts,
     duckdb_available,
     medication_counts as store_medication_counts,
+    molecular_dataset_gene_means as store_molecular_dataset_gene_means,
+    molecular_dataset_pairwise_gene_differences as store_molecular_dataset_pairwise_gene_differences,
     molecular_dataset_inventory as store_molecular_dataset_inventory,
     molecular_expression_summary as store_molecular_expression_summary,
     patient_query_index as store_patient_query_index,
@@ -206,6 +208,64 @@ def _parse_molecular_expression_request(prompt: str) -> Dict[str, Any] | None:
     return {"gene_id": gene_id, "compare": compare}
 
 
+def _parse_molecular_medication_request(prompt: str) -> bool:
+    lowered = prompt.lower()
+    if "gene expression" not in lowered and "expression" not in lowered:
+        return False
+    return any(token in lowered for token in ("medication", "treatment", "drug", "biologic", "biologics"))
+
+
+def molecular_expression_by_medication_context(data_dir: str) -> Dict[str, Any]:
+    datasets = store_molecular_dataset_inventory(data_dir)
+    if len(datasets) < 2:
+        return {
+            "mode": "molecular_medication_compare",
+            "error": "At least two molecular datasets are required to compare gene expression by medication.",
+            "comparisons": [],
+        }
+    medication_items = store_medication_counts(data_dir)
+    medication_labels = [str(item.get("medication") or "") for item in medication_items if str(item.get("medication") or "").strip()]
+    normalized_to_label = {label.lower().replace(" ", ""): label for label in medication_labels}
+    matched: List[Dict[str, Any]] = []
+    for item in datasets:
+        dataset_name = str(item.get("dataset_name") or "")
+        normalized_name = dataset_name.lower().replace(" ", "").replace("_", "")
+        matched_label = None
+        for normalized_label, label in normalized_to_label.items():
+            if normalized_label and normalized_label in normalized_name:
+                matched_label = label
+                break
+        if matched_label:
+            matched.append({"medication": matched_label, "dataset": item})
+    if len(matched) < 2:
+        return {
+            "mode": "molecular_medication_compare",
+            "error": "No medication-aligned molecular datasets were found for deterministic comparison.",
+            "comparisons": [],
+        }
+    comparisons: List[Dict[str, Any]] = []
+    for left, right in zip(matched, matched[1:]):
+        left_dataset = left["dataset"]["dataset_name"]
+        right_dataset = right["dataset"]["dataset_name"]
+        top_differences = store_molecular_dataset_pairwise_gene_differences(data_dir, left_dataset, right_dataset, limit=8)
+        comparisons.append(
+            {
+                "medication_a": left["medication"],
+                "medication_b": right["medication"],
+                "dataset_a": left_dataset,
+                "dataset_b": right_dataset,
+                "top_genes_a": store_molecular_dataset_gene_means(data_dir, left_dataset, limit=5),
+                "top_genes_b": store_molecular_dataset_gene_means(data_dir, right_dataset, limit=5),
+                "top_differences": top_differences,
+            }
+        )
+    return {
+        "mode": "molecular_medication_compare",
+        "comparisons": comparisons,
+        "matched_datasets": matched,
+    }
+
+
 def molecular_expression_context(
     data_dir: str,
     gene_id: str,
@@ -267,7 +327,7 @@ def _build_trajectory_context(
         patient_id = extract_record_patient_id(record)
         if not patient_id:
             continue
-        event_date = _parse_iso_date(record.get("event_date") or record.get("date"))
+        event_date = _parse_iso_date(extract_event_date(record))
         if event_date is None:
             continue
         for treatment in extract_treatment_labels(record):
@@ -472,7 +532,7 @@ def survival_analysis_context(data_dir: str, measure_query: str, operator: str, 
         patient_id = extract_record_patient_id(record)
         if not patient_id:
             continue
-        event_date = _parse_iso_date(record.get("event_date") or record.get("date"))
+        event_date = _parse_iso_date(extract_event_date(record))
         if event_date is None:
             continue
         measures = record.get("measures")
@@ -923,7 +983,7 @@ def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str,
                 stat["medications"].add(label)
                 medication_patient_sets.setdefault(label, set()).add(patient_id)
 
-            event_date = normalize_value(record.get("event_date"))
+            event_date = normalize_value(extract_event_date(record))
             if isinstance(event_date, str) and event_date.strip():
                 event_date = event_date.strip()
                 dated_values.append(event_date)
@@ -1015,6 +1075,38 @@ def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str,
 
 
 def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
+    if context.get("mode") == "molecular_medication_compare":
+        if context.get("error"):
+            return str(context["error"])
+        comparisons = [item for item in (context.get("comparisons") or []) if isinstance(item, dict)]
+        if not comparisons:
+            return "No deterministic medication-based molecular comparison is available."
+        lines: List[str] = []
+        for item in comparisons:
+            top_difference = (item.get("top_differences") or [{}])[0]
+            top_gene_a = (item.get("top_genes_a") or [{}])[0]
+            top_gene_b = (item.get("top_genes_b") or [{}])[0]
+            if top_difference and top_difference.get("gene_id"):
+                lead_a = ""
+                if top_gene_a and top_gene_a.get("gene_id"):
+                    lead_a = f" {item.get('medication_a')} is led by {top_gene_a['gene_id']} (mean {top_gene_a.get('mean_raw_count', 0):.1f})."
+                lead_b = ""
+                if top_gene_b and top_gene_b.get("gene_id"):
+                    lead_b = f" {item.get('medication_b')} is led by {top_gene_b['gene_id']} (mean {top_gene_b.get('mean_raw_count', 0):.1f})."
+                lines.append(
+                    (
+                        f"Comparing {item.get('medication_a')} vs {item.get('medication_b')}, "
+                        f"the largest expression difference is {top_difference['gene_id']} "
+                        f"({item.get('medication_a')} mean {float(top_difference.get('mean_a', 0)):.1f}, "
+                        f"{item.get('medication_b')} mean {float(top_difference.get('mean_b', 0)):.1f})."
+                        f"{lead_a}{lead_b}"
+                    )
+                )
+            else:
+                lines.append(
+                    f"Comparing {item.get('medication_a')} vs {item.get('medication_b')}, no gene-level difference summary is available."
+                )
+        return " ".join(lines)
     if context.get("mode") == "molecular_expression":
         if context.get("error"):
             return str(context["error"])
@@ -1190,6 +1282,31 @@ def compare_survival_analysis_context(
 
 
 def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
+    if context.get("mode") == "molecular_medication_compare":
+        return {
+            "mode": "molecular_medication_compare",
+            "comparisons": [
+                {
+                    "medication_a": item.get("medication_a"),
+                    "medication_b": item.get("medication_b"),
+                    "dataset_a": item.get("dataset_a"),
+                    "dataset_b": item.get("dataset_b"),
+                    "top_differences": [
+                        {
+                            "gene_id": gene.get("gene_id"),
+                            "mean_a": gene.get("mean_a"),
+                            "mean_b": gene.get("mean_b"),
+                            "abs_delta": gene.get("abs_delta"),
+                            "dominant_dataset": gene.get("dominant_dataset"),
+                        }
+                        for gene in (item.get("top_differences") or [])[:8]
+                        if isinstance(gene, dict)
+                    ],
+                }
+                for item in (context.get("comparisons") or [])[:4]
+                if isinstance(item, dict)
+            ],
+        }
     if context.get("mode") == "molecular_expression":
         return {
             "mode": "molecular_expression",
@@ -1363,6 +1480,18 @@ def analysis_llm_reply(
     llm_only: bool = False,
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
+    if _parse_molecular_medication_request(prompt):
+        context = molecular_expression_by_medication_context(data_dir)
+        return {
+            "intent": "analysis_molecular_medication_compare",
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
     molecular_request = _parse_molecular_expression_request(prompt)
     if molecular_request is not None:
         context = molecular_expression_context(

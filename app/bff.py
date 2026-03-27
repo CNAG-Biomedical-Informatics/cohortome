@@ -100,6 +100,13 @@ def nested_get(source: Dict[str, Any], path: Sequence[str]) -> Optional[Any]:
     return normalize_value(value)
 
 
+def extract_event_date(record: Dict[str, Any]) -> Optional[Any]:
+    return select_first([
+        nested_get(record, ("info", "event_date")),
+        deep_get(record, DATE_KEYS),
+    ])
+
+
 def get_patient_node(record: Dict[str, Any]) -> Dict[str, Any]:
     for key in PATIENT_CONTAINER_KEYS:
         value = record.get(key)
@@ -463,7 +470,7 @@ def build_visit_context(path: Path, index: int, record: Dict[str, Any], patient_
     return VisitContext(
         visit_id=extract_visit_id(record, fallback=f"{patient_id}-visit-{index}"),
         patient_id=patient_id,
-        event_date=deep_get(record, DATE_KEYS),
+        event_date=extract_event_date(record),
         event_type=extract_event_type(record),
         age_at_visit=deep_get(record, AGE_KEYS) or deep_get(patient_node, AGE_KEYS),
         sex=extract_sex(record),
@@ -559,11 +566,23 @@ def summarize_patient(patient: PatientContext) -> PatientSummary:
     )
 
 
-def ensure_data_dir(data_dir: str) -> Path:
+def resolve_project_data_dir(data_dir: str) -> Path:
     path = Path(data_dir).expanduser().resolve()
     if not path.exists() or not path.is_dir():
         raise FileNotFoundError(f"Data directory does not exist: {path}")
     return path
+
+
+def ensure_data_dir(data_dir: str) -> Path:
+    path = resolve_project_data_dir(data_dir)
+    clinical_dir = path / "clinical"
+    if clinical_dir.exists() and clinical_dir.is_dir():
+        return clinical_dir.resolve()
+    if any(path.glob("*.json")):
+        return path
+    raise FileNotFoundError(
+        f"Clinical data directory does not exist under: {path}. Expected JSON files directly in the folder or under {clinical_dir}."
+    )
 
 
 def list_patient_summaries(data_dir: str) -> List[PatientSummary]:
