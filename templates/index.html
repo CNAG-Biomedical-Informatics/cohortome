@@ -283,11 +283,11 @@
             <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-llm badge">LM-based</span></div>
             <div class="query-examples" id="phenoExamples">
               <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare all patients by phenotypicFeatures and diseases">Compare all by phenotypes and diseases</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Find closest matches to Beacon_5 by disease">Find closest matches to Beacon_5 by disease</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare patient Beacon_7 to all others using phenotypicFeatures">Compare one patient to all</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Extract patients Beacon_1, Beacon_2, Beacon_3">Extract selected patients</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Find closest matches to SYN005:week_0 by disease">Find closest matches to SYN005:week_0 by disease</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare patient SYN007:week_0 to all others using phenotypicFeatures">Compare one patient to all</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Extract patients SYN001, SYN002, SYN003">Extract selected patients</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the selected patients by disease and explain the best matches">Compare selected patients by disease</button>
-              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Find the most relevant phenotypic matches for Beacon_12 and explain why they match">Explain why matches occur</button>
+              <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Find the most relevant phenotypic matches for SYN010 and explain why they match">Explain why matches occur</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare all patients using the most informative top-level terms and generate both plots">Use the most informative top-level terms</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the current scope and focus on the clinically most relevant similarities">Focus on clinically relevant similarities</button>
             </div>
@@ -393,7 +393,13 @@
           <div id="phenoResultWorkspace" class="is-hidden">
             <div class="pheno-result-grid">
               <div class="pheno-result-card pheno-result-card-full">
-                <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span><span>Plots</span></h3>
+                <div class="pheno-result-card-toolbar">
+                  <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span><span>Plots</span></h3>
+                  <div class="pheno-actions pheno-actions-secondary">
+                    <button id="phenoPlotAnalysisBtn" type="button" class="query-chip">Open selection in Analysis</button>
+                    <button id="phenoPlotCopyIdsBtn" type="button" class="query-chip">Copy selected IDs</button>
+                  </div>
+                </div>
                 <div id="phenoPreviews" class="pheno-preview-grid"></div>
               </div>
             </div>
@@ -402,6 +408,8 @@
                 <div class="pheno-result-card-toolbar">
                   <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m19 5-14 14"></path><path d="m5 5 14 14"></path></svg></span><span>Explain Results</span></h3>
                   <div class="pheno-actions pheno-actions-secondary">
+                    <button id="phenoAnalysisBtn" type="button" class="query-chip">Open matches in Analysis</button>
+                    <button id="phenoCopyIdsBtn" type="button" class="query-chip">Copy match IDs</button>
                     <button id="phenoExplainBtn" type="button" class="query-chip">Explain results</button>
                     <button id="phenoExplainLlmBtn" type="button" class="query-chip">Explain with LLM</button>
                   </div>
@@ -539,6 +547,7 @@
       </section>
     </main>
 
+        <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
         <script src="/static/app.js"></script>
 
   </body>

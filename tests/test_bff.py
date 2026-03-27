@@ -4,10 +4,12 @@ from fastapi import HTTPException
 
 import app.analysis as analysis_module
 import app.cohorts as cohorts_module
+import app.pheno as pheno_module
 import app.query as query_module
 import app.query_store as query_store_module
 from app.bff import (
     build_patient_navigator,
+    ensure_data_dir,
     get_patient_context,
     list_patient_summaries,
     medication_cohort,
@@ -38,6 +40,38 @@ def write_json(tmp_path, name, payload):
     path = tmp_path / name
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def test_ensure_data_dir_accepts_project_root_with_clinical_subdir(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(clinical_dir, "records.json", [{"id": "P1:baseline"}])
+
+    assert ensure_data_dir(str(tmp_path)) == clinical_dir.resolve()
+
+
+def test_pheno_plan_marks_unknown_patient_token_as_blocking(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = pheno_module.plan_pheno_ranker(
+        "Find closest matches to Beacon_5 by disease",
+        str(tmp_path),
+    )
+
+    assert payload["source"] == "deterministic"
+    assert payload["plan"]["mode"] == "patient"
+    assert payload["plan"]["patient_id"] == "Beacon_5"
+    assert payload["plan"]["invalid_patient_id"] == "Beacon_5"
+    assert "not present in the current Pheno-Ranker reference dataset" in " ".join(payload["reasoning"])
 
 
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
@@ -1913,7 +1947,7 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
     assert payload["data"]["source"] == "deterministic"
     assert payload["data"]["context"]["mode"] == "molecular_expression"
     assert payload["data"]["context"]["datasets"][0]["scope_a"]["sample_count"] == 2
-    assert "Molecular expression summary" in payload["reply"]
+    assert "ENSG00000169429 was found in 1 molecular dataset." in payload["reply"]
 
 
 def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp_path):
@@ -1954,4 +1988,55 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
     assert payload["intent"] == "analysis_molecular_expression"
     assert payload["data"]["context"]["compare_mode"] is True
     assert payload["data"]["context"]["datasets"][0]["scope_b"]["sample_count"] == 1
-    assert "Cohort A and Cohort B" in payload["reply"]
+    assert "Cohort A has 2 samples" in payload["reply"]
+
+
+def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01", "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01", "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN006:baseline", "event_date": "2024-01-01", "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}]},
+            {"id": "SYN007:baseline", "event_date": "2024-01-01", "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}]},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002",
+                "ENSG00000169429;1400;1300",
+                "ENSG00000170421;150;160",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (molecular_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN006;SYN007",
+                "ENSG00000169429;150;160",
+                "ENSG00000170421;1200;1250",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        payload = analysis_module.analysis_llm_reply(
+            "Explain differences in gene expression according to medication",
+            str(tmp_path),
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_molecular_medication_compare"
+    assert payload["data"]["context"]["mode"] == "molecular_medication_compare"
+    assert payload["data"]["context"]["comparisons"][0]["medication_a"] == "Infliximab"
+    assert payload["data"]["context"]["comparisons"][0]["medication_b"] == "Vedolizumab"
+    assert "largest expression difference is ENSG00000169429" in payload["reply"]

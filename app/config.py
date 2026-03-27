@@ -6,7 +6,8 @@ from typing import Any, Dict
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_DATA_DIR = str((BASE_DIR / "data").resolve())
+DATA_ROOT_DIR = BASE_DIR / "data"
+DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 
@@ -31,7 +32,7 @@ def branding_settings() -> Dict[str, Any]:
         "name": os.getenv("PN_BRAND_NAME", "3TR").strip() or "3TR",
         "subtitle": os.getenv(
             "PN_BRAND_SUBTITLE",
-            "Explore patient timelines, inspect visit evidence, and analyze private longitudinal cohort data.",
+            "Clinical and molecular cohort exploration.",
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
         "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "3TR logo").strip() or "3TR logo",

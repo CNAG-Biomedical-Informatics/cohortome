@@ -23,10 +23,10 @@ from app.lm import (
     sanitize_lm_text,
 )
 from pathlib import Path
+import numpy as np
 
 PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranker")
 PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
-PHENO_RANKER_R_DIR = PHENO_RANKER_DIR / "share" / "r"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
 JQ_BIN = shutil.which("jq") or "jq"
 
@@ -138,6 +138,17 @@ def available_patient_ids(data_dir: str, limit: int = 200) -> List[str]:
     return ids
 
 
+def available_reference_ids(data_dir: str, limit: int = 500) -> List[str]:
+    ids: List[str] = []
+    for record in load_pheno_ranker_records(data_dir):
+        record_id = record.get("id")
+        if isinstance(record_id, str) and record_id.strip() and record_id not in ids:
+            ids.append(record_id)
+            if len(ids) >= limit:
+                break
+    return ids
+
+
 def available_disease_labels(data_dir: str, limit: int = 50) -> List[str]:
     labels: List[str] = []
     for record in load_pheno_ranker_records(data_dir):
@@ -158,6 +169,17 @@ def extract_patient_ids_from_text(text: str, known_ids: List[str]) -> List[str]:
         if re.search(pattern, lowered):
             found.append(patient_id)
     return found
+
+
+def extract_patient_like_tokens_from_text(text: str) -> List[str]:
+    candidates: List[str] = []
+    seen = set()
+    for match in re.finditer(r"\b(?:beacon|syn)[_: -]?\d+(?::[A-Za-z0-9._-]+)?\b", text, flags=re.IGNORECASE):
+        token = match.group(0).strip().replace(" ", "_").replace("-", "_")
+        if token.lower() not in seen:
+            seen.add(token.lower())
+            candidates.append(token)
+    return candidates
 
 
 def extract_disease_filter_from_text(text: str, known_labels: List[str]) -> str:
@@ -238,9 +260,10 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
                 "Extract the selected patients",
             ],
         }
-    known_ids = available_patient_ids(data_dir)
+    known_ids = available_reference_ids(data_dir)
     known_diseases = available_disease_labels(data_dir)
     patient_ids = extract_patient_ids_from_text(text, known_ids)
+    patient_like_tokens = extract_patient_like_tokens_from_text(text)
     scope_patient_ids = split_terms(selected_patient_ids)
     disease_filter = extract_disease_filter_from_text(text, known_diseases)
 
@@ -294,13 +317,17 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
     has_implicit_single_patient_phrase = any(phrase in lowered for phrase in implicit_single_patient_phrases)
     single_patient_compare = action == "compare" and len(patient_ids) == 1 and not explicit_cohort
     patient_mode_without_id = action == "compare" and not patient_ids and has_implicit_single_patient_phrase and not explicit_cohort
-    mode = "patient" if (patient_ids and (has_patient_mode_phrase or single_patient_compare)) or patient_mode_without_id else "cohort"
+    mode = "patient" if ((patient_ids or patient_like_tokens) and (has_patient_mode_phrase or single_patient_compare)) or patient_mode_without_id else "cohort"
     patient_id = patient_ids[0] if mode == "patient" and patient_ids else ""
+    invalid_patient_id = ""
     selected_ids = patient_ids if mode != "patient" else []
     if not selected_ids and mode == "cohort" and scope_patient_ids:
         selected_ids = scope_patient_ids
     if mode == "patient" and not patient_id and len(scope_patient_ids) == 1:
         patient_id = scope_patient_ids[0]
+    if mode == "patient" and not patient_id and patient_like_tokens:
+        invalid_patient_id = patient_like_tokens[0]
+        patient_id = invalid_patient_id
 
     include_terms: List[str] = []
     exclude_terms: List[str] = []
@@ -358,7 +385,10 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
     if patient_mode_without_id:
         reasoning.append("Detected patient-mode intent, but no patient ID was provided. Select or provide one patient ID before running.")
     if patient_id:
-        reasoning.append(f"Detected target patient: {patient_id}.")
+        if invalid_patient_id:
+            reasoning.append(f"Detected target patient token {invalid_patient_id}, but it is not present in the current Pheno-Ranker reference dataset.")
+        else:
+            reasoning.append(f"Detected target patient: {patient_id}.")
     if selected_ids:
         reasoning.append(f"Detected scope from selected patient IDs: {', '.join(selected_ids)}.")
     elif scope_patient_ids:
@@ -375,6 +405,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
             "mode": mode,
             "data_dir": data_dir,
             "patient_id": patient_id,
+            "invalid_patient_id": invalid_patient_id,
             "selected_patient_ids": ",".join(selected_ids),
             "disease_filter": disease_filter,
             "include_terms": include_terms,
@@ -929,25 +960,6 @@ def explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
     }
 
 
-def run_plot_script(job_dir: Path, script_name: str) -> Dict[str, str]:
-    script_path = PHENO_RANKER_R_DIR / script_name
-    command = ["Rscript", str(script_path)]
-    proc = subprocess.run(
-        command,
-        cwd=job_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    write_step_logs(job_dir, f"plot_{Path(script_name).stem}", command, proc)
-    return {
-        "script": script_name,
-        "returncode": str(proc.returncode),
-        "stdout": proc.stdout.strip(),
-        "stderr": proc.stderr.strip(),
-    }
-
-
 def write_step_logs(job_dir: Path, step_name: str, command: List[str], proc: subprocess.CompletedProcess[str]) -> None:
     safe_step = re.sub(r"[^a-z0-9._-]+", "_", step_name.strip().lower()) or "step"
     (job_dir / f"{safe_step}.command.txt").write_text(" ".join(command), encoding="utf-8")
@@ -987,6 +999,56 @@ def serialize_pheno_result(
     }
 
 
+def generate_mds_points(matrix_path: Path) -> Dict[str, str]:
+    output_path = matrix_path.parent / "mds_points.tsv"
+    try:
+        with matrix_path.open("r", encoding="utf-8") as handle:
+            reader = csv.reader(handle, delimiter="\t")
+            rows = [row for row in reader if row]
+        if len(rows) < 2 or len(rows[0]) < 2:
+            raise ValueError("matrix.txt does not contain a square labeled matrix.")
+        labels = [row[0].strip() for row in rows[1:]]
+        matrix_rows = [[float(cell) for cell in row[1:]] for row in rows[1:]]
+        distances = np.asarray(matrix_rows, dtype=float)
+        if distances.shape[0] != distances.shape[1]:
+            raise ValueError("matrix.txt is not square, so MDS coordinates cannot be derived.")
+        count = distances.shape[0]
+        if count == 0:
+            raise ValueError("matrix.txt is empty.")
+        if count == 1:
+            coordinates = np.zeros((1, 2), dtype=float)
+        else:
+            squared = distances ** 2
+            identity = np.eye(count)
+            centering = identity - np.ones((count, count), dtype=float) / float(count)
+            gram = -0.5 * centering @ squared @ centering
+            eigenvalues, eigenvectors = np.linalg.eigh(gram)
+            order = np.argsort(eigenvalues)[::-1]
+            positive = [(float(eigenvalues[index]), eigenvectors[:, index]) for index in order if eigenvalues[index] > 0]
+            coordinates = np.zeros((count, 2), dtype=float)
+            for axis, (eigenvalue, eigenvector) in enumerate(positive[:2]):
+                coordinates[:, axis] = eigenvector * np.sqrt(eigenvalue)
+        with output_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, delimiter="\t")
+            writer.writerow(["record_id", "patient_id", "x", "y"])
+            for index, label in enumerate(labels):
+                patient_id = label.split(":", 1)[0]
+                writer.writerow([label, patient_id, f"{coordinates[index, 0]:.10f}", f"{coordinates[index, 1]:.10f}"])
+        return {
+            "script": "mds_points",
+            "returncode": "0",
+            "stdout": f"Wrote {output_path.name}",
+            "stderr": "",
+        }
+    except Exception as exc:
+        return {
+            "script": "mds_points",
+            "returncode": "1",
+            "stdout": "",
+            "stderr": str(exc),
+        }
+
+
 def jq_extract_records(reference_paths: List[Path], patient_ids: List[str], output_path: Path) -> tuple[List[str], subprocess.CompletedProcess[str], List[Dict]]:
     if not patient_ids:
         raise HTTPException(status_code=400, detail="At least one patient ID is required for scoped Pheno-Ranker extraction.")
@@ -994,7 +1056,7 @@ def jq_extract_records(reference_paths: List[Path], patient_ids: List[str], outp
     jq_filter = (
         "map(if type==\"array\" then . else [.] end) "
         "| flatten "
-        "| map(select(type==\"object\" and (((.patient_id // .id // \"\") as $candidate | ($ids | index($candidate))) != null)))"
+        "| map(select(type==\"object\" and (((.id // \"\") as $record_id | ($ids | index($record_id))) != null or ((.patient_id // \"\") as $patient_id | ($ids | index($patient_id))) != null)))"
     )
     command = [
         str(JQ_BIN),
@@ -1070,12 +1132,13 @@ def run_pheno_ranker(request: Any) -> Dict:
         if str(item or "").strip()
     ]
     patient_id = request.patient_id.strip()
-    valid_pheno_ids = set(available_patient_ids(request.data_dir, limit=100000))
+    valid_scope_ids = set(available_patient_ids(request.data_dir, limit=100000))
+    valid_target_ids = set(available_reference_ids(request.data_dir, limit=100000))
     selected_extract_command: List[str] | None = None
     selected_extract_proc: subprocess.CompletedProcess[str] | None = None
     saved_cohort_extract_commands: List[List[str]] = []
     saved_cohort_extract_procs: List[subprocess.CompletedProcess[str]] = []
-    invalid_scope_ids = [scope_id for scope_id in selected_ids if scope_id not in valid_pheno_ids]
+    invalid_scope_ids = [scope_id for scope_id in selected_ids if scope_id not in valid_scope_ids]
     if invalid_scope_ids:
         raise HTTPException(
             status_code=400,
@@ -1090,11 +1153,11 @@ def run_pheno_ranker(request: Any) -> Dict:
         elif len(selected_ids) > 1:
             raise HTTPException(status_code=400, detail="Patient mode expects exactly one patient in scope, or one explicit Patient ID.")
         selected_ids = []
-    if mode == "patient" and patient_id and patient_id not in valid_pheno_ids:
+    if mode == "patient" and patient_id and patient_id not in valid_target_ids:
         raise HTTPException(
             status_code=400,
             detail={
-                "message": "Patient ID does not exist in the current Pheno-Ranker reference dataset.",
+                "message": "Target record ID does not exist in the current Pheno-Ranker reference dataset.",
                 "invalid_patient_id": patient_id,
             },
         )
@@ -1166,13 +1229,27 @@ def run_pheno_ranker(request: Any) -> Dict:
             raise HTTPException(status_code=404, detail=f"Patient not found for Pheno-Ranker target mode: {patient_id}")
         target_path = job_dir / "target.json"
         extract_command, extract_proc, target_records = jq_extract_records(reference_paths, [patient_id], target_path)
-        if len(target_records) != 1:
+        matched_target_ids = {
+            extracted_id
+            for record in target_records
+            for extracted_id in [extract_record_patient_id(record)]
+            if isinstance(extracted_id, str) and extracted_id.strip()
+        }
+        matched_record_ids = {
+            record_id.strip()
+            for record in target_records
+            for record_id in [record.get("id")]
+            if isinstance(record_id, str) and record_id.strip()
+        }
+        if not target_records or (patient_id not in matched_record_ids and matched_target_ids != {patient_id}):
             raise HTTPException(
                 status_code=500,
                 detail={
-                    "message": "Target extraction did not resolve to exactly one patient.",
+                    "message": "Target extraction did not resolve cleanly to the requested patient.",
                     "patient_id": patient_id,
                     "matched_records": len(target_records),
+                    "matched_patient_ids": sorted(matched_target_ids),
+                    "matched_record_ids": sorted(matched_record_ids),
                     "command": " ".join(extract_command),
                 },
             )
@@ -1225,10 +1302,8 @@ def run_pheno_ranker(request: Any) -> Dict:
 
     plot_runs: List[Dict[str, str]] = []
     if mode == "cohort" and output_path.exists():
-        if request.render_heatmap:
-            plot_runs.append(run_plot_script(job_dir, "heatmap.R"))
         if request.render_mds:
-            plot_runs.append(run_plot_script(job_dir, "mds.R"))
+            plot_runs.append(generate_mds_points(output_path))
 
     pre_commands: List[str] = []
     pre_commands.extend(" ".join(item) for item in saved_cohort_extract_commands)
