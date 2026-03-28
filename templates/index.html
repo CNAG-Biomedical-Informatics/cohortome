@@ -308,6 +308,7 @@
             <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
             <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
             <div id="phenoPlanMeta" class="query-meta"></div>
+            <div id="phenoManualOverrideNote" class="pheno-manual-override-note is-hidden">Manual form changes are active. Run Pheno-Ranker will use the edited form values, not the last interpreted plan.</div>
             <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
           </div>
           <div class="pheno-result-card">
@@ -393,18 +394,12 @@
           <div id="phenoResultWorkspace" class="is-hidden">
             <div class="pheno-result-grid">
               <div class="pheno-result-card pheno-result-card-full">
-                <div class="pheno-result-card-toolbar">
-                  <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span><span>Plots</span></h3>
-                  <div class="pheno-actions pheno-actions-secondary">
-                    <button id="phenoPlotAnalysisBtn" type="button" class="query-chip">Open selection in Analysis</button>
-                    <button id="phenoPlotCopyIdsBtn" type="button" class="query-chip">Copy selected IDs</button>
-                  </div>
-                </div>
+                <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span><span>Plots</span></h3>
                 <div id="phenoPreviews" class="pheno-preview-grid"></div>
               </div>
             </div>
             <div class="pheno-result-grid">
-              <div class="pheno-result-card pheno-result-card-full">
+              <div id="phenoExplainCard" class="pheno-result-card pheno-result-card-full is-hidden">
                 <div class="pheno-result-card-toolbar">
                   <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m19 5-14 14"></path><path d="m5 5 14 14"></path></svg></span><span>Explain Results</span></h3>
                   <div class="pheno-actions pheno-actions-secondary">
@@ -424,7 +419,7 @@
                   <div id="phenoOutputPreview" class="empty">No output preview yet.</div>
                 </details>
               </div>
-              <div class="pheno-result-card">
+              <div id="phenoAlignmentCard" class="pheno-result-card is-hidden">
                 <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"></path><path d="m8 6-6 6 6 6"></path><path d="M14.5 4 9.5 20"></path></svg></span><span>Alignment Details</span></h3>
                 <div id="phenoAlignmentDetail" class="empty">Run patient mode, then click one row in <code>rank.txt</code> to inspect matched variables for that pair.</div>
               </div>

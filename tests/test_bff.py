@@ -74,6 +74,46 @@ def test_pheno_plan_marks_unknown_patient_token_as_blocking(tmp_path):
     assert "not present in the current Pheno-Ranker reference dataset" in " ".join(payload["reasoning"])
 
 
+def test_generate_mds_points_transforms_jaccard_similarity_to_distance(tmp_path):
+    hamming_matrix_path = tmp_path / "matrix_hamming.txt"
+    hamming_matrix_path.write_text(
+        "\tC1_SYN001:week_0\tC2_SYN002:week_0\n"
+        "C1_SYN001:week_0\t0.0\t0.8\n"
+        "C2_SYN002:week_0\t0.8\t0.0\n",
+        encoding="utf-8",
+    )
+    jaccard_matrix_path = tmp_path / "matrix_jaccard.txt"
+    jaccard_matrix_path.write_text(
+        "\tC1_SYN001:week_0\tC2_SYN002:week_0\n"
+        "C1_SYN001:week_0\t1.0\t0.8\n"
+        "C2_SYN002:week_0\t0.8\t1.0\n",
+        encoding="utf-8",
+    )
+
+    hamming_payload = pheno_module.generate_mds_points(hamming_matrix_path, "hamming")
+    hamming_rows = (tmp_path / "mds_points.tsv").read_text(encoding="utf-8").strip().splitlines()
+    hamming_values = [row.split("\t") for row in hamming_rows[1:]]
+    hamming_distance = (
+        (float(hamming_values[0][2]) - float(hamming_values[1][2])) ** 2
+        + (float(hamming_values[0][3]) - float(hamming_values[1][3])) ** 2
+    ) ** 0.5
+
+    jaccard_payload = pheno_module.generate_mds_points(jaccard_matrix_path, "jaccard")
+    jaccard_rows = (tmp_path / "mds_points.tsv").read_text(encoding="utf-8").strip().splitlines()
+    jaccard_values = [row.split("\t") for row in jaccard_rows[1:]]
+    jaccard_distance = (
+        (float(jaccard_values[0][2]) - float(jaccard_values[1][2])) ** 2
+        + (float(jaccard_values[0][3]) - float(jaccard_values[1][3])) ** 2
+    ) ** 0.5
+
+    assert hamming_payload["returncode"] == "0"
+    assert jaccard_payload["returncode"] == "0"
+    assert "hamming distance" in hamming_payload["stdout"].lower()
+    assert "jaccard distance" in jaccard_payload["stdout"].lower()
+    assert abs(hamming_distance - 0.8) < 1e-6
+    assert abs(jaccard_distance - 0.2) < 1e-6
+
+
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "SAVED_COHORTS_PATH", tmp_path / "saved-cohorts.json")
 

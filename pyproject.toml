@@ -19,6 +19,10 @@ test = [
   "pytest>=8.3,<9",
   "httpx>=0.28,<0.29",
 ]
+ui_test = [
+  "pytest>=8.3,<9",
+  "playwright>=1.52,<2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

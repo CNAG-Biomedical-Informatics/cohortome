@@ -7,6 +7,13 @@
         --accent: #2563eb;
         --accent-deep: #1d4ed8;
         --accent-soft: #dbeafe;
+        --handoff: #0f766e;
+        --handoff-deep: #115e59;
+        --handoff-soft: #ccfbf1;
+        --utility: #475569;
+        --utility-soft: #f1f5f9;
+        --warning: #b45309;
+        --warning-soft: #fef3c7;
         --teal-soft: #e0f2fe;
         --line: rgba(37, 99, 235, 0.12);
         --shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
@@ -384,6 +391,79 @@
         background: linear-gradient(135deg, var(--accent), var(--accent-deep));
         border: none;
       }
+      #loadBtn,
+      #askBtn,
+      #analysisRunBtn,
+      #phenoRunBtn {
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        color: white;
+        border: none;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+      }
+      #analysisMolecularRunBtn,
+      #phenoPlanBtn,
+      #queryPlannerBtn,
+      #analysisComposerExamplesBtn,
+      #phenoExplainBtn,
+      #phenoExplainLlmBtn,
+      [data-pheno-heatmap-mode],
+      [data-pheno-plot-action="copy"],
+      #phenoCopyIdsBtn,
+      [data-query-action="copy-ids"],
+      [data-saved-cohort-action="copy"] {
+        background: var(--utility-soft);
+        color: var(--utility);
+        border: 1px solid rgba(71, 85, 105, 0.18);
+        box-shadow: none;
+      }
+      #queryClearBtn,
+      [data-saved-cohort-action="delete"] {
+        background: rgba(254, 226, 226, 0.88);
+        color: #b91c1c;
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        box-shadow: none;
+      }
+      #phenoAnalysisBtn,
+      [data-pheno-plot-action="analysis"],
+      [data-query-action="use-analysis"],
+      [data-query-action="use-pheno"],
+      [data-saved-cohort-action="load-analysis"],
+      [data-saved-cohort-action="load-analysis-b"],
+      [data-saved-cohort-action="load-pheno"],
+      .query-actions .query-workflow-primary,
+      .query-chip.action.query-workflow-primary {
+        background: linear-gradient(135deg, var(--handoff), var(--handoff-deep));
+        color: white;
+        border: none;
+        box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
+      }
+      #queryPlannerBtn,
+      #phenoPlanBtn {
+        background: var(--warning-soft);
+        color: var(--warning);
+        border: 1px solid rgba(180, 83, 9, 0.16);
+      }
+      #analysisComposerExamplesBtn {
+        background: rgba(237, 233, 254, 0.82);
+        color: #6d28d9;
+        border: 1px solid rgba(109, 40, 217, 0.16);
+      }
+      #phenoExplainBtn {
+        background: rgba(254, 243, 199, 0.9);
+        color: #92400e;
+        border: 1px solid rgba(180, 83, 9, 0.18);
+      }
+      #phenoExplainLlmBtn {
+        background: rgba(237, 233, 254, 0.86);
+        color: #6d28d9;
+        border: 1px solid rgba(109, 40, 217, 0.18);
+      }
+      button:disabled,
+      .query-chip:disabled {
+        opacity: 0.58;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
       .query-section {
         padding: 16px 18px;
         border-radius: 18px;
@@ -669,6 +749,15 @@
       .pheno-status.warning {
         color: #b91c1c;
       }
+      .pheno-manual-override-note {
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(180, 83, 9, 0.18);
+        background: rgba(254, 243, 199, 0.78);
+        color: #92400e;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
       .pheno-actions {
         display: flex;
         align-items: center;
@@ -916,6 +1005,31 @@
       .pheno-preview-card strong {
         display: block;
         margin-bottom: 10px;
+      }
+      .pheno-cohort-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 10px;
+      }
+      .pheno-cohort-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--cohort-color) 28%, white);
+        background: color-mix(in srgb, var(--cohort-color) 10%, white);
+        color: var(--ink);
+        font-size: 0.84rem;
+        font-weight: 700;
+      }
+      .pheno-cohort-chip-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--cohort-color);
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
       }
       .pheno-mds-plot {
         width: 100%;

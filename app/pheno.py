@@ -973,6 +973,7 @@ def serialize_pheno_result(
     proc: subprocess.CompletedProcess[str],
     mode: str,
     plot_runs: List[Dict[str, str]],
+    similarity_metric_cohort: str = "",
     pre_commands: List[str] | None = None,
 ) -> Dict:
     files = []
@@ -996,10 +997,11 @@ def serialize_pheno_result(
         "stderr": proc.stderr,
         "plots": plot_runs,
         "files": files,
+        "similarity_metric_cohort": similarity_metric_cohort,
     }
 
 
-def generate_mds_points(matrix_path: Path) -> Dict[str, str]:
+def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "") -> Dict[str, str]:
     output_path = matrix_path.parent / "mds_points.tsv"
     try:
         with matrix_path.open("r", encoding="utf-8") as handle:
@@ -1015,6 +1017,10 @@ def generate_mds_points(matrix_path: Path) -> Dict[str, str]:
         count = distances.shape[0]
         if count == 0:
             raise ValueError("matrix.txt is empty.")
+        metric = normalize_pheno_metric(similarity_metric_cohort) or "hamming"
+        if metric == "jaccard":
+            distances = 1.0 - distances
+            np.fill_diagonal(distances, 0.0)
         if count == 1:
             coordinates = np.zeros((1, 2), dtype=float)
         else:
@@ -1037,7 +1043,7 @@ def generate_mds_points(matrix_path: Path) -> Dict[str, str]:
         return {
             "script": "mds_points",
             "returncode": "0",
-            "stdout": f"Wrote {output_path.name}",
+            "stdout": f"Wrote {output_path.name} using {metric} distance",
             "stderr": "",
         }
     except Exception as exc:
@@ -1275,6 +1281,7 @@ def run_pheno_ranker(request: Any) -> Dict:
     if sort_by:
         command.extend(["-sort-by", sort_by])
     similarity_metric = normalize_pheno_metric(request.similarity_metric_cohort)
+    effective_similarity_metric = similarity_metric if mode == "cohort" else ""
     if mode == "cohort" and similarity_metric:
         command.extend(["-similarity-metric-cohort", similarity_metric])
     if action == "compare" and mode == "patient" and request.max_out > 0:
@@ -1303,7 +1310,7 @@ def run_pheno_ranker(request: Any) -> Dict:
     plot_runs: List[Dict[str, str]] = []
     if mode == "cohort" and output_path.exists():
         if request.render_mds:
-            plot_runs.append(generate_mds_points(output_path))
+            plot_runs.append(generate_mds_points(output_path, effective_similarity_metric))
 
     pre_commands: List[str] = []
     pre_commands.extend(" ".join(item) for item in saved_cohort_extract_commands)
@@ -1312,7 +1319,15 @@ def run_pheno_ranker(request: Any) -> Dict:
     if mode == "patient":
         pre_commands.append(" ".join(extract_command))
 
-    return serialize_pheno_result(job_dir, command, proc, mode, plot_runs, pre_commands=pre_commands)
+    return serialize_pheno_result(
+        job_dir,
+        command,
+        proc,
+        mode,
+        plot_runs,
+        similarity_metric_cohort=effective_similarity_metric,
+        pre_commands=pre_commands,
+    )
 
 
 def pheno_ranker_patient_ids_payload(data_dir: str) -> Dict[str, Any]:

@@ -73,6 +73,7 @@
       const phenoPlanRunBtnEl = document.getElementById("phenoPlanRunBtn");
       const phenoPlanStatusEl = document.getElementById("phenoPlanStatus");
       const phenoPlanMetaEl = document.getElementById("phenoPlanMeta");
+      const phenoManualOverrideNoteEl = document.getElementById("phenoManualOverrideNote");
       const phenoLmStatusEl = document.getElementById("phenoLmStatus");
       const phenoPlanDetailsEl = document.getElementById("phenoPlanDetails");
       const phenoPlanEl = document.getElementById("phenoPlan");
@@ -99,9 +100,9 @@
       const phenoExplainLlmBtnEl = document.getElementById("phenoExplainLlmBtn");
       const phenoAnalysisBtnEl = document.getElementById("phenoAnalysisBtn");
       const phenoCopyIdsBtnEl = document.getElementById("phenoCopyIdsBtn");
-      const phenoPlotAnalysisBtnEl = document.getElementById("phenoPlotAnalysisBtn");
-      const phenoPlotCopyIdsBtnEl = document.getElementById("phenoPlotCopyIdsBtn");
       const phenoStatusEl = document.getElementById("phenoStatus");
+      const phenoExplainCardEl = document.getElementById("phenoExplainCard");
+      const phenoAlignmentCardEl = document.getElementById("phenoAlignmentCard");
       const phenoExplainDetailEl = document.getElementById("phenoExplainDetail");
       const phenoCommandEl = document.getElementById("phenoCommand");
       const phenoFilesEl = document.getElementById("phenoFiles");
@@ -125,6 +126,16 @@
         identifier: { bg: "#f3f4f6", ink: "#111827" },
         other: { bg: "#e5e7eb", ink: "#374151" },
       };
+      const PHENO_COHORT_COLORS = [
+        "#2563eb",
+        "#ea580c",
+        "#16a34a",
+        "#7c3aed",
+        "#dc2626",
+        "#0891b2",
+        "#ca8a04",
+        "#4f46e5",
+      ];
       let selectedPatientId = null;
       let currentPatients = [];
       let molecularDatasetsState = [];
@@ -145,7 +156,11 @@
       let phenoTableState = null;
       let phenoRunState = null;
       let phenoSelectedAlignmentKey = "";
-      let phenoSelectedPlotRecordIds = [];
+      let phenoSelectedMdsRecordIds = [];
+      let phenoSelectedHeatmapRecordIds = [];
+      let phenoHeatmapMode = "inspect";
+      let phenoManualOverrides = false;
+      let isApplyingPhenoPlan = false;
       let latestQueryPatientIds = [];
       let latestQueryIdType = "patient";
       let latestQueryPrompt = "";
@@ -3117,7 +3132,14 @@
       }
 
       function updatePhenoExplainActions() {
-        const canExplain = Boolean(phenoRunState && phenoRunState.jobId && phenoRunState.mode === "patient");
+        const isPatientMode = Boolean(phenoRunState && phenoRunState.jobId && phenoRunState.mode === "patient");
+        const canExplain = isPatientMode;
+        if (phenoExplainCardEl) {
+          phenoExplainCardEl.classList.toggle("is-hidden", !canExplain);
+        }
+        if (phenoAlignmentCardEl) {
+          phenoAlignmentCardEl.classList.toggle("is-hidden", !isPatientMode);
+        }
         if (phenoExplainBtnEl) {
           phenoExplainBtnEl.disabled = !canExplain || phenoExplainInFlight || phenoExplainLlmInFlight;
           phenoExplainBtnEl.title = canExplain ? "" : "Available after a patient-mode run.";
@@ -3126,6 +3148,21 @@
           phenoExplainLlmBtnEl.disabled = !canExplain || phenoExplainInFlight || phenoExplainLlmInFlight;
           phenoExplainLlmBtnEl.title = canExplain ? "" : "Available after a patient-mode run.";
         }
+      }
+
+      function renderPhenoManualOverrideNote() {
+        if (!phenoManualOverrideNoteEl) {
+          return;
+        }
+        phenoManualOverrideNoteEl.classList.toggle("is-hidden", !phenoManualOverrides);
+      }
+
+      function markPhenoManualOverride() {
+        if (isApplyingPhenoPlan) {
+          return;
+        }
+        phenoManualOverrides = true;
+        renderPhenoManualOverrideNote();
       }
 
       function getPhenoTopMatchRecordIds(limit = 10) {
@@ -3188,28 +3225,20 @@
         phenoRunBtnEl.title = !hasPrompt ? "Describe a Pheno-Ranker request first." : "";
       }
 
-      function updatePhenoPlotSelectionActions() {
-        const hasSelection = Boolean(phenoSelectedPlotRecordIds.length);
-        if (phenoPlotAnalysisBtnEl) {
-          phenoPlotAnalysisBtnEl.disabled = !hasSelection;
-          phenoPlotAnalysisBtnEl.title = hasSelection ? "" : "Select one or more cohort points from the interactive MDS plot.";
-        }
-        if (phenoPlotCopyIdsBtnEl) {
-          phenoPlotCopyIdsBtnEl.disabled = !hasSelection;
-          phenoPlotCopyIdsBtnEl.title = hasSelection ? "" : "Select one or more cohort points from the interactive MDS plot.";
-        }
+      function getPhenoPlotSelection(kind) {
+        return kind === "heatmap" ? phenoSelectedHeatmapRecordIds : phenoSelectedMdsRecordIds;
       }
 
       function resetPhenoRunWorkspace() {
         phenoRunState = null;
         phenoSelectedAlignmentKey = "";
-        phenoSelectedPlotRecordIds = [];
+        phenoSelectedMdsRecordIds = [];
+        phenoSelectedHeatmapRecordIds = [];
         phenoTableState = null;
         phenoExplainInFlight = false;
         phenoExplainLlmInFlight = false;
         updatePhenoExplainActions();
         updatePhenoResultActions();
-        updatePhenoPlotSelectionActions();
         setPhenoResultWorkspaceVisible(false);
         phenoCommandEl.textContent = "No run yet.";
         phenoFilesEl.innerHTML = '<div class="empty">No output files yet.</div>';
@@ -3265,6 +3294,7 @@
       }
 
       function applyPhenoPlan(plan) {
+        isApplyingPhenoPlan = true;
         const normalized = plan || {};
         phenoActionEl.value = normalized.action || "compare";
         phenoModeEl.value = normalized.mode || "cohort";
@@ -3294,6 +3324,9 @@
         phenoRenderHeatmapEl.checked = Boolean(normalized.render_heatmap);
         phenoRenderMdsEl.checked = Boolean(normalized.render_mds);
         updatePhenoMode();
+        isApplyingPhenoPlan = false;
+        phenoManualOverrides = false;
+        renderPhenoManualOverrideNote();
       }
 
       async function requestPhenoPlan(revealPlan = true) {
@@ -3439,12 +3472,70 @@
         return PHENO_BUCKET_STYLES[bucket] || PHENO_BUCKET_STYLES.other;
       }
 
+      function getPhenoMdsCohortInfo(recordId) {
+        const rawId = String(recordId || "").trim();
+        const match = rawId.match(/^(C(\d+))_(.+)$/);
+        if (!match) {
+          return {
+            key: "unscoped",
+            label: "Unscoped",
+            displayId: rawId,
+            color: "#2563eb",
+          };
+        }
+        const cohortNumber = Number(match[2]);
+        const color = PHENO_COHORT_COLORS[(Math.max(cohortNumber, 1) - 1) % PHENO_COHORT_COLORS.length];
+        return {
+          key: match[1],
+          label: `Cohort ${match[2]}`,
+          displayId: match[3],
+          color,
+        };
+      }
+
+      function renderPhenoCohortLegend(containerId, recordIds) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+          return;
+        }
+        const cohortItems = [];
+        for (const recordId of Array.isArray(recordIds) ? recordIds : []) {
+          const cohort = getPhenoMdsCohortInfo(recordId);
+          if (cohort.key === "unscoped") {
+            continue;
+          }
+          if (!cohortItems.some((item) => item.key === cohort.key)) {
+            cohortItems.push(cohort);
+          }
+        }
+        if (!cohortItems.length) {
+          container.innerHTML = "";
+          container.classList.add("is-hidden");
+          return;
+        }
+        container.classList.remove("is-hidden");
+        container.innerHTML = cohortItems.map((cohort) => `
+          <span class="pheno-cohort-chip" style="--cohort-color:${cohort.color};">
+            <span class="pheno-cohort-chip-swatch" aria-hidden="true"></span>
+            ${escapeHtml(cohort.label)}
+          </span>
+        `).join("");
+      }
+
       function renderPhenoAlignmentPlaceholder(message) {
         phenoAlignmentDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
       }
 
       function renderPhenoExplainPlaceholder(message) {
         phenoExplainDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+      }
+
+      function getEffectivePhenoCohortMetric() {
+        if (!phenoRunState || phenoRunState.mode !== "cohort") {
+          return "hamming";
+        }
+        const raw = String(phenoRunState.similarityMetricCohort || "").trim().toLowerCase();
+        return raw === "jaccard" ? "jaccard" : "hamming";
       }
 
       function hasPhenoAlignmentFiles(files) {
@@ -3861,20 +3952,19 @@
         const mdsPointsFile = items.find((file) => file.name === "mds_points.tsv");
         const matrixFile = items.find((file) => file.name === "matrix.txt");
         if (!mdsPointsFile && !matrixFile) {
-          phenoPreviewsEl.innerHTML = '<div class="empty">No plot previews available.</div>';
+          phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plot data were produced for this run. Expected matrix.txt and/or mds_points.tsv.</div>';
           return;
         }
         const interactiveCard = mdsPointsFile
-          ? `<div class="pheno-preview-card pheno-preview-card-full"><strong>Interactive MDS</strong><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis.</div></div>`
+          ? `<div class="pheno-preview-card pheno-preview-card-full"><div class="pheno-result-card-toolbar"><strong>Interactive MDS</strong><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis.</div></div>`
           : "";
         const heatmapCard = matrixFile
-          ? `<div class="pheno-preview-card pheno-preview-card-full"><strong>Interactive Heatmap</strong><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note">Hover, zoom, and pan to inspect cohort similarities.</div></div>`
+          ? `<div class="pheno-preview-card pheno-preview-card-full"><div class="pheno-result-card-toolbar"><strong>Interactive Heatmap</strong></div><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div>`
           : "";
         phenoPreviewsEl.innerHTML =
           heatmapCard +
           interactiveCard;
-        phenoSelectedPlotRecordIds = [];
-        updatePhenoPlotSelectionActions();
+        phenoSelectedMdsRecordIds = [];
         if (mdsPointsFile) {
           void renderInteractivePhenoMdsPlot(mdsPointsFile);
         }
@@ -3919,28 +4009,44 @@
             patient_id: String(row[patientIndex] || "").trim(),
             x: Number(row[xIndex]),
             y: Number(row[yIndex]),
-          })).filter((item) => item.record_id && Number.isFinite(item.x) && Number.isFinite(item.y));
+          })).filter((item) => item.record_id && Number.isFinite(item.x) && Number.isFinite(item.y)).map((item) => ({
+            ...item,
+            cohort: getPhenoMdsCohortInfo(item.record_id),
+          }));
           if (!points.length) {
             plotEl.innerHTML = '<div class="empty">No valid MDS coordinates were available for this run.</div>';
             return;
           }
-          const trace = {
+          renderPhenoCohortLegend("phenoMdsCohortLegend", points.map((item) => item.record_id));
+          const cohortGroups = new Map();
+          points.forEach((item) => {
+            if (!cohortGroups.has(item.cohort.key)) {
+              cohortGroups.set(item.cohort.key, {
+                label: item.cohort.label,
+                color: item.cohort.color,
+                points: [],
+              });
+            }
+            cohortGroups.get(item.cohort.key).points.push(item);
+          });
+          const traces = Array.from(cohortGroups.values()).map((group) => ({
             type: "scattergl",
             mode: "markers+text",
-            x: points.map((item) => item.x),
-            y: points.map((item) => item.y),
-            text: points.map((item) => item.record_id),
-            customdata: points.map((item) => [item.record_id, item.patient_id]),
+            name: group.label,
+            x: group.points.map((item) => item.x),
+            y: group.points.map((item) => item.y),
+            text: group.points.map((item) => item.record_id),
+            customdata: group.points.map((item) => [item.record_id, item.patient_id, group.label]),
             textposition: "top center",
             textfont: {
               size: 12,
               color: "#0f172a",
             },
-            hovertemplate: "<b>%{customdata[0]}</b><br>Patient %{customdata[1]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
+            hovertemplate: "<b>%{customdata[0]}</b><br>Patient %{customdata[1]}<br>%{customdata[2]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
             marker: {
               size: 10,
-              color: "#2563eb",
-              opacity: 0.85,
+              color: group.color,
+              opacity: 0.88,
             },
             selected: {
               textfont: {
@@ -3959,21 +4065,22 @@
                 opacity: 0.22,
               },
             },
-          };
-          await window.Plotly.newPlot(plotEl, [trace], {
+          }));
+          await window.Plotly.newPlot(plotEl, traces, {
             margin: { l: 40, r: 20, t: 10, b: 40 },
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(255,255,255,0.86)",
             dragmode: "lasso",
-            xaxis: { title: "Hamming Distance MDS Coordinate 1", zeroline: false },
-            yaxis: { title: "Hamming Distance MDS Coordinate 2", zeroline: false },
+            showlegend: false,
+            xaxis: { title: "MDS Coordinate 1", zeroline: false },
+            yaxis: { title: "MDS Coordinate 2", zeroline: false },
           }, {
             responsive: true,
             displaylogo: false,
             modeBarButtonsToRemove: ["select2d", "autoScale2d"],
           });
           const applySelectedPlotPoints = (selected) => {
-            phenoSelectedPlotRecordIds = (Array.isArray(selected) ? selected : [])
+            phenoSelectedMdsRecordIds = (Array.isArray(selected) ? selected : [])
               .map((point) => {
                 if (Array.isArray(point.customdata) && point.customdata[0]) {
                   return String(point.customdata[0]).trim();
@@ -3984,10 +4091,9 @@
                 return "";
               })
               .filter((value, index, all) => value && all.indexOf(value) === index);
-            updatePhenoPlotSelectionActions();
             if (noteEl) {
-              noteEl.textContent = phenoSelectedPlotRecordIds.length
-                ? `Selected ${phenoSelectedPlotRecordIds.length} cohort points.`
+              noteEl.textContent = phenoSelectedMdsRecordIds.length
+                ? `Selected ${phenoSelectedMdsRecordIds.length} MDS points.`
                 : "Select points with box or lasso to reuse them in Analysis.";
             }
           };
@@ -3998,8 +4104,7 @@
             applySelectedPlotPoints(Array.isArray(event && event.points) ? event.points : []);
           });
           plotEl.on("plotly_deselect", () => {
-            phenoSelectedPlotRecordIds = [];
-            updatePhenoPlotSelectionActions();
+            phenoSelectedMdsRecordIds = [];
             if (noteEl) {
               noteEl.textContent = "Select points with box or lasso to reuse them in Analysis.";
             }
@@ -4030,6 +4135,8 @@
             plotEl.innerHTML = '<div class="empty">No matrix data were available for this heatmap.</div>';
             return;
           }
+          const metric = getEffectivePhenoCohortMetric();
+          const metricLabel = metric === "jaccard" ? "Jaccard similarity" : "Hamming distance";
           const header = rows[0];
           const xLabels = header.slice(1);
           const body = rows.slice(1);
@@ -4049,14 +4156,15 @@
               [1.0, "#d73027"],
             ],
             hoverongaps: false,
-            hovertemplate: "<b>%{y}</b> vs <b>%{x}</b><br>Similarity %{z:.4f}<extra></extra>",
+            hovertemplate: `<b>%{y}</b> vs <b>%{x}</b><br>${metricLabel} %{z:.4f}<extra></extra>`,
             colorbar: {
-              title: "Similarity",
+              title: metricLabel,
             },
           }], {
             margin: { l: 100, r: 20, t: 10, b: 90 },
             paper_bgcolor: "rgba(0,0,0,0)",
             plot_bgcolor: "rgba(255,255,255,0.86)",
+            dragmode: "zoom",
             xaxis: {
               title: "Reference / comparison IDs",
               tickangle: -40,
@@ -4076,15 +4184,16 @@
         }
       }
 
-      async function copySelectedPhenoPlotIds() {
-        if (!phenoSelectedPlotRecordIds.length) {
+      async function copySelectedPhenoPlotIds(kind, triggerButton) {
+        const selectedIds = getPhenoPlotSelection(kind);
+        if (!selectedIds.length) {
           phenoStatusEl.className = "pheno-status";
-          phenoStatusEl.textContent = "Select cohort points in the MDS plot first.";
-          flashPhenoActionFeedback(phenoPlotCopyIdsBtnEl, "No IDs");
+          phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
+          flashPhenoActionFeedback(triggerButton, "No IDs");
           return;
         }
         try {
-          const payload = phenoSelectedPlotRecordIds.join(",");
+          const payload = selectedIds.join(",");
           let copied = false;
           if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(payload);
@@ -4096,35 +4205,41 @@
             throw new Error("copy_failed");
           }
           phenoStatusEl.className = "pheno-status";
-          phenoStatusEl.textContent = `Copied ${phenoSelectedPlotRecordIds.length} selected cohort record IDs from the MDS plot.`;
-          flashPhenoActionFeedback(phenoPlotCopyIdsBtnEl, "Copied");
+          phenoStatusEl.textContent = kind === "heatmap"
+            ? `Copied ${selectedIds.length} heatmap-selected IDs.`
+            : `Copied ${selectedIds.length} selected cohort record IDs from the MDS plot.`;
+          flashPhenoActionFeedback(triggerButton, "Copied");
         } catch (_error) {
           phenoStatusEl.className = "pheno-status";
-          phenoStatusEl.textContent = "Unable to copy selected MDS IDs from the browser.";
-          flashPhenoActionFeedback(phenoPlotCopyIdsBtnEl, "Unavailable");
+          phenoStatusEl.textContent = "Unable to copy selected IDs from the browser.";
+          flashPhenoActionFeedback(triggerButton, "Unavailable");
         }
       }
 
-      function sendSelectedPhenoPlotIdsToAnalysis() {
-        const patientIds = collapsePhenoRecordIdsToPatientIds(phenoSelectedPlotRecordIds);
+      function sendSelectedPhenoPlotIdsToAnalysis(kind) {
+        const patientIds = collapsePhenoRecordIdsToPatientIds(getPhenoPlotSelection(kind));
         if (!patientIds.length) {
           phenoStatusEl.className = "pheno-status";
-          phenoStatusEl.textContent = "Select cohort points in the MDS plot first.";
+          phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
           return;
         }
         analysisSelectedPatientIdsEl.value = patientIds.join(",");
         if (!analysisPromptEl.value.trim()) {
-          analysisPromptEl.value = "Summarize the main clinical patterns in the selected MDS subgroup and tell me what stands out.";
+          analysisPromptEl.value = kind === "heatmap"
+            ? "Summarize the main clinical patterns in the selected heatmap subgroup and tell me what stands out."
+            : "Summarize the main clinical patterns in the selected MDS subgroup and tell me what stands out.";
         }
         renderAnalysisScopeSummary();
         setActiveTab("analysis");
         syncCurrentAnalysisSessionFromUi({ render: true });
         analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = `Loaded ${patientIds.length} patient IDs from the selected MDS subgroup into Analysis.`;
+        analysisStatusEl.textContent = kind === "heatmap"
+          ? `Loaded ${patientIds.length} patient IDs from the selected heatmap subgroup into Analysis.`
+          : `Loaded ${patientIds.length} patient IDs from the selected MDS subgroup into Analysis.`;
       }
 
       async function runPhenoRanker(usePromptPlanner = true) {
-        if (usePromptPlanner && phenoPromptEl.value.trim()) {
+        if (usePromptPlanner && phenoPromptEl.value.trim() && !phenoManualOverrides) {
           const payload = await requestPhenoPlan(false);
           if (!payload || !payload.plan) {
             return;
@@ -4231,8 +4346,13 @@
             jobId: payload.job_id,
             mode: payload.mode,
             alignmentAvailable: hasPhenoAlignmentFiles(payload.files),
+            files: Array.isArray(payload.files) ? payload.files : [],
+            similarityMetricCohort: payload.similarity_metric_cohort || "",
           };
           updatePhenoExplainActions();
+          if (phenoExplainCardEl && payload.mode !== "patient") {
+            phenoExplainCardEl.classList.add("is-hidden");
+          }
           phenoOutputDetailsEl.open = payload.mode === "patient";
           phenoStatusEl.className = "pheno-status";
           phenoStatusEl.textContent = `Completed ${payload.mode} run ${payload.job_id}.`;
@@ -4618,19 +4738,42 @@
       phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
       phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
       phenoRunBtnEl.addEventListener("click", runPhenoRanker);
-      phenoPlotAnalysisBtnEl && phenoPlotAnalysisBtnEl.addEventListener("click", sendSelectedPhenoPlotIdsToAnalysis);
-      phenoPlotCopyIdsBtnEl && phenoPlotCopyIdsBtnEl.addEventListener("click", copySelectedPhenoPlotIds);
       phenoAnalysisBtnEl.addEventListener("click", sendPhenoMatchesToAnalysis);
       phenoCopyIdsBtnEl.addEventListener("click", copyPhenoMatchIds);
       phenoExplainBtnEl.addEventListener("click", explainPhenoResults);
       phenoExplainLlmBtnEl.addEventListener("click", explainPhenoResultsWithLlm);
-      phenoModeEl.addEventListener("change", updatePhenoMode);
-      phenoActionEl.addEventListener("change", updatePhenoMode);
+      phenoModeEl.addEventListener("change", () => {
+        markPhenoManualOverride();
+        updatePhenoMode();
+      });
+      phenoActionEl.addEventListener("change", () => {
+        markPhenoManualOverride();
+        updatePhenoMode();
+      });
       updatePhenoExplainActions();
       updatePhenoResultActions();
-      updatePhenoPlotSelectionActions();
       updatePhenoRunAvailability();
-      phenoSelectedPatientIdsEl.addEventListener("input", renderSelectedPatientIdsSummary);
+      phenoSelectedPatientIdsEl.addEventListener("input", () => {
+        markPhenoManualOverride();
+        renderSelectedPatientIdsSummary();
+      });
+      [
+        phenoPatientIdEl,
+        phenoIncludeTermsEl,
+        phenoExcludeTermsEl,
+        phenoSimilarityMetricEl,
+        phenoSortByEl,
+        phenoMaxOutEl,
+      ].forEach((element) => {
+        element && element.addEventListener("input", markPhenoManualOverride);
+      });
+      [
+        phenoAlignEl,
+        phenoRenderHeatmapEl,
+        phenoRenderMdsEl,
+      ].forEach((element) => {
+        element && element.addEventListener("change", markPhenoManualOverride);
+      });
       analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
       analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
       analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.addEventListener("input", renderAnalysisCompareScopeSummary);
@@ -4753,10 +4896,28 @@
           return;
         }
         phenoPromptEl.value = button.dataset.phenoPrompt;
+        phenoManualOverrides = false;
         updatePhenoRunAvailability();
         phenoPromptEl.focus();
       });
-      phenoPromptEl.addEventListener("input", updatePhenoRunAvailability);
+      phenoPromptEl.addEventListener("input", () => {
+        phenoManualOverrides = false;
+        updatePhenoRunAvailability();
+      });
+      phenoPreviewsEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-pheno-plot-action]");
+        if (!button || !phenoPreviewsEl.contains(button)) {
+          return;
+        }
+        const kind = button.dataset.phenoPlotKind === "heatmap" ? "heatmap" : "mds";
+        if (button.dataset.phenoPlotAction === "copy") {
+          void copySelectedPhenoPlotIds(kind, button);
+          return;
+        }
+        if (button.dataset.phenoPlotAction === "analysis") {
+          sendSelectedPhenoPlotIdsToAnalysis(kind);
+        }
+      });
       document.addEventListener("click", (event) => {
         const queryActionButton = event.target.closest("[data-query-action]");
         if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
