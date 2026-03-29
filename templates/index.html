@@ -288,18 +288,18 @@
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this cohort">List medications in this cohort</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this cohort">List diseases in this cohort</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient 107">Show patient 107</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient SYN007">Show patient SYN007</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints are in this cohort?">How many timepoints are in this cohort?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="What happened to this cohort over time?">What happened to this cohort over time?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have more than 1 timepoint?">Which patients have more than 1 timepoint?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Prednisolone?">How many timepoints mention Prednisolone?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient 107">Show the timeline for patient 107</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients have at least 2 timepoints with Prednisolone but do not have Crohn Disease?">2 Prednisolone timepoints without Crohn</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have at least 2 timepoints with Prednisolone and have Ulcerative Colitis?">2 Prednisolone timepoints with UC</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients had Prednisolone before Crohn Disease?">Prednisolone before Crohn</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients had Infliximab after Crohn Disease?">Infliximab after Crohn</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Ocrelizumab?">How many timepoints mention Ocrelizumab?</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient SYN007">Show the timeline for patient SYN007</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients have at least 2 timepoints with Ocrelizumab but do not have Multiple Sclerosis?">2 Ocrelizumab timepoints without MS</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have at least 2 timepoints with Vedolizumab and have Ulcerative Colitis?">2 Vedolizumab timepoints with UC</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients had Belimumab after Systemic Lupus Erythematosus?">Belimumab after SLE</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients had Ocrelizumab after Multiple Sclerosis?">Ocrelizumab after MS</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients changed from Ulcerative Colitis to Crohn Disease?">Changed from UC to Crohn</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients started Infliximab after Crohn Disease?">Started Infliximab after Crohn</button>
+              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients started Adalimumab after Rheumatoid Arthritis?">Started Adalimumab after RA</button>
               <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this cohort and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
               <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main cohort summary?">Evidence-supported summary in Analysis</button>
             </div>
@@ -362,7 +362,7 @@
               <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic cohort query.</div>
             </div>
             <div class="query-row">
-              <textarea id="question">How many patients have Prednisolone?</textarea>
+              <textarea id="question">How many patients have Ocrelizumab?</textarea>
               <button id="askBtn" type="button">
                 <span class="button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -384,7 +384,7 @@
           <div id="phenoReferenceFilesSummary" class="section-note">Active cohort files: loading...</div>
           <div class="query-section">
             <label for="phenoPrompt">Describe run</label>
-            <textarea id="phenoPrompt" rows="3" placeholder="Compare patient 107 to all others and generate MDS"></textarea>
+            <textarea id="phenoPrompt" rows="3" placeholder="Compare patient SYN007:week_0 to all others and generate MDS"></textarea>
             <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-llm badge">LM-based</span></div>
             <div class="query-examples" id="phenoExamples">
               <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare all patients by phenotypicFeatures and diseases">Compare all by phenotypes and diseases</button>
@@ -398,7 +398,7 @@
             </div>
             <div style="margin-top:12px;">
               <label for="phenoSelectedPatientIds">Scope</label>
-              <input id="phenoSelectedPatientIds" placeholder="Full cohort by default, or provide a subset like 107,108,109">
+              <input id="phenoSelectedPatientIds" placeholder="Full cohort by default, or provide a subset like SYN007,SYN008,SYN009">
               <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full cohort.</div>
             </div>
             <details class="query-section" style="margin-top:12px;">
@@ -470,7 +470,7 @@
                 </div>
                 <div id="phenoPatientField" class="is-hidden">
                   <label for="phenoPatientId">Patient ID</label>
-                  <input id="phenoPatientId" placeholder="107">
+                  <input id="phenoPatientId" placeholder="SYN007:week_0">
                 </div>
                 <div>
                   <label for="phenoIncludeTerms">Include terms</label>
