@@ -477,18 +477,21 @@
         }
         const visible = hasTurns ? pinnedOpen : true;
         panelEl.hidden = !visible;
+        panelEl.classList.toggle("is-hidden", !visible);
         const inlineToggle = panelEl.querySelector(".query-examples-toggle");
         if (inlineToggle) {
           inlineToggle.hidden = !visible;
+          inlineToggle.classList.toggle("is-hidden", !visible);
         }
         const siblingToggle = panelEl.nextElementSibling && panelEl.nextElementSibling.classList && panelEl.nextElementSibling.classList.contains("query-examples-toggle")
           ? panelEl.nextElementSibling
           : null;
         if (siblingToggle) {
           siblingToggle.hidden = !visible;
+          siblingToggle.classList.toggle("is-hidden", !visible);
         }
         composerToggleEl.hidden = !hasTurns;
-        composerToggleEl.textContent = visible ? "Hide starter prompts" : "Starter prompts";
+        composerToggleEl.textContent = "Starter prompts";
       }
 
       function renderQueryStarterPrompts() {
@@ -1684,10 +1687,9 @@
       });
       analysisRunBtnEl.addEventListener("click", runAnalysis);
       analysisComposerExamplesBtnEl && analysisComposerExamplesBtnEl.addEventListener("click", () => {
-        const shouldOpen = !analysisExamplesPinnedOpen;
-        analysisExamplesPinnedOpen = shouldOpen;
+        analysisExamplesPinnedOpen = true;
         renderAnalysisStarterPrompts();
-        if (shouldOpen && analysisStarterPanelEl && !analysisStarterPanelEl.hidden) {
+        if (analysisStarterPanelEl && !analysisStarterPanelEl.hidden) {
           analysisStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });

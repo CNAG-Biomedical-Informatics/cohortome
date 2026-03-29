@@ -60,9 +60,16 @@ export function createAnalysisUi(ctx) {
 
   function basePlotConfig() {
     return {
-      displayModeBar: false,
+      displayModeBar: true,
       displaylogo: false,
       responsive: true,
+      modeBarButtonsToRemove: [
+        "select2d",
+        "lasso2d",
+        "hoverCompareCartesian",
+        "hoverClosestCartesian",
+        "toggleSpikelines",
+      ],
     };
   }
 
@@ -86,6 +93,16 @@ export function createAnalysisUi(ctx) {
 
   function renderAnalysisPlotsMarkup(context, turnIndex) {
     if (!context) return '<div class="empty">No analysis plots available.</div>';
+    if (context.mode === "molecular_medication_compare") {
+      const comparisons = Array.isArray(context.comparisons) ? context.comparisons : [];
+      const cards = comparisons.map((item, index) => {
+        const title = `${item.medication_a || "Group A"} vs ${item.medication_b || "Group B"}`;
+        const note = context.exploratory_note || "Exploratory transcriptomics comparison.";
+        const thresholdNote = `Coloring is exploratory: red = log2FC >= 1 and p <= 0.05, blue = log2FC <= -1 and p <= 0.05, gray = everything else. Positive log2FC means higher in ${item.medication_a || "Group A"}; negative log2FC means higher in ${item.medication_b || "Group B"}.`;
+        return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Exploratory Volcano Plot: ${escapeHtml(title)}</h3><p class="section-note">${escapeHtml(note)}</p><p class="section-note">${escapeHtml(thresholdNote)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-molecular-volcano-${index}`, 420)}</div>`;
+      });
+      return cards.join("") || '<div class="empty">No exploratory molecular comparison plot available.</div>';
+    }
     if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
       const unit = context.unit ? ` (${context.unit})` : "";
       return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Trajectory Comparison${unit}</h3>${plotPlaceholder(`analysis-plot-${turnIndex}-trajectory-compare`, 400)}</div>`;
@@ -281,11 +298,61 @@ export function createAnalysisUi(ctx) {
     };
   }
 
+  function buildExploratoryVolcanoPlot(points, comparisonLabel) {
+    const rows = (Array.isArray(points) ? points : []).filter((item) => item && item.gene_id !== undefined);
+    const colors = rows.map((item) => {
+      const log2fc = Number(item.log2_fold_change || 0);
+      const negLog10P = Number(item.neg_log10_p || 0);
+      const significant = negLog10P >= 1.3;
+      const largeEffect = Math.abs(log2fc) >= 1;
+      if (!(significant && largeEffect)) return "#94a3b8";
+      return log2fc > 0 ? "#dc2626" : "#2563eb";
+    });
+    return {
+      traces: [{
+        type: "scatter",
+        mode: "markers",
+        name: comparisonLabel || "Exploratory comparison",
+        x: rows.map((item) => Number(item.log2_fold_change || 0)),
+        y: rows.map((item) => Number(item.neg_log10_p || 0)),
+        text: rows.map((item) => String(item.gene_id || "")),
+        customdata: rows.map((item) => [String(item.gene_id || ""), Number(item.mean_log2_cpm_a || 0), Number(item.mean_log2_cpm_b || 0), Number(item.p_value || 1)]),
+        marker: {
+          size: 8,
+          color: colors,
+          opacity: 0.8,
+        },
+        hovertemplate: "Gene: %{customdata[0]}<br>log2FC: %{x:.2f}<br>-log10(p): %{y:.2f}<br>Mean A: %{customdata[1]:.2f}<br>Mean B: %{customdata[2]:.2f}<br>p: %{customdata[3]:.3g}<extra></extra>",
+      }],
+      layout: basePlotLayout({
+        xaxis: {
+          ...basePlotLayout().xaxis,
+          title: { text: "Exploratory log2 fold change", font: { color: "#61758c", size: 12 } },
+          zeroline: true,
+          zerolinecolor: "rgba(148,163,184,0.35)",
+        },
+        yaxis: {
+          ...basePlotLayout().yaxis,
+          title: { text: "Exploratory -log10(p)", font: { color: "#61758c", size: 12 } },
+        },
+      }),
+    };
+  }
+
   function mountAnalysisPlots() {
     state.analysisTurns.forEach((turn, turnIndex) => {
       if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
       const context = turn.payload.data.context;
       if (!context) return;
+      if (context.mode === "molecular_medication_compare") {
+        (context.comparisons || []).forEach((item, comparisonIndex) => {
+          const points = Array.isArray(item.exploratory_volcano_points) ? item.exploratory_volcano_points : [];
+          if (!points.length) return;
+          const volcano = buildExploratoryVolcanoPlot(points, `${item.medication_a || "A"} vs ${item.medication_b || "B"}`);
+          mountPlot(`analysis-plot-${turnIndex}-molecular-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
+        });
+        return;
+      }
       if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
         const cohortA = context.cohort_a || {};
         const cohortB = context.cohort_b || {};
@@ -453,7 +520,15 @@ export function createAnalysisUi(ctx) {
   function analysisPayloadHasPlots(payload) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
-    return ["trajectory", "trajectory_response", "trajectory_compare", "trajectory_compare_response", "survival", "survival_compare"].includes(mode);
+    return [
+      "molecular_medication_compare",
+      "trajectory",
+      "trajectory_response",
+      "trajectory_compare",
+      "trajectory_compare_response",
+      "survival",
+      "survival_compare",
+    ].includes(mode);
   }
 
   function renderAnalysisThread() {

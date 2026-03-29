@@ -19,6 +19,7 @@ from app.query_store import (
     duckdb_available,
     medication_counts as store_medication_counts,
     molecular_dataset_gene_means as store_molecular_dataset_gene_means,
+    molecular_dataset_pairwise_exploratory_volcano as store_molecular_dataset_pairwise_exploratory_volcano,
     molecular_dataset_pairwise_gene_differences as store_molecular_dataset_pairwise_gene_differences,
     molecular_dataset_inventory as store_molecular_dataset_inventory,
     molecular_expression_summary as store_molecular_expression_summary,
@@ -257,12 +258,22 @@ def molecular_expression_by_medication_context(data_dir: str) -> Dict[str, Any]:
                 "top_genes_a": store_molecular_dataset_gene_means(data_dir, left_dataset, limit=5),
                 "top_genes_b": store_molecular_dataset_gene_means(data_dir, right_dataset, limit=5),
                 "top_differences": top_differences,
+                "exploratory_volcano_points": store_molecular_dataset_pairwise_exploratory_volcano(
+                    data_dir,
+                    left_dataset,
+                    right_dataset,
+                    limit=1500,
+                ),
             }
         )
     return {
         "mode": "molecular_medication_compare",
         "comparisons": comparisons,
         "matched_datasets": matched,
+        "exploratory_note": (
+            "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple "
+            "per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression."
+        ),
     }
 
 
@@ -1106,6 +1117,8 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
                 lines.append(
                     f"Comparing {item.get('medication_a')} vs {item.get('medication_b')}, no gene-level difference summary is available."
                 )
+        if context.get("exploratory_note"):
+            lines.append(str(context["exploratory_note"]))
         return " ".join(lines)
     if context.get("mode") == "molecular_expression":
         if context.get("error"):
@@ -1285,12 +1298,22 @@ def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
     if context.get("mode") == "molecular_medication_compare":
         return {
             "mode": "molecular_medication_compare",
+            "exploratory_note": context.get("exploratory_note"),
             "comparisons": [
                 {
                     "medication_a": item.get("medication_a"),
                     "medication_b": item.get("medication_b"),
                     "dataset_a": item.get("dataset_a"),
                     "dataset_b": item.get("dataset_b"),
+                    "exploratory_volcano_points": [
+                        {
+                            "gene_id": gene.get("gene_id"),
+                            "log2_fold_change": gene.get("log2_fold_change"),
+                            "neg_log10_p": gene.get("neg_log10_p"),
+                        }
+                        for gene in (item.get("exploratory_volcano_points") or [])[:250]
+                        if isinstance(gene, dict)
+                    ],
                     "top_differences": [
                         {
                             "gene_id": gene.get("gene_id"),

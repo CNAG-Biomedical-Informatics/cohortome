@@ -454,6 +454,53 @@ def _mock_analysis_trajectory_reply(page) -> None:
     )
 
 
+def _mock_analysis_molecular_volcano_reply(page) -> None:
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_molecular_medication_compare",
+                    "reply": "Expression differs between medication-aligned transcriptomics datasets, with exploratory fold-change shifts across multiple genes.",
+                    "data": {
+                        "provider": "deterministic",
+                        "context": {
+                            "mode": "molecular_medication_compare",
+                            "exploratory_note": "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression.",
+                            "comparisons": [
+                                {
+                                    "medication_a": "Infliximab",
+                                    "medication_b": "Vedolizumab",
+                                    "exploratory_volcano_points": [
+                                        {
+                                            "gene_id": "ENSG000001",
+                                            "mean_log2_cpm_a": 8.1,
+                                            "mean_log2_cpm_b": 6.7,
+                                            "log2_fold_change": 1.4,
+                                            "p_value": 0.002,
+                                            "neg_log10_p": 2.69,
+                                        },
+                                        {
+                                            "gene_id": "ENSG000002",
+                                            "mean_log2_cpm_a": 5.9,
+                                            "mean_log2_cpm_b": 7.0,
+                                            "log2_fold_change": -1.1,
+                                            "p_value": 0.01,
+                                            "neg_log10_p": 2.0,
+                                        },
+                                    ],
+                                }
+                            ],
+                        },
+                    },
+                }
+            ),
+        ),
+    )
+
+
 def _mock_query_reply(page) -> None:
     page.route(
         "**/query",
@@ -545,7 +592,9 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     _mock_molecular_datasets(page)
     expect = playwright.expect
 
+    page.locator("#dataTabBtn").click()
     page.locator("#loadBtn").click()
+    page.locator("#dashboardTabBtn").click()
 
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     expect(page.locator("#patients")).to_contain_text("SYN001")
@@ -557,14 +606,14 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     _mock_molecular_datasets(page)
     expect = playwright.expect
 
+    page.locator("#dataTabBtn").click()
     page.locator("#loadBtn").click()
+    page.locator("#dashboardTabBtn").click()
 
     expect(page.locator("#dashboard-plot-sex")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-visits")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
-    page.locator("#dashboardMolecularBtn").click()
-    expect(page.locator("#molecular-overview-comparison")).to_have_attribute("data-plotly-ready", "true")
 
 
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:
@@ -595,6 +644,22 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
 
 
+def test_analysis_starter_button_reopens_panel(page) -> None:
+    _open_analysis_tab(page)
+    _mock_analysis_reply(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this cohort.")
+    page.locator("#analysisRunBtn").click()
+
+    expect(page.locator("#analysisStarterPanel")).to_be_hidden()
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
+
+    page.locator("#analysisComposerExamplesBtn").click()
+    expect(page.locator("#analysisStarterPanel")).to_be_visible()
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
+
+
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_trajectory_reply(page)
@@ -607,6 +672,22 @@ def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("Trajectory analysis")
     expect(page.locator("[id$='-trajectory']")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("[id$='-trajectory-coverage']")).to_have_attribute("data-plotly-ready", "true")
+
+
+def test_analysis_molecular_medication_compare_mounts_volcano_plot(page) -> None:
+    _open_analysis_tab(page)
+    _mock_analysis_molecular_volcano_reply(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Explain differences in gene expression according to medication")
+    page.locator("#analysisRunBtn").click()
+
+    expect(page.locator("#analysisThread")).to_contain_text("Expression differs between medication-aligned transcriptomics datasets")
+    expect(page.locator("#analysisThread")).to_contain_text("Molecular by medication")
+    expect(page.locator("#analysisThread")).to_contain_text("Exploratory transcriptomics comparison")
+    expect(page.locator("#analysisThread")).to_contain_text("Positive log2FC means higher in Infliximab")
+    expect(page.locator("#analysisThread")).to_contain_text("gray = everything else")
+    expect(page.locator("[id*='molecular-volcano-']")).to_have_attribute("data-plotly-ready", "true")
 
 
 def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> None:

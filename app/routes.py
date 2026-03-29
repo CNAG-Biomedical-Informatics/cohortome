@@ -197,7 +197,8 @@ def get_auth_diagnostics() -> Dict:
 
 
 def get_auth_users(request: Request) -> Dict:
-    require_admin(request)
+    if auth_enabled():
+        require_admin(request)
     return {
         "mode": "local" if auth_enabled() else "none",
         "users": [

@@ -202,45 +202,6 @@ export function createDashboardUi(ctx) {
 
   }
 
-  function renderMolecularOverviewCharts(datasets) {
-    if (!Array.isArray(datasets) || !datasets.length) return;
-    const labels = datasets.map((item) => item.dataset_name);
-    mountPlot(
-      "molecular-overview-comparison",
-      [
-        {
-          type: "bar",
-          name: "Samples",
-          x: labels,
-          y: datasets.map((item) => Number(item.sample_count || 0)),
-          marker: { color: "#2563eb" },
-          hovertemplate: "%{x}<br>Samples: %{y}<extra></extra>",
-        },
-        {
-          type: "bar",
-          name: "Patients",
-          x: labels,
-          y: datasets.map((item) => Number(item.patient_count || 0)),
-          marker: { color: "#0ea5e9" },
-          hovertemplate: "%{x}<br>Patients: %{y}<extra></extra>",
-        },
-        {
-          type: "bar",
-          name: "Clinical overlap",
-          x: labels,
-          y: datasets.map((item) => Number(item.clinical_overlap_patient_count || 0)),
-          marker: { color: "#0f766e" },
-          hovertemplate: "%{x}<br>Clinical overlap: %{y}<extra></extra>",
-        },
-      ],
-      dashboardPlotLayout({
-        xaxis: { ...dashboardPlotLayout().xaxis, tickangle: -20 },
-        yaxis: { ...dashboardPlotLayout().yaxis, title: { text: "Count", font: { color: "#61758c", size: 12 } } },
-        barmode: "group",
-      })
-    );
-  }
-
   function renderEvidence(evidence) {
     const labels = [
       ["diseases", "Diseases"],
@@ -577,20 +538,7 @@ export function createDashboardUi(ctx) {
       if (!text) return "Molecular";
       return text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
     };
-    molecularDashboardCardsEl.innerHTML = `
-      <section class="section-card" style="grid-column: 1 / -1;">
-        <div class="section-card-header">
-          <div class="section-card-eyebrow">Molecular overview</div>
-          <h3>Dataset size comparison</h3>
-        </div>
-        <div class="dashboard-plot-grid dashboard-plot-grid-compact">
-          <div class="dashboard-plot-card">
-            <h4>Samples, patients, and overlap</h4>
-            <div class="dashboard-plot-frame" id="molecular-overview-comparison"></div>
-          </div>
-        </div>
-      </section>
-      ${datasets.map((item) => {
+    molecularDashboardCardsEl.innerHTML = `${datasets.map((item) => {
       const overlap = currentMolecularScopeOverlap(item.patient_ids);
       const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
       const topGenesMarkup = topGenes.length
@@ -637,7 +585,6 @@ export function createDashboardUi(ctx) {
         </article>
       `;
     }).join("")}`;
-    renderMolecularOverviewCharts(datasets);
   }
 
   async function loadMolecularGeneSuggestions() {

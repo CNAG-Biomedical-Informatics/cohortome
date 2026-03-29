@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -751,6 +752,92 @@ def molecular_dataset_pairwise_gene_differences(
         }
         for gene_id, mean_a, mean_b, abs_delta in rows
     ]
+
+
+def molecular_dataset_pairwise_exploratory_volcano(
+    data_dir: str,
+    dataset_a: str,
+    dataset_b: str,
+    limit: int = 2000,
+) -> List[Dict[str, Any]]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        rows = con.execute(
+            """
+            SELECT dataset_name, sample_id, gene_id, raw_count
+            FROM transcript_counts
+            WHERE dataset_name IN (?, ?)
+            ORDER BY dataset_name, sample_id, gene_id
+            """,
+            [dataset_a, dataset_b],
+        ).fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        return []
+
+    sample_totals: Dict[Tuple[str, str], float] = {}
+    for dataset_name, sample_id, _gene_id, raw_count in rows:
+        key = (str(dataset_name), str(sample_id))
+        sample_totals[key] = sample_totals.get(key, 0.0) + float(raw_count or 0)
+
+    gene_values_a: Dict[str, List[float]] = {}
+    gene_values_b: Dict[str, List[float]] = {}
+    for dataset_name, sample_id, gene_id, raw_count in rows:
+        key = (str(dataset_name), str(sample_id))
+        library_size = max(sample_totals.get(key, 0.0), 1.0)
+        cpm = (float(raw_count or 0) / library_size) * 1_000_000.0
+        log2_cpm = math.log2(cpm + 1.0)
+        gene_key = str(gene_id)
+        if str(dataset_name) == dataset_a:
+            gene_values_a.setdefault(gene_key, []).append(log2_cpm)
+        elif str(dataset_name) == dataset_b:
+            gene_values_b.setdefault(gene_key, []).append(log2_cpm)
+
+    genes = sorted(set(gene_values_a.keys()) & set(gene_values_b.keys()))
+    points: List[Dict[str, Any]] = []
+
+    def _mean(values: List[float]) -> float:
+        return sum(values) / max(len(values), 1)
+
+    def _sample_variance(values: List[float], mean_value: float) -> float:
+        if len(values) < 2:
+            return 0.0
+        return sum((value - mean_value) ** 2 for value in values) / (len(values) - 1)
+
+    for gene_id in genes:
+        values_a = gene_values_a.get(gene_id) or []
+        values_b = gene_values_b.get(gene_id) or []
+        if not values_a or not values_b:
+            continue
+        mean_a = _mean(values_a)
+        mean_b = _mean(values_b)
+        var_a = _sample_variance(values_a, mean_a)
+        var_b = _sample_variance(values_b, mean_b)
+        denom = math.sqrt((var_a / max(len(values_a), 1)) + (var_b / max(len(values_b), 1)))
+        if denom > 0:
+            z_score = (mean_a - mean_b) / denom
+            p_value = max(math.erfc(abs(z_score) / math.sqrt(2.0)), 1e-300)
+        else:
+            z_score = 0.0
+            p_value = 1.0
+        points.append(
+            {
+                "gene_id": gene_id,
+                "mean_log2_cpm_a": float(mean_a),
+                "mean_log2_cpm_b": float(mean_b),
+                "log2_fold_change": float(mean_a - mean_b),
+                "p_value": float(p_value),
+                "neg_log10_p": float(-math.log10(max(p_value, 1e-300))),
+                "sample_count_a": len(values_a),
+                "sample_count_b": len(values_b),
+            }
+        )
+
+    points.sort(key=lambda item: (item["neg_log10_p"], abs(item["log2_fold_change"])), reverse=True)
+    return points[: int(limit)]
 
 
 def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:

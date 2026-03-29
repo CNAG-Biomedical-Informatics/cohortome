@@ -106,3 +106,16 @@ def require_admin(request: Request) -> Dict[str, Any]:
     if not user or str(user.get("role") or "") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required.")
     return user
+
+
+def require_authenticated(request: Request) -> Dict[str, Any]:
+    if not auth_enabled():
+        return {
+            "username": "local",
+            "role": "admin",
+            "display_name": "Local user",
+        }
+    user = session_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    return user

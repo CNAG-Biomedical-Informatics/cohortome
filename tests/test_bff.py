@@ -2262,4 +2262,11 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
     assert payload["data"]["context"]["mode"] == "molecular_medication_compare"
     assert payload["data"]["context"]["comparisons"][0]["medication_a"] == "Infliximab"
     assert payload["data"]["context"]["comparisons"][0]["medication_b"] == "Vedolizumab"
+    assert payload["data"]["context"]["exploratory_note"].startswith("Exploratory transcriptomics comparison")
+    assert payload["data"]["context"]["comparisons"][0]["exploratory_volcano_points"]
+    volcano_point = payload["data"]["context"]["comparisons"][0]["exploratory_volcano_points"][0]
+    assert "gene_id" in volcano_point
+    assert "log2_fold_change" in volcano_point
+    assert "neg_log10_p" in volcano_point
     assert "largest expression difference is ENSG00000169429" in payload["reply"]
+    assert "preliminary and not DESeq2-grade differential expression" in payload["reply"]
