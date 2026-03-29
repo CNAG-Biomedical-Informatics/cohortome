@@ -741,6 +741,7 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
     summaries = sorted((bundle.summary for bundle in bundles.values()), key=lambda item: item.patient_id)
     meds = medication_counts(data_dir)[:8]
     diseases = disease_counts_local(bundles)[:8]
+    disease_medication_matrix = disease_medication_matrix_local(bundles, diseases, meds)
 
     sex_counts: Dict[str, int] = {}
     visit_distribution: Dict[str, int] = {}
@@ -776,6 +777,7 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
         "visit_distribution": visit_distribution,
         "top_medications": meds,
         "top_diseases": diseases,
+        "disease_medication_matrix": disease_medication_matrix,
         "patients": [summary.model_dump() for summary in summaries],
         "timelines": timeline_points,
     }
@@ -799,6 +801,38 @@ def disease_counts_local(bundles: Dict[str, PatientBundle]) -> List[Dict[str, An
                 entry["patients"].append(patient_id)
 
     return sorted(counts.values(), key=lambda item: (-item["patient_count"], item["disease"]))
+
+
+def disease_medication_matrix_local(
+    bundles: Dict[str, PatientBundle],
+    diseases: List[Dict[str, Any]],
+    medications: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    disease_labels = [str(item.get("disease")) for item in diseases if item.get("disease")]
+    medication_labels = [str(item.get("medication")) for item in medications if item.get("medication")]
+    if not disease_labels or not medication_labels:
+        return {"diseases": disease_labels, "medications": medication_labels, "values": []}
+
+    values = [[0 for _ in medication_labels] for _ in disease_labels]
+    disease_index = {label: idx for idx, label in enumerate(disease_labels)}
+    medication_index = {label: idx for idx, label in enumerate(medication_labels)}
+
+    for _patient_id, bundle in bundles.items():
+        patient_diseases = set()
+        patient_medications = set()
+        for visit in bundle.context.visits:
+            patient_diseases.update(
+                label for label in _extract_disease_labels_local(visit.provenance.raw_bff) if label in disease_index
+            )
+            patient_medications.update(
+                label for label in extract_treatment_labels(visit.provenance.raw_bff) if label in medication_index
+            )
+        for disease in patient_diseases:
+            disease_idx = disease_index[disease]
+            for medication in patient_medications:
+                values[disease_idx][medication_index[medication]] += 1
+
+    return {"diseases": disease_labels, "medications": medication_labels, "values": values}
 
 
 def _extract_disease_labels_local(record: Dict[str, Any]) -> List[str]:

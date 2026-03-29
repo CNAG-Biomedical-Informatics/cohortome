@@ -284,6 +284,98 @@ def _mock_dashboard_load(page) -> None:
                     "top_diseases": [["Crohn Disease", 2]],
                     "top_treatments": [["Infliximab", 1]],
                     "sex_counts": {"female": 1, "male": 1},
+                    "disease_medication_matrix": {
+                        "diseases": ["Crohn Disease"],
+                        "medications": ["Infliximab"],
+                        "values": [[1]],
+                    },
+                }
+            ),
+        ),
+    )
+
+
+def _mock_molecular_datasets(page) -> None:
+    page.route(
+        "**/molecular/datasets?data_dir=*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
+                            "modality": "transcriptomics_raw_counts",
+                            "sample_count": 25,
+                            "patient_count": 5,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 5,
+                            "clinical_overlap_ratio": 1.0,
+                            "scope_overlap_patient_count": 0,
+                            "scope_overlap_ratio": 0.0,
+                            "mean_total_counts_per_sample": 1024.0,
+                            "mean_detected_genes_per_sample": 10.4,
+                            "top_genes": [],
+                        }
+                    ]
+                }
+            ),
+        ),
+    )
+
+
+def _mock_analysis_trajectory_reply(page) -> None:
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_trajectory",
+                    "reply": "CRP declines after Infliximab with early separation from baseline.",
+                    "data": {
+                        "provider": "deterministic",
+                        "context": {
+                            "mode": "trajectory_response",
+                            "measure": "CRP",
+                            "unit": "mg/L",
+                            "treatment": "Infliximab",
+                            "patient_count": 3,
+                            "patient_series": [
+                                {
+                                    "label": "SYN001",
+                                    "points": [
+                                        {"x": "week_0", "x_label": "week_0", "value": 16},
+                                        {"x": "week_2", "x_label": "week_2", "value": 9},
+                                        {"x": "week_6", "x_label": "week_6", "value": 5},
+                                    ],
+                                },
+                                {
+                                    "label": "SYN002",
+                                    "points": [
+                                        {"x": "week_0", "x_label": "week_0", "value": 14},
+                                        {"x": "week_2", "x_label": "week_2", "value": 8},
+                                        {"x": "week_6", "x_label": "week_6", "value": 4},
+                                    ],
+                                },
+                            ],
+                            "summary_series": {
+                                "label": "Cohort median",
+                                "points": [
+                                    {"x": "week_0", "x_label": "week_0", "value": 15},
+                                    {"x": "week_2", "x_label": "week_2", "value": 8.5},
+                                    {"x": "week_6", "x_label": "week_6", "value": 4.5},
+                                ],
+                            },
+                            "summary_points": [
+                                {"x": "week_0", "x_label": "week_0", "value": 15},
+                                {"x": "week_2", "x_label": "week_2", "value": 8.5},
+                                {"x": "week_6", "x_label": "week_6", "value": 4.5},
+                            ],
+                        },
+                    },
                 }
             ),
         ),
@@ -378,6 +470,7 @@ def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
 
 def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     _mock_dashboard_load(page)
+    _mock_molecular_datasets(page)
     expect = playwright.expect
 
     page.locator("#loadBtn").click()
@@ -385,6 +478,21 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     expect(page.locator("#patients")).to_contain_text("SYN001")
     expect(page.locator("#patients")).to_contain_text("SYN002")
+
+
+def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_molecular_datasets(page)
+    expect = playwright.expect
+
+    page.locator("#loadBtn").click()
+
+    expect(page.locator("#dashboard-plot-sex")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#dashboard-plot-visits")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
+    page.locator("#dashboardMolecularBtn").click()
+    expect(page.locator("#molecular-overview-comparison")).to_have_attribute("data-plotly-ready", "true")
 
 
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:
@@ -413,6 +521,20 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
 
     expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
+
+
+def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
+    _open_analysis_tab(page)
+    _mock_analysis_trajectory_reply(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Show response to Infliximab using CRP")
+    page.locator("#analysisRunBtn").click()
+
+    expect(page.locator("#analysisThread")).to_contain_text("CRP declines after Infliximab")
+    expect(page.locator("#analysisThread")).to_contain_text("Trajectory analysis")
+    expect(page.locator("[id$='-trajectory']")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("[id$='-trajectory-coverage']")).to_have_attribute("data-plotly-ready", "true")
 
 
 def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> None:

@@ -9,6 +9,7 @@ import app.query as query_module
 import app.query_store as query_store_module
 from app.bff import (
     build_patient_navigator,
+    dashboard_summary,
     ensure_data_dir,
     get_patient_context,
     list_patient_summaries,
@@ -112,6 +113,45 @@ def test_generate_mds_points_transforms_jaccard_similarity_to_distance(tmp_path)
     assert "jaccard distance" in jaccard_payload["stdout"].lower()
     assert abs(hamming_distance - 0.8) < 1e-6
     assert abs(jaccard_distance - 0.2) < 1e-6
+
+
+def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "SYN002:week_0",
+                "patient_id": "SYN002",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
+            },
+            {
+                "id": "SYN003:week_0",
+                "patient_id": "SYN003",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
+            },
+        ],
+    )
+
+    payload = dashboard_summary(str(tmp_path))
+
+    matrix = payload["disease_medication_matrix"]
+    assert matrix["diseases"] == ["Crohn Disease", "Ulcerative Colitis"]
+    assert matrix["medications"] == ["Vedolizumab", "Infliximab"]
+    assert matrix["values"] == [
+        [1, 1],
+        [1, 0],
+    ]
 
 
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):

@@ -80,7 +80,16 @@
           <div class="dashboard-loader-row">
             <label for="dataDir">Dataset</label>
             <input id="dataDir" value="{{ default_data_dir }}">
-            <button id="loadBtn" type="button">Load dataset</button>
+            <button id="loadBtn" type="button">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v12"></path>
+                  <path d="m7 10 5 5 5-5"></path>
+                  <path d="M5 21h14"></path>
+                </svg>
+              </span>
+              <span>Load dataset</span>
+            </button>
           </div>
           <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
         </div>
@@ -95,7 +104,17 @@
               <div class="section-note">Overview of the loaded clinical cohort, patient roster, and focused patient workspace.</div>
               <div class="dashboard-hero-note">Use this view to understand what is loaded before building cohorts in Query or interpreting them in Analysis.</div>
             </section>
-            <div class="dashboard-shell">
+            <div class="dashboard-clinical-stack">
+              <section class="dashboard-section-card">
+                <div class="dashboard-section-header">
+                  <div>
+                    <h3>Clinical overview</h3>
+                  </div>
+                </div>
+                <div id="dashboard" class="empty">Load dataset to build the dashboard.</div>
+              </section>
+            </div>
+            <div class="dashboard-shell dashboard-shell-clinical">
               <section class="dashboard-section-card">
                 <div class="dashboard-section-header">
                   <div>
@@ -107,27 +126,15 @@
                 <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
                 <div id="patients" class="patient-list empty">No patients loaded.</div>
               </section>
-              <div class="dashboard-section-stack">
-                <section class="dashboard-section-card">
-                  <div class="dashboard-section-header">
-                    <div>
-                      <div class="dashboard-card-eyebrow">Loaded overview</div>
-                      <h3>Clinical dashboard</h3>
-                    </div>
+              <div class="detail-shell dashboard-section-card">
+                <div class="dashboard-section-header">
+                  <div>
+                    <div class="dashboard-card-eyebrow">Focused review</div>
+                    <h3>Patient workspace</h3>
                   </div>
-                  <div class="section-note">Overview metrics and quick cohort patterns to orient large datasets before drilling into one patient.</div>
-                  <div id="dashboard" class="empty">Load dataset to build the dashboard.</div>
-                </section>
-                <div class="detail-shell dashboard-section-card">
-                  <div class="dashboard-section-header">
-                    <div>
-                      <div class="dashboard-card-eyebrow">Focused review</div>
-                      <h3>Patient workspace</h3>
-                    </div>
-                  </div>
-                  <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
-                  <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
                 </div>
+                <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
+                <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
               </div>
             </div>
           </div>
@@ -160,7 +167,15 @@
                 </div>
               </div>
               <div class="query-row" style="margin-top:12px;">
-                <button id="analysisMolecularRunBtn" type="button">Show expression</button>
+                <button id="analysisMolecularRunBtn" type="button">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 19h16"></path>
+                      <path d="M6 15 10 9l4 3 4-6"></path>
+                    </svg>
+                  </span>
+                  <span>Show expression</span>
+                </button>
               </div>
               <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
               <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
@@ -171,7 +186,7 @@
 
       <section id="queryTab" class="tab-panel">
         <div class="controls">
-          <div id="queryStatus" class="query-status">Press Enter or click Run query.</div>
+          <div id="queryStatus" class="query-status">Press Enter or click Ask.</div>
           <div id="queryMeta" class="query-meta"></div>
           <div id="lmStatus" class="section-note">LM Studio model: checking...</div>
           <div id="queryStarterPanel" class="query-starter-panel">
@@ -265,7 +280,7 @@
                     <path d="m22 2-7 20-4-9-9-4Z"></path>
                   </svg>
                 </span>
-                <span>Run query</span>
+                <span>Ask</span>
               </button>
             </div>
           </div>
@@ -302,8 +317,27 @@
               <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
             </details>
             <div class="pheno-actions pheno-actions-primary" style="margin-top:12px;">
-              <button id="phenoPlanBtn" type="button" class="query-chip">Preview plan</button>
-              <button id="phenoRunBtn" type="button">Run Pheno-Ranker</button>
+              <button id="phenoPlanBtn" type="button" class="query-chip">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"></path>
+                    <path d="M12 4h9"></path>
+                    <path d="M3 5h4"></path>
+                    <path d="M3 12h18"></path>
+                    <path d="M3 19h4"></path>
+                    <path d="m7 4 4 8-4 8"></path>
+                  </svg>
+                </span>
+                <span>Preview plan</span>
+              </button>
+              <button id="phenoRunBtn" type="button">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m5 3 14 9-14 9V3Z"></path>
+                  </svg>
+                </span>
+                <span>Run Pheno-Ranker</span>
+              </button>
             </div>
             <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
             <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
@@ -403,10 +437,45 @@
                 <div class="pheno-result-card-toolbar">
                   <h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m19 5-14 14"></path><path d="m5 5 14 14"></path></svg></span><span>Explain Results</span></h3>
                   <div class="pheno-actions pheno-actions-secondary">
-                    <button id="phenoAnalysisBtn" type="button" class="query-chip">Open matches in Analysis</button>
-                    <button id="phenoCopyIdsBtn" type="button" class="query-chip">Copy match IDs</button>
-                    <button id="phenoExplainBtn" type="button" class="query-chip">Explain results</button>
-                    <button id="phenoExplainLlmBtn" type="button" class="query-chip">Explain with LLM</button>
+                    <button id="phenoAnalysisBtn" type="button" class="query-chip">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M8 17 18 7"></path>
+                          <path d="M9 7h9v9"></path>
+                          <path d="M5 5h6"></path>
+                          <path d="M5 11v8h8"></path>
+                        </svg>
+                      </span>
+                      <span>Open matches in Analysis</span>
+                    </button>
+                    <button id="phenoCopyIdsBtn" type="button" class="query-chip">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                          <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+                        </svg>
+                      </span>
+                      <span>Copy match IDs</span>
+                    </button>
+                    <button id="phenoExplainBtn" type="button" class="query-chip">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 3a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V19h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 3z"></path>
+                          <path d="M9 22h6"></path>
+                        </svg>
+                      </span>
+                      <span>Explain results</span>
+                    </button>
+                    <button id="phenoExplainLlmBtn" type="button" class="query-chip">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M9.5 9a2.5 2.5 0 1 1 5 0c0 1.5-2.5 2-2.5 4"></path>
+                          <path d="M12 17h.01"></path>
+                          <path d="M4 5h16v14H4z"></path>
+                        </svg>
+                      </span>
+                      <span>Explain with LLM</span>
+                    </button>
                   </div>
                 </div>
                 <div id="phenoExplainDetail" class="empty">Run patient mode, then click <code>Explain results</code> to summarize the top matches from <code>rank.txt</code>.</div>
@@ -534,7 +603,14 @@
               </div>
               <div class="query-row">
                 <textarea id="analysisPrompt">Summarize the main clinical patterns in this cohort and tell me what stands out.</textarea>
-                <button id="analysisRunBtn" type="button">Run analysis</button>
+                <button id="analysisRunBtn" type="button">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m5 3 14 9-14 9V3Z"></path>
+                    </svg>
+                  </span>
+                  <span>Run analysis</span>
+                </button>
               </div>
             </div>
           </div>
@@ -543,7 +619,7 @@
     </main>
 
         <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-        <script src="/static/app.js"></script>
+        <script type="module" src="/static/app.js"></script>
 
   </body>
 </html>
