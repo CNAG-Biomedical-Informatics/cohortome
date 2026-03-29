@@ -3,6 +3,7 @@ import json
 from fastapi import HTTPException
 
 import app.analysis as analysis_module
+import app.analysis_sessions as analysis_sessions_module
 import app.cohorts as cohorts_module
 import app.pheno as pheno_module
 import app.query as query_module
@@ -18,12 +19,14 @@ from app.bff import (
     normalize_value,
 )
 from app.main import (
+    app,
     get_medication_counts,
     get_patient,
     get_patient_navigator,
     get_patients,
     search_medication_cohort,
 )
+from fastapi.testclient import TestClient
 from app.query import answer_query
 from app.query_store import (
     cohort_over_time_summary as store_cohort_over_time_summary,
@@ -155,7 +158,8 @@ def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
 
 
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(cohorts_module, "SAVED_COHORTS_PATH", tmp_path / "saved-cohorts.json")
+    monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     saved = cohorts_module.save_cohort(
         name="Crohn cohort",
@@ -187,8 +191,34 @@ def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     assert cohorts_module.list_saved_cohorts("/data/a") == []
 
 
+def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
+    monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
+
+    cohorts_module.save_cohort(
+        name="Local cohort",
+        data_dir="/data/a",
+        ids=["P1"],
+        id_type="patient",
+        source_kind="query",
+        user_id="local",
+    )
+    cohorts_module.save_cohort(
+        name="Alice cohort",
+        data_dir="/data/a",
+        ids=["P2"],
+        id_type="patient",
+        source_kind="query",
+        user_id="alice",
+    )
+
+    assert [item["name"] for item in cohorts_module.list_saved_cohorts("/data/a", user_id="local")] == ["Local cohort"]
+    assert [item["name"] for item in cohorts_module.list_saved_cohorts("/data/a", user_id="alice")] == ["Alice cohort"]
+
+
 def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
-    monkeypatch.setattr(cohorts_module, "SAVED_COHORTS_PATH", tmp_path / "saved-cohorts.json")
+    monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     first = cohorts_module.save_cohort(
         name="Crohn cohort",
@@ -218,6 +248,54 @@ def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
     assert first["name"] == "Crohn cohort"
     assert second["name"] == "Crohn cohort (2)"
     assert third_other_dir["name"] == "Crohn cohort"
+
+
+def test_analysis_sessions_are_user_scoped(tmp_path, monkeypatch):
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(
+        analysis_sessions_module,
+        "LEGACY_ANALYSIS_SESSIONS_PATH",
+        tmp_path / "legacy-analysis-sessions.json",
+    )
+
+    analysis_sessions_module.save_analysis_session(
+        {"id": "session_local", "title": "Local session", "turns": []},
+        user_id="local",
+    )
+    analysis_sessions_module.save_analysis_session(
+        {"id": "session_alice", "title": "Alice session", "turns": []},
+        user_id="alice",
+    )
+
+    assert [item["title"] for item in analysis_sessions_module.list_analysis_sessions(user_id="local")] == ["Local session"]
+    assert [item["title"] for item in analysis_sessions_module.list_analysis_sessions(user_id="alice")] == ["Alice session"]
+
+
+def test_local_auth_login_logout_cycle(monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "admin", "display_name": "Alice"}]),
+    )
+    client = TestClient(app)
+
+    me_before = client.get("/auth/me")
+    assert me_before.status_code == 200
+    assert me_before.json()["authenticated"] is False
+
+    login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
+    assert login.status_code == 200
+    assert login.json()["user"]["username"] == "alice"
+    assert login.json()["user"]["role"] == "admin"
+
+    me_after = client.get("/auth/me")
+    assert me_after.status_code == 200
+    assert me_after.json()["authenticated"] is True
+    assert me_after.json()["user"]["username"] == "alice"
+
+    logout = client.post("/auth/logout")
+    assert logout.status_code == 200
+    assert logout.json()["authenticated"] is False
 
 
 def test_normalize_placeholder_values():

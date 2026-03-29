@@ -14,6 +14,7 @@ export function createAnalysisSessionsUi(ctx) {
   const {
     createAnalysisSession,
     currentAnalysisSession,
+    getStorageNamespace,
     renderAnalysisCompareMode,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
@@ -22,6 +23,11 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisMeta,
   } = callbacks;
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
+
+  function analysisSessionsStorageKey() {
+    const namespace = typeof getStorageNamespace === "function" ? String(getStorageNamespace() || "").trim() : "";
+    return namespace ? `${ANALYSIS_SESSIONS_STORAGE_KEY}.${namespace}` : ANALYSIS_SESSIONS_STORAGE_KEY;
+  }
 
   function analysisSessionTitle(session) {
     const customTitle = String(session.title || "").trim();
@@ -51,7 +57,7 @@ export function createAnalysisSessionsUi(ctx) {
   function persistAnalysisSessions() {
     try {
       window.localStorage.setItem(
-        ANALYSIS_SESSIONS_STORAGE_KEY,
+        analysisSessionsStorageKey(),
         JSON.stringify({
           currentId: state.currentAnalysisSessionId,
           sessions: state.analysisSessions,
@@ -228,7 +234,7 @@ export function createAnalysisSessionsUi(ctx) {
     if (state.analysisSessions.length) return;
     let stored = null;
     try {
-      stored = JSON.parse(window.localStorage.getItem(ANALYSIS_SESSIONS_STORAGE_KEY) || "null");
+      stored = JSON.parse(window.localStorage.getItem(analysisSessionsStorageKey()) || "null");
     } catch (_error) {
       stored = null;
     }

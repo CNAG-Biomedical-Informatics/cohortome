@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.auth import auth_enabled, authenticate_local_user, local_auth_diagnostics, session_user
 from app.analysis import analysis_llm_reply
 from app.analysis_sessions import (
     delete_analysis_session,
@@ -43,8 +44,10 @@ from app.schemas import (
     PhenoRankerRequest,
     QueryRequest,
     SavedCohortRequest,
+    LoginRequest,
 )
 from app.query import answer_query
+from app.user_state import request_user_id
 
 
 templates: Jinja2Templates | None = None
@@ -64,6 +67,7 @@ def index(request: Request) -> HTMLResponse:
         {
             "default_data_dir": DEFAULT_DATA_DIR,
             "branding": branding_settings(),
+            "auth_enabled": auth_enabled(),
         },
     )
 
@@ -137,11 +141,55 @@ def get_branding_logo() -> FileResponse:
     return FileResponse(logo_path)
 
 
-def get_saved_cohorts(data_dir: str = DEFAULT_DATA_DIR) -> Dict:
-    return {"cohorts": list_saved_cohorts(data_dir)}
+def get_auth_status(request: Request) -> Dict:
+    user = session_user(request)
+    return {
+        "enabled": auth_enabled(),
+        "authenticated": bool(user) if auth_enabled() else True,
+        "user": user if auth_enabled() else {
+            "username": "local",
+            "role": "admin",
+            "display_name": "Local user",
+        },
+    }
 
 
-def create_saved_cohort(request: SavedCohortRequest) -> Dict:
+def login_local(request: Request, payload: LoginRequest) -> Dict:
+    if not auth_enabled():
+        return {"enabled": False, "authenticated": True}
+    user = authenticate_local_user(payload.username, payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    request.session["username"] = user["username"]
+    request.session["role"] = user["role"]
+    request.session["display_name"] = user["display_name"]
+    return {
+        "enabled": True,
+        "authenticated": True,
+        "user": {
+            "username": user["username"],
+            "role": user["role"],
+            "display_name": user["display_name"],
+        },
+    }
+
+
+def logout_local(request: Request) -> Dict:
+    session = getattr(request, "session", None)
+    if session is not None:
+        session.clear()
+    return {"enabled": auth_enabled(), "authenticated": False}
+
+
+def get_auth_diagnostics() -> Dict:
+    return local_auth_diagnostics()
+
+
+def get_saved_cohorts(request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+    return {"cohorts": list_saved_cohorts(data_dir, user_id=request_user_id(request))}
+
+
+def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Dict:
     try:
         item = save_cohort(
             name=request.name,
@@ -150,14 +198,15 @@ def create_saved_cohort(request: SavedCohortRequest) -> Dict:
             id_type=request.id_type,
             source_kind=request.source_kind,
             source_prompt=request.source_prompt,
+            user_id=request_user_id(raw_request),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return item
 
 
-def remove_saved_cohort(cohort_id: str) -> Dict:
-    deleted = delete_saved_cohort(cohort_id)
+def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
+    deleted = delete_saved_cohort(cohort_id, user_id=request_user_id(request))
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved cohort not found.")
     return {"deleted": True, "id": cohort_id}
@@ -220,26 +269,26 @@ def get_molecular_expression(request: MolecularExpressionRequest) -> Dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def get_analysis_sessions() -> Dict:
-    return {"sessions": list_analysis_sessions()}
+def get_analysis_sessions(request: Request) -> Dict:
+    return {"sessions": list_analysis_sessions(user_id=request_user_id(request))}
 
 
-def create_or_update_analysis_session(request: AnalysisSessionRequest) -> Dict:
+def create_or_update_analysis_session(request: AnalysisSessionRequest, raw_request: Request) -> Dict:
     try:
-        return save_analysis_session(request.model_dump())
+        return save_analysis_session(request.model_dump(), user_id=request_user_id(raw_request))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def update_analysis_session_title(session_id: str, request: AnalysisSessionRenameRequest) -> Dict:
-    item = rename_analysis_session(session_id, request.title)
+def update_analysis_session_title(session_id: str, request: AnalysisSessionRenameRequest, raw_request: Request) -> Dict:
+    item = rename_analysis_session(session_id, request.title, user_id=request_user_id(raw_request))
     if item is None:
         raise HTTPException(status_code=404, detail="Analysis session not found.")
     return item
 
 
-def remove_analysis_session(session_id: str) -> Dict:
-    deleted = delete_analysis_session(session_id)
+def remove_analysis_session(session_id: str, request: Request) -> Dict:
+    deleted = delete_analysis_session(session_id, user_id=request_user_id(request))
     if not deleted:
         raise HTTPException(status_code=404, detail="Analysis session not found.")
     return {"deleted": True, "id": session_id}
@@ -292,6 +341,10 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"])
     app.add_api_route("/query", query_app, methods=["GET"])
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"])
+    app.add_api_route("/auth/me", get_auth_status, methods=["GET"])
+    app.add_api_route("/auth/login", login_local, methods=["POST"])
+    app.add_api_route("/auth/logout", logout_local, methods=["POST"])
+    app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"])
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"])
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"])
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"])

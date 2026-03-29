@@ -6,19 +6,24 @@ from pathlib import Path
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from app.config import BASE_DIR
+from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
+from app.user_state import normalize_user_id
 
 
-SAVED_COHORTS_PATH = BASE_DIR / ".cache" / "saved-cohorts.json"
+LEGACY_SAVED_COHORTS_PATH = BASE_DIR / ".cache" / "saved-cohorts.json"
+USER_STATE_ROOT = BASE_DIR / "state" / "users"
 
 
-def _cohort_store_path() -> Path:
-    SAVED_COHORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return SAVED_COHORTS_PATH
+def _cohort_store_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
+    path = USER_STATE_ROOT / normalize_user_id(user_id) / "saved-cohorts.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
-def _read_saved_cohorts() -> List[Dict[str, Any]]:
-    path = _cohort_store_path()
+def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
+    path = _cohort_store_path(user_id)
+    if not path.exists() and LEGACY_SAVED_COHORTS_PATH.exists():
+        path = LEGACY_SAVED_COHORTS_PATH
     if not path.exists():
         return []
     try:
@@ -28,13 +33,13 @@ def _read_saved_cohorts() -> List[Dict[str, Any]]:
     return payload if isinstance(payload, list) else []
 
 
-def _write_saved_cohorts(items: List[Dict[str, Any]]) -> None:
-    path = _cohort_store_path()
+def _write_saved_cohorts(items: List[Dict[str, Any]], user_id: str = DEFAULT_LOCAL_USER_ID) -> None:
+    path = _cohort_store_path(user_id)
     path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def list_saved_cohorts(data_dir: str | None = None) -> List[Dict[str, Any]]:
-    items = _read_saved_cohorts()
+def list_saved_cohorts(data_dir: str | None = None, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
+    items = _read_saved_cohorts(user_id)
     if data_dir:
         filtered = [item for item in items if str(item.get("data_dir") or "") == data_dir]
     else:
@@ -42,11 +47,15 @@ def list_saved_cohorts(data_dir: str | None = None) -> List[Dict[str, Any]]:
     return sorted(filtered, key=lambda item: str(item.get("created_at") or ""), reverse=True)
 
 
-def get_saved_cohorts_by_ids(cohort_ids: List[str], data_dir: str | None = None) -> List[Dict[str, Any]]:
+def get_saved_cohorts_by_ids(
+    cohort_ids: List[str],
+    data_dir: str | None = None,
+    user_id: str = DEFAULT_LOCAL_USER_ID,
+) -> List[Dict[str, Any]]:
     wanted = {str(item or "").strip() for item in cohort_ids if str(item or "").strip()}
     if not wanted:
         return []
-    items = _read_saved_cohorts()
+    items = _read_saved_cohorts(user_id)
     matched = [
         item
         for item in items
@@ -80,6 +89,7 @@ def save_cohort(
     id_type: str,
     source_kind: str,
     source_prompt: str = "",
+    user_id: str = DEFAULT_LOCAL_USER_ID,
 ) -> Dict[str, Any]:
     normalized_ids = []
     seen = set()
@@ -94,7 +104,7 @@ def save_cohort(
 
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     now = datetime.now(timezone.utc).isoformat()
-    items = _read_saved_cohorts()
+    items = _read_saved_cohorts(user_id)
     normalized_name = _dedupe_cohort_name(requested_name, data_dir, items)
     item = {
         "id": f"cohort_{uuid4().hex[:12]}",
@@ -110,14 +120,14 @@ def save_cohort(
         "updated_at": now,
     }
     items.append(item)
-    _write_saved_cohorts(items)
+    _write_saved_cohorts(items, user_id)
     return item
 
 
-def delete_saved_cohort(cohort_id: str) -> bool:
-    items = _read_saved_cohorts()
+def delete_saved_cohort(cohort_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> bool:
+    items = _read_saved_cohorts(user_id)
     filtered = [item for item in items if str(item.get("id") or "") != cohort_id]
     if len(filtered) == len(items):
         return False
-    _write_saved_cohorts(filtered)
+    _write_saved_cohorts(filtered, user_id)
     return True

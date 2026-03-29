@@ -73,6 +73,7 @@
         <div class="context-pill"><span>Cohort</span><strong id="contextCohort">Loading...</strong></div>
         <div class="context-pill"><span>LM</span><strong id="contextLmModel">Checking...</strong></div>
         <div class="context-pill"><span>Scope</span><strong id="contextScope">Full cohort</strong></div>
+        <div class="context-pill"><span>Auth</span><strong id="contextAuth">Local user</strong></div>
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
@@ -92,6 +93,38 @@
             </button>
           </div>
           <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
+          <div id="authPanel" class="auth-panel is-hidden">
+            <div class="auth-panel-head">
+              <strong id="authIdentity">Authentication disabled</strong>
+              <span id="authStatus" class="section-note">Local single-user mode.</span>
+            </div>
+            <div id="authLoginRow" class="auth-row is-hidden">
+              <input id="authUsername" placeholder="Username" autocomplete="username">
+              <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password">
+              <button id="authLoginBtn" type="button" class="query-chip action">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <path d="M10 17l5-5-5-5"></path>
+                    <path d="M15 12H3"></path>
+                  </svg>
+                </span>
+                <span>Sign in</span>
+              </button>
+            </div>
+            <div id="authLogoutRow" class="auth-row is-hidden">
+              <button id="authLogoutBtn" type="button" class="query-chip">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <path d="M16 17l5-5-5-5"></path>
+                    <path d="M21 12H9"></path>
+                  </svg>
+                </span>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
         </div>
         <div class="dashboard-subtabs">
           <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">Clinical</button>

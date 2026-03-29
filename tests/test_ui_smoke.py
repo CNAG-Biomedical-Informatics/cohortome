@@ -35,11 +35,12 @@ def _wait_for_server(url: str, timeout: float = 20.0) -> None:
     raise RuntimeError(f"Timed out waiting for server at {url}") from last_error
 
 
-@pytest.fixture(scope="session")
-def live_server() -> str:
+def _spawn_live_server(extra_env: dict[str, str] | None = None):
     port = _free_port()
     env = os.environ.copy()
     env["PYTHONPATH"] = os.getcwd()
+    if extra_env:
+        env.update(extra_env)
     process = subprocess.Popen(
         [
             sys.executable,
@@ -57,6 +58,41 @@ def live_server() -> str:
         stderr=subprocess.DEVNULL,
     )
     base_url = f"http://127.0.0.1:{port}"
+    return process, base_url
+
+
+@pytest.fixture(scope="session")
+def live_server() -> str:
+    process, base_url = _spawn_live_server()
+    try:
+        _wait_for_server(base_url)
+        yield base_url
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
+            process.kill()
+            process.wait(timeout=5)
+
+
+@pytest.fixture
+def live_server_auth() -> str:
+    process, base_url = _spawn_live_server(
+        {
+            "PN_AUTH_MODE": "local",
+            "PN_LOCAL_USERS_JSON": json.dumps(
+                [
+                    {
+                        "username": "admin",
+                        "password": "secret",
+                        "role": "admin",
+                        "display_name": "Admin User",
+                    }
+                ]
+            ),
+        }
+    )
     try:
         _wait_for_server(base_url)
         yield base_url
@@ -98,6 +134,42 @@ window.Plotly = {
 
             page = context.new_page()
             page.goto(live_server, wait_until="networkidle")
+            yield page
+            context.close()
+            browser.close()
+    except Exception as exc:  # pragma: no cover - depends on local browser install
+        pytest.skip(f"Playwright browser is unavailable: {exc}")
+
+
+@pytest.fixture
+def page_auth(live_server_auth: str):
+    try:
+        with playwright.sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context()
+
+            context.route(
+                "https://cdn.plot.ly/**",
+                lambda route: route.fulfill(
+                    status=200,
+                    content_type="application/javascript",
+                    body="""
+window.Plotly = {
+  newPlot: async function(el) {
+    el.dataset.plotlyReady = "true";
+    el.on = function(name, cb) {
+      this._plotlyHandlers = this._plotlyHandlers || {};
+      this._plotlyHandlers[name] = cb;
+    };
+    return el;
+  }
+};
+""",
+                ),
+            )
+
+            page = context.new_page()
+            page.goto(live_server_auth, wait_until="networkidle")
             yield page
             context.close()
             browser.close()
@@ -578,3 +650,28 @@ def test_pheno_mds_cohort_chips_render_for_prefixed_ids(page) -> None:
     expect(page.locator("#phenoMdsPlot")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("Cohort 1")
     expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("Cohort 2")
+
+
+def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
+    _mock_dashboard_load(page_auth)
+    _mock_molecular_datasets(page_auth)
+    expect = playwright.expect
+
+    expect(page_auth.locator("#authPanel")).to_be_visible()
+    expect(page_auth.locator("#loadBtn")).to_be_disabled()
+    expect(page_auth.locator("#contextAuth")).to_contain_text("Signed out")
+
+    page_auth.locator("#authUsername").fill("admin")
+    page_auth.locator("#authPassword").fill("secret")
+    page_auth.locator("#authLoginBtn").click()
+
+    expect(page_auth.locator("#authIdentity")).to_contain_text("Admin User")
+    expect(page_auth.locator("#loadBtn")).to_be_enabled()
+    expect(page_auth.locator("#contextAuth")).to_contain_text("Admin User (admin)")
+
+    page_auth.locator("#loadBtn").click()
+    expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+
+    page_auth.locator("#authLogoutBtn").click()
+    expect(page_auth.locator("#loadBtn")).to_be_disabled()
+    expect(page_auth.locator("#loadStatus")).to_contain_text("Admin sign-in required")

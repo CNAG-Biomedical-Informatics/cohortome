@@ -47,7 +47,7 @@
       }
       .context-bar {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 12px;
         margin: 18px 0 14px;
         padding: 14px;
@@ -239,6 +239,35 @@
         display: grid;
         gap: 12px;
         margin: 20px 0;
+      }
+      .auth-panel {
+        margin-top: 2px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.74);
+        display: grid;
+        gap: 10px;
+      }
+      .auth-panel-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .auth-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .auth-row.is-hidden {
+        display: none;
+      }
+      #authLogoutRow {
+        grid-template-columns: auto;
+        justify-content: start;
       }
       label {
         font-size: 0.82rem;

@@ -98,3 +98,8 @@ class SavedCohortRequest(BaseModel):
     id_type: str = "patient"
     source_kind: str = "manual"
     source_prompt: str = ""
+
+
+class LoginRequest(BaseModel):
+    username: str = ""
+    password: str = ""

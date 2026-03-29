@@ -9,6 +9,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_ROOT_DIR = BASE_DIR / "data"
 DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
+STATE_ROOT_DIR = BASE_DIR / "state"
+DEFAULT_LOCAL_USER_ID = "local"
 
 
 def branding_logo_path() -> Path | None:
