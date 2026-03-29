@@ -54,6 +54,11 @@ export function createAnalysisSessionsUi(ctx) {
     return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
   }
 
+  function timeValue(value) {
+    const parsed = Date.parse(String(value || ""));
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
   function persistAnalysisSessions() {
     try {
       window.localStorage.setItem(
@@ -112,7 +117,7 @@ export function createAnalysisSessionsUi(ctx) {
       const response = await fetch("/analysis-sessions");
       if (!response.ok) return false;
       const payload = await response.json();
-      const sessions = Array.isArray(payload.sessions) ? payload.sessions.map((item) => createAnalysisSession({
+      const backendSessions = Array.isArray(payload.sessions) ? payload.sessions.map((item) => createAnalysisSession({
         id: item.id,
         title: item.title,
         dataDir: item.data_dir,
@@ -124,6 +129,18 @@ export function createAnalysisSessionsUi(ctx) {
         turns: item.turns,
         updatedAt: item.updated_at,
       })) : [];
+      const localSessions = Array.isArray(state.analysisSessions) ? state.analysisSessions.slice() : [];
+      const merged = new Map();
+      backendSessions.forEach((session) => {
+        merged.set(session.id, session);
+      });
+      localSessions.forEach((session) => {
+        const existing = merged.get(session.id);
+        if (!existing || timeValue(session.updatedAt) > timeValue(existing.updatedAt)) {
+          merged.set(session.id, createAnalysisSession(session));
+        }
+      });
+      const sessions = Array.from(merged.values());
       if (!sessions.length) return false;
       state.analysisSessions = sessions;
       if (!state.analysisSessions.some((session) => session.id === state.currentAnalysisSessionId)) {
@@ -131,6 +148,12 @@ export function createAnalysisSessionsUi(ctx) {
       }
       applyAnalysisSession(currentAnalysisSession() || state.analysisSessions[0]);
       persistAnalysisSessions();
+      localSessions.forEach((session) => {
+        const backend = backendSessions.find((item) => item.id === session.id);
+        if (!backend || timeValue(session.updatedAt) > timeValue(backend.updatedAt)) {
+          void upsertAnalysisSessionToBackend(session);
+        }
+      });
       return true;
     } catch (_error) {
       return false;

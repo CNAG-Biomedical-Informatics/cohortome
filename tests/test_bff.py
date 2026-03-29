@@ -298,6 +298,71 @@ def test_local_auth_login_logout_cycle(monkeypatch):
     assert logout.json()["authenticated"] is False
 
 
+def test_auth_enabled_protects_workspace_routes(monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {
+                    "username": "alice",
+                    "password": "secret",
+                    "role": "user",
+                    "display_name": "Alice",
+                }
+            ]
+        ),
+    )
+    client = TestClient(app)
+
+    assert client.get("/saved-cohorts").status_code == 401
+    assert client.get("/analysis-sessions").status_code == 401
+    assert client.get("/patients").status_code == 401
+
+    login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
+    assert login.status_code == 200
+
+    assert client.get("/saved-cohorts").status_code == 200
+    assert client.get("/analysis-sessions").status_code == 200
+
+
+def test_auth_users_requires_admin(monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {
+                    "username": "admin",
+                    "password": "secret",
+                    "role": "admin",
+                    "display_name": "Admin User",
+                },
+                {
+                    "username": "maria",
+                    "password": "demo",
+                    "role": "user",
+                    "display_name": "Maria",
+                },
+            ]
+        ),
+    )
+    client = TestClient(app)
+
+    assert client.get("/auth/users").status_code == 403
+
+    login_user = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login_user.status_code == 200
+    assert client.get("/auth/users").status_code == 403
+
+    client.post("/auth/logout")
+    login_admin = client.post("/auth/login", json={"username": "admin", "password": "secret"})
+    assert login_admin.status_code == 200
+    payload = client.get("/auth/users")
+    assert payload.status_code == 200
+    assert [item["username"] for item in payload.json()["users"]] == ["admin", "maria"]
+
+
 def test_normalize_placeholder_values():
     assert normalize_value("1900-01-01") is None
     assert normalize_value("P999Y") is None

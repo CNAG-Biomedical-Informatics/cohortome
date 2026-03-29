@@ -657,21 +657,27 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     _mock_molecular_datasets(page_auth)
     expect = playwright.expect
 
-    expect(page_auth.locator("#authPanel")).to_be_visible()
-    expect(page_auth.locator("#loadBtn")).to_be_disabled()
+    expect(page_auth.locator("#authGate")).to_be_visible()
+    expect(page_auth.locator("#appShell")).to_be_hidden()
     expect(page_auth.locator("#contextAuth")).to_contain_text("Signed out")
+    expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
+    expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
 
     page_auth.locator("#authUsername").fill("admin")
     page_auth.locator("#authPassword").fill("secret")
     page_auth.locator("#authLoginBtn").click()
 
-    expect(page_auth.locator("#authIdentity")).to_contain_text("Admin User")
+    expect(page_auth.locator("#authGate")).to_be_hidden()
+    expect(page_auth.locator("#appShell")).to_be_visible()
+    expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
+    expect(page_auth.locator("#dataTabBtn")).to_be_visible()
+    expect(page_auth.locator("#usersTabBtn")).to_be_visible()
     expect(page_auth.locator("#loadBtn")).to_be_enabled()
     expect(page_auth.locator("#contextAuth")).to_contain_text("Admin User (admin)")
 
     page_auth.locator("#loadBtn").click()
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
 
-    page_auth.locator("#authLogoutBtn").click()
-    expect(page_auth.locator("#loadBtn")).to_be_disabled()
-    expect(page_auth.locator("#loadStatus")).to_contain_text("Admin sign-in required")
+    page_auth.locator("#heroLogoutBtn").click()
+    expect(page_auth.locator("#authGate")).to_be_visible()
+    expect(page_auth.locator("#appShell")).to_be_hidden()

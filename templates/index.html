@@ -20,8 +20,49 @@
             <p>{{ branding.subtitle }}</p>
           </div>
         </div>
+        <div id="heroAuthUtility" class="hero-utility is-hidden">
+          <div class="hero-auth-copy">
+            <span class="hero-auth-label">Workspace access</span>
+            <strong id="heroAuthIdentity">Signed out</strong>
+          </div>
+          <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
+            <span class="button-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="M16 17l5-5-5-5"></path>
+                <path d="M21 12H9"></path>
+              </svg>
+            </span>
+            <span>Sign out</span>
+          </button>
+        </div>
       </div>
 
+      <section id="authGate" class="auth-gate{% if not auth_enabled %} is-hidden{% endif %}">
+        <div class="auth-gate-card">
+          <div class="auth-gate-copy">
+            <h2>Sign in</h2>
+            <p>Authentication is required before any clinical, molecular, or analysis workspace is shown.</p>
+          </div>
+          <div id="authGateStatus" class="section-note">Enter your credentials to open your private workspace.</div>
+          <div class="auth-gate-form">
+            <input id="authUsername" placeholder="Username" autocomplete="username">
+            <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password">
+            <button id="authLoginBtn" type="button">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                </svg>
+              </span>
+              <span>Sign in</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div id="appShell"{% if auth_enabled %} class="is-hidden"{% endif %}>
       <div class="tab-bar">
         <button id="dashboardTabBtn" class="tab-btn active" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
@@ -33,6 +74,27 @@
             </svg>
           </span>
           <span>Dashboard</span>
+        </button>
+        <button id="dataTabBtn" class="tab-btn is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+          </span>
+          <span>Data</span>
+        </button>
+        <button id="usersTabBtn" class="tab-btn is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+          <span>Users</span>
         </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
@@ -73,59 +135,10 @@
         <div class="context-pill"><span>Cohort</span><strong id="contextCohort">Loading...</strong></div>
         <div class="context-pill"><span>LM</span><strong id="contextLmModel">Checking...</strong></div>
         <div class="context-pill"><span>Scope</span><strong id="contextScope">Full cohort</strong></div>
-        <div class="context-pill"><span>Auth</span><strong id="contextAuth">Local user</strong></div>
+        <div class="context-pill"><span>Auth</span><strong id="contextAuth">{% if auth_enabled %}Signed out{% else %}Local user{% endif %}</strong></div>
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
-        <div class="controls dashboard-loader">
-          <div class="dashboard-loader-row">
-            <label for="dataDir">Dataset</label>
-            <input id="dataDir" value="{{ default_data_dir }}">
-            <button id="loadBtn" type="button">
-              <span class="button-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 3v12"></path>
-                  <path d="m7 10 5 5 5-5"></path>
-                  <path d="M5 21h14"></path>
-                </svg>
-              </span>
-              <span>Load dataset</span>
-            </button>
-          </div>
-          <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
-          <div id="authPanel" class="auth-panel is-hidden">
-            <div class="auth-panel-head">
-              <strong id="authIdentity">Authentication disabled</strong>
-              <span id="authStatus" class="section-note">Local single-user mode.</span>
-            </div>
-            <div id="authLoginRow" class="auth-row is-hidden">
-              <input id="authUsername" placeholder="Username" autocomplete="username">
-              <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password">
-              <button id="authLoginBtn" type="button" class="query-chip action">
-                <span class="button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                    <path d="M10 17l5-5-5-5"></path>
-                    <path d="M15 12H3"></path>
-                  </svg>
-                </span>
-                <span>Sign in</span>
-              </button>
-            </div>
-            <div id="authLogoutRow" class="auth-row is-hidden">
-              <button id="authLogoutBtn" type="button" class="query-chip">
-                <span class="button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <path d="M16 17l5-5-5-5"></path>
-                    <path d="M21 12H9"></path>
-                  </svg>
-                </span>
-                <span>Sign out</span>
-              </button>
-            </div>
-          </div>
-        </div>
         <div class="dashboard-subtabs">
           <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">Clinical</button>
           <button id="dashboardMolecularBtn" type="button" class="dashboard-subtab">Molecular</button>
@@ -215,6 +228,37 @@
             </details>
           </div>
         </section>
+      </section>
+
+      <section id="dataTab" class="tab-panel">
+        <div id="datasetAdminControls" class="controls dashboard-loader">
+          <div class="dashboard-loader-row">
+            <label for="dataDir">Dataset</label>
+            <input id="dataDir" value="{{ default_data_dir }}">
+            <button id="loadBtn" type="button">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v12"></path>
+                  <path d="m7 10 5 5 5-5"></path>
+                  <path d="M5 21h14"></path>
+                </svg>
+              </span>
+              <span>Load dataset</span>
+            </button>
+          </div>
+          <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
+          <div class="section-note">Shared clinical and molecular data are managed globally for all users.</div>
+        </div>
+      </section>
+
+      <section id="usersTab" class="tab-panel">
+        <div class="controls">
+          <label>Users</label>
+          <div id="usersStatus" class="query-status">Loading users...</div>
+          <div id="usersList" class="analysis-session-list">
+            <div class="empty">No users available.</div>
+          </div>
+        </div>
       </section>
 
       <section id="queryTab" class="tab-panel">
@@ -649,6 +693,7 @@
           </div>
         </div>
       </section>
+      </div>
     </main>
 
         <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>

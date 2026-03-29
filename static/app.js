@@ -6,7 +6,15 @@
       import { createQueryUi } from "/static/js/query.js";
       import { createAnalysisUi } from "/static/js/analysis.js";
 
+      const appShellEl = document.getElementById("appShell");
+      const authGateEl = document.getElementById("authGate");
+      const authGateStatusEl = document.getElementById("authGateStatus");
+      const heroAuthUtilityEl = document.getElementById("heroAuthUtility");
+      const heroAuthIdentityEl = document.getElementById("heroAuthIdentity");
+      const heroLogoutBtnEl = document.getElementById("heroLogoutBtn");
       const dashboardTabBtnEl = document.getElementById("dashboardTabBtn");
+      const dataTabBtnEl = document.getElementById("dataTabBtn");
+      const usersTabBtnEl = document.getElementById("usersTabBtn");
       const queryTabBtnEl = document.getElementById("queryTabBtn");
       const analysisTabBtnEl = document.getElementById("analysisTabBtn");
       const phenoTabBtnEl = document.getElementById("phenoTabBtn");
@@ -14,6 +22,8 @@
       const dashboardMolecularBtnEl = document.getElementById("dashboardMolecularBtn");
       const tabHelperTextEl = document.getElementById("tabHelperText");
       const dashboardTabEl = document.getElementById("dashboardTab");
+      const dataTabEl = document.getElementById("dataTab");
+      const usersTabEl = document.getElementById("usersTab");
       const queryTabEl = document.getElementById("queryTab");
       const analysisTabEl = document.getElementById("analysisTab");
       const phenoTabEl = document.getElementById("phenoTab");
@@ -73,15 +83,12 @@
       const analysisSessionListEl = document.getElementById("analysisSessionList");
       const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
       const loadBtnEl = document.getElementById("loadBtn");
-      const authPanelEl = document.getElementById("authPanel");
-      const authStatusEl = document.getElementById("authStatus");
-      const authIdentityEl = document.getElementById("authIdentity");
-      const authLoginRowEl = document.getElementById("authLoginRow");
-      const authLogoutRowEl = document.getElementById("authLogoutRow");
+      const datasetAdminControlsEl = document.getElementById("datasetAdminControls");
+      const usersStatusEl = document.getElementById("usersStatus");
+      const usersListEl = document.getElementById("usersList");
       const authUsernameEl = document.getElementById("authUsername");
       const authPasswordEl = document.getElementById("authPassword");
       const authLoginBtnEl = document.getElementById("authLoginBtn");
-      const authLogoutBtnEl = document.getElementById("authLogoutBtn");
       const patientSearchEl = document.getElementById("patientSearch");
       const phenoActionEl = document.getElementById("phenoAction");
       const phenoModeEl = document.getElementById("phenoMode");
@@ -194,6 +201,8 @@
       const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
       const TAB_HELPER_TEXT = {
         dashboard: "Browse the loaded clinical and molecular data",
+        data: "Admin-only shared dataset loading and refresh",
+        users: "Admin-only read-only user visibility",
         query: "Build and refine cohorts (LLM-assisted, deterministic results)",
         analysis: "Interpret and compare cohorts (LLM-assisted insights)",
         pheno: "Compare patients or cohorts and inspect similarity results",
@@ -387,14 +396,20 @@
 
       function setActiveTab(tabName) {
         const showDashboard = tabName === "dashboard";
+        const showData = tabName === "data";
+        const showUsers = tabName === "users";
         const showQuery = tabName === "query";
         const showAnalysis = tabName === "analysis";
         const showPheno = tabName === "pheno";
         dashboardTabBtnEl.classList.toggle("active", showDashboard);
+        dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
+        usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
         queryTabBtnEl.classList.toggle("active", showQuery);
         analysisTabBtnEl.classList.toggle("active", showAnalysis);
         phenoTabBtnEl.classList.toggle("active", showPheno);
         dashboardTabEl.classList.toggle("active", showDashboard);
+        dataTabEl && dataTabEl.classList.toggle("active", showData);
+        usersTabEl && usersTabEl.classList.toggle("active", showUsers);
         queryTabEl.classList.toggle("active", showQuery);
         analysisTabEl.classList.toggle("active", showAnalysis);
         phenoTabEl.classList.toggle("active", showPheno);
@@ -756,6 +771,8 @@
 
       function currentTabName() {
         if (phenoTabEl.classList.contains("active")) return "pheno";
+        if (dataTabEl && dataTabEl.classList.contains("active")) return "data";
+        if (usersTabEl && usersTabEl.classList.contains("active")) return "users";
         if (dashboardTabEl.classList.contains("active")) return "dashboard";
         if (analysisTabEl.classList.contains("active")) return "analysis";
         if (queryTabEl.classList.contains("active")) return "query";
@@ -853,6 +870,72 @@
         return Boolean(authState.authenticated && authState.user && authState.user.role === "admin");
       }
 
+      function isWorkspaceAccessible() {
+        return !authState.enabled || Boolean(authState.authenticated && authState.user);
+      }
+
+      function clearLoadedWorkspaceForSignedOutState() {
+        currentPatients = [];
+        selectedPatientId = null;
+        dashboardSummaryState = null;
+        molecularDatasetsState = [];
+        selectedMolecularDatasets = [];
+        savedCohorts = [];
+        patientsEl.innerHTML = '<div class="empty">Sign in to access the shared clinical workspace.</div>';
+        detailEl.innerHTML = '<div class="empty">Patient workspace hidden until you sign in.</div>';
+        dashboardEl.innerHTML = '<div class="empty">Clinical dashboard hidden until you sign in.</div>';
+        if (molecularDashboardCardsEl) {
+          molecularDashboardCardsEl.innerHTML = '<div class="empty">Molecular dashboard hidden until you sign in.</div>';
+        }
+        if (molecularDashboardStatusEl) {
+          molecularDashboardStatusEl.className = "query-status";
+          molecularDashboardStatusEl.textContent = "Sign in to access shared molecular datasets.";
+        }
+      }
+
+      async function loadAuthUsers() {
+        if (!usersListEl || !usersStatusEl) return;
+        if (!canManageDataset()) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = "Admin access required.";
+          usersListEl.innerHTML = '<div class="empty">User administration is only visible to administrators.</div>';
+          return;
+        }
+        usersStatusEl.className = "query-status loading";
+        usersStatusEl.textContent = "Loading users...";
+        try {
+          const response = await fetch("/auth/users");
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || "Unable to load users.");
+          }
+          const payload = await response.json();
+          const users = Array.isArray(payload.users) ? payload.users : [];
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = `${users.length} user${users.length === 1 ? "" : "s"} configured.`;
+          if (!users.length) {
+            usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
+            return;
+          }
+          usersListEl.innerHTML = users.map((user) => `
+            <div class="analysis-session-card">
+              <div class="analysis-session-main">
+                <div class="analysis-session-title">${escapeHtml(user.display_name || user.username || "Unknown user")}</div>
+                <div class="analysis-session-meta">
+                  <div>${escapeHtml(user.username || "")}</div>
+                  <div>${escapeHtml(user.role || "user")}</div>
+                  <div>Auth source: local</div>
+                </div>
+              </div>
+            </div>
+          `).join("");
+        } catch (error) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = error && error.message ? error.message : "Unable to load users.";
+          usersListEl.innerHTML = '<div class="empty">User list unavailable.</div>';
+        }
+      }
+
       function updateLoadButtonAvailability() {
         if (!loadBtnEl) return;
         const blocked = !canManageDataset();
@@ -864,34 +947,64 @@
       }
 
       function renderAuthUi() {
-        if (!authPanelEl || !authStatusEl || !authIdentityEl) {
-          updateLoadButtonAvailability();
-          renderGlobalContext();
-          return;
-        }
         if (!authState.enabled) {
-          authPanelEl.classList.add("is-hidden");
+          authGateEl && authGateEl.classList.add("is-hidden");
+          appShellEl && appShellEl.classList.remove("is-hidden");
+          heroAuthUtilityEl && heroAuthUtilityEl.classList.add("is-hidden");
+          datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
+          dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
+          usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
           updateLoadButtonAvailability();
           renderGlobalContext();
           return;
         }
-        authPanelEl.classList.remove("is-hidden");
-        if (authState.authenticated && authState.user) {
-          authIdentityEl.textContent = `${authState.user.display_name || authState.user.username}`;
-          authStatusEl.textContent = `Signed in as ${authState.user.role || "user"}. Dataset loading is admin-only.`;
-          authLoginRowEl && authLoginRowEl.classList.add("is-hidden");
-          authLogoutRowEl && authLogoutRowEl.classList.remove("is-hidden");
+        const authenticated = Boolean(authState.authenticated && authState.user);
+        authGateEl && authGateEl.classList.toggle("is-hidden", authenticated);
+        appShellEl && appShellEl.classList.toggle("is-hidden", !authenticated);
+        heroAuthUtilityEl && heroAuthUtilityEl.classList.toggle("is-hidden", !authenticated);
+        heroLogoutBtnEl && heroLogoutBtnEl.classList.toggle("is-hidden", !authenticated);
+        if (authenticated) {
+          if (heroAuthIdentityEl) {
+            heroAuthIdentityEl.textContent = `${authState.user.display_name || authState.user.username} (${authState.user.role || "user"})`;
+          }
+          if (authGateStatusEl) {
+            authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
+          }
+          const admin = canManageDataset();
+          dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
+          usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
+          datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
+          if (!admin && (currentTabName() === "data" || currentTabName() === "users")) {
+            setActiveTab("dashboard");
+          }
+          if (admin) {
+            void loadAuthUsers();
+          }
         } else {
-          authIdentityEl.textContent = "Sign in";
-          authStatusEl.textContent = "Local auth is enabled. An admin must sign in to load or refresh shared data.";
-          authLoginRowEl && authLoginRowEl.classList.remove("is-hidden");
-          authLogoutRowEl && authLogoutRowEl.classList.add("is-hidden");
+          if (heroAuthIdentityEl) {
+            heroAuthIdentityEl.textContent = "Signed out";
+          }
+          dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
+          usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
+          datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
+          if (authGateStatusEl) {
+            authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
+          }
         }
         updateLoadButtonAvailability();
         renderGlobalContext();
       }
 
       async function refreshUserWorkspaceState() {
+        if (!isWorkspaceAccessible()) {
+          analysisSessions = [];
+          currentAnalysisSessionId = "";
+          analysisHistory = [];
+          analysisTurns = [];
+          renderAnalysisSessionList();
+          renderAnalysisThread();
+          return;
+        }
         await loadSavedCohorts();
         analysisSessions = [];
         currentAnalysisSessionId = "";
@@ -928,7 +1041,9 @@
         if (!authState.enabled) return;
         const username = String(authUsernameEl && authUsernameEl.value ? authUsernameEl.value : "").trim();
         const password = String(authPasswordEl && authPasswordEl.value ? authPasswordEl.value : "");
-        authStatusEl.textContent = "Signing in...";
+        if (authGateStatusEl) {
+          authGateStatusEl.textContent = "Signing in...";
+        }
         try {
           const response = await fetch("/auth/login", {
             method: "POST",
@@ -949,11 +1064,11 @@
           if (authPasswordEl) authPasswordEl.value = "";
           await fetchAuthStatus();
           await refreshUserWorkspaceState();
-          if (canManageDataset()) {
-            await loadPatients();
-          }
+          await loadPatients({ respectAdminGate: false });
         } catch (error) {
-          authStatusEl.textContent = error && error.message ? error.message : "Sign-in failed.";
+          if (authGateStatusEl) {
+            authGateStatusEl.textContent = error && error.message ? error.message : "Sign-in failed.";
+          }
         }
       }
 
@@ -963,21 +1078,9 @@
         } catch (_error) {
         }
         await fetchAuthStatus();
-        currentPatients = [];
-        selectedPatientId = null;
-        dashboardSummaryState = null;
-        patientsEl.innerHTML = '<div class="empty">Sign in as admin to load the shared dataset.</div>';
-        detailEl.innerHTML = '<div class="empty">Patient workspace unavailable until data is loaded.</div>';
-        dashboardEl.innerHTML = '<div class="empty">Sign in as admin to load the dashboard.</div>';
-        if (molecularDashboardCardsEl) {
-          molecularDashboardCardsEl.innerHTML = '<div class="empty">Sign in as admin to load molecular datasets.</div>';
-        }
-        if (molecularDashboardStatusEl) {
-          molecularDashboardStatusEl.className = "query-status";
-          molecularDashboardStatusEl.textContent = "Authentication required before loading shared molecular data.";
-        }
+        clearLoadedWorkspaceForSignedOutState();
         loadStatusEl.className = "load-status";
-        loadStatusEl.textContent = "Signed out. Admin sign-in required to load the shared dataset.";
+        loadStatusEl.textContent = "Signed out.";
         await refreshUserWorkspaceState();
       }
 
@@ -1449,11 +1552,12 @@
         phenoUi.renderPhenoExplainPlaceholder(message);
       }
 
-      async function loadPatients() {
+      async function loadPatients(options = {}) {
+        const { respectAdminGate = true } = options;
         if (loadInFlight) {
           return;
         }
-        if (!canManageDataset()) {
+        if (respectAdminGate && !canManageDataset()) {
           updateLoadButtonAvailability();
           return;
         }
@@ -1559,9 +1663,9 @@
         renderPatientList(filterPatients(patientSearchEl.value));
       }
 
-      loadBtnEl.addEventListener("click", loadPatients);
+      loadBtnEl.addEventListener("click", () => loadPatients({ respectAdminGate: true }));
       authLoginBtnEl && authLoginBtnEl.addEventListener("click", loginLocal);
-      authLogoutBtnEl && authLogoutBtnEl.addEventListener("click", logoutLocal);
+      heroLogoutBtnEl && heroLogoutBtnEl.addEventListener("click", logoutLocal);
       authPasswordEl && authPasswordEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -1591,6 +1695,11 @@
         createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
       });
       dashboardTabBtnEl.addEventListener("click", () => setActiveTab("dashboard"));
+      dataTabBtnEl && dataTabBtnEl.addEventListener("click", () => setActiveTab("data"));
+      usersTabBtnEl && usersTabBtnEl.addEventListener("click", () => {
+        setActiveTab("users");
+        void loadAuthUsers();
+      });
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
       analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
       phenoTabBtnEl.addEventListener("click", () => setActiveTab("pheno"));
@@ -1662,12 +1771,14 @@
         if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
           setDashboardSubtab(savedDashboardSubtab);
         }
-        if (savedTab && ["dashboard", "cohort", "molecular", "query", "analysis", "pheno"].includes(savedTab)) {
+        if (savedTab && ["dashboard", "cohort", "molecular", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
           if (savedTab === "cohort") {
             setDashboardSubtab("clinical");
             setActiveTab("dashboard");
           } else if (savedTab === "molecular") {
             setDashboardSubtab("molecular");
+            setActiveTab("dashboard");
+          } else if ((savedTab === "data" || savedTab === "users") && authState.enabled && !canManageDataset()) {
             setActiveTab("dashboard");
           } else {
             setActiveTab(savedTab);
@@ -1677,7 +1788,6 @@
       }
       window.__patientNavigatorLoadPatients = loadPatients;
       window.__patientNavigatorAskQuery = askQuery;
-      void loadMolecularDatasets();
       patientsEl.addEventListener("click", (event) => {
         const card = event.target.closest(".patient-card");
         if (!card || !patientsEl.contains(card)) {
@@ -1792,13 +1902,14 @@
       void loadAnalysisSessionsFromBackend();
       renderAnalysisCompareMode();
       renderAnalysisCompareScopeSummary();
-      loadPhenoRankerPatientIds();
       loadLmStatus();
       void fetchAuthStatus().then(async () => {
-        await refreshUserWorkspaceState();
-        if (!authState.enabled || canManageDataset()) {
-          await loadPatients();
+        if (!isWorkspaceAccessible()) {
+          clearLoadedWorkspaceForSignedOutState();
+          return;
         }
+        await refreshUserWorkspaceState();
+        await loadPatients({ respectAdminGate: false });
       });
       renderGlobalContext();
       renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
