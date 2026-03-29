@@ -6,6 +6,8 @@ export function createAnalysisSessionsUi(ctx) {
     analysisSelectedPatientIdsEl,
     analysisCompareModeEl,
     analysisCompareSelectedPatientIdsEl,
+    analysisSelectedSavedCohortSelectionEl,
+    analysisCompareSavedCohortSelectionEl,
     analysisStatusEl,
     analysisMetaEl,
     dataDirEl,
@@ -83,8 +85,10 @@ export function createAnalysisSessionsUi(ctx) {
           data_dir: session.dataDir || "",
           prompt_draft: session.promptDraft || "",
           scope: session.scope || "",
+          saved_cohort_id_a: session.savedCohortIdA || "",
           compare_mode: Boolean(session.compareMode),
           compare_scope: session.compareScope || "",
+          saved_cohort_id_b: session.savedCohortIdB || "",
           history: Array.isArray(session.history) ? session.history : [],
           turns: Array.isArray(session.turns) ? session.turns : [],
           updated_at: session.updatedAt || "",
@@ -123,8 +127,10 @@ export function createAnalysisSessionsUi(ctx) {
         dataDir: item.data_dir,
         promptDraft: item.prompt_draft,
         scope: item.scope,
+        savedCohortIdA: item.saved_cohort_id_a,
         compareMode: item.compare_mode,
         compareScope: item.compare_scope,
+        savedCohortIdB: item.saved_cohort_id_b,
         history: item.history,
         turns: item.turns,
         updatedAt: item.updated_at,
@@ -199,6 +205,8 @@ export function createAnalysisSessionsUi(ctx) {
     session.scope = analysisSelectedPatientIdsEl.value.trim();
     session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     session.compareScope = analysisCompareSelectedPatientIdsEl ? analysisCompareSelectedPatientIdsEl.value.trim() : "";
+    session.savedCohortIdA = state.analysisSelectedSavedCohortId || "";
+    session.savedCohortIdB = state.analysisCompareSavedCohortId || "";
     session.dataDir = dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : session.dataDir;
     session.history = state.analysisHistory;
     session.turns = state.analysisTurns;
@@ -214,6 +222,8 @@ export function createAnalysisSessionsUi(ctx) {
     analysisSelectedPatientIdsEl.value = session.scope || "";
     if (analysisCompareModeEl) analysisCompareModeEl.checked = Boolean(session.compareMode);
     if (analysisCompareSelectedPatientIdsEl) analysisCompareSelectedPatientIdsEl.value = session.compareScope || "";
+    state.analysisSelectedSavedCohortId = String(session.savedCohortIdA || "").trim();
+    state.analysisCompareSavedCohortId = String(session.savedCohortIdB || "").trim();
     state.analysisHistory = Array.isArray(session.history) ? session.history : [];
     state.analysisTurns = Array.isArray(session.turns) ? session.turns : [];
     renderAnalysisCompareMode();

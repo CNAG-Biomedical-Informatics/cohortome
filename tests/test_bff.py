@@ -2270,3 +2270,59 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
     assert "neg_log10_p" in volcano_point
     assert "largest expression difference is ENSG00000169429" in payload["reply"]
     assert "preliminary and not DESeq2-grade differential expression" in payload["reply"]
+
+
+def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "patient_id": "SYN001", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN002:baseline", "patient_id": "SYN002", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN006:baseline", "patient_id": "SYN006", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}]},
+            {"id": "SYN007:baseline", "patient_id": "SYN007", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}]},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001;SYN002",
+                "ENSG00000169429;1400;400",
+                "ENSG00000170421;150;160",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (molecular_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN006;SYN007",
+                "ENSG00000169429;150;900",
+                "ENSG00000170421;1200;1250",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        payload = analysis_module.analysis_llm_reply(
+            "Explain differences in gene expression according to medication",
+            str(tmp_path),
+            selected_patient_ids="SYN001,SYN006",
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_molecular_medication_compare"
+    context = payload["data"]["context"]
+    assert context["scope_patient_count"] == 2
+    comparison = context["comparisons"][0]
+    assert comparison["scoped_patient_ids_a"] == ["SYN001"]
+    assert comparison["scoped_patient_ids_b"] == ["SYN006"]
+    volcano_point = comparison["exploratory_volcano_points"][0]
+    assert volcano_point["sample_count_a"] == 1
+    assert volcano_point["sample_count_b"] == 1

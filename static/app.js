@@ -48,6 +48,10 @@
       const queryFollowupsEl = document.getElementById("queryFollowups");
       const queryExamplesEl = document.getElementById("queryExamples");
       const queryStarterPanelEl = document.getElementById("queryStarterPanel");
+      const queryDiseaseBuilderBtnEl = document.getElementById("queryDiseaseBuilderBtn");
+      const queryDiseasePanelEl = document.getElementById("queryDiseasePanel");
+      const queryDiseaseTopChipsEl = document.getElementById("queryDiseaseTopChips");
+      const queryDiseaseStatusEl = document.getElementById("queryDiseaseStatus");
       const queryDataEl = document.getElementById("queryData");
       const queryDetailsEl = document.getElementById("queryDetails");
       const queryThreadEl = document.getElementById("queryThread");
@@ -70,10 +74,12 @@
       const analysisMolecularResultEl = document.getElementById("analysisMolecularResult");
       const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
       const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
+      const analysisSelectedSavedCohortSelectionEl = document.getElementById("analysisSelectedSavedCohortSelection");
       const analysisCompareModeEl = document.getElementById("analysisCompareMode");
       const analysisCompareFieldEl = document.getElementById("analysisCompareField");
       const analysisCompareSelectedPatientIdsEl = document.getElementById("analysisCompareSelectedPatientIds");
       const analysisCompareSelectedPatientIdsSummaryEl = document.getElementById("analysisCompareSelectedPatientIdsSummary");
+      const analysisCompareSavedCohortSelectionEl = document.getElementById("analysisCompareSavedCohortSelection");
       const savedCohortsEl = document.getElementById("savedCohorts");
       const phenoSavedCohortsEl = document.getElementById("phenoSavedCohorts");
       const analysisStatusEl = document.getElementById("analysisStatus");
@@ -185,6 +191,8 @@
       let analysisExecutionMode = "auto";
       let analysisSessions = [];
       let currentAnalysisSessionId = "";
+      let analysisSelectedSavedCohortId = "";
+      let analysisCompareSavedCohortId = "";
       let phenoRankerPatientIds = [];
       let phenoReferenceFiles = [];
       let phenoSelectedSavedCohortIds = [];
@@ -267,6 +275,8 @@
           scope: typeof session.scope === "string" ? session.scope : "",
           compareMode: Boolean(session.compareMode),
           compareScope: typeof session.compareScope === "string" ? session.compareScope : "",
+          savedCohortIdA: typeof session.savedCohortIdA === "string" ? session.savedCohortIdA : "",
+          savedCohortIdB: typeof session.savedCohortIdB === "string" ? session.savedCohortIdB : "",
           history: Array.isArray(session.history) ? session.history : [],
           turns: Array.isArray(session.turns) ? session.turns : [],
           updatedAt: typeof session.updatedAt === "string" ? session.updatedAt : nowIso(),
@@ -313,6 +323,8 @@
           analysisSelectedPatientIdsEl,
           analysisCompareModeEl,
           analysisCompareSelectedPatientIdsEl,
+          analysisSelectedSavedCohortSelectionEl,
+          analysisCompareSavedCohortSelectionEl,
           analysisStatusEl,
           analysisMetaEl,
           dataDirEl,
@@ -344,6 +356,10 @@
           set analysisTurns(value) { analysisTurns = value; },
           get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
           set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
+          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
+          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
+          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
+          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
         },
         constants: {
           ANALYSIS_SESSIONS_STORAGE_KEY,
@@ -520,12 +536,25 @@
       }
 
       function renderAnalysisStarterPrompts() {
-        renderStarterPanelVisibility(
-          analysisStarterPanelEl,
-          analysisComposerExamplesBtnEl,
-          Array.isArray(analysisTurns) && analysisTurns.length > 0,
-          analysisExamplesPinnedOpen
-        );
+        if (!analysisStarterPanelEl || !analysisComposerExamplesBtnEl) {
+          return;
+        }
+        analysisStarterPanelEl.hidden = false;
+        analysisStarterPanelEl.classList.remove("is-hidden");
+        const inlineToggle = analysisStarterPanelEl.querySelector(".query-examples-toggle");
+        if (inlineToggle) {
+          inlineToggle.hidden = false;
+          inlineToggle.classList.remove("is-hidden");
+        }
+        const siblingToggle = analysisStarterPanelEl.nextElementSibling && analysisStarterPanelEl.nextElementSibling.classList && analysisStarterPanelEl.nextElementSibling.classList.contains("query-examples-toggle")
+          ? analysisStarterPanelEl.nextElementSibling
+          : null;
+        if (siblingToggle) {
+          siblingToggle.hidden = false;
+          siblingToggle.classList.remove("is-hidden");
+        }
+        analysisComposerExamplesBtnEl.hidden = !(Array.isArray(analysisTurns) && analysisTurns.length > 0);
+        analysisComposerExamplesBtnEl.textContent = "Starter prompts";
       }
 
       function stopQueryProgressUpdates() {
@@ -684,6 +713,8 @@
           analysisSelectedPatientIdsEl,
           analysisCompareModeEl,
           analysisCompareSelectedPatientIdsEl,
+          analysisSelectedSavedCohortSelectionEl,
+          analysisCompareSavedCohortSelectionEl,
           analysisStatusEl,
           phenoStatusEl,
           dataDirEl,
@@ -706,6 +737,10 @@
           set savedCohorts(value) { savedCohorts = value; },
           get phenoSelectedSavedCohortIds() { return phenoSelectedSavedCohortIds; },
           set phenoSelectedSavedCohortIds(value) { phenoSelectedSavedCohortIds = value; },
+          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
+          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
+          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
+          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
           get latestQueryPatientIds() { return latestQueryPatientIds; },
           get latestQueryPrompt() { return latestQueryPrompt; },
           get latestQueryIdType() { return latestQueryIdType; },
@@ -783,6 +818,12 @@
       }
 
       function summarizeScopeForTab(tabName) {
+        const selectedAnalysisCohortA = Array.isArray(savedCohorts)
+          ? savedCohorts.find((item) => item.id === analysisSelectedSavedCohortId)
+          : null;
+        const selectedAnalysisCohortB = Array.isArray(savedCohorts)
+          ? savedCohorts.find((item) => item.id === analysisCompareSavedCohortId)
+          : null;
         if (tabName === "pheno") {
           const ids = getCurrentScopeIds();
           if (!ids.length && !phenoSelectedSavedCohortIds.length) {
@@ -794,17 +835,21 @@
           return `${ids.length} IDs in Pheno scope`;
         }
         if (tabName === "analysis") {
-          const ids = String(analysisSelectedPatientIdsEl.value || "")
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
-          const compareIds = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
+          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.patient_ids)
+            ? selectedAnalysisCohortA.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+            : String(analysisSelectedPatientIdsEl.value || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.patient_ids)
+            ? selectedAnalysisCohortB.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+            : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
           if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-            const labelA = ids.length ? `${ids.length} in A` : "full cohort in A";
-            const labelB = compareIds.length ? `${compareIds.length} in B` : "full cohort in B";
+            const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
+            const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
             return `${labelA} vs ${labelB}`;
           }
           if (!ids.length) {
@@ -813,17 +858,21 @@
           return `${ids.length} IDs in Analysis scope`;
         }
         if (tabName === "dashboard" && currentDashboardSubtab === "molecular") {
-          const ids = String(analysisSelectedPatientIdsEl.value || "")
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
-          const compareIds = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
+          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.patient_ids)
+            ? selectedAnalysisCohortA.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+            : String(analysisSelectedPatientIdsEl.value || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.patient_ids)
+            ? selectedAnalysisCohortB.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+            : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
           if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-            const labelA = ids.length ? `${ids.length} in A` : "full cohort in A";
-            const labelB = compareIds.length ? `${compareIds.length} in B` : "full cohort in B";
+            const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
+            const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
             return `${labelA} vs ${labelB}`;
           }
           if (!ids.length) {
@@ -1110,6 +1159,8 @@
           startAnalysisProgressUpdates,
           stopAnalysisProgressUpdates,
           renderGlobalContext,
+          renderAnalysisScopeSummary,
+          renderAnalysisCompareScopeSummary,
         },
         state: {
           get analysisInFlight() { return analysisInFlight; },
@@ -1122,6 +1173,11 @@
           set analysisExecutionMode(value) { analysisExecutionMode = value; },
           get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
           set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
+          get savedCohorts() { return savedCohorts; },
+          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
+          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
+          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
+          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
         },
       });
 
@@ -1164,9 +1220,11 @@
           analysisMolecularResultEl,
           analysisSelectedPatientIdsEl,
           analysisSelectedPatientIdsSummaryEl,
+          analysisSelectedSavedCohortSelectionEl,
           analysisCompareModeEl,
           analysisCompareSelectedPatientIdsEl,
           analysisCompareSelectedPatientIdsSummaryEl,
+          analysisCompareSavedCohortSelectionEl,
         },
         helpers: {
           escapeHtml,
@@ -1187,6 +1245,11 @@
           set selectedMolecularDatasets(value) { selectedMolecularDatasets = value; },
           get dashboardSummaryState() { return dashboardSummaryState; },
           set dashboardSummaryState(value) { dashboardSummaryState = value; },
+          get savedCohorts() { return savedCohorts; },
+          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
+          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
+          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
+          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
         },
         constants: {
           MAX_VISIBLE_PATIENTS,
@@ -1233,6 +1296,8 @@
           askBtnEl,
           queryTabEl,
           queryExamplesEl,
+          queryDiseaseTopChipsEl,
+          queryDiseaseStatusEl,
           analysisSelectedPatientIdsEl,
         },
         helpers: {
@@ -1312,6 +1377,10 @@
         await queryUi.askQuery();
       }
 
+      async function loadQueryDiseaseOptions() {
+        await queryUi.loadDiseaseOptions();
+      }
+
       function renderAnalysisScopeSummary() {
         dashboardUi.renderAnalysisScopeSummary();
       }
@@ -1358,6 +1427,7 @@
         if (!latestQueryPatientIds.length) {
           return;
         }
+        analysisSelectedSavedCohortId = "";
         analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
         if (latestQueryAnalysisPrompt && !analysisPromptEl.value.trim()) {
           analysisPromptEl.value = latestQueryAnalysisPrompt;
@@ -1576,6 +1646,7 @@
           prepareAnalysisSessionForDataDir(dataDirEl.value.trim());
           resetQueryWorkspace();
           await loadSavedCohorts();
+          await loadQueryDiseaseOptions();
           await loadMolecularDatasets();
           await loadPhenoRankerPatientIds();
           const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
@@ -1680,8 +1751,15 @@
         queryExecutionMode = queryExecutionMode === "planner_only" ? "auto" : "planner_only";
         renderQueryExecutionMode();
       });
+      queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.addEventListener("click", () => {
+        const willOpen = !queryDiseasePanelEl || queryDiseasePanelEl.classList.contains("is-hidden");
+        if (queryDiseasePanelEl) queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
+        queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
+      });
       queryClearBtnEl && queryClearBtnEl.addEventListener("click", () => {
         resetQueryWorkspace();
+        if (queryDiseasePanelEl) queryDiseasePanelEl.classList.add("is-hidden");
+        queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.classList.remove("is-active");
         queryStatusEl.className = "query-status";
         queryStatusEl.textContent = "Query thread cleared.";
       });
@@ -1861,6 +1939,20 @@
           return;
         }
         handleSavedCohortAction(button);
+      });
+      analysisSelectedSavedCohortSelectionEl && analysisSelectedSavedCohortSelectionEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-analysis-clear-saved-cohort]");
+        if (!button || !analysisSelectedSavedCohortSelectionEl.contains(button)) {
+          return;
+        }
+        savedCohortsUi.clearSavedCohortFromAnalysis("a");
+      });
+      analysisCompareSavedCohortSelectionEl && analysisCompareSavedCohortSelectionEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-analysis-clear-saved-cohort]");
+        if (!button || !analysisCompareSavedCohortSelectionEl.contains(button)) {
+          return;
+        }
+        savedCohortsUi.clearSavedCohortFromAnalysis("b");
       });
       phenoSavedCohortsEl && phenoSavedCohortsEl.addEventListener("click", (event) => {
         const button = event.target.closest("[data-saved-cohort-action]");

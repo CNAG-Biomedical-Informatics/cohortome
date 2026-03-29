@@ -9,6 +9,8 @@ export function createSavedCohortsUi(ctx) {
     analysisSelectedPatientIdsEl,
     analysisCompareModeEl,
     analysisCompareSelectedPatientIdsEl,
+    analysisSelectedSavedCohortSelectionEl,
+    analysisCompareSavedCohortSelectionEl,
     analysisStatusEl,
     phenoStatusEl,
     dataDirEl,
@@ -171,19 +173,23 @@ export function createSavedCohortsUi(ctx) {
   function useSavedCohortInAnalysis(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || !Array.isArray(item.patient_ids)) return;
-    analysisSelectedPatientIdsEl.value = item.patient_ids.join(",");
+    state.analysisSelectedSavedCohortId = cohortId;
+    analysisSelectedPatientIdsEl.value = "";
     renderAnalysisScopeSummary();
     setActiveTab("analysis");
     analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = `Loaded saved cohort "${item.name}" into the analysis scope.`;
+    analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
+      ? `Loaded saved cohort "${item.name}" into Cohort A.`
+      : `Loaded saved cohort "${item.name}" into the analysis scope.`;
   }
 
   function useSavedCohortInAnalysisCompare(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || !Array.isArray(item.patient_ids)) return;
+    state.analysisCompareSavedCohortId = cohortId;
     if (analysisCompareModeEl) analysisCompareModeEl.checked = true;
     renderAnalysisCompareMode();
-    analysisCompareSelectedPatientIdsEl.value = item.patient_ids.join(",");
+    analysisCompareSelectedPatientIdsEl.value = "";
     renderAnalysisCompareScopeSummary();
     setActiveTab("analysis");
     analysisStatusEl.className = "query-status";
@@ -209,6 +215,24 @@ export function createSavedCohortsUi(ctx) {
     phenoStatusEl.textContent = "Removed saved cohort from separate Pheno-Ranker references.";
   }
 
+  function clearSavedCohortFromAnalysis(side) {
+    if (side === "b") {
+      state.analysisCompareSavedCohortId = "";
+      renderAnalysisCompareScopeSummary();
+      analysisStatusEl.className = "query-status";
+      analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
+        ? "Cohort B cleared. Select a saved cohort to compare."
+        : "Cohort B reverted to manual scope.";
+      return;
+    }
+    state.analysisSelectedSavedCohortId = "";
+    renderAnalysisScopeSummary();
+    analysisStatusEl.className = "query-status";
+    analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
+      ? "Cohort A cleared. Select a saved cohort to compare."
+      : "Cohort A reverted to manual scope.";
+  }
+
   function handleSavedCohortAction(button) {
     const cohortId = button.dataset.savedCohortId;
     if (!cohortId) return;
@@ -226,5 +250,6 @@ export function createSavedCohortsUi(ctx) {
     saveLatestQueryAsCohort,
     removeSavedCohortFromPheno,
     handleSavedCohortAction,
+    clearSavedCohortFromAnalysis,
   };
 }

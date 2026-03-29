@@ -334,6 +334,15 @@
                   </span>
                   <span>Use semantic planner</span>
                 </button>
+                <button id="queryDiseaseBuilderBtn" type="button" class="query-chip query-chip-deterministic">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 21l-4.35-4.35"></path>
+                      <circle cx="11" cy="11" r="6"></circle>
+                    </svg>
+                  </span>
+                  <span>Disease cohort</span>
+                </button>
                 <button id="queryClearBtn" type="button" class="query-chip">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -347,6 +356,10 @@
                   <span>Clear thread</span>
                 </button>
               </div>
+            </div>
+            <div id="queryDiseasePanel" class="is-hidden">
+              <div id="queryDiseaseTopChips" class="query-composer-disease-chips"></div>
+              <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic cohort query.</div>
             </div>
             <div class="query-row">
               <textarea id="question">How many patients have Prednisolone?</textarea>
@@ -613,14 +626,15 @@
               <label for="analysisSelectedPatientIds">Scope</label>
               <input id="analysisSelectedPatientIds" placeholder="Full cohort by default, or provide patient/original record IDs">
               <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full cohort.</div>
+              <div id="analysisSelectedSavedCohortSelection" class="section-note is-hidden"></div>
             </div>
             <div class="pheno-checks" style="margin-top:4px;">
               <label><input id="analysisCompareMode" type="checkbox"> Compare against a second cohort</label>
             </div>
             <div id="analysisCompareField" style="margin-top:12px; display:none;">
-              <label for="analysisCompareSelectedPatientIds">Cohort B scope</label>
-              <input id="analysisCompareSelectedPatientIds" placeholder="Provide patient/original record IDs for cohort B">
-              <div id="analysisCompareSelectedPatientIdsSummary" class="section-note">Cohort B: not set.</div>
+              <input id="analysisCompareSelectedPatientIds" type="hidden" value="">
+              <div id="analysisCompareSelectedPatientIdsSummary" class="section-note">Cohort B: select a saved cohort from Saved Cohorts to compare.</div>
+              <div id="analysisCompareSavedCohortSelection" class="section-note is-hidden"></div>
             </div>
             <details class="query-section">
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span></summary>

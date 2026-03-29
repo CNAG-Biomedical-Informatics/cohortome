@@ -676,25 +676,54 @@ def molecular_expression_summary(
 
 
 def molecular_dataset_gene_means(data_dir: str, dataset_name: str, limit: int = 20) -> List[Dict[str, Any]]:
+    return molecular_dataset_gene_means_scoped(data_dir, dataset_name, selected_patient_ids=None, limit=limit)
+
+
+def molecular_dataset_gene_means_scoped(
+    data_dir: str,
+    dataset_name: str,
+    selected_patient_ids: List[str] | None = None,
+    limit: int = 20,
+) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
-        rows = con.execute(
-            """
-            SELECT
-                gene_id,
-                avg(raw_count) AS mean_raw_count,
-                min(raw_count) AS min_raw_count,
-                max(raw_count) AS max_raw_count,
-                count(*) AS sample_count
-            FROM transcript_counts
-            WHERE dataset_name = ?
-            GROUP BY gene_id
-            ORDER BY mean_raw_count DESC, gene_id
-            LIMIT ?
-            """,
-            [dataset_name, int(limit)],
-        ).fetchall()
+        scope_ids = [str(item).strip() for item in (selected_patient_ids or []) if str(item).strip()]
+        if scope_ids:
+            placeholders = ",".join("?" for _ in scope_ids)
+            rows = con.execute(
+                f"""
+                SELECT
+                    gene_id,
+                    avg(raw_count) AS mean_raw_count,
+                    min(raw_count) AS min_raw_count,
+                    max(raw_count) AS max_raw_count,
+                    count(*) AS sample_count
+                FROM transcript_counts
+                WHERE dataset_name = ? AND patient_id IN ({placeholders})
+                GROUP BY gene_id
+                ORDER BY mean_raw_count DESC, gene_id
+                LIMIT ?
+                """,
+                [dataset_name, *scope_ids, int(limit)],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT
+                    gene_id,
+                    avg(raw_count) AS mean_raw_count,
+                    min(raw_count) AS min_raw_count,
+                    max(raw_count) AS max_raw_count,
+                    count(*) AS sample_count
+                FROM transcript_counts
+                WHERE dataset_name = ?
+                GROUP BY gene_id
+                ORDER BY mean_raw_count DESC, gene_id
+                LIMIT ?
+                """,
+                [dataset_name, int(limit)],
+            ).fetchall()
     finally:
         con.close()
     return [
@@ -713,33 +742,60 @@ def molecular_dataset_pairwise_gene_differences(
     data_dir: str,
     dataset_a: str,
     dataset_b: str,
+    selected_patient_ids: List[str] | None = None,
     limit: int = 12,
 ) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
-        rows = con.execute(
-            """
-            WITH dataset_means AS (
-                SELECT dataset_name, gene_id, avg(raw_count) AS mean_raw_count
-                FROM transcript_counts
-                WHERE dataset_name IN (?, ?)
-                GROUP BY dataset_name, gene_id
-            )
-            SELECT
-                a.gene_id,
-                a.mean_raw_count AS mean_a,
-                b.mean_raw_count AS mean_b,
-                abs(a.mean_raw_count - b.mean_raw_count) AS abs_delta
-            FROM dataset_means AS a
-            INNER JOIN dataset_means AS b
-                ON a.gene_id = b.gene_id
-            WHERE a.dataset_name = ? AND b.dataset_name = ?
-            ORDER BY abs_delta DESC, a.gene_id
-            LIMIT ?
-            """,
-            [dataset_a, dataset_b, dataset_a, dataset_b, int(limit)],
-        ).fetchall()
+        scope_ids = [str(item).strip() for item in (selected_patient_ids or []) if str(item).strip()]
+        if scope_ids:
+            placeholders = ",".join("?" for _ in scope_ids)
+            rows = con.execute(
+                f"""
+                WITH dataset_means AS (
+                    SELECT dataset_name, gene_id, avg(raw_count) AS mean_raw_count
+                    FROM transcript_counts
+                    WHERE dataset_name IN (?, ?) AND patient_id IN ({placeholders})
+                    GROUP BY dataset_name, gene_id
+                )
+                SELECT
+                    a.gene_id,
+                    a.mean_raw_count AS mean_a,
+                    b.mean_raw_count AS mean_b,
+                    abs(a.mean_raw_count - b.mean_raw_count) AS abs_delta
+                FROM dataset_means AS a
+                INNER JOIN dataset_means AS b
+                    ON a.gene_id = b.gene_id
+                WHERE a.dataset_name = ? AND b.dataset_name = ?
+                ORDER BY abs_delta DESC, a.gene_id
+                LIMIT ?
+                """,
+                [dataset_a, dataset_b, *scope_ids, dataset_a, dataset_b, int(limit)],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                WITH dataset_means AS (
+                    SELECT dataset_name, gene_id, avg(raw_count) AS mean_raw_count
+                    FROM transcript_counts
+                    WHERE dataset_name IN (?, ?)
+                    GROUP BY dataset_name, gene_id
+                )
+                SELECT
+                    a.gene_id,
+                    a.mean_raw_count AS mean_a,
+                    b.mean_raw_count AS mean_b,
+                    abs(a.mean_raw_count - b.mean_raw_count) AS abs_delta
+                FROM dataset_means AS a
+                INNER JOIN dataset_means AS b
+                    ON a.gene_id = b.gene_id
+                WHERE a.dataset_name = ? AND b.dataset_name = ?
+                ORDER BY abs_delta DESC, a.gene_id
+                LIMIT ?
+                """,
+                [dataset_a, dataset_b, dataset_a, dataset_b, int(limit)],
+            ).fetchall()
     finally:
         con.close()
     return [
@@ -758,20 +814,34 @@ def molecular_dataset_pairwise_exploratory_volcano(
     data_dir: str,
     dataset_a: str,
     dataset_b: str,
+    selected_patient_ids: List[str] | None = None,
     limit: int = 2000,
 ) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
-        rows = con.execute(
-            """
-            SELECT dataset_name, sample_id, gene_id, raw_count
-            FROM transcript_counts
-            WHERE dataset_name IN (?, ?)
-            ORDER BY dataset_name, sample_id, gene_id
-            """,
-            [dataset_a, dataset_b],
-        ).fetchall()
+        scope_ids = [str(item).strip() for item in (selected_patient_ids or []) if str(item).strip()]
+        if scope_ids:
+            placeholders = ",".join("?" for _ in scope_ids)
+            rows = con.execute(
+                f"""
+                SELECT dataset_name, sample_id, gene_id, raw_count
+                FROM transcript_counts
+                WHERE dataset_name IN (?, ?) AND patient_id IN ({placeholders})
+                ORDER BY dataset_name, sample_id, gene_id
+                """,
+                [dataset_a, dataset_b, *scope_ids],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT dataset_name, sample_id, gene_id, raw_count
+                FROM transcript_counts
+                WHERE dataset_name IN (?, ?)
+                ORDER BY dataset_name, sample_id, gene_id
+                """,
+                [dataset_a, dataset_b],
+            ).fetchall()
     finally:
         con.close()
 

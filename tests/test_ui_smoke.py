@@ -463,16 +463,19 @@ def _mock_analysis_molecular_volcano_reply(page) -> None:
             body=json.dumps(
                 {
                     "intent": "analysis_molecular_medication_compare",
-                    "reply": "Expression differs between medication-aligned transcriptomics datasets, with exploratory fold-change shifts across multiple genes.",
+                    "reply": "Expression differs between medication-aligned transcriptomics datasets within the current Analysis scope, with exploratory fold-change shifts across multiple genes.",
                     "data": {
                         "provider": "deterministic",
                         "context": {
                             "mode": "molecular_medication_compare",
+                            "scope_patient_count": 2,
                             "exploratory_note": "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression.",
                             "comparisons": [
                                 {
                                     "medication_a": "Infliximab",
                                     "medication_b": "Vedolizumab",
+                                    "scoped_patient_ids_a": ["SYN001"],
+                                    "scoped_patient_ids_b": ["SYN006"],
                                     "exploratory_volcano_points": [
                                         {
                                             "gene_id": "ENSG000001",
@@ -518,6 +521,46 @@ def _mock_query_reply(page) -> None:
                         "follow_up_suggestions": ["How many patients take Infliximab?"],
                     },
                 }
+            ),
+        ),
+    )
+
+
+def _mock_saved_cohorts(page) -> None:
+    page.route(
+        "**/saved-cohorts?data_dir=*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "cohorts": [
+                        {
+                            "id": "cohort-a",
+                            "name": "Infliximab responders",
+                            "data_dir": "data",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "id_type": "patient",
+                            "source": {"kind": "query", "prompt": "Which patients take Infliximab?"},
+                        }
+                    ]
+                }
+            ),
+        ),
+    )
+
+
+def _mock_disease_inventory(page) -> None:
+    page.route(
+        "**/cohorts/diseases?data_dir=*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                [
+                    {"disease": "Crohn Disease", "patient_count": 2, "patients": ["SYN001", "SYN002"]},
+                    {"disease": "Ulcerative Colitis", "patient_count": 2, "patients": ["SYN003", "SYN004"]},
+                ]
             ),
         ),
     )
@@ -625,11 +668,34 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     page.locator("#askBtn").click()
 
     expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
-    expect(page.locator("#queryThread")).to_contain_text("Open cohort in Analysis")
+    expect(page.locator("#queryThread")).to_contain_text("Open in Analysis")
     page.locator("[data-query-action='use-analysis']").click()
 
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+
+
+def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_molecular_datasets(page)
+    _mock_disease_inventory(page)
+    _mock_query_reply(page)
+    expect = playwright.expect
+
+    page.locator("#dataTabBtn").click()
+    expect(page.locator("#loadBtn")).to_be_visible()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+
+    _open_query_tab(page)
+    expect(page.locator("#queryDiseaseStatus")).to_contain_text("Click a disease")
+
+    page.locator("#queryDiseaseBuilderBtn").click()
+    expect(page.locator("#queryDiseasePanel")).to_be_visible()
+    page.locator("[data-query-disease-chip='Crohn Disease']").click()
+
+    expect(page.locator("#question")).to_have_value("Which patients have Crohn Disease?")
+    expect(page.locator("#queryDiseaseStatus")).to_contain_text("Prompt prepared for disease cohort Crohn Disease")
 
 
 def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
@@ -644,7 +710,7 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
 
 
-def test_analysis_starter_button_reopens_panel(page) -> None:
+def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_reply(page)
     expect = playwright.expect
@@ -652,12 +718,43 @@ def test_analysis_starter_button_reopens_panel(page) -> None:
     page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this cohort.")
     page.locator("#analysisRunBtn").click()
 
-    expect(page.locator("#analysisStarterPanel")).to_be_hidden()
+    expect(page.locator("#analysisStarterPanel")).to_be_visible()
     expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
 
     page.locator("#analysisComposerExamplesBtn").click()
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
     expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
+
+
+def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:
+    _mock_saved_cohorts(page)
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisTab summary").filter(has_text="Saved Cohorts").click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
+
+    expect(page.locator("#analysisSelectedPatientIds")).to_be_disabled()
+    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("")
+    expect(page.locator("#analysisSelectedPatientIdsSummary")).to_contain_text("using saved cohort")
+    expect(page.locator("#analysisSelectedSavedCohortSelection")).to_contain_text("Cohort A source")
+
+
+def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
+    _mock_saved_cohorts(page)
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisCompareMode").check()
+
+    expect(page.locator("#analysisSelectedPatientIds")).to_be_disabled()
+    expect(page.locator("#analysisCompareSelectedPatientIds")).to_be_hidden()
+    expect(page.locator("#analysisSelectedPatientIdsSummary")).to_contain_text("Cohort A: select a saved cohort")
+    expect(page.locator("#analysisCompareSelectedPatientIdsSummary")).to_contain_text("Cohort B: select a saved cohort")
+
+    page.locator("#analysisPrompt").fill("Compare Cohort A and Cohort B by disease burden")
+    page.locator("#analysisRunBtn").click()
+    expect(page.locator("#analysisStatus")).to_contain_text("requires saved Cohort A and Cohort B")
 
 
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
@@ -682,7 +779,7 @@ def test_analysis_molecular_medication_compare_mounts_volcano_plot(page) -> None
     page.locator("#analysisPrompt").fill("Explain differences in gene expression according to medication")
     page.locator("#analysisRunBtn").click()
 
-    expect(page.locator("#analysisThread")).to_contain_text("Expression differs between medication-aligned transcriptomics datasets")
+    expect(page.locator("#analysisThread")).to_contain_text("within the current Analysis scope")
     expect(page.locator("#analysisThread")).to_contain_text("Molecular by medication")
     expect(page.locator("#analysisThread")).to_contain_text("Exploratory transcriptomics comparison")
     expect(page.locator("#analysisThread")).to_contain_text("Positive log2FC means higher in Infliximab")
@@ -753,9 +850,11 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
     expect(page_auth.locator("#dataTabBtn")).to_be_visible()
     expect(page_auth.locator("#usersTabBtn")).to_be_visible()
-    expect(page_auth.locator("#loadBtn")).to_be_enabled()
     expect(page_auth.locator("#contextAuth")).to_contain_text("Admin User (admin)")
 
+    page_auth.locator("#dataTabBtn").click()
+    expect(page_auth.locator("#loadBtn")).to_be_visible()
+    expect(page_auth.locator("#loadBtn")).to_be_enabled()
     page_auth.locator("#loadBtn").click()
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
 

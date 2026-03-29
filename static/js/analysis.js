@@ -16,6 +16,8 @@ export function createAnalysisUi(ctx) {
     syncCurrentAnalysisSessionFromUi,
     startAnalysisProgressUpdates,
     stopAnalysisProgressUpdates,
+    renderAnalysisScopeSummary,
+    renderAnalysisCompareScopeSummary,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
@@ -509,7 +511,24 @@ export function createAnalysisUi(ctx) {
   function renderAnalysisCompareMode() {
     if (!analysisCompareModeEl || !refs.analysisCompareFieldEl) return;
     refs.analysisCompareFieldEl.style.display = analysisCompareModeEl.checked ? "" : "none";
+    renderAnalysisScopeSummary();
+    renderAnalysisCompareScopeSummary();
     callbacks.renderGlobalContext();
+  }
+
+  function resolveAnalysisScopeIds(side) {
+    const savedCohortId = side === "b" ? state.analysisCompareSavedCohortId : state.analysisSelectedSavedCohortId;
+    const inputEl = side === "b" ? analysisCompareSelectedPatientIdsEl : analysisSelectedPatientIdsEl;
+    const selectedCohort = Array.isArray(state.savedCohorts)
+      ? state.savedCohorts.find((item) => item.id === savedCohortId)
+      : null;
+    if (selectedCohort && Array.isArray(selectedCohort.patient_ids)) {
+      return selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean);
+    }
+    return String(inputEl && inputEl.value ? inputEl.value : "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
   function analysisPromptRequestsPlots(prompt) {
@@ -577,11 +596,19 @@ export function createAnalysisUi(ctx) {
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = "Running analysis...";
     if (analysisMetaEl) analysisMetaEl.innerHTML = "";
-    const currentScope = analysisSelectedPatientIdsEl.value.trim();
-    const compareScope = analysisCompareModeEl && analysisCompareModeEl.checked ? analysisCompareSelectedPatientIdsEl.value.trim() : "";
+    const currentScopeIds = resolveAnalysisScopeIds("a");
+    const compareScopeIds = analysisCompareModeEl && analysisCompareModeEl.checked ? resolveAnalysisScopeIds("b") : [];
+    const currentScope = currentScopeIds.join(",");
+    const compareScope = compareScopeIds.join(",");
     const llmOnly = state.analysisExecutionMode === "llm_only";
     const showPlots = analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+    if (compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
+      analysisStatusEl.className = "query-status";
+      analysisStatusEl.textContent = "Analysis cohort comparison requires saved Cohort A and Cohort B.";
+      state.analysisExecutionMode = "auto";
+      return;
+    }
     state.analysisExamplesPinnedOpen = false;
     state.analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
     state.analysisTurns.push({ role: "assistant", pending: true, pendingLabel: "Preparing response", pendingDetail: "Building cohort context and waiting for the model reply." });
@@ -595,7 +622,7 @@ export function createAnalysisUi(ctx) {
         body: JSON.stringify({
           prompt,
           data_dir: refs.dataDirEl.value.trim() || refs.dataDirEl.value,
-          selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
+          selected_patient_ids: currentScope,
           compare_mode: compareMode,
           compare_selected_patient_ids: compareScope,
           llm_only: llmOnly,

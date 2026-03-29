@@ -47,6 +47,7 @@ from app.schemas import (
     LoginRequest,
 )
 from app.query import answer_query
+from app.query import disease_counts as query_disease_counts
 from app.user_state import request_user_id
 
 
@@ -113,6 +114,15 @@ def get_medication_counts(request: Request = None, data_dir: str = DEFAULT_DATA_
         require_authenticated(request)
     try:
         return medication_counts(data_dir)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_disease_counts(request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
+    if request is not None:
+        require_authenticated(request)
+    try:
+        return query_disease_counts(data_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -385,6 +395,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"])
     app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"])
     app.add_api_route("/cohorts/medications", get_medication_counts, methods=["GET"])
+    app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"])
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"])
     app.add_api_route("/query", query_app, methods=["GET"])
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"])

@@ -18,7 +18,7 @@ from app.query_store import (
     disease_counts as store_disease_counts,
     duckdb_available,
     medication_counts as store_medication_counts,
-    molecular_dataset_gene_means as store_molecular_dataset_gene_means,
+    molecular_dataset_gene_means_scoped as store_molecular_dataset_gene_means_scoped,
     molecular_dataset_pairwise_exploratory_volcano as store_molecular_dataset_pairwise_exploratory_volcano,
     molecular_dataset_pairwise_gene_differences as store_molecular_dataset_pairwise_gene_differences,
     molecular_dataset_inventory as store_molecular_dataset_inventory,
@@ -216,8 +216,14 @@ def _parse_molecular_medication_request(prompt: str) -> bool:
     return any(token in lowered for token in ("medication", "treatment", "drug", "biologic", "biologics"))
 
 
-def molecular_expression_by_medication_context(data_dir: str) -> Dict[str, Any]:
+def molecular_expression_by_medication_context(
+    data_dir: str,
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+) -> Dict[str, Any]:
     datasets = store_molecular_dataset_inventory(data_dir)
+    scope_ids = parse_scope_ids(selected_patient_ids) + parse_scope_ids(compare_selected_patient_ids)
+    scope_id_set = {item for item in scope_ids if item}
     if len(datasets) < 2:
         return {
             "mode": "molecular_medication_compare",
@@ -237,31 +243,57 @@ def molecular_expression_by_medication_context(data_dir: str) -> Dict[str, Any]:
                 matched_label = label
                 break
         if matched_label:
-            matched.append({"medication": matched_label, "dataset": item})
+            dataset_patient_ids = [str(value).strip() for value in (item.get("patient_ids") or []) if str(value).strip()]
+            scoped_patient_ids = dataset_patient_ids
+            if scope_id_set:
+                scoped_patient_ids = [patient_id for patient_id in dataset_patient_ids if patient_id in scope_id_set]
+                if not scoped_patient_ids:
+                    continue
+            matched.append({"medication": matched_label, "dataset": item, "scoped_patient_ids": scoped_patient_ids})
     if len(matched) < 2:
         return {
             "mode": "molecular_medication_compare",
-            "error": "No medication-aligned molecular datasets were found for deterministic comparison.",
+            "error": "At least two medication-aligned molecular datasets with patients in the current Analysis scope are required for deterministic comparison.",
             "comparisons": [],
         }
     comparisons: List[Dict[str, Any]] = []
     for left, right in zip(matched, matched[1:]):
         left_dataset = left["dataset"]["dataset_name"]
         right_dataset = right["dataset"]["dataset_name"]
-        top_differences = store_molecular_dataset_pairwise_gene_differences(data_dir, left_dataset, right_dataset, limit=8)
+        scoped_ids = sorted(set(left["scoped_patient_ids"]) | set(right["scoped_patient_ids"]))
+        top_differences = store_molecular_dataset_pairwise_gene_differences(
+            data_dir,
+            left_dataset,
+            right_dataset,
+            selected_patient_ids=scoped_ids,
+            limit=8,
+        )
         comparisons.append(
             {
                 "medication_a": left["medication"],
                 "medication_b": right["medication"],
                 "dataset_a": left_dataset,
                 "dataset_b": right_dataset,
-                "top_genes_a": store_molecular_dataset_gene_means(data_dir, left_dataset, limit=5),
-                "top_genes_b": store_molecular_dataset_gene_means(data_dir, right_dataset, limit=5),
+                "scoped_patient_ids_a": left["scoped_patient_ids"],
+                "scoped_patient_ids_b": right["scoped_patient_ids"],
+                "top_genes_a": store_molecular_dataset_gene_means_scoped(
+                    data_dir,
+                    left_dataset,
+                    selected_patient_ids=left["scoped_patient_ids"],
+                    limit=5,
+                ),
+                "top_genes_b": store_molecular_dataset_gene_means_scoped(
+                    data_dir,
+                    right_dataset,
+                    selected_patient_ids=right["scoped_patient_ids"],
+                    limit=5,
+                ),
                 "top_differences": top_differences,
                 "exploratory_volcano_points": store_molecular_dataset_pairwise_exploratory_volcano(
                     data_dir,
                     left_dataset,
                     right_dataset,
+                    selected_patient_ids=scoped_ids,
                     limit=1500,
                 ),
             }
@@ -270,6 +302,7 @@ def molecular_expression_by_medication_context(data_dir: str) -> Dict[str, Any]:
         "mode": "molecular_medication_compare",
         "comparisons": comparisons,
         "matched_datasets": matched,
+        "scope_patient_count": len(scope_id_set),
         "exploratory_note": (
             "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple "
             "per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression."
@@ -1093,6 +1126,10 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
         if not comparisons:
             return "No deterministic medication-based molecular comparison is available."
         lines: List[str] = []
+        if int(context.get("scope_patient_count") or 0) > 0:
+            lines.append(
+                f"The medication-based molecular comparison is restricted to the current Analysis scope ({int(context.get('scope_patient_count') or 0)} patient{'s' if int(context.get('scope_patient_count') or 0) != 1 else ''})."
+            )
         for item in comparisons:
             top_difference = (item.get("top_differences") or [{}])[0]
             top_gene_a = (item.get("top_genes_a") or [{}])[0]
@@ -1504,7 +1541,11 @@ def analysis_llm_reply(
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
     if _parse_molecular_medication_request(prompt):
-        context = molecular_expression_by_medication_context(data_dir)
+        context = molecular_expression_by_medication_context(
+            data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
+        )
         return {
             "intent": "analysis_molecular_medication_compare",
             "reply": deterministic_analysis_reply(prompt, context),

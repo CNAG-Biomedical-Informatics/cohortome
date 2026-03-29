@@ -14,9 +14,11 @@ export function createDashboardUi(ctx) {
     analysisMolecularResultEl,
     analysisSelectedPatientIdsEl,
     analysisSelectedPatientIdsSummaryEl,
+    analysisSelectedSavedCohortSelectionEl,
     analysisCompareModeEl,
     analysisCompareSelectedPatientIdsEl,
     analysisCompareSelectedPatientIdsSummaryEl,
+    analysisCompareSavedCohortSelectionEl,
   } = refs;
   const { escapeHtml, formatNumber } = helpers;
   const { renderGlobalContext, syncCurrentAnalysisSessionFromUi } = callbacks;
@@ -391,13 +393,35 @@ export function createDashboardUi(ctx) {
   }
 
   function renderAnalysisScopeSummary() {
-    const ids = String(analysisSelectedPatientIdsEl.value || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    analysisSelectedPatientIdsSummaryEl.textContent = ids.length
-      ? `Scope: ${ids.length} IDs in scope.`
-      : "Scope: full cohort.";
+    const selectedCohort = Array.isArray(state.savedCohorts)
+      ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
+      : null;
+    const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+    analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort);
+    const ids = selectedCohort && Array.isArray(selectedCohort.patient_ids)
+      ? selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+      : String(analysisSelectedPatientIdsEl.value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    analysisSelectedPatientIdsSummaryEl.textContent = compareMode
+      ? (selectedCohort
+        ? `Cohort A: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+        : "Cohort A: select a saved cohort from Saved Cohorts to compare.")
+      : (selectedCohort
+        ? `Scope: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+        : ids.length
+          ? `Scope: ${ids.length} IDs in scope.`
+          : "Scope: full cohort.");
+    if (analysisSelectedSavedCohortSelectionEl) {
+      if (selectedCohort) {
+        analysisSelectedSavedCohortSelectionEl.classList.remove("is-hidden");
+        analysisSelectedSavedCohortSelectionEl.innerHTML = `<span class="query-chip badge">Cohort A source</span> <button type="button" class="query-chip query-chip-deterministic" data-analysis-clear-saved-cohort="a">${escapeHtml(selectedCohort.name || "Saved cohort")} ×</button>`;
+      } else {
+        analysisSelectedSavedCohortSelectionEl.classList.add("is-hidden");
+        analysisSelectedSavedCohortSelectionEl.innerHTML = "";
+      }
+    }
     renderMolecularDashboardCards(state.molecularDatasetsState);
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
@@ -405,13 +429,30 @@ export function createDashboardUi(ctx) {
 
   function renderAnalysisCompareScopeSummary() {
     if (!analysisCompareSelectedPatientIdsSummaryEl) return;
-    const ids = String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    analysisCompareSelectedPatientIdsSummaryEl.textContent = ids.length
-      ? `Cohort B: ${ids.length} IDs in scope.`
-      : "Cohort B: full cohort.";
+    const selectedCohort = Array.isArray(state.savedCohorts)
+      ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
+      : null;
+    if (analysisCompareSelectedPatientIdsEl) {
+      analysisCompareSelectedPatientIdsEl.disabled = true;
+    }
+    const ids = selectedCohort && Array.isArray(selectedCohort.patient_ids)
+      ? selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+      : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    analysisCompareSelectedPatientIdsSummaryEl.textContent = selectedCohort
+      ? `Cohort B: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+      : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
+    if (analysisCompareSavedCohortSelectionEl) {
+      if (selectedCohort) {
+        analysisCompareSavedCohortSelectionEl.classList.remove("is-hidden");
+        analysisCompareSavedCohortSelectionEl.innerHTML = `<span class="query-chip badge">Cohort B source</span> <button type="button" class="query-chip query-chip-deterministic" data-analysis-clear-saved-cohort="b">${escapeHtml(selectedCohort.name || "Saved cohort")} ×</button>`;
+      } else {
+        analysisCompareSavedCohortSelectionEl.classList.add("is-hidden");
+        analysisCompareSavedCohortSelectionEl.innerHTML = "";
+      }
+    }
     renderMolecularDashboardCards(state.molecularDatasetsState);
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
@@ -514,14 +555,24 @@ export function createDashboardUi(ctx) {
 
   function currentMolecularScopeOverlap(patientIds) {
     const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map((item) => String(item)));
-    const scopeA = String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const scopeB = String(analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value ? analysisCompareSelectedPatientIdsEl.value : "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const selectedCohortA = Array.isArray(state.savedCohorts)
+      ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
+      : null;
+    const selectedCohortB = Array.isArray(state.savedCohorts)
+      ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
+      : null;
+    const scopeA = selectedCohortA && Array.isArray(selectedCohortA.patient_ids)
+      ? selectedCohortA.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+      : String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    const scopeB = selectedCohortB && Array.isArray(selectedCohortB.patient_ids)
+      ? selectedCohortB.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+      : String(analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value ? analysisCompareSelectedPatientIdsEl.value : "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
     const overlapA = scopeA.filter((item) => datasetPatientIds.has(item)).length;
     const overlapB = scopeB.filter((item) => datasetPatientIds.has(item)).length;
     return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
@@ -663,6 +714,12 @@ export function createDashboardUi(ctx) {
     analysisMolecularStatusEl.className = "query-status loading";
     analysisMolecularStatusEl.textContent = "Fetching molecular expression summary...";
     try {
+      const selectedCohortA = Array.isArray(state.savedCohorts)
+        ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
+        : null;
+      const selectedCohortB = Array.isArray(state.savedCohorts)
+        ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
+        : null;
       const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
         const response = await fetch("/molecular/expression", {
           method: "POST",
@@ -671,9 +728,13 @@ export function createDashboardUi(ctx) {
             data_dir: dataDirEl.value.trim(),
             dataset_name: datasetName,
             gene_id: geneId,
-            selected_patient_ids: analysisSelectedPatientIdsEl.value.trim(),
+            selected_patient_ids: selectedCohortA && Array.isArray(selectedCohortA.patient_ids)
+              ? selectedCohortA.patient_ids.join(",")
+              : analysisSelectedPatientIdsEl.value.trim(),
             compare_selected_patient_ids: analysisCompareModeEl && analysisCompareModeEl.checked
-              ? analysisCompareSelectedPatientIdsEl.value.trim()
+              ? (selectedCohortB && Array.isArray(selectedCohortB.patient_ids)
+                ? selectedCohortB.patient_ids.join(",")
+                : analysisCompareSelectedPatientIdsEl.value.trim())
               : "",
           }),
         });

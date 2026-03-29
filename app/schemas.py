@@ -44,8 +44,10 @@ class AnalysisSessionRequest(BaseModel):
     data_dir: str = DEFAULT_DATA_DIR
     prompt_draft: str = ""
     scope: str = ""
+    saved_cohort_id_a: str = ""
     compare_mode: bool = False
     compare_scope: str = ""
+    saved_cohort_id_b: str = ""
     history: List[Dict[str, Any]] = Field(default_factory=list)
     turns: List[Dict[str, Any]] = Field(default_factory=list)
     updated_at: str = ""

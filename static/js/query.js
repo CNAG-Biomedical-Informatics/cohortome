@@ -14,6 +14,8 @@ export function createQueryUi(ctx) {
     askBtnEl,
     queryTabEl,
     queryExamplesEl,
+    queryDiseaseTopChipsEl,
+    queryDiseaseStatusEl,
   } = refs;
   const { escapeHtml, renderActivityCard, fallbackCopyText } = helpers;
   const {
@@ -30,6 +32,56 @@ export function createQueryUi(ctx) {
     phenoRankerPatientIdsProvider,
     setLatestQueryState,
   } = callbacks;
+  let diseaseOptions = [];
+
+  function renderTopDiseaseChips() {
+    if (!queryDiseaseTopChipsEl) return;
+    const currentPrompt = String(questionEl && questionEl.value ? questionEl.value : "").toLowerCase();
+    const topDiseases = diseaseOptions.slice(0, 8);
+    if (!topDiseases.length) {
+      queryDiseaseTopChipsEl.innerHTML = "";
+      return;
+    }
+    queryDiseaseTopChipsEl.innerHTML = topDiseases.map((item) => {
+      const disease = String(item.disease || "").trim();
+      const active = currentPrompt.includes(disease.toLowerCase()) ? " is-active-chip" : "";
+      const count = Number(item.patient_count || 0);
+      return `<button type="button" class="query-chip query-chip-deterministic${active}" data-query-disease-chip="${escapeHtml(disease)}">${escapeHtml(disease)} <span class="query-chip badge">${escapeHtml(String(count))}</span></button>`;
+    }).join("");
+  }
+
+  async function loadDiseaseOptions() {
+    if (!queryDiseaseTopChipsEl) return;
+    try {
+      const dataDir = encodeURIComponent(String(refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : ""));
+      const response = await fetch(`/cohorts/diseases?data_dir=${dataDir}`);
+      if (!response.ok) throw new Error("Unable to load diseases.");
+      const payload = await response.json();
+      const diseases = Array.isArray(payload) ? payload : [];
+      diseaseOptions = diseases;
+      renderTopDiseaseChips();
+      if (queryDiseaseStatusEl) {
+        queryDiseaseStatusEl.textContent = diseases.length
+          ? `Click a disease to preload a deterministic cohort query.`
+          : "No diseases are available in the current dataset.";
+      }
+    } catch (_error) {
+      diseaseOptions = [];
+      renderTopDiseaseChips();
+      if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Unable to load disease cohort shortcuts.";
+    }
+  }
+
+  function preloadDiseaseCohort(disease) {
+    const normalized = String(disease || "").trim();
+    if (!normalized) return;
+    questionEl.value = `Which patients have ${disease}?`;
+    state.queryExecutionMode = "auto";
+    renderQueryExecutionMode();
+    renderTopDiseaseChips();
+    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = `Prompt prepared for disease cohort ${normalized}. Press Ask to run.`;
+    questionEl.focus();
+  }
 
   function renderInlineCode(value) {
     const parts = String(value).split("`");
@@ -276,6 +328,8 @@ export function createQueryUi(ctx) {
     state.queryHistory = [];
     state.queryTurns = [];
     state.queryExecutionMode = "auto";
+    renderTopDiseaseChips();
+    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic cohort query.";
     setLatestQueryState({ ids: [], prompt: "", analysisPrompt: "", idType: "patient" });
     queryMetaEl.innerHTML = "";
     queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
@@ -417,11 +471,11 @@ export function createQueryUi(ctx) {
     const idsPayload = escapeHtml(patientIds.join(","));
     return `
       <div class="query-actions query-actions-inline" style="margin-top:12px;">
-        <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open cohort in Analysis</span></button>
+        <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>
+        <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>
         <details class="query-inline-actions">
-          <summary>More actions</summary>
+          <summary><span class="query-inline-actions-more">More actions</span><span class="query-inline-actions-less">Less actions</span></summary>
           <div class="query-actions">
-            <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>
             <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>
             ${allCompatible ? `<button type="button" class="query-chip action" data-query-action="use-pheno" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
             ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
@@ -573,6 +627,11 @@ export function createQueryUi(ctx) {
   }
 
   function handleQueryExamplesClick(event) {
+    const diseaseChip = event.target.closest("[data-query-disease-chip]");
+    if (diseaseChip && queryDiseaseTopChipsEl && queryDiseaseTopChipsEl.contains(diseaseChip)) {
+      preloadDiseaseCohort(diseaseChip.dataset.queryDiseaseChip || "");
+      return;
+    }
     const analysisButton = event.target.closest("[data-analysis-prompt]");
     if (analysisButton && queryExamplesEl.contains(analysisButton)) {
       if (state.latestQueryPatientIds.length) {
@@ -601,6 +660,11 @@ export function createQueryUi(ctx) {
   }
 
   function handleDocumentClick(event) {
+    const diseaseChip = event.target.closest("[data-query-disease-chip]");
+    if (diseaseChip && queryDiseaseTopChipsEl && queryDiseaseTopChipsEl.contains(diseaseChip)) {
+      preloadDiseaseCohort(diseaseChip.dataset.queryDiseaseChip || "");
+      return;
+    }
     const queryActionButton = event.target.closest("[data-query-action]");
     if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
       const ids = String(queryActionButton.dataset.queryPatientIds || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -640,6 +704,8 @@ export function createQueryUi(ctx) {
     resetQueryWorkspace,
     renderQueryThread,
     askQuery,
+    loadDiseaseOptions,
+    preloadDiseaseCohort,
     handleQueryExamplesClick,
     handleQueryFollowupsClick,
     handleDocumentClick,
