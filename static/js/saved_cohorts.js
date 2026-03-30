@@ -35,14 +35,17 @@ export function createSavedCohortsUi(ctx) {
     const primaryAction = mode === "pheno" ? "load-pheno" : "load-analysis";
     container.innerHTML = `<div class="saved-cohort-list">${
       state.savedCohorts.map((item) => {
-        const ids = Array.isArray(item.patient_ids) ? item.patient_ids : [];
-        const preview = ids.slice(0, 4).join(", ");
-        const suffix = ids.length > 4 ? ` ... (+${ids.length - 4} more)` : "";
+        const sampleIds = Array.isArray(item.sample_ids) && item.sample_ids.length
+          ? item.sample_ids
+          : (Array.isArray(item.patient_ids) ? item.patient_ids : []);
+        const patientIds = Array.isArray(item.patient_ids) ? item.patient_ids : [];
+        const preview = sampleIds.slice(0, 4).join(", ");
+        const suffix = sampleIds.length > 4 ? ` ... (+${sampleIds.length - 4} more)` : "";
         const source = item.source && item.source.kind ? item.source.kind : "manual";
         return `
           <div class="saved-cohort-card">
             <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
-            <small>${escapeHtml(String(ids.length))} IDs • ${escapeHtml(item.id_type || "patient")} • source: ${escapeHtml(source)}</small>
+            <small>${escapeHtml(String(patientIds.length || item.patient_count || 0))} patients • ${escapeHtml(String(sampleIds.length || item.sample_count || 0))} samples • source: ${escapeHtml(source)}</small>
             <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
             <div class="saved-cohort-actions">
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
@@ -128,8 +131,9 @@ export function createSavedCohortsUi(ctx) {
         body: JSON.stringify({
           name,
           data_dir: dataDirEl.value.trim(),
+          sample_ids: state.latestQueryRecordIds,
           patient_ids: state.latestQueryPatientIds,
-          id_type: state.latestQueryIdType,
+          id_type: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,
           source_kind: "query",
           source_prompt: state.latestQueryPrompt,
         }),
@@ -139,9 +143,8 @@ export function createSavedCohortsUi(ctx) {
         throw new Error(String(payload.detail || "Unable to save cohort."));
       }
       await loadSavedCohorts();
-      setActiveTab("analysis");
-      analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = `Saved cohort "${(name || defaultName).trim()}".`;
+      callbacks.queryStatusEl().className = "query-status";
+      callbacks.queryStatusEl().textContent = `Saved cohort "${(name || defaultName).trim()}".`;
     } catch (error) {
       callbacks.queryStatusEl().className = "query-status";
       callbacks.queryStatusEl().textContent = error && error.message ? error.message : "Unable to save cohort.";
@@ -161,10 +164,13 @@ export function createSavedCohortsUi(ctx) {
 
   async function copySavedCohortIds(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
-    if (!item || !Array.isArray(item.patient_ids) || !item.patient_ids.length) return;
+    const ids = Array.isArray(item && item.sample_ids) && item.sample_ids.length
+      ? item.sample_ids
+      : (Array.isArray(item && item.patient_ids) ? item.patient_ids : []);
+    if (!item || !ids.length) return;
     try {
-      await navigator.clipboard.writeText(item.patient_ids.join(","));
-      setSavedCohortStatus(`Copied ${item.patient_ids.length} IDs from ${item.name}.`);
+      await navigator.clipboard.writeText(ids.join(","));
+      setSavedCohortStatus(`Copied ${ids.length} IDs from ${item.name}.`);
     } catch (_error) {
       setSavedCohortStatus("Unable to copy saved cohort IDs.");
     }
@@ -172,7 +178,7 @@ export function createSavedCohortsUi(ctx) {
 
   function useSavedCohortInAnalysis(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
-    if (!item || !Array.isArray(item.patient_ids)) return;
+    if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     state.analysisSelectedSavedCohortId = cohortId;
     analysisSelectedPatientIdsEl.value = "";
     renderAnalysisScopeSummary();
@@ -185,7 +191,7 @@ export function createSavedCohortsUi(ctx) {
 
   function useSavedCohortInAnalysisCompare(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
-    if (!item || !Array.isArray(item.patient_ids)) return;
+    if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     state.analysisCompareSavedCohortId = cohortId;
     if (analysisCompareModeEl) analysisCompareModeEl.checked = true;
     renderAnalysisCompareMode();
@@ -198,7 +204,7 @@ export function createSavedCohortsUi(ctx) {
 
   function useSavedCohortInPheno(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
-    if (!item || !Array.isArray(item.patient_ids)) return;
+    if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     if (!state.phenoSelectedSavedCohortIds.includes(cohortId)) {
       state.phenoSelectedSavedCohortIds = state.phenoSelectedSavedCohortIds.concat([cohortId]);
     }

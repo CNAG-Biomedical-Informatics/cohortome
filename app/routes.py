@@ -233,7 +233,8 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
         item = save_cohort(
             name=request.name,
             data_dir=request.data_dir,
-            ids=request.patient_ids,
+            sample_ids=request.sample_ids,
+            patient_ids=request.patient_ids,
             id_type=request.id_type,
             source_kind=request.source_kind,
             source_prompt=request.source_prompt,
@@ -275,6 +276,7 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
             compare_mode=request.compare_mode,
             compare_selected_patient_ids=request.compare_selected_patient_ids,
             llm_only=request.llm_only,
+            deterministic_only=request.deterministic_only,
             history=[turn.model_dump() for turn in request.history],
         )
     except FileNotFoundError as exc:

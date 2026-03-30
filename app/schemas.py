@@ -27,6 +27,7 @@ class AnalysisRequest(BaseModel):
     compare_mode: bool = False
     compare_selected_patient_ids: str = ""
     llm_only: bool = False
+    deterministic_only: bool = False
     history: List[QueryTurn] = Field(default_factory=list)
 
 
@@ -96,8 +97,9 @@ class PhenoRankerPlanRequest(BaseModel):
 class SavedCohortRequest(BaseModel):
     name: str = ""
     data_dir: str = DEFAULT_DATA_DIR
+    sample_ids: List[str] = Field(default_factory=list)
     patient_ids: List[str] = Field(default_factory=list)
-    id_type: str = "patient"
+    id_type: str = "sample"
     source_kind: str = "manual"
     source_prompt: str = ""
 

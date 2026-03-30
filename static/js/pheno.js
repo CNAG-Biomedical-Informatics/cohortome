@@ -88,6 +88,7 @@ export function createPhenoUi(ctx) {
     manualOverrides: false,
     isApplyingPlan: false,
     rankerPatientIds: [],
+    rankerRecordIds: [],
     referenceFiles: [],
   };
 
@@ -200,7 +201,7 @@ export function createPhenoUi(ctx) {
       return;
     }
     const isLm = String(source) === "lm_studio";
-    const label = isLm ? "LM-based" : "Deterministic";
+    const label = isLm ? "LLM answer" : "Deterministic";
     const className = isLm ? "query-chip query-chip-llm badge" : "query-chip query-chip-deterministic badge";
     phenoPlanMetaEl.innerHTML = `<span class="${className}">${escapeHtml(label)}</span>`;
   }
@@ -725,7 +726,7 @@ export function createPhenoUi(ctx) {
     const targetId = payload.target_id || "unknown";
     const topN = String(payload.top_n || matches.length);
     const source = payload.source === "lm_studio"
-      ? '<span class="query-chip query-chip-llm badge">LM-based</span>'
+      ? '<span class="query-chip query-chip-llm badge">LLM answer</span>'
       : '<span class="query-chip query-chip-deterministic badge">Deterministic</span>';
     const llmReply = payload.llm_reply
       ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM Explanation</h4>${renderQueryReply(payload.llm_reply)}</div>`
@@ -1389,8 +1390,9 @@ export function createPhenoUi(ctx) {
       phenoStatusEl.textContent = "Define a non-empty scope for extraction mode.";
       return;
     }
-    if (state.rankerPatientIds.length) {
-      const invalidScopeIds = scopeIds.filter((patientId) => !state.rankerPatientIds.includes(patientId));
+    if (state.rankerPatientIds.length || state.rankerRecordIds.length) {
+      const validScopeIds = new Set([...(state.rankerPatientIds || []), ...(state.rankerRecordIds || [])]);
+      const invalidScopeIds = scopeIds.filter((scopeId) => !validScopeIds.has(scopeId));
       if (invalidScopeIds.length) {
         phenoStatusEl.textContent = `Scope contains IDs not present in the current Pheno-Ranker reference: ${invalidScopeIds.join(", ")}.`;
         return;
@@ -1463,7 +1465,9 @@ export function createPhenoUi(ctx) {
       updatePhenoExplainActions();
       phenoOutputDetailsEl.open = payload.mode === "patient";
       phenoStatusEl.className = "pheno-status";
-      phenoStatusEl.textContent = `Completed ${payload.mode} run ${payload.job_id}.`;
+      phenoStatusEl.textContent = payload.scope_expansion_note
+        ? `Completed ${payload.mode} run ${payload.job_id}. ${payload.scope_expansion_note}`
+        : `Completed ${payload.mode} run ${payload.job_id}.`;
       phenoCommandEl.textContent = [
         payload.command,
         payload.cwd ? `\n# cwd: ${payload.cwd}` : "",
@@ -1507,6 +1511,7 @@ export function createPhenoUi(ctx) {
       }
       const payload = await response.json();
       state.rankerPatientIds = Array.isArray(payload.patient_ids) ? payload.patient_ids.filter(Boolean) : [];
+      state.rankerRecordIds = Array.isArray(payload.record_ids) ? payload.record_ids.filter(Boolean) : [];
       state.referenceFiles = Array.isArray(payload.reference_files) ? payload.reference_files.filter(Boolean) : [];
       onPatientIdsLoaded(state.rankerPatientIds);
       onReferenceFilesLoaded(state.referenceFiles);

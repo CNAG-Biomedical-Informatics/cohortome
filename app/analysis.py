@@ -216,6 +216,97 @@ def _parse_molecular_medication_request(prompt: str) -> bool:
     return any(token in lowered for token in ("medication", "treatment", "drug", "biologic", "biologics"))
 
 
+def _parse_measure_inventory_request(prompt: str) -> bool:
+    lowered = prompt.lower()
+    if not any(token in lowered for token in ("measure", "measures", "lab", "labs", "parameter", "parameters", "variable", "variables")):
+        return False
+    return any(
+        token in lowered
+        for token in (
+            "what measures",
+            "which measures",
+            "available measures",
+            "list measures",
+            "what labs",
+            "which labs",
+            "available labs",
+            "which numeric longitudinal measures",
+            "what numeric longitudinal measures",
+        )
+    )
+
+
+def measure_inventory_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str, Any]:
+    resolved_dir = ensure_data_dir(data_dir)
+    scope_ids = set(parse_scope_ids(selected_patient_ids))
+    counts: Dict[str, Dict[str, Any]] = {}
+    for _, _, record in read_bff_records(resolved_dir):
+        if not record_matches_scope(record, scope_ids):
+            continue
+        patient_id = extract_record_patient_id(record)
+        measures = record.get("measures")
+        if not patient_id or not isinstance(measures, list):
+            continue
+        for item in measures:
+            if not isinstance(item, dict):
+                continue
+            label = _measure_label(item)
+            value = _measure_numeric_value(item)
+            if not label or value is None:
+                continue
+            entry = counts.setdefault(
+                label,
+                {
+                    "measure": label,
+                    "unit": _measure_unit_label(item),
+                    "patient_ids": set(),
+                    "observation_count": 0,
+                },
+            )
+            entry["observation_count"] += 1
+            entry["patient_ids"].add(patient_id)
+            if not entry.get("unit"):
+                entry["unit"] = _measure_unit_label(item)
+    measures = sorted(
+        [
+            {
+                "measure": label,
+                "unit": values.get("unit"),
+                "patient_count": len(values.get("patient_ids") or set()),
+                "observation_count": int(values.get("observation_count") or 0),
+            }
+            for label, values in counts.items()
+        ],
+        key=lambda item: (-int(item["patient_count"]), item["measure"]),
+    )
+    return {
+        "mode": "measure_inventory",
+        "source": "deterministic_measure_inventory",
+        "scope_ids": sorted(scope_ids),
+        "measure_count": len(measures),
+        "measures": measures,
+    }
+
+
+def compare_measure_inventory_context(data_dir: str, selected_patient_ids_a: str, selected_patient_ids_b: str) -> Dict[str, Any]:
+    context_a = measure_inventory_context(data_dir, selected_patient_ids=selected_patient_ids_a)
+    context_b = measure_inventory_context(data_dir, selected_patient_ids=selected_patient_ids_b)
+    labels = sorted(
+        {
+            str(item.get("measure") or "")
+            for item in (context_a.get("measures") or []) + (context_b.get("measures") or [])
+            if str(item.get("measure") or "").strip()
+        }
+    )
+    return {
+        "mode": "measure_inventory_compare",
+        "source": "deterministic_measure_inventory_compare",
+        "cohort_a": context_a,
+        "cohort_b": context_b,
+        "measures": labels,
+    }
+
+
 def molecular_expression_by_medication_context(
     data_dir: str,
     selected_patient_ids: str = "",
@@ -223,7 +314,8 @@ def molecular_expression_by_medication_context(
 ) -> Dict[str, Any]:
     datasets = store_molecular_dataset_inventory(data_dir)
     scope_ids = parse_scope_ids(selected_patient_ids) + parse_scope_ids(compare_selected_patient_ids)
-    scope_id_set = {item for item in scope_ids if item}
+    scope_patient_ids = derive_scope_patient_ids(scope_ids)
+    scope_patient_id_set = {item for item in scope_patient_ids if item}
     if len(datasets) < 2:
         return {
             "mode": "molecular_medication_compare",
@@ -245,16 +337,32 @@ def molecular_expression_by_medication_context(
         if matched_label:
             dataset_patient_ids = [str(value).strip() for value in (item.get("patient_ids") or []) if str(value).strip()]
             scoped_patient_ids = dataset_patient_ids
-            if scope_id_set:
-                scoped_patient_ids = [patient_id for patient_id in dataset_patient_ids if patient_id in scope_id_set]
+            if scope_patient_id_set:
+                scoped_patient_ids = [patient_id for patient_id in dataset_patient_ids if patient_id in scope_patient_id_set]
                 if not scoped_patient_ids:
                     continue
             matched.append({"medication": matched_label, "dataset": item, "scoped_patient_ids": scoped_patient_ids})
     if len(matched) < 2:
+        if scope_patient_id_set:
+            matched_summary = ", ".join(
+                f"{item['medication']} ({len(item['scoped_patient_ids'])} scoped patient{'s' if len(item['scoped_patient_ids']) != 1 else ''})"
+                for item in matched
+            ) or "none"
+            detail = (
+                f" Current Analysis scope resolves to {len(scope_patient_id_set)} patient"
+                f"{'s' if len(scope_patient_id_set) != 1 else ''} for molecular comparison; medication-aligned molecular datasets found in scope: {matched_summary}."
+            )
+        else:
+            detail = ""
         return {
             "mode": "molecular_medication_compare",
-            "error": "At least two medication-aligned molecular datasets with patients in the current Analysis scope are required for deterministic comparison.",
+            "error": (
+                "At least two medication-aligned molecular datasets with patients in the current Analysis scope are required for deterministic comparison."
+                + detail
+            ),
             "comparisons": [],
+            "matched_datasets": matched,
+            "scope_patient_count": len(scope_patient_id_set),
         }
     comparisons: List[Dict[str, Any]] = []
     for left, right in zip(matched, matched[1:]):
@@ -302,7 +410,7 @@ def molecular_expression_by_medication_context(
         "mode": "molecular_medication_compare",
         "comparisons": comparisons,
         "matched_datasets": matched,
-        "scope_patient_count": len(scope_id_set),
+        "scope_patient_count": len(scope_patient_id_set),
         "exploratory_note": (
             "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple "
             "per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression."
@@ -430,6 +538,7 @@ def _build_trajectory_context(
     patient_series: List[Dict[str, Any]] = []
     summary_buckets: Dict[str, List[float]] = {}
     unit_label = None
+    time_axis_label = "Days since treatment start" if resolved_treatment else "Days since first dated observation"
     for patient_id, events in sorted(patient_measure_events.items()):
         matching = [item for item in events if item["label"] == resolved_measure]
         if not matching:
@@ -458,15 +567,23 @@ def _build_trajectory_context(
                 }
             )
         else:
+            baseline_date = matching[0]["date"]
             points = []
             for item in matching:
-                key = item["date"].isoformat()
-                points.append({"x": key, "x_label": key, "date": key, "value": item["value"]})
+                day = (item["date"] - baseline_date).days
+                key = str(day)
+                points.append({"x": day, "x_label": key, "date": item["date"].isoformat(), "value": item["value"]})
                 summary_buckets.setdefault(key, []).append(float(item["value"]))
             if not points:
                 continue
             unit_label = unit_label or matching[0].get("unit")
-            patient_series.append({"patient_id": patient_id, "points": points})
+            patient_series.append(
+                {
+                    "patient_id": patient_id,
+                    "points": points,
+                    "baseline_date": baseline_date.isoformat(),
+                }
+            )
 
     if len(patient_series) < 2:
         analysis_mode = "trajectory_response" if resolved_treatment else "trajectory"
@@ -507,6 +624,7 @@ def _build_trajectory_context(
         "measure_query": measure_query,
         "treatment": resolved_treatment or None,
         "unit": unit_label,
+        "time_axis_label": time_axis_label,
         "patient_count": len(patient_series),
         "summary_points": summary_points,
         "patient_series": patient_series[:24],
@@ -525,6 +643,7 @@ def compare_trajectory_context(data_dir: str, measure_query: str, selected_patie
         "measure_query": measure_query,
         "treatment": context_a.get("treatment") or context_b.get("treatment") or None,
         "unit": context_a.get("unit") or context_b.get("unit"),
+        "time_axis_label": context_a.get("time_axis_label") or context_b.get("time_axis_label") or "Days since first dated observation",
         "cohort_a": context_a,
         "cohort_b": context_b,
     }
@@ -748,6 +867,20 @@ def parse_scope_ids(value: str) -> List[str]:
     if not value.strip():
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def derive_scope_patient_ids(scope_ids: List[str]) -> List[str]:
+    derived: List[str] = []
+    seen = set()
+    for item in scope_ids:
+        normalized = item.strip()
+        if not normalized:
+            continue
+        patient_id = normalized.split(":", 1)[0].strip()
+        if patient_id and patient_id not in seen:
+            seen.add(patient_id)
+            derived.append(patient_id)
+    return derived
 
 
 def record_matches_scope(record: Dict[str, Any], scope_ids: set[str]) -> bool:
@@ -1119,6 +1252,29 @@ def analysis_context(data_dir: str, selected_patient_ids: str = "") -> Dict[str,
 
 
 def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
+    if context.get("mode") == "measure_inventory":
+        measures = [item for item in (context.get("measures") or []) if isinstance(item, dict)]
+        if not measures:
+            return "No numeric longitudinal measures are available in the current Analysis scope."
+        parts = []
+        for item in measures[:10]:
+            label = str(item.get("measure") or "")
+            unit = f" ({item['unit']})" if item.get("unit") else ""
+            parts.append(
+                f"{label}{unit}: {int(item.get('patient_count') or 0)} patients, {int(item.get('observation_count') or 0)} observations"
+            )
+        return "Available numeric longitudinal measures in the current Analysis scope: " + "; ".join(parts) + "."
+    if context.get("mode") == "measure_inventory_compare":
+        cohort_a = context.get("cohort_a", {})
+        cohort_b = context.get("cohort_b", {})
+        labels = [str(item) for item in (context.get("measures") or []) if str(item).strip()]
+        if not labels:
+            return "No shared numeric longitudinal measures are available across the selected Analysis cohorts."
+        return (
+            f"Cohort A has {int(cohort_a.get('measure_count') or 0)} numeric longitudinal measures and "
+            f"Cohort B has {int(cohort_b.get('measure_count') or 0)}. "
+            f"Available measures across these cohorts: {', '.join(labels[:12])}."
+        )
     if context.get("mode") == "molecular_medication_compare":
         if context.get("error"):
             return str(context["error"])
@@ -1276,23 +1432,63 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
                 "Largest medication difference: %s (%s in A vs %s in B)."
                 % (medication_delta["label"], medication_delta.get("cohort_a", 0), medication_delta.get("cohort_b", 0))
             )
-        lines.append("LLM analysis is unavailable, so this is a deterministic comparison summary for: %s" % prompt.strip())
-        return " ".join(lines)
+        formatted = [
+            "### Deterministic Comparison Summary",
+            "",
+            "- **Cohort A:** %s patients, %s timepoints." % (
+                context_a["overview"]["patient_count"],
+                context_a["overview"]["timepoint_count"],
+            ),
+            "- **Cohort B:** %s patients, %s timepoints." % (
+                context_b["overview"]["patient_count"],
+                context_b["overview"]["timepoint_count"],
+            ),
+            "- **Date range:** %s to %s in Cohort A; %s to %s in Cohort B." % (
+                context_a["overview"].get("first_event_date") or "n/a",
+                context_a["overview"].get("last_event_date") or "n/a",
+                context_b["overview"].get("first_event_date") or "n/a",
+                context_b["overview"].get("last_event_date") or "n/a",
+            ),
+        ]
+        if disease_delta and disease_delta.get("label"):
+            formatted.append(
+                "- **Largest disease difference:** %s (%s in A vs %s in B)." % (
+                    disease_delta["label"],
+                    disease_delta.get("cohort_a", 0),
+                    disease_delta.get("cohort_b", 0),
+                )
+            )
+        if medication_delta and medication_delta.get("label"):
+            formatted.append(
+                "- **Largest medication difference:** %s (%s in A vs %s in B)." % (
+                    medication_delta["label"],
+                    medication_delta.get("cohort_a", 0),
+                    medication_delta.get("cohort_b", 0),
+                )
+            )
+        return "\n".join(formatted)
 
     overview = context["overview"]
     notable = context.get("notable_findings", [])
     top_disease = context["top_diseases"][0]["disease"] if context["top_diseases"] else "n/a"
     top_medication = context["top_medications"][0]["medication"] if context["top_medications"] else "n/a"
     lines = [
-        "This cohort has %s patients and %s timepoints." % (overview["patient_count"], overview["timepoint_count"]),
-        "Date range: %s to %s." % (overview.get("first_event_date") or "n/a", overview.get("last_event_date") or "n/a"),
-        "Most common disease: %s." % top_disease,
-        "Most common medication: %s." % top_medication,
+        "### Deterministic Cohort Summary",
+        "",
+        "- **Patients:** %s" % overview["patient_count"],
+        "- **Timepoints:** %s" % overview["timepoint_count"],
+        "- **Date range:** %s to %s" % (
+            overview.get("first_event_date") or "n/a",
+            overview.get("last_event_date") or "n/a",
+        ),
+        "- **Most common disease:** %s" % top_disease,
+        "- **Most common medication:** %s" % top_medication,
     ]
     if notable:
-        lines.append("Notable findings: %s." % "; ".join(notable[:3]))
-    lines.append("LLM analysis is unavailable, so this is a deterministic cohort summary for: %s" % prompt.strip())
-    return " ".join(lines)
+        lines.append("- **Notable findings:**")
+        for item in notable[:3]:
+            lines.append("  - %s" % item)
+    return "\n".join(lines)
 
 
 def compare_analysis_context(data_dir: str, selected_patient_ids_a: str, selected_patient_ids_b: str) -> Dict[str, Any]:
@@ -1538,8 +1734,26 @@ def analysis_llm_reply(
     compare_mode: bool = False,
     compare_selected_patient_ids: str = "",
     llm_only: bool = False,
+    deterministic_only: bool = False,
     history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
+    if _parse_measure_inventory_request(prompt):
+        if compare_mode:
+            context = compare_measure_inventory_context(data_dir, selected_patient_ids, compare_selected_patient_ids)
+            intent = "analysis_measure_inventory_compare"
+        else:
+            context = measure_inventory_context(data_dir, selected_patient_ids=selected_patient_ids)
+            intent = "analysis_measure_inventory"
+        return {
+            "intent": intent,
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
     if _parse_molecular_medication_request(prompt):
         context = molecular_expression_by_medication_context(
             data_dir,
@@ -1641,7 +1855,7 @@ def analysis_llm_reply(
         context = analysis_context(data_dir, selected_patient_ids=selected_patient_ids)
         intent = "analysis_deterministic"
 
-    if not llm_only:
+    if not llm_only and not deterministic_only:
         semantic_plan = _analysis_semantic_plan(
             prompt,
             data_dir,
@@ -1652,6 +1866,18 @@ def analysis_llm_reply(
         )
         if semantic_plan is not None:
             return semantic_plan
+
+    if deterministic_only:
+        return {
+            "intent": intent,
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
 
     model = resolve_lm_studio_model(log_kind="pheno_models") if lm_studio_enabled() else None
     if not lm_studio_enabled() or not model:

@@ -119,30 +119,12 @@ export function createAnalysisUi(ctx) {
       return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>${escapeHtml(heading)}</h3>${plotPlaceholder(`analysis-plot-${turnIndex}-trajectory`, 400)}</div>${renderBarChartCard(`analysis-plot-${turnIndex}-trajectory-coverage`, "Trajectory Coverage", coverageItems, "label", "value")}`;
     }
     if (context.mode === "survival_compare") {
-      const cohortA = context.cohort_a || {};
-      const cohortB = context.cohort_b || {};
       const eventLabel = formatTimeToEventLabel(context);
-      const aItems = [
-        { label: "Patients", value: Number(cohortA.patient_count || 0) },
-        { label: "Events", value: Number(cohortA.event_count || 0) },
-        { label: "Censored", value: Number(cohortA.censored_count || 0) },
-      ];
-      const bItems = [
-        { label: "Patients", value: Number(cohortB.patient_count || 0) },
-        { label: "Events", value: Number(cohortB.event_count || 0) },
-        { label: "Censored", value: Number(cohortB.censored_count || 0) },
-      ];
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Comparison</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival-compare`, 360)}</div>${renderBarChartCard(`analysis-plot-${turnIndex}-survival-a`, "Cohort A Event Summary", aItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-survival-b`, "Cohort B Event Summary", bItems, "label", "value")}`;
+      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Comparison</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival-compare`, 360)}</div>`;
     }
     if (context.mode === "survival") {
       const eventLabel = formatTimeToEventLabel(context);
-      const eventItems = [
-        { label: "Patients", value: Number(context.patient_count || 0) },
-        { label: "Events", value: Number(context.event_count || 0) },
-        { label: "Censored", value: Number(context.censored_count || 0) },
-      ];
-      const medianItems = [{ label: "Median days", value: Number(context.median_survival_days || 0) }];
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Analysis</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival`, 360)}</div>${renderBarChartCard(`analysis-plot-${turnIndex}-survival-summary`, "Event Summary", eventItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-survival-median`, "Median Time", medianItems, "label", "value")}`;
+      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Analysis</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival`, 360)}</div>`;
     }
     if (context.mode === "compare") {
       const cohortA = context.cohort_a || {};
@@ -218,7 +200,7 @@ export function createAnalysisUi(ctx) {
         },
         yaxis: {
           ...basePlotLayout().yaxis,
-          title: { text: "Survival probability", font: { color: "#61758c", size: 12 } },
+          title: { text: "Event-free probability", font: { color: "#61758c", size: 12 } },
           tickformat: ".0%",
           range: [0, 1],
         },
@@ -226,7 +208,7 @@ export function createAnalysisUi(ctx) {
     };
   }
 
-  function buildTrajectoryPlot(seriesList, summarySeries) {
+  function buildTrajectoryPlot(seriesList, summarySeries, xAxisTitle) {
     const patientSeries = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
     const summary = summarySeries && Array.isArray(summarySeries.points) ? summarySeries.points : [];
     const labels = Array.from(new Set(patientSeries.flatMap((item) => item.points.map((point) => String(point.x_label || point.x || ""))).concat(summary.map((point) => String(point.x_label || point.x || "")))));
@@ -265,21 +247,29 @@ export function createAnalysisUi(ctx) {
           categoryorder: "array",
           categoryarray: labels,
           tickangle: -35,
-          title: { text: "Visit / timepoint", font: { color: "#61758c", size: 12 } },
+          title: { text: xAxisTitle || "Days since first dated observation", font: { color: "#61758c", size: 12 } },
         },
       }),
     };
   }
 
-  function buildTrajectoryComparisonPlot(seriesList) {
+  function buildTrajectoryComparisonPlot(seriesList, xAxisTitle) {
     const series = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
     const labels = Array.from(new Set(series.flatMap((item) => item.points.map((point) => String(point.x_label || point.x || "")))));
     const traces = series.map((item, index) => ({
       type: "scatter",
       mode: "lines+markers",
       name: item.label || `Series ${index + 1}`,
-      line: { color: ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length], width: 3 },
-      marker: { size: 7 },
+      showlegend: item.showLegend !== false,
+      opacity: item.opacity !== undefined ? item.opacity : 1,
+      line: {
+        color: item.lineColor || ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
+        width: item.lineWidth || 3,
+      },
+      marker: {
+        size: item.markerSize || 7,
+        color: item.lineColor || ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
+      },
       x: item.points.map((point) => String(point.x_label || point.x || "")),
       y: item.points.map((point) => Number(point.value || 0)),
       hovertemplate: `${escapeHtml(item.label || `Series ${index + 1}`)}<br>%{x}<br>%{y}<extra></extra>`,
@@ -294,10 +284,65 @@ export function createAnalysisUi(ctx) {
           categoryorder: "array",
           categoryarray: labels,
           tickangle: -35,
-          title: { text: "Visit / timepoint", font: { color: "#61758c", size: 12 } },
+          title: { text: xAxisTitle || "Days since first dated observation", font: { color: "#61758c", size: 12 } },
         },
       }),
     };
+  }
+
+  function buildTrajectoryComparisonSeries(context) {
+    const cohortA = context.cohort_a || {};
+    const cohortB = context.cohort_b || {};
+    const patientSeriesA = Array.isArray(cohortA.patient_series) ? cohortA.patient_series : [];
+    const patientSeriesB = Array.isArray(cohortB.patient_series) ? cohortB.patient_series : [];
+    const totalPatientSeries = patientSeriesA.length + patientSeriesB.length;
+    const includePatientLines = totalPatientSeries > 0 && totalPatientSeries <= 50;
+    const output = [];
+
+    if (includePatientLines) {
+      patientSeriesA.forEach((item, index) => {
+        output.push({
+          label: `Cohort A · ${item.patient_id || `Patient ${index + 1}`}`,
+          points: item.points || [],
+          lineColor: "#2563eb",
+          opacity: 0.28,
+          lineWidth: 1.4,
+          markerSize: 4,
+          showLegend: false,
+        });
+      });
+      patientSeriesB.forEach((item, index) => {
+        output.push({
+          label: `Cohort B · ${item.patient_id || `Patient ${index + 1}`}`,
+          points: item.points || [],
+          lineColor: "#dc2626",
+          opacity: 0.28,
+          lineWidth: 1.4,
+          markerSize: 4,
+          showLegend: false,
+        });
+      });
+    }
+
+    output.push({
+      label: "Cohort A median",
+      points: cohortA.summary_points || [],
+      lineColor: "#1d4ed8",
+      opacity: 1,
+      lineWidth: 3,
+      markerSize: 7,
+      showLegend: true,
+    });
+    output.push({
+      label: "Cohort B median",
+      points: cohortB.summary_points || [],
+      lineColor: "#b91c1c",
+      opacity: 1,
+      lineWidth: 3,
+      markerSize: 7,
+      showLegend: true,
+    });
+    return output;
   }
 
   function buildExploratoryVolcanoPlot(points, comparisonLabel) {
@@ -356,19 +401,15 @@ export function createAnalysisUi(ctx) {
         return;
       }
       if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
-        const cohortA = context.cohort_a || {};
-        const cohortB = context.cohort_b || {};
-        const comparison = buildTrajectoryComparisonPlot([
-          { label: "Cohort A median", points: cohortA.summary_points || [] },
-          { label: "Cohort B median", points: cohortB.summary_points || [] },
-        ]);
+        const comparison = buildTrajectoryComparisonPlot(buildTrajectoryComparisonSeries(context), context.time_axis_label);
         mountPlot(`analysis-plot-${turnIndex}-trajectory-compare`, comparison.traces, comparison.layout);
         return;
       }
       if (context.mode === "trajectory" || context.mode === "trajectory_response") {
         const trajectory = buildTrajectoryPlot(
           context.patient_series || [],
-          { label: context.treatment ? "Median response" : "Cohort median", points: context.summary_points || [] }
+          { label: context.treatment ? "Median response" : "Cohort median", points: context.summary_points || [] },
+          context.time_axis_label,
         );
         mountPlot(`analysis-plot-${turnIndex}-trajectory`, trajectory.traces, trajectory.layout);
         const coverage = buildHorizontalBar([
@@ -464,8 +505,8 @@ export function createAnalysisUi(ctx) {
       analysis_survival_compare: { label: "Time-to-event comparison", title: "Deterministic Kaplan-Meier time-to-event comparison between two cohorts." },
       analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
       analysis_trajectory_compare: { label: "Trajectory comparison", title: "Deterministic trajectory comparison between two cohorts." },
-      analysis_llm: { label: "LM interpretation", title: "LM Studio narrative interpretation grounded in the provided analysis context." },
-      analysis_compare_llm: { label: "LM comparison", title: "LM Studio narrative comparison grounded in the provided cohort context." },
+      analysis_llm: { label: "LLM interpretation", title: "LM Studio narrative interpretation grounded in the provided analysis context." },
+      analysis_compare_llm: { label: "LLM comparison", title: "LM Studio narrative comparison grounded in the provided cohort context." },
     };
     return labels[value] || {
       label: value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
@@ -483,12 +524,12 @@ export function createAnalysisUi(ctx) {
     const intentInfo = analysisIntentPresentation(payload && payload.intent ? payload.intent : "analysis");
     const chips = [renderAnalysisBadge(intentInfo.label, intentInfo.title)];
     if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
-      chips.push(renderAnalysisBadge("LLM planned", "LM Studio translated the prompt into a constrained internal analysis plan."));
+      chips.push(renderAnalysisBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal analysis plan."));
       chips.push(renderAnalysisBadge("Deterministic execution", "The app executed the planned analysis deterministically against local cohort data."));
       if (data.planner.model) chips.push(renderAnalysisBadge(data.planner.model, "LM Studio model used for analysis planning."));
       return chips;
     }
-    chips.push(renderAnalysisBadge(data.source === "llm" ? "LM-based" : "Deterministic", data.source === "llm"
+    chips.push(renderAnalysisBadge(data.source === "llm" ? "LLM answer" : "Deterministic", data.source === "llm"
       ? "LM Studio generated the narrative interpretation from the provided analysis context."
       : "The app executed this analysis deterministically."));
     if (data.model) chips.push(renderAnalysisBadge(data.model, "LM Studio model used for this analysis reply."));
@@ -522,8 +563,12 @@ export function createAnalysisUi(ctx) {
     const selectedCohort = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === savedCohortId)
       : null;
-    if (selectedCohort && Array.isArray(selectedCohort.patient_ids)) {
-      return selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean);
+    if (selectedCohort) {
+      const sampleIds = Array.isArray(selectedCohort.sample_ids) ? selectedCohort.sample_ids.map((item) => String(item).trim()).filter(Boolean) : [];
+      if (sampleIds.length) return sampleIds;
+      if (Array.isArray(selectedCohort.patient_ids)) {
+        return selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean);
+      }
     }
     return String(inputEl && inputEl.value ? inputEl.value : "")
       .split(",")
@@ -601,6 +646,7 @@ export function createAnalysisUi(ctx) {
     const currentScope = currentScopeIds.join(",");
     const compareScope = compareScopeIds.join(",");
     const llmOnly = state.analysisExecutionMode === "llm_only";
+    const deterministicOnly = state.analysisExecutionMode === "deterministic";
     const showPlots = analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     if (compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
@@ -626,6 +672,7 @@ export function createAnalysisUi(ctx) {
           compare_mode: compareMode,
           compare_selected_patient_ids: compareScope,
           llm_only: llmOnly,
+          deterministic_only: deterministicOnly,
           history: state.analysisHistory.slice(-6),
         }),
       });

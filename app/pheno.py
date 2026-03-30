@@ -149,6 +149,48 @@ def available_reference_ids(data_dir: str, limit: int = 500) -> List[str]:
     return ids
 
 
+def expand_scope_ids_to_record_ids(records: List[Dict], scope_ids: List[str]) -> Dict[str, Any]:
+    patient_to_record_ids: Dict[str, List[str]] = {}
+    record_ids = set()
+    for record in records:
+        record_id = record.get("id")
+        patient_id = extract_record_patient_id(record)
+        if isinstance(record_id, str) and record_id.strip():
+            normalized_record_id = record_id.strip()
+            record_ids.add(normalized_record_id)
+            if isinstance(patient_id, str) and patient_id.strip():
+                patient_to_record_ids.setdefault(patient_id.strip(), []).append(normalized_record_id)
+
+    expanded_record_ids: List[str] = []
+    invalid_ids: List[str] = []
+    expanded_patient_ids: List[str] = []
+    seen_record_ids = set()
+    for raw_id in scope_ids:
+        scope_id = str(raw_id or "").strip()
+        if not scope_id:
+            continue
+        if scope_id in record_ids:
+            if scope_id not in seen_record_ids:
+                seen_record_ids.add(scope_id)
+                expanded_record_ids.append(scope_id)
+            continue
+        patient_record_ids = patient_to_record_ids.get(scope_id) or []
+        if patient_record_ids:
+            expanded_patient_ids.append(scope_id)
+            for record_id in patient_record_ids:
+                if record_id not in seen_record_ids:
+                    seen_record_ids.add(record_id)
+                    expanded_record_ids.append(record_id)
+            continue
+        invalid_ids.append(scope_id)
+    return {
+        "record_ids": expanded_record_ids,
+        "invalid_ids": invalid_ids,
+        "expanded_patient_ids": expanded_patient_ids,
+        "expanded_record_count": len(expanded_record_ids),
+    }
+
+
 def available_disease_labels(data_dir: str, limit: int = 50) -> List[str]:
     labels: List[str] = []
     for record in load_pheno_ranker_records(data_dir):
@@ -975,6 +1017,7 @@ def serialize_pheno_result(
     plot_runs: List[Dict[str, str]],
     similarity_metric_cohort: str = "",
     pre_commands: List[str] | None = None,
+    scope_expansion_note: str = "",
 ) -> Dict:
     files = []
     for path in sorted(job_dir.iterdir()):
@@ -998,6 +1041,7 @@ def serialize_pheno_result(
         "plots": plot_runs,
         "files": files,
         "similarity_metric_cohort": similarity_metric_cohort,
+        "scope_expansion_note": scope_expansion_note,
     }
 
 
@@ -1144,15 +1188,7 @@ def run_pheno_ranker(request: Any) -> Dict:
     selected_extract_proc: subprocess.CompletedProcess[str] | None = None
     saved_cohort_extract_commands: List[List[str]] = []
     saved_cohort_extract_procs: List[subprocess.CompletedProcess[str]] = []
-    invalid_scope_ids = [scope_id for scope_id in selected_ids if scope_id not in valid_scope_ids]
-    if invalid_scope_ids:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "Scope contains IDs that do not exist in the current Pheno-Ranker reference dataset.",
-                "invalid_scope_ids": invalid_scope_ids,
-            },
-        )
+    scope_expansion_note = ""
     if action == "compare" and mode == "patient":
         if not patient_id and len(selected_ids) == 1:
             patient_id = selected_ids[0]
@@ -1174,6 +1210,25 @@ def run_pheno_ranker(request: Any) -> Dict:
         records = filter_records_by_disease(records, request.disease_filter)
         if not records:
             raise HTTPException(status_code=404, detail="No records matched the selected disease filter for Pheno-Ranker.")
+
+    if selected_ids and action == "compare" and mode == "cohort":
+        scope_resolution = expand_scope_ids_to_record_ids(records, selected_ids)
+        if scope_resolution["invalid_ids"]:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Scope contains IDs that do not exist in the current Pheno-Ranker reference dataset.",
+                    "invalid_scope_ids": scope_resolution["invalid_ids"],
+                },
+            )
+        selected_ids = scope_resolution["record_ids"]
+        expanded_patient_ids = scope_resolution["expanded_patient_ids"]
+        if expanded_patient_ids:
+            scope_expansion_note = (
+                f"Expanded {len(expanded_patient_ids)} patient ID"
+                f"{'' if len(expanded_patient_ids) == 1 else 's'} to {len(selected_ids)} sample ID"
+                f"{'' if len(selected_ids) == 1 else 's'} for Pheno-Ranker."
+            )
 
     use_temp_reference = bool(request.disease_filter.strip())
     if use_temp_reference:
@@ -1199,7 +1254,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         for index, cohort in enumerate(saved_cohorts, start=1):
             cohort_ids = [
                 str(item or "").strip()
-                for item in cohort.get("patient_ids", [])
+                for item in (cohort.get("sample_ids") or cohort.get("patient_ids") or [])
                 if str(item or "").strip()
             ]
             if not cohort_ids:
@@ -1226,7 +1281,7 @@ def run_pheno_ranker(request: Any) -> Dict:
             raise HTTPException(status_code=400, detail="Extraction mode requires one or more selected patient IDs.")
         extract_path = job_dir / "reference.selected.json"
         extract_command, extract_proc, _ = jq_extract_records(reference_paths, selected_ids, extract_path)
-        return serialize_pheno_result(job_dir, extract_command, extract_proc, "extract", [])
+        return serialize_pheno_result(job_dir, extract_command, extract_proc, "extract", [], scope_expansion_note=scope_expansion_note)
 
     if mode == "patient":
         target_records = records if records else load_pheno_ranker_records(request.data_dir)
@@ -1327,6 +1382,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         plot_runs,
         similarity_metric_cohort=effective_similarity_metric,
         pre_commands=pre_commands,
+        scope_expansion_note=scope_expansion_note,
     )
 
 
@@ -1334,6 +1390,7 @@ def pheno_ranker_patient_ids_payload(data_dir: str) -> Dict[str, Any]:
     reference_files = resolve_pheno_ranker_reference_paths(data_dir)
     return {
         "patient_ids": available_patient_ids(data_dir, limit=100000),
+        "record_ids": available_reference_ids(data_dir, limit=100000),
         "reference_files": [str(path) for path in reference_files],
     }
 

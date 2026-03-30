@@ -89,6 +89,8 @@
       const analysisSessionListEl = document.getElementById("analysisSessionList");
       const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
       const loadBtnEl = document.getElementById("loadBtn");
+      const loadBtnIconEl = document.getElementById("loadBtnIcon");
+      const loadBtnLabelEl = document.getElementById("loadBtnLabel");
       const datasetAdminControlsEl = document.getElementById("datasetAdminControls");
       const usersStatusEl = document.getElementById("usersStatus");
       const usersListEl = document.getElementById("usersList");
@@ -181,6 +183,7 @@
       let phenoPlanProgressTimer = null;
       let phenoRunProgressTimer = null;
       let latestQueryPatientIds = [];
+      let latestQueryRecordIds = [];
       let latestQueryIdType = "patient";
       let latestQueryPrompt = "";
       let latestQueryAnalysisPrompt = "";
@@ -453,6 +456,25 @@
         }
       }
 
+      function renderLoadButtonState() {
+        if (!loadBtnEl) {
+          return;
+        }
+        loadBtnEl.classList.toggle("is-loading", Boolean(loadInFlight));
+        if (loadBtnLabelEl) {
+          loadBtnLabelEl.textContent = loadInFlight ? "Loading..." : "Load dataset";
+        }
+        if (loadBtnIconEl) {
+          loadBtnIconEl.innerHTML = loadInFlight
+            ? '<span class="button-spinner" aria-hidden="true"></span>'
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                 <path d="M12 3v12"></path>
+                 <path d="m7 10 5 5 5-5"></path>
+                 <path d="M5 21h14"></path>
+               </svg>`;
+        }
+      }
+
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
       }
@@ -532,7 +554,7 @@
         queryPlannerBtnEl.setAttribute("aria-pressed", active ? "true" : "false");
         queryPlannerBtnEl.title = active
           ? "Semantic planner is enabled for the next query."
-          : "Skip deterministic matching for the next query and use the semantic planner first.";
+          : "Skip deterministic matching for the next query and use the LLM planner first.";
       }
 
       function renderAnalysisStarterPrompts() {
@@ -742,6 +764,7 @@
           get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
           set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
           get latestQueryPatientIds() { return latestQueryPatientIds; },
+          get latestQueryRecordIds() { return latestQueryRecordIds; },
           get latestQueryPrompt() { return latestQueryPrompt; },
           get latestQueryIdType() { return latestQueryIdType; },
         },
@@ -992,6 +1015,7 @@
         if (!loadBtnEl) return;
         const blocked = !canManageDataset();
         loadBtnEl.disabled = Boolean(loadInFlight || blocked);
+        renderLoadButtonState();
         if (blocked && !loadInFlight) {
           loadStatusEl.className = "load-status";
           loadStatusEl.textContent = "Admin sign-in required to load or refresh shared data.";
@@ -1321,6 +1345,9 @@
             if (Object.prototype.hasOwnProperty.call(patch, 'ids')) {
               latestQueryPatientIds = Array.isArray(patch.ids) ? patch.ids : [];
             }
+            if (Object.prototype.hasOwnProperty.call(patch, 'recordIds')) {
+              latestQueryRecordIds = Array.isArray(patch.recordIds) ? patch.recordIds : [];
+            }
             if (Object.prototype.hasOwnProperty.call(patch, 'prompt')) {
               latestQueryPrompt = patch.prompt || '';
             }
@@ -1342,6 +1369,7 @@
           get queryExecutionMode() { return queryExecutionMode; },
           set queryExecutionMode(value) { queryExecutionMode = value; },
           get latestQueryPatientIds() { return latestQueryPatientIds; },
+          get latestQueryRecordIds() { return latestQueryRecordIds; },
         },
       });
 
@@ -1410,25 +1438,29 @@
       }
 
       function sendPatientIdsToPhenoRanker() {
-        if (!latestQueryPatientIds.length) {
+        const scopeIds = latestQueryRecordIds.length ? latestQueryRecordIds : latestQueryPatientIds;
+        if (!scopeIds.length) {
           return;
         }
         phenoActionEl.value = "compare";
         phenoModeEl.value = "cohort";
-        phenoSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+        phenoSelectedPatientIdsEl.value = scopeIds.join(",");
         renderSelectedPatientIdsSummary();
         updatePhenoMode();
         setActiveTab("pheno");
         phenoStatusEl.className = "pheno-status";
-        phenoStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} patient IDs from the query result into the current scope.`;
+        phenoStatusEl.textContent = latestQueryRecordIds.length
+          ? `Loaded ${latestQueryRecordIds.length} sample IDs from the query result into the current Pheno-Ranker scope.`
+          : `Loaded ${latestQueryPatientIds.length} patient IDs from the query result into the current Pheno-Ranker scope.`;
       }
 
       function sendPatientIdsToAnalysis() {
-        if (!latestQueryPatientIds.length) {
+        const scopeIds = latestQueryRecordIds.length ? latestQueryRecordIds : latestQueryPatientIds;
+        if (!scopeIds.length) {
           return;
         }
         analysisSelectedSavedCohortId = "";
-        analysisSelectedPatientIdsEl.value = latestQueryPatientIds.join(",");
+        analysisSelectedPatientIdsEl.value = scopeIds.join(",");
         if (latestQueryAnalysisPrompt && !analysisPromptEl.value.trim()) {
           analysisPromptEl.value = latestQueryAnalysisPrompt;
         }
@@ -1436,7 +1468,9 @@
         setActiveTab("analysis");
         syncCurrentAnalysisSessionFromUi({ render: true });
         analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = `Loaded ${latestQueryPatientIds.length} IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`;
+        analysisStatusEl.textContent = latestQueryRecordIds.length
+          ? `Loaded ${latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`
+          : `Loaded ${latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`;
       }
 
       function sendPromptToAnalysis(prompt, options) {
@@ -1887,7 +1921,13 @@
           return;
         }
         analysisPromptEl.value = button.dataset.analysisPrompt;
-        analysisExecutionMode = button.dataset.analysisLlmOnly === "true" ? "llm_only" : "auto";
+        if (button.dataset.analysisLlmOnly === "true") {
+          analysisExecutionMode = "llm_only";
+        } else if (button.dataset.analysisDeterministic === "true") {
+          analysisExecutionMode = "deterministic";
+        } else {
+          analysisExecutionMode = "auto";
+        }
         analysisExamplesPinnedOpen = false;
         syncCurrentAnalysisSessionFromUi({ render: true });
         renderAnalysisStarterPrompts();

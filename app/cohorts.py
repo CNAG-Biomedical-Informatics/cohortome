@@ -30,7 +30,24 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
-    return payload if isinstance(payload, list) else []
+    items = payload if isinstance(payload, list) else []
+    normalized: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sample_ids = [str(value).strip() for value in item.get("sample_ids", []) if str(value).strip()]
+        patient_ids = [str(value).strip() for value in item.get("patient_ids", []) if str(value).strip()]
+        if not sample_ids and patient_ids:
+            sample_ids = list(patient_ids)
+        if not patient_ids and sample_ids:
+            patient_ids = sorted({value.split(":", 1)[0].strip() for value in sample_ids if value.split(":", 1)[0].strip()})
+        normalized_item = dict(item)
+        normalized_item["sample_ids"] = sample_ids
+        normalized_item["patient_ids"] = patient_ids
+        normalized_item["sample_count"] = len(sample_ids)
+        normalized_item["patient_count"] = len(patient_ids)
+        normalized.append(normalized_item)
+    return normalized
 
 
 def _write_saved_cohorts(items: List[Dict[str, Any]], user_id: str = DEFAULT_LOCAL_USER_ID) -> None:
@@ -85,21 +102,46 @@ def save_cohort(
     *,
     name: str,
     data_dir: str,
-    ids: List[str],
+    sample_ids: List[str] | None = None,
+    patient_ids: List[str] | None = None,
+    ids: List[str] | None = None,
     id_type: str,
     source_kind: str,
     source_prompt: str = "",
     user_id: str = DEFAULT_LOCAL_USER_ID,
 ) -> Dict[str, Any]:
-    normalized_ids = []
+    raw_sample_ids = sample_ids if sample_ids is not None else []
+    raw_patient_ids = patient_ids if patient_ids is not None else []
+    if ids is not None:
+        if id_type in {"sample", "original_record"} and not raw_sample_ids:
+            raw_sample_ids = ids
+        if id_type == "patient" and not raw_patient_ids:
+            raw_patient_ids = ids
+
+    normalized_sample_ids = []
+    seen_sample_ids = set()
+    for item in raw_sample_ids:
+        value = str(item or "").strip()
+        if not value or value in seen_sample_ids:
+            continue
+        seen_sample_ids.add(value)
+        normalized_sample_ids.append(value)
+
+    normalized_patient_ids = []
     seen = set()
-    for item in ids:
+    for item in raw_patient_ids:
         value = str(item or "").strip()
         if not value or value in seen:
             continue
         seen.add(value)
-        normalized_ids.append(value)
-    if not normalized_ids:
+        normalized_patient_ids.append(value)
+
+    if not normalized_sample_ids and normalized_patient_ids:
+        normalized_sample_ids = list(normalized_patient_ids)
+    if not normalized_patient_ids and normalized_sample_ids:
+        normalized_patient_ids = sorted({value.split(":", 1)[0].strip() for value in normalized_sample_ids if value.split(":", 1)[0].strip()})
+
+    if not normalized_sample_ids:
         raise ValueError("A saved cohort requires at least one ID.")
 
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
@@ -110,8 +152,11 @@ def save_cohort(
         "id": f"cohort_{uuid4().hex[:12]}",
         "name": normalized_name,
         "data_dir": data_dir,
-        "id_type": id_type if id_type in {"patient", "original_record"} else "patient",
-        "patient_ids": normalized_ids,
+        "id_type": id_type if id_type in {"sample", "original_record", "patient"} else "sample",
+        "sample_ids": normalized_sample_ids,
+        "patient_ids": normalized_patient_ids,
+        "sample_count": len(normalized_sample_ids),
+        "patient_count": len(normalized_patient_ids),
         "source": {
             "kind": source_kind or "manual",
             "prompt": source_prompt.strip(),

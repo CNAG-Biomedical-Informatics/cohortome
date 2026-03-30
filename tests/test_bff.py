@@ -118,6 +118,64 @@ def test_generate_mds_points_transforms_jaccard_similarity_to_distance(tmp_path)
     assert abs(jaccard_distance - 0.2) < 1e-6
 
 
+def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Tell me the list of patients on the cohort")
+
+    assert payload["intent"] == "patient_inventory"
+    assert payload["data"]["patient_ids"] == ["SYN001", "SYN002"]
+    assert "SYN001:week_0" not in payload["reply"]
+    assert "SYN001:week_2" not in payload["reply"]
+
+
+def test_deterministic_sample_inventory_returns_sample_ids(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Tell me the list of samples on the cohort")
+
+    assert payload["intent"] == "sample_inventory"
+    assert payload["data"]["sample_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
+    assert "SYN001:week_0" in payload["reply"]
+    assert "SYN001:week_2" in payload["reply"]
+
+
+def test_pheno_scope_expansion_derives_record_ids_from_patient_ids() -> None:
+    records = [
+        {"id": "SYN001:week_0", "patient_id": "SYN001"},
+        {"id": "SYN001:week_2", "patient_id": "SYN001"},
+        {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        {"id": "SYN003:week_0", "patient_id": "SYN003"},
+    ]
+
+    payload = pheno_module.expand_scope_ids_to_record_ids(records, ["SYN001", "SYN002:week_0", "SYN999"])
+
+    assert payload["record_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
+    assert payload["expanded_patient_ids"] == ["SYN001"]
+    assert payload["invalid_ids"] == ["SYN999"]
+    assert payload["expanded_record_count"] == 3
+
+
 def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -616,6 +674,83 @@ def test_analysis_trajectory_for_measure_over_time(tmp_path):
     assert len(context["summary_points"]) == 2
 
 
+def test_analysis_lists_available_measures_for_current_scope(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:week0",
+                "event_date": "2024-01-01",
+                "measures": [
+                    {"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0, "unit": {"label": "mg/L"}}}},
+                    {"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.0, "unit": {"label": "g/dL"}}}},
+                ],
+            },
+            {
+                "id": "P2:week0",
+                "event_date": "2024-01-01",
+                "measures": [
+                    {"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 8.0, "unit": {"label": "mg/L"}}}},
+                    {"assayCode": {"label": "Leukocyte Count"}, "measurementValue": {"quantity": {"value": 6.0, "unit": {"label": "10^9/L"}}}},
+                ],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "What measures are available for this cohort?",
+        str(tmp_path),
+    )
+
+    assert payload["intent"] == "analysis_measure_inventory"
+    context = payload["data"]["context"]
+    assert context["mode"] == "measure_inventory"
+    assert [item["measure"] for item in context["measures"]] == ["CRP", "Hemoglobin", "Leukocyte Count"]
+
+
+def test_analysis_lists_available_measures_for_compare_mode(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "A1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "A2:week0",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "Hemoglobin"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+            {
+                "id": "B1:week0",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 8.0}}}],
+            },
+            {
+                "id": "B2:week0",
+                "event_date": "2024-01-02",
+                "measures": [{"assayCode": {"label": "Clinical relapse"}, "measurementValue": {"quantity": {"value": 0.0}}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Which numeric longitudinal measures can I compare between these cohorts?",
+        str(tmp_path),
+        selected_patient_ids="A1,A2",
+        compare_mode=True,
+        compare_selected_patient_ids="B1,B2",
+    )
+
+    assert payload["intent"] == "analysis_measure_inventory_compare"
+    context = payload["data"]["context"]
+    assert context["mode"] == "measure_inventory_compare"
+    assert context["measures"] == ["CRP", "Clinical relapse", "Hemoglobin"]
+
+
 def test_analysis_treatment_response_trajectory(tmp_path):
     write_json(
         tmp_path,
@@ -931,6 +1066,43 @@ def test_analysis_llm_only_skips_planner(tmp_path, monkeypatch):
     assert payload["intent"] == "analysis_llm"
     assert payload["reply"] == "Narrative analysis"
     assert calls == ["analysis_llm"]
+
+
+def test_analysis_deterministic_only_skips_planner_and_full_llm(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Summarize the main clinical patterns in this cohort and tell me what stands out.",
+        str(tmp_path),
+        deterministic_only=True,
+    )
+
+    assert payload["intent"] == "analysis_deterministic"
+    assert payload["data"]["source"] == "deterministic"
+    assert "Deterministic Cohort Summary" in payload["reply"]
+    assert calls == []
 
 
 def test_api_endpoints(tmp_path):
@@ -1376,6 +1548,74 @@ def test_query_semantic_planner_can_expand_biologics_category(tmp_path, monkeypa
     assert "known_treatments" in planner_message
     assert "Infliximab" in planner_message
     assert "Vedolizumab" in planner_message
+
+
+def test_query_semantic_planner_respects_how_many_vs_which_wording(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
+            },
+            {
+                "id": "P3:v1",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        if log_kind == "query_semantic_plan":
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "cohort_query",
+                                    "output": "patient_list",
+                                    "logic": "or",
+                                    "filters": [
+                                        {"domain": "treatment", "operator": "eq", "value": "Infliximab", "negate": False},
+                                        {"domain": "treatment", "operator": "eq", "value": "Vedolizumab", "negate": False},
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "generic fallback"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    count_payload = answer_query(str(tmp_path), "How many patients take biologics?")
+    assert count_payload["intent"] == "semantic_cohort_query"
+    assert count_payload["data"]["patient_count"] == 2
+    assert count_payload["data"]["semantic_plan"]["output"] == "count"
+    assert count_payload["reply"].startswith("2 patients match:")
+
+    list_payload = answer_query(str(tmp_path), "Which patients take biologics?")
+    assert list_payload["intent"] == "semantic_cohort_query"
+    assert list_payload["data"]["semantic_plan"]["output"] == "patient_list"
+    assert "Patients matching" in list_payload["reply"]
+    assert "are shown below" in list_payload["reply"]
+    assert "P1" not in list_payload["reply"]
+    assert "P2" not in list_payload["reply"]
 
 
 def test_query_planner_only_can_filter_patient_ids_by_substring(tmp_path, monkeypatch):
@@ -2037,6 +2277,42 @@ def test_query_store_supports_longitudinal_helpers(tmp_path):
     assert [item["patient_id"] for item in cohort["patients"]] == ["700"]
 
 
+def test_query_store_rebuilds_stale_schema_missing_required_tables(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            }
+        ],
+    )
+
+    store_dir = tmp_path / "query-store"
+    monkeypatch.setattr(query_store_module, "QUERY_STORE_DIR", store_dir)
+
+    db_path, meta_path = query_store_module._store_paths(str(tmp_path))
+    con = query_store_module.duckdb.connect(str(db_path))
+    try:
+        con.execute("CREATE TABLE legacy_only (id TEXT)")
+    finally:
+        con.close()
+    meta_path.write_text(
+        json.dumps(query_store_module._source_files_signature(str(tmp_path)), indent=2),
+        encoding="utf-8",
+    )
+
+    rows = query_module._patient_query_index(str(tmp_path))
+
+    assert [item["patient_id"] for item in rows] == ["SYN001"]
+
+
 def test_query_store_ingests_molecular_count_matrices(tmp_path):
     if not duckdb_available():
         return
@@ -2326,3 +2602,61 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
     volcano_point = comparison["exploratory_volcano_points"][0]
     assert volcano_point["sample_count_a"] == 1
     assert volcano_point["sample_count_b"] == 1
+
+
+def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sample_ids(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN002:week_0", "patient_id": "SYN002", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN003:week_0", "patient_id": "SYN003", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "SYN004:week_0", "patient_id": "SYN004", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Ustekinumab"}}]},
+            {"id": "SYN005:week_0", "patient_id": "SYN005", "info": {"event_date": "2024-01-01"}, "treatments": [{"treatmentCode": {"label": "Ustekinumab"}}]},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001:week_0;SYN002:week_0;SYN003:week_0",
+                "ENSG00000169429;1400;1300;1200",
+                "ENSG00000170421;150;160;170",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (molecular_dir / "synthetic_transcriptome_raw_counts_ustekinumab.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN004:week_0;SYN005:week_0",
+                "ENSG00000169429;150;160",
+                "ENSG00000170421;1200;1250",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        payload = analysis_module.analysis_llm_reply(
+            "Explain differences in gene expression according to medication",
+            str(tmp_path),
+            selected_patient_ids="SYN001:week_0,SYN002:week_0,SYN003:week_0",
+            compare_mode=True,
+            compare_selected_patient_ids="SYN004:week_0,SYN005:week_0",
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_molecular_medication_compare"
+    context = payload["data"]["context"]
+    assert context["scope_patient_count"] == 5
+    comparison = context["comparisons"][0]
+    assert comparison["medication_a"] == "Infliximab"
+    assert comparison["medication_b"] == "Ustekinumab"
+    assert comparison["scoped_patient_ids_a"] == ["SYN001", "SYN002", "SYN003"]
+    assert comparison["scoped_patient_ids_b"] == ["SYN004", "SYN005"]

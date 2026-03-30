@@ -151,10 +151,6 @@ export function createQueryUi(ctx) {
   }
 
   function renderQueryReply(payloadOrValue) {
-    const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue) : "";
-    if (structured) {
-      return structured;
-    }
     const value = typeof payloadOrValue === "object" && payloadOrValue ? payloadOrValue.reply : payloadOrValue;
     const lines = String(value || "").split("\r\n").join("\n").split("\n");
     const blocks = [];
@@ -267,7 +263,9 @@ export function createQueryUi(ctx) {
     flushList();
     flushTable();
     if (inCodeBlock) flushCodeBlock();
-    return blocks.join("") || "<p>No answer returned.</p>";
+    const textMarkup = blocks.join("") || "<p>No answer returned.</p>";
+    const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue) : "";
+    return structured ? `${textMarkup}${structured}` : textMarkup;
   }
 
   function queryIntentPresentation(intent) {
@@ -281,9 +279,9 @@ export function createQueryUi(ctx) {
       patient_started_after_cohort: { label: "Started-after query", title: "Deterministic temporal query over patients who started one term after another." },
       patient_temporal_order_cohort: { label: "Temporal order query", title: "Deterministic temporal query over the order of events in patient timelines." },
       patient_inventory: { label: "Patient inventory", title: "Deterministic listing of patients in the current cohort." },
-      llm_fallback: { label: "LM fallback answer", title: "LM Studio answered directly from the provided context because no deterministic route or semantic plan was used." },
-      llm_unavailable: { label: "LM unavailable", title: "LM Studio fallback is enabled, but no loaded model was available." },
-      llm_error: { label: "LM error", title: "LM Studio fallback was attempted but did not return a usable answer." },
+      llm_fallback: { label: "LLM fallback answer", title: "LM Studio answered directly from the provided context because no deterministic route or semantic plan was used." },
+      llm_unavailable: { label: "LLM unavailable", title: "LM Studio fallback is enabled, but no loaded model was available." },
+      llm_error: { label: "LLM error", title: "LM Studio fallback was attempted but did not return a usable answer." },
       unsupported: { label: "Unsupported query", title: "The app could not map this prompt to a supported deterministic or LM-planned query path." },
       needs_clarification: { label: "Needs clarification", title: "The prompt is too vague to answer reliably, so the app is asking for a more specific query." },
     };
@@ -303,12 +301,12 @@ export function createQueryUi(ctx) {
     const intentInfo = queryIntentPresentation(payload && payload.intent ? payload.intent : "unknown");
     const chips = [renderQueryBadge(intentInfo.label, intentInfo.title)];
     if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
-      chips.push(renderQueryBadge("LLM planned", "LM Studio translated the prompt into a constrained internal cohort plan."));
+      chips.push(renderQueryBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal cohort plan."));
       chips.push(renderQueryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result."));
       if (data.planner.model) chips.push(renderQueryBadge(data.planner.model, "LM Studio model used for semantic query planning."));
       return chips;
     }
-    chips.push(renderQueryBadge(data.provider === "lm_studio" ? "LM-based" : "Deterministic", data.provider === "lm_studio"
+    chips.push(renderQueryBadge(data.provider === "lm_studio" ? "LLM answer" : "Deterministic", data.provider === "lm_studio"
       ? "LM Studio answered directly from the provided context."
       : "The app answered using deterministic dataset logic."));
     if (data.model) chips.push(renderQueryBadge(data.model, "LM Studio model used for this answer."));
@@ -414,15 +412,19 @@ export function createQueryUi(ctx) {
     return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${followups.map((item) => `<button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
   }
 
-  function inferPatientIdsFromQueryPayload(payload) {
+  function inferRecordIdsFromQueryPayload(payload) {
     const fromOriginalData = payload && payload.data && Array.isArray(payload.data.original_record_ids)
       ? payload.data.original_record_ids.filter(Boolean)
       : [];
-    if (fromOriginalData.length) return fromOriginalData;
+    if (fromOriginalData.length) return Array.from(new Set(fromOriginalData));
     const fromPatientOriginalIds = payload && payload.data && Array.isArray(payload.data.patients)
       ? payload.data.patients.flatMap((item) => Array.isArray(item && item.original_record_ids) ? item.original_record_ids : []).filter(Boolean)
       : [];
     if (fromPatientOriginalIds.length) return Array.from(new Set(fromPatientOriginalIds));
+    return [];
+  }
+
+  function inferPatientIdsFromQueryPayload(payload) {
     const fromData = payload && payload.data && Array.isArray(payload.data.patient_ids)
       ? payload.data.patient_ids.filter(Boolean)
       : [];
@@ -458,11 +460,13 @@ export function createQueryUi(ctx) {
 
   function queryActionsMarkup(payload) {
     const patientIds = inferPatientIdsFromQueryPayload(payload);
+    const recordIds = inferRecordIdsFromQueryPayload(payload);
     setLatestQueryState({
       ids: patientIds,
+      recordIds,
       prompt: questionEl.value.trim(),
       analysisPrompt: patientIds.length ? "Interpret this selected cohort and summarize the main clinical and treatment patterns." : "",
-      idType: payload && payload.data && Array.isArray(payload.data.original_record_ids) && payload.data.original_record_ids.length ? "original_record" : "patient",
+      idType: "patient",
     });
     if (!patientIds.length) return "";
     const phenoRankerPatientIds = phenoRankerPatientIdsProvider();

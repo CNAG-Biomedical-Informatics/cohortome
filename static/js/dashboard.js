@@ -398,18 +398,23 @@ export function createDashboardUi(ctx) {
       : null;
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort);
-    const ids = selectedCohort && Array.isArray(selectedCohort.patient_ids)
+    const ids = selectedCohort && Array.isArray(selectedCohort.sample_ids) && selectedCohort.sample_ids.length
+      ? selectedCohort.sample_ids.map((item) => String(item).trim()).filter(Boolean)
+      : selectedCohort && Array.isArray(selectedCohort.patient_ids)
       ? selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean)
       : String(analysisSelectedPatientIdsEl.value || "")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+    const countLabel = selectedCohort
+      ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      : `${ids.length} IDs`;
     analysisSelectedPatientIdsSummaryEl.textContent = compareMode
       ? (selectedCohort
-        ? `Cohort A: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+        ? `Cohort A: using saved cohort "${selectedCohort.name}" (${countLabel}).`
         : "Cohort A: select a saved cohort from Saved Cohorts to compare.")
       : (selectedCohort
-        ? `Scope: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+        ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}).`
         : ids.length
           ? `Scope: ${ids.length} IDs in scope.`
           : "Scope: full cohort.");
@@ -435,14 +440,19 @@ export function createDashboardUi(ctx) {
     if (analysisCompareSelectedPatientIdsEl) {
       analysisCompareSelectedPatientIdsEl.disabled = true;
     }
-    const ids = selectedCohort && Array.isArray(selectedCohort.patient_ids)
+    const ids = selectedCohort && Array.isArray(selectedCohort.sample_ids) && selectedCohort.sample_ids.length
+      ? selectedCohort.sample_ids.map((item) => String(item).trim()).filter(Boolean)
+      : selectedCohort && Array.isArray(selectedCohort.patient_ids)
       ? selectedCohort.patient_ids.map((item) => String(item).trim()).filter(Boolean)
       : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+    const countLabel = selectedCohort
+      ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      : `${ids.length} IDs`;
     analysisCompareSelectedPatientIdsSummaryEl.textContent = selectedCohort
-      ? `Cohort B: using saved cohort "${selectedCohort.name}" (${ids.length} IDs).`
+      ? `Cohort B: using saved cohort "${selectedCohort.name}" (${countLabel}).`
       : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
     if (analysisCompareSavedCohortSelectionEl) {
       if (selectedCohort) {

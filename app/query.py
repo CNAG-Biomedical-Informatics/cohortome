@@ -69,6 +69,7 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
     for patient_id, bundle in sorted(bundles.items()):
         matched_visits: List[Dict[str, Any]] = []
         matched_labels: List[str] = []
+        medication_labels: List[str] = []
         original_record_ids: List[str] = []
         for visit in bundle.context.visits:
             labels = _extract_disease_labels(visit.provenance.raw_bff)
@@ -78,6 +79,9 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
             original_id = normalize_value(visit.provenance.raw_bff.get("id"))
             if isinstance(original_id, str) and original_id not in original_record_ids:
                 original_record_ids.append(original_id)
+            for medication_label in extract_treatment_labels(visit.provenance.raw_bff):
+                if medication_label not in medication_labels:
+                    medication_labels.append(medication_label)
             for label in visit_matches:
                 if label not in matched_labels:
                     matched_labels.append(label)
@@ -99,6 +103,8 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
                     "patient_id": patient_id,
                     "sex": bundle.context.sex,
                     "visit_count": len(matched_visits),
+                    "medications": medication_labels,
+                    "medication_count": len(medication_labels),
                     "matched_diseases": matched_labels,
                     "original_record_ids": original_record_ids,
                     "visits": matched_visits,
@@ -140,9 +146,23 @@ def _patient_inventory(data_dir: str) -> List[str]:
     ids: List[str] = []
     seen = set()
     for _, _, record in read_bff_records(resolved_dir):
-        raw_id = normalize_value(record.get("id"))
         patient_id = normalize_value(record.get("patient_id"))
-        candidate = str(raw_id or patient_id or "").strip()
+        raw_id = normalize_value(record.get("id"))
+        candidate = str(patient_id or raw_id or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        ids.append(candidate)
+    return sorted(ids)
+
+
+def _sample_inventory(data_dir: str) -> List[str]:
+    resolved_dir = ensure_data_dir(data_dir)
+    ids: List[str] = []
+    seen = set()
+    for _, _, record in read_bff_records(resolved_dir):
+        raw_id = normalize_value(record.get("id"))
+        candidate = str(raw_id or "").strip()
         if not candidate or candidate in seen:
             continue
         seen.add(candidate)
@@ -804,6 +824,38 @@ def _is_patient_list_query(text: str) -> bool:
     return any(pattern in lowered for pattern in patterns)
 
 
+def _is_sample_list_query(text: str) -> bool:
+    lowered = text.lower()
+    patterns = (
+        "list samples",
+        "list of samples",
+        "samples in the cohort",
+        "sample ids in the cohort",
+        "sample ids",
+        "list all samples",
+        "show all samples",
+        "tell me the list of samples",
+        "which samples are in the cohort",
+        "list records",
+        "list of records",
+        "records in the cohort",
+        "record ids in the cohort",
+        "record ids",
+        "list all records",
+        "show all records",
+        "tell me the list of records",
+        "which records are in the cohort",
+        "list timepoints",
+        "list of timepoints",
+        "timepoints in the cohort",
+        "list all timepoints",
+        "show all timepoints",
+        "tell me the list of timepoints",
+        "which timepoints are in the cohort",
+    )
+    return any(pattern in lowered for pattern in patterns)
+
+
 def _render_patient_summary(navigator: Dict[str, Any]) -> str:
     summary = navigator["summary"]
     context = navigator["patient_context"]
@@ -1307,6 +1359,15 @@ def _semantic_query_follow_ups(plan: Dict[str, Any], filtered_rows: List[Dict[st
     ]
 
 
+def _requested_query_output(query: str) -> Optional[str]:
+    lowered = query.strip().lower()
+    if lowered.startswith("how many patients"):
+        return "count"
+    if lowered.startswith("which patients") or lowered.startswith("list patients"):
+        return "patient_list"
+    return None
+
+
 def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any], model: str) -> Dict[str, Any]:
     inventory = _patient_query_index(data_dir)
     conditions = plan["filters"]
@@ -1318,12 +1379,14 @@ def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any]
     patient_ids = [row["patient_id"] for row in filtered_rows]
     labels = [_semantic_condition_label(condition) for condition in conditions]
     label_text = (" %s " % plan["logic"]).join(labels)
+    effective_output = _requested_query_output(query) or plan["output"]
+    effective_plan = {**plan, "output": effective_output}
 
-    if plan["output"] == "count":
+    if effective_output == "count":
         noun = "patient" if len(filtered_rows) == 1 else "patients"
         reply = "%s %s match: %s." % (len(filtered_rows), noun, label_text)
     else:
-        reply = "Patients matching %s: %s." % (label_text, ", ".join(patient_ids) if patient_ids else "none")
+        reply = "Patients matching %s are shown below." % label_text if patient_ids else "No patients match: %s." % label_text
 
     return {
         "query": query,
@@ -1333,7 +1396,7 @@ def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any]
             "patient_count": len(filtered_rows),
             "patient_ids": patient_ids,
             "patients": filtered_rows,
-            "semantic_plan": plan,
+            "semantic_plan": effective_plan,
             "execution": "deterministic",
             "planner": {
                 "provider": "lm_studio",
@@ -1690,6 +1753,25 @@ def answer_query(
             },
         }
 
+    if _is_sample_list_query(text):
+        sample_ids = _sample_inventory(data_dir)
+        reply_lines = ["Samples in the cohort (%s):" % len(sample_ids)]
+        reply_lines.extend("- %s" % sample_id for sample_id in sample_ids)
+        return {
+            "query": query,
+            "intent": "sample_inventory",
+            "reply": "\n".join(reply_lines),
+            "data": {
+                "sample_count": len(sample_ids),
+                "sample_ids": sample_ids,
+                "follow_up_suggestions": [
+                    "How many timepoints are in this cohort?",
+                    "Tell me the list of patients on the cohort",
+                    "What happened to this cohort over time?",
+                ],
+            },
+        }
+
     if _is_patient_list_query(text):
         patient_ids = _patient_inventory(data_dir)
         reply_lines = ["Patients in the cohort (%s):" % len(patient_ids)]
@@ -2003,10 +2085,10 @@ def answer_query(
             if lowered.startswith("how many"):
                 reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
             else:
-                patient_ids = [item["patient_id"] for item in medication["patients"]]
-                reply = "Patients matching medication query '%s': %s." % (
-                    term,
-                    ", ".join(patient_ids) if patient_ids else "none",
+                reply = (
+                    "Patients matching medication query '%s' are shown below." % term
+                    if medication["patient_count"] > 0
+                    else "No patients match medication query '%s'." % term
                 )
             return {
                 "query": query,
@@ -2023,10 +2105,10 @@ def answer_query(
             if lowered.startswith("how many"):
                 reply = "%s patients match disease query '%s'." % (disease["patient_count"], term)
             else:
-                patient_ids = [item["patient_id"] for item in disease["patients"]]
-                reply = "Patients matching disease query '%s': %s." % (
-                    term,
-                    ", ".join(patient_ids) if patient_ids else "none",
+                reply = (
+                    "Patients matching disease query '%s' are shown below." % term
+                    if disease["patient_count"] > 0
+                    else "No patients match disease query '%s'." % term
                 )
             return {
                 "query": query,
@@ -2042,10 +2124,10 @@ def answer_query(
             if lowered.startswith("how many"):
                 reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
             else:
-                patient_ids = [item["patient_id"] for item in medication["patients"]]
-                reply = "Patients matching medication query '%s': %s." % (
-                    term,
-                    ", ".join(patient_ids) if patient_ids else "none",
+                reply = (
+                    "Patients matching medication query '%s' are shown below." % term
+                    if medication["patient_count"] > 0
+                    else "No patients match medication query '%s'." % term
                 )
             return {
                 "query": query,
