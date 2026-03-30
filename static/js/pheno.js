@@ -392,7 +392,7 @@ export function createPhenoUi(ctx) {
       renderGlobalContext();
       return;
     }
-    phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} selected patients. ${preview}${suffix}`;
+    phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${ids.length} selected samples. ${preview}${suffix}`;
     renderGlobalContext();
   }
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 from uuid import uuid4
 
+from app.bff import ensure_data_dir, extract_patient_id, normalize_value, read_bff_records
 from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
 from app.user_state import normalize_user_id
 
@@ -46,6 +47,7 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
         normalized_item["patient_ids"] = patient_ids
         normalized_item["sample_count"] = len(sample_ids)
         normalized_item["patient_count"] = len(patient_ids)
+        normalized_item["is_full_dataset"] = bool(item.get("is_full_dataset"))
         normalized.append(normalized_item)
     return normalized
 
@@ -98,6 +100,45 @@ def _dedupe_cohort_name(name: str, data_dir: str, items: List[Dict[str, Any]]) -
         suffix += 1
 
 
+def _dataset_scope_metadata(data_dir: str) -> Dict[str, Any]:
+    sample_ids: List[str] = []
+    patient_ids: List[str] = []
+    seen_sample_ids = set()
+    seen_patient_ids = set()
+    for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
+        raw_id = normalize_value(record.get("id"))
+        if isinstance(raw_id, str) and raw_id.strip() and raw_id not in seen_sample_ids:
+            seen_sample_ids.add(raw_id)
+            sample_ids.append(raw_id)
+        patient_id = extract_patient_id(record)
+        if isinstance(patient_id, str) and patient_id.strip() and patient_id not in seen_patient_ids:
+            seen_patient_ids.add(patient_id)
+            patient_ids.append(patient_id)
+    return {
+        "sample_ids": sample_ids,
+        "patient_ids": patient_ids,
+        "sample_id_set": set(sample_ids),
+        "patient_id_set": set(patient_ids),
+    }
+
+
+def _matches_full_dataset_scope(
+    sample_ids: List[str],
+    patient_ids: List[str],
+    data_dir: str,
+    dataset_scope: Dict[str, Any] | None = None,
+) -> bool:
+    if not data_dir:
+        return False
+    try:
+        scope = dataset_scope or _dataset_scope_metadata(data_dir)
+    except FileNotFoundError:
+        return False
+    sample_id_set = {str(item).strip() for item in sample_ids if str(item).strip()}
+    patient_id_set = {str(item).strip() for item in patient_ids if str(item).strip()}
+    return sample_id_set == scope["sample_id_set"] and patient_id_set == scope["patient_id_set"]
+
+
 def save_cohort(
     *,
     name: str,
@@ -144,6 +185,16 @@ def save_cohort(
     if not normalized_sample_ids:
         raise ValueError("A saved cohort requires at least one ID.")
 
+    is_full_dataset = False
+    try:
+        dataset_scope = _dataset_scope_metadata(data_dir)
+        is_full_dataset = (
+            set(normalized_sample_ids) == dataset_scope["sample_id_set"]
+            and set(normalized_patient_ids) == dataset_scope["patient_id_set"]
+        )
+    except FileNotFoundError:
+        is_full_dataset = False
+
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     now = datetime.now(timezone.utc).isoformat()
     items = _read_saved_cohorts(user_id)
@@ -157,6 +208,7 @@ def save_cohort(
         "patient_ids": normalized_patient_ids,
         "sample_count": len(normalized_sample_ids),
         "patient_count": len(normalized_patient_ids),
+        "is_full_dataset": is_full_dataset,
         "source": {
             "kind": source_kind or "manual",
             "prompt": source_prompt.strip(),

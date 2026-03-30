@@ -413,6 +413,10 @@ export function createQueryUi(ctx) {
   }
 
   function inferRecordIdsFromQueryPayload(payload) {
+    const fromSampleData = payload && payload.data && Array.isArray(payload.data.sample_ids)
+      ? payload.data.sample_ids.filter(Boolean)
+      : [];
+    if (fromSampleData.length) return Array.from(new Set(fromSampleData));
     const fromOriginalData = payload && payload.data && Array.isArray(payload.data.original_record_ids)
       ? payload.data.original_record_ids.filter(Boolean)
       : [];
@@ -473,9 +477,11 @@ export function createQueryUi(ctx) {
     const compatibleIds = phenoRankerPatientIds.length ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId)) : [];
     const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
     const idsPayload = escapeHtml(patientIds.join(","));
+    const scopeIds = recordIds.length ? recordIds : patientIds;
+    const scopePayload = escapeHtml(scopeIds.join(","));
     return `
       <div class="query-actions query-actions-inline" style="margin-top:12px;">
-        <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>
+        <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}" data-query-scope-ids="${scopePayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>
         <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>
         <details class="query-inline-actions">
           <summary><span class="query-inline-actions-more">More actions</span><span class="query-inline-actions-less">Less actions</span></summary>
@@ -672,12 +678,19 @@ export function createQueryUi(ctx) {
     const queryActionButton = event.target.closest("[data-query-action]");
     if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
       const ids = String(queryActionButton.dataset.queryPatientIds || "").split(",").map((item) => item.trim()).filter(Boolean);
-      if (ids.length) setLatestQueryState({ ids });
       if (queryActionButton.dataset.queryAction === "use-pheno") {
         sendPatientIdsToPhenoRanker();
         return;
       }
       if (queryActionButton.dataset.queryAction === "use-analysis") {
+        const scopeIds = String(queryActionButton.dataset.queryScopeIds || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        setLatestQueryState({
+          ids,
+          recordIds: scopeIds.some((item) => item.includes(":")) ? scopeIds : [],
+        });
         sendPatientIdsToAnalysis();
         return;
       }

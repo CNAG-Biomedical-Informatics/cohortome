@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi import HTTPException
 
@@ -247,6 +249,101 @@ def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     assert cohorts_module.delete_saved_cohort(saved["id"]) is True
     assert cohorts_module.delete_saved_cohort("missing") is False
     assert cohorts_module.list_saved_cohorts("/data/a") == []
+
+
+def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path, monkeypatch):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+    monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
+
+    saved = cohorts_module.save_cohort(
+        name="Full dataset cohort",
+        data_dir=str(tmp_path),
+        sample_ids=["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"],
+        patient_ids=["SYN001", "SYN002"],
+        id_type="sample",
+        source_kind="query",
+    )
+
+    assert saved["is_full_dataset"] is True
+
+
+def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, monkeypatch):
+    reference_path = tmp_path / "reference.json"
+    reference_path.write_text("[]", encoding="utf-8")
+    fake_bin = tmp_path / "pheno-ranker"
+    fake_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_bin.chmod(0o755)
+    job_dir = tmp_path / "runs" / "job"
+    job_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(pheno_module, "PHENO_RANKER_BIN", fake_bin)
+    monkeypatch.setattr(pheno_module, "pheno_ranker_job_dir", lambda: job_dir)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_reference_paths", lambda data_dir: [reference_path])
+    monkeypatch.setattr(
+        pheno_module,
+        "get_saved_cohorts_by_ids",
+        lambda cohort_ids, data_dir: [
+            {
+                "id": "cohort_full",
+                "name": "Full dataset",
+                "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                "patient_ids": ["SYN001", "SYN002"],
+                "is_full_dataset": True,
+            }
+        ],
+    )
+
+    jq_calls = []
+
+    def _unexpected_jq(*args, **kwargs):
+        jq_calls.append((args, kwargs))
+        raise AssertionError("jq_extract_records should not be called for a full-dataset saved cohort")
+
+    monkeypatch.setattr(pheno_module, "jq_extract_records", _unexpected_jq)
+
+    executed_commands = []
+
+    def _fake_run(command, capture_output, text, check, **kwargs):
+        executed_commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(pheno_module.subprocess, "run", _fake_run)
+
+    payload = pheno_module.run_pheno_ranker(
+        SimpleNamespace(
+            action="compare",
+            mode="cohort",
+            data_dir=str(tmp_path),
+            patient_id="",
+            selected_patient_ids="",
+            selected_saved_cohort_ids=["cohort_full"],
+            disease_filter="",
+            include_terms=[],
+            exclude_terms=[],
+            similarity_metric_cohort="",
+            sort_by="",
+            max_out=10,
+            align=False,
+            render_heatmap=False,
+            render_mds=False,
+        )
+    )
+
+    assert jq_calls == []
+    assert executed_commands
+    assert str(reference_path) in executed_commands[0]
+    assert payload["pre_commands"] == []
 
 
 def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):

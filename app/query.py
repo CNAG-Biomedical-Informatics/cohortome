@@ -1774,6 +1774,7 @@ def answer_query(
 
     if _is_patient_list_query(text):
         patient_ids = _patient_inventory(data_dir)
+        sample_ids = _sample_inventory(data_dir)
         reply_lines = ["Patients in the cohort (%s):" % len(patient_ids)]
         reply_lines.extend("- %s" % patient_id for patient_id in patient_ids)
         return {
@@ -1783,6 +1784,8 @@ def answer_query(
             "data": {
                 "patient_count": len(patient_ids),
                 "patient_ids": patient_ids,
+                "sample_count": len(sample_ids),
+                "sample_ids": sample_ids,
                 "follow_up_suggestions": [
                     "How many patients are in this cohort?",
                     "Show patient %s" % (patient_ids[0] if patient_ids else "107"),

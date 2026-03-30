@@ -858,14 +858,14 @@
           return `${ids.length} IDs in Pheno scope`;
         }
         if (tabName === "analysis") {
-          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.patient_ids)
-            ? selectedAnalysisCohortA.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
+            ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
             : String(analysisSelectedPatientIdsEl.value || "")
               .split(",")
               .map((item) => item.trim())
               .filter(Boolean);
-          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.patient_ids)
-            ? selectedAnalysisCohortB.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
+            ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
             : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
               .split(",")
               .map((item) => item.trim())
@@ -881,14 +881,14 @@
           return `${ids.length} IDs in Analysis scope`;
         }
         if (tabName === "dashboard" && currentDashboardSubtab === "molecular") {
-          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.patient_ids)
-            ? selectedAnalysisCohortA.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
+            ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
             : String(analysisSelectedPatientIdsEl.value || "")
               .split(",")
               .map((item) => item.trim())
               .filter(Boolean);
-          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.patient_ids)
-            ? selectedAnalysisCohortB.patient_ids.map((item) => String(item).trim()).filter(Boolean)
+          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
+            ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
             : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
               .split(",")
               .map((item) => item.trim())
