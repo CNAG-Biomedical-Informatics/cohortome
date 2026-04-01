@@ -101,7 +101,7 @@ export function createSavedCohortsUi(ctx) {
   async function loadSavedCohorts() {
     if (!savedCohortsEl && !phenoSavedCohortsEl) return;
     try {
-      const dataDir = encodeURIComponent(dataDirEl.value.trim());
+      const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
       const response = await fetch(`/saved-cohorts?data_dir=${dataDir}`);
       if (!response.ok) {
         state.savedCohorts = [];
@@ -130,7 +130,7 @@ export function createSavedCohortsUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          data_dir: dataDirEl.value.trim(),
+          data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
           sample_ids: state.latestQueryRecordIds,
           patient_ids: state.latestQueryPatientIds,
           id_type: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,

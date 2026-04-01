@@ -1239,7 +1239,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         reference_paths = resolve_pheno_ranker_reference_paths(request.data_dir)
 
     if selected_saved_cohort_ids:
-        saved_cohorts = get_saved_cohorts_by_ids(selected_saved_cohort_ids, request.data_dir)
+        saved_cohorts = get_saved_cohorts_by_ids(selected_saved_cohort_ids, getattr(request, "dataset_id", ""))
         found_ids = {str(item.get("id") or "") for item in saved_cohorts}
         missing_cohort_ids = [cohort_id for cohort_id in selected_saved_cohort_ids if cohort_id not in found_ids]
         if missing_cohort_ids:
@@ -1252,6 +1252,9 @@ def run_pheno_ranker(request: Any) -> Dict:
             )
         extracted_reference_paths: List[Path] = []
         for index, cohort in enumerate(saved_cohorts, start=1):
+            if bool(cohort.get("is_full_dataset")):
+                extracted_reference_paths.extend(reference_paths)
+                continue
             cohort_ids = [
                 str(item or "").strip()
                 for item in (cohort.get("sample_ids") or cohort.get("patient_ids") or [])

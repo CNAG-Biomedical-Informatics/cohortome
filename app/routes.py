@@ -24,6 +24,19 @@ from app.bff import (
 )
 from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings
 from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort
+from app.datasets import (
+    authorized_datasets_for_user,
+    current_dataset_id,
+    current_dataset_ids,
+    dataset_scope_id,
+    register_dataset,
+    resolve_dataset,
+    resolve_dataset_dir,
+    resolve_dataset_ids,
+    set_current_dataset,
+    set_current_datasets,
+    update_dataset,
+)
 from app.lm import lm_studio_base_url, lm_studio_enabled, resolve_lm_studio_model
 from app.pheno import (
     pheno_ranker_alignment_details,
@@ -39,6 +52,9 @@ from app.schemas import (
     AnalysisRequest,
     AnalysisSessionRenameRequest,
     AnalysisSessionRequest,
+    DatasetRegistrationRequest,
+    DatasetSelectionRequest,
+    DatasetUpdateRequest,
     MolecularExpressionRequest,
     PhenoRankerPlanRequest,
     PhenoRankerRequest,
@@ -62,32 +78,113 @@ def init_routes_templates(value: Jinja2Templates) -> None:
 def index(request: Request) -> HTMLResponse:
     if templates is None:
         raise RuntimeError("Templates have not been initialized.")
+    if auth_enabled():
+        user = session_user(request)
+        datasets = authorized_datasets_for_user(user) if user else []
+        selected = resolve_dataset(request) if user else {}
+    else:
+        user = {"username": "local", "role": "admin", "display_name": "Local user"}
+        datasets = authorized_datasets_for_user(user)
+        selected = resolve_dataset(request)
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "default_data_dir": DEFAULT_DATA_DIR,
+            "datasets": datasets,
+            "current_dataset_id": str(selected.get("dataset_id") or ""),
             "branding": branding_settings(),
             "auth_enabled": auth_enabled(),
         },
     )
 
 
-def get_patients(request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
+def _resolve_route_dataset_dir(
+    request: Request | None,
+    dataset_id: str = "",
+    data_dir: str = DEFAULT_DATA_DIR,
+) -> str:
+    if request is None and not dataset_id:
+        return data_dir
+    if dataset_id:
+        return resolve_dataset_dir(request, dataset_id)
+    return resolve_dataset_dir(request, current_dataset_id(request_user_id(request)) or "")
+
+
+def get_datasets(request: Request) -> Dict:
+    user = require_authenticated(request)
+    datasets = authorized_datasets_for_user(user)
+    selected_ids = resolve_dataset_ids(request)
+    return {
+        "datasets": datasets,
+        "current_dataset_id": selected_ids[0] if len(selected_ids) == 1 else "",
+        "current_dataset_ids": selected_ids,
+        "current_dataset_scope_id": dataset_scope_id(selected_ids),
+        "current_dataset": resolve_dataset(request, selected_ids[0]) if len(selected_ids) == 1 else None,
+    }
+
+
+def select_dataset(payload: DatasetSelectionRequest, request: Request) -> Dict:
+    user = require_authenticated(request)
+    requested_ids = payload.dataset_ids or ([payload.dataset_id] if payload.dataset_id else [])
+    resolved_ids = resolve_dataset_ids(request, dataset_scope_id(requested_ids))
+    set_current_datasets(str(user.get("username") or "local"), resolved_ids)
+    return {
+        "selected": True,
+        "current_dataset_id": resolved_ids[0] if len(resolved_ids) == 1 else "",
+        "current_dataset_ids": resolved_ids,
+        "current_dataset_scope_id": dataset_scope_id(resolved_ids),
+    }
+
+
+def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) -> Dict:
+    user = require_admin(request)
+    try:
+        dataset = register_dataset(
+            name=payload.name,
+            root_path=payload.root_path,
+            description=payload.description,
+            visibility=payload.visibility,
+            allowed_users=payload.allowed_users,
+            enabled=payload.enabled,
+            created_by=str(user.get("username") or "admin"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return dataset
+
+
+def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request: Request) -> Dict:
+    require_admin(request)
+    try:
+        return update_dataset(
+            dataset_id,
+            name=payload.name,
+            root_path=payload.root_path,
+            description=payload.description,
+            visibility=payload.visibility,
+            allowed_users=payload.allowed_users,
+            enabled=payload.enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
     if request is not None:
         require_authenticated(request)
     try:
-        patients = list_patient_summaries(data_dir)
+        patients = list_patient_summaries(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return [patient.model_dump() for patient in patients]
 
 
-def get_patient(patient_id: str, request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     if request is not None:
         require_authenticated(request)
     try:
-        patient = get_patient_context(data_dir, patient_id)
+        patient = get_patient_context(_resolve_route_dataset_dir(request, dataset_id, data_dir), patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -96,11 +193,11 @@ def get_patient(patient_id: str, request: Request = None, data_dir: str = DEFAUL
     return patient.model_dump()
 
 
-def get_patient_navigator(patient_id: str, request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_patient_navigator(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     if request is not None:
         require_authenticated(request)
     try:
-        navigator = build_patient_navigator(data_dir, patient_id)
+        navigator = build_patient_navigator(_resolve_route_dataset_dir(request, dataset_id, data_dir), patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -109,37 +206,37 @@ def get_patient_navigator(patient_id: str, request: Request = None, data_dir: st
     return navigator.model_dump()
 
 
-def get_medication_counts(request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
+def get_medication_counts(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
     if request is not None:
         require_authenticated(request)
     try:
-        return medication_counts(data_dir)
+        return medication_counts(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def get_disease_counts(request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
+def get_disease_counts(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
     if request is not None:
         require_authenticated(request)
     try:
-        return query_disease_counts(data_dir)
+        return query_disease_counts(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def search_medication_cohort(medication: str, request: Request = None, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def search_medication_cohort(medication: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     if request is not None:
         require_authenticated(request)
     try:
-        return medication_cohort(data_dir, medication)
+        return medication_cohort(_resolve_route_dataset_dir(request, dataset_id, data_dir), medication)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def query_app(q: str, request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return answer_query(data_dir, q)
+        return answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -222,17 +319,21 @@ def get_auth_users(request: Request) -> Dict:
     }
 
 
-def get_saved_cohorts(request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_saved_cohorts(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
-    return {"cohorts": list_saved_cohorts(data_dir, user_id=request_user_id(request))}
+    selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
+    return {"cohorts": list_saved_cohorts(dataset_scope_id(selected_ids), user_id=request_user_id(request))}
 
 
 def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or request.data_dir)
+    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         item = save_cohort(
             name=request.name,
-            data_dir=request.data_dir,
+            dataset_id=dataset_scope_id(selected_ids),
+            data_dir=resolved_dir,
             sample_ids=request.sample_ids,
             patient_ids=request.patient_ids,
             id_type=request.id_type,
@@ -255,9 +356,10 @@ def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
 
 def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return answer_query(
-            request.data_dir,
+            resolved_dir,
             request.q,
             query_mode=request.query_mode,
             history=[turn.model_dump() for turn in request.history],
@@ -268,10 +370,11 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return analysis_llm_reply(
             request.prompt,
-            request.data_dir,
+            resolved_dir,
             selected_patient_ids=request.selected_patient_ids,
             compare_mode=request.compare_mode,
             compare_selected_patient_ids=request.compare_selected_patient_ids,
@@ -283,20 +386,20 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def get_molecular_datasets(request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_molecular_datasets(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return {"datasets": molecular_dataset_inventory(data_dir)}
+        return {"datasets": molecular_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-def get_molecular_genes(dataset_name: str, request: Request, data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
+def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
     require_authenticated(request)
     try:
         return {
             "dataset_name": dataset_name,
-            "genes": molecular_gene_inventory(data_dir, dataset_name, search=q, limit=limit),
+            "genes": molecular_gene_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), dataset_name, search=q, limit=limit),
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -304,9 +407,10 @@ def get_molecular_genes(dataset_name: str, request: Request, data_dir: str = DEF
 
 def get_molecular_expression(request: MolecularExpressionRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return molecular_expression_summary(
-            request.data_dir,
+            resolved_dir,
             request.dataset_name,
             request.gene_id,
             selected_patient_ids=request.selected_patient_ids,
@@ -324,7 +428,9 @@ def get_analysis_sessions(request: Request) -> Dict:
 def create_or_update_analysis_session(request: AnalysisSessionRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     try:
-        return save_analysis_session(request.model_dump(), user_id=request_user_id(raw_request))
+        payload = request.model_dump()
+        payload["dataset_id"] = request.dataset_id
+        return save_analysis_session(payload, user_id=request_user_id(raw_request))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -347,17 +453,23 @@ def remove_analysis_session(session_id: str, request: Request) -> Dict:
 
 def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    return run_pheno_ranker(request)
+    resolved_dataset_id = request.dataset_id or request.data_dir
+    payload = request.model_copy(update={"data_dir": resolve_dataset_dir(raw_request, resolved_dataset_id), "dataset_id": resolved_dataset_id})
+    return run_pheno_ranker(payload)
 
 
 def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    return plan_pheno_ranker(request.text, request.data_dir, selected_patient_ids=request.selected_patient_ids)
+    return plan_pheno_ranker(
+        request.text,
+        resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir),
+        selected_patient_ids=request.selected_patient_ids,
+    )
 
 
-def get_pheno_ranker_patient_ids(request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
-    return pheno_ranker_patient_ids_payload(data_dir)
+    return pheno_ranker_patient_ids_payload(_resolve_route_dataset_dir(request, dataset_id, data_dir))
 
 
 def get_pheno_ranker_result(job_id: str, filename: str, request: Request) -> FileResponse:
@@ -381,10 +493,10 @@ def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int =
     return pheno_ranker_explain_llm(job_id, top_n=top_n)
 
 
-def get_dashboard(request: Request, data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return dashboard_summary(data_dir)
+        return dashboard_summary(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -406,6 +518,10 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/auth/logout", logout_local, methods=["POST"])
     app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"])
     app.add_api_route("/auth/users", get_auth_users, methods=["GET"])
+    app.add_api_route("/datasets", get_datasets, methods=["GET"])
+    app.add_api_route("/datasets/select", select_dataset, methods=["POST"])
+    app.add_api_route("/datasets", create_dataset_route, methods=["POST"])
+    app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"])
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"])
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"])
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"])

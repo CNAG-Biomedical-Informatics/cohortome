@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_ROOT_DIR = BASE_DIR / "data"
+DATA_ROOT_DIR = BASE_DIR / "default_dataset"
 DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATE_ROOT_DIR = BASE_DIR / "state"

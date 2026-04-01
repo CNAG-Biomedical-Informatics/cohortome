@@ -667,7 +667,7 @@ export function createAnalysisUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
-          data_dir: refs.dataDirEl.value.trim() || refs.dataDirEl.value,
+          data_dir: (refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId) ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl.value.trim() || refs.dataDirEl.value),
           selected_patient_ids: currentScope,
           compare_mode: compareMode,
           compare_selected_patient_ids: compareScope,

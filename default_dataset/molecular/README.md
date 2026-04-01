@@ -8,8 +8,14 @@ Current development fixture:
   - Semicolon-delimited raw count matrix
   - Columns are untreated baseline `week_0` samples for all synthetic patients
   - Intended as a pre-treatment control/reference snapshot
+- `synthetic_transcriptome_raw_counts_hc_baseline.csv`
+  - Semicolon-delimited raw count matrix
+  - Columns are untreated healthy-control `week_0` baseline samples
+  - Intended as an external HC baseline cohort with different IDs
 - `synthetic_transcriptome_raw_counts_infliximab.csv`
-  - Post-treatment samples for synthetic Crohn Disease patients treated with Infliximab
+  - Post-treatment samples for synthetic Crohn Disease and other synthetic patients treated with Infliximab
+- `synthetic_transcriptome_raw_counts_ustekinumab.csv`
+  - Post-treatment samples for a synthetic Crohn Disease subset treated with Ustekinumab
 - `synthetic_transcriptome_raw_counts_vedolizumab.csv`
   - Post-treatment samples for synthetic Ulcerative Colitis patients treated with Vedolizumab
 - `synthetic_transcriptome_raw_counts_ocrelizumab.csv`
@@ -24,7 +30,9 @@ Current development fixture:
   - Post-treatment samples for synthetic COPD patients treated with Dupilumab
 
 Notes:
-- All sample IDs match the merged longitudinal IDs in `data/clinical/synthetic_longitudinal.json`.
+- All sample IDs match the merged longitudinal IDs in `default_dataset/clinical/synthetic_longitudinal.json`.
+- Healthy control baseline sample IDs match `default_dataset/clinical/synthetic_hc_baseline.json`.
 - `week_0` is a true untreated baseline in the synthetic clinical fixture.
+- Healthy controls are baseline-only and intentionally omit the `diseases` field.
 - The expression panel is larger and structured into disease-relevant synthetic modules (inflammatory, interferon, B-cell, stromal, airway, eosinophil, barrier, housekeeping).
 - Counts are deterministic synthetic raw counts intended for exploratory UI development, not biological realism.

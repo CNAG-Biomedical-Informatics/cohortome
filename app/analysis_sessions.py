@@ -50,6 +50,7 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
     normalized = {
         "id": session_id,
         "title": str(item.get("title") or "").strip(),
+        "dataset_id": str(item.get("dataset_id") or "").strip(),
         "data_dir": str(item.get("data_dir") or "").strip(),
         "prompt_draft": str(item.get("prompt_draft") or "").strip(),
         "scope": str(item.get("scope") or "").strip(),

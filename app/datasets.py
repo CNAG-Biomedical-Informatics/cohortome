@@ -1,0 +1,458 @@
+from __future__ import annotations
+
+import json
+import re
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+
+from fastapi import HTTPException, Request
+
+from app.auth import auth_enabled, require_authenticated, session_user
+from app.bff import resolve_project_data_dir
+from app.config import DEFAULT_DATA_DIR, STATE_ROOT_DIR
+from app.user_state import normalize_user_id, user_state_file
+
+
+DATASET_REGISTRY_PATH = STATE_ROOT_DIR / "datasets" / "registry.json"
+DATASET_VISIBILITIES = {"admin_only", "all_authenticated", "restricted"}
+DEFAULT_DATASET_ID = "default"
+_SAFE_DATASET_ID_RE = re.compile(r"[^a-z0-9._-]+")
+_SCOPE_PREFIX = "scope--"
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _registry_path() -> Path:
+    DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return DATASET_REGISTRY_PATH
+
+
+def _selection_path(user_id: str) -> Path:
+    return user_state_file("current-dataset.json", user_id)
+
+
+def _scope_root() -> Path:
+    path = STATE_ROOT_DIR / "datasets" / "scopes"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def normalize_dataset_id(value: str | None) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    normalized = _SAFE_DATASET_ID_RE.sub("-", raw).strip("._-")
+    return normalized
+
+
+def _default_dataset_record() -> Dict[str, Any]:
+    return {
+        "dataset_id": DEFAULT_DATASET_ID,
+        "name": "Default dataset",
+        "description": "Primary shared development dataset.",
+        "root_path": str(Path(DEFAULT_DATA_DIR).resolve()),
+        "enabled": True,
+        "visibility": "all_authenticated",
+        "allowed_users": [],
+        "created_by": "system",
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+    }
+
+
+def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    dataset_id = normalize_dataset_id(item.get("dataset_id") or item.get("id"))
+    if not dataset_id:
+        return None
+    root_path = str(item.get("root_path") or "").strip()
+    if not root_path:
+        return None
+    try:
+        resolved_root = str(resolve_project_data_dir(root_path))
+    except FileNotFoundError:
+        resolved_root = str(Path(root_path).expanduser().resolve())
+    visibility = str(item.get("visibility") or "all_authenticated").strip().lower()
+    if visibility not in DATASET_VISIBILITIES:
+        visibility = "all_authenticated"
+    allowed_users = sorted(
+        {
+            normalize_user_id(value)
+            for value in (item.get("allowed_users") or [])
+            if str(value or "").strip()
+        }
+    )
+    return {
+        "dataset_id": dataset_id,
+        "name": str(item.get("name") or dataset_id).strip() or dataset_id,
+        "description": str(item.get("description") or "").strip(),
+        "root_path": resolved_root,
+        "enabled": bool(item.get("enabled", True)),
+        "visibility": visibility,
+        "allowed_users": allowed_users,
+        "created_by": str(item.get("created_by") or "system").strip() or "system",
+        "created_at": str(item.get("created_at") or _now_iso()),
+        "updated_at": str(item.get("updated_at") or _now_iso()),
+    }
+
+
+def _read_registry() -> List[Dict[str, Any]]:
+    path = _registry_path()
+    if not path.exists():
+        items = [_default_dataset_record()]
+        _write_registry(items)
+        return items
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        payload = []
+    items: List[Dict[str, Any]] = []
+    for item in payload if isinstance(payload, list) else []:
+        normalized = _normalize_dataset_record(item)
+        if normalized is not None:
+            if str(normalized.get("dataset_id") or "") == DEFAULT_DATASET_ID:
+                normalized["root_path"] = str(Path(DEFAULT_DATA_DIR).resolve())
+            items.append(normalized)
+    if not any(str(item.get("dataset_id") or "") == DEFAULT_DATASET_ID for item in items):
+        items.insert(0, _default_dataset_record())
+        _write_registry(items)
+    return items
+
+
+def _write_registry(items: List[Dict[str, Any]]) -> None:
+    path = _registry_path()
+    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def list_registered_datasets() -> List[Dict[str, Any]]:
+    return _read_registry()
+
+
+def get_dataset(dataset_id: str) -> Dict[str, Any] | None:
+    needle = normalize_dataset_id(dataset_id)
+    if not needle:
+        return None
+    for item in _read_registry():
+        if str(item.get("dataset_id") or "") == needle:
+            return item
+    return None
+
+
+def _request_user(request: Request | None) -> Dict[str, Any]:
+    if request is None:
+        return {"username": "local", "role": "admin", "display_name": "Local user"}
+    if not auth_enabled():
+        return {"username": "local", "role": "admin", "display_name": "Local user"}
+    user = session_user(request)
+    if user:
+        return user
+    return require_authenticated(request)
+
+
+def user_can_access_dataset(user: Dict[str, Any], dataset: Dict[str, Any]) -> bool:
+    if not dataset or not bool(dataset.get("enabled", True)):
+        return False
+    role = str(user.get("role") or "user")
+    username = normalize_user_id(str(user.get("username") or ""))
+    if role == "admin":
+        return True
+    visibility = str(dataset.get("visibility") or "all_authenticated")
+    if visibility == "all_authenticated":
+        return True
+    if visibility == "admin_only":
+        return False
+    allowed_users = {
+        normalize_user_id(item)
+        for item in (dataset.get("allowed_users") or [])
+        if str(item or "").strip()
+    }
+    return username in allowed_users
+
+
+def authorized_datasets_for_user(user: Dict[str, Any]) -> List[Dict[str, Any]]:
+    items = [item for item in _read_registry() if user_can_access_dataset(user, item)]
+    items.sort(key=lambda item: (str(item.get("name") or "").lower(), str(item.get("dataset_id") or "")))
+    return items
+
+
+def current_dataset_id(user_id: str) -> str:
+    path = _selection_path(user_id)
+    if not path.exists():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return normalize_dataset_id(payload.get("dataset_id"))
+
+
+def current_dataset_ids(user_id: str) -> List[str]:
+    path = _selection_path(user_id)
+    if not path.exists():
+        single = current_dataset_id(user_id)
+        return [single] if single else []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    ids = payload.get("dataset_ids")
+    if isinstance(ids, list):
+        normalized = []
+        seen = set()
+        for item in ids:
+            value = normalize_dataset_id(item)
+            if value and value not in seen:
+                seen.add(value)
+                normalized.append(value)
+        if normalized:
+            return normalized
+    single = normalize_dataset_id(payload.get("dataset_id"))
+    return [single] if single else []
+
+
+def set_current_dataset(user_id: str, dataset_id: str) -> str:
+    return set_current_datasets(user_id, [dataset_id])[0]
+
+
+def set_current_datasets(user_id: str, dataset_ids: List[str]) -> List[str]:
+    normalized_user = normalize_user_id(user_id)
+    normalized_datasets = []
+    seen = set()
+    for item in dataset_ids:
+        value = normalize_dataset_id(item)
+        if value and value not in seen:
+            seen.add(value)
+            normalized_datasets.append(value)
+    if not normalized_datasets:
+        raise ValueError("At least one dataset id is required.")
+    path = _selection_path(normalized_user)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "dataset_id": normalized_datasets[0],
+                "dataset_ids": normalized_datasets,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return normalized_datasets
+
+
+def dataset_scope_id(dataset_ids: List[str]) -> str:
+    normalized = [normalize_dataset_id(item) for item in dataset_ids if normalize_dataset_id(item)]
+    normalized = sorted(dict.fromkeys(normalized))
+    if not normalized:
+        return ""
+    if len(normalized) == 1:
+        return normalized[0]
+    return f"{_SCOPE_PREFIX}{'--'.join(normalized)}"
+
+
+def parse_scope_dataset_ids(value: str | None) -> List[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return []
+    if "/" in raw or "\\" in raw:
+        return []
+    if raw.startswith(_SCOPE_PREFIX):
+        parts = [normalize_dataset_id(item) for item in raw[len(_SCOPE_PREFIX):].split("--")]
+        return [item for item in parts if item]
+    normalized = normalize_dataset_id(raw)
+    return [normalized] if normalized else []
+
+
+def resolve_dataset(request: Request | None = None, dataset_id: str | None = None) -> Dict[str, Any]:
+    user = _request_user(request)
+    requested_id = normalize_dataset_id(dataset_id)
+    candidates = authorized_datasets_for_user(user)
+    if not candidates:
+        raise HTTPException(status_code=404, detail="No authorized datasets are available.")
+
+    if requested_id:
+        dataset = get_dataset(requested_id)
+        if dataset is None or not user_can_access_dataset(user, dataset):
+            raise HTTPException(status_code=403, detail="Dataset access denied.")
+        if not bool(dataset.get("enabled", True)):
+            raise HTTPException(status_code=404, detail="Dataset is disabled.")
+        return dataset
+
+    selected_id = current_dataset_id(str(user.get("username") or "local"))
+    if selected_id:
+        dataset = get_dataset(selected_id)
+        if dataset is not None and user_can_access_dataset(user, dataset):
+            return dataset
+
+    return candidates[0]
+
+
+def resolve_dataset_dir(request: Request | None = None, dataset_id: str | None = None) -> str:
+    dataset_ids = resolve_dataset_ids(request, dataset_id)
+    if len(dataset_ids) == 1:
+        return str(resolve_dataset(request, dataset_ids[0]).get("root_path") or "")
+    return materialize_dataset_scope(dataset_ids)
+
+
+def resolve_dataset_ids(request: Request | None = None, dataset_id: str | None = None) -> List[str]:
+    user = _request_user(request)
+    requested_ids = parse_scope_dataset_ids(dataset_id)
+    candidates = authorized_datasets_for_user(user)
+    if not candidates:
+        raise HTTPException(status_code=404, detail="No authorized datasets are available.")
+    candidate_map = {str(item.get("dataset_id") or ""): item for item in candidates}
+    if requested_ids:
+        resolved = []
+        for item in requested_ids:
+            dataset = candidate_map.get(item)
+            if dataset is None:
+                raise HTTPException(status_code=403, detail="Dataset access denied.")
+            resolved.append(item)
+        return resolved
+    selected_ids = [item for item in current_dataset_ids(str(user.get("username") or "local")) if item in candidate_map]
+    if selected_ids:
+        return selected_ids
+    return [str(candidates[0].get("dataset_id") or "")]
+
+
+def materialize_dataset_scope(dataset_ids: List[str]) -> str:
+    normalized = sorted(dict.fromkeys([normalize_dataset_id(item) for item in dataset_ids if normalize_dataset_id(item)]))
+    if not normalized:
+        raise ValueError("At least one dataset id is required.")
+    if len(normalized) == 1:
+        dataset = get_dataset(normalized[0])
+        if dataset is None:
+            raise ValueError("Dataset not found.")
+        return str(dataset.get("root_path") or "")
+    scope_id = dataset_scope_id(normalized)
+    root = _scope_root() / scope_id
+    clinical_dir = root / "clinical"
+    molecular_dir = root / "molecular"
+    manifest_path = root / "manifest.json"
+    manifest = {
+        "dataset_ids": normalized,
+        "root_paths": [str(get_dataset(item).get("root_path") or "") for item in normalized if get_dataset(item)],
+    }
+    if manifest_path.exists():
+        try:
+            stored = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            stored = None
+        if stored == manifest and clinical_dir.exists() and molecular_dir.exists():
+            return str(root)
+        shutil.rmtree(root, ignore_errors=True)
+    clinical_dir.mkdir(parents=True, exist_ok=True)
+    molecular_dir.mkdir(parents=True, exist_ok=True)
+    for dataset_id in normalized:
+        dataset = get_dataset(dataset_id)
+        if dataset is None:
+            continue
+        dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
+        for path in sorted((dataset_root / "clinical").glob("*.json")):
+            target = clinical_dir / f"{dataset_id}__{path.name}"
+            if not target.exists():
+                target.symlink_to(path.resolve())
+        for path in sorted((dataset_root / "molecular").glob("*.csv")):
+            target = molecular_dir / f"{dataset_id}__{path.name}"
+            if not target.exists():
+                target.symlink_to(path.resolve())
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return str(root)
+
+
+def register_dataset(
+    *,
+    name: str,
+    root_path: str,
+    description: str = "",
+    visibility: str = "all_authenticated",
+    allowed_users: List[str] | None = None,
+    enabled: bool = True,
+    created_by: str = "system",
+) -> Dict[str, Any]:
+    normalized_name = str(name or "").strip()
+    if not normalized_name:
+        raise ValueError("Dataset name is required.")
+    resolved_root = str(resolve_project_data_dir(root_path))
+    normalized_visibility = str(visibility or "all_authenticated").strip().lower()
+    if normalized_visibility not in DATASET_VISIBILITIES:
+        raise ValueError("Invalid dataset visibility.")
+    items = _read_registry()
+    base_id = normalize_dataset_id(normalized_name) or "dataset"
+    dataset_id = base_id
+    suffix = 2
+    existing_ids = {str(item.get("dataset_id") or "") for item in items}
+    while dataset_id in existing_ids:
+        dataset_id = f"{base_id}-{suffix}"
+        suffix += 1
+    now = _now_iso()
+    item = {
+        "dataset_id": dataset_id,
+        "name": normalized_name,
+        "description": str(description or "").strip(),
+        "root_path": resolved_root,
+        "enabled": bool(enabled),
+        "visibility": normalized_visibility,
+        "allowed_users": sorted(
+            {
+                normalize_user_id(value)
+                for value in (allowed_users or [])
+                if str(value or "").strip()
+            }
+        ),
+        "created_by": str(created_by or "system").strip() or "system",
+        "created_at": now,
+        "updated_at": now,
+    }
+    items.append(item)
+    _write_registry(items)
+    return item
+
+
+def update_dataset(
+    dataset_id: str,
+    *,
+    name: str | None = None,
+    root_path: str | None = None,
+    description: str | None = None,
+    visibility: str | None = None,
+    allowed_users: List[str] | None = None,
+    enabled: bool | None = None,
+) -> Dict[str, Any]:
+    needle = normalize_dataset_id(dataset_id)
+    items = _read_registry()
+    for index, item in enumerate(items):
+        if str(item.get("dataset_id") or "") != needle:
+            continue
+        updated = dict(item)
+        if name is not None:
+            updated["name"] = str(name).strip() or updated["name"]
+        if root_path is not None:
+            updated["root_path"] = str(resolve_project_data_dir(root_path))
+        if description is not None:
+            updated["description"] = str(description).strip()
+        if visibility is not None:
+            normalized_visibility = str(visibility or "").strip().lower()
+            if normalized_visibility not in DATASET_VISIBILITIES:
+                raise ValueError("Invalid dataset visibility.")
+            updated["visibility"] = normalized_visibility
+        if allowed_users is not None:
+            updated["allowed_users"] = sorted(
+                {
+                    normalize_user_id(value)
+                    for value in allowed_users
+                    if str(value or "").strip()
+                }
+            )
+        if enabled is not None:
+            updated["enabled"] = bool(enabled)
+        updated["updated_at"] = _now_iso()
+        items[index] = updated
+        _write_registry(items)
+        return updated
+    raise ValueError("Dataset not found.")

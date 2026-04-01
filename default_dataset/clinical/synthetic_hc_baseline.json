@@ -1,0 +1,570 @@
+[
+  {
+    "id": "HC001:week_0",
+    "patient_id": "HC001",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41261",
+      "label": "White"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 0.67,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.49,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.74,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-01",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC002:week_0",
+    "patient_id": "HC002",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41260",
+      "label": "Black or African American"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 0.87,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.59,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.72,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-02",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC003:week_0",
+    "patient_id": "HC003",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "ethnicity": {
+      "id": "NCIT:C17459",
+      "label": "Asian"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 1.16,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.72,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.71,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-03",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC004:week_0",
+    "patient_id": "HC004",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41259",
+      "label": "Hispanic or Latino"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 1.28,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.79,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.67,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-04",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC005:week_0",
+    "patient_id": "HC005",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41261",
+      "label": "White"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 1.56,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.92,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.67,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-05",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC006:week_0",
+    "patient_id": "HC006",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41260",
+      "label": "Black or African American"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 0.84,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.56,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.77,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-06",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC007:week_0",
+    "patient_id": "HC007",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "ethnicity": {
+      "id": "NCIT:C17459",
+      "label": "Asian"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 0.88,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.59,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.72,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-07",
+      "cohort": "Healthy Control"
+    }
+  },
+  {
+    "id": "HC008:week_0",
+    "patient_id": "HC008",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41259",
+      "label": "Hispanic or Latino"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 1.04,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.68,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.69,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2024-01-08",
+      "cohort": "Healthy Control"
+    }
+  }
+]

@@ -464,7 +464,7 @@ export function createPhenoUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
-          data_dir: dataDirEl.value.trim(),
+          data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
           selected_patient_ids: phenoSelectedPatientIdsEl.value.trim(),
         }),
       });
@@ -1425,7 +1425,7 @@ export function createPhenoUi(ctx) {
         body: JSON.stringify({
           action: phenoActionEl.value,
           mode: phenoModeEl.value,
-          data_dir: dataDirEl.value.trim(),
+          data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
           patient_id: phenoPatientIdEl.value.trim(),
           selected_patient_ids: selectedSavedCohortIds.length ? "" : phenoSelectedPatientIdsEl.value.trim(),
           selected_saved_cohort_ids: selectedSavedCohortIds,
@@ -1499,7 +1499,7 @@ export function createPhenoUi(ctx) {
 
   async function loadPhenoRankerPatientIds() {
     try {
-      const dataDir = encodeURIComponent(dataDirEl.value.trim());
+      const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
       const response = await fetch(`/pheno-ranker/patient-ids?data_dir=${dataDir}`);
       if (!response.ok) {
         state.rankerPatientIds = [];

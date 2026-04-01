@@ -77,6 +77,11 @@ export function createDashboardUi(ctx) {
       return;
     }
     window.Plotly.newPlot(el, traces, layout, dashboardPlotConfig());
+    window.requestAnimationFrame(() => {
+      if (window.Plotly && window.Plotly.Plots && typeof window.Plotly.Plots.resize === "function") {
+        window.Plotly.Plots.resize(el);
+      }
+    });
   }
 
   function normalizeRankedItems(items, labelKey) {
@@ -656,7 +661,7 @@ export function createDashboardUi(ctx) {
       return;
     }
     const query = encodeURIComponent(String(analysisMolecularGeneEl && analysisMolecularGeneEl.value ? analysisMolecularGeneEl.value.trim() : ""));
-    const dataDir = encodeURIComponent(dataDirEl.value.trim());
+    const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
     try {
       const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
         const dataset = encodeURIComponent(datasetName);
@@ -673,7 +678,7 @@ export function createDashboardUi(ctx) {
 
   async function loadMolecularDatasets() {
     if (!analysisMolecularStatusEl || !molecularDashboardStatusEl) return;
-    const dataDir = encodeURIComponent(dataDirEl.value.trim());
+    const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
     analysisMolecularStatusEl.className = "query-status loading";
     analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
     molecularDashboardStatusEl.className = "query-status loading";
@@ -735,7 +740,7 @@ export function createDashboardUi(ctx) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            data_dir: dataDirEl.value.trim(),
+            data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
             dataset_name: datasetName,
             gene_id: geneId,
             selected_patient_ids: selectedCohortA && Array.isArray(selectedCohortA.patient_ids)

@@ -13,6 +13,7 @@
       const heroAuthIdentityEl = document.getElementById("heroAuthIdentity");
       const heroLogoutBtnEl = document.getElementById("heroLogoutBtn");
       const dashboardTabBtnEl = document.getElementById("dashboardTabBtn");
+      const datasetsTabBtnEl = document.getElementById("datasetsTabBtn");
       const dataTabBtnEl = document.getElementById("dataTabBtn");
       const usersTabBtnEl = document.getElementById("usersTabBtn");
       const queryTabBtnEl = document.getElementById("queryTabBtn");
@@ -22,6 +23,7 @@
       const dashboardMolecularBtnEl = document.getElementById("dashboardMolecularBtn");
       const tabHelperTextEl = document.getElementById("tabHelperText");
       const dashboardTabEl = document.getElementById("dashboardTab");
+      const datasetsTabEl = document.getElementById("datasetsTab");
       const dataTabEl = document.getElementById("dataTab");
       const usersTabEl = document.getElementById("usersTab");
       const queryTabEl = document.getElementById("queryTab");
@@ -38,6 +40,7 @@
       const dashboardEl = document.getElementById("dashboard");
       const detailEl = document.getElementById("detail");
       const dataDirEl = document.getElementById("dataDir");
+      const datasetPickerEl = document.getElementById("datasetPicker");
       const loadStatusEl = document.getElementById("loadStatus");
       const queryReplyEl = document.getElementById("queryReply");
       const queryStatusEl = document.getElementById("queryStatus");
@@ -92,6 +95,7 @@
       const loadBtnIconEl = document.getElementById("loadBtnIcon");
       const loadBtnLabelEl = document.getElementById("loadBtnLabel");
       const datasetAdminControlsEl = document.getElementById("datasetAdminControls");
+      const datasetAdminListEl = document.getElementById("datasetAdminList");
       const usersStatusEl = document.getElementById("usersStatus");
       const usersListEl = document.getElementById("usersList");
       const authUsernameEl = document.getElementById("authUsername");
@@ -201,6 +205,9 @@
       let phenoSelectedSavedCohortIds = [];
       let dashboardSummaryState = null;
       let savedCohorts = [];
+      let availableDatasets = [];
+      let currentDatasetIds = [];
+      let currentDatasetScopeId = "";
       let authState = {
         enabled: false,
         authenticated: true,
@@ -212,7 +219,8 @@
       const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
       const TAB_HELPER_TEXT = {
         dashboard: "Browse the loaded clinical and molecular data",
-        data: "Admin-only shared dataset loading and refresh",
+        datasets: "Choose the authorized datasets that define your active workspace scope",
+        data: "Admin-only dataset visibility and access policy management",
         users: "Admin-only read-only user visibility",
         query: "Build and refine cohorts (LLM-assisted, deterministic results)",
         analysis: "Interpret and compare cohorts (LLM-assisted insights)",
@@ -415,18 +423,21 @@
 
       function setActiveTab(tabName) {
         const showDashboard = tabName === "dashboard";
+        const showDatasets = tabName === "datasets";
         const showData = tabName === "data";
         const showUsers = tabName === "users";
         const showQuery = tabName === "query";
         const showAnalysis = tabName === "analysis";
         const showPheno = tabName === "pheno";
         dashboardTabBtnEl.classList.toggle("active", showDashboard);
+        datasetsTabBtnEl && datasetsTabBtnEl.classList.toggle("active", showDatasets);
         dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
         usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
         queryTabBtnEl.classList.toggle("active", showQuery);
         analysisTabBtnEl.classList.toggle("active", showAnalysis);
         phenoTabBtnEl.classList.toggle("active", showPheno);
         dashboardTabEl.classList.toggle("active", showDashboard);
+        datasetsTabEl && datasetsTabEl.classList.toggle("active", showDatasets);
         dataTabEl && dataTabEl.classList.toggle("active", showData);
         usersTabEl && usersTabEl.classList.toggle("active", showUsers);
         queryTabEl.classList.toggle("active", showQuery);
@@ -477,6 +488,241 @@
 
       function formatNumber(value) {
         return new Intl.NumberFormat().format(value);
+      }
+
+      function selectedDatasetIdsFromUi() {
+        if (!dataDirEl) {
+          return [];
+        }
+        return Array.from(dataDirEl.selectedOptions || [])
+          .map((option) => String(option.value || "").trim())
+          .filter(Boolean);
+      }
+
+      function currentDatasetId() {
+        return currentDatasetIds.length === 1 ? currentDatasetIds[0] : "";
+      }
+
+      function currentDatasetSelectionKey() {
+        const selected = currentDatasetIds.length ? currentDatasetIds.slice() : selectedDatasetIdsFromUi();
+        if (!selected.length) {
+          return "";
+        }
+        if (selected.length === 1) {
+          return selected[0];
+        }
+        return `scope--${selected.slice().sort().join("--")}`;
+      }
+
+      function currentDatasetRecord() {
+        if (currentDatasetIds.length !== 1) {
+          return null;
+        }
+        return availableDatasets.find((item) => String(item.dataset_id || "") === currentDatasetIds[0]) || null;
+      }
+
+      function renderDatasetSelect() {
+        if (!dataDirEl) {
+          return;
+        }
+        const selectedIds = new Set(currentDatasetIds);
+        dataDirEl.innerHTML = "";
+        if (!availableDatasets.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "No dataset available";
+          dataDirEl.appendChild(option);
+          return;
+        }
+        availableDatasets.forEach((dataset) => {
+          const option = document.createElement("option");
+          option.value = String(dataset.dataset_id || "");
+          option.textContent = String(dataset.name || dataset.dataset_id || "Unnamed dataset");
+          if (selectedIds.has(option.value)) {
+            option.selected = true;
+          }
+          dataDirEl.appendChild(option);
+        });
+        if (!selectedIds.size && availableDatasets[0]) {
+          dataDirEl.options[0].selected = true;
+        }
+        dataDirEl.dataset.scopeId = currentDatasetSelectionKey();
+        renderDatasetPicker();
+        renderDatasetAdminList();
+      }
+
+      function renderDatasetPicker() {
+        if (!datasetPickerEl) {
+          return;
+        }
+        const selectedIds = new Set(currentDatasetIds);
+        if (!availableDatasets.length) {
+          datasetPickerEl.innerHTML = '<div class="empty">No dataset available.</div>';
+          return;
+        }
+        datasetPickerEl.innerHTML = availableDatasets.map((dataset) => {
+          const datasetId = String(dataset.dataset_id || "");
+          const checked = selectedIds.has(datasetId);
+          const visibility = String(dataset.visibility || "all_authenticated");
+          const description = String(dataset.description || "").trim();
+          const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
+          const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+          return `
+            <label class="dataset-picker-card${checked ? " is-selected" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
+              <input type="checkbox" data-dataset-checkbox="${escapeHtml(datasetId)}" ${checked ? "checked" : ""}>
+              <div>
+                <div class="dataset-picker-title">
+                  <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
+                </div>
+                <div class="dataset-picker-meta">
+                  <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
+                  <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                  ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
+                  ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
+                </div>
+                ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
+              </div>
+            </label>
+          `;
+        }).join("");
+      }
+
+      function renderDatasetAdminList() {
+        if (!datasetAdminListEl) {
+          return;
+        }
+        if (!canManageDataset()) {
+          datasetAdminListEl.innerHTML = '<div class="empty">Dataset administration is only visible to administrators.</div>';
+          return;
+        }
+        if (!availableDatasets.length) {
+          datasetAdminListEl.innerHTML = '<div class="empty">No dataset administration entries available.</div>';
+          return;
+        }
+        datasetAdminListEl.innerHTML = availableDatasets.map((dataset) => {
+          const datasetId = String(dataset.dataset_id || "");
+          const visibility = String(dataset.visibility || "all_authenticated");
+          const description = String(dataset.description || "").trim();
+          const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
+          const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+          return `
+            <div class="dataset-picker-card">
+              <div>
+                <div class="dataset-picker-title">
+                  <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
+                </div>
+                <div class="dataset-picker-meta">
+                  <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
+                  <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                  ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
+                </div>
+                ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
+                <div class="dataset-picker-access">
+                  <div class="dataset-picker-access-row">
+                    <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
+                    <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
+                      <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
+                      <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
+                      <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
+                    </select>
+                  </div>
+                  <div class="dataset-picker-access-row">
+                    <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
+                    <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
+                  </div>
+                  <div class="dataset-picker-access-actions">
+                    <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save access</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      async function saveDatasetAccess(datasetId) {
+        if (!datasetAdminListEl || !canManageDataset()) {
+          return;
+        }
+        const visibilityEl = datasetAdminListEl.querySelector(`[data-dataset-visibility="${CSS.escape(datasetId)}"]`);
+        const groupsEl = datasetAdminListEl.querySelector(`[data-dataset-groups="${CSS.escape(datasetId)}"]`);
+        if (!visibilityEl || !groupsEl) {
+          return;
+        }
+        const selectedDataset = availableDatasets.find((item) => String(item.dataset_id || "") === datasetId);
+        const allowedGroups = String(groupsEl.value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = `Saving access for ${datasetId}...`;
+        try {
+          const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              visibility: visibilityEl.value,
+              allowed_groups: allowedGroups,
+              allowed_users: Array.isArray(selectedDataset && selectedDataset.allowed_users) ? selectedDataset.allowed_users : [],
+            }),
+          });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || "Unable to save dataset access.");
+          }
+          await loadDatasets();
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = `Updated access for ${datasetId}.`;
+        } catch (error) {
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = error && error.message ? error.message : "Unable to save dataset access.";
+        }
+      }
+
+      function syncDatasetSelectionFromPicker() {
+        if (!dataDirEl || !datasetPickerEl) {
+          return;
+        }
+        const selected = Array.from(datasetPickerEl.querySelectorAll("[data-dataset-checkbox]:checked"))
+          .map((input) => String(input.getAttribute("data-dataset-checkbox") || "").trim())
+          .filter(Boolean);
+        Array.from(dataDirEl.options).forEach((option) => {
+          option.selected = selected.includes(String(option.value || "").trim());
+        });
+        currentDatasetIds = selected;
+        currentDatasetScopeId = currentDatasetSelectionKey();
+        dataDirEl.dataset.scopeId = currentDatasetScopeId;
+        renderDatasetPicker();
+        renderDatasetAdminList();
+        renderGlobalContext();
+      }
+
+      async function loadDatasets() {
+        if (!dataDirEl) {
+          return;
+        }
+        try {
+          const response = await fetch("/datasets");
+          if (!response.ok) {
+            throw new Error("Unable to load datasets.");
+          }
+          const payload = await response.json();
+          availableDatasets = Array.isArray(payload.datasets) ? payload.datasets : [];
+          currentDatasetIds = Array.isArray(payload.current_dataset_ids) ? payload.current_dataset_ids : [];
+          currentDatasetScopeId = String(payload.current_dataset_scope_id || "");
+          renderDatasetSelect();
+          if (dataDirEl) {
+            dataDirEl.dataset.scopeId = currentDatasetScopeId;
+          }
+        } catch (_error) {
+          availableDatasets = [];
+          currentDatasetIds = [];
+          currentDatasetScopeId = "";
+          renderDatasetSelect();
+          if (dataDirEl) {
+            dataDirEl.dataset.scopeId = "";
+          }
+        }
       }
 
       function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -832,6 +1078,7 @@
 
       function currentTabName() {
         if (phenoTabEl.classList.contains("active")) return "pheno";
+        if (datasetsTabEl && datasetsTabEl.classList.contains("active")) return "datasets";
         if (dataTabEl && dataTabEl.classList.contains("active")) return "data";
         if (usersTabEl && usersTabEl.classList.contains("active")) return "users";
         if (dashboardTabEl.classList.contains("active")) return "dashboard";
@@ -910,8 +1157,12 @@
         if (!contextDataDirEl || !contextCohortEl || !contextLmModelEl || !contextScopeEl) {
           return;
         }
-        const rawDir = String(dataDirEl && dataDirEl.value ? dataDirEl.value : "").trim();
-        contextDataDirEl.textContent = rawDir || "Not configured";
+        const dataset = currentDatasetRecord();
+        contextDataDirEl.textContent = dataset
+          ? String(dataset.name || dataset.dataset_id || "Dataset")
+          : (currentDatasetIds.length > 1
+            ? `${currentDatasetIds.length} datasets selected`
+            : (currentDatasetSelectionKey() || "Not configured"));
 
         if (dashboardSummaryState && dashboardSummaryState.totals) {
           const totals = dashboardSummaryState.totals;
@@ -1001,6 +1252,11 @@
                   <div>${escapeHtml(user.role || "user")}</div>
                   <div>Auth source: local</div>
                 </div>
+                <div class="identity-tags">
+                  ${(Array.isArray(user.groups) && user.groups.length)
+                    ? user.groups.map((group) => `<span class="identity-tag">${escapeHtml(group)}</span>`).join("")
+                    : '<span class="identity-tag">no groups</span>'}
+                </div>
               </div>
             </div>
           `).join("");
@@ -1013,12 +1269,12 @@
 
       function updateLoadButtonAvailability() {
         if (!loadBtnEl) return;
-        const blocked = !canManageDataset();
+        const blocked = !isWorkspaceAccessible();
         loadBtnEl.disabled = Boolean(loadInFlight || blocked);
         renderLoadButtonState();
         if (blocked && !loadInFlight) {
           loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = "Admin sign-in required to load or refresh shared data.";
+          loadStatusEl.textContent = "Sign in to load your authorized dataset scope.";
         }
       }
 
@@ -1028,6 +1284,7 @@
           appShellEl && appShellEl.classList.remove("is-hidden");
           heroAuthUtilityEl && heroAuthUtilityEl.classList.add("is-hidden");
           datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
+          datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
           dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
           usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
           updateLoadButtonAvailability();
@@ -1047,11 +1304,12 @@
             authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
           }
           const admin = canManageDataset();
+          datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
           dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
           usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
           datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
           if (!admin && (currentTabName() === "data" || currentTabName() === "users")) {
-            setActiveTab("dashboard");
+            setActiveTab("datasets");
           }
           if (admin) {
             void loadAuthUsers();
@@ -1060,6 +1318,7 @@
           if (heroAuthIdentityEl) {
             heroAuthIdentityEl.textContent = "Signed out";
           }
+          datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
           dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
           usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
           datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
@@ -1139,6 +1398,7 @@
           }
           if (authPasswordEl) authPasswordEl.value = "";
           await fetchAuthStatus();
+          await loadDatasets();
           await refreshUserWorkspaceState();
           await loadPatients({ respectAdminGate: false });
         } catch (error) {
@@ -1154,6 +1414,7 @@
         } catch (_error) {
         }
         await fetchAuthStatus();
+        await loadDatasets();
         clearLoadedWorkspaceForSignedOutState();
         loadStatusEl.className = "load-status";
         loadStatusEl.textContent = "Signed out.";
@@ -1664,7 +1925,7 @@
         if (loadInFlight) {
           return;
         }
-        if (respectAdminGate && !canManageDataset()) {
+        if (respectAdminGate && !isWorkspaceAccessible()) {
           updateLoadButtonAvailability();
           return;
         }
@@ -1676,14 +1937,25 @@
         await nextFrame();
 
         try {
-          const dataDir = encodeURIComponent(dataDirEl.value.trim());
-          prepareAnalysisSessionForDataDir(dataDirEl.value.trim());
+          const datasetId = encodeURIComponent(currentDatasetId());
+          const selectedIds = selectedDatasetIdsFromUi();
+          await fetch("/datasets/select", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dataset_ids: selectedIds }),
+          });
+          currentDatasetIds = selectedIds.slice();
+          currentDatasetScopeId = currentDatasetSelectionKey();
+          if (dataDirEl) {
+            dataDirEl.dataset.scopeId = currentDatasetScopeId;
+          }
+          prepareAnalysisSessionForDataDir(currentDatasetSelectionKey());
           resetQueryWorkspace();
           await loadSavedCohorts();
           await loadQueryDiseaseOptions();
           await loadMolecularDatasets();
           await loadPhenoRankerPatientIds();
-          const patientResponse = await fetch(`/patients?data_dir=${dataDir}`);
+          const patientResponse = await fetch(`/patients?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`);
           if (!patientResponse.ok) {
             const error = await patientResponse.json();
             patientsEl.innerHTML = `<div class="empty">${error.detail}</div>`;
@@ -1719,7 +1991,7 @@
 
           dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
           window.setTimeout(() => {
-            fetch(`/dashboard?data_dir=${dataDir}`)
+            fetch(`/dashboard?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`)
             .then(async (response) => {
               if (!response.ok) {
                 dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
@@ -1759,8 +2031,8 @@
 
       async function loadPatient(patientId) {
         selectedPatientId = patientId;
-        const dataDir = encodeURIComponent(dataDirEl.value.trim());
-        const response = await fetch(`/patients/${patientId}/navigator?data_dir=${dataDir}`);
+        const datasetId = encodeURIComponent(currentDatasetSelectionKey());
+        const response = await fetch(`/patients/${patientId}/navigator?dataset_id=${datasetId}`);
         if (!response.ok) {
           const error = await response.json();
           detailEl.innerHTML = `<div class="empty">${error.detail}</div>`;
@@ -1771,6 +2043,29 @@
         renderPatientList(filterPatients(patientSearchEl.value));
       }
 
+      dataDirEl && dataDirEl.addEventListener("change", () => {
+        currentDatasetIds = selectedDatasetIdsFromUi();
+        currentDatasetScopeId = currentDatasetSelectionKey();
+        dataDirEl.dataset.scopeId = currentDatasetScopeId;
+        renderDatasetPicker();
+        renderGlobalContext();
+      });
+      datasetPickerEl && datasetPickerEl.addEventListener("change", (event) => {
+        const checkbox = event.target.closest("[data-dataset-checkbox]");
+        if (!checkbox || !datasetPickerEl.contains(checkbox)) {
+          return;
+        }
+        syncDatasetSelectionFromPicker();
+      });
+      datasetAdminListEl && datasetAdminListEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-dataset-save]");
+        if (!button || !datasetAdminListEl.contains(button)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        void saveDatasetAccess(button.getAttribute("data-dataset-save") || "");
+      });
       loadBtnEl.addEventListener("click", () => loadPatients({ respectAdminGate: true }));
       authLoginBtnEl && authLoginBtnEl.addEventListener("click", loginLocal);
       heroLogoutBtnEl && heroLogoutBtnEl.addEventListener("click", logoutLocal);
@@ -1809,6 +2104,7 @@
         createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
       });
       dashboardTabBtnEl.addEventListener("click", () => setActiveTab("dashboard"));
+      datasetsTabBtnEl && datasetsTabBtnEl.addEventListener("click", () => setActiveTab("datasets"));
       dataTabBtnEl && dataTabBtnEl.addEventListener("click", () => setActiveTab("data"));
       usersTabBtnEl && usersTabBtnEl.addEventListener("click", () => {
         setActiveTab("users");
@@ -1885,7 +2181,7 @@
         if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
           setDashboardSubtab(savedDashboardSubtab);
         }
-        if (savedTab && ["dashboard", "cohort", "molecular", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
+        if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
           if (savedTab === "cohort") {
             setDashboardSubtab("clinical");
             setActiveTab("dashboard");
@@ -1893,7 +2189,7 @@
             setDashboardSubtab("molecular");
             setActiveTab("dashboard");
           } else if ((savedTab === "data" || savedTab === "users") && authState.enabled && !canManageDataset()) {
-            setActiveTab("dashboard");
+            setActiveTab("datasets");
           } else {
             setActiveTab(savedTab);
           }
@@ -2042,6 +2338,7 @@
           clearLoadedWorkspaceForSignedOutState();
           return;
         }
+        await loadDatasets();
         await refreshUserWorkspaceState();
         await loadPatients({ respectAdminGate: false });
       });

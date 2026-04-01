@@ -318,7 +318,7 @@ def _mock_patient_run(page) -> None:
 
 def _mock_dashboard_load(page) -> None:
     page.route(
-        "**/patients?data_dir=*",
+        "**/patients?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -345,7 +345,7 @@ def _mock_dashboard_load(page) -> None:
         ),
     )
     page.route(
-        "**/dashboard?data_dir=*",
+        "**/dashboard?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -369,7 +369,7 @@ def _mock_dashboard_load(page) -> None:
 
 def _mock_molecular_datasets(page) -> None:
     page.route(
-        "**/molecular/datasets?data_dir=*",
+        "**/molecular/datasets?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -528,7 +528,7 @@ def _mock_query_reply(page) -> None:
 
 def _mock_saved_cohorts(page) -> None:
     page.route(
-        "**/saved-cohorts?data_dir=*",
+        "**/saved-cohorts?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -552,7 +552,7 @@ def _mock_saved_cohorts(page) -> None:
 
 def _mock_disease_inventory(page) -> None:
     page.route(
-        "**/cohorts/diseases?data_dir=*",
+        "**/cohorts/diseases?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -635,7 +635,7 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     _mock_molecular_datasets(page)
     expect = playwright.expect
 
-    page.locator("#dataTabBtn").click()
+    page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
     page.locator("#dashboardTabBtn").click()
 
@@ -649,7 +649,7 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     _mock_molecular_datasets(page)
     expect = playwright.expect
 
-    page.locator("#dataTabBtn").click()
+    page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
     page.locator("#dashboardTabBtn").click()
 
@@ -682,7 +682,7 @@ def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
     _mock_query_reply(page)
     expect = playwright.expect
 
-    page.locator("#dataTabBtn").click()
+    page.locator("#datasetsTabBtn").click()
     expect(page.locator("#loadBtn")).to_be_visible()
     page.locator("#loadBtn").click()
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
@@ -710,6 +710,32 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
 
 
+def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> None:
+    _open_analysis_tab(page)
+    captured = {}
+
+    def handler(route):
+        captured["body"] = route.request.post_data_json
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_deterministic",
+                    "reply": "### Deterministic Cohort Summary\n\n- **Patients:** 5",
+                    "data": {"provider": "deterministic", "context": {"source": "clinical summary"}},
+                }
+            ),
+        )
+
+    page.route("**/analysis", handler)
+    page.locator("[data-analysis-prompt='Summarize the main clinical patterns in this cohort and tell me what stands out.']").click()
+    page.locator("#analysisRunBtn").click()
+
+    assert captured["body"]["llm_only"] is False
+    assert captured["body"]["deterministic_only"] is True
+
+
 def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_reply(page)
@@ -728,6 +754,7 @@ def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
 
 def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:
     _mock_saved_cohorts(page)
+    page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
 
@@ -742,6 +769,7 @@ def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:
 
 def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
     _mock_saved_cohorts(page)
+    page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
 
@@ -838,6 +866,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#authGate")).to_be_visible()
     expect(page_auth.locator("#appShell")).to_be_hidden()
     expect(page_auth.locator("#contextAuth")).to_contain_text("Signed out")
+    expect(page_auth.locator("#datasetsTabBtn")).to_be_hidden()
     expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
     expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
 
@@ -848,11 +877,12 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#authGate")).to_be_hidden()
     expect(page_auth.locator("#appShell")).to_be_visible()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
+    expect(page_auth.locator("#datasetsTabBtn")).to_be_visible()
     expect(page_auth.locator("#dataTabBtn")).to_be_visible()
     expect(page_auth.locator("#usersTabBtn")).to_be_visible()
     expect(page_auth.locator("#contextAuth")).to_contain_text("Admin User (admin)")
 
-    page_auth.locator("#dataTabBtn").click()
+    page_auth.locator("#datasetsTabBtn").click()
     expect(page_auth.locator("#loadBtn")).to_be_visible()
     expect(page_auth.locator("#loadBtn")).to_be_enabled()
     page_auth.locator("#loadBtn").click()

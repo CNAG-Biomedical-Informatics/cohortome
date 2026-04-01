@@ -1,0 +1,85 @@
+[
+  {
+    "id": "PRIV001:week_0",
+    "patient_id": "PRIV001",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "ethnicity": {
+      "id": "NCIT:C41261",
+      "label": "White"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C4872",
+          "label": "Multiple Sclerosis"
+        }
+      }
+    ],
+    "treatments": [
+      {
+        "treatmentCode": {
+          "id": "RXNORM:1792799",
+          "label": "Ocrelizumab"
+        },
+        "routeOfAdministration": {
+          "id": "NCIT:C38288",
+          "label": "Intravenous Route of Administration"
+        }
+      }
+    ],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 1.2,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:6690-2",
+          "label": "Leukocyte Count"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.9,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "10^9/L"
+            }
+          }
+        }
+      },
+      {
+        "assayCode": {
+          "id": "LOINC:718-7",
+          "label": "Hemoglobin"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.8,
+            "unit": {
+              "id": "UO:0000175",
+              "label": "g/dL"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-10",
+      "cohort": "Private test dataset"
+    }
+  }
+]

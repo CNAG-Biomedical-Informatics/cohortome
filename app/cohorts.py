@@ -43,6 +43,7 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
         if not patient_ids and sample_ids:
             patient_ids = sorted({value.split(":", 1)[0].strip() for value in sample_ids if value.split(":", 1)[0].strip()})
         normalized_item = dict(item)
+        normalized_item["dataset_id"] = str(item.get("dataset_id") or "").strip()
         normalized_item["sample_ids"] = sample_ids
         normalized_item["patient_ids"] = patient_ids
         normalized_item["sample_count"] = len(sample_ids)
@@ -57,10 +58,10 @@ def _write_saved_cohorts(items: List[Dict[str, Any]], user_id: str = DEFAULT_LOC
     path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def list_saved_cohorts(data_dir: str | None = None, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
+def list_saved_cohorts(dataset_id: str | None = None, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
     items = _read_saved_cohorts(user_id)
-    if data_dir:
-        filtered = [item for item in items if str(item.get("data_dir") or "") == data_dir]
+    if dataset_id:
+        filtered = [item for item in items if str(item.get("dataset_id") or "") == dataset_id]
     else:
         filtered = items
     return sorted(filtered, key=lambda item: str(item.get("created_at") or ""), reverse=True)
@@ -68,7 +69,7 @@ def list_saved_cohorts(data_dir: str | None = None, user_id: str = DEFAULT_LOCAL
 
 def get_saved_cohorts_by_ids(
     cohort_ids: List[str],
-    data_dir: str | None = None,
+    dataset_id: str | None = None,
     user_id: str = DEFAULT_LOCAL_USER_ID,
 ) -> List[Dict[str, Any]]:
     wanted = {str(item or "").strip() for item in cohort_ids if str(item or "").strip()}
@@ -78,17 +79,17 @@ def get_saved_cohorts_by_ids(
     matched = [
         item
         for item in items
-        if str(item.get("id") or "") in wanted and (data_dir is None or str(item.get("data_dir") or "") == data_dir)
+        if str(item.get("id") or "") in wanted and (dataset_id is None or str(item.get("dataset_id") or "") == dataset_id)
     ]
     matched.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     return matched
 
 
-def _dedupe_cohort_name(name: str, data_dir: str, items: List[Dict[str, Any]]) -> str:
+def _dedupe_cohort_name(name: str, dataset_id: str, items: List[Dict[str, Any]]) -> str:
     existing = {
         str(item.get("name") or "").strip()
         for item in items
-        if str(item.get("data_dir") or "") == data_dir
+        if str(item.get("dataset_id") or "") == dataset_id
     }
     if name not in existing:
         return name
@@ -142,6 +143,7 @@ def _matches_full_dataset_scope(
 def save_cohort(
     *,
     name: str,
+    dataset_id: str = "",
     data_dir: str,
     sample_ids: List[str] | None = None,
     patient_ids: List[str] | None = None,
@@ -195,13 +197,15 @@ def save_cohort(
     except FileNotFoundError:
         is_full_dataset = False
 
+    normalized_dataset_id = str(dataset_id or data_dir).strip()
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     now = datetime.now(timezone.utc).isoformat()
     items = _read_saved_cohorts(user_id)
-    normalized_name = _dedupe_cohort_name(requested_name, data_dir, items)
+    normalized_name = _dedupe_cohort_name(requested_name, normalized_dataset_id, items)
     item = {
         "id": f"cohort_{uuid4().hex[:12]}",
         "name": normalized_name,
+        "dataset_id": normalized_dataset_id,
         "data_dir": data_dir,
         "id_type": id_type if id_type in {"sample", "original_record", "patient"} else "sample",
         "sample_ids": normalized_sample_ids,

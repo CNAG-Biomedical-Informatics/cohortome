@@ -7,9 +7,11 @@ from fastapi import HTTPException
 import app.analysis as analysis_module
 import app.analysis_sessions as analysis_sessions_module
 import app.cohorts as cohorts_module
+import app.datasets as datasets_module
 import app.pheno as pheno_module
 import app.query as query_module
 import app.query_store as query_store_module
+import app.user_state as user_state_module
 from app.bff import (
     build_patient_navigator,
     dashboard_summary,
@@ -141,6 +143,28 @@ def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp
     assert "SYN001:week_2" not in payload["reply"]
 
 
+def test_deterministic_patient_inventory_supports_subject_and_individual_synonyms(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload_subject = answer_query(str(tmp_path), "Tell me the list of subjects on the cohort")
+    payload_individual = answer_query(str(tmp_path), "Tell me the list of individuals on the cohort")
+
+    assert payload_subject["intent"] == "patient_inventory"
+    assert payload_subject["data"]["patient_ids"] == ["SYN001", "SYN002"]
+    assert payload_individual["intent"] == "patient_inventory"
+    assert payload_individual["data"]["patient_ids"] == ["SYN001", "SYN002"]
+
+
 def test_deterministic_sample_inventory_returns_sample_ids(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -160,6 +184,28 @@ def test_deterministic_sample_inventory_returns_sample_ids(tmp_path):
     assert payload["data"]["sample_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
     assert "SYN001:week_0" in payload["reply"]
     assert "SYN001:week_2" in payload["reply"]
+
+
+def test_deterministic_sample_inventory_supports_biospecimen_synonyms(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload_biosample = answer_query(str(tmp_path), "Tell me the list of biosamples on the cohort")
+    payload_specimen = answer_query(str(tmp_path), "Tell me the list of specimens on the cohort")
+
+    assert payload_biosample["intent"] == "sample_inventory"
+    assert payload_biosample["data"]["sample_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
+    assert payload_specimen["intent"] == "sample_inventory"
+    assert payload_specimen["data"]["sample_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
 
 
 def test_pheno_scope_expansion_derives_record_ids_from_patient_ids() -> None:
@@ -516,6 +562,78 @@ def test_auth_users_requires_admin(monkeypatch):
     payload = client.get("/auth/users")
     assert payload.status_code == 200
     assert [item["username"] for item in payload.json()["users"]] == ["admin", "maria"]
+
+
+def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    restricted_root = tmp_path / "restricted"
+    restricted_clinical = restricted_root / "clinical"
+    restricted_clinical.mkdir(parents=True)
+    write_json(restricted_clinical, "records.json", [{"id": "M1:week_0", "patient_id": "M1"}])
+
+    admin_root = tmp_path / "admin-only"
+    admin_clinical = admin_root / "clinical"
+    admin_clinical.mkdir(parents=True)
+    write_json(admin_clinical, "records.json", [{"id": "A1:week_0", "patient_id": "A1"}])
+
+    registry = [
+        {
+            "dataset_id": "default",
+            "name": "Default dataset",
+            "root_path": str(admin_root),
+            "enabled": True,
+            "visibility": "admin_only",
+            "allowed_users": [],
+            "created_by": "system",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+        {
+            "dataset_id": "maria-dataset",
+            "name": "Maria dataset",
+            "root_path": str(restricted_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": ["maria"],
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login.status_code == 200
+
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    assert [item["dataset_id"] for item in listed.json()["datasets"]] == ["maria-dataset"]
+    assert listed.json()["current_dataset_id"] == "maria-dataset"
+
+    denied = client.get("/patients?dataset_id=default")
+    assert denied.status_code == 403
+
+    selected = client.post("/datasets/select", json={"dataset_id": "maria-dataset"})
+    assert selected.status_code == 200
+    assert selected.json()["current_dataset_id"] == "maria-dataset"
+
+    patients = client.get("/patients")
+    assert patients.status_code == 200
+    assert patients.json()[0]["patient_id"] == "M1"
 
 
 def test_normalize_placeholder_values():

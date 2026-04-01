@@ -53,7 +53,8 @@ export function createQueryUi(ctx) {
   async function loadDiseaseOptions() {
     if (!queryDiseaseTopChipsEl) return;
     try {
-      const dataDir = encodeURIComponent(String(refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : ""));
+      const scopeId = String(refs.dataDirEl && refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : ""));
+      const dataDir = encodeURIComponent(scopeId);
       const response = await fetch(`/cohorts/diseases?data_dir=${dataDir}`);
       if (!response.ok) throw new Error("Unable to load diseases.");
       const payload = await response.json();
@@ -75,7 +76,9 @@ export function createQueryUi(ctx) {
   function preloadDiseaseCohort(disease) {
     const normalized = String(disease || "").trim();
     if (!normalized) return;
-    questionEl.value = `Which patients have ${disease}?`;
+    questionEl.value = normalized === "Healthy Control"
+      ? "Which subjects are Healthy Controls?"
+      : `Which patients have ${disease}?`;
     state.queryExecutionMode = "auto";
     renderQueryExecutionMode();
     renderTopDiseaseChips();
@@ -573,7 +576,7 @@ export function createQueryUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           q: question,
-          data_dir: refs.dataDirEl.value.trim(),
+          data_dir: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
           query_mode: queryMode,
           history: state.queryHistory.slice(-6),
         }),

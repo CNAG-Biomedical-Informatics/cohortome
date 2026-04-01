@@ -15,6 +15,7 @@ class QueryTurn(BaseModel):
 
 class QueryRequest(BaseModel):
     q: str
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     query_mode: str = "auto"
     history: List[QueryTurn] = Field(default_factory=list)
@@ -22,6 +23,7 @@ class QueryRequest(BaseModel):
 
 class AnalysisRequest(BaseModel):
     prompt: str
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     selected_patient_ids: str = ""
     compare_mode: bool = False
@@ -34,6 +36,7 @@ class AnalysisRequest(BaseModel):
 class MolecularExpressionRequest(BaseModel):
     dataset_name: str
     gene_id: str
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     selected_patient_ids: str = ""
     compare_selected_patient_ids: str = ""
@@ -42,6 +45,7 @@ class MolecularExpressionRequest(BaseModel):
 class AnalysisSessionRequest(BaseModel):
     id: str
     title: str = ""
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     prompt_draft: str = ""
     scope: str = ""
@@ -62,6 +66,7 @@ class AnalysisSessionRenameRequest(BaseModel):
 class PhenoRankerRequest(BaseModel):
     action: str = "compare"
     mode: str = "cohort"
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     patient_id: str = ""
     selected_patient_ids: str = ""
@@ -90,12 +95,14 @@ class PhenoRankerRequest(BaseModel):
 
 class PhenoRankerPlanRequest(BaseModel):
     text: str
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     selected_patient_ids: str = ""
 
 
 class SavedCohortRequest(BaseModel):
     name: str = ""
+    dataset_id: str = ""
     data_dir: str = DEFAULT_DATA_DIR
     sample_ids: List[str] = Field(default_factory=list)
     patient_ids: List[str] = Field(default_factory=list)
@@ -107,3 +114,26 @@ class SavedCohortRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str = ""
     password: str = ""
+
+
+class DatasetSelectionRequest(BaseModel):
+    dataset_id: str = ""
+    dataset_ids: List[str] = Field(default_factory=list)
+
+
+class DatasetRegistrationRequest(BaseModel):
+    name: str = ""
+    root_path: str = ""
+    description: str = ""
+    visibility: str = "all_authenticated"
+    allowed_users: List[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class DatasetUpdateRequest(BaseModel):
+    name: str | None = None
+    root_path: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+    allowed_users: List[str] | None = None
+    enabled: bool | None = None
