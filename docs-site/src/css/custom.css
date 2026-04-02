@@ -39,3 +39,34 @@
   background: linear-gradient(135deg, #eff6ff, #f8fafc);
   color: #0f172a;
 }
+
+.pn-docs-hero-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.pn-docs-hero-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.pn-docs-hero-title {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .pn-docs-hero-brand {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .pn-docs-hero-logo {
+    width: 60px;
+    height: 60px;
+  }
+}

@@ -13,9 +13,16 @@ function HomepageHeader() {
   return (
     <header className={clsx('hero hero--primary', styles.heroBanner)}>
       <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
+        <div className="pn-docs-hero-brand">
+          <img
+            className="pn-docs-hero-logo"
+            src="/img/patient-navigator-logo.png"
+            alt="Patient Navigator logo"
+          />
+          <Heading as="h1" className="hero__title pn-docs-hero-title">
+            {siteConfig.title}
+          </Heading>
+        </div>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <div className={styles.buttons}>
           <Link
