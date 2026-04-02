@@ -20,6 +20,7 @@ from app.bff import (
     normalize_value,
     read_bff_records,
 )
+from app.entity_terms import entity_identifier_prefixes, inventory_prompt_matches
 from app.query_store import (
     cohort_over_time_summary as store_cohort_over_time_summary,
     disease_cohort as store_disease_cohort,
@@ -207,9 +208,10 @@ def _disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
 
 
 def _extract_patient_id(text: str) -> Optional[str]:
-    match = re.search(r"\bpatient\s+([A-Za-z0-9:_-]+)\b", text, flags=re.IGNORECASE)
-    if match:
-        return match.group(1)
+    for prefix in entity_identifier_prefixes("patient"):
+        match = re.search(rf"\b{re.escape(prefix)}\s+([A-Za-z0-9:_-]+)\b", text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
     return None
 
 
@@ -808,52 +810,11 @@ def _patient_started_after_cohort(data_dir: str, started_term: str, after_term: 
 
 
 def _is_patient_list_query(text: str) -> bool:
-    lowered = text.lower()
-    patterns = (
-        "list patients",
-        "list of patients",
-        "patients in the cohort",
-        "patient ids in the cohort",
-        "patient ids",
-        "list all patients",
-        "show all patients",
-        "tell me the list of patients",
-        "which patients are in the cohort",
-        "who is in the cohort",
-    )
-    return any(pattern in lowered for pattern in patterns)
+    return inventory_prompt_matches(text, "patient")
 
 
 def _is_sample_list_query(text: str) -> bool:
-    lowered = text.lower()
-    patterns = (
-        "list samples",
-        "list of samples",
-        "samples in the cohort",
-        "sample ids in the cohort",
-        "sample ids",
-        "list all samples",
-        "show all samples",
-        "tell me the list of samples",
-        "which samples are in the cohort",
-        "list records",
-        "list of records",
-        "records in the cohort",
-        "record ids in the cohort",
-        "record ids",
-        "list all records",
-        "show all records",
-        "tell me the list of records",
-        "which records are in the cohort",
-        "list timepoints",
-        "list of timepoints",
-        "timepoints in the cohort",
-        "list all timepoints",
-        "show all timepoints",
-        "tell me the list of timepoints",
-        "which timepoints are in the cohort",
-    )
-    return any(pattern in lowered for pattern in patterns)
+    return inventory_prompt_matches(text, "sample")
 
 
 def _render_patient_summary(navigator: Dict[str, Any]) -> str:

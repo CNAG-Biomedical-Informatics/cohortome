@@ -127,6 +127,7 @@ class DatasetRegistrationRequest(BaseModel):
     description: str = ""
     visibility: str = "all_authenticated"
     allowed_users: List[str] = Field(default_factory=list)
+    allowed_groups: List[str] = Field(default_factory=list)
     enabled: bool = True
 
 
@@ -136,4 +137,5 @@ class DatasetUpdateRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     allowed_users: List[str] | None = None
+    allowed_groups: List[str] | None = None
     enabled: bool | None = None

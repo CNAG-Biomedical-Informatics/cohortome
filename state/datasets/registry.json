@@ -17,8 +17,9 @@
     "description": "Minimal private test dataset.",
     "root_path": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/private_dataset",
     "enabled": true,
-    "visibility": "admin_only",
+    "visibility": "restricted",
     "allowed_users": [],
+    "allowed_groups": ["cnag"],
     "created_by": "system",
     "created_at": "2026-04-01T09:30:00+00:00",
     "updated_at": "2026-04-01T09:30:00+00:00"

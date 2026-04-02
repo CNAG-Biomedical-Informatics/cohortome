@@ -22,6 +22,14 @@ def _default_users() -> List[Dict[str, Any]]:
             "password": "admin",
             "role": "admin",
             "display_name": "Administrator",
+            "groups": ["admin"],
+        },
+        {
+            "username": "mrueda",
+            "password": "mrueda",
+            "role": "user",
+            "display_name": "mrueda",
+            "groups": ["cnag"],
         }
     ]
 
@@ -50,6 +58,13 @@ def local_users() -> List[Dict[str, Any]]:
                 "password": password,
                 "role": str(item.get("role") or "user").strip() or "user",
                 "display_name": str(item.get("display_name") or username).strip() or username,
+                "groups": sorted(
+                    {
+                        str(group).strip()
+                        for group in (item.get("groups") or [])
+                        if str(group).strip()
+                    }
+                ),
             }
         )
     return normalized or _default_users()
@@ -63,6 +78,7 @@ def local_auth_diagnostics() -> Dict[str, Any]:
         "user_count": len(users),
         "usernames": [str(item.get("username") or "") for item in users],
         "roles": {str(item.get("username") or ""): str(item.get("role") or "user") for item in users},
+        "groups": {str(item.get("username") or ""): list(item.get("groups") or []) for item in users},
         "source": "env" if os.getenv("PN_LOCAL_USERS_JSON", "").strip() else "default",
     }
 
@@ -98,6 +114,7 @@ def session_user(request: Request) -> Optional[Dict[str, Any]]:
         "username": user["username"],
         "role": str(session.get("role") or user.get("role") or "user"),
         "display_name": str(session.get("display_name") or user.get("display_name") or user["username"]),
+        "groups": list(session.get("groups") or user.get("groups") or []),
     }
 
 
@@ -114,6 +131,7 @@ def require_authenticated(request: Request) -> Dict[str, Any]:
             "username": "local",
             "role": "admin",
             "display_name": "Local user",
+            "groups": [],
         }
     user = session_user(request)
     if not user:

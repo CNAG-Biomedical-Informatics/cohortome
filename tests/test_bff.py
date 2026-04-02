@@ -636,6 +636,64 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     assert patients.json()[0]["patient_id"] == "M1"
 
 
+def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "mrueda", "password": "demo", "role": "user", "display_name": "mrueda", "groups": ["cnag"]},
+                {"username": "outsider", "password": "demo", "role": "user", "display_name": "outsider", "groups": ["other"]},
+            ]
+        ),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    shared_root = tmp_path / "shared"
+    shared_clinical = shared_root / "clinical"
+    shared_clinical.mkdir(parents=True)
+    write_json(shared_clinical, "records.json", [{"id": "CNAG1:week_0", "patient_id": "CNAG1"}])
+
+    registry = [
+        {
+            "dataset_id": "cnag-dataset",
+            "name": "CNAG dataset",
+            "root_path": str(shared_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": [],
+            "allowed_groups": ["cnag"],
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    client = TestClient(app)
+
+    login = client.post("/auth/login", json={"username": "mrueda", "password": "demo"})
+    assert login.status_code == 200
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    assert "cnag-dataset" in [item["dataset_id"] for item in listed.json()["datasets"]]
+    selected = client.post("/datasets/select", json={"dataset_id": "cnag-dataset"})
+    assert selected.status_code == 200
+    patients = client.get("/patients")
+    assert patients.status_code == 200
+    assert patients.json()[0]["patient_id"] == "CNAG1"
+
+    client.post("/auth/logout")
+    login_outsider = client.post("/auth/login", json={"username": "outsider", "password": "demo"})
+    assert login_outsider.status_code == 200
+    outsider_listed = client.get("/datasets")
+    assert outsider_listed.status_code == 200
+    assert "cnag-dataset" not in [item["dataset_id"] for item in outsider_listed.json()["datasets"]]
+
+
 def test_normalize_placeholder_values():
     assert normalize_value("1900-01-01") is None
     assert normalize_value("P999Y") is None

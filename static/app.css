@@ -1735,6 +1735,46 @@
         overflow-wrap: anywhere;
         word-break: break-word;
       }
+      .dataset-picker-access {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid color-mix(in srgb, var(--line) 82%, white);
+      }
+      .dataset-picker-access-row {
+        display: grid;
+        gap: 6px;
+      }
+      .dataset-picker-access-row label {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .dataset-picker-access-row input,
+      .dataset-picker-access-row select {
+        width: 100%;
+      }
+      .dataset-picker-access-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .identity-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .identity-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(219, 234, 254, 0.8);
+        color: #1d4ed8;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
       .dashboard-loader-row label {
         margin: 0;
         white-space: nowrap;

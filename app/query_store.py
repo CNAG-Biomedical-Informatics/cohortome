@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
 MOLECULAR_DATA_DIR: Path | None = None
+QUERY_STORE_SCHEMA_VERSION = 2
 
 
 def duckdb_available() -> bool:
@@ -109,7 +110,12 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
             }
         )
-    return {"data_dir": str(resolved_dir), "files": files, "molecular_files": molecular_files}
+    return {
+        "schema_version": QUERY_STORE_SCHEMA_VERSION,
+        "data_dir": str(resolved_dir),
+        "files": files,
+        "molecular_files": molecular_files,
+    }
 
 
 def _detect_matrix_delimiter(header_line: str) -> str:
@@ -163,6 +169,28 @@ def _connect(data_dir: str):
     return duckdb.connect(str(db_path))
 
 
+def _store_has_required_tables(db_path: Path) -> bool:
+    if duckdb is None or not db_path.exists():
+        return False
+    con = duckdb.connect(str(db_path))
+    try:
+        rows = con.execute("SHOW TABLES").fetchall()
+    finally:
+        con.close()
+    existing = {str(row[0]) for row in rows}
+    required = {
+        "patients",
+        "timepoints",
+        "patient_diseases",
+        "patient_medications",
+        "disease_events",
+        "medication_events",
+        "molecular_samples",
+        "transcript_counts",
+    }
+    return required.issubset(existing)
+
+
 def ensure_query_store(data_dir: str) -> None:
     if duckdb is None:
         return
@@ -173,7 +201,7 @@ def ensure_query_store(data_dir: str) -> None:
             stored_signature = json.loads(meta_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             stored_signature = None
-        if stored_signature == current_signature:
+        if stored_signature == current_signature and _store_has_required_tables(db_path):
             return
     _build_query_store(data_dir, db_path, meta_path, current_signature)
 
@@ -1175,6 +1203,7 @@ def medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
                 "sex": sex_map.get(patient_id),
                 "visit_count": 0,
                 "matched_medications": [],
+                "medication_count": 0,
                 "original_record_ids": [],
                 "visits": [],
             },
@@ -1197,6 +1226,7 @@ def medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
             }
         )
         patient["visit_count"] = len(patient["visits"])
+        patient["medication_count"] = len(patient["matched_medications"])
     matches = [grouped[key] for key in sorted(grouped)]
     return {"query": medication_query, "match_type": "case-insensitive substring", "patient_count": len(matches), "patients": matches}
 
@@ -1239,7 +1269,9 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
                 "patient_id": patient_id,
                 "sex": sex_map.get(patient_id),
                 "visit_count": 0,
+                "medication_count": 0,
                 "matched_diseases": [],
+                "medications": [],
                 "original_record_ids": [],
                 "visits": [],
             },
@@ -1262,5 +1294,22 @@ def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
             }
         )
         patient["visit_count"] = len(patient["visits"])
+    if grouped:
+        con = _connect(data_dir)
+        try:
+            medication_rows = con.execute(
+                """
+                SELECT patient_id, list(DISTINCT medication ORDER BY medication) AS medications
+                FROM medication_events
+                GROUP BY patient_id
+                """
+            ).fetchall()
+        finally:
+            con.close()
+        medication_map = {patient_id: list(medications or []) for patient_id, medications in medication_rows}
+        for patient_id, patient in grouped.items():
+            meds = medication_map.get(patient_id, [])
+            patient["medications"] = meds
+            patient["medication_count"] = len(meds)
     matches = [grouped[key] for key in sorted(grouped)]
     return {"query": disease_query, "match_type": "case-insensitive substring", "patient_count": len(matches), "patients": matches}

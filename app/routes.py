@@ -146,6 +146,7 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
             description=payload.description,
             visibility=payload.visibility,
             allowed_users=payload.allowed_users,
+            allowed_groups=payload.allowed_groups,
             enabled=payload.enabled,
             created_by=str(user.get("username") or "admin"),
         )
@@ -164,6 +165,7 @@ def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request
             description=payload.description,
             visibility=payload.visibility,
             allowed_users=payload.allowed_users,
+            allowed_groups=payload.allowed_groups,
             enabled=payload.enabled,
         )
     except ValueError as exc:
@@ -281,6 +283,7 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
     request.session["username"] = user["username"]
     request.session["role"] = user["role"]
     request.session["display_name"] = user["display_name"]
+    request.session["groups"] = list(user.get("groups") or [])
     return {
         "enabled": True,
         "authenticated": True,
@@ -288,6 +291,7 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
             "username": user["username"],
             "role": user["role"],
             "display_name": user["display_name"],
+            "groups": list(user.get("groups") or []),
         },
     }
 
@@ -313,6 +317,7 @@ def get_auth_users(request: Request) -> Dict:
                 "username": str(item.get("username") or ""),
                 "role": str(item.get("role") or "user"),
                 "display_name": str(item.get("display_name") or item.get("username") or ""),
+                "groups": list(item.get("groups") or []),
             }
             for item in local_users()
         ],

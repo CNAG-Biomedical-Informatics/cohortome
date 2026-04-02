@@ -58,6 +58,7 @@ def _default_dataset_record() -> Dict[str, Any]:
         "enabled": True,
         "visibility": "all_authenticated",
         "allowed_users": [],
+        "allowed_groups": [],
         "created_by": "system",
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
@@ -87,6 +88,13 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
             if str(value or "").strip()
         }
     )
+    allowed_groups = sorted(
+        {
+            str(value).strip()
+            for value in (item.get("allowed_groups") or [])
+            if str(value).strip()
+        }
+    )
     return {
         "dataset_id": dataset_id,
         "name": str(item.get("name") or dataset_id).strip() or dataset_id,
@@ -95,6 +103,7 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
         "enabled": bool(item.get("enabled", True)),
         "visibility": visibility,
         "allowed_users": allowed_users,
+        "allowed_groups": allowed_groups,
         "created_by": str(item.get("created_by") or "system").strip() or "system",
         "created_at": str(item.get("created_at") or _now_iso()),
         "updated_at": str(item.get("updated_at") or _now_iso()),
@@ -171,7 +180,19 @@ def user_can_access_dataset(user: Dict[str, Any], dataset: Dict[str, Any]) -> bo
         for item in (dataset.get("allowed_users") or [])
         if str(item or "").strip()
     }
-    return username in allowed_users
+    if username in allowed_users:
+        return True
+    user_groups = {
+        str(item).strip()
+        for item in (user.get("groups") or [])
+        if str(item).strip()
+    }
+    allowed_groups = {
+        str(item).strip()
+        for item in (dataset.get("allowed_groups") or [])
+        if str(item).strip()
+    }
+    return bool(user_groups.intersection(allowed_groups))
 
 
 def authorized_datasets_for_user(user: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -372,6 +393,7 @@ def register_dataset(
     description: str = "",
     visibility: str = "all_authenticated",
     allowed_users: List[str] | None = None,
+    allowed_groups: List[str] | None = None,
     enabled: bool = True,
     created_by: str = "system",
 ) -> Dict[str, Any]:
@@ -405,6 +427,13 @@ def register_dataset(
                 if str(value or "").strip()
             }
         ),
+        "allowed_groups": sorted(
+            {
+                str(value).strip()
+                for value in (allowed_groups or [])
+                if str(value).strip()
+            }
+        ),
         "created_by": str(created_by or "system").strip() or "system",
         "created_at": now,
         "updated_at": now,
@@ -422,6 +451,7 @@ def update_dataset(
     description: str | None = None,
     visibility: str | None = None,
     allowed_users: List[str] | None = None,
+    allowed_groups: List[str] | None = None,
     enabled: bool | None = None,
 ) -> Dict[str, Any]:
     needle = normalize_dataset_id(dataset_id)
@@ -447,6 +477,14 @@ def update_dataset(
                     normalize_user_id(value)
                     for value in allowed_users
                     if str(value or "").strip()
+                }
+            )
+        if allowed_groups is not None:
+            updated["allowed_groups"] = sorted(
+                {
+                    str(value).strip()
+                    for value in allowed_groups
+                    if str(value).strip()
                 }
             )
         if enabled is not None:
