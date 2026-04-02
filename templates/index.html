@@ -10,7 +10,7 @@
   </head>
   <body>
     <main>
-      <div class="hero">
+      <div id="authBrandHero" class="hero hero-auth{% if auth_enabled %}{% else %} is-hidden{% endif %}">
         <div class="hero-brand">
           {% if branding.logo_url %}
           <img class="hero-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
@@ -19,22 +19,6 @@
             <h1>{{ branding.name }}</h1>
             <p>{{ branding.subtitle }}</p>
           </div>
-        </div>
-        <div id="heroAuthUtility" class="hero-utility is-hidden">
-          <div class="hero-auth-copy">
-            <span class="hero-auth-label">Workspace access</span>
-            <strong id="heroAuthIdentity">Signed out</strong>
-          </div>
-          <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
-            <span class="button-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <path d="M16 17l5-5-5-5"></path>
-                <path d="M21 12H9"></path>
-              </svg>
-            </span>
-            <span>Sign out</span>
-          </button>
         </div>
       </div>
 
@@ -63,10 +47,35 @@
       </section>
 
       <div id="appShell"{% if auth_enabled %} class="is-hidden"{% endif %}>
-      <div class="tab-bar">
-        <div class="shell-brand" aria-label="Patient Navigator">
-          <img class="shell-brand-logo" src="/static/img/patient-navigator-logo.png" alt="Patient Navigator">
+      <div class="hero">
+        <div class="hero-brand">
+          {% if branding.logo_url %}
+          <img class="hero-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
+          {% endif %}
+          <div class="hero-copy">
+            <h1>{{ branding.name }}</h1>
+            <p>{{ branding.subtitle }}</p>
+          </div>
         </div>
+        <div id="heroAuthUtility" class="hero-utility is-hidden">
+          <div class="hero-auth-copy">
+            <span class="hero-auth-label">Workspace access</span>
+            <strong id="heroAuthIdentity">Signed out</strong>
+          </div>
+          <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
+            <span class="button-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <path d="M16 17l5-5-5-5"></path>
+                <path d="M21 12H9"></path>
+              </svg>
+            </span>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tab-bar">
         <button id="dashboardTabBtn" class="tab-btn active" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -140,8 +149,6 @@
           <span>Pheno-Ranker</span>
         </button>
       </div>
-
-      <div id="tabHelperText" class="tab-helper-text"></div>
 
       <div class="context-bar" id="globalContextBar">
         <div class="context-pill"><span>Datasets</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>

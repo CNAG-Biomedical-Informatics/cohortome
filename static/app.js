@@ -8,6 +8,7 @@
 
       const appShellEl = document.getElementById("appShell");
       const authGateEl = document.getElementById("authGate");
+      const authBrandHeroEl = document.getElementById("authBrandHero");
       const authGateStatusEl = document.getElementById("authGateStatus");
       const heroAuthUtilityEl = document.getElementById("heroAuthUtility");
       const heroAuthIdentityEl = document.getElementById("heroAuthIdentity");
@@ -1461,6 +1462,7 @@
 
       function renderAuthUi() {
         if (!authState.enabled) {
+          authBrandHeroEl && authBrandHeroEl.classList.add("is-hidden");
           authGateEl && authGateEl.classList.add("is-hidden");
           appShellEl && appShellEl.classList.remove("is-hidden");
           heroAuthUtilityEl && heroAuthUtilityEl.classList.add("is-hidden");
@@ -1473,6 +1475,7 @@
           return;
         }
         const authenticated = Boolean(authState.authenticated && authState.user);
+        authBrandHeroEl && authBrandHeroEl.classList.toggle("is-hidden", authenticated);
         authGateEl && authGateEl.classList.toggle("is-hidden", authenticated);
         appShellEl && appShellEl.classList.toggle("is-hidden", !authenticated);
         heroAuthUtilityEl && heroAuthUtilityEl.classList.toggle("is-hidden", !authenticated);
