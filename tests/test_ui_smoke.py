@@ -182,6 +182,29 @@ def _open_pheno_tab(page) -> None:
     page.locator("#phenoPrompt").wait_for()
 
 
+def _mock_pheno_reference_ids(
+    page,
+    patient_ids: list[str] | None = None,
+    record_ids: list[str] | None = None,
+    reference_files: list[str] | None = None,
+) -> None:
+    payload = {
+        "patient_ids": patient_ids or ["SYN001", "SYN002", "SYN003"],
+        "record_ids": record_ids or ["SYN001:week_0", "SYN002:week_0", "SYN003:week_0"],
+        "reference_files": reference_files or ["synthetic_longitudinal.json"],
+    }
+
+    page.route(
+        "**/pheno-ranker/patient-ids?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(payload),
+        ),
+    )
+    page.locator("#loadBtn").click()
+
+
 def _open_query_tab(page) -> None:
     page.locator("#queryTabBtn").click()
     page.locator("#question").wait_for()
@@ -590,6 +613,7 @@ def _mock_analysis_reply(page) -> None:
 
 
 def test_pheno_run_button_requires_prompt(page) -> None:
+    _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
     run_button = page.locator("#phenoRunBtn")
     expect = playwright.expect
@@ -600,8 +624,9 @@ def test_pheno_run_button_requires_prompt(page) -> None:
 
 
 def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(page) -> None:
+    _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
-    _mock_pheno_plan(page, expected_mode="cohort", selected_ids="SYN001,SYN002,SYN003")
+    _mock_pheno_plan(page, expected_mode="cohort", selected_ids="SYN001:week_0,SYN002:week_0,SYN003:week_0")
     _mock_cohort_run(page)
     expect = playwright.expect
 
@@ -616,6 +641,7 @@ def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(p
 
 
 def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
+    _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
     _mock_pheno_plan(page, expected_mode="patient", patient_id="SYN001:week_0")
     _mock_patient_run(page)
@@ -695,7 +721,7 @@ def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
     page.locator("[data-query-disease-chip='Crohn Disease']").click()
 
     expect(page.locator("#question")).to_have_value("Which patients have Crohn Disease?")
-    expect(page.locator("#queryDiseaseStatus")).to_contain_text("Prompt prepared for disease cohort Crohn Disease")
+    expect(page.locator("#queryDiseaseStatus")).to_contain_text("Prompt prepared for disease workspace Crohn Disease")
 
 
 def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
@@ -703,7 +729,7 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
     _mock_analysis_reply(page)
     expect = playwright.expect
 
-    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this cohort.")
+    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this workspace.")
     page.locator("#analysisRunBtn").click()
 
     expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
@@ -729,7 +755,7 @@ def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> 
         )
 
     page.route("**/analysis", handler)
-    page.locator("[data-analysis-prompt='Summarize the main clinical patterns in this cohort and tell me what stands out.']").click()
+    page.locator("[data-analysis-prompt='Summarize the main clinical patterns in this workspace and tell me what stands out.']").click()
     page.locator("#analysisRunBtn").click()
 
     assert captured["body"]["llm_only"] is False
@@ -741,7 +767,7 @@ def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     _mock_analysis_reply(page)
     expect = playwright.expect
 
-    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this cohort.")
+    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this workspace.")
     page.locator("#analysisRunBtn").click()
 
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
@@ -854,8 +880,8 @@ def test_pheno_mds_cohort_chips_render_for_prefixed_ids(page) -> None:
     page.locator("#phenoRunBtn").click()
 
     expect(page.locator("#phenoMdsPlot")).to_have_attribute("data-plotly-ready", "true")
-    expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("Cohort 1")
-    expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("Cohort 2")
+    expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("C1")
+    expect(page.locator("#phenoMdsCohortLegend")).to_contain_text("C2")
 
 
 def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:

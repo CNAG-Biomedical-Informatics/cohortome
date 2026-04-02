@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from pathlib import Path
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
@@ -99,15 +100,59 @@ def index(request: Request) -> HTMLResponse:
     )
 
 
+def _dataset_provenance_from_sources(request: Request | None, source_files: List[str]) -> Dict[str, Any]:
+    user = session_user(request) if request is not None and auth_enabled() else None
+    if user:
+        datasets = authorized_datasets_for_user(user)
+    elif auth_enabled():
+        datasets = []
+    else:
+        datasets = authorized_datasets_for_user({"username": "local", "role": "admin", "display_name": "Local user"})
+    matched_ids: List[str] = []
+    matched_names: List[str] = []
+    normalized_sources = [str(item).strip() for item in source_files if str(item).strip()]
+    for dataset in datasets:
+        dataset_id = str(dataset.get("dataset_id") or "").strip()
+        dataset_name = str(dataset.get("name") or dataset_id or "Dataset").strip() or "Dataset"
+        root_path = str(dataset.get("root_path") or "").strip()
+        if not dataset_id or not root_path:
+            continue
+        try:
+            root = Path(root_path).resolve()
+        except OSError:
+            continue
+        for source in normalized_sources:
+            try:
+                source_path = Path(source).resolve()
+            except OSError:
+                continue
+            try:
+                source_path.relative_to(root)
+            except ValueError:
+                continue
+            if dataset_id not in matched_ids:
+                matched_ids.append(dataset_id)
+                matched_names.append(dataset_name)
+            break
+    return {
+        "dataset_ids": matched_ids,
+        "dataset_names": matched_names,
+        "dataset_name": matched_names[0] if len(matched_names) == 1 else "",
+    }
+
+
 def _resolve_route_dataset_dir(
     request: Request | None,
     dataset_id: str = "",
     data_dir: str = DEFAULT_DATA_DIR,
 ) -> str:
-    if request is None and not dataset_id:
+    if request is None:
+        if dataset_id:
+            return resolve_dataset_dir(request, dataset_id)
         return data_dir
-    if dataset_id:
-        return resolve_dataset_dir(request, dataset_id)
+    resolved_key = dataset_id or data_dir
+    if resolved_key:
+        return resolve_dataset_dir(request, resolved_key)
     return resolve_dataset_dir(request, current_dataset_id(request_user_id(request)) or "")
 
 
@@ -179,7 +224,12 @@ def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = 
         patients = list_patient_summaries(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return [patient.model_dump() for patient in patients]
+    payload: List[Dict[str, Any]] = []
+    for patient in patients:
+        item = patient.model_dump()
+        item.update(_dataset_provenance_from_sources(request, item.get("source_files") or []))
+        payload.append(item)
+    return payload
 
 
 def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -192,7 +242,9 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
 
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
-    return patient.model_dump()
+    payload = patient.model_dump()
+    payload.update(_dataset_provenance_from_sources(request, payload.get("source_files") or []))
+    return payload
 
 
 def get_patient_navigator(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -205,7 +257,11 @@ def get_patient_navigator(patient_id: str, request: Request = None, dataset_id: 
 
     if navigator is None:
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
-    return navigator.model_dump()
+    payload = navigator.model_dump()
+    provenance = _dataset_provenance_from_sources(request, payload.get("summary", {}).get("source_files") or payload.get("patient_context", {}).get("source_files") or [])
+    payload["summary"] = {**payload.get("summary", {}), **provenance}
+    payload["patient_context"] = {**payload.get("patient_context", {}), **provenance}
+    return payload
 
 
 def get_medication_counts(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
@@ -338,6 +394,7 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
         item = save_cohort(
             name=request.name,
             dataset_id=dataset_scope_id(selected_ids),
+            dataset_ids=selected_ids,
             data_dir=resolved_dir,
             sample_ids=request.sample_ids,
             patient_ids=request.patient_ids,

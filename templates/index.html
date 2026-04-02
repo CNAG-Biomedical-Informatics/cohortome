@@ -141,10 +141,10 @@
       <div id="tabHelperText" class="tab-helper-text"></div>
 
       <div class="context-bar" id="globalContextBar">
-        <div class="context-pill"><span>Data</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>
-        <div class="context-pill"><span>Cohort</span><strong id="contextCohort">Loading...</strong></div>
+        <div class="context-pill"><span>Datasets</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>
+        <div class="context-pill"><span>Workspace</span><strong id="contextCohort">Loading...</strong></div>
         <div class="context-pill"><span>LM</span><strong id="contextLmModel">Checking...</strong></div>
-        <div class="context-pill"><span>Scope</span><strong id="contextScope">Full cohort</strong></div>
+        <div class="context-pill"><span>Scope</span><strong id="contextScope">Full workspace</strong></div>
         <div class="context-pill"><span>Auth</span><strong id="contextAuth">{% if auth_enabled %}Signed out{% else %}Local user{% endif %}</strong></div>
       </div>
 
@@ -157,8 +157,8 @@
           <div class="controls dashboard-panel-frame">
             <section class="dashboard-hero dashboard-hero-clinical">
               <h2>Clinical</h2>
-              <div class="section-note">Overview of the loaded clinical cohort, patient roster, and focused patient workspace.</div>
-              <div class="dashboard-hero-note">Use this view to understand what is loaded before building cohorts in Query or interpreting them in Analysis.</div>
+              <div class="section-note">Overview of the loaded clinical workspace, patient roster, and focused patient workspace.</div>
+              <div class="dashboard-hero-note">Use this view to understand what is loaded before building subsets in Query or interpreting them in Analysis.</div>
             </section>
             <div class="dashboard-clinical-stack">
               <section class="dashboard-section-card">
@@ -178,7 +178,7 @@
                     <h3>Clinical patients</h3>
                   </div>
                 </div>
-                <div class="section-note">Search and filter the patient list. The panel stays usable when the cohort grows.</div>
+                <div class="section-note">Search and filter the patient list. The panel stays usable when the workspace grows.</div>
                 <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
                 <div id="patients" class="patient-list empty">No patients loaded.</div>
               </section>
@@ -245,7 +245,7 @@
           <div class="dashboard-loader-row dataset-loader-row">
             <div>
               <label for="dataDir">Datasets</label>
-              <div class="section-note">Select one or more authorized datasets to build the active workspace.</div>
+              <div class="section-note">Select at least one authorized dataset. The active workspace cannot be empty.</div>
             </div>
             <div class="dataset-picker-shell">
               <select id="dataDir" multiple size="4" class="dataset-picker-native">
@@ -268,7 +268,8 @@
               <span id="loadBtnLabel">Load dataset</span>
             </button>
           </div>
-          <div id="loadStatus" class="load-status">Choose a folder and click Load dataset.</div>
+          <div id="loadStatus" class="load-status">Select at least one dataset, then click Apply workspace.</div>
+          <div id="datasetScopeSummary" class="section-note">Active workspace: no dataset loaded yet.</div>
           <div class="section-note">Dataset selection defines the current workspace scope for Query, Analysis, Dashboard, and Pheno-Ranker.</div>
         </div>
       </section>
@@ -276,7 +277,7 @@
       <section id="dataTab" class="tab-panel">
         <div id="datasetAdminControls" class="controls dashboard-loader">
           <label>Data Administration</label>
-          <div class="section-note">Manage dataset visibility and group-based access. User and group membership still comes from local auth env configuration.</div>
+          <div class="section-note">Manage dataset visibility plus access through allowed groups or direct allowed users. User and group membership still comes from local auth env configuration.</div>
           <div id="datasetAdminList" class="dataset-picker-list">
             <div class="empty">No dataset administration entries available.</div>
           </div>
@@ -303,28 +304,28 @@
             <div class="query-starter-header">
               <div>
                 <label for="question">Ask a question</label>
-                <div class="section-note">Use Query to find cohorts, counts, and patient lists. Use Analysis to interpret a selected cohort.</div>
+                <div class="section-note">Use Query to find workspace subsets, counts, and patient lists. Use Analysis to interpret a selected scope or saved cohort.</div>
               </div>
             </div>
             <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
             <div class="query-examples" id="queryExamples">
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients on the cohort">List all patients in the cohort</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients in the workspace">List all patients in the workspace</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients have Crohn Disease and do not take Infliximab?">Crohn without Infliximab</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients do not have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics?">How many patients take biologics?</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Interpret this cohort like a clinician and summarize the main patterns.">Interpret this cohort in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Interpret this workspace like a clinician and summarize the main patterns.">Interpret this workspace in Analysis</button>
               <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What are the main clinical themes in this dataset? Summarize them in a table.">Main clinical themes in Analysis</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients have Ulcerative Colitis but do not take Mesalamine?">UC patients not taking Mesalamine</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this cohort">List medications in this cohort</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this cohort">List diseases in this cohort</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this workspace">List medications in this workspace</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this workspace">List diseases in this workspace</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient SYN007">Show patient SYN007</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints are in this cohort?">How many timepoints are in this cohort?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="What happened to this cohort over time?">What happened to this cohort over time?</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints are in this workspace?">How many timepoints are in this workspace?</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-prompt="What happened to this workspace over time?">What happened to this workspace over time?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have more than 1 timepoint?">Which patients have more than 1 timepoint?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Ocrelizumab?">How many timepoints mention Ocrelizumab?</button>
               <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient SYN007">Show the timeline for patient SYN007</button>
@@ -334,16 +335,16 @@
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients had Ocrelizumab after Multiple Sclerosis?">Ocrelizumab after MS</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients changed from Ulcerative Colitis to Crohn Disease?">Changed from UC to Crohn</button>
               <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients started Adalimumab after Rheumatoid Arthritis?">Started Adalimumab after RA</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this cohort and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main cohort summary?">Evidence-supported summary in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this workspace and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
+              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main workspace summary?">Evidence-supported summary in Analysis</button>
             </div>
           </div>
           <div class="analysis-history-header">
             <span>Query Thread</span>
-            <small>Follow-up cohort questions reuse recent query history.</small>
+            <small>Follow-up workspace questions reuse recent query history.</small>
           </div>
           <div id="queryThread" class="analysis-thread">
-            <div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>
+            <div class="empty">Ask a query to start a conversational thread. Follow-up workspace questions will reuse recent query history.</div>
           </div>
           <details class="query-section">
             <summary>Latest query details</summary>
@@ -393,7 +394,7 @@
             </div>
             <div id="queryDiseasePanel" class="is-hidden">
               <div id="queryDiseaseTopChips" class="query-composer-disease-chips"></div>
-              <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic cohort query.</div>
+              <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic workspace query.</div>
             </div>
             <div class="query-row">
               <textarea id="question">How many patients have Ocrelizumab?</textarea>
@@ -415,7 +416,7 @@
         <div class="controls">
           <label for="phenoMode">Pheno-Ranker</label>
           <div class="section-note">Uses the selected data directory and current scope.</div>
-          <div id="phenoReferenceFilesSummary" class="section-note">Active cohort files: loading...</div>
+          <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
           <div class="query-section">
             <label for="phenoPrompt">Describe run</label>
             <textarea id="phenoPrompt" rows="3" placeholder="Compare patient SYN007:week_0 to all others and generate MDS"></textarea>
@@ -432,8 +433,8 @@
             </div>
             <div style="margin-top:12px;">
               <label for="phenoSelectedPatientIds">Scope</label>
-              <input id="phenoSelectedPatientIds" placeholder="Full cohort by default, or provide a subset like SYN007,SYN008,SYN009">
-              <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full cohort.</div>
+              <input id="phenoSelectedPatientIds" placeholder="Full workspace by default, or provide a subset like SYN007,SYN008,SYN009">
+              <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
             </div>
             <details class="query-section" style="margin-top:12px;">
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span></summary>
@@ -658,8 +659,8 @@
           <div class="controls analysis-main">
             <div style="margin-top:12px;">
               <label for="analysisSelectedPatientIds">Scope</label>
-              <input id="analysisSelectedPatientIds" placeholder="Full cohort by default, or provide patient/original record IDs">
-              <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full cohort.</div>
+              <input id="analysisSelectedPatientIds" placeholder="Full workspace by default, or provide patient/original record IDs">
+              <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
               <div id="analysisSelectedSavedCohortSelection" class="section-note is-hidden"></div>
             </div>
             <div class="pheno-checks" style="margin-top:4px;">
@@ -675,31 +676,32 @@
               <div id="savedCohorts" class="empty">No saved cohorts yet.</div>
             </details>
             <div class="analysis-workspace-bar">
-              <div id="analysisStatus" class="analysis-workspace-status">Use this tab for broader cohort interpretation and plot-driven analysis.</div>
+              <div id="analysisStatus" class="analysis-workspace-status">Use this tab for broader workspace interpretation and plot-driven analysis.</div>
               <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>
             </div>
+            <div id="analysisDatasetScope" class="section-note">Workspace dataset: current selection.</div>
             <div id="analysisStarterPanel" class="analysis-starter-panel">
               <div class="analysis-starter-header">
                 <div>
                   <label for="analysisPrompt">Analysis</label>
-                  <div class="section-note">Broader cohort interpretation grounded in DuckDB-backed summaries, with plots and LM commentary.</div>
+                  <div class="section-note">Broader workspace interpretation grounded in DuckDB-backed summaries, with plots and LM commentary.</div>
                 </div>
               </div>
               <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
               <div class="query-examples" id="analysisExamples">
-                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the main clinical patterns in this cohort and tell me what stands out."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Main cohort patterns</span></button>
+                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the main clinical patterns in this workspace and tell me what stands out."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Main workspace patterns</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show expression of ENSG00000169429 in the current Analysis scope."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span><span>Expression of ENSG00000169429</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Explain differences in gene expression according to medication"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span><span>Exploratory volcano by medication</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Analyze CRP response after infliximab."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Analyze CRP response after infliximab</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare inflammatory burden between these cohorts."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare inflammatory burden</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B by disease burden, medication burden, and timepoint distribution."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare A vs B core profiles</span></button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret these cohort summaries like a clinician and summarize the main patterns and uncertainties."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinical interpretation</span></button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise cohort briefing for a clinician, including what stands out and what needs validation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinician-facing cohort briefing</span></button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise workspace briefing for a clinician, including what stands out and what needs validation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinician-facing workspace briefing</span></button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the cohort profile and the observed molecular expression findings."><span class="analysis-domain-icons" aria-hidden="true"><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span></span><span>Clinical + molecular summary</span></button>
                 <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare Cohort A and Cohort B like a clinical reviewer and summarize the main similarities, differences, and uncertainties."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinical review of A vs B</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="What stands out in treatment usage over time?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Treatment usage over time</span></button>
-                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this cohort."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Disease, medication, and visit burden</span></button>
-                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Describe how this cohort changes over time and point out the most active periods."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>How the cohort changes over time</span></button>
+                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this workspace."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Disease, medication, and visit burden</span></button>
+                <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Describe how this workspace changes over time and point out the most active periods."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>How the workspace changes over time</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which patient subgroups look most distinct from the cohort summaries?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Distinct patient subgroups</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the top diseases and medications and tell me which patterns are most concentrated."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Top diseases and medications</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which numeric longitudinal measures can I compare between these cohorts?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Available longitudinal measures</span></button>
@@ -707,13 +709,13 @@
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show response to Infliximab using CRP"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Response to Infliximab using CRP</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show a Kaplan-Meier curve for time to Clinical relapse > 0"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Kaplan-Meier for clinical relapse</span></button>
                 <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Compare Cohort A and Cohort B with Kaplan-Meier for time to Clinical relapse > 0"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare relapse-free survival A vs B</span></button>
-                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the currently selected cohort against the rest of the cohort and summarize the main differences."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare selected cohort vs rest</span></button>
+                <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the currently selected workspace subset against the rest of the workspace and summarize the main differences."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare selected workspace vs rest</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Tell me which diseases and medications most separate Cohort A from Cohort B."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>What separates A from B</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare these cohorts and focus on temporal differences and possible treatment-intensity differences."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Temporal and treatment-intensity differences</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B using Leukocyte Count trajectories"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare Leukocyte Count trajectories</span></button>
                 <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare Cohort A and Cohort B and focus on relapse-free survival patterns."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare relapse-free survival patterns</span></button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this cohort and summarize the main themes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret disease and medication profiles</span></button>
-                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected cohort as a possible clinical subgroup and explain what evidence supports that interpretation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret selected subgroup</span></button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this workspace and summarize the main themes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret disease and medication profiles</span></button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected workspace subset as a possible clinical subgroup and explain what evidence supports that interpretation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret selected subgroup</span></button>
               </div>
             </div>
             <div class="analysis-history-header">
@@ -729,7 +731,7 @@
                 <button id="analysisComposerExamplesBtn" type="button" class="query-chip">Starter prompts</button>
               </div>
               <div class="query-row">
-                <textarea id="analysisPrompt">Summarize the main clinical patterns in this cohort and tell me what stands out.</textarea>
+                <textarea id="analysisPrompt">Summarize the main clinical patterns in this workspace and tell me what stands out.</textarea>
                 <button id="analysisRunBtn" type="button">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

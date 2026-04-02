@@ -23,6 +23,8 @@ export function createSavedCohortsUi(ctx) {
     renderAnalysisCompareScopeSummary,
     renderSelectedPatientIdsSummary,
     renderGlobalContext,
+    datasetLabelsForIds,
+    currentDatasetIds,
   } = callbacks;
 
   function renderSavedCohortsInto(container, mode) {
@@ -39,6 +41,10 @@ export function createSavedCohortsUi(ctx) {
           ? item.sample_ids
           : (Array.isArray(item.patient_ids) ? item.patient_ids : []);
         const patientIds = Array.isArray(item.patient_ids) ? item.patient_ids : [];
+        const datasetIds = Array.isArray(item.dataset_ids) && item.dataset_ids.length
+          ? item.dataset_ids
+          : (item.dataset_id ? [item.dataset_id] : []);
+        const datasetLabels = datasetLabelsForIds(datasetIds);
         const preview = sampleIds.slice(0, 4).join(", ");
         const suffix = sampleIds.length > 4 ? ` ... (+${sampleIds.length - 4} more)` : "";
         const source = item.source && item.source.kind ? item.source.kind : "manual";
@@ -46,6 +52,7 @@ export function createSavedCohortsUi(ctx) {
           <div class="saved-cohort-card">
             <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
             <small>${escapeHtml(String(patientIds.length || item.patient_count || 0))} patients • ${escapeHtml(String(sampleIds.length || item.sample_count || 0))} samples • source: ${escapeHtml(source)}</small>
+            ${datasetLabels.length ? `<small>${escapeHtml(datasetLabels.join(", "))}</small>` : ""}
             <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
             <div class="saved-cohort-actions">
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
@@ -131,6 +138,7 @@ export function createSavedCohortsUi(ctx) {
         body: JSON.stringify({
           name,
           data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
+          dataset_ids: currentDatasetIds(),
           sample_ids: state.latestQueryRecordIds,
           patient_ids: state.latestQueryPatientIds,
           id_type: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,

@@ -38,12 +38,17 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
             continue
         sample_ids = [str(value).strip() for value in item.get("sample_ids", []) if str(value).strip()]
         patient_ids = [str(value).strip() for value in item.get("patient_ids", []) if str(value).strip()]
+        dataset_ids = [str(value).strip() for value in item.get("dataset_ids", []) if str(value).strip()]
         if not sample_ids and patient_ids:
             sample_ids = list(patient_ids)
         if not patient_ids and sample_ids:
             patient_ids = sorted({value.split(":", 1)[0].strip() for value in sample_ids if value.split(":", 1)[0].strip()})
+        if not dataset_ids:
+            dataset_id = str(item.get("dataset_id") or "").strip()
+            dataset_ids = [dataset_id] if dataset_id else []
         normalized_item = dict(item)
         normalized_item["dataset_id"] = str(item.get("dataset_id") or "").strip()
+        normalized_item["dataset_ids"] = dataset_ids
         normalized_item["sample_ids"] = sample_ids
         normalized_item["patient_ids"] = patient_ids
         normalized_item["sample_count"] = len(sample_ids)
@@ -144,6 +149,7 @@ def save_cohort(
     *,
     name: str,
     dataset_id: str = "",
+    dataset_ids: List[str] | None = None,
     data_dir: str,
     sample_ids: List[str] | None = None,
     patient_ids: List[str] | None = None,
@@ -198,6 +204,16 @@ def save_cohort(
         is_full_dataset = False
 
     normalized_dataset_id = str(dataset_id or data_dir).strip()
+    normalized_dataset_ids = []
+    seen_dataset_ids = set()
+    for item in (dataset_ids or []):
+        value = str(item or "").strip()
+        if not value or value in seen_dataset_ids:
+            continue
+        seen_dataset_ids.add(value)
+        normalized_dataset_ids.append(value)
+    if not normalized_dataset_ids and normalized_dataset_id:
+        normalized_dataset_ids = [normalized_dataset_id]
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     now = datetime.now(timezone.utc).isoformat()
     items = _read_saved_cohorts(user_id)
@@ -206,6 +222,7 @@ def save_cohort(
         "id": f"cohort_{uuid4().hex[:12]}",
         "name": normalized_name,
         "dataset_id": normalized_dataset_id,
+        "dataset_ids": normalized_dataset_ids,
         "data_dir": data_dir,
         "id_type": id_type if id_type in {"sample", "original_record", "patient"} else "sample",
         "sample_ids": normalized_sample_ids,

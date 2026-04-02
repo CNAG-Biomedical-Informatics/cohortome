@@ -1374,7 +1374,7 @@ def test_analysis_deterministic_only_skips_planner_and_full_llm(tmp_path, monkey
 
     assert payload["intent"] == "analysis_deterministic"
     assert payload["data"]["source"] == "deterministic"
-    assert "Deterministic Cohort Summary" in payload["reply"]
+    assert "Deterministic Workspace Summary" in payload["reply"]
     assert calls == []
 
 

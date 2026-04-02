@@ -943,7 +943,7 @@ def _follow_up_suggestions(query: str) -> List[str]:
     text = query.strip().rstrip("?.")
     if not text:
         return [
-            "How many patients are in this cohort?",
+            "How many patients are in this workspace?",
             "What diseases appear most often?",
             "Show patient 107",
         ]
@@ -1642,8 +1642,11 @@ def answer_query(
 
     if (
         "what happened to this cohort over time" in lowered
+        or "what happened to this workspace over time" in lowered
         or "cohort over time" in lowered
+        or "workspace over time" in lowered
         or "timeline of this cohort" in lowered
+        or "timeline of this workspace" in lowered
     ):
         summary = _cohort_over_time_summary(data_dir)
         periods = summary["periods"]
@@ -1654,7 +1657,7 @@ def answer_query(
         if not period_text:
             period_text = "No dated timepoints were available."
         reply = (
-            "This cohort has %(timepoint_count)s timepoints across %(patient_count)s patients. "
+            "This workspace has %(timepoint_count)s timepoints across %(patient_count)s patients. "
             "Dated range: %(first)s to %(last)s. %(period_text)s."
         ) % {
             "timepoint_count": summary["timepoint_count"],
@@ -1670,7 +1673,7 @@ def answer_query(
             "data": {
                 **summary,
                 "follow_up_suggestions": [
-                    "How many timepoints are in this cohort?",
+                    "How many timepoints are in this workspace?",
                     "Which patients have more than 1 timepoint?",
                     "Show patient 107",
                 ],
@@ -1700,23 +1703,23 @@ def answer_query(
         return {
             "query": query,
             "intent": "timepoint_inventory",
-            "reply": "This cohort contains %s timepoints across %s patients." % (
+            "reply": "This workspace contains %s timepoints across %s patients." % (
                 summary["timepoint_count"],
                 summary["patient_count"],
             ),
             "data": {
                 **summary,
                 "follow_up_suggestions": [
-                    "What happened to this cohort over time?",
+                    "What happened to this workspace over time?",
                     "Which patients have more than 1 timepoint?",
-                    "List all patients in the cohort",
+                    "List all patients in the workspace",
                 ],
             },
         }
 
     if _is_sample_list_query(text):
         sample_ids = _sample_inventory(data_dir)
-        reply_lines = ["Samples in the cohort (%s):" % len(sample_ids)]
+        reply_lines = ["Samples in the workspace (%s):" % len(sample_ids)]
         reply_lines.extend("- %s" % sample_id for sample_id in sample_ids)
         return {
             "query": query,
@@ -1726,9 +1729,9 @@ def answer_query(
                 "sample_count": len(sample_ids),
                 "sample_ids": sample_ids,
                 "follow_up_suggestions": [
-                    "How many timepoints are in this cohort?",
-                    "Tell me the list of patients on the cohort",
-                    "What happened to this cohort over time?",
+                    "How many timepoints are in this workspace?",
+                    "Tell me the list of patients in the workspace",
+                    "What happened to this workspace over time?",
                 ],
             },
         }
@@ -1736,7 +1739,7 @@ def answer_query(
     if _is_patient_list_query(text):
         patient_ids = _patient_inventory(data_dir)
         sample_ids = _sample_inventory(data_dir)
-        reply_lines = ["Patients in the cohort (%s):" % len(patient_ids)]
+        reply_lines = ["Patients in the workspace (%s):" % len(patient_ids)]
         reply_lines.extend("- %s" % patient_id for patient_id in patient_ids)
         return {
             "query": query,
@@ -1748,7 +1751,7 @@ def answer_query(
                 "sample_count": len(sample_ids),
                 "sample_ids": sample_ids,
                 "follow_up_suggestions": [
-                    "How many patients are in this cohort?",
+                    "How many patients are in this workspace?",
                     "Show patient %s" % (patient_ids[0] if patient_ids else "107"),
                     "Which patients have more than 1 medication?",
                 ],
@@ -2193,7 +2196,7 @@ def answer_query(
                     "follow_up_suggestions": [
                         "List patients",
                         "Show patient 107",
-                        "How many patients are in this cohort?",
+                        "How many patients are in this workspace?",
                     ],
                 },
             }
@@ -2283,8 +2286,8 @@ def answer_query(
                 **cohort,
                 "constraint_label": label,
                 "follow_up_suggestions": [
-                    "How many timepoints are in this cohort?",
-                    "What happened to this cohort over time?",
+                    "How many timepoints are in this workspace?",
+                    "What happened to this workspace over time?",
                     "Show patient %s" % (cohort["patients"][0]["patient_id"] if cohort["patients"] else "107"),
                 ],
             },

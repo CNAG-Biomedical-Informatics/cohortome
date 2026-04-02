@@ -103,6 +103,7 @@ class PhenoRankerPlanRequest(BaseModel):
 class SavedCohortRequest(BaseModel):
     name: str = ""
     dataset_id: str = ""
+    dataset_ids: List[str] = Field(default_factory=list)
     data_dir: str = DEFAULT_DATA_DIR
     sample_ids: List[str] = Field(default_factory=list)
     patient_ids: List[str] = Field(default_factory=list)

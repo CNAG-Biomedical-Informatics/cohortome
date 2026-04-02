@@ -1473,7 +1473,7 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
     top_disease = context["top_diseases"][0]["disease"] if context["top_diseases"] else "n/a"
     top_medication = context["top_medications"][0]["medication"] if context["top_medications"] else "n/a"
     lines = [
-        "### Deterministic Cohort Summary",
+        "### Deterministic Workspace Summary",
         "",
         "- **Patients:** %s" % overview["patient_count"],
         "- **Timepoints:** %s" % overview["timepoint_count"],

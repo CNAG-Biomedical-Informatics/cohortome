@@ -30,6 +30,7 @@ export function createQueryUi(ctx) {
     sendPromptToAnalysis,
     currentPatientsProvider,
     phenoRankerPatientIdsProvider,
+    isMultiDatasetWorkspace,
     setLatestQueryState,
   } = callbacks;
   let diseaseOptions = [];
@@ -63,13 +64,13 @@ export function createQueryUi(ctx) {
       renderTopDiseaseChips();
       if (queryDiseaseStatusEl) {
         queryDiseaseStatusEl.textContent = diseases.length
-          ? `Click a disease to preload a deterministic cohort query.`
+          ? `Click a disease to preload a deterministic workspace query.`
           : "No diseases are available in the current dataset.";
       }
     } catch (_error) {
       diseaseOptions = [];
       renderTopDiseaseChips();
-      if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Unable to load disease cohort shortcuts.";
+      if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Unable to load disease workspace shortcuts.";
     }
   }
 
@@ -82,7 +83,7 @@ export function createQueryUi(ctx) {
     state.queryExecutionMode = "auto";
     renderQueryExecutionMode();
     renderTopDiseaseChips();
-    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = `Prompt prepared for disease cohort ${normalized}. Press Ask to run.`;
+    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = `Prompt prepared for disease workspace ${normalized}. Press Ask to run.`;
     questionEl.focus();
   }
 
@@ -104,9 +105,16 @@ export function createQueryUi(ctx) {
       return "";
     }
     if (Array.isArray(data.patients) && data.patients.length) {
+      const currentPatients = Array.isArray(currentPatientsProvider()) ? currentPatientsProvider() : [];
+      const provenanceByPatientId = new Map(currentPatients.map((item) => [
+        String(item.patient_id || ""),
+        Array.isArray(item.dataset_names) ? item.dataset_names : [],
+      ]));
+      const showDataset = isMultiDatasetWorkspace();
       const rows = data.patients.slice(0, 100).map((item) => `
         <tr>
           <td>${escapeHtml(String(item.patient_id || ""))}</td>
+          ${showDataset ? `<td>${escapeHtml((provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
           <td>${escapeHtml(String(item.sex || ""))}</td>
           <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
           <td>${escapeHtml(String(item.medication_count ?? ""))}</td>
@@ -115,7 +123,7 @@ export function createQueryUi(ctx) {
       return `
         <div class="section-note">Matching patients (${data.patients.length}).</div>
         <table>
-          <thead><tr><th>Patient</th><th>Sex</th><th>Visits</th><th>Medications</th></tr></thead>
+          <thead><tr><th>Patient</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -274,10 +282,10 @@ export function createQueryUi(ctx) {
   function queryIntentPresentation(intent) {
     const value = String(intent || "unknown");
     const labels = {
-      semantic_cohort_query: { label: "Cohort query", title: "A cohort-style query result returned by the app." },
-      medication_cohort: { label: "Medication cohort", title: "Deterministic cohort lookup based on treatment labels in the dataset." },
-      disease_cohort: { label: "Disease cohort", title: "Deterministic cohort lookup based on disease labels in the dataset." },
-      patient_filter_cohort: { label: "Patient filter query", title: "Deterministic cohort filtering across multiple include or exclude conditions." },
+      semantic_cohort_query: { label: "Workspace query", title: "A workspace-style query result returned by the app." },
+      medication_cohort: { label: "Medication workspace query", title: "Deterministic workspace lookup based on treatment labels in the dataset." },
+      disease_cohort: { label: "Disease workspace query", title: "Deterministic workspace lookup based on disease labels in the dataset." },
+      patient_filter_cohort: { label: "Patient filter query", title: "Deterministic workspace filtering across multiple include or exclude conditions." },
       patient_transition_cohort: { label: "Transition query", title: "Deterministic query over patients who changed from one term to another over time." },
       patient_started_after_cohort: { label: "Started-after query", title: "Deterministic temporal query over patients who started one term after another." },
       patient_temporal_order_cohort: { label: "Temporal order query", title: "Deterministic temporal query over the order of events in patient timelines." },
@@ -330,7 +338,7 @@ export function createQueryUi(ctx) {
     state.queryTurns = [];
     state.queryExecutionMode = "auto";
     renderTopDiseaseChips();
-    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic cohort query.";
+    if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
     setLatestQueryState({ ids: [], prompt: "", analysisPrompt: "", idType: "patient" });
     queryMetaEl.innerHTML = "";
     queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
@@ -472,7 +480,7 @@ export function createQueryUi(ctx) {
       ids: patientIds,
       recordIds,
       prompt: questionEl.value.trim(),
-      analysisPrompt: patientIds.length ? "Interpret this selected cohort and summarize the main clinical and treatment patterns." : "",
+      analysisPrompt: patientIds.length ? "Interpret this selected workspace subset and summarize the main clinical and treatment patterns." : "",
       idType: "patient",
     });
     if (!patientIds.length) return "";

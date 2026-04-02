@@ -42,6 +42,7 @@
       const dataDirEl = document.getElementById("dataDir");
       const datasetPickerEl = document.getElementById("datasetPicker");
       const loadStatusEl = document.getElementById("loadStatus");
+      const datasetScopeSummaryEl = document.getElementById("datasetScopeSummary");
       const queryReplyEl = document.getElementById("queryReply");
       const queryStatusEl = document.getElementById("queryStatus");
       const queryMetaEl = document.getElementById("queryMeta");
@@ -88,6 +89,7 @@
       const analysisStatusEl = document.getElementById("analysisStatus");
       const analysisMetaEl = document.getElementById("analysisMeta");
       const analysisLmStatusEl = document.getElementById("analysisLmStatus");
+      const analysisDatasetScopeEl = document.getElementById("analysisDatasetScope");
       const analysisThreadEl = document.getElementById("analysisThread");
       const analysisSessionListEl = document.getElementById("analysisSessionList");
       const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
@@ -207,6 +209,7 @@
       let savedCohorts = [];
       let availableDatasets = [];
       let currentDatasetIds = [];
+      let pendingDatasetIds = [];
       let currentDatasetScopeId = "";
       let authState = {
         enabled: false,
@@ -320,11 +323,11 @@
         const scopeCount = String(session.scope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
         const compareCount = String(session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
         if (session.compareMode) {
-          const aLabel = scopeCount ? `${scopeCount} in A` : "full cohort in A";
-          const bLabel = compareCount ? `${compareCount} in B` : "full cohort in B";
+          const aLabel = scopeCount ? `${scopeCount} in A` : "full workspace in A";
+          const bLabel = compareCount ? `${compareCount} in B` : "full workspace in B";
           return `${aLabel} vs ${bLabel}`;
         }
-        return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
+        return scopeCount ? `${scopeCount} IDs in scope` : "Full workspace";
       }
 
       const analysisSessionsUi = createAnalysisSessionsUi({
@@ -471,9 +474,18 @@
         if (!loadBtnEl) {
           return;
         }
+        const activeIds = currentDatasetIds.slice();
+        const pendingIds = pendingDatasetSelectionIds();
+        const hasPendingChange = activeIds.length !== pendingIds.length
+          || activeIds.some((item, index) => item !== pendingIds[index]);
         loadBtnEl.classList.toggle("is-loading", Boolean(loadInFlight));
+        loadBtnEl.classList.toggle("has-pending-change", Boolean(hasPendingChange && !loadInFlight));
         if (loadBtnLabelEl) {
-          loadBtnLabelEl.textContent = loadInFlight ? "Loading..." : "Load dataset";
+          loadBtnLabelEl.textContent = loadInFlight
+            ? "Applying..."
+            : hasPendingChange
+              ? "Apply workspace"
+              : "Reload workspace";
         }
         if (loadBtnIconEl) {
           loadBtnIconEl.innerHTML = loadInFlight
@@ -504,7 +516,7 @@
       }
 
       function currentDatasetSelectionKey() {
-        const selected = currentDatasetIds.length ? currentDatasetIds.slice() : selectedDatasetIdsFromUi();
+        const selected = currentDatasetIds.length ? currentDatasetIds.slice() : [];
         if (!selected.length) {
           return "";
         }
@@ -521,11 +533,94 @@
         return availableDatasets.find((item) => String(item.dataset_id || "") === currentDatasetIds[0]) || null;
       }
 
+      function pendingDatasetSelectionIds() {
+        return pendingDatasetIds.length ? pendingDatasetIds.slice() : currentDatasetIds.slice();
+      }
+
+      function selectedDatasetRecords() {
+        const selected = new Set(currentDatasetIds);
+        return availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
+      }
+
+      function pendingDatasetRecords() {
+        const selected = new Set(pendingDatasetSelectionIds());
+        return availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
+      }
+
+      function datasetScopeLabel() {
+        const records = selectedDatasetRecords();
+        if (!records.length) {
+          return "No dataset selected";
+        }
+        const names = records
+          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
+          .filter(Boolean);
+        if (names.length <= 2) {
+          return names.join(" + ");
+        }
+        return `${names[0]}, ${names[1]} + ${names.length - 2} more`;
+      }
+
+      function pendingDatasetScopeLabel() {
+        const records = pendingDatasetRecords();
+        if (!records.length) {
+          return "No dataset selected";
+        }
+        const names = records
+          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
+          .filter(Boolean);
+        if (names.length <= 2) {
+          return names.join(" + ");
+        }
+        return `${names[0]}, ${names[1]} + ${names.length - 2} more`;
+      }
+
+      function datasetLabelsForIds(ids) {
+        const selected = new Set((Array.isArray(ids) ? ids : []).map((item) => String(item || "").trim()).filter(Boolean));
+        return availableDatasets
+          .filter((item) => selected.has(String(item.dataset_id || "")))
+          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
+          .filter(Boolean);
+      }
+
+      function renderAnalysisDatasetScope() {
+        if (!analysisDatasetScopeEl) {
+          return;
+        }
+        const labels = datasetLabelsForIds(currentDatasetIds);
+        analysisDatasetScopeEl.textContent = labels.length > 1
+          ? `Workspace datasets: ${labels.join(", ")}.`
+          : labels.length
+            ? `Workspace dataset: ${labels[0]}.`
+            : "Workspace dataset: none selected.";
+      }
+
+      function renderDatasetScopeSummary() {
+        if (!datasetScopeSummaryEl) {
+          return;
+        }
+        const records = selectedDatasetRecords();
+        if (!records.length) {
+          datasetScopeSummaryEl.textContent = "Active workspace: no dataset selected.";
+          return;
+        }
+        const selectedCount = records.length;
+        const authorizedCount = availableDatasets.length;
+        const noun = selectedCount === 1 ? "dataset" : "datasets";
+        const activeIds = currentDatasetIds.slice();
+        const pendingIds = pendingDatasetSelectionIds();
+        const sameSelection = activeIds.length === pendingIds.length && activeIds.every((item, index) => item === pendingIds[index]);
+        const base = `Active workspace: ${datasetScopeLabel()} (${selectedCount} ${noun}${authorizedCount ? `, ${authorizedCount} authorized` : ""}).`;
+        datasetScopeSummaryEl.textContent = sameSelection
+          ? base
+          : `${base} Pending workspace: ${pendingDatasetScopeLabel()}. Click Apply workspace to switch.`;
+      }
+
       function renderDatasetSelect() {
         if (!dataDirEl) {
           return;
         }
-        const selectedIds = new Set(currentDatasetIds);
+        const selectedIds = new Set(pendingDatasetSelectionIds());
         dataDirEl.innerHTML = "";
         if (!availableDatasets.length) {
           const option = document.createElement("option");
@@ -549,13 +644,15 @@
         dataDirEl.dataset.scopeId = currentDatasetSelectionKey();
         renderDatasetPicker();
         renderDatasetAdminList();
+        renderDatasetScopeSummary();
       }
 
       function renderDatasetPicker() {
         if (!datasetPickerEl) {
           return;
         }
-        const selectedIds = new Set(currentDatasetIds);
+        const selectedIds = new Set(pendingDatasetSelectionIds());
+        const activeIds = new Set(currentDatasetIds);
         if (!availableDatasets.length) {
           datasetPickerEl.innerHTML = '<div class="empty">No dataset available.</div>';
           return;
@@ -563,16 +660,28 @@
         datasetPickerEl.innerHTML = availableDatasets.map((dataset) => {
           const datasetId = String(dataset.dataset_id || "");
           const checked = selectedIds.has(datasetId);
+          const active = activeIds.has(datasetId);
           const visibility = String(dataset.visibility || "all_authenticated");
           const description = String(dataset.description || "").trim();
           const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
           const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+          const stateBadges = [];
+          if (active) {
+            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-active">Active</span>');
+          }
+          if (checked && !active) {
+            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-pending">Pending add</span>');
+          }
+          if (active && !checked) {
+            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-removal">Pending removal</span>');
+          }
           return `
-            <label class="dataset-picker-card${checked ? " is-selected" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
+            <label class="dataset-picker-card${checked ? " is-selected" : ""}${active ? " is-active" : ""}${checked && !active ? " is-pending-add" : ""}${active && !checked ? " is-pending-removal" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
               <input type="checkbox" data-dataset-checkbox="${escapeHtml(datasetId)}" ${checked ? "checked" : ""}>
               <div>
                 <div class="dataset-picker-title">
                   <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
+                  ${stateBadges.join("")}
                 </div>
                 <div class="dataset-picker-meta">
                   <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
@@ -614,6 +723,7 @@
                 <div class="dataset-picker-meta">
                   <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
                   <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                  ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
                   ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
                 </div>
                 ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
@@ -629,6 +739,10 @@
                   <div class="dataset-picker-access-row">
                     <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
                     <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
+                  </div>
+                  <div class="dataset-picker-access-row">
+                    <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
+                    <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
                   </div>
                   <div class="dataset-picker-access-actions">
                     <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save access</button>
@@ -646,11 +760,15 @@
         }
         const visibilityEl = datasetAdminListEl.querySelector(`[data-dataset-visibility="${CSS.escape(datasetId)}"]`);
         const groupsEl = datasetAdminListEl.querySelector(`[data-dataset-groups="${CSS.escape(datasetId)}"]`);
-        if (!visibilityEl || !groupsEl) {
+        const usersEl = datasetAdminListEl.querySelector(`[data-dataset-users="${CSS.escape(datasetId)}"]`);
+        if (!visibilityEl || !groupsEl || !usersEl) {
           return;
         }
-        const selectedDataset = availableDatasets.find((item) => String(item.dataset_id || "") === datasetId);
         const allowedGroups = String(groupsEl.value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const allowedUsers = String(usersEl.value || "")
           .split(",")
           .map((item) => item.trim())
           .filter(Boolean);
@@ -663,7 +781,7 @@
             body: JSON.stringify({
               visibility: visibilityEl.value,
               allowed_groups: allowedGroups,
-              allowed_users: Array.isArray(selectedDataset && selectedDataset.allowed_users) ? selectedDataset.allowed_users : [],
+              allowed_users: allowedUsers,
             }),
           });
           if (!response.ok) {
@@ -689,12 +807,10 @@
         Array.from(dataDirEl.options).forEach((option) => {
           option.selected = selected.includes(String(option.value || "").trim());
         });
-        currentDatasetIds = selected;
-        currentDatasetScopeId = currentDatasetSelectionKey();
-        dataDirEl.dataset.scopeId = currentDatasetScopeId;
+        pendingDatasetIds = selected;
         renderDatasetPicker();
         renderDatasetAdminList();
-        renderGlobalContext();
+        renderDatasetScopeSummary();
       }
 
       async function loadDatasets() {
@@ -709,19 +825,25 @@
           const payload = await response.json();
           availableDatasets = Array.isArray(payload.datasets) ? payload.datasets : [];
           currentDatasetIds = Array.isArray(payload.current_dataset_ids) ? payload.current_dataset_ids : [];
+          pendingDatasetIds = currentDatasetIds.slice();
           currentDatasetScopeId = String(payload.current_dataset_scope_id || "");
           renderDatasetSelect();
           if (dataDirEl) {
             dataDirEl.dataset.scopeId = currentDatasetScopeId;
           }
+          renderDatasetScopeSummary();
+          renderAnalysisDatasetScope();
         } catch (_error) {
           availableDatasets = [];
           currentDatasetIds = [];
+          pendingDatasetIds = [];
           currentDatasetScopeId = "";
           renderDatasetSelect();
           if (dataDirEl) {
             dataDirEl.dataset.scopeId = "";
           }
+          renderDatasetScopeSummary();
+          renderAnalysisDatasetScope();
         }
       }
 
@@ -997,6 +1119,8 @@
           renderAnalysisCompareScopeSummary,
           renderSelectedPatientIdsSummary,
           renderGlobalContext,
+          datasetLabelsForIds,
+          currentDatasetIds: () => currentDatasetIds.slice(),
           currentTabName,
           queryStatusEl: () => queryStatusEl,
         },
@@ -1097,7 +1221,7 @@
         if (tabName === "pheno") {
           const ids = getCurrentScopeIds();
           if (!ids.length && !phenoSelectedSavedCohortIds.length) {
-            return "Full cohort";
+            return "Full workspace";
           }
           if (phenoSelectedSavedCohortIds.length) {
             return `${phenoSelectedSavedCohortIds.length} saved cohort${phenoSelectedSavedCohortIds.length === 1 ? "" : "s"}`;
@@ -1123,7 +1247,7 @@
             return `${labelA} vs ${labelB}`;
           }
           if (!ids.length) {
-            return "Full cohort";
+            return "Full workspace";
           }
           return `${ids.length} IDs in Analysis scope`;
         }
@@ -1146,11 +1270,11 @@
             return `${labelA} vs ${labelB}`;
           }
           if (!ids.length) {
-            return "Full cohort";
+            return "Full workspace";
           }
           return `${ids.length} IDs in Molecular scope`;
         }
-        return "Full cohort";
+        return "Full workspace";
       }
 
       function renderGlobalContext() {
@@ -1161,7 +1285,7 @@
         contextDataDirEl.textContent = dataset
           ? String(dataset.name || dataset.dataset_id || "Dataset")
           : (currentDatasetIds.length > 1
-            ? `${currentDatasetIds.length} datasets selected`
+            ? datasetScopeLabel()
             : (currentDatasetSelectionKey() || "Not configured"));
 
         if (dashboardSummaryState && dashboardSummaryState.totals) {
@@ -1518,6 +1642,7 @@
         callbacks: {
           renderGlobalContext,
           syncCurrentAnalysisSessionFromUi,
+          isMultiDatasetWorkspace: () => currentDatasetIds.length > 1,
         },
         state: {
           get selectedPatientId() { return selectedPatientId; },
@@ -1602,6 +1727,7 @@
           sendPromptToAnalysis,
           currentPatientsProvider: () => currentPatients,
           phenoRankerPatientIdsProvider: () => phenoRankerPatientIds,
+          isMultiDatasetWorkspace: () => currentDatasetIds.length > 1,
           setLatestQueryState: (patch) => {
             if (Object.prototype.hasOwnProperty.call(patch, 'ids')) {
               latestQueryPatientIds = Array.isArray(patch.ids) ? patch.ids : [];
@@ -1730,8 +1856,8 @@
         syncCurrentAnalysisSessionFromUi({ render: true });
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = latestQueryRecordIds.length
-          ? `Loaded ${latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`
-          : `Loaded ${latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this cohort.`;
+          ? `Loaded ${latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`
+          : `Loaded ${latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`;
       }
 
       function sendPromptToAnalysis(prompt, options) {
@@ -1747,8 +1873,8 @@
         syncCurrentAnalysisSessionFromUi({ render: true });
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = latestQueryPatientIds.length
-          ? `Analysis prompt prepared for the ${latestQueryPatientIds.length}-ID cohort currently loaded from Query.`
-          : "Analysis prompt prepared. Select a scope or use the full cohort.";
+          ? `Analysis prompt prepared for the ${latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
+          : "Analysis prompt prepared. Select a scope or use the full workspace.";
         analysisPromptEl.focus();
       }
 
@@ -1938,13 +2064,14 @@
 
         try {
           const datasetId = encodeURIComponent(currentDatasetId());
-          const selectedIds = selectedDatasetIdsFromUi();
+          const selectedIds = pendingDatasetSelectionIds();
           await fetch("/datasets/select", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ dataset_ids: selectedIds }),
           });
           currentDatasetIds = selectedIds.slice();
+          pendingDatasetIds = selectedIds.slice();
           currentDatasetScopeId = currentDatasetSelectionKey();
           if (dataDirEl) {
             dataDirEl.dataset.scopeId = currentDatasetScopeId;

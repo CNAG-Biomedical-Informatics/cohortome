@@ -497,7 +497,7 @@ export function createAnalysisUi(ctx) {
   function analysisIntentPresentation(intent) {
     const value = String(intent || "analysis");
     const labels = {
-      analysis_deterministic: { label: "Cohort summary", title: "Deterministic cohort summary produced by the app." },
+      analysis_deterministic: { label: "Workspace summary", title: "Deterministic workspace summary produced by the app." },
       analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
       analysis_molecular_expression: { label: "Molecular expression", title: "Deterministic molecular expression summary across the loaded molecular datasets." },
       analysis_molecular_medication_compare: { label: "Molecular by medication", title: "Deterministic molecular comparison aligned to medication-specific datasets." },
@@ -543,7 +543,7 @@ export function createAnalysisUi(ctx) {
 
   function formatAnalysisScopeLabel(scopeValue) {
     const ids = String(scopeValue || "").split(",").map((item) => item.trim()).filter(Boolean);
-    if (!ids.length) return "Full cohort";
+    if (!ids.length) return "Full workspace";
     const preview = ids.slice(0, 6).join(", ");
     const suffix = ids.length > 6 ? ` ... (+${ids.length - 6} more)` : "";
     return `${ids.length} IDs: ${preview}${suffix}`;

@@ -41,13 +41,17 @@ def inventory_prompt_matches(text: str, entity: str) -> bool:
         "list {term}",
         "list of {term}",
         "{term} in the cohort",
+        "{term} in the workspace",
         "{term} ids in the cohort",
+        "{term} ids in the workspace",
         "{term} ids",
         "list all {term}",
         "show all {term}",
         "tell me the list of {term}",
         "which {term} are in the cohort",
+        "which {term} are in the workspace",
         "who is in the cohort",
+        "who is in the workspace",
     )
     for synonym in entity_synonyms(entity):
         for template in templates:
