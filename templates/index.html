@@ -18,6 +18,7 @@
           <div class="hero-copy">
             <h1>{{ branding.name }}</h1>
             <p>{{ branding.subtitle }}</p>
+            <div class="hero-powered-by">Patient Navigator platform</div>
           </div>
         </div>
       </div>
@@ -25,7 +26,10 @@
       <section id="authGate" class="auth-gate{% if not auth_enabled %} is-hidden{% endif %}">
         <div class="auth-gate-card">
           <div class="auth-gate-copy">
-            <h2>Sign in</h2>
+            <div class="auth-gate-heading">
+              <img class="auth-gate-heading-logo" src="/static/img/patient-navigator-logo.png" alt="Patient Navigator logo">
+              <h2>Sign in</h2>
+            </div>
             <p>Authentication is required before any clinical, molecular, or analysis workspace is shown.</p>
           </div>
           <div id="authGateStatus" class="section-note">Enter your credentials to open your private workspace.</div>
@@ -55,6 +59,7 @@
           <div class="hero-copy">
             <h1>{{ branding.name }}</h1>
             <p>{{ branding.subtitle }}</p>
+            <div class="hero-powered-by">Patient Navigator platform</div>
           </div>
         </div>
         <div id="heroAuthUtility" class="hero-utility is-hidden">

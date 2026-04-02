@@ -69,6 +69,7 @@ export function createPhenoUi(ctx) {
     stopPhenoPlanProgressUpdates,
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
+    saveIdsAsCohort,
     getSelectedSavedCohortIds,
     getCurrentScopeIds,
     onPatientIdsLoaded,
@@ -1102,7 +1103,7 @@ export function createPhenoUi(ctx) {
       return;
     }
     const interactiveCard = mdsPointsFile
-      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive MDS</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis.</div></div></details>`
+      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive MDS</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="mds">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis or save them as a cohort.</div></div></details>`
       : "";
     const heatmapCard = matrixFile
       ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Heatmap</strong></summary><div class="pheno-preview-body"><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div></details>`
@@ -1393,6 +1394,29 @@ export function createPhenoUi(ctx) {
       : `Loaded ${selectedIds.length} sample IDs from the selected MDS subgroup into Analysis.`;
   }
 
+  async function saveSelectedPhenoPlotIdsAsCohort(kind, triggerButton) {
+    const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
+    if (!selectedIds.length) {
+      phenoStatusEl.className = "pheno-status";
+      phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
+      flashPhenoActionFeedback(triggerButton, "No IDs");
+      return;
+    }
+    const patientIds = collapsePhenoRecordIdsToPatientIds(selectedIds);
+    const saved = await saveIdsAsCohort({
+      sampleIds: selectedIds,
+      patientIds,
+      sourceKind: "pheno_ranker_selection",
+      sourcePrompt: kind === "heatmap"
+        ? "Selected subgroup from Pheno-Ranker heatmap"
+        : "Selected subgroup from Pheno-Ranker MDS",
+      statusTarget: "pheno",
+    });
+    if (saved) {
+      flashPhenoActionFeedback(triggerButton, "Saved");
+    }
+  }
+
   async function runPhenoRanker(usePromptPlanner = true) {
     if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides) {
       const payload = await requestPhenoPlan(false);
@@ -1608,6 +1632,10 @@ export function createPhenoUi(ctx) {
     const kind = button.dataset.phenoPlotKind === "heatmap" ? "heatmap" : "mds";
     if (button.dataset.phenoPlotAction === "copy") {
       void copySelectedPhenoPlotIds(kind, button);
+      return;
+    }
+    if (button.dataset.phenoPlotAction === "save-cohort") {
+      void saveSelectedPhenoPlotIdsAsCohort(kind, button);
       return;
     }
     if (button.dataset.phenoPlotAction === "analysis") {

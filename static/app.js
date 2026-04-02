@@ -1210,6 +1210,10 @@
         await savedCohortsUi.saveLatestQueryAsCohort();
       }
 
+      async function saveIdsAsCohort(options) {
+        return savedCohortsUi.saveIdsAsCohort(options);
+      }
+
       function removeSavedCohortFromPheno(cohortId) {
         savedCohortsUi.removeSavedCohortFromPheno(cohortId);
       }
@@ -2023,6 +2027,7 @@
           stopPhenoPlanProgressUpdates,
           startPhenoRunProgressUpdates,
           stopPhenoRunProgressUpdates,
+          saveIdsAsCohort,
           getSelectedSavedCohortIds: () => phenoSelectedSavedCohortIds.slice(),
           getCurrentScopeIds,
           onPatientIdsLoaded: (ids) => { phenoRankerPatientIds = ids.slice(); },

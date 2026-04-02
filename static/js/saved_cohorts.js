@@ -159,6 +159,59 @@ export function createSavedCohortsUi(ctx) {
     }
   }
 
+  async function saveIdsAsCohort(options = {}) {
+    const sampleIds = Array.isArray(options.sampleIds) ? options.sampleIds.filter(Boolean) : [];
+    const patientIds = Array.isArray(options.patientIds) ? options.patientIds.filter(Boolean) : [];
+    const sourcePrompt = String(options.sourcePrompt || "").trim();
+    const sourceKind = String(options.sourceKind || "manual").trim() || "manual";
+    const statusTarget = options.statusTarget === "pheno" ? "pheno" : "analysis";
+    const defaultName = sourcePrompt
+      ? sourcePrompt.slice(0, 80)
+      : `Saved cohort ${new Date().toLocaleString()}`;
+    const name = window.prompt("Cohort name", defaultName);
+    if (name === null) return false;
+    try {
+      const response = await fetch("/saved-cohorts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
+          dataset_ids: currentDatasetIds(),
+          sample_ids: sampleIds,
+          patient_ids: patientIds,
+          id_type: sampleIds.length ? "sample" : "patient",
+          source_kind: sourceKind,
+          source_prompt: sourcePrompt,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(String(payload.detail || "Unable to save cohort."));
+      }
+      await loadSavedCohorts();
+      const normalizedName = (name || defaultName).trim();
+      if (statusTarget === "pheno") {
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = `Saved cohort "${normalizedName}".`;
+      } else {
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Saved cohort "${normalizedName}".`;
+      }
+      return true;
+    } catch (error) {
+      const message = error && error.message ? error.message : "Unable to save cohort.";
+      if (statusTarget === "pheno") {
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = message;
+      } else {
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = message;
+      }
+      return false;
+    }
+  }
+
   async function deleteSavedCohortById(cohortId) {
     try {
       const response = await fetch(`/saved-cohorts/${encodeURIComponent(cohortId)}`, { method: "DELETE" });
@@ -262,6 +315,7 @@ export function createSavedCohortsUi(ctx) {
     renderSavedCohorts,
     loadSavedCohorts,
     saveLatestQueryAsCohort,
+    saveIdsAsCohort,
     removeSavedCohortFromPheno,
     handleSavedCohortAction,
     clearSavedCohortFromAnalysis,

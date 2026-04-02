@@ -211,6 +211,14 @@
         color: color-mix(in srgb, var(--ink) 78%, white);
         font-weight: 600;
       }
+      .hero-powered-by {
+        margin-top: 6px;
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 700;
+      }
       .hero-logo {
         width: 64px;
         height: 64px;
@@ -276,6 +284,17 @@
       .auth-gate-copy {
         display: grid;
         gap: 8px;
+      }
+      .auth-gate-heading {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .auth-gate-heading-logo {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        flex: 0 0 auto;
       }
       .auth-gate-copy h2 {
         margin: 0;
