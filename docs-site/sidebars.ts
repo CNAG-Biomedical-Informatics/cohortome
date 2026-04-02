@@ -33,6 +33,7 @@ const sidebars: SidebarsConfig = {
       label: 'Developer Guide',
       items: [
         'developer-guide/architecture',
+        'developer-guide/api-reference',
       ],
     },
   ],

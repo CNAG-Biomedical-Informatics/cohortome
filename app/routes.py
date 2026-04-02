@@ -53,14 +53,26 @@ from app.schemas import (
     AnalysisRequest,
     AnalysisSessionRenameRequest,
     AnalysisSessionRequest,
+    AuthDiagnosticsResponse,
+    AuthStatusResponse,
+    AuthUsersResponse,
+    DatasetRecordResponse,
     DatasetRegistrationRequest,
+    DatasetsResponse,
+    DatasetSelectionResponse,
     DatasetSelectionRequest,
     DatasetUpdateRequest,
+    DeleteResponse,
     MolecularExpressionRequest,
+    MolecularDatasetsResponse,
+    LmStatusResponse,
+    PatientSummaryResponse,
     PhenoRankerPlanRequest,
     PhenoRankerRequest,
     QueryRequest,
     SavedCohortRequest,
+    SavedCohortResponse,
+    SavedCohortsResponse,
     LoginRequest,
 )
 from app.query import answer_query
@@ -566,42 +578,42 @@ def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAUL
 def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     init_routes_templates(template_engine)
 
-    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse)
-    app.add_api_route("/patients", get_patients, methods=["GET"])
-    app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"])
-    app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"])
-    app.add_api_route("/cohorts/medications", get_medication_counts, methods=["GET"])
-    app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"])
-    app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"])
-    app.add_api_route("/query", query_app, methods=["GET"])
-    app.add_api_route("/lm-status", get_lm_status, methods=["GET"])
-    app.add_api_route("/auth/me", get_auth_status, methods=["GET"])
-    app.add_api_route("/auth/login", login_local, methods=["POST"])
-    app.add_api_route("/auth/logout", logout_local, methods=["POST"])
-    app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"])
-    app.add_api_route("/auth/users", get_auth_users, methods=["GET"])
-    app.add_api_route("/datasets", get_datasets, methods=["GET"])
-    app.add_api_route("/datasets/select", select_dataset, methods=["POST"])
-    app.add_api_route("/datasets", create_dataset_route, methods=["POST"])
-    app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"])
-    app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"])
-    app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"])
-    app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"])
-    app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"])
-    app.add_api_route("/query", query_app_post, methods=["POST"])
-    app.add_api_route("/analysis", analysis_app, methods=["POST"])
-    app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"])
-    app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"])
-    app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"])
-    app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"])
-    app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"])
-    app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"])
-    app.add_api_route("/analysis-sessions/{session_id}", remove_analysis_session, methods=["DELETE"])
-    app.add_api_route("/pheno-ranker/run", run_pheno_ranker_route, methods=["POST"])
-    app.add_api_route("/pheno-ranker/plan", plan_pheno_ranker_route, methods=["POST"])
-    app.add_api_route("/pheno-ranker/patient-ids", get_pheno_ranker_patient_ids, methods=["GET"])
-    app.add_api_route("/pheno-ranker/results/{job_id}/{filename}", get_pheno_ranker_result, methods=["GET"])
-    app.add_api_route("/pheno-ranker/alignment/{job_id}", get_pheno_ranker_alignment, methods=["GET"])
-    app.add_api_route("/pheno-ranker/explain/{job_id}", explain_pheno_ranker_results, methods=["GET"])
-    app.add_api_route("/pheno-ranker/explain-llm/{job_id}", explain_pheno_ranker_results_llm, methods=["GET"])
-    app.add_api_route("/dashboard", get_dashboard, methods=["GET"])
+    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Patient Navigator HTML shell with the current branding and authenticated user context.")
+    app.add_api_route("/patients", get_patients, methods=["GET"], tags=["patients"], summary="List patient summaries", description="Returns patient-level summaries for the active dataset or workspace scope.", response_model=List[PatientSummaryResponse])
+    app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"], tags=["patients"], summary="Get a patient context", description="Returns the normalized clinical context for a single patient identifier.")
+    app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"], tags=["patients"], summary="Get a patient navigator view", description="Returns the timeline-oriented patient navigator payload used by the patient detail view.")
+    app.add_api_route("/cohorts/medications", get_medication_counts, methods=["GET"], tags=["patients"], summary="Count medications in the workspace", description="Returns medication counts derived from the active workspace.")
+    app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"], tags=["patients"], summary="Count diseases in the workspace", description="Returns disease counts derived from the active workspace.")
+    app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
+    app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
+    app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
+    app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"], tags=["auth"], summary="Inspect auth diagnostics", description="Returns local-auth diagnostics useful during development and deployment troubleshooting.", response_model=AuthDiagnosticsResponse)
+    app.add_api_route("/auth/users", get_auth_users, methods=["GET"], tags=["auth"], summary="List visible local users", description="Returns local users and groups. When auth is enabled, this endpoint is admin-only.", response_model=AuthUsersResponse)
+    app.add_api_route("/datasets", get_datasets, methods=["GET"], tags=["datasets"], summary="List authorized datasets", description="Returns datasets visible to the current user plus the currently active workspace selection.", response_model=DatasetsResponse)
+    app.add_api_route("/datasets/select", select_dataset, methods=["POST"], tags=["datasets"], summary="Select the active dataset workspace", description="Applies one or more authorized dataset IDs as the current workspace for the authenticated user.", response_model=DatasetSelectionResponse)
+    app.add_api_route("/datasets", create_dataset_route, methods=["POST"], tags=["datasets"], summary="Register a dataset", description="Creates a new dataset registry entry. Admin-only.", response_model=DatasetRecordResponse)
+    app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"], tags=["datasets"], summary="Update dataset metadata and access", description="Updates dataset metadata, visibility, or access policy. Admin-only.", response_model=DatasetRecordResponse)
+    app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"], tags=["ui"], summary="Serve the configured branding logo", description="Returns the current instance branding logo file if one is configured.")
+    app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"], tags=["cohorts"], summary="List saved cohorts", description="Returns saved cohorts for the current user within the active dataset workspace.", response_model=SavedCohortsResponse)
+    app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"], tags=["cohorts"], summary="Create a saved cohort", description="Persists a saved cohort containing canonical sample IDs and derived patient IDs.", response_model=SavedCohortResponse)
+    app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"], tags=["cohorts"], summary="Delete a saved cohort", description="Deletes a saved cohort owned by the current user.", response_model=DeleteResponse)
+    app.add_api_route("/query", query_app_post, methods=["POST"], tags=["query"], summary="Run a workspace query", description="Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.")
+    app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or molecular analysis over the active workspace or selected saved cohorts.")
+    app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"], tags=["molecular"], summary="List molecular datasets in scope", description="Returns transcriptomic datasets visible in the current workspace.", response_model=MolecularDatasetsResponse)
+    app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"], tags=["molecular"], summary="Search genes in a molecular dataset", description="Returns gene identifiers for a selected molecular dataset with optional search and limit filtering.")
+    app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"], tags=["molecular"], summary="Summarize gene expression", description="Returns scoped gene expression summaries for one molecular dataset, optionally comparing cohort A and cohort B.")
+    app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"], tags=["analysis"], summary="List saved analysis sessions", description="Returns persisted analysis sessions for the current user.")
+    app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"], tags=["analysis"], summary="Create or update an analysis session", description="Persists analysis session state, including prompt draft, scopes, and prior turns.")
+    app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"], tags=["analysis"], summary="Rename an analysis session", description="Updates the title of a saved analysis session.")
+    app.add_api_route("/analysis-sessions/{session_id}", remove_analysis_session, methods=["DELETE"], tags=["analysis"], summary="Delete an analysis session", description="Deletes a saved analysis session for the current user.", response_model=DeleteResponse)
+    app.add_api_route("/pheno-ranker/run", run_pheno_ranker_route, methods=["POST"], tags=["pheno-ranker"], summary="Run Pheno-Ranker", description="Runs Pheno-Ranker for the active workspace using either patient mode or cohort mode.")
+    app.add_api_route("/pheno-ranker/plan", plan_pheno_ranker_route, methods=["POST"], tags=["pheno-ranker"], summary="Plan a Pheno-Ranker run", description="Converts a natural-language request into a normalized Pheno-Ranker execution plan.")
+    app.add_api_route("/pheno-ranker/patient-ids", get_pheno_ranker_patient_ids, methods=["GET"], tags=["pheno-ranker"], summary="List Pheno-Ranker scope IDs", description="Returns the sample-level identifiers currently available to Pheno-Ranker in the active workspace.")
+    app.add_api_route("/pheno-ranker/results/{job_id}/{filename}", get_pheno_ranker_result, methods=["GET"], tags=["pheno-ranker"], summary="Download a Pheno-Ranker result file", description="Returns a generated Pheno-Ranker result artifact for a specific job.")
+    app.add_api_route("/pheno-ranker/alignment/{job_id}", get_pheno_ranker_alignment, methods=["GET"], tags=["pheno-ranker"], summary="Get alignment details for one match", description="Returns the term-level alignment details between a target and a selected Pheno-Ranker match.")
+    app.add_api_route("/pheno-ranker/explain/{job_id}", explain_pheno_ranker_results, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results deterministically", description="Builds a deterministic summary from the top ranked Pheno-Ranker matches.")
+    app.add_api_route("/pheno-ranker/explain-llm/{job_id}", explain_pheno_ranker_results_llm, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results with the LLM", description="Builds an LLM-assisted explanation from the top ranked Pheno-Ranker matches.")
+    app.add_api_route("/dashboard", get_dashboard, methods=["GET"], tags=["patients"], summary="Get the dashboard summary", description="Returns the dashboard summary payload used by the clinical and molecular overview panels.")

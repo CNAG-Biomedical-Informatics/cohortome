@@ -2136,6 +2136,10 @@
           if (dataDirEl) {
             dataDirEl.dataset.scopeId = currentDatasetScopeId;
           }
+          renderDatasetPicker();
+          renderDatasetAdminList();
+          renderDatasetScopeSummary();
+          renderLoadButtonState();
           prepareAnalysisSessionForDataDir(currentDatasetSelectionKey());
           resetQueryWorkspace();
           await loadSavedCohorts();
@@ -2231,11 +2235,10 @@
       }
 
       dataDirEl && dataDirEl.addEventListener("change", () => {
-        currentDatasetIds = selectedDatasetIdsFromUi();
-        currentDatasetScopeId = currentDatasetSelectionKey();
-        dataDirEl.dataset.scopeId = currentDatasetScopeId;
+        pendingDatasetIds = selectedDatasetIdsFromUi();
         renderDatasetPicker();
-        renderGlobalContext();
+        renderDatasetAdminList();
+        renderDatasetScopeSummary();
       });
       datasetPickerEl && datasetPickerEl.addEventListener("change", (event) => {
         const checkbox = event.target.closest("[data-dataset-checkbox]");

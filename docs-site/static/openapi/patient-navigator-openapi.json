@@ -1,0 +1,2987 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Patient Navigator API",
+    "summary": "Workspace-oriented clinical and molecular exploration API.",
+    "description": "Patient Navigator exposes a browser-facing API for multi-dataset workspace selection, clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "ui"
+        ],
+        "summary": "Render the main application shell",
+        "description": "Serves the Patient Navigator HTML shell with the current branding and authenticated user context.",
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "List patient summaries",
+        "description": "Returns patient-level summaries for the active dataset or workspace scope.",
+        "operationId": "get_patients_patients_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientSummaryResponse"
+                  },
+                  "title": "Response Get Patients Patients Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get a patient context",
+        "description": "Returns the normalized clinical context for a single patient identifier.",
+        "operationId": "get_patient_patients__patient_id__get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Patient Patients  Patient Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patient_id}/navigator": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get a patient navigator view",
+        "description": "Returns the timeline-oriented patient navigator payload used by the patient detail view.",
+        "operationId": "get_patient_navigator_patients__patient_id__navigator_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Patient Navigator Patients  Patient Id  Navigator Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cohorts/medications": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Count medications in the workspace",
+        "description": "Returns medication counts derived from the active workspace.",
+        "operationId": "get_medication_counts_cohorts_medications_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response Get Medication Counts Cohorts Medications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cohorts/diseases": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Count diseases in the workspace",
+        "description": "Returns disease counts derived from the active workspace.",
+        "operationId": "get_disease_counts_cohorts_diseases_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response Get Disease Counts Cohorts Diseases Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cohorts/medications/search": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Build a medication workspace",
+        "description": "Returns the deterministic medication-matched workspace subset for a single medication label.",
+        "operationId": "search_medication_cohort_cohorts_medications_search_get",
+        "parameters": [
+          {
+            "name": "medication",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Medication"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Search Medication Cohort Cohorts Medications Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query": {
+      "get": {
+        "tags": [
+          "query"
+        ],
+        "summary": "Run a simple GET workspace query",
+        "description": "Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.",
+        "operationId": "query_app_query_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Query App Query Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "query"
+        ],
+        "summary": "Run a workspace query",
+        "description": "Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.",
+        "operationId": "query_app_post_query_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Query App Post Query Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lm-status": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Inspect configured LM status",
+        "description": "Returns whether LM Studio is enabled plus the current model and base URL.",
+        "operationId": "get_lm_status_lm_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get current authentication state",
+        "description": "Returns the current local-auth session state and visible user identity.",
+        "operationId": "get_auth_status_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log in with local credentials",
+        "description": "Authenticates a local user and creates a session-backed login.",
+        "operationId": "login_local_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log out the current user",
+        "description": "Clears the local session for the current user.",
+        "operationId": "logout_local_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/debug": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Inspect auth diagnostics",
+        "description": "Returns local-auth diagnostics useful during development and deployment troubleshooting.",
+        "operationId": "get_auth_diagnostics_auth_debug_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthDiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/users": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List visible local users",
+        "description": "Returns local users and groups. When auth is enabled, this endpoint is admin-only.",
+        "operationId": "get_auth_users_auth_users_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUsersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets": {
+      "get": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "List authorized datasets",
+        "description": "Returns datasets visible to the current user plus the currently active workspace selection.",
+        "operationId": "get_datasets_datasets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Register a dataset",
+        "description": "Creates a new dataset registry entry. Admin-only.",
+        "operationId": "create_dataset_route_datasets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetRecordResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/select": {
+      "post": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Select the active dataset workspace",
+        "description": "Applies one or more authorized dataset IDs as the current workspace for the authenticated user.",
+        "operationId": "select_dataset_datasets_select_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetSelectionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{dataset_id}": {
+      "patch": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Update dataset metadata and access",
+        "description": "Updates dataset metadata, visibility, or access policy. Admin-only.",
+        "operationId": "update_dataset_route_datasets__dataset_id__patch",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetRecordResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/branding/logo": {
+      "get": {
+        "tags": [
+          "ui"
+        ],
+        "summary": "Serve the configured branding logo",
+        "description": "Returns the current instance branding logo file if one is configured.",
+        "operationId": "get_branding_logo_branding_logo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/saved-cohorts": {
+      "get": {
+        "tags": [
+          "cohorts"
+        ],
+        "summary": "List saved cohorts",
+        "description": "Returns saved cohorts for the current user within the active dataset workspace.",
+        "operationId": "get_saved_cohorts_saved_cohorts_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedCohortsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "cohorts"
+        ],
+        "summary": "Create a saved cohort",
+        "description": "Persists a saved cohort containing canonical sample IDs and derived patient IDs.",
+        "operationId": "create_saved_cohort_saved_cohorts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedCohortRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedCohortResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/saved-cohorts/{cohort_id}": {
+      "delete": {
+        "tags": [
+          "cohorts"
+        ],
+        "summary": "Delete a saved cohort",
+        "description": "Deletes a saved cohort owned by the current user.",
+        "operationId": "remove_saved_cohort_saved_cohorts__cohort_id__delete",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cohort Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analysis": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Run a workspace analysis",
+        "description": "Executes clinical or molecular analysis over the active workspace or selected saved cohorts.",
+        "operationId": "analysis_app_analysis_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Analysis App Analysis Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/molecular/datasets": {
+      "get": {
+        "tags": [
+          "molecular"
+        ],
+        "summary": "List molecular datasets in scope",
+        "description": "Returns transcriptomic datasets visible in the current workspace.",
+        "operationId": "get_molecular_datasets_molecular_datasets_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MolecularDatasetsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/molecular/genes": {
+      "get": {
+        "tags": [
+          "molecular"
+        ],
+        "summary": "Search genes in a molecular dataset",
+        "description": "Returns gene identifiers for a selected molecular dataset with optional search and limit filtering.",
+        "operationId": "get_molecular_genes_molecular_genes_get",
+        "parameters": [
+          {
+            "name": "dataset_name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Name"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Molecular Genes Molecular Genes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/molecular/expression": {
+      "post": {
+        "tags": [
+          "molecular"
+        ],
+        "summary": "Summarize gene expression",
+        "description": "Returns scoped gene expression summaries for one molecular dataset, optionally comparing cohort A and cohort B.",
+        "operationId": "get_molecular_expression_molecular_expression_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MolecularExpressionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Molecular Expression Molecular Expression Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analysis-sessions": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List saved analysis sessions",
+        "description": "Returns persisted analysis sessions for the current user.",
+        "operationId": "get_analysis_sessions_analysis_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Analysis Sessions Analysis Sessions Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Create or update an analysis session",
+        "description": "Persists analysis session state, including prompt draft, scopes, and prior turns.",
+        "operationId": "create_or_update_analysis_session_analysis_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Create Or Update Analysis Session Analysis Sessions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analysis-sessions/{session_id}": {
+      "patch": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Rename an analysis session",
+        "description": "Updates the title of a saved analysis session.",
+        "operationId": "update_analysis_session_title_analysis_sessions__session_id__patch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisSessionRenameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Update Analysis Session Title Analysis Sessions  Session Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Delete an analysis session",
+        "description": "Deletes a saved analysis session for the current user.",
+        "operationId": "remove_analysis_session_analysis_sessions__session_id__delete",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/run": {
+      "post": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Run Pheno-Ranker",
+        "description": "Runs Pheno-Ranker for the active workspace using either patient mode or cohort mode.",
+        "operationId": "run_pheno_ranker_route_pheno_ranker_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhenoRankerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Run Pheno Ranker Route Pheno Ranker Run Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/plan": {
+      "post": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Plan a Pheno-Ranker run",
+        "description": "Converts a natural-language request into a normalized Pheno-Ranker execution plan.",
+        "operationId": "plan_pheno_ranker_route_pheno_ranker_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhenoRankerPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Plan Pheno Ranker Route Pheno Ranker Plan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/patient-ids": {
+      "get": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "List Pheno-Ranker scope IDs",
+        "description": "Returns the sample-level identifiers currently available to Pheno-Ranker in the active workspace.",
+        "operationId": "get_pheno_ranker_patient_ids_pheno_ranker_patient_ids_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Pheno Ranker Patient Ids Pheno Ranker Patient Ids Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/results/{job_id}/{filename}": {
+      "get": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Download a Pheno-Ranker result file",
+        "description": "Returns a generated Pheno-Ranker result artifact for a specific job.",
+        "operationId": "get_pheno_ranker_result_pheno_ranker_results__job_id___filename__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/alignment/{job_id}": {
+      "get": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Get alignment details for one match",
+        "description": "Returns the term-level alignment details between a target and a selected Pheno-Ranker match.",
+        "operationId": "get_pheno_ranker_alignment_pheno_ranker_alignment__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "reference_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reference Id"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Pheno Ranker Alignment Pheno Ranker Alignment  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/explain/{job_id}": {
+      "get": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Explain Pheno-Ranker results deterministically",
+        "description": "Builds a deterministic summary from the top ranked Pheno-Ranker matches.",
+        "operationId": "explain_pheno_ranker_results_pheno_ranker_explain__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "top_n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "title": "Top N"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Explain Pheno Ranker Results Pheno Ranker Explain  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pheno-ranker/explain-llm/{job_id}": {
+      "get": {
+        "tags": [
+          "pheno-ranker"
+        ],
+        "summary": "Explain Pheno-Ranker results with the LLM",
+        "description": "Builds an LLM-assisted explanation from the top ranked Pheno-Ranker matches.",
+        "operationId": "explain_pheno_ranker_results_llm_pheno_ranker_explain_llm__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "top_n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "title": "Top N"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Explain Pheno Ranker Results Llm Pheno Ranker Explain Llm  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get the dashboard summary",
+        "description": "Returns the dashboard summary payload used by the clinical and molecular overview panels.",
+        "operationId": "get_dashboard_dashboard_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Dashboard Dashboard Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "Natural-language analysis prompt.",
+            "examples": [
+              "Summarize the main workspace patterns and tell me what stands out."
+            ]
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for the analysis workspace.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "selected_patient_ids": {
+            "type": "string",
+            "title": "Selected Patient Ids",
+            "description": "Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.",
+            "default": ""
+          },
+          "compare_mode": {
+            "type": "boolean",
+            "title": "Compare Mode",
+            "description": "Whether to run a compare-mode analysis using cohort A vs cohort B.",
+            "default": false
+          },
+          "compare_selected_patient_ids": {
+            "type": "string",
+            "title": "Compare Selected Patient Ids",
+            "description": "Comma-separated scope IDs for cohort B when compare_mode is enabled.",
+            "default": ""
+          },
+          "llm_only": {
+            "type": "boolean",
+            "title": "Llm Only",
+            "description": "Force LLM-only analysis mode.",
+            "default": false
+          },
+          "deterministic_only": {
+            "type": "boolean",
+            "title": "Deterministic Only",
+            "description": "Force deterministic-only analysis mode.",
+            "default": false
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/QueryTurn"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "title": "AnalysisRequest"
+      },
+      "AnalysisSessionRenameRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "New title for the analysis session.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AnalysisSessionRenameRequest"
+      },
+      "AnalysisSessionRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Client-generated analysis session identifier."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Optional user-facing session title.",
+            "default": ""
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for the session.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "prompt_draft": {
+            "type": "string",
+            "title": "Prompt Draft",
+            "description": "Current draft prompt stored for the session.",
+            "default": ""
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "description": "Comma-separated scope IDs for cohort A.",
+            "default": ""
+          },
+          "saved_cohort_id_a": {
+            "type": "string",
+            "title": "Saved Cohort Id A",
+            "description": "Saved cohort ID currently assigned to cohort A, if any.",
+            "default": ""
+          },
+          "compare_mode": {
+            "type": "boolean",
+            "title": "Compare Mode",
+            "description": "Whether the session is in compare mode.",
+            "default": false
+          },
+          "compare_scope": {
+            "type": "string",
+            "title": "Compare Scope",
+            "description": "Comma-separated scope IDs for cohort B.",
+            "default": ""
+          },
+          "saved_cohort_id_b": {
+            "type": "string",
+            "title": "Saved Cohort Id B",
+            "description": "Saved cohort ID currently assigned to cohort B, if any.",
+            "default": ""
+          },
+          "history": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "turns": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Turns"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At",
+            "description": "Last-updated timestamp in ISO 8601 format.",
+            "default": ""
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "description": "Creation timestamp in ISO 8601 format.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "AnalysisSessionRequest"
+      },
+      "AuthDiagnosticsResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "user_count": {
+            "type": "integer",
+            "title": "User Count"
+          },
+          "usernames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Usernames"
+          },
+          "roles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Roles"
+          },
+          "groups": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Groups"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "mode",
+          "user_count",
+          "source"
+        ],
+        "title": "AuthDiagnosticsResponse"
+      },
+      "AuthStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthUserResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "authenticated"
+        ],
+        "title": "AuthStatusResponse"
+      },
+      "AuthUserResponse": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "username",
+          "role",
+          "display_name"
+        ],
+        "title": "AuthUserResponse"
+      },
+      "AuthUsersResponse": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/AuthUserResponse"
+            },
+            "type": "array",
+            "title": "Users"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "AuthUsersResponse"
+      },
+      "DatasetRecordResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "visibility": {
+            "type": "string",
+            "title": "Visibility"
+          },
+          "allowed_users": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Users"
+          },
+          "allowed_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Groups"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": ""
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "root_path",
+          "enabled",
+          "visibility"
+        ],
+        "title": "DatasetRecordResponse"
+      },
+      "DatasetRegistrationRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Human-readable dataset name.",
+            "default": ""
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path",
+            "description": "Dataset root directory containing clinical/ and molecular/ subdirectories.",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Optional dataset description shown in the UI.",
+            "default": ""
+          },
+          "visibility": {
+            "type": "string",
+            "title": "Visibility",
+            "description": "Dataset visibility policy: all_authenticated, restricted, or admin_only.",
+            "default": "all_authenticated"
+          },
+          "allowed_users": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Users",
+            "description": "Usernames with direct access when visibility is restricted."
+          },
+          "allowed_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Groups",
+            "description": "Groups with access when visibility is restricted."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether the dataset can be selected in the UI.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "DatasetRegistrationRequest"
+      },
+      "DatasetSelectionRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Single dataset ID for backward compatibility.",
+            "default": ""
+          },
+          "dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Ids",
+            "description": "One or more dataset IDs that define the active workspace."
+          }
+        },
+        "type": "object",
+        "title": "DatasetSelectionRequest"
+      },
+      "DatasetSelectionResponse": {
+        "properties": {
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          },
+          "current_dataset_id": {
+            "type": "string",
+            "title": "Current Dataset Id",
+            "default": ""
+          },
+          "current_dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Current Dataset Ids"
+          },
+          "current_dataset_scope_id": {
+            "type": "string",
+            "title": "Current Dataset Scope Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "selected"
+        ],
+        "title": "DatasetSelectionResponse"
+      },
+      "DatasetUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Updated human-readable dataset name."
+          },
+          "root_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Path",
+            "description": "Updated dataset root directory."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Updated UI description."
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility",
+            "description": "Updated visibility policy."
+          },
+          "allowed_users": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Users",
+            "description": "Replacement direct-access username list."
+          },
+          "allowed_groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Groups",
+            "description": "Replacement allowed-group list."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "Whether the dataset remains selectable."
+          }
+        },
+        "type": "object",
+        "title": "DatasetUpdateRequest"
+      },
+      "DatasetsResponse": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetRecordResponse"
+            },
+            "type": "array",
+            "title": "Datasets"
+          },
+          "current_dataset_id": {
+            "type": "string",
+            "title": "Current Dataset Id",
+            "default": ""
+          },
+          "current_dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Current Dataset Ids"
+          },
+          "current_dataset_scope_id": {
+            "type": "string",
+            "title": "Current Dataset Scope Id",
+            "default": ""
+          },
+          "current_dataset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetRecordResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DatasetsResponse"
+      },
+      "DeleteResponse": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "id"
+        ],
+        "title": "DeleteResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LmStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "base_url"
+        ],
+        "title": "LmStatusResponse"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "description": "Local username.",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Local password.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "LoginRequest"
+      },
+      "MolecularDatasetResponse": {
+        "properties": {
+          "dataset_name": {
+            "type": "string",
+            "title": "Dataset Name",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "MolecularDatasetResponse"
+      },
+      "MolecularDatasetsResponse": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/MolecularDatasetResponse"
+            },
+            "type": "array",
+            "title": "Datasets"
+          }
+        },
+        "type": "object",
+        "title": "MolecularDatasetsResponse"
+      },
+      "MolecularExpressionRequest": {
+        "properties": {
+          "dataset_name": {
+            "type": "string",
+            "title": "Dataset Name",
+            "description": "Name of the molecular dataset to inspect."
+          },
+          "gene_id": {
+            "type": "string",
+            "title": "Gene Id",
+            "description": "Gene identifier or symbol to summarize."
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for molecular lookups.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "selected_patient_ids": {
+            "type": "string",
+            "title": "Selected Patient Ids",
+            "description": "Optional comma-separated scope IDs for cohort A filtering.",
+            "default": ""
+          },
+          "compare_selected_patient_ids": {
+            "type": "string",
+            "title": "Compare Selected Patient Ids",
+            "description": "Optional comma-separated scope IDs for cohort B filtering.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_name",
+          "gene_id"
+        ],
+        "title": "MolecularExpressionRequest"
+      },
+      "PatientSummaryResponse": {
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "PatientSummaryResponse"
+      },
+      "PhenoRankerPlanRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Natural-language instruction to convert into a Pheno-Ranker plan."
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for planning.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "selected_patient_ids": {
+            "type": "string",
+            "title": "Selected Patient Ids",
+            "description": "Optional comma-separated scope IDs already selected in the UI.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "PhenoRankerPlanRequest"
+      },
+      "PhenoRankerRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Pheno-Ranker action, typically compare.",
+            "default": "compare"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Pheno-Ranker mode, such as cohort or patient.",
+            "default": "cohort"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for the workspace.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id",
+            "description": "Single target sample/patient ID for patient mode.",
+            "default": ""
+          },
+          "selected_patient_ids": {
+            "type": "string",
+            "title": "Selected Patient Ids",
+            "description": "Comma-separated scope IDs for cohort mode.",
+            "default": ""
+          },
+          "selected_saved_cohort_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Selected Saved Cohort Ids"
+          },
+          "disease_filter": {
+            "type": "string",
+            "title": "Disease Filter",
+            "description": "Optional disease label filter for eligible reference files.",
+            "default": ""
+          },
+          "include_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Include Terms"
+          },
+          "exclude_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exclude Terms"
+          },
+          "similarity_metric_cohort": {
+            "type": "string",
+            "title": "Similarity Metric Cohort",
+            "description": "Similarity metric to use for cohort comparison.",
+            "default": ""
+          },
+          "sort_by": {
+            "type": "string",
+            "title": "Sort By",
+            "description": "Sort strategy for rank output.",
+            "default": ""
+          },
+          "max_out": {
+            "type": "integer",
+            "title": "Max Out",
+            "description": "Maximum number of ranked output matches to keep.",
+            "default": 10
+          },
+          "align": {
+            "type": "boolean",
+            "title": "Align",
+            "description": "Whether to compute term alignment details.",
+            "default": true
+          },
+          "render_heatmap": {
+            "type": "boolean",
+            "title": "Render Heatmap",
+            "description": "Whether to generate the interactive heatmap artifact.",
+            "default": true
+          },
+          "render_mds": {
+            "type": "boolean",
+            "title": "Render Mds",
+            "description": "Whether to generate the interactive MDS artifact.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "PhenoRankerRequest"
+      },
+      "QueryRequest": {
+        "properties": {
+          "q": {
+            "type": "string",
+            "title": "Q",
+            "description": "Natural-language workspace query.",
+            "examples": [
+              "How many patients take biologics in this workspace?"
+            ]
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID to query against.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "query_mode": {
+            "type": "string",
+            "title": "Query Mode",
+            "description": "Query execution mode. Supported values include auto and planner_only.",
+            "default": "auto"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/QueryTurn"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "q"
+        ],
+        "title": "QueryRequest"
+      },
+      "QueryTurn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "QueryTurn"
+      },
+      "SavedCohortRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "User-facing saved cohort name.",
+            "default": ""
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID where the cohort was created.",
+            "default": ""
+          },
+          "dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Ids"
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Legacy dataset directory fallback. Prefer dataset_id.",
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+          },
+          "sample_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Ids",
+            "description": "Canonical sample/record IDs stored for the cohort."
+          },
+          "patient_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Patient Ids",
+            "description": "Derived patient IDs stored alongside the cohort."
+          },
+          "id_type": {
+            "type": "string",
+            "title": "Id Type",
+            "description": "Canonical ID level used by the cohort payload.",
+            "default": "sample"
+          },
+          "source_kind": {
+            "type": "string",
+            "title": "Source Kind",
+            "description": "How the cohort was created, for example manual or query.",
+            "default": "manual"
+          },
+          "source_prompt": {
+            "type": "string",
+            "title": "Source Prompt",
+            "description": "Source prompt when the cohort came from Query.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "SavedCohortRequest"
+      },
+      "SavedCohortResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "default": ""
+          },
+          "dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Ids"
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "default": ""
+          },
+          "id_type": {
+            "type": "string",
+            "title": "Id Type",
+            "default": "sample"
+          },
+          "sample_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Ids"
+          },
+          "patient_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Patient Ids"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count",
+            "default": 0
+          },
+          "patient_count": {
+            "type": "integer",
+            "title": "Patient Count",
+            "default": 0
+          },
+          "is_full_dataset": {
+            "type": "boolean",
+            "title": "Is Full Dataset",
+            "default": false
+          },
+          "source": {
+            "$ref": "#/components/schemas/SavedCohortSourceResponse"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SavedCohortResponse"
+      },
+      "SavedCohortSourceResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "SavedCohortSourceResponse"
+      },
+      "SavedCohortsResponse": {
+        "properties": {
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/SavedCohortResponse"
+            },
+            "type": "array",
+            "title": "Cohorts"
+          }
+        },
+        "type": "object",
+        "title": "SavedCohortsResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "ui",
+      "description": "HTML entrypoints and static branding assets used by the web application shell."
+    },
+    {
+      "name": "auth",
+      "description": "Authentication state, local login, and user visibility endpoints."
+    },
+    {
+      "name": "datasets",
+      "description": "Dataset registry, workspace selection, and dataset access policy management."
+    },
+    {
+      "name": "patients",
+      "description": "Patient lists, patient timelines, dashboard summaries, and cohort count helpers."
+    },
+    {
+      "name": "query",
+      "description": "Deterministic and LLM-assisted natural-language workspace queries."
+    },
+    {
+      "name": "analysis",
+      "description": "Clinical and molecular workspace analysis plus saved analysis sessions."
+    },
+    {
+      "name": "cohorts",
+      "description": "Saved cohort persistence and cohort-scoped handoff utilities."
+    },
+    {
+      "name": "molecular",
+      "description": "Molecular dataset inventory and per-gene expression summaries."
+    },
+    {
+      "name": "pheno-ranker",
+      "description": "Pheno-Ranker planning, execution, result download, and explanation endpoints."
+    }
+  ]
+}
