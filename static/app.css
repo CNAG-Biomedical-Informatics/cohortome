@@ -566,14 +566,14 @@
         border: 1px solid rgba(109, 40, 217, 0.16);
       }
       #phenoExplainBtn {
-        background: rgba(254, 243, 199, 0.9);
-        color: #92400e;
-        border: 1px solid rgba(180, 83, 9, 0.18);
+        background: rgba(219, 234, 254, 0.92);
+        color: #1d4ed8;
+        border: 1px solid rgba(37, 99, 235, 0.24);
       }
       #phenoExplainLlmBtn {
-        background: rgba(237, 233, 254, 0.86);
-        color: #6d28d9;
-        border: 1px solid rgba(109, 40, 217, 0.18);
+        background: rgba(254, 243, 199, 0.92);
+        color: #92400e;
+        border: 1px solid rgba(180, 83, 9, 0.24);
       }
       button:disabled,
       .query-chip:disabled {
@@ -933,9 +933,9 @@
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        gap: 12px;
+        gap: 16px;
         flex-wrap: wrap;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
       }
       .pheno-checks {
         display: flex;
@@ -1145,12 +1145,39 @@
         background: rgba(255, 255, 255, 0.9);
         border: 1px solid var(--line);
       }
+      .pheno-preview-details {
+        padding: 0;
+      }
       .pheno-preview-card-full {
         grid-column: 1 / -1;
       }
       .pheno-preview-card strong {
         display: block;
         margin-bottom: 10px;
+      }
+      .pheno-preview-summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 18px 20px 12px;
+      }
+      .pheno-preview-summary::-webkit-details-marker {
+        display: none;
+      }
+      .pheno-preview-summary::before {
+        content: "▾";
+        display: inline-block;
+        margin-right: 8px;
+        color: var(--muted);
+      }
+      .pheno-preview-details:not([open]) .pheno-preview-summary::before {
+        content: "▸";
+      }
+      .pheno-preview-summary strong {
+        display: inline;
+        margin-bottom: 0;
+      }
+      .pheno-preview-body {
+        padding: 4px 20px 20px;
       }
       .pheno-cohort-legend {
         display: flex;
@@ -1691,6 +1718,10 @@
         box-shadow: 0 10px 24px rgba(29, 78, 216, 0.12);
         transform: translateY(-1px);
       }
+      .dataset-picker-card.is-active {
+        border-color: color-mix(in srgb, var(--handoff) 46%, var(--line));
+        box-shadow: 0 10px 24px rgba(15, 118, 110, 0.10);
+      }
       .dataset-picker-card input[type="checkbox"] {
         margin-top: 2px;
         width: 16px;
@@ -1703,11 +1734,36 @@
       .dataset-picker-title {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
         font-weight: 700;
         color: var(--ink);
         min-width: 0;
         overflow-wrap: anywhere;
+      }
+      .dataset-picker-state {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .dataset-picker-state-active {
+        background: rgba(204, 251, 241, 0.94);
+        color: #0f766e;
+        border: 1px solid rgba(15, 118, 110, 0.18);
+      }
+      .dataset-picker-state-pending {
+        background: rgba(219, 234, 254, 0.94);
+        color: #1d4ed8;
+        border: 1px solid rgba(37, 99, 235, 0.18);
+      }
+      .dataset-picker-state-removal {
+        background: rgba(254, 226, 226, 0.94);
+        color: #b91c1c;
+        border: 1px solid rgba(185, 28, 28, 0.16);
       }
       .dataset-picker-meta {
         display: flex;

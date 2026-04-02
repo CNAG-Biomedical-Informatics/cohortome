@@ -318,6 +318,21 @@ export function createPhenoUi(ctx) {
     return kind === "heatmap" ? state.selectedHeatmapRecordIds : state.selectedMdsRecordIds;
   }
 
+  function normalizePhenoSelectedRecordId(recordId) {
+    const rawId = String(recordId || "").trim();
+    if (!rawId) {
+      return "";
+    }
+    const match = rawId.match(/^C\d+_(.+)$/);
+    return match ? match[1].trim() : rawId;
+  }
+
+  function normalizePhenoSelectedRecordIds(recordIds) {
+    return (Array.isArray(recordIds) ? recordIds : [])
+      .map((recordId) => normalizePhenoSelectedRecordId(recordId))
+      .filter((value, index, all) => value && all.indexOf(value) === index);
+  }
+
   function resetPhenoRunWorkspace() {
     state.runState = null;
     state.selectedAlignmentKey = "";
@@ -378,7 +393,7 @@ export function createPhenoUi(ctx) {
   function renderSelectedPatientIdsSummary() {
     const ids = getCurrentScopeIds();
     if (!ids.length) {
-      phenoSelectedPatientIdsSummaryEl.textContent = "Scope: full cohort.";
+      phenoSelectedPatientIdsSummaryEl.textContent = "Scope: full workspace.";
       renderGlobalContext();
       return;
     }
@@ -575,6 +590,28 @@ export function createPhenoUi(ctx) {
     return PHENO_BUCKET_STYLES[bucket] || PHENO_BUCKET_STYLES.other;
   }
 
+  function formatPhenoReferenceLabel(filePath) {
+    const raw = String(filePath || "").trim().split("/").pop() || "";
+    if (!raw) {
+      return "";
+    }
+    let value = raw.replace(/\.(json|tsv|txt|csv)$/i, "");
+    value = value.replace(/^reference\.saved\.\d+\./i, "");
+    value = value.replace(/^reference\.selected$/i, "selected scope");
+    value = value.replace(/^default__|^private-dataset__/i, "");
+    value = value.replace(/[_-]+/g, " ").trim();
+    if (!value) {
+      return "";
+    }
+    return value.replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function getPhenoReferenceLabelByCohortNumber(cohortNumber) {
+    const index = Math.max(Number(cohortNumber || 0), 1) - 1;
+    const files = Array.isArray(state.referenceFiles) ? state.referenceFiles : [];
+    return formatPhenoReferenceLabel(files[index] || "");
+  }
+
   function getPhenoMdsCohortInfo(recordId) {
     const rawId = String(recordId || "").trim();
     const match = rawId.match(/^(C(\d+))_(.+)$/);
@@ -588,9 +625,10 @@ export function createPhenoUi(ctx) {
     }
     const cohortNumber = Number(match[2]);
     const color = PHENO_COHORT_COLORS[(Math.max(cohortNumber, 1) - 1) % PHENO_COHORT_COLORS.length];
+    const inferredName = getPhenoReferenceLabelByCohortNumber(cohortNumber);
     return {
       key: match[1],
-      label: `Cohort ${match[2]}`,
+      label: inferredName ? `C${match[2]} (${inferredName})` : `C${match[2]}`,
       displayId: match[3],
       color,
     };
@@ -725,23 +763,28 @@ export function createPhenoUi(ctx) {
     }
     const targetId = payload.target_id || "unknown";
     const topN = String(payload.top_n || matches.length);
-    const source = payload.source === "lm_studio"
+    const isLlm = payload.source === "lm_studio";
+    const source = isLlm
       ? '<span class="query-chip query-chip-llm badge">LLM answer</span>'
       : '<span class="query-chip query-chip-deterministic badge">Deterministic</span>';
     const llmReply = payload.llm_reply
-      ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM Explanation</h4>${renderQueryReply(payload.llm_reply)}</div>`
+      ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM answer</h4>${renderQueryReply(payload.llm_reply)}</div>`
+      : "";
+    const supportingMatchesHeading = isLlm
+      ? `<div class="section-note" style="margin-bottom:12px;">Supporting evidence from the top ${escapeHtml(topN)} matches in <code>rank.txt</code>.</div>`
       : "";
     phenoExplainDetailEl.innerHTML =
       `<div class="pheno-explain-header">
         <div class="pheno-explain-title-row">
           <div class="pheno-explain-title-block">
             <strong>Target ${escapeHtml(targetId)}</strong>
-            <span>Top ${escapeHtml(topN)} matches from <code>rank.txt</code></span>
+            <span>${isLlm ? "Patient-level explanation with supporting match evidence" : `Top ${escapeHtml(topN)} matches from <code>rank.txt</code>`}</span>
           </div>
           <div class="pheno-explain-meta">${source}</div>
         </div>
       </div>` +
       llmReply +
+      supportingMatchesHeading +
       `<div class="pheno-explain-match-grid">` +
       matches.map((match, index) => {
         const metrics = Object.entries(match.metrics || {})
@@ -1059,10 +1102,10 @@ export function createPhenoUi(ctx) {
       return;
     }
     const interactiveCard = mdsPointsFile
-      ? `<div class="pheno-preview-card pheno-preview-card-full"><div class="pheno-result-card-toolbar"><strong>Interactive MDS</strong><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis.</div></div>`
+      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive MDS</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis.</div></div></details>`
       : "";
     const heatmapCard = matrixFile
-      ? `<div class="pheno-preview-card pheno-preview-card-full"><div class="pheno-result-card-toolbar"><strong>Interactive Heatmap</strong></div><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div>`
+      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Heatmap</strong></summary><div class="pheno-preview-body"><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div></details>`
       : "";
     phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard;
     state.selectedMdsRecordIds = [];
@@ -1181,7 +1224,7 @@ export function createPhenoUi(ctx) {
         modeBarButtonsToRemove: ["select2d", "autoScale2d"],
       });
       const applySelectedPlotPoints = (selected) => {
-        state.selectedMdsRecordIds = (Array.isArray(selected) ? selected : [])
+        state.selectedMdsRecordIds = normalizePhenoSelectedRecordIds((Array.isArray(selected) ? selected : [])
           .map((point) => {
             if (Array.isArray(point.customdata) && point.customdata[0]) {
               return String(point.customdata[0]).trim();
@@ -1190,8 +1233,7 @@ export function createPhenoUi(ctx) {
               return point.text.trim();
             }
             return "";
-          })
-          .filter((value, index, all) => value && all.indexOf(value) === index);
+          }));
         if (noteEl) {
           noteEl.textContent = state.selectedMdsRecordIds.length
             ? `Selected ${state.selectedMdsRecordIds.length} MDS points.`
@@ -1298,7 +1340,7 @@ export function createPhenoUi(ctx) {
   }
 
   async function copySelectedPhenoPlotIds(kind, triggerButton) {
-    const selectedIds = getPhenoPlotSelection(kind);
+    const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
     if (!selectedIds.length) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
@@ -1330,7 +1372,7 @@ export function createPhenoUi(ctx) {
   }
 
   function sendSelectedPhenoPlotIdsToAnalysis(kind) {
-    const patientIds = collapsePhenoRecordIdsToPatientIds(getPhenoPlotSelection(kind));
+    const patientIds = collapsePhenoRecordIdsToPatientIds(normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind)));
     if (!patientIds.length) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
@@ -1504,7 +1546,7 @@ export function createPhenoUi(ctx) {
       if (!response.ok) {
         state.rankerPatientIds = [];
         state.referenceFiles = [];
-        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">Unavailable</span>';
+        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
         onPatientIdsLoaded([]);
         onReferenceFilesLoaded([]);
         return;
@@ -1516,12 +1558,12 @@ export function createPhenoUi(ctx) {
       onPatientIdsLoaded(state.rankerPatientIds);
       onReferenceFilesLoaded(state.referenceFiles);
       if (!state.referenceFiles.length) {
-        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">None</span>';
+        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">None</span>';
       } else {
         const labels = state.referenceFiles.map((item) => item.split("/").pop());
         phenoReferenceFilesSummaryEl.innerHTML = `
           <div class="file-label-row">
-            <span class="query-chip badge">Active cohort files (${labels.length})</span>
+            <span class="query-chip badge">Active workspace files (${labels.length})</span>
             ${labels.map((label) => `<span class="query-chip query-chip-deterministic badge">${escapeHtml(label)}</span>`).join("")}
           </div>
         `;
@@ -1529,7 +1571,7 @@ export function createPhenoUi(ctx) {
     } catch (_error) {
       state.rankerPatientIds = [];
       state.referenceFiles = [];
-      phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active cohort files</span> <span class="section-note-inline">Unavailable</span>';
+      phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
       onPatientIdsLoaded([]);
       onReferenceFilesLoaded([]);
     }

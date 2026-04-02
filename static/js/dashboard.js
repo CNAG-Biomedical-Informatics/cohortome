@@ -21,7 +21,7 @@ export function createDashboardUi(ctx) {
     analysisCompareSavedCohortSelectionEl,
   } = refs;
   const { escapeHtml, formatNumber } = helpers;
-  const { renderGlobalContext, syncCurrentAnalysisSessionFromUi } = callbacks;
+  const { renderGlobalContext, syncCurrentAnalysisSessionFromUi, isMultiDatasetWorkspace } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
 
@@ -238,10 +238,15 @@ export function createDashboardUi(ctx) {
 
   function summaryCard(patient) {
     const activeClass = state.selectedPatientId === patient.patient_id ? "active" : "";
+    const datasetNames = Array.isArray(patient.dataset_names) ? patient.dataset_names : [];
+    const datasetBadge = isMultiDatasetWorkspace() && datasetNames.length
+      ? `<span class="pill">${escapeHtml(datasetNames.join(", "))}</span>`
+      : "";
     return `
       <div class="patient-card ${activeClass}" data-patient-id="${patient.patient_id}">
         <strong>${patient.patient_id}</strong>
         <div>
+          ${datasetBadge}
           <span class="pill">${patient.visit_count} visits</span>
           <span class="pill">${patient.sex || "sex: n/a"}</span>
           <span class="pill">${patient.evidence.diseases.count} diseases</span>
@@ -264,6 +269,12 @@ export function createDashboardUi(ctx) {
   }
 
   function renderDetail(patient) {
+    const datasetNames = Array.isArray(patient.patient_context && patient.patient_context.dataset_names)
+      ? patient.patient_context.dataset_names
+      : (Array.isArray(patient.dataset_names) ? patient.dataset_names : []);
+    const datasetLine = isMultiDatasetWorkspace() && datasetNames.length
+      ? `<p>Datasets: ${escapeHtml(datasetNames.join(", "))}</p>`
+      : "";
     const previewPayload = {
       patient_id: patient.patient_id,
       summary: patient.summary,
@@ -314,6 +325,7 @@ export function createDashboardUi(ctx) {
       <div class="workspace-grid">
         <div class="workspace-card">
           <p><strong>${patient.patient_id}</strong></p>
+          ${datasetLine}
           <p>Sex: ${patient.patient_context.sex || "n/a"} | DOB: ${patient.patient_context.date_of_birth || "n/a"} | Vital status: ${patient.patient_context.vital_status || "n/a"}</p>
           <p>Sources: ${(patient.patient_context.source_files || []).join(", ") || "n/a"}</p>
           <h3>Available evidence</h3>
@@ -350,7 +362,7 @@ export function createDashboardUi(ctx) {
     dashboardEl.innerHTML = `
       <section class="section-card dashboard-hero">
         <h2>Clinical dashboard</h2>
-        <p>Key cohort metrics and quick patterns before drilling into one patient.</p>
+        <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
         <div class="molecular-kpi-grid">
           <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
           <div class="molecular-kpi"><span class="molecular-kpi-label">Timepoints</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
@@ -422,7 +434,7 @@ export function createDashboardUi(ctx) {
         ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}).`
         : ids.length
           ? `Scope: ${ids.length} IDs in scope.`
-          : "Scope: full cohort.");
+          : "Scope: full workspace.");
     if (analysisSelectedSavedCohortSelectionEl) {
       if (selectedCohort) {
         analysisSelectedSavedCohortSelectionEl.classList.remove("is-hidden");
@@ -604,7 +616,33 @@ export function createDashboardUi(ctx) {
       if (!text) return "Molecular";
       return text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
     };
-    molecularDashboardCardsEl.innerHTML = `${datasets.map((item) => {
+    const workspaceSummary = datasets.reduce((summary, item) => {
+      summary.datasetCount += 1;
+      summary.sampleCount += Number(item.sample_count || 0);
+      summary.patientCount += Number(item.patient_count || 0);
+      summary.geneCount = Math.max(summary.geneCount, Number(item.gene_count || 0));
+      return summary;
+    }, {
+      datasetCount: 0,
+      sampleCount: 0,
+      patientCount: 0,
+      geneCount: 0,
+    });
+    molecularDashboardCardsEl.innerHTML = `
+      <section class="molecular-workspace-summary">
+        <div class="molecular-workspace-summary-copy">
+          <div class="molecular-card-eyebrow">Workspace overview</div>
+          <strong class="molecular-workspace-summary-title">Loaded molecular workspace</strong>
+          <div class="section-note">A quick summary of the active transcriptomics footprint before drilling into individual datasets.</div>
+        </div>
+        <div class="molecular-workspace-kpis">
+          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Datasets</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>
+          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.sampleCount))}</strong></div>
+          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.patientCount))}</strong></div>
+          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Max genes / dataset</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.geneCount))}</strong></div>
+        </div>
+      </section>
+      ${datasets.map((item) => {
       const overlap = currentMolecularScopeOverlap(item.patient_ids);
       const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
       const topGenesMarkup = topGenes.length
@@ -629,6 +667,10 @@ export function createDashboardUi(ctx) {
               <strong class="molecular-card-title">${escapeHtml(item.dataset_name)}</strong>
             </div>
             <span class="query-chip badge molecular-modality-badge">${escapeHtml(formatMolecularModality(item.modality))}</span>
+          </div>
+          <div class="molecular-card-meta">
+            <span class="dataset-picker-tag">${escapeHtml(item.dataset_name)}</span>
+            <span class="dataset-picker-tag">${escapeHtml(formatMolecularModality(item.modality))}</span>
           </div>
           <div class="molecular-kpi-grid">
             <div class="molecular-kpi"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
