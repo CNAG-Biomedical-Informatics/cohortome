@@ -208,6 +208,7 @@
       let dashboardSummaryState = null;
       let savedCohorts = [];
       let availableDatasets = [];
+      let availableAuthUsers = [];
       let currentDatasetIds = [];
       let pendingDatasetIds = [];
       let currentDatasetScopeId = "";
@@ -583,6 +584,48 @@
           .filter(Boolean);
       }
 
+      function effectiveDatasetUserLabels(dataset) {
+        const users = Array.isArray(availableAuthUsers) ? availableAuthUsers : [];
+        if (!users.length) {
+          return [];
+        }
+        const visibility = String(dataset && dataset.visibility || "all_authenticated");
+        const allowedUsers = new Set((Array.isArray(dataset && dataset.allowed_users) ? dataset.allowed_users : [])
+          .map((item) => String(item || "").trim().toLowerCase())
+          .filter(Boolean));
+        const allowedGroups = new Set((Array.isArray(dataset && dataset.allowed_groups) ? dataset.allowed_groups : [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean));
+        return users
+          .filter((user) => {
+            const username = String(user && user.username || "").trim().toLowerCase();
+            const role = String(user && user.role || "user").trim().toLowerCase();
+            const groups = new Set((Array.isArray(user && user.groups) ? user.groups : [])
+              .map((item) => String(item || "").trim())
+              .filter(Boolean));
+            if (role === "admin") {
+              return true;
+            }
+            if (visibility === "all_authenticated") {
+              return true;
+            }
+            if (visibility === "admin_only") {
+              return false;
+            }
+            if (allowedUsers.has(username)) {
+              return true;
+            }
+            for (const group of groups) {
+              if (allowedGroups.has(group)) {
+                return true;
+              }
+            }
+            return false;
+          })
+          .map((user) => String(user.display_name || user.username || "").trim())
+          .filter(Boolean);
+      }
+
       function renderAnalysisDatasetScope() {
         if (!analysisDatasetScopeEl) {
           return;
@@ -714,6 +757,7 @@
           const description = String(dataset.description || "").trim();
           const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
           const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+          const effectiveUsers = effectiveDatasetUserLabels(dataset);
           return `
             <div class="dataset-picker-card">
               <div>
@@ -728,6 +772,7 @@
                 </div>
                 ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
                 <div class="dataset-picker-access">
+                  <div class="section-note">Access is granted through visibility, matching groups, or direct allowed users.</div>
                   <div class="dataset-picker-access-row">
                     <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
                     <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
@@ -743,6 +788,14 @@
                   <div class="dataset-picker-access-row">
                     <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
                     <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
+                  </div>
+                  <div class="dataset-picker-access-row">
+                    <label>Effective local access</label>
+                    <div class="identity-tags">
+                      ${effectiveUsers.length
+                        ? effectiveUsers.map((label) => `<span class="identity-tag">${escapeHtml(label)}</span>`).join("")
+                        : '<span class="identity-tag">no matching users</span>'}
+                    </div>
                   </div>
                   <div class="dataset-picker-access-actions">
                     <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save access</button>
@@ -1361,8 +1414,10 @@
           }
           const payload = await response.json();
           const users = Array.isArray(payload.users) ? payload.users : [];
+          availableAuthUsers = users.slice();
           usersStatusEl.className = "query-status";
           usersStatusEl.textContent = `${users.length} user${users.length === 1 ? "" : "s"} configured.`;
+          renderDatasetAdminList();
           if (!users.length) {
             usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
             return;
@@ -1385,6 +1440,8 @@
             </div>
           `).join("");
         } catch (error) {
+          availableAuthUsers = [];
+          renderDatasetAdminList();
           usersStatusEl.className = "query-status";
           usersStatusEl.textContent = error && error.message ? error.message : "Unable to load users.";
           usersListEl.innerHTML = '<div class="empty">User list unavailable.</div>';

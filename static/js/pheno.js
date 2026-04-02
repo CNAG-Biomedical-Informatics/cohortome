@@ -1372,13 +1372,13 @@ export function createPhenoUi(ctx) {
   }
 
   function sendSelectedPhenoPlotIdsToAnalysis(kind) {
-    const patientIds = collapsePhenoRecordIdsToPatientIds(normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind)));
-    if (!patientIds.length) {
+    const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
+    if (!selectedIds.length) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
       return;
     }
-    analysisSelectedPatientIdsEl.value = patientIds.join(",");
+    analysisSelectedPatientIdsEl.value = selectedIds.join(",");
     if (!analysisPromptEl.value.trim()) {
       analysisPromptEl.value = kind === "heatmap"
         ? "Summarize the main clinical patterns in the selected heatmap subgroup and tell me what stands out."
@@ -1389,8 +1389,8 @@ export function createPhenoUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ render: true });
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = kind === "heatmap"
-      ? `Loaded ${patientIds.length} patient IDs from the selected heatmap subgroup into Analysis.`
-      : `Loaded ${patientIds.length} patient IDs from the selected MDS subgroup into Analysis.`;
+      ? `Loaded ${selectedIds.length} sample IDs from the selected heatmap subgroup into Analysis.`
+      : `Loaded ${selectedIds.length} sample IDs from the selected MDS subgroup into Analysis.`;
   }
 
   async function runPhenoRanker(usePromptPlanner = true) {

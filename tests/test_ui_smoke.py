@@ -202,6 +202,8 @@ def _mock_pheno_reference_ids(
             body=json.dumps(payload),
         ),
     )
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").wait_for()
     page.locator("#loadBtn").click()
 
 

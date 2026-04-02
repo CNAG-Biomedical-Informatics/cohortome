@@ -21,21 +21,22 @@ def branding_logo_path() -> Path | None:
             candidate = (BASE_DIR / configured).resolve()
         if candidate.exists() and candidate.is_file():
             return candidate
+    docs_logo = BASE_DIR / "docs-site" / "static" / "img" / "patient-navigator-logo.png"
+    if docs_logo.exists() and docs_logo.is_file():
+        return docs_logo
     default_logo = TEMPLATES_DIR / "img" / "logo-3tr.png"
     if default_logo.exists() and default_logo.is_file():
         return default_logo
     matches = sorted((TEMPLATES_DIR / "img").glob("*.png"))
     return matches[0] if matches else None
-
-
 def branding_settings() -> Dict[str, Any]:
     logo_path = branding_logo_path()
     return {
-        "name": os.getenv("PN_BRAND_NAME", "3TR").strip() or "3TR",
+        "name": os.getenv("PN_BRAND_NAME", "Patient Navigator").strip() or "Patient Navigator",
         "subtitle": os.getenv(
             "PN_BRAND_SUBTITLE",
-            "Clinical and molecular cohort exploration.",
+            "Clinical and molecular workspace exploration.",
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
-        "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "3TR logo").strip() or "3TR logo",
+        "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "Patient Navigator logo").strip() or "Patient Navigator logo",
     }

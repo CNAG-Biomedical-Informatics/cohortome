@@ -311,6 +311,27 @@
         box-shadow: var(--shadow);
         backdrop-filter: blur(12px);
       }
+      .shell-brand {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 6px;
+        padding: 4px 2px 4px 0;
+        border-radius: 0;
+        color: var(--ink);
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        flex: 0 0 auto;
+        opacity: 0.92;
+      }
+      .shell-brand-logo {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        display: block;
+      }
       .controls {
         padding: 18px;
         display: grid;

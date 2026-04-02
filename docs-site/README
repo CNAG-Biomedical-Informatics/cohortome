@@ -1,0 +1,4 @@
+cd docs-site
+npm run build
+npm start
+
