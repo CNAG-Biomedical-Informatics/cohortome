@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import error, request
@@ -36,6 +37,15 @@ from app.query_store import (
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
+
+
+@dataclass
+class QueryScopeContext:
+    patient_ids: List[str]
+    patient_rows: List[Dict[str, Any]]
+    sample_ids: List[str]
+    disease_counts: List[Dict[str, Any]]
+    medication_counts: List[Dict[str, Any]]
 
 
 def _contains_label(values: List[str], query: str) -> bool:
@@ -142,12 +152,15 @@ def disease_counts(data_dir: str) -> List[Dict[str, Any]]:
     return sorted(counts.values(), key=lambda item: (-item["patient_count"], item["disease"]))
 
 
-def _patient_inventory(data_dir: str) -> List[str]:
+def _patient_inventory_from_records(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
     resolved_dir = ensure_data_dir(data_dir)
+    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
     ids: List[str] = []
     seen = set()
     for _, _, record in read_bff_records(resolved_dir):
         patient_id = normalize_value(record.get("patient_id"))
+        if allowed and str(patient_id or "").strip() not in allowed:
+            continue
         raw_id = normalize_value(record.get("id"))
         candidate = str(patient_id or raw_id or "").strip()
         if not candidate or candidate in seen:
@@ -157,54 +170,52 @@ def _patient_inventory(data_dir: str) -> List[str]:
     return sorted(ids)
 
 
-def _sample_inventory(data_dir: str) -> List[str]:
-    resolved_dir = ensure_data_dir(data_dir)
-    ids: List[str] = []
-    seen = set()
-    for _, _, record in read_bff_records(resolved_dir):
-        raw_id = normalize_value(record.get("id"))
-        candidate = str(raw_id or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        ids.append(candidate)
-    return sorted(ids)
+def _patient_inventory(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
+    return _patient_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids)
 
 
-def _medication_counts(data_dir: str) -> List[Dict[str, Any]]:
-    if duckdb_available():
+def _sample_inventory(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
+    return _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids).sample_ids
+
+
+def _medication_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    if duckdb_available() and not scoped_patient_ids:
         try:
             return store_medication_counts(data_dir)
         except Exception:
             pass
-    return medication_counts(data_dir)
+    if not scoped_patient_ids:
+        return medication_counts(data_dir)
+    return _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids).medication_counts
 
 
-def _disease_counts(data_dir: str) -> List[Dict[str, Any]]:
-    if duckdb_available():
+def _disease_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    if duckdb_available() and not scoped_patient_ids:
         try:
             return store_disease_counts(data_dir)
         except Exception:
             pass
-    return disease_counts(data_dir)
+    if not scoped_patient_ids:
+        return disease_counts(data_dir)
+    return _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids).disease_counts
 
 
-def _medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
-    if duckdb_available():
+def _medication_cohort(data_dir: str, medication_query: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    if duckdb_available() and not scoped_patient_ids:
         try:
             return store_medication_cohort(data_dir, medication_query)
         except Exception:
             pass
-    return medication_cohort(data_dir, medication_query)
+    return _apply_patient_scope_to_cohort(medication_cohort(data_dir, medication_query), scoped_patient_ids)
 
 
-def _disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
-    if duckdb_available():
+def _disease_cohort(data_dir: str, disease_query: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    if duckdb_available() and not scoped_patient_ids:
         try:
             return store_disease_cohort(data_dir, disease_query)
         except Exception:
             pass
-    return disease_cohort(data_dir, disease_query)
+    return _apply_patient_scope_to_cohort(disease_cohort(data_dir, disease_query), scoped_patient_ids)
 
 
 def _extract_patient_id(text: str) -> Optional[str]:
@@ -217,7 +228,10 @@ def _extract_patient_id(text: str) -> Optional[str]:
 
 def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
     if duckdb_available():
-        return store_patient_query_index(data_dir)
+        try:
+            return store_patient_query_index(data_dir)
+        except Exception:
+            pass
     resolved_dir = ensure_data_dir(data_dir)
     bundles = group_patients(resolved_dir)
     rows: List[Dict[str, Any]] = []
@@ -252,6 +266,111 @@ def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
         )
 
     return rows
+
+
+def _apply_patient_scope_to_rows(rows: List[Dict[str, Any]], scoped_patient_ids: Optional[List[str]]) -> List[Dict[str, Any]]:
+    if not scoped_patient_ids:
+        return rows
+    allowed = {str(item).strip() for item in scoped_patient_ids if str(item).strip()}
+    if not allowed:
+        return rows
+    return [row for row in rows if str(row.get("patient_id") or "").strip() in allowed]
+
+
+def _apply_patient_scope_to_cohort(cohort: Dict[str, Any], scoped_patient_ids: Optional[List[str]]) -> Dict[str, Any]:
+    if not scoped_patient_ids:
+        return cohort
+    allowed = {str(item).strip() for item in scoped_patient_ids if str(item).strip()}
+    if not allowed:
+        return cohort
+    patients = [
+        item for item in cohort.get("patients", [])
+        if str(item.get("patient_id") or "").strip() in allowed
+    ]
+    scoped = dict(cohort)
+    scoped["patients"] = patients
+    scoped["patient_count"] = len(patients)
+    scoped["patient_ids"] = [item["patient_id"] for item in patients if isinstance(item, dict) and item.get("patient_id")]
+    original_ids = []
+    for item in patients:
+        for record_id in item.get("original_record_ids", []) if isinstance(item, dict) else []:
+            if record_id not in original_ids:
+                original_ids.append(record_id)
+    if original_ids:
+        scoped["original_record_ids"] = original_ids
+    return scoped
+
+
+def _sample_inventory_from_records(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
+    resolved_dir = ensure_data_dir(data_dir)
+    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
+    ids: List[str] = []
+    seen = set()
+    for _, _, record in read_bff_records(resolved_dir):
+        patient_id = normalize_value(record.get("patient_id"))
+        if allowed and str(patient_id or "").strip() not in allowed:
+            continue
+        raw_id = normalize_value(record.get("id"))
+        candidate = str(raw_id or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        ids.append(candidate)
+    return sorted(ids)
+
+
+def _bucket_counts_from_rows(rows: List[Dict[str, Any]], key: str, label_key: str) -> List[Dict[str, Any]]:
+    counts: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        patient_id = str(row.get("patient_id") or "").strip()
+        for label in row.get(key, []) if isinstance(row, dict) else []:
+            normalized = str(label).strip()
+            if not normalized:
+                continue
+            entry = counts.setdefault(
+                normalized,
+                {label_key: normalized, "patient_count": 0, "patients": []},
+            )
+            entry["patient_count"] += 1
+            if patient_id:
+                entry["patients"].append(patient_id)
+    return sorted(counts.values(), key=lambda item: (-item["patient_count"], item[label_key]))
+
+
+def _build_query_scope_context(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> QueryScopeContext:
+    patient_rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
+    patient_ids = _patient_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids)
+    return QueryScopeContext(
+        patient_ids=patient_ids,
+        patient_rows=patient_rows,
+        sample_ids=_sample_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids),
+        disease_counts=_bucket_counts_from_rows(patient_rows, "diseases", "disease"),
+        medication_counts=_bucket_counts_from_rows(patient_rows, "medications", "medication"),
+    )
+
+
+def _should_apply_scoped_context(
+    query: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> bool:
+    if not history or not scoped_patient_ids:
+        return False
+    lowered = query.lower()
+    if any(phrase in lowered for phrase in ("full workspace", "entire workspace", "whole workspace", "all patients in the workspace")):
+        return False
+    if re.search(r"\bshow patient\s+[A-Za-z0-9:_-]+\b", lowered):
+        return False
+    return True
+
+
+def _sex_constraint(query: str) -> Optional[str]:
+    lowered = query.lower()
+    if re.search(r"\bmale\b|\bmales\b|\bman\b|\bmen\b", lowered):
+        return "male"
+    if re.search(r"\bfemale\b|\bfemales\b|\bwoman\b|\bwomen\b", lowered):
+        return "female"
+    return None
 
 
 def _medication_count_constraint(query: str) -> Optional[Dict[str, Any]]:
@@ -322,14 +441,19 @@ def _matches_numeric_constraint(value: int, operator: str, target: int) -> bool:
     return value == target
 
 
-def patient_medication_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+def patient_medication_count_cohort(
+    data_dir: str,
+    operator: str,
+    target: int,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     if duckdb_available():
         try:
             return store_patient_medication_count_cohort(data_dir, operator, target)
         except Exception:
             pass
     patients = []
-    for row in _patient_query_index(data_dir):
+    for row in _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids):
         if _matches_numeric_constraint(row["medication_count"], operator, target):
             patients.append(row)
 
@@ -375,14 +499,19 @@ def _format_visit_count_constraint(operator: str, target: int) -> str:
     return f"exactly {target} timepoints"
 
 
-def patient_visit_count_cohort(data_dir: str, operator: str, target: int) -> Dict[str, Any]:
+def patient_visit_count_cohort(
+    data_dir: str,
+    operator: str,
+    target: int,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     if duckdb_available():
         try:
             return store_patient_visit_count_cohort(data_dir, operator, target)
         except Exception:
             pass
     patients = []
-    for row in _patient_query_index(data_dir):
+    for row in _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids):
         if _matches_numeric_constraint(row["visit_count"], operator, target):
             patients.append(row)
     return {
@@ -393,27 +522,31 @@ def patient_visit_count_cohort(data_dir: str, operator: str, target: int) -> Dic
     }
 
 
-def _cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
+def _cohort_over_time_summary(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     if duckdb_available():
         try:
             return store_cohort_over_time_summary(data_dir)
         except Exception:
             pass
-    patient_rows = _patient_query_index(data_dir)
+    patient_rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
+    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
     dated = []
     undated = 0
     period_counts: Dict[str, Dict[str, Any]] = {}
     for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
+        raw_patient_id = normalize_value(record.get("patient_id")) or normalize_value(record.get("id"))
+        patient_id = str(raw_patient_id).split(":")[0] if isinstance(raw_patient_id, str) and raw_patient_id else ""
+        if allowed and patient_id not in allowed:
+            continue
         date = normalize_value(extract_event_date(record))
         if isinstance(date, str) and date.strip():
             date = date.strip()
             dated.append(date)
             period = date[:7] if len(date) >= 7 else date
-            raw_patient_id = normalize_value(record.get("patient_id")) or normalize_value(record.get("id"))
             entry = period_counts.setdefault(period, {"period": period, "timepoint_count": 0, "patients": set()})
             entry["timepoint_count"] += 1
-            if isinstance(raw_patient_id, str) and raw_patient_id:
-                entry["patients"].add(raw_patient_id.split(":")[0])
+            if patient_id:
+                entry["patients"].add(patient_id)
         else:
             undated += 1
     periods = [
@@ -435,9 +568,13 @@ def _cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
     }
 
 
-def _term_timepoint_summary(data_dir: str, term: str) -> Optional[Dict[str, Any]]:
-    medication = _medication_cohort(data_dir, term)
-    disease = _disease_cohort(data_dir, term)
+def _term_timepoint_summary(
+    data_dir: str,
+    term: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), scoped_patient_ids)
+    disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), scoped_patient_ids)
     if medication["patient_count"] == 0 and disease["patient_count"] == 0:
         return None
     selected = medication if medication["patient_count"] >= disease["patient_count"] else disease
@@ -486,16 +623,21 @@ def _negative_patient_term_query(text: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def _resolve_patient_filter_kind(data_dir: str, term: str, preferred_kind: Optional[str] = None) -> Tuple[Optional[str], Dict[str, Any]]:
+def _resolve_patient_filter_kind(
+    data_dir: str,
+    term: str,
+    preferred_kind: Optional[str] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Tuple[Optional[str], Dict[str, Any]]:
     if preferred_kind == "disease":
-        cohort = _disease_cohort(data_dir, term)
+        cohort = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), scoped_patient_ids)
         return "disease", cohort
     if preferred_kind == "medication":
-        cohort = _medication_cohort(data_dir, term)
+        cohort = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), scoped_patient_ids)
         return "medication", cohort
 
-    disease = _disease_cohort(data_dir, term)
-    medication = _medication_cohort(data_dir, term)
+    disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), scoped_patient_ids)
+    medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), scoped_patient_ids)
     if disease["patient_count"] == 0 and medication["patient_count"] == 0:
         return None, {"patient_count": 0, "patients": []}
     if disease["patient_count"] >= medication["patient_count"]:
@@ -590,8 +732,14 @@ def _patient_filter_query(text: str) -> Optional[Dict[str, Any]]:
     return {"intent": intent, "conditions": conditions}
 
 
-def _resolve_timepoint_filter_condition(data_dir: str, term: str, operator: str, target: int) -> Tuple[Optional[str], List[Dict[str, Any]], int]:
-    result = _term_timepoint_summary(data_dir, term)
+def _resolve_timepoint_filter_condition(
+    data_dir: str,
+    term: str,
+    operator: str,
+    target: int,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Tuple[Optional[str], List[Dict[str, Any]], int]:
+    result = _term_timepoint_summary(data_dir, term, scoped_patient_ids=scoped_patient_ids)
     if result is None:
         return None, [], 0
     kind = "medication" if result["intent"] == "medication_timepoint_cohort" else "disease"
@@ -688,8 +836,12 @@ def _start_after_query(text: str) -> Optional[Dict[str, str]]:
     }
 
 
-def _dated_patient_term_events(data_dir: str, term: str) -> Tuple[Optional[str], Dict[str, List[str]]]:
-    kind, cohort = _resolve_patient_filter_kind(data_dir, term)
+def _dated_patient_term_events(
+    data_dir: str,
+    term: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Tuple[Optional[str], Dict[str, List[str]]]:
+    kind, cohort = _resolve_patient_filter_kind(data_dir, term, scoped_patient_ids=scoped_patient_ids)
     if kind is None:
         return None, {}
 
@@ -705,13 +857,19 @@ def _dated_patient_term_events(data_dir: str, term: str) -> Tuple[Optional[str],
     return kind, events
 
 
-def _patient_temporal_order_cohort(data_dir: str, first_term: str, second_term: str, relation: str) -> Optional[Dict[str, Any]]:
-    first_kind, first_events = _dated_patient_term_events(data_dir, first_term)
-    second_kind, second_events = _dated_patient_term_events(data_dir, second_term)
+def _patient_temporal_order_cohort(
+    data_dir: str,
+    first_term: str,
+    second_term: str,
+    relation: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    first_kind, first_events = _dated_patient_term_events(data_dir, first_term, scoped_patient_ids=scoped_patient_ids)
+    second_kind, second_events = _dated_patient_term_events(data_dir, second_term, scoped_patient_ids=scoped_patient_ids)
     if first_kind is None or second_kind is None:
         return None
 
-    inventory = _patient_query_index(data_dir)
+    inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     rows_by_id = {row["patient_id"]: row for row in inventory}
     matched_rows: List[Dict[str, Any]] = []
 
@@ -741,13 +899,18 @@ def _patient_temporal_order_cohort(data_dir: str, first_term: str, second_term: 
     }
 
 
-def _patient_transition_cohort(data_dir: str, first_term: str, second_term: str) -> Optional[Dict[str, Any]]:
-    first_kind, first_events = _dated_patient_term_events(data_dir, first_term)
-    second_kind, second_events = _dated_patient_term_events(data_dir, second_term)
+def _patient_transition_cohort(
+    data_dir: str,
+    first_term: str,
+    second_term: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    first_kind, first_events = _dated_patient_term_events(data_dir, first_term, scoped_patient_ids=scoped_patient_ids)
+    second_kind, second_events = _dated_patient_term_events(data_dir, second_term, scoped_patient_ids=scoped_patient_ids)
     if first_kind is None or second_kind is None:
         return None
 
-    inventory = _patient_query_index(data_dir)
+    inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     rows_by_id = {row["patient_id"]: row for row in inventory}
     matched_rows: List[Dict[str, Any]] = []
 
@@ -775,13 +938,18 @@ def _patient_transition_cohort(data_dir: str, first_term: str, second_term: str)
     }
 
 
-def _patient_started_after_cohort(data_dir: str, started_term: str, after_term: str) -> Optional[Dict[str, Any]]:
-    started_kind, started_events = _dated_patient_term_events(data_dir, started_term)
-    after_kind, after_events = _dated_patient_term_events(data_dir, after_term)
+def _patient_started_after_cohort(
+    data_dir: str,
+    started_term: str,
+    after_term: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    started_kind, started_events = _dated_patient_term_events(data_dir, started_term, scoped_patient_ids=scoped_patient_ids)
+    after_kind, after_events = _dated_patient_term_events(data_dir, after_term, scoped_patient_ids=scoped_patient_ids)
     if started_kind is None or after_kind is None:
         return None
 
-    inventory = _patient_query_index(data_dir)
+    inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     rows_by_id = {row["patient_id"]: row for row in inventory}
     matched_rows: List[Dict[str, Any]] = []
 
@@ -1115,14 +1283,61 @@ def _resolve_lm_studio_model() -> Optional[str]:
     return model_id if isinstance(model_id, str) and model_id.strip() else None
 
 
-def _lm_studio_context(data_dir: str, query: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+def _lm_scoped_overview(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
+    medication_counts: Dict[str, int] = {}
+    disease_counts: Dict[str, int] = {}
+    for row in rows:
+        for label in row.get("medications", []) if isinstance(row, dict) else []:
+            medication_counts[str(label)] = medication_counts.get(str(label), 0) + 1
+        for label in row.get("diseases", []) if isinstance(row, dict) else []:
+            disease_counts[str(label)] = disease_counts.get(str(label), 0) + 1
+    top_medications = [item[0] for item in sorted(medication_counts.items(), key=lambda item: (-item[1], item[0]))[:10]]
+    top_diseases = [item[0] for item in sorted(disease_counts.items(), key=lambda item: (-item[1], item[0]))[:10]]
+    return {
+        "dataset_overview": {
+            "patients": len(rows),
+            "visits": sum(int(row.get("visit_count", 0)) for row in rows),
+        },
+        "top_medications": top_medications,
+        "top_diseases": top_diseases,
+    }
+
+
+def _lm_studio_context(
+    data_dir: str,
+    query: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+    scope_context: Optional[QueryScopeContext] = None,
+) -> Dict[str, Any]:
     summaries = list_patient_summaries(data_dir)
+    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
+    if allowed:
+        summaries = [summary for summary in summaries if str(summary.patient_id).strip() in allowed]
+        scoped_overview = {
+            "dataset_overview": {
+                "patients": len(scope_context.patient_rows) if scope_context else len(summaries),
+                "visits": sum(int(row.get("visit_count", 0)) for row in (scope_context.patient_rows if scope_context else [])),
+            },
+            "top_medications": scope_context.medication_counts[:10] if scope_context else _lm_scoped_overview(data_dir, scoped_patient_ids)["top_medications"],
+            "top_diseases": scope_context.disease_counts[:10] if scope_context else _lm_scoped_overview(data_dir, scoped_patient_ids)["top_diseases"],
+        }
+        if scope_context:
+            scoped_overview["top_medications"] = [item["medication"] for item in scope_context.medication_counts[:10]]
+            scoped_overview["top_diseases"] = [item["disease"] for item in scope_context.disease_counts[:10]]
+    else:
+        scoped_overview = {
+            "dataset_overview": dashboard_summary(data_dir)["totals"],
+            "top_medications": [item["medication"] for item in _medication_counts(data_dir)[:10]],
+            "top_diseases": [item["disease"] for item in _disease_counts(data_dir)[:10]],
+        }
     patient_id = _extract_patient_id(query)
     context: Dict[str, Any] = {
         "question": query,
-        "dataset_overview": dashboard_summary(data_dir)["totals"],
-        "top_medications": [item["medication"] for item in _medication_counts(data_dir)[:10]],
-        "top_diseases": [item["disease"] for item in _disease_counts(data_dir)[:10]],
+        "dataset_overview": scoped_overview["dataset_overview"],
+        "top_medications": scoped_overview["top_medications"],
+        "top_diseases": scoped_overview["top_diseases"],
         "patient_summaries": [
             {
                 "patient_id": summary.patient_id,
@@ -1178,16 +1393,21 @@ def _extract_lm_response_text(response: Dict[str, Any]) -> Optional[str]:
     return _sanitize_lm_text(content)
 
 
-def _semantic_query_catalog(data_dir: str) -> Dict[str, Any]:
+def _semantic_query_catalog(
+    data_dir: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+    scope_context: Optional[QueryScopeContext] = None,
+) -> Dict[str, Any]:
+    context = scope_context or _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids)
     return {
-        "patient_count": len(_patient_inventory(data_dir)),
+        "patient_count": len(context.patient_ids),
         "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
         "supported_outputs": ["count", "patient_list"],
         "supported_logic": ["and", "or"],
         "supported_string_operators": ["contains", "eq"],
         "supported_numeric_operators": ["eq", "gt", "gte", "lt", "lte"],
-        "known_diseases": [item["disease"] for item in _disease_counts(data_dir)[:50]],
-        "known_treatments": [item["medication"] for item in _medication_counts(data_dir)[:50]],
+        "known_diseases": [item["disease"] for item in context.disease_counts[:50]],
+        "known_treatments": [item["medication"] for item in context.medication_counts[:50]],
     }
 
 
@@ -1329,8 +1549,14 @@ def _requested_query_output(query: str) -> Optional[str]:
     return None
 
 
-def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any], model: str) -> Dict[str, Any]:
-    inventory = _patient_query_index(data_dir)
+def _execute_semantic_query_plan(
+    data_dir: str,
+    query: str,
+    plan: Dict[str, Any],
+    model: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     conditions = plan["filters"]
     if plan["logic"] == "or":
         filtered_rows = [row for row in inventory if any(_semantic_filter_matches(row, item) for item in conditions)]
@@ -1357,6 +1583,7 @@ def _execute_semantic_query_plan(data_dir: str, query: str, plan: Dict[str, Any]
             "patient_count": len(filtered_rows),
             "patient_ids": patient_ids,
             "patients": filtered_rows,
+            "scoped_follow_up": bool(scoped_patient_ids),
             "semantic_plan": effective_plan,
             "execution": "deterministic",
             "planner": {
@@ -1373,6 +1600,8 @@ def _semantic_query_plan(
     data_dir: str,
     query: str,
     history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+    scope_context: Optional[QueryScopeContext] = None,
 ) -> Optional[Dict[str, Any]]:
     if not _lm_studio_enabled():
         return None
@@ -1402,7 +1631,15 @@ def _semantic_query_plan(
             {
                 "role": "user",
                 "content": "Catalog JSON:\n%s\n\nQuestion: %s%s" % (
-                    json.dumps(_semantic_query_catalog(data_dir), ensure_ascii=True, separators=(",", ":")),
+                    json.dumps(
+                        _semantic_query_catalog(
+                            data_dir,
+                            scoped_patient_ids=scoped_patient_ids,
+                            scope_context=scope_context,
+                        ),
+                        ensure_ascii=True,
+                        separators=(",", ":"),
+                    ),
                     query,
                     (
                         "\n\nRecent conversation history JSON:\n%s"
@@ -1432,13 +1669,15 @@ def _semantic_query_plan(
     validated = _validate_semantic_query_plan(parsed)
     if validated is None:
         return None
-    return _execute_semantic_query_plan(data_dir, query, validated, model)
+    return _execute_semantic_query_plan(data_dir, query, validated, model, scoped_patient_ids=scoped_patient_ids)
 
 
 def _lm_studio_reply(
     data_dir: str,
     query: str,
     history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+    scope_context: Optional[QueryScopeContext] = None,
 ) -> Optional[Dict[str, Any]]:
     if not _lm_studio_enabled():
         return None
@@ -1455,7 +1694,13 @@ def _lm_studio_reply(
             "data": {"provider": "lm_studio", "base_url": _lm_studio_base_url()},
         }
 
-    context = _lm_studio_context(data_dir, query, history=history)
+    context = _lm_studio_context(
+        data_dir,
+        query,
+        history=history,
+        scoped_patient_ids=scoped_patient_ids,
+        scope_context=scope_context,
+    )
     payload = {
         "model": model,
         "temperature": 0.1,
@@ -1557,10 +1802,12 @@ def answer_query(
     query: str,
     query_mode: str = "auto",
     history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     text = query.strip()
     lowered = text.lower()
     mode = str(query_mode or "auto").strip().lower()
+    active_scoped_patient_ids = scoped_patient_ids if _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
 
     if not text:
         return {
@@ -1584,12 +1831,26 @@ def answer_query(
             },
         }
 
+    scope_context = _build_query_scope_context(data_dir, scoped_patient_ids=active_scoped_patient_ids)
+
     if mode in {"planner_only", "llm_only"}:
         if mode == "planner_only":
-            semantic_fallback = _semantic_query_plan(data_dir, query, history=history)
+            semantic_fallback = _semantic_query_plan(
+                data_dir,
+                query,
+                history=history,
+                scoped_patient_ids=active_scoped_patient_ids,
+                scope_context=scope_context,
+            )
             if semantic_fallback is not None:
                 return semantic_fallback
-        fallback = _lm_studio_reply(data_dir, query, history=history)
+        fallback = _lm_studio_reply(
+            data_dir,
+            query,
+            history=history,
+            scoped_patient_ids=active_scoped_patient_ids,
+            scope_context=scope_context,
+        )
         if fallback is not None:
             return fallback
         return {
@@ -1613,7 +1874,7 @@ def answer_query(
     ):
         operator = medication_count_constraint["operator"]
         target = medication_count_constraint["value"]
-        cohort = patient_medication_count_cohort(data_dir, operator, target)
+        cohort = patient_medication_count_cohort(data_dir, operator, target, scoped_patient_ids=active_scoped_patient_ids)
         label = _format_medication_count_constraint(operator, target)
         if lowered.startswith("how many"):
             verb = "has" if cohort["patient_count"] == 1 else "have"
@@ -1632,10 +1893,57 @@ def answer_query(
             "data": {
                 **cohort,
                 "constraint_label": label,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
                 "follow_up_suggestions": [
                     "How many patients have %s?" % label,
                     "Which patients have no medications?",
                     "Which patients have exactly 1 medication?",
+                ],
+            },
+        }
+
+    sex_constraint = _sex_constraint(text)
+    if sex_constraint is not None and (
+        lowered.startswith("how many patients")
+        or re.match(r"^how many\s+(?:male|males|female|females)\s+patients?\b", lowered) is not None
+        or lowered.startswith("how many are")
+        or lowered.startswith("which patients")
+        or re.match(r"^(which|list|show)\s+(?:male|males|female|females)\s+patients?\b", lowered) is not None
+        or lowered.startswith("which are")
+        or lowered.startswith("which ")
+        or lowered.startswith("list patients")
+        or lowered.startswith("show patients")
+    ):
+        inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), active_scoped_patient_ids)
+        filtered_rows = [
+            row for row in inventory
+            if str(row.get("sex") or "").strip().lower() == sex_constraint
+        ]
+        if lowered.startswith("how many"):
+            reply = "%s %s are %s." % (
+                len(filtered_rows),
+                "patient" if len(filtered_rows) == 1 else "patients",
+                sex_constraint,
+            )
+        else:
+            reply = "Patients who are %s: %s." % (
+                sex_constraint,
+                ", ".join(row["patient_id"] for row in filtered_rows) if filtered_rows else "none",
+            )
+        return {
+            "query": query,
+            "intent": "patient_sex_cohort",
+            "reply": reply,
+            "data": {
+                "sex": sex_constraint,
+                "patient_count": len(filtered_rows),
+                "patient_ids": [row["patient_id"] for row in filtered_rows],
+                "patients": filtered_rows,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
+                "follow_up_suggestions": [
+                    "Which patients are %s?" % sex_constraint,
+                    "How many patients have Crohn Disease?",
+                    "Show patient %s" % (filtered_rows[0]["patient_id"] if filtered_rows else "107"),
                 ],
             },
         }
@@ -1648,7 +1956,7 @@ def answer_query(
         or "timeline of this cohort" in lowered
         or "timeline of this workspace" in lowered
     ):
-        summary = _cohort_over_time_summary(data_dir)
+        summary = _cohort_over_time_summary(data_dir, scoped_patient_ids=active_scoped_patient_ids)
         periods = summary["periods"]
         period_text = ", ".join(
             "%s: %s timepoints across %s patients" % (item["period"], item["timepoint_count"], item["patient_count"])
@@ -1684,7 +1992,7 @@ def answer_query(
         if any(keyword in lowered for keyword in ("mention", "with ", " for ")):
             term = _term_from_timepoint_query(text)
             if term:
-                result = _term_timepoint_summary(data_dir, term)
+                result = _term_timepoint_summary(data_dir, term, scoped_patient_ids=active_scoped_patient_ids)
                 if result is not None:
                     return {
                         "query": query,
@@ -1699,7 +2007,7 @@ def answer_query(
                             "follow_up_suggestions": _follow_up_suggestions(term),
                         },
                     }
-        summary = _cohort_over_time_summary(data_dir)
+        summary = _cohort_over_time_summary(data_dir, scoped_patient_ids=active_scoped_patient_ids)
         return {
             "query": query,
             "intent": "timepoint_inventory",
@@ -1718,7 +2026,7 @@ def answer_query(
         }
 
     if _is_sample_list_query(text):
-        sample_ids = _sample_inventory(data_dir)
+        sample_ids = scope_context.sample_ids
         reply_lines = ["Samples in the workspace (%s):" % len(sample_ids)]
         reply_lines.extend("- %s" % sample_id for sample_id in sample_ids)
         return {
@@ -1737,8 +2045,8 @@ def answer_query(
         }
 
     if _is_patient_list_query(text):
-        patient_ids = _patient_inventory(data_dir)
-        sample_ids = _sample_inventory(data_dir)
+        patient_ids = scope_context.patient_ids
+        sample_ids = scope_context.sample_ids
         reply_lines = ["Patients in the workspace (%s):" % len(patient_ids)]
         reply_lines.extend("- %s" % patient_id for patient_id in patient_ids)
         return {
@@ -1750,6 +2058,7 @@ def answer_query(
                 "patient_ids": patient_ids,
                 "sample_count": len(sample_ids),
                 "sample_ids": sample_ids,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
                 "follow_up_suggestions": [
                     "How many patients are in this workspace?",
                     "Show patient %s" % (patient_ids[0] if patient_ids else "107"),
@@ -1764,6 +2073,7 @@ def answer_query(
             data_dir,
             transition_query["first_term"],
             transition_query["second_term"],
+            scoped_patient_ids=active_scoped_patient_ids,
         )
         if result is not None:
             first_term = transition_query["first_term"]
@@ -1802,6 +2112,7 @@ def answer_query(
             data_dir,
             start_after_query["started_term"],
             start_after_query["after_term"],
+            scoped_patient_ids=active_scoped_patient_ids,
         )
         if result is not None:
             started_term = start_after_query["started_term"]
@@ -1841,6 +2152,7 @@ def answer_query(
             temporal_order_query["first_term"],
             temporal_order_query["second_term"],
             temporal_order_query["relation"],
+            scoped_patient_ids=active_scoped_patient_ids,
         )
         if result is not None:
             relation = temporal_order_query["relation"]
@@ -1878,7 +2190,7 @@ def answer_query(
 
     patient_filter_query = _patient_filter_query(text)
     if patient_filter_query is not None:
-        inventory = _patient_query_index(data_dir)
+        inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), active_scoped_patient_ids)
         rows_by_id = {row["patient_id"]: row for row in inventory}
         remaining_ids = {row["patient_id"] for row in inventory}
         resolved_conditions: List[Dict[str, Any]] = []
@@ -1892,6 +2204,7 @@ def answer_query(
                     condition["term"],
                     operator,
                     target,
+                    scoped_patient_ids=active_scoped_patient_ids,
                 )
                 if kind is None:
                     return {
@@ -1926,7 +2239,12 @@ def answer_query(
                 continue
 
             preferred_kind = condition["preferred_kind"] or None
-            kind, cohort = _resolve_patient_filter_kind(data_dir, condition["term"], preferred_kind=preferred_kind)
+            kind, cohort = _resolve_patient_filter_kind(
+                data_dir,
+                condition["term"],
+                preferred_kind=preferred_kind,
+                scoped_patient_ids=active_scoped_patient_ids,
+            )
             if kind is None:
                 return {
                     "query": query,
@@ -1990,6 +2308,7 @@ def answer_query(
                 "patient_ids": [row["patient_id"] for row in filtered_rows],
                 "patients": filtered_rows,
                 "conditions": resolved_conditions,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
                 "follow_up_suggestions": [
                     "How many patients have %s?" % resolved_conditions[0]["term"],
                     "Which patients have %s?" % resolved_conditions[0]["term"],
@@ -2001,11 +2320,11 @@ def answer_query(
     negative_term_query = _negative_patient_term_query(text)
     if negative_term_query is not None:
         term = negative_term_query["term"]
-        inventory = _patient_query_index(data_dir)
+        inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), active_scoped_patient_ids)
         all_patient_ids = [row["patient_id"] for row in inventory]
 
-        medication = _medication_cohort(data_dir, term)
-        disease = _disease_cohort(data_dir, term)
+        medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), active_scoped_patient_ids)
+        disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), active_scoped_patient_ids)
 
         selected_intent = "negative_medication_cohort"
         selected_matches = medication["patients"]
@@ -2036,6 +2355,7 @@ def answer_query(
                 "patient_count": len(complement_ids),
                 "patient_ids": complement_ids,
                 "patients": complement_rows,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
                 "follow_up_suggestions": [
                     "How many patients have %s?" % term,
                     "Which patients have %s?" % term,
@@ -2046,8 +2366,8 @@ def answer_query(
 
     if lowered.startswith("how many patients have ") or lowered.startswith("which patients have "):
         term = re.sub(r"^(how many patients have|which patients have)\s+", "", text, flags=re.IGNORECASE).strip(" ?.")
-        medication = _medication_cohort(data_dir, term)
-        disease = _disease_cohort(data_dir, term)
+        medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), active_scoped_patient_ids)
+        disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), active_scoped_patient_ids)
         if medication["patient_count"] > 0 and disease["patient_count"] == 0:
             if lowered.startswith("how many"):
                 reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
@@ -2063,11 +2383,12 @@ def answer_query(
                 "reply": reply,
                 "data": {
                     **medication,
+                    "scoped_follow_up": bool(active_scoped_patient_ids),
                     "follow_up_suggestions": _follow_up_suggestions(term),
                 },
             }
 
-        disease = _disease_cohort(data_dir, term)
+        disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), active_scoped_patient_ids)
         if disease["patient_count"] > 0:
             if lowered.startswith("how many"):
                 reply = "%s patients match disease query '%s'." % (disease["patient_count"], term)
@@ -2083,6 +2404,7 @@ def answer_query(
                 "reply": reply,
                 "data": {
                     **disease,
+                    "scoped_follow_up": bool(active_scoped_patient_ids),
                     "follow_up_suggestions": _follow_up_suggestions(term),
                 },
             }
@@ -2102,6 +2424,7 @@ def answer_query(
                 "reply": reply,
                 "data": {
                     **medication,
+                    "scoped_follow_up": bool(active_scoped_patient_ids),
                     "follow_up_suggestions": _follow_up_suggestions(term),
                 },
             }
@@ -2113,7 +2436,7 @@ def answer_query(
     )
     if select_take_match:
         medication = select_take_match.group(1).strip(" ?.")
-        cohort = _medication_cohort(data_dir, medication)
+        cohort = _medication_cohort(data_dir, medication, scoped_patient_ids=active_scoped_patient_ids)
         patient_ids = [item["patient_id"] for item in cohort["patients"]]
         return {
             "query": query,
@@ -2134,7 +2457,7 @@ def answer_query(
     )
     if medication_match:
         medication = text[medication_match.start(1):].strip(" ?.")
-        cohort = _medication_cohort(data_dir, medication)
+        cohort = _medication_cohort(data_dir, medication, scoped_patient_ids=active_scoped_patient_ids)
         patient_ids = [item["patient_id"] for item in cohort["patients"]]
         return {
             "query": query,
@@ -2150,7 +2473,7 @@ def answer_query(
         }
 
     if "what medications" in lowered or "list medications" in lowered:
-        counts = _medication_counts(data_dir)
+        counts = scope_context.medication_counts
         meds = [item["medication"] for item in counts[:20]]
         return {
             "query": query,
@@ -2167,7 +2490,7 @@ def answer_query(
         }
 
     if "what diseases" in lowered or "list diseases" in lowered:
-        counts = _disease_counts(data_dir)
+        counts = scope_context.disease_counts
         labels = [item["disease"] for item in counts[:20]]
         return {
             "query": query,
@@ -2229,7 +2552,7 @@ def answer_query(
     if visit_count_constraint is not None and any(keyword in lowered for keyword in ("with", "mention")):
         term = _term_from_timepoint_query(text)
         if term:
-            result = _term_timepoint_summary(data_dir, term)
+            result = _term_timepoint_summary(data_dir, term, scoped_patient_ids=active_scoped_patient_ids)
             if result is not None:
                 operator = visit_count_constraint["operator"]
                 target = visit_count_constraint["value"]
@@ -2266,7 +2589,7 @@ def answer_query(
     ):
         operator = visit_count_constraint["operator"]
         target = visit_count_constraint["value"]
-        cohort = patient_visit_count_cohort(data_dir, operator, target)
+        cohort = patient_visit_count_cohort(data_dir, operator, target, scoped_patient_ids=active_scoped_patient_ids)
         label = _format_visit_count_constraint(operator, target)
         if lowered.startswith("how many"):
             verb = "has" if cohort["patient_count"] == 1 else "have"
@@ -2293,11 +2616,23 @@ def answer_query(
             },
         }
 
-    semantic_fallback = _semantic_query_plan(data_dir, query, history=history)
+    semantic_fallback = _semantic_query_plan(
+        data_dir,
+        query,
+        history=history,
+        scoped_patient_ids=active_scoped_patient_ids,
+        scope_context=scope_context,
+    )
     if semantic_fallback is not None:
         return semantic_fallback
 
-    fallback = _lm_studio_reply(data_dir, query, history=history)
+    fallback = _lm_studio_reply(
+        data_dir,
+        query,
+        history=history,
+        scoped_patient_ids=active_scoped_patient_ids,
+        scope_context=scope_context,
+    )
     if fallback is not None:
         return fallback
 

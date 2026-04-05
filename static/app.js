@@ -61,6 +61,7 @@
       const queryDetailsEl = document.getElementById("queryDetails");
       const queryThreadEl = document.getElementById("queryThread");
       const queryPlannerBtnEl = document.getElementById("queryPlannerBtn");
+      const queryMemoryBtnEl = document.getElementById("queryMemoryBtn");
       const queryClearBtnEl = document.getElementById("queryClearBtn");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
@@ -184,6 +185,7 @@
       let queryHistory = [];
       let queryTurns = [];
       let queryExecutionMode = "auto";
+      let queryFollowMemoryEnabled = false;
       let queryProgressTimer = null;
       let analysisInFlight = false;
       let loadInFlight = false;
@@ -194,6 +196,13 @@
       let latestQueryIdType = "patient";
       let latestQueryPrompt = "";
       let latestQueryAnalysisPrompt = "";
+      let latestScopedContext = {
+        patientIds: [],
+        recordIds: [],
+        idType: "patient",
+        sourceTab: "",
+        prompt: "",
+      };
       let analysisHistory = [];
       let analysisTurns = [];
       let analysisProgressTimer = null;
@@ -968,15 +977,34 @@
       }
 
       function renderQueryExecutionMode() {
-        if (!queryPlannerBtnEl) {
-          return;
+        if (queryPlannerBtnEl) {
+          const active = queryExecutionMode === "planner_only";
+          queryPlannerBtnEl.classList.toggle("is-active", active);
+          queryPlannerBtnEl.setAttribute("aria-pressed", active ? "true" : "false");
+          queryPlannerBtnEl.title = active
+            ? "Semantic planner is enabled for the next query."
+            : "Skip deterministic matching for the next query and use the LLM planner first.";
         }
-        const active = queryExecutionMode === "planner_only";
-        queryPlannerBtnEl.classList.toggle("is-active", active);
-        queryPlannerBtnEl.setAttribute("aria-pressed", active ? "true" : "false");
-        queryPlannerBtnEl.title = active
-          ? "Semantic planner is enabled for the next query."
-          : "Skip deterministic matching for the next query and use the LLM planner first.";
+        if (queryMemoryBtnEl) {
+          queryMemoryBtnEl.classList.toggle("is-active", queryFollowMemoryEnabled);
+          queryMemoryBtnEl.setAttribute("aria-pressed", queryFollowMemoryEnabled ? "true" : "false");
+          queryMemoryBtnEl.title = queryFollowMemoryEnabled
+            ? "Prompt scope follows the previous Query result for patient-oriented follow-up questions."
+            : "Prompt scope is the current workspace unless you explicitly select scope elsewhere.";
+          const scopedPatientIds = latestScopedContext && Array.isArray(latestScopedContext.patientIds)
+            ? latestScopedContext.patientIds
+            : [];
+          const labelEl = queryMemoryBtnEl.querySelector("span:last-child");
+          if (labelEl) {
+            if (!queryFollowMemoryEnabled) {
+              labelEl.textContent = "Prompt scope: workspace";
+            } else if (scopedPatientIds.length) {
+              labelEl.textContent = `Prompt scope: previous result (${scopedPatientIds.length} patients)`;
+            } else {
+              labelEl.textContent = "Prompt scope: waiting for previous result";
+            }
+          }
+        }
       }
 
       function renderAnalysisStarterPrompts() {
@@ -1809,6 +1837,15 @@
               latestQueryIdType = patch.idType || 'patient';
             }
           },
+          setLatestScopedContext: (patch) => {
+            latestScopedContext = {
+              patientIds: Array.isArray(patch && patch.patientIds) ? patch.patientIds : latestScopedContext.patientIds,
+              recordIds: Array.isArray(patch && patch.recordIds) ? patch.recordIds : latestScopedContext.recordIds,
+              idType: patch && patch.idType ? patch.idType : latestScopedContext.idType,
+              sourceTab: patch && patch.sourceTab ? patch.sourceTab : latestScopedContext.sourceTab,
+              prompt: patch && typeof patch.prompt === 'string' ? patch.prompt : latestScopedContext.prompt,
+            };
+          },
         },
         state: {
           get queryInFlight() { return queryInFlight; },
@@ -1819,8 +1856,11 @@
           set queryTurns(value) { queryTurns = value; },
           get queryExecutionMode() { return queryExecutionMode; },
           set queryExecutionMode(value) { queryExecutionMode = value; },
+          get queryFollowMemoryEnabled() { return queryFollowMemoryEnabled; },
+          set queryFollowMemoryEnabled(value) { queryFollowMemoryEnabled = Boolean(value); },
           get latestQueryPatientIds() { return latestQueryPatientIds; },
           get latestQueryRecordIds() { return latestQueryRecordIds; },
+          get latestScopedContext() { return latestScopedContext; },
         },
       });
 
@@ -2275,6 +2315,10 @@
         queryExecutionMode = queryExecutionMode === "planner_only" ? "auto" : "planner_only";
         renderQueryExecutionMode();
       });
+      queryMemoryBtnEl && queryMemoryBtnEl.addEventListener("click", () => {
+        queryFollowMemoryEnabled = !queryFollowMemoryEnabled;
+        renderQueryExecutionMode();
+      });
       queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.addEventListener("click", () => {
         const willOpen = !queryDiseasePanelEl || queryDiseasePanelEl.classList.contains("is-hidden");
         if (queryDiseasePanelEl) queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
@@ -2282,10 +2326,12 @@
       });
       queryClearBtnEl && queryClearBtnEl.addEventListener("click", () => {
         resetQueryWorkspace();
+        queryFollowMemoryEnabled = false;
         if (queryDiseasePanelEl) queryDiseasePanelEl.classList.add("is-hidden");
         queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.classList.remove("is-active");
         queryStatusEl.className = "query-status";
         queryStatusEl.textContent = "Query thread cleared.";
+        renderQueryExecutionMode();
       });
       analysisRunBtnEl.addEventListener("click", runAnalysis);
       analysisComposerExamplesBtnEl && analysisComposerExamplesBtnEl.addEventListener("click", () => {

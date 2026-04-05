@@ -18,6 +18,8 @@
   --ifm-background-color: #f8fafc;
   --ifm-navbar-background-color: rgba(255, 255, 255, 0.92);
   --ifm-footer-background-color: #0f172a;
+  --pn-docs-hero-background: linear-gradient(135deg, #eff6ff, #f8fafc);
+  --pn-docs-hero-color: #0f172a;
 }
 
 [data-theme='dark'] {
@@ -29,6 +31,14 @@
   --ifm-color-primary-lighter: #bfdbfe;
   --ifm-color-primary-lightest: #dbeafe;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-background-color: #0b1220;
+  --ifm-background-surface-color: #111827;
+  --ifm-navbar-background-color: rgba(15, 23, 42, 0.88);
+  --ifm-font-color-base: #e5eefb;
+  --ifm-heading-color: #f8fafc;
+  --ifm-card-background-color: #111827;
+  --pn-docs-hero-background: linear-gradient(135deg, #0f172a, #111827);
+  --pn-docs-hero-color: #f8fafc;
 }
 
 .navbar {
@@ -36,8 +46,8 @@
 }
 
 .hero--primary {
-  background: linear-gradient(135deg, #eff6ff, #f8fafc);
-  color: #0f172a;
+  background: var(--pn-docs-hero-background);
+  color: var(--pn-docs-hero-color);
 }
 
 .pn-docs-hero-brand {

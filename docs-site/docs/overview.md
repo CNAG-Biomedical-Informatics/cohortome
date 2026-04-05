@@ -18,6 +18,8 @@ Patient Navigator is a multimodal clinical exploration app for:
 - saved subset reuse across tabs
 - dataset-level access control for different users
 
+![Login view](/img/screenshots/login-page.png)
+
 ## Current core concepts
 
 - `Workspace`

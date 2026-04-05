@@ -6,6 +6,10 @@ sidebar_position: 2
 
 This is one of the most important concepts in the app.
 
+:::warning This distinction affects behavior across tabs
+The same visible subset may be described in patient language while still preserving sample-level IDs behind the scenes for downstream tools.
+:::
+
 ## Patient IDs
 
 Patient IDs identify a person, for example:
@@ -76,6 +80,12 @@ Expected behavior:
 
 When an ID list comes from `Pheno-Ranker`, it should be treated as sample-level unless explicitly transformed.
 
+:::tip Rule of thumb
+If you are asking about people, use patient language.
+
+If you are selecting a timepoint, biosample, record, or Pheno-Ranker result, assume sample-level IDs matter.
+:::
+
 ## Important detail
 
 When `Pheno-Ranker` uses multiple reference files, it may temporarily prefix IDs like:
@@ -92,3 +102,20 @@ Use this shortcut:
 
 - if you are asking about people, think patient IDs
 - if you are selecting a concrete record, timepoint, or biosample, think sample IDs
+
+:::info Synonyms are supported
+The app treats these as patient-like terms:
+
+- `patient`
+- `subject`
+- `individual`
+
+And these as sample-like terms:
+
+- `sample`
+- `biosample`
+- `specimen`
+- `biospecimen`
+- `record`
+- `timepoint`
+:::

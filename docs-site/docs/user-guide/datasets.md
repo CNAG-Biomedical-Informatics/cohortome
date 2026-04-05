@@ -6,6 +6,10 @@ sidebar_position: 1
 
 The `Datasets` tab defines the active workspace.
 
+:::note
+This tab is user-facing. It is different from `Data Administration`, which controls dataset policy.
+:::
+
 ## What the tab does
 
 This tab is where a user chooses which authorized datasets should be active at the same time.
@@ -16,6 +20,8 @@ The result is the current workspace used by:
 - `Query`
 - `Analysis`
 - `Pheno-Ranker`
+
+![Datasets tab with active and pending workspace state](/img/screenshots/datasets-tab.png)
 
 ## Active vs pending selection
 
@@ -29,6 +35,10 @@ The dataset picker distinguishes two states:
 The workspace does not change immediately when a checkbox changes. It changes only when the user clicks:
 
 - `Apply workspace`
+
+:::warning Pending is not active
+If you check or uncheck datasets but do not click `Apply workspace`, the backend is still operating on the previous active workspace.
+:::
 
 ## Why this matters
 
@@ -47,6 +57,10 @@ This avoids a misleading state where the UI would appear to use one set of datas
 The workspace cannot be empty.
 
 At least one dataset must remain selected.
+
+:::tip
+Use `Dashboard` immediately after applying a workspace if you want to confirm that the expected datasets, patients, and molecular files are really loaded.
+:::
 
 ## Notes on permissions
 

@@ -356,10 +356,10 @@
           </div>
           <div class="analysis-history-header">
             <span>Query Thread</span>
-            <small>Follow-up workspace questions reuse recent query history.</small>
+            <small>Recent text history is always available. Reusing the previous Query result is optional.</small>
           </div>
           <div id="queryThread" class="analysis-thread">
-            <div class="empty">Ask a query to start a conversational thread. Follow-up workspace questions will reuse recent query history.</div>
+            <div class="empty">Ask a query to start a conversational thread. Recent text history is kept, but previous-result memory is opt-in.</div>
           </div>
           <details class="query-section">
             <summary>Latest query details</summary>
@@ -383,6 +383,15 @@
                     </svg>
                   </span>
                   <span>Use LLM planner</span>
+                </button>
+                <button id="queryMemoryBtn" type="button" class="query-chip" title="When enabled, patient-oriented follow-up queries can reuse the previous Query result instead of the full workspace.">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 8v5l3 3"></path>
+                      <circle cx="12" cy="12" r="9"></circle>
+                    </svg>
+                  </span>
+                  <span>Prompt scope: workspace</span>
                 </button>
                 <button id="queryDiseaseBuilderBtn" type="button" class="query-chip query-chip-deterministic">
                   <span class="button-icon" aria-hidden="true">

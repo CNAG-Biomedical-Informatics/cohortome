@@ -2,9 +2,16 @@
 sidebar_position: 1
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Datasets And Access
 
 Datasets are first-class resources in the app.
+
+:::tip Recommended policy
+Use groups as the default way to grant dataset access. Use direct allowed users only for exceptions.
+:::
 
 ## Dataset structure
 
@@ -15,6 +22,36 @@ dataset_root/
   clinical/
   molecular/
 ```
+
+<Tabs>
+  <TabItem value="user-view" label="User view" default>
+    <div>
+      <p>Regular users are expected to:</p>
+      <ul>
+        <li>see only authorized datasets</li>
+        <li>choose one or more datasets in <code>Datasets</code></li>
+        <li>apply the active workspace</li>
+      </ul>
+
+      <p>They do not manage dataset policy from this view.</p>
+    </div>
+
+  </TabItem>
+  <TabItem value="admin-view" label="Admin view">
+    <div>
+      <p>Admins are expected to:</p>
+      <ul>
+        <li>review dataset visibility</li>
+        <li>assign allowed groups</li>
+        <li>assign allowed users</li>
+        <li>inspect effective local access</li>
+      </ul>
+
+      <p>This happens in <code>Data Administration</code>, not in the user-facing <code>Datasets</code> tab.</p>
+    </div>
+
+  </TabItem>
+</Tabs>
 
 ## Access model
 
@@ -31,6 +68,14 @@ The effective rule is a union:
 - or visible through explicit direct user assignment
 
 This is intentionally a union, not a conflict model.
+
+:::info
+Effective access is granted if any allowed path matches:
+
+- visibility
+- group membership
+- direct user assignment
+:::
 
 ## Groups versus direct users
 
@@ -61,6 +106,10 @@ Such a user:
   - broad visibility
   - direct `allowed_users`
 
+:::note
+Groupless users are valid. They do not need to be forced into a group just to be usable in the app.
+:::
+
 ## What Data Administration edits
 
 `Data Administration` edits dataset policy, not user identity.
@@ -72,6 +121,10 @@ It currently allows admins to edit:
 - `Allowed users`
 
 User records and group membership still come from local auth configuration.
+
+:::warning
+The current UI edits dataset policy, not user identity. Changing local users or groups still requires updating the auth configuration source.
+:::
 
 ## Effective local access
 

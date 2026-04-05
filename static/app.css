@@ -2405,6 +2405,11 @@
         box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.18);
         background: rgba(187, 247, 208, 0.98);
       }
+      #queryMemoryBtn.is-active {
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
+        background: rgba(204, 251, 241, 0.98);
+        color: var(--handoff-deep);
+      }
       #queryDiseaseBuilderBtn.is-active {
         box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
         background: rgba(219, 234, 254, 0.98);

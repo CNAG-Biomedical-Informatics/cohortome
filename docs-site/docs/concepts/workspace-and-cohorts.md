@@ -6,6 +6,12 @@ sidebar_position: 1
 
 The app now distinguishes between two different scopes:
 
+:::tip Terminology shortcut
+If the question is about the currently loaded universe of data, think `workspace`.
+
+If the question is about a reusable subset inside that universe, think `saved cohort`.
+:::
+
 ## Workspace
 
 The workspace is the active loaded dataset scope.
@@ -57,7 +63,20 @@ In the second example, the workspace spans multiple datasets, while the saved co
   - defines the workspace
 - `Query`
   - usually starts from the full workspace, then narrows it
+  - can optionally follow the previous Query result through `Prompt scope`
 - `Analysis`
   - can use the full workspace or saved cohorts
 - `Pheno-Ranker`
   - runs inside the active workspace, unless you narrow it with saved cohorts or scope
+
+:::note Query-local scope
+`Query` has a local `Prompt scope` control that can temporarily refine the next Query prompt to the previous Query result.
+
+That local prompt scope is not the same thing as the global workspace shown in the shell.
+:::
+
+:::warning Do not treat workspace and saved cohort as synonyms
+This distinction matters more now that one workspace may span multiple datasets.
+
+`Analysis` compare mode is cohort-oriented, while `Datasets` defines the broader workspace.
+:::

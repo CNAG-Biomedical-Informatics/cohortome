@@ -32,6 +32,7 @@ export function createQueryUi(ctx) {
     phenoRankerPatientIdsProvider,
     isMultiDatasetWorkspace,
     setLatestQueryState,
+    setLatestScopedContext,
   } = callbacks;
   let diseaseOptions = [];
 
@@ -483,6 +484,16 @@ export function createQueryUi(ctx) {
       analysisPrompt: patientIds.length ? "Interpret this selected workspace subset and summarize the main clinical and treatment patterns." : "",
       idType: "patient",
     });
+    if (patientIds.length) {
+      setLatestScopedContext({
+        patientIds,
+        recordIds,
+        idType: recordIds.length ? "sample" : "patient",
+        sourceTab: "query",
+        prompt: questionEl.value.trim(),
+      });
+      renderQueryExecutionMode();
+    }
     if (!patientIds.length) return "";
     const phenoRankerPatientIds = phenoRankerPatientIdsProvider();
     const compatibleIds = phenoRankerPatientIds.length ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId)) : [];
@@ -565,7 +576,6 @@ export function createQueryUi(ctx) {
     queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
     queryMetaEl.innerHTML = "";
     if (queryActionsEl) queryActionsEl.innerHTML = "";
-    setLatestQueryState({ ids: [] });
     queryFollowupsEl.innerHTML = "";
     state.queryTurns.push({ role: "user", prompt: question });
     state.queryTurns.push({
@@ -587,6 +597,15 @@ export function createQueryUi(ctx) {
           data_dir: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
           query_mode: queryMode,
           history: state.queryHistory.slice(-6),
+          scoped_patient_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
+            ? state.latestScopedContext.patientIds
+            : [],
+          scoped_record_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.recordIds)
+            ? state.latestScopedContext.recordIds
+            : [],
+          scoped_id_type: state.queryFollowMemoryEnabled && state.latestScopedContext && state.latestScopedContext.idType
+            ? state.latestScopedContext.idType
+            : "patient",
         }),
       });
       if (!response.ok) {

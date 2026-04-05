@@ -23,6 +23,9 @@ class QueryRequest(BaseModel):
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
     query_mode: str = Field(default="auto", description="Query execution mode. Supported values include auto and planner_only.")
     history: List[QueryTurn] = Field(default_factory=list)
+    scoped_patient_ids: List[str] = Field(default_factory=list, description="Optional prior subset patient IDs carried as app-level conversational scope for follow-up queries.")
+    scoped_record_ids: List[str] = Field(default_factory=list, description="Optional prior subset sample or record IDs carried as app-level conversational scope.")
+    scoped_id_type: str = Field(default="patient", description="The primary ID level used by the carried scoped context.")
 
 
 class AnalysisRequest(BaseModel):

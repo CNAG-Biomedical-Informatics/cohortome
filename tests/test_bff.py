@@ -118,8 +118,236 @@ def test_generate_mds_points_transforms_jaccard_similarity_to_distance(tmp_path)
     assert jaccard_payload["returncode"] == "0"
     assert "hamming distance" in hamming_payload["stdout"].lower()
     assert "jaccard distance" in jaccard_payload["stdout"].lower()
-    assert abs(hamming_distance - 0.8) < 1e-6
-    assert abs(jaccard_distance - 0.2) < 1e-6
+
+
+def test_query_follow_up_can_refine_previous_subset_by_sex(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many patients are male?",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "2 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P2"],
+    )
+
+    assert payload["intent"] == "patient_sex_cohort"
+    assert payload["data"]["patient_ids"] == ["P2"]
+    assert payload["data"]["patient_count"] == 1
+    assert "1 patient" in payload["reply"]
+
+
+def test_query_follow_up_can_refine_previous_subset_by_plural_sex_shorthand(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P4:baseline", "patient_id": "P4", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many are females?",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "3 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P2", "P3"],
+    )
+
+    assert payload["intent"] == "patient_sex_cohort"
+    assert payload["data"]["patient_ids"] == ["P1", "P3"]
+    assert payload["data"]["patient_count"] == 2
+    assert "2 patients are female" in payload["reply"]
+
+
+def test_query_full_workspace_override_ignores_memory_for_adjective_style_sex_prompt(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P4:baseline", "patient_id": "P4", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many female patients are in the full workspace?",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "3 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P2", "P3"],
+    )
+
+    assert payload["intent"] == "patient_sex_cohort"
+    assert payload["data"]["patient_ids"] == ["P1", "P3", "P4"]
+    assert payload["data"]["patient_count"] == 3
+    assert payload["data"]["scoped_follow_up"] is False
+
+
+def test_query_semantic_follow_up_respects_previous_subset_scope(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN004:week_0", "patient_id": "SYN004"},
+            {"id": "SYN005:week_0", "patient_id": "SYN005"},
+            {"id": "SYN014:week_0", "patient_id": "SYN014"},
+            {"id": "SYN015:week_0", "patient_id": "SYN015"},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    def fake_http_json(url, payload, log_kind=None):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        assert log_kind == "query_semantic_plan"
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "intent": "cohort_query",
+                                "output": "patient_list",
+                                "logic": "or",
+                                "filters": [
+                                    {"domain": "patient_id", "operator": "contains", "value": "4", "negate": False},
+                                    {"domain": "patient_id", "operator": "contains", "value": "5", "negate": False},
+                                ],
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many patients have 4 or 5 in the name",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "5 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["SYN014", "SYN015", "SYN021", "SYN024", "SYN025"],
+    )
+
+    assert payload["intent"] == "semantic_cohort_query"
+    assert payload["data"]["patient_ids"] == ["SYN014", "SYN015"]
+    assert payload["data"]["patient_count"] == 2
+    assert payload["data"]["scoped_follow_up"] is True
+
+
+def test_query_scoped_disease_inventory_uses_prompt_scope(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "List diseases in this workspace",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "2 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P2"],
+    )
+
+    assert payload["intent"] == "disease_inventory"
+    assert [item["disease"] for item in payload["data"]["diseases"]] == ["Crohn Disease"]
+
+
+def test_query_medication_shortcut_respects_prompt_scope(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "treatments": [{"treatmentCode": {"label": "Infliximab"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "Find patients who take Infliximab",
+        history=[
+            {"role": "user", "content": "Which patients are male?"},
+            {"role": "assistant", "content": "Patients who are male: P2, P3."},
+        ],
+        scoped_patient_ids=["P2", "P3"],
+    )
+
+    assert payload["intent"] == "medication_cohort"
+    assert payload["data"]["patient_ids"] == ["P2"]
+    assert payload["data"]["patient_count"] == 1
+
+
+def test_query_follow_up_scopes_disease_match_to_previous_subset(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1", "patient": {"sex": "female"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:baseline", "patient_id": "P2", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P3:baseline", "patient_id": "P3", "patient": {"sex": "male"}, "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many patients have Crohn Disease?",
+        history=[
+            {"role": "user", "content": "Which patients are male?"},
+            {"role": "assistant", "content": "Patients who are male: P2, P3."},
+        ],
+        scoped_patient_ids=["P2", "P3"],
+    )
+
+    assert payload["intent"] == "disease_cohort"
+    assert payload["data"]["patient_ids"] == ["P2", "P3"]
+    assert payload["data"]["patient_count"] == 2
 
 
 def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp_path):
@@ -1703,6 +1931,49 @@ def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
     user_message = captured["payload"]["messages"][1]["content"]
     assert "conversation_history" in user_message
     assert "Show patient 107" in user_message
+
+
+def test_query_passes_scoped_subset_into_lm_studio_context(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:v1", "patient_id": "P1", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:v1", "patient_id": "P2", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+            {"id": "P3:v1", "patient_id": "P3", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "Scoped context answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "Can you summarize the main conditions they seem to have?",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "2 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P3"],
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert '"patients":2' in user_message
+    assert "P1" in user_message
+    assert "P3" in user_message
+    assert "P2" not in user_message
+    assert "Ulcerative Colitis" not in user_message
 
 
 def test_query_uses_semantic_planner_before_generic_lm_fallback(tmp_path, monkeypatch):

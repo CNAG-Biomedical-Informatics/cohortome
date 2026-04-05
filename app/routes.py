@@ -448,6 +448,7 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
             request.q,
             query_mode=request.query_mode,
             history=[turn.model_dump() for turn in request.history],
+            scoped_patient_ids=request.scoped_patient_ids,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

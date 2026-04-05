@@ -2,14 +2,51 @@
 sidebar_position: 3
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Pheno-Ranker
 
 `Pheno-Ranker` compares patients or subsets using phenotypic similarity.
+
+:::warning
+Despite the historical wording around cohort mode, current Pheno-Ranker workflows are fundamentally sample-level.
+:::
 
 ## Modes
 
 - patient mode
 - cohort mode
+
+![Pheno-Ranker tab](/img/screenshots/pheno-tab.png)
+
+<Tabs>
+  <TabItem value="patient-mode" label="Patient mode" default>
+    <div>
+      <p>Use patient mode when you want one target patient or sample to be matched against the active workspace references.</p>
+
+      <p>Typical output:</p>
+      <ul>
+        <li>ranked matches</li>
+        <li>alignment details</li>
+        <li>deterministic or LLM explanation</li>
+      </ul>
+    </div>
+
+  </TabItem>
+  <TabItem value="cohort-mode" label="Cohort mode">
+    <div>
+      <p>Use cohort mode when you want a selected subset to be compared at the sample level.</p>
+
+      <p>Important current rule:</p>
+      <ul>
+        <li>this mode still operates on sample-level records</li>
+        <li>if patient IDs are supplied, backend expansion may be needed before the run</li>
+      </ul>
+    </div>
+
+  </TabItem>
+</Tabs>
 
 ## What cohort mode really means here
 
@@ -28,6 +65,10 @@ This is why:
 
 - one dataset can contribute more than one active workspace file
 - a multi-dataset workspace can produce several Pheno reference files
+
+:::info
+Do not confuse dataset count with Pheno reference-file count. One dataset may contribute several clinical JSON files.
+:::
 
 ## Current scope behavior
 
@@ -63,6 +104,10 @@ These prefixes indicate reference-file grouping inside the Pheno run. They shoul
 - copying IDs
 - handing the selection to Analysis
 
+:::tip
+If you see identifiers like `C1_SYN001:week_0`, treat the `C1_` part as temporary run-local labeling, not part of the underlying sample ID.
+:::
+
 ## Explanation modes
 
 The current UI offers two explanation paths:
@@ -76,3 +121,7 @@ The intent is:
 
 - deterministic explanation gives structured evidence from the similarity output
 - LLM explanation gives a narrative interpretation, with deterministic evidence shown as support
+
+:::note
+The explanation cards are meant to complement the ranked output, not replace it. Deterministic evidence remains the grounding layer.
+:::

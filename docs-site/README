@@ -2,3 +2,6 @@ cd docs-site
 npm run build
 npm start
 
+  - npm start = dev version
+  - npm run serve = built/deployed-style version
+

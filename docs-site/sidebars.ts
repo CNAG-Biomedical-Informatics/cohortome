@@ -16,9 +16,12 @@ const sidebars: SidebarsConfig = {
       label: 'User Guide',
       items: [
         'user-guide/datasets',
+        'user-guide/dashboard',
         'user-guide/query',
+        'user-guide/saved-cohorts-and-handoffs',
         'user-guide/analysis',
         'user-guide/pheno-ranker',
+        'user-guide/user-journeys',
       ],
     },
     {
@@ -26,6 +29,7 @@ const sidebars: SidebarsConfig = {
       label: 'Admin Guide',
       items: [
         'admin-guide/datasets-and-access',
+        'admin-guide/local-auth-and-groups',
       ],
     },
     {
@@ -33,6 +37,8 @@ const sidebars: SidebarsConfig = {
       label: 'Developer Guide',
       items: [
         'developer-guide/architecture',
+        'developer-guide/design-decisions',
+        'developer-guide/state-and-persistence',
         'developer-guide/api-reference',
       ],
     },
