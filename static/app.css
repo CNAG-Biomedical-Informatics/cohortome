@@ -453,6 +453,17 @@
         display: grid;
         gap: 10px;
       }
+      .saved-cohort-inline-status {
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        background: rgba(254, 226, 226, 0.72);
+        color: #991b1b;
+        font-size: 0.92rem;
+        line-height: 1.45;
+        font-weight: 600;
+      }
       .saved-cohort-card {
         border: 1px solid var(--line);
         border-radius: 16px;

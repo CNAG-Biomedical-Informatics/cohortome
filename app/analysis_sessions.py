@@ -98,3 +98,20 @@ def delete_analysis_session(session_id: str, user_id: str = DEFAULT_LOCAL_USER_I
         return False
     _write_sessions(filtered, user_id)
     return True
+
+
+def list_sessions_referencing_saved_cohort(cohort_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
+    wanted = str(cohort_id or "").strip()
+    if not wanted:
+        return []
+    matches: List[Dict[str, Any]] = []
+    for item in _read_sessions(user_id):
+        saved_a = str(item.get("saved_cohort_id_a") or "").strip()
+        saved_b = str(item.get("saved_cohort_id_b") or "").strip()
+        if saved_a != wanted and saved_b != wanted:
+            continue
+        matches.append({
+            "id": str(item.get("id") or "").strip(),
+            "title": str(item.get("title") or "").strip(),
+        })
+    return matches

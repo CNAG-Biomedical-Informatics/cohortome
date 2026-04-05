@@ -297,6 +297,43 @@ def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     assert cohorts_module.list_saved_cohorts("/data/a") == []
 
 
+def test_saved_cohort_delete_is_blocked_when_referenced_by_analysis_session(tmp_path, monkeypatch):
+    monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(analysis_sessions_module, "LEGACY_ANALYSIS_SESSIONS_PATH", tmp_path / "legacy-analysis-sessions.json")
+
+    saved = cohorts_module.save_cohort(
+        name="Crohn cohort",
+        data_dir="/data/a",
+        sample_ids=["SYN001:week_0", "SYN002:week_0"],
+        patient_ids=["SYN001", "SYN002"],
+        id_type="sample",
+        source_kind="query",
+        source_prompt="Which patients have Crohn Disease?",
+    )
+
+    analysis_sessions_module.save_analysis_session({
+        "id": "session-1",
+        "title": "Crohn comparison",
+        "data_dir": "/data/a",
+        "scope": "",
+        "saved_cohort_id_a": saved["id"],
+        "compare_mode": False,
+        "compare_scope": "",
+        "saved_cohort_id_b": "",
+        "history": [],
+        "turns": [],
+    })
+
+    client = TestClient(app)
+    response = client.delete(f"/saved-cohorts/{saved['id']}")
+
+    assert response.status_code == 409
+    assert "analysis session" in response.json()["detail"].lower()
+    assert cohorts_module.list_saved_cohorts("/data/a")
+
+
 def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path, monkeypatch):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -2933,3 +2970,57 @@ def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sam
     assert comparison["medication_b"] == "Ustekinumab"
     assert comparison["scoped_patient_ids_a"] == ["SYN001", "SYN002", "SYN003"]
     assert comparison["scoped_patient_ids_b"] == ["SYN004", "SYN005"]
+
+
+def test_analysis_compare_follow_up_prompt_does_not_raise_name_error(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "SYN002:week_0",
+                "patient_id": "SYN002",
+                "event_date": "2024-01-08",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "SYN003:week_0",
+                "patient_id": "SYN003",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Ustekinumab"}}],
+            },
+            {
+                "id": "SYN004:week_0",
+                "patient_id": "SYN004",
+                "event_date": "2024-01-08",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Ustekinumab"}}],
+            },
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Can you explain the plot?",
+        str(tmp_path),
+        selected_patient_ids="SYN001,SYN002",
+        compare_mode=True,
+        compare_selected_patient_ids="SYN003,SYN004",
+        deterministic_only=True,
+        history=[
+            {"role": "user", "content": "Compare relapse-free survival between Cohort A and Cohort B."},
+            {"role": "assistant", "content": "Kaplan-Meier comparison completed."},
+        ],
+    )
+
+    assert payload["intent"] == "analysis_compare"
+    assert payload["data"]["source"] == "deterministic"
+    assert "Deterministic Comparison Summary" in payload["reply"]

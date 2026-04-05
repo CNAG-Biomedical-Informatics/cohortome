@@ -12,6 +12,7 @@ from app.analysis import analysis_llm_reply
 from app.analysis_sessions import (
     delete_analysis_session,
     list_analysis_sessions,
+    list_sessions_referencing_saved_cohort,
     rename_analysis_session,
     save_analysis_session,
 )
@@ -422,6 +423,16 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
 
 def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
     require_authenticated(request)
+    referenced_by = list_sessions_referencing_saved_cohort(cohort_id, user_id=request_user_id(request))
+    if referenced_by:
+        preview_titles = [str(item.get("title") or "").strip() or "Untitled analysis" for item in referenced_by[:3]]
+        suffix = f" and {len(referenced_by) - 3} more" if len(referenced_by) > 3 else ""
+        detail = (
+            "Saved cohort is still referenced by analysis session"
+            f"{'' if len(referenced_by) == 1 else 's'}: {', '.join(preview_titles)}{suffix}. "
+            "Delete or update those analysis sessions first."
+        )
+        raise HTTPException(status_code=409, detail=detail)
     deleted = delete_saved_cohort(cohort_id, user_id=request_user_id(request))
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved cohort not found.")

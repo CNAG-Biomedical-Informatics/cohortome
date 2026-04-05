@@ -26,16 +26,41 @@ export function createSavedCohortsUi(ctx) {
     datasetLabelsForIds,
     currentDatasetIds,
   } = callbacks;
+  let analysisNotice = "";
+  let phenoNotice = "";
+
+  function noticeForMode(mode) {
+    return mode === "pheno" ? phenoNotice : analysisNotice;
+  }
+
+  function setNoticeForMode(mode, message) {
+    if (mode === "pheno") {
+      phenoNotice = String(message || "").trim();
+    } else {
+      analysisNotice = String(message || "").trim();
+    }
+  }
+
+  function clearNoticeForMode(mode) {
+    setNoticeForMode(mode, "");
+  }
+
+  function cohortIsActiveInCurrentUi(cohortId) {
+    return state.analysisSelectedSavedCohortId === cohortId
+      || state.analysisCompareSavedCohortId === cohortId
+      || state.phenoSelectedSavedCohortIds.includes(cohortId);
+  }
 
   function renderSavedCohortsInto(container, mode) {
     if (!container) return;
+    const inlineNotice = noticeForMode(mode);
     if (!state.savedCohorts.length) {
-      container.innerHTML = '<div class="empty">No saved cohorts yet.</div>';
+      container.innerHTML = `${inlineNotice ? `<div class="saved-cohort-inline-status">${escapeHtml(inlineNotice)}</div>` : ""}<div class="empty">No saved cohorts yet.</div>`;
       return;
     }
     const primaryActionLabel = mode === "pheno" ? "Use in Pheno-Ranker" : "Use as Cohort A";
     const primaryAction = mode === "pheno" ? "load-pheno" : "load-analysis";
-    container.innerHTML = `<div class="saved-cohort-list">${
+    container.innerHTML = `${inlineNotice ? `<div class="saved-cohort-inline-status">${escapeHtml(inlineNotice)}</div>` : ""}<div class="saved-cohort-list">${
       state.savedCohorts.map((item) => {
         const sampleIds = Array.isArray(item.sample_ids) && item.sample_ids.length
           ? item.sample_ids
@@ -48,6 +73,7 @@ export function createSavedCohortsUi(ctx) {
         const preview = sampleIds.slice(0, 4).join(", ");
         const suffix = sampleIds.length > 4 ? ` ... (+${sampleIds.length - 4} more)` : "";
         const source = item.source && item.source.kind ? item.source.kind : "manual";
+        const isActiveHere = cohortIsActiveInCurrentUi(item.id);
         return `
           <div class="saved-cohort-card">
             <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
@@ -58,7 +84,8 @@ export function createSavedCohortsUi(ctx) {
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
               ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}">Delete</button>
+              ${isActiveHere ? `<span class="query-chip badge" title="Detach this cohort from the current Analysis or Pheno state before deleting it here.">In use here</span>` : ""}
+              <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
             </div>
           </div>
         `;
@@ -213,13 +240,34 @@ export function createSavedCohortsUi(ctx) {
   }
 
   async function deleteSavedCohortById(cohortId) {
+    const targetMode = callbacks.currentTabName() === "pheno" ? "pheno" : "analysis";
+    if (cohortIsActiveInCurrentUi(cohortId)) {
+      const message = "Detach this cohort from the current Analysis or Pheno state before deleting it.";
+      setNoticeForMode(targetMode, message);
+      renderSavedCohorts();
+      setSavedCohortStatus(message);
+      return;
+    }
     try {
       const response = await fetch(`/saved-cohorts/${encodeURIComponent(cohortId)}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Unable to delete saved cohort.");
+      if (!response.ok) {
+        let message = "Unable to delete saved cohort.";
+        try {
+          const payload = await response.json();
+          message = String(payload.detail || payload.message || message);
+        } catch (_error) {
+        }
+        throw new Error(message);
+      }
       await loadSavedCohorts();
+      clearNoticeForMode(targetMode);
+      renderSavedCohorts();
       setSavedCohortStatus("Deleted saved cohort.");
-    } catch (_error) {
-      setSavedCohortStatus("Unable to delete saved cohort.");
+    } catch (error) {
+      const message = error && error.message ? error.message : "Unable to delete saved cohort.";
+      setNoticeForMode(targetMode, message);
+      renderSavedCohorts();
+      setSavedCohortStatus(message);
     }
   }
 
@@ -240,9 +288,11 @@ export function createSavedCohortsUi(ctx) {
   function useSavedCohortInAnalysis(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
+    clearNoticeForMode("analysis");
     state.analysisSelectedSavedCohortId = cohortId;
     analysisSelectedPatientIdsEl.value = "";
     renderAnalysisScopeSummary();
+    renderSavedCohorts();
     setActiveTab("analysis");
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
@@ -253,11 +303,13 @@ export function createSavedCohortsUi(ctx) {
   function useSavedCohortInAnalysisCompare(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
+    clearNoticeForMode("analysis");
     state.analysisCompareSavedCohortId = cohortId;
     if (analysisCompareModeEl) analysisCompareModeEl.checked = true;
     renderAnalysisCompareMode();
     analysisCompareSelectedPatientIdsEl.value = "";
     renderAnalysisCompareScopeSummary();
+    renderSavedCohorts();
     setActiveTab("analysis");
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = `Loaded saved cohort "${item.name}" into Cohort B.`;
@@ -266,34 +318,42 @@ export function createSavedCohortsUi(ctx) {
   function useSavedCohortInPheno(cohortId) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
+    clearNoticeForMode("pheno");
     if (!state.phenoSelectedSavedCohortIds.includes(cohortId)) {
       state.phenoSelectedSavedCohortIds = state.phenoSelectedSavedCohortIds.concat([cohortId]);
     }
     renderPhenoSavedCohortsSelection();
+    renderSavedCohorts();
     setActiveTab("pheno");
     phenoStatusEl.className = "pheno-status";
     phenoStatusEl.textContent = `Attached saved cohort "${item.name}" as a separate Pheno-Ranker reference.`;
   }
 
   function removeSavedCohortFromPheno(cohortId) {
+    clearNoticeForMode("pheno");
     state.phenoSelectedSavedCohortIds = state.phenoSelectedSavedCohortIds.filter((item) => item !== cohortId);
     renderPhenoSavedCohortsSelection();
+    renderSavedCohorts();
     phenoStatusEl.className = "pheno-status";
     phenoStatusEl.textContent = "Removed saved cohort from separate Pheno-Ranker references.";
   }
 
   function clearSavedCohortFromAnalysis(side) {
     if (side === "b") {
+      clearNoticeForMode("analysis");
       state.analysisCompareSavedCohortId = "";
       renderAnalysisCompareScopeSummary();
+      renderSavedCohorts();
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
         ? "Cohort B cleared. Select a saved cohort to compare."
         : "Cohort B reverted to manual scope.";
       return;
     }
+    clearNoticeForMode("analysis");
     state.analysisSelectedSavedCohortId = "";
     renderAnalysisScopeSummary();
+    renderSavedCohorts();
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
       ? "Cohort A cleared. Select a saved cohort to compare."

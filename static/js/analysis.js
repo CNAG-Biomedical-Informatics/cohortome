@@ -595,6 +595,81 @@ export function createAnalysisUi(ctx) {
     ].includes(mode);
   }
 
+  function uniquePrompts(items) {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : []).filter((item) => {
+      const value = String(item || "").trim();
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+  }
+
+  function renderAnalysisFollowUps(prompts) {
+    const followUps = uniquePrompts(prompts).slice(0, 4);
+    if (!followUps.length) return "";
+    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${followUps.map((item) => `<button type="button" class="query-chip" data-analysis-followup-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
+  }
+
+  function getAnalysisFollowUpPrompts(payload, showPlots) {
+    const context = payload && payload.data ? payload.data.context : null;
+    const mode = context && typeof context.mode === "string" ? context.mode : "";
+    const hasPlots = Boolean(showPlots || analysisPayloadHasPlots(payload));
+    const measure = String(context && context.measure ? context.measure : "").trim();
+    const treatment = String(context && context.treatment ? context.treatment : "").trim();
+    const eventLabel = formatTimeToEventLabel(context);
+    const trajectorySubject = treatment ? `response to ${treatment}` : measure ? `${measure} trajectory` : "trajectory";
+    const comparisonLabel = measure ? `${measure} comparison` : "comparison";
+    const molecularComparison = Array.isArray(context && context.comparisons) && context.comparisons.length
+      ? context.comparisons[0]
+      : null;
+    const medicationComparisonLabel = molecularComparison
+      ? `${String(molecularComparison.medication_a || "Group A").trim()} vs ${String(molecularComparison.medication_b || "Group B").trim()}`
+      : "this molecular comparison";
+    if (!context && !hasPlots) return [];
+    if (mode === "survival" || mode === "survival_compare") {
+      return [
+        `Can you explain this Kaplan-Meier plot for ${eventLabel}?`,
+        mode === "survival_compare" ? `Which cohort appears to do better for ${eventLabel}, and why?` : `What does this Kaplan-Meier result suggest about ${eventLabel}?`,
+        "How many events drove this separation?",
+        `What are the main limitations of this Kaplan-Meier analysis for ${eventLabel}?`,
+      ];
+    }
+    if (mode === "trajectory" || mode === "trajectory_response" || mode === "trajectory_compare" || mode === "trajectory_compare_response") {
+      return [
+        `Can you explain this ${trajectorySubject} plot?`,
+        mode.includes("compare") ? `Which cohort changes faster in the ${trajectorySubject}?` : `What is the main pattern in this ${trajectorySubject}?`,
+        mode.includes("compare") ? `Is the difference in ${trajectorySubject} clinically meaningful?` : `Is this ${trajectorySubject} clinically meaningful?`,
+        "What should I look at next?",
+      ];
+    }
+    if (mode === "molecular_medication_compare") {
+      return [
+        `Can you explain the volcano plot for ${medicationComparisonLabel}?`,
+        `Which genes drive the main separation in ${medicationComparisonLabel}?`,
+        `Is ${medicationComparisonLabel} exploratory or confirmatory?`,
+        `What should I validate next for ${medicationComparisonLabel}?`,
+      ];
+    }
+    if (mode === "compare") {
+      return [
+        `Can you explain this ${comparisonLabel} in simpler terms?`,
+        "What is the main difference between Cohort A and Cohort B?",
+        `What are the main limitations of this ${comparisonLabel}?`,
+        "What should I look at next?",
+      ];
+    }
+    if (hasPlots) {
+      return [
+        "Can you explain this plot?",
+        "What is the main takeaway?",
+        "What are the main limitations of this analysis?",
+        "What should I look at next?",
+      ];
+    }
+    return [];
+  }
+
   function renderAnalysisThread() {
     renderAnalysisStarterPrompts();
     if (!state.analysisTurns.length) {
@@ -623,7 +698,8 @@ export function createAnalysisUi(ctx) {
         contextParts.push(`event: ${formatTimeToEventLabel(context)}`);
       }
       if (notable.length) contextParts.push(...notable);
-      return `<article class="analysis-turn analysis-turn-assistant"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p><strong>Context:</strong> ${escapeHtml(contextParts.join(" | "))}</p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}<details class="query-section"><summary>Show analysis data</summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
+      return `<article class="analysis-turn analysis-turn-assistant"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p><strong>Context:</strong> ${escapeHtml(contextParts.join(" | "))}</p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary>Show analysis data</summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
     }).join("");
     mountAnalysisPlots();
   }
@@ -730,6 +806,13 @@ export function createAnalysisUi(ctx) {
     analysisPromptRequestsPlots,
     analysisPayloadHasPlots,
     renderAnalysisThread,
+    handleAnalysisFollowUpsClick(event) {
+      const button = event.target.closest("[data-analysis-followup-prompt]");
+      if (!button || !analysisThreadEl.contains(button)) return;
+      analysisPromptEl.value = button.dataset.analysisFollowupPrompt || "";
+      analysisPromptEl.focus();
+      runAnalysis();
+    },
     runAnalysis,
   };
 }

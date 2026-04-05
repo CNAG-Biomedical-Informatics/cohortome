@@ -1436,18 +1436,18 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
             "### Deterministic Comparison Summary",
             "",
             "- **Cohort A:** %s patients, %s timepoints." % (
-                context_a["overview"]["patient_count"],
-                context_a["overview"]["timepoint_count"],
+                overview_a.get("patient_count", 0),
+                overview_a.get("timepoint_count", 0),
             ),
             "- **Cohort B:** %s patients, %s timepoints." % (
-                context_b["overview"]["patient_count"],
-                context_b["overview"]["timepoint_count"],
+                overview_b.get("patient_count", 0),
+                overview_b.get("timepoint_count", 0),
             ),
             "- **Date range:** %s to %s in Cohort A; %s to %s in Cohort B." % (
-                context_a["overview"].get("first_event_date") or "n/a",
-                context_a["overview"].get("last_event_date") or "n/a",
-                context_b["overview"].get("first_event_date") or "n/a",
-                context_b["overview"].get("last_event_date") or "n/a",
+                overview_a.get("first_event_date") or "n/a",
+                overview_a.get("last_event_date") or "n/a",
+                overview_b.get("first_event_date") or "n/a",
+                overview_b.get("last_event_date") or "n/a",
             ),
         ]
         if disease_delta and disease_delta.get("label"):

@@ -2424,6 +2424,9 @@
         renderAnalysisStarterPrompts();
         analysisPromptEl.focus();
       });
+      analysisThreadEl.addEventListener("click", (event) => {
+        analysisUi.handleAnalysisFollowUpsClick(event);
+      });
       analysisPromptEl && analysisPromptEl.addEventListener("input", () => {
         analysisExecutionMode = "auto";
       });
