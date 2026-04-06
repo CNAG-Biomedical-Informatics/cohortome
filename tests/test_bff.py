@@ -3008,7 +3008,7 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
-                "ENSG00000169429;100;120;140",
+                "ENSG00002700028;100;120;140",
             ]
         ),
         encoding="utf-8",
@@ -3016,7 +3016,7 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
     query_store_module.MOLECULAR_DATA_DIR = molecular_dir
     try:
         payload = analysis_module.analysis_llm_reply(
-            "Show expression of ENSG00000169429 in the current Analysis scope.",
+            "Show expression of ENSG00002700028 in the current Analysis scope.",
             str(tmp_path),
             selected_patient_ids="SYN001,SYN002",
         )
@@ -3027,7 +3027,9 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
     assert payload["data"]["source"] == "deterministic"
     assert payload["data"]["context"]["mode"] == "molecular_expression"
     assert payload["data"]["context"]["datasets"][0]["scope_a"]["sample_count"] == 2
-    assert "ENSG00000169429 was found in 1 molecular dataset." in payload["reply"]
+    assert "ENSG00002700028 was found in 1 molecular dataset." in payload["reply"]
+    assert "\n| Dataset | Samples | Patients | Mean | Median | Min | Max |\n" in payload["reply"]
+    assert "| synthetic_transcriptome_raw_counts | 2 | 2 | 110 | 110 | 100 | 120 |" in payload["reply"]
 
 
 def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp_path):
@@ -3048,7 +3050,7 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
-                "ENSG00000169429;100;120;140",
+                "ENSG00002700028;100;120;140",
             ]
         ),
         encoding="utf-8",
@@ -3056,7 +3058,7 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
     query_store_module.MOLECULAR_DATA_DIR = molecular_dir
     try:
         payload = analysis_module.analysis_llm_reply(
-            "Compare expression of ENSG00000169429 between Cohort A and Cohort B.",
+            "Compare expression of ENSG00002700028 between Cohort A and Cohort B.",
             str(tmp_path),
             selected_patient_ids="SYN001,SYN002",
             compare_mode=True,
@@ -3068,7 +3070,8 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
     assert payload["intent"] == "analysis_molecular_expression"
     assert payload["data"]["context"]["compare_mode"] is True
     assert payload["data"]["context"]["datasets"][0]["scope_b"]["sample_count"] == 1
-    assert "Cohort A has 2 samples" in payload["reply"]
+    assert "\n| Dataset | Scope | Samples | Patients | Mean | Median | Min | Max |\n" in payload["reply"]
+    assert "| synthetic_transcriptome_raw_counts | Cohort A | 2 | 2 | 110 | 110 | 100 | 120 |" in payload["reply"]
 
 
 def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_path):

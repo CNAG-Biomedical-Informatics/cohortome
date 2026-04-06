@@ -91,6 +91,42 @@ The tab provides:
 
 Selections from heatmap or MDS can be copied or opened in Analysis.
 
+## Limitation: raw measures are weak phenotypic tokens
+
+Numeric clinical measures are currently carried into `Pheno-Ranker` as observed values.
+
+That is often not ideal for cross-sample similarity because:
+
+- raw values are not directly comparable across all patients or settings
+- very close numeric values may behave like separate phenotypic tokens
+- clinically meaningful patterns are often ordinal or categorical rather than exact-value based
+
+Examples:
+
+- `CRP = 9.8` vs `CRP = 10.1`
+- `Leukocyte Count = 8.9` vs `Leukocyte Count = 9.2`
+
+These are usually better interpreted as:
+
+- normal
+- mildly elevated
+- highly elevated
+
+:::warning
+For measure-driven similarity, the current approach is exploratory. Raw numeric values are often less informative than binned or categorized representations.
+:::
+
+### Recommended preprocessing direction
+
+Before similarity calculation, numeric measures should ideally be transformed into bins or categories such as:
+
+- below normal
+- normal
+- above normal
+- high inflammatory burden
+
+This would make measure-based similarity more clinically meaningful and more stable across samples.
+
 ## Prefixes in multi-file runs
 
 When several reference files are passed to Pheno-Ranker, selected IDs may temporarily appear with prefixes like:

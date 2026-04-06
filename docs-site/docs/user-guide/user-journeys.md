@@ -213,7 +213,7 @@ By the end of this journey, the user should have:
 Example prompts:
 
 - `Show an exploratory volcano plot for these two cohorts`
-- `What is the molecular expression of 135997?`
+- `Show expression of ENSG00002700028 in the current Analysis scope.`
 
 <Tabs>
   <TabItem value="molecular-exploratory" label="Exploratory volcano" default>

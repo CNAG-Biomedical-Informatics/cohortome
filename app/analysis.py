@@ -450,6 +450,15 @@ def molecular_expression_context(
     }
 
 
+def _analysis_stat_cell(value: Any) -> str:
+    normalized = normalize_value(value)
+    if normalized is None or normalized == "":
+        return "n/a"
+    if isinstance(normalized, (int, float)):
+        return f"{float(normalized):.3f}".rstrip("0").rstrip(".")
+    return str(normalized)
+
+
 def _median(values: List[float]) -> float | None:
     if not values:
         return None
@@ -1312,7 +1321,7 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
                 )
         if context.get("exploratory_note"):
             lines.append(str(context["exploratory_note"]))
-        return " ".join(lines)
+        return "\n".join(lines)
     if context.get("mode") == "molecular_expression":
         if context.get("error"):
             return str(context["error"])
@@ -1321,30 +1330,60 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
             return f"No molecular expression summaries are available for {context.get('gene_id', 'the requested gene')}."
         gene_id = context.get("gene_id", "the requested gene")
         lines: List[str] = [f"{gene_id} was found in {len(datasets)} molecular dataset{'s' if len(datasets) != 1 else ''}."]
-        for item in datasets:
-            dataset_name = item.get("dataset_name", "dataset")
-            scope_a = item.get("scope_a", {}) if isinstance(item.get("scope_a"), dict) else {}
-            scope_b = item.get("scope_b", {}) if isinstance(item.get("scope_b"), dict) else {}
-            if context.get("compare_mode"):
+        if context.get("compare_mode"):
+            lines.extend(
+                [
+                    "",
+                    "| Dataset | Scope | Samples | Patients | Mean | Median | Min | Max |",
+                    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                ]
+            )
+            for item in datasets:
+                dataset_name = item.get("dataset_name", "dataset")
+                scope_a = item.get("scope_a", {}) if isinstance(item.get("scope_a"), dict) else {}
+                scope_b = item.get("scope_b", {}) if isinstance(item.get("scope_b"), dict) else {}
                 lines.append(
                     (
-                        f"In {dataset_name}, Cohort A has {scope_a.get('sample_count', 0)} samples "
-                        f"(mean {scope_a.get('mean', 'n/a')}, median {scope_a.get('median', 'n/a')}, "
-                        f"range {scope_a.get('min', 'n/a')} to {scope_a.get('max', 'n/a')}); "
-                        f"Cohort B has {scope_b.get('sample_count', 0)} samples "
-                        f"(mean {scope_b.get('mean', 'n/a')}, median {scope_b.get('median', 'n/a')}, "
-                        f"range {scope_b.get('min', 'n/a')} to {scope_b.get('max', 'n/a')})."
+                        f"| {dataset_name} | Cohort A | {_analysis_stat_cell(scope_a.get('sample_count'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('patient_count'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('mean'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('median'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('min'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('max'))} |"
                     )
                 )
-            else:
                 lines.append(
                     (
-                        f"In {dataset_name}, {scope_a.get('sample_count', 0)} samples matched the current scope "
-                        f"(mean {scope_a.get('mean', 'n/a')}, median {scope_a.get('median', 'n/a')}, "
-                        f"range {scope_a.get('min', 'n/a')} to {scope_a.get('max', 'n/a')})."
+                        f"| {dataset_name} | Cohort B | {_analysis_stat_cell(scope_b.get('sample_count'))} "
+                        f"| {_analysis_stat_cell(scope_b.get('patient_count'))} "
+                        f"| {_analysis_stat_cell(scope_b.get('mean'))} "
+                        f"| {_analysis_stat_cell(scope_b.get('median'))} "
+                        f"| {_analysis_stat_cell(scope_b.get('min'))} "
+                        f"| {_analysis_stat_cell(scope_b.get('max'))} |"
                     )
                 )
-        return " ".join(lines)
+        else:
+            lines.extend(
+                [
+                    "",
+                    "| Dataset | Samples | Patients | Mean | Median | Min | Max |",
+                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                ]
+            )
+            for item in datasets:
+                dataset_name = item.get("dataset_name", "dataset")
+                scope_a = item.get("scope_a", {}) if isinstance(item.get("scope_a"), dict) else {}
+                lines.append(
+                    (
+                        f"| {dataset_name} | {_analysis_stat_cell(scope_a.get('sample_count'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('patient_count'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('mean'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('median'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('min'))} "
+                        f"| {_analysis_stat_cell(scope_a.get('max'))} |"
+                    )
+                )
+        return "\n".join(lines)
     if context.get("mode") in {"trajectory", "trajectory_response"}:
         if context.get("error"):
             available = context.get("available_measures") or []
