@@ -810,8 +810,9 @@ export function createAnalysisUi(ctx) {
       const button = event.target.closest("[data-analysis-followup-prompt]");
       if (!button || !analysisThreadEl.contains(button)) return;
       analysisPromptEl.value = button.dataset.analysisFollowupPrompt || "";
+      analysisStatusEl.className = "query-status";
+      analysisStatusEl.textContent = "Analysis follow-up prompt prepared. Press Enter or click Run analysis.";
       analysisPromptEl.focus();
-      runAnalysis();
     },
     runAnalysis,
   };
