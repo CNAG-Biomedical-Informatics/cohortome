@@ -103,7 +103,26 @@ The app needs several levels of state because it is doing several different jobs
 - interactive UI rendering
 - reusable saved subsets
 - per-user analysis chats
+- per-user background jobs and generated artifacts
 - multi-dataset workspace materialization
 - repeated query execution over the same data
 
 Treating all of that as only browser state or only raw files would make the app much less robust.
+
+## Background jobs and artifacts
+
+Curated queued analyses now persist per-user job state on disk.
+
+Current location:
+
+- `state/users/<user>/jobs/<job_id>/`
+
+Typical contents include:
+
+- `job.json`
+- `result.json` when completed
+- `stdout.txt`
+- `stderr.txt`
+- `command.txt`
+
+These records back the in-app `Jobs` drawer and let completed results be reopened into `Analysis`.

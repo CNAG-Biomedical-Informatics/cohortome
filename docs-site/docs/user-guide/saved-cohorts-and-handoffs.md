@@ -66,6 +66,11 @@ This sends the current subset into `Analysis`.
 
 The visible Query answer may list patients, but the underlying handoff can still preserve sample-level scope when available.
 
+Important rule:
+
+- Query must be running with `Detailed` in-app access
+- `Summary` Query results do not hand off to Analysis
+
 ### Query -> Save cohort
 
 Use:
@@ -74,6 +79,11 @@ Use:
 
 This creates a reusable saved cohort from the current Query result.
 
+Important rule:
+
+- Query must be running with `Detailed` in-app access
+- `Summary` Query results do not expose `Save cohort`
+
 ### Query -> Pheno-Ranker
 
 Use:
@@ -81,6 +91,11 @@ Use:
 - `Use IDs in Pheno-Ranker`
 
 This is most useful when the result already has sample-level or record-level IDs.
+
+Important rule:
+
+- Query must be running with `Detailed` in-app access
+- `Summary` Query results do not expose this handoff
 
 ### Pheno-Ranker -> Analysis
 

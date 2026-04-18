@@ -16,6 +16,7 @@ export function createAnalysisUi(ctx) {
     syncCurrentAnalysisSessionFromUi,
     startAnalysisProgressUpdates,
     stopAnalysisProgressUpdates,
+    handleAnalysisJobSubmission,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
   } = callbacks;
@@ -514,25 +515,98 @@ export function createAnalysisUi(ctx) {
     };
   }
 
-  function renderAnalysisBadge(label, title) {
+  function analysisIconSvg(kind) {
+    const icons = {
+      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
+      disclosure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.5 7.8 8 9 4.5-1.2 8-4 8-9V7l-8-4Z"></path><path d="m9.5 12 1.8 1.8 3.2-3.6"></path></svg>',
+      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
+      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
+      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
+      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
+      job: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="8"></circle></svg>',
+      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
+      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+      context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7h.01"></path></svg>',
+      followup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="m5 12 7 7 7-7"></path></svg>',
+      data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>',
+    };
+    return icons[kind] || icons.summary;
+  }
+
+  function renderAnalysisIcon(kind, cls = "analysis-inline-icon") {
+    return `<span class="${cls}" aria-hidden="true">${analysisIconSvg(kind)}</span>`;
+  }
+
+  function renderAnalysisBadge(label, title, iconKind = "") {
     const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
-    return `<span class="query-chip badge"${safeTitle}>${escapeHtml(label)}</span>`;
+    return `<span class="query-chip badge analysis-badge"${safeTitle}>${iconKind ? `${renderAnalysisIcon(iconKind, "analysis-badge-icon")}` : ""}<span>${escapeHtml(label)}</span></span>`;
+  }
+
+  function formatAnalysisAiProviderGranularity(value) {
+    return String(value || "").replace(/_/g, " ");
   }
 
   function getAnalysisProvenanceChips(payload) {
     const data = payload && payload.data ? payload.data : {};
     const intentInfo = analysisIntentPresentation(payload && payload.intent ? payload.intent : "analysis");
-    const chips = [renderAnalysisBadge(intentInfo.label, intentInfo.title)];
-    if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
-      chips.push(renderAnalysisBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal analysis plan."));
-      chips.push(renderAnalysisBadge("Deterministic execution", "The app executed the planned analysis deterministically against local cohort data."));
-      if (data.planner.model) chips.push(renderAnalysisBadge(data.planner.model, "LM Studio model used for analysis planning."));
+    const plannedByLmStudio = data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio";
+    const answeredByLmStudio = data.source === "llm";
+    const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
+    const chips = [renderAnalysisBadge(intentInfo.label, intentInfo.title, "summary")];
+    if (data.granularity_applied) {
+      chips.push(renderAnalysisBadge(
+        `Disclosure: ${data.granularity_applied}`,
+        `Applied disclosure mode for this analysis: ${data.granularity_applied}.`,
+        "disclosure",
+      ));
+    }
+    if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
+      let title = "";
+      if (data.ai_provider_access === "blocked") {
+        title = "AI providers are blocked for this dataset or workspace.";
+      } else if (data.ai_provider_access === "safe_summary") {
+        title = "AI providers may be used, but they only receive provider-safe structural summary context.";
+      } else {
+        title = `AI providers may receive up to detailed context and currently receive ${formatAnalysisAiProviderGranularity(data.ai_provider_context_granularity)} context for this analysis.`;
+      }
+      chips.push(renderAnalysisBadge(
+        `AI providers: ${formatAnalysisAiProviderGranularity(data.ai_provider_context_granularity)}`,
+        title,
+        "provider",
+      ));
+    }
+    if (plannedByLmStudio) {
+      chips.push(renderAnalysisBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal analysis plan.", "planner"));
+      chips.push(renderAnalysisBadge("Deterministic execution", "The app executed the planned analysis deterministically against local cohort data.", "deterministic"));
+      if (data.planner.model) chips.push(renderAnalysisBadge(data.planner.model, "LM Studio model used for analysis planning.", "llm"));
       return chips;
     }
-    chips.push(renderAnalysisBadge(data.source === "llm" ? "LLM answer" : "Deterministic", data.source === "llm"
-      ? "LM Studio generated the narrative interpretation from the provided analysis context."
-      : "The app executed this analysis deterministically."));
-    if (data.model) chips.push(renderAnalysisBadge(data.model, "LM Studio model used for this analysis reply."));
+    let resultLabel = "Deterministic";
+    let resultTitle = "The app executed this analysis deterministically.";
+    if (data.execution === "queued") {
+      resultLabel = "Queued job";
+      resultTitle = "This curated analysis was submitted as a background job instead of running inline.";
+    } else if (answeredByLmStudio) {
+      resultLabel = "LLM answer";
+      resultTitle = "LM Studio generated the narrative interpretation from the provided analysis context.";
+    } else if (data.source === "policy") {
+      resultLabel = "AI blocked";
+      resultTitle = "This Analysis prompt requires an AI provider, but provider access is blocked by workspace policy.";
+    } else if (data.source === "provider_unavailable") {
+      resultLabel = "AI unavailable";
+      resultTitle = "This Analysis prompt requires an AI provider, but no provider reply was available.";
+    }
+    const resultIcon = data.execution === "queued"
+      ? "job"
+      : answeredByLmStudio
+      ? "llm"
+      : data.source === "policy"
+        ? "blocked"
+        : data.source === "provider_unavailable"
+          ? "unavailable"
+          : "deterministic";
+    chips.push(renderAnalysisBadge(resultLabel, resultTitle, resultIcon));
+    if (answeredByLmStudio && data.model) chips.push(renderAnalysisBadge(data.model, "LM Studio model used for this analysis reply.", "llm"));
     return chips;
   }
 
@@ -608,7 +682,7 @@ export function createAnalysisUi(ctx) {
   function renderAnalysisFollowUps(prompts) {
     const followUps = uniquePrompts(prompts).slice(0, 4);
     if (!followUps.length) return "";
-    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${followUps.map((item) => `<button type="button" class="query-chip" data-analysis-followup-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
+    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label analysis-section-label">${renderAnalysisIcon("followup")}<span>Suggested follow-up queries</span></div><div class="query-followups-list">${followUps.map((item) => `<button type="button" class="query-chip" data-analysis-followup-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
   }
 
   function getAnalysisFollowUpPrompts(payload, showPlots) {
@@ -699,7 +773,7 @@ export function createAnalysisUi(ctx) {
       }
       if (notable.length) contextParts.push(...notable);
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
-      return `<article class="analysis-turn analysis-turn-assistant"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p><strong>Context:</strong> ${escapeHtml(contextParts.join(" | "))}</p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary>Show analysis data</summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      return `<article class="analysis-turn analysis-turn-assistant"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
     }).join("");
     mountAnalysisPlots();
   }
@@ -743,6 +817,8 @@ export function createAnalysisUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
+          catalog_item_id: state.analysisSelectedCatalogItemId || "",
+          analysis_session_id: state.currentAnalysisSessionId || "",
           data_dir: (refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId) ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl.value.trim() || refs.dataDirEl.value),
           selected_patient_ids: currentScope,
           compare_mode: compareMode,
@@ -771,12 +847,17 @@ export function createAnalysisUi(ctx) {
       renderAnalysisThread();
       syncCurrentAnalysisSessionFromUi({ render: true });
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = "Analysis complete.";
+      analysisStatusEl.textContent = payload && payload.data && payload.data.execution === "queued"
+        ? "Analysis job submitted."
+        : "Analysis complete.";
       state.analysisHistory.push({ role: "user", content: prompt });
       state.analysisHistory.push({ role: "assistant", content: payload.reply || "" });
       state.analysisHistory = state.analysisHistory.slice(-8);
       state.analysisExecutionMode = "auto";
       syncCurrentAnalysisSessionFromUi({ render: true });
+      if (payload && payload.data && payload.data.execution === "queued" && typeof handleAnalysisJobSubmission === "function") {
+        handleAnalysisJobSubmission(payload);
+      }
     } catch (error) {
       state.analysisTurns[state.analysisTurns.length - 1] = {
         role: "assistant",

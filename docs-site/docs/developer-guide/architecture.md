@@ -14,6 +14,9 @@ This page describes how the current app is structured at a high level.
 - dataset registry and per-user dataset scope
 - saved cohorts
 - Analysis sessions
+- YAML-backed Analysis Catalog
+- curated external analysis runners
+- shared background jobs via `RQ + Redis`
 - Pheno-Ranker integration
 
 ## Backend
@@ -36,6 +39,9 @@ The backend is also responsible for:
 - multi-dataset scope materialization
 - saved cohort persistence
 - Analysis session persistence
+- analysis catalog loading and validation
+- dispatching curated analysis runners
+- submitting and resolving queued analysis jobs
 
 ## Frontend
 
@@ -100,6 +106,19 @@ Consumes either:
 
 It is session-based and supports both deterministic and LLM-assisted interpretation.
 
+The Analysis tab now has two launch surfaces:
+
+- `Analysis Catalog`
+  - curated, structured analyses loaded from YAML
+- `Quick prompts`
+  - lighter exploratory prompts that still reuse the same Analysis backend
+
+Catalog entries are a launch/configuration layer, not a second execution engine.
+They can point to:
+
+- built-in Python analysis routes
+- curated external runners such as reviewed `Rscript` integrations
+
 ### Pheno-Ranker
 
 Consumes workspace files and sample-level scope.
@@ -118,6 +137,35 @@ Current UI behavior already reflects that in several places:
 - analysis workspace context
 
 This is an important architectural principle, not just a display choice.
+
+## Curated external analysis execution
+
+External analysis execution is intentionally curated.
+
+The current model is:
+
+- YAML defines the catalog item
+- backend code owns the runner implementation
+- the runner receives scoped inputs only
+
+For longer curated runs, the catalog can also declare the execution backend:
+
+- `sync`
+- `job`
+
+The current queued path uses:
+
+- `RQ`
+- `Redis`
+- per-user persisted job records and artifacts under `state/users/<user>/jobs/`
+
+This means the catalog is allowed to describe external integrations such as:
+
+- `rscript`
+- CLI tools
+- container-backed jobs later
+
+But it does not execute arbitrary pasted commands from YAML.
 
 ## Where to read next
 

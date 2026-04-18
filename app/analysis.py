@@ -5,6 +5,9 @@ import re
 from datetime import date
 from typing import Any, Dict, List
 
+from app.analysis_catalog import get_analysis_catalog_item
+from app.analysis_external import run_rscript_analysis
+from app.jobs import submit_analysis_job
 from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
 from app.lm import (
     http_json,
@@ -25,6 +28,196 @@ from app.query_store import (
     molecular_expression_summary as store_molecular_expression_summary,
     patient_query_index as store_patient_query_index,
 )
+
+
+def _normalize_analysis_granularity_ceiling(value: str) -> str:
+    return "detailed" if str(value or "").strip().lower() == "detailed" else "summary"
+
+
+def _normalize_analysis_ai_provider_access(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "use_thread_mode": "detailed_allowed",
+        "detailed": "detailed_allowed",
+        "summary_only": "safe_summary",
+        "restricted": "safe_summary",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in {"detailed_allowed", "safe_summary", "blocked"} else "detailed_allowed"
+
+
+def _analysis_ai_provider_context_granularity(granularity_applied: str, ai_provider_access: str) -> str:
+    if ai_provider_access == "blocked":
+        return "blocked"
+    if ai_provider_access == "safe_summary":
+        return "safe_summary"
+    return granularity_applied
+
+
+def _analysis_strip_scope_ids(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _analysis_strip_scope_ids(item)
+            for key, item in value.items()
+            if key != "scope_ids"
+        }
+    if isinstance(value, list):
+        return [_analysis_strip_scope_ids(item) for item in value]
+    return value
+
+
+def _restricted_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
+    mode = str(context.get("mode") or "single")
+    return {
+        "mode": mode,
+        "source": context.get("source"),
+        "compare_mode": mode in {"compare", "trajectory_compare", "trajectory_compare_response", "survival_compare", "measure_inventory_compare"},
+        "context_sections": sorted(
+            key for key in context.keys()
+            if key not in {"top_diseases", "top_medications", "notable_findings", "scope_ids"}
+        )[:12],
+    }
+
+
+def _analysis_provider_context_for_llm(
+    context: Dict[str, Any],
+    granularity_applied: str,
+    ai_provider_access: str,
+) -> Dict[str, Any]:
+    if ai_provider_access == "safe_summary":
+        return _restricted_analysis_context_for_llm(context)
+    compact = compact_analysis_context_for_llm(context)
+    if granularity_applied == "summary":
+        return _analysis_strip_scope_ids(compact)
+    return compact
+
+
+def _analysis_finalize_response(
+    payload: Dict[str, Any],
+    granularity_applied: str,
+    ai_provider_access: str,
+) -> Dict[str, Any]:
+    finalized = dict(payload)
+    data = dict(finalized.get("data") or {})
+    data["granularity_applied"] = granularity_applied
+    data["ai_provider_access"] = ai_provider_access
+    data["external_llm_allowed"] = ai_provider_access != "blocked"
+    data["ai_provider_context_granularity"] = _analysis_ai_provider_context_granularity(
+        granularity_applied,
+        ai_provider_access,
+    )
+    finalized["data"] = data
+    return finalized
+
+
+def _analysis_ai_provider_blocked_response() -> Dict[str, Any]:
+    return {
+        "intent": "analysis_llm",
+        "reply": (
+            "AI provider access is blocked for this dataset or workspace. "
+            "This Analysis prompt requires an AI provider, so no external interpretation was run."
+        ),
+        "data": {
+            "source": "policy",
+            "context": {"mode": "policy", "source": "analysis", "policy": "ai_provider_blocked"},
+            "model": None,
+            "base_url": lm_studio_base_url(),
+        },
+    }
+
+
+def _analysis_ai_provider_unavailable_response(reason: str) -> Dict[str, Any]:
+    return {
+        "intent": "analysis_llm",
+        "reply": (
+            "This Analysis prompt requires an AI provider, but no provider reply was available. "
+            f"{reason}"
+        ).strip(),
+        "data": {
+            "source": "provider_unavailable",
+            "context": {"mode": "provider_unavailable", "source": "analysis"},
+            "model": None,
+            "base_url": lm_studio_base_url(),
+        },
+    }
+
+
+def _analysis_catalog_dispatch(
+    prompt: str,
+    *,
+    catalog_item_id: str,
+    data_dir: str,
+    dataset_id: str = "",
+    analysis_session_id: str = "",
+    user_id: str = "",
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+) -> Dict[str, Any] | None:
+    item = get_analysis_catalog_item(catalog_item_id)
+    if not item:
+        return None
+    normalized_prompt = str(prompt or "").strip()
+    default_prompt = str(item.get("default_prompt") or "").strip()
+    # Treat the catalog item as a launch hint, not as a hard override. If the
+    # current prompt no longer matches the selected catalog item, fall back to
+    # normal Analysis routing.
+    if not normalized_prompt or not default_prompt or normalized_prompt != default_prompt:
+        return None
+    runner_type = str(item.get("runner_type") or "builtin").strip().lower()
+    execution_backend = str(item.get("execution_backend") or "sync").strip().lower()
+    if runner_type == "builtin":
+        return None
+    if execution_backend == "job":
+        payload = submit_analysis_job(
+            user_id=user_id,
+            analysis_session_id=analysis_session_id,
+            prompt=prompt,
+            data_dir=data_dir,
+            dataset_id=dataset_id,
+            catalog_item=item,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            compare_mode=bool(compare_selected_patient_ids),
+        )
+        return {
+            "intent": "analysis_job",
+            "reply": (
+                f"Submitted {str(item.get('name') or 'analysis').strip() or 'analysis'} as a background job. "
+                "Open Jobs to monitor progress and view the result when it completes."
+            ),
+            "data": {
+                "source": "job",
+                "execution": "queued",
+                "context": {
+                    "mode": "queued_job",
+                    "feature": "analysis",
+                    "job_id": payload["job_id"],
+                    "job_status": payload["status"],
+                },
+                "model": None,
+                "base_url": "",
+                "job_id": payload["job_id"],
+                "job_status": payload["status"],
+                "catalog_item_id": str(item.get("id") or "").strip(),
+                "catalog_item_name": str(item.get("name") or "").strip(),
+                "runner_type": runner_type,
+                "runner_ref": str(item.get("runner_ref") or "").strip(),
+                "analysis_session_id": analysis_session_id,
+                "execution_backend": execution_backend,
+            },
+        }
+    if runner_type == "rscript":
+        payload = run_rscript_analysis(
+            str(item.get("runner_ref") or "").strip(),
+            prompt=prompt,
+            data_dir=data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+        )
+        payload["data"]["catalog_item_id"] = str(item.get("id") or "").strip()
+        payload["data"]["catalog_item_name"] = str(item.get("name") or "").strip()
+        return payload
+    raise RuntimeError(f"Unsupported analysis runner type '{runner_type}'.")
 
 
 def _extract_lm_response_text(response: Dict[str, Any]) -> str | None:
@@ -1051,6 +1244,7 @@ def _analysis_semantic_plan(
     compare_mode: bool = False,
     compare_selected_patient_ids: str = "",
     history: List[Dict[str, str]] | None = None,
+    granularity_applied: str = "detailed",
 ) -> Dict[str, Any] | None:
     if not lm_studio_enabled():
         return None
@@ -1081,9 +1275,9 @@ def _analysis_semantic_plan(
                     {
                         "analysis_request": prompt,
                         "compare_mode": compare_mode,
-                        "selected_patient_ids": parse_scope_ids(selected_patient_ids)[:20],
-                        "compare_selected_patient_ids": parse_scope_ids(compare_selected_patient_ids)[:20],
-                        "conversation_history": history[-4:] if history else [],
+                        "selected_patient_ids": parse_scope_ids(selected_patient_ids)[:20] if granularity_applied == "detailed" else [],
+                        "compare_selected_patient_ids": parse_scope_ids(compare_selected_patient_ids)[:20] if granularity_applied == "detailed" else [],
+                        "conversation_history": history[-4:] if history and granularity_applied == "detailed" else [],
                         "analysis_catalog": _analysis_catalog(data_dir, selected_patient_ids=selected_patient_ids, compare_mode=compare_mode),
                     },
                     ensure_ascii=False,
@@ -1766,16 +1960,34 @@ def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def analysis_llm_reply(
+def _analysis_llm_reply_impl(
     prompt: str,
     data_dir: str,
+    catalog_item_id: str = "",
+    dataset_id: str = "",
+    analysis_session_id: str = "",
+    user_id: str = "",
     selected_patient_ids: str = "",
     compare_mode: bool = False,
     compare_selected_patient_ids: str = "",
     llm_only: bool = False,
     deterministic_only: bool = False,
     history: List[Dict[str, str]] | None = None,
+    granularity_applied: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
+    catalog_payload = _analysis_catalog_dispatch(
+        prompt,
+        catalog_item_id=catalog_item_id,
+        data_dir=data_dir,
+        dataset_id=dataset_id,
+        analysis_session_id=analysis_session_id,
+        user_id=user_id,
+        selected_patient_ids=selected_patient_ids,
+        compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
+    )
+    if catalog_payload is not None:
+        return catalog_payload
     if _parse_measure_inventory_request(prompt):
         if compare_mode:
             context = compare_measure_inventory_context(data_dir, selected_patient_ids, compare_selected_patient_ids)
@@ -1894,7 +2106,7 @@ def analysis_llm_reply(
         context = analysis_context(data_dir, selected_patient_ids=selected_patient_ids)
         intent = "analysis_deterministic"
 
-    if not llm_only and not deterministic_only:
+    if not llm_only and not deterministic_only and ai_provider_access == "detailed_allowed":
         semantic_plan = _analysis_semantic_plan(
             prompt,
             data_dir,
@@ -1902,10 +2114,24 @@ def analysis_llm_reply(
             compare_mode=compare_mode,
             compare_selected_patient_ids=compare_selected_patient_ids,
             history=history,
+            granularity_applied=granularity_applied,
         )
         if semantic_plan is not None:
             return semantic_plan
 
+    if ai_provider_access == "blocked":
+        if llm_only:
+            return _analysis_ai_provider_blocked_response()
+        return {
+            "intent": intent,
+            "reply": deterministic_analysis_reply(prompt, context),
+            "data": {
+                "source": "deterministic",
+                "context": context,
+                "model": None,
+                "base_url": lm_studio_base_url(),
+            },
+        }
     if deterministic_only:
         return {
             "intent": intent,
@@ -1920,19 +2146,27 @@ def analysis_llm_reply(
 
     model = resolve_lm_studio_model(log_kind="pheno_models") if lm_studio_enabled() else None
     if not lm_studio_enabled() or not model:
+        if llm_only:
+            return _analysis_ai_provider_unavailable_response(
+                "LM Studio is disabled or no model is currently loaded."
+            )
         return {
             "intent": intent,
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
                 "context": context,
-                "model": model,
+                "model": None,
                 "base_url": lm_studio_base_url(),
             },
         }
 
-    trimmed_history = history[-4:] if history else []
-    compact_context = compact_analysis_context_for_llm(context)
+    trimmed_history = history[-4:] if history and granularity_applied == "detailed" and ai_provider_access == "detailed_allowed" else []
+    compact_context = _analysis_provider_context_for_llm(
+        context,
+        granularity_applied=granularity_applied,
+        ai_provider_access=ai_provider_access,
+    )
     prompt_payload = {
         "analysis_request": prompt,
         "conversation_history": trimmed_history,
@@ -1945,12 +2179,24 @@ def analysis_llm_reply(
             "Keep the answer concise but analytical.",
         ],
     }
+    if ai_provider_access == "safe_summary":
+        prompt_payload["instructions"] = [
+            "Act as a clinical/bioinformatics analysis assistant.",
+            "Use only the provided provider-safe structural summary context.",
+            "Do not infer private clinical facts, diseases, treatments, counts, or patient-level details.",
+            "If the request needs clinical context, say that you do not have enough permitted context to answer safely.",
+            "Keep the answer concise and explicit about the limitation.",
+        ]
     payload = {
         "model": model,
         "messages": [
             {
                 "role": "system",
-                "content": "You analyze private clinical cohort summaries. Be precise, restrained, and evidence-based.",
+                "content": (
+                    "You analyze private clinical cohort summaries. Be precise, restrained, and evidence-based."
+                    if ai_provider_access != "safe_summary"
+                    else "You may receive only provider-safe structural summary context. Do not infer private clinical details that are not explicitly permitted."
+                ),
             },
             {
                 "role": "user",
@@ -1962,38 +2208,46 @@ def analysis_llm_reply(
     try:
         response = http_json(f"{lm_studio_base_url()}/chat/completions", payload, log_kind="analysis_llm")
     except Exception as exc:
+        if llm_only:
+            return _analysis_ai_provider_unavailable_response(str(exc))
         return {
             "intent": intent,
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
                 "context": context,
-                "model": model,
+                "model": None,
                 "base_url": lm_studio_base_url(),
                 "llm_error": str(exc),
             },
         }
     if isinstance(response.get("error"), str):
+        if llm_only:
+            return _analysis_ai_provider_unavailable_response(response["error"])
         return {
             "intent": intent,
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
                 "context": context,
-                "model": model,
+                "model": None,
                 "base_url": lm_studio_base_url(),
                 "llm_error": response["error"],
             },
         }
     choices = response.get("choices")
     if not isinstance(choices, list) or not choices:
+        if llm_only:
+            return _analysis_ai_provider_unavailable_response(
+                "The AI provider returned an unexpected response format."
+            )
         return {
             "intent": intent,
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
                 "context": context,
-                "model": model,
+                "model": None,
                 "base_url": lm_studio_base_url(),
                 "llm_error": "LM Studio returned an unexpected response format.",
             },
@@ -2001,13 +2255,17 @@ def analysis_llm_reply(
     message = choices[0].get("message", {})
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
+        if llm_only:
+            return _analysis_ai_provider_unavailable_response(
+                "The AI provider returned an empty analysis reply."
+            )
         return {
             "intent": intent,
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
                 "context": context,
-                "model": model,
+                "model": None,
                 "base_url": lm_studio_base_url(),
                 "llm_error": "LM Studio returned an empty analysis reply.",
             },
@@ -2022,3 +2280,44 @@ def analysis_llm_reply(
             "base_url": lm_studio_base_url(),
         },
     }
+
+
+def analysis_llm_reply(
+    prompt: str,
+    data_dir: str,
+    catalog_item_id: str = "",
+    dataset_id: str = "",
+    analysis_session_id: str = "",
+    user_id: str = "",
+    selected_patient_ids: str = "",
+    compare_mode: bool = False,
+    compare_selected_patient_ids: str = "",
+    llm_only: bool = False,
+    deterministic_only: bool = False,
+    history: List[Dict[str, str]] | None = None,
+    granularity_ceiling: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
+) -> Dict[str, Any]:
+    normalized_granularity = _normalize_analysis_granularity_ceiling(granularity_ceiling)
+    normalized_ai_provider_access = _normalize_analysis_ai_provider_access(ai_provider_access)
+    payload = _analysis_llm_reply_impl(
+        prompt,
+        data_dir,
+        catalog_item_id=catalog_item_id,
+        dataset_id=dataset_id,
+        analysis_session_id=analysis_session_id,
+        user_id=user_id,
+        selected_patient_ids=selected_patient_ids,
+        compare_mode=compare_mode,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+        llm_only=llm_only,
+        deterministic_only=deterministic_only,
+        history=history,
+        granularity_applied=normalized_granularity,
+        ai_provider_access=normalized_ai_provider_access,
+    )
+    return _analysis_finalize_response(
+        payload,
+        granularity_applied=normalized_granularity,
+        ai_provider_access=normalized_ai_provider_access,
+    )

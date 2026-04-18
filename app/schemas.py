@@ -22,6 +22,7 @@ class QueryRequest(BaseModel):
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID to query against.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
     query_mode: str = Field(default="auto", description="Query execution mode. Supported values include auto and planner_only.")
+    granularity_mode: str = Field(default="detailed", description="Disclosure mode requested by the Query UI. Supported values currently include summary and detailed.")
     history: List[QueryTurn] = Field(default_factory=list)
     scoped_patient_ids: List[str] = Field(default_factory=list, description="Optional prior subset patient IDs carried as app-level conversational scope for follow-up queries.")
     scoped_record_ids: List[str] = Field(default_factory=list, description="Optional prior subset sample or record IDs carried as app-level conversational scope.")
@@ -30,6 +31,8 @@ class QueryRequest(BaseModel):
 
 class AnalysisRequest(BaseModel):
     prompt: str = Field(description="Natural-language analysis prompt.", examples=["Summarize the main workspace patterns and tell me what stands out."])
+    catalog_item_id: str = Field(default="", description="Optional Analysis Catalog item identifier used for structured curated analyses.")
+    analysis_session_id: str = Field(default="", description="Current Analysis session identifier used to associate queued jobs back to the active session.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the analysis workspace.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.")
@@ -54,6 +57,7 @@ class AnalysisSessionRequest(BaseModel):
     title: str = Field(default="", description="Optional user-facing session title.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the session.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    catalog_item_id: str = Field(default="", description="Selected Analysis Catalog item for this session, if any.")
     prompt_draft: str = Field(default="", description="Current draft prompt stored for the session.")
     scope: str = Field(default="", description="Comma-separated scope IDs for cohort A.")
     saved_cohort_id_a: str = Field(default="", description="Saved cohort ID currently assigned to cohort A, if any.")
@@ -87,6 +91,8 @@ class PhenoRankerRequest(BaseModel):
     align: bool = Field(default=True, description="Whether to compute term alignment details.")
     render_heatmap: bool = Field(default=True, description="Whether to generate the interactive heatmap artifact.")
     render_mds: bool = Field(default=True, description="Whether to generate the interactive MDS artifact.")
+    granularity_ceiling: str = Field(default="detailed", description="Internal workspace ceiling used to guard Pheno-Ranker access.")
+    ai_provider_access: str = Field(default="detailed_allowed", description="Effective AI provider policy used for Pheno-Ranker planner/explanation paths.")
 
     @field_validator("include_terms", "exclude_terms", mode="before")
     @classmethod
@@ -124,6 +130,26 @@ class LoginRequest(BaseModel):
     password: str = Field(default="", description="Local password.")
 
 
+class AuthUserCreateRequest(BaseModel):
+    username: str = Field(default="", description="Unique local username.")
+    password: str = Field(default="", description="Initial local password.")
+    display_name: str = Field(default="", description="User-facing display name.")
+    role: str = Field(default="user", description="Application role: user or admin.")
+    groups: List[str] = Field(default_factory=list, description="Application groups used for dataset authorization.")
+    enabled: bool = Field(default=True, description="Whether the user can sign in.")
+
+
+class AuthUserUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, description="Updated display name.")
+    role: str | None = Field(default=None, description="Updated application role.")
+    groups: List[str] | None = Field(default=None, description="Replacement application groups.")
+    enabled: bool | None = Field(default=None, description="Whether the user can sign in.")
+
+
+class AuthPasswordResetRequest(BaseModel):
+    password: str = Field(default="", description="Replacement local password.")
+
+
 class DatasetSelectionRequest(BaseModel):
     dataset_id: str = Field(default="", description="Single dataset ID for backward compatibility.")
     dataset_ids: List[str] = Field(default_factory=list, description="One or more dataset IDs that define the active workspace.")
@@ -136,6 +162,8 @@ class DatasetRegistrationRequest(BaseModel):
     visibility: str = Field(default="all_authenticated", description="Dataset visibility policy: all_authenticated, restricted, or admin_only.")
     allowed_users: List[str] = Field(default_factory=list, description="Usernames with direct access when visibility is restricted.")
     allowed_groups: List[str] = Field(default_factory=list, description="Groups with access when visibility is restricted.")
+    query_granularity_ceiling: str = Field(default="summary", description="Maximum Query thread mode allowed for this dataset: summary or detailed.")
+    ai_provider_access: str = Field(default="detailed_allowed", description="Maximum AI provider disclosure allowed for this dataset.")
     enabled: bool = Field(default=True, description="Whether the dataset can be selected in the UI.")
 
 
@@ -146,6 +174,8 @@ class DatasetUpdateRequest(BaseModel):
     visibility: str | None = Field(default=None, description="Updated visibility policy.")
     allowed_users: List[str] | None = Field(default=None, description="Replacement direct-access username list.")
     allowed_groups: List[str] | None = Field(default=None, description="Replacement allowed-group list.")
+    query_granularity_ceiling: str | None = Field(default=None, description="Updated maximum Query thread mode for this dataset.")
+    ai_provider_access: str | None = Field(default=None, description="Updated AI provider access mode for this dataset.")
     enabled: bool | None = Field(default=None, description="Whether the dataset remains selectable.")
 
 
@@ -154,6 +184,8 @@ class AuthUserResponse(FlexibleModel):
     role: str
     display_name: str
     groups: List[str] = Field(default_factory=list)
+    enabled: bool = True
+    auth_source: str = "local"
 
 
 class AuthStatusResponse(BaseModel):
@@ -165,6 +197,7 @@ class AuthStatusResponse(BaseModel):
 class AuthDiagnosticsResponse(BaseModel):
     enabled: bool
     mode: str
+    provider: str = "none"
     user_count: int
     usernames: List[str] = Field(default_factory=list)
     roles: Dict[str, str] = Field(default_factory=dict)
@@ -186,6 +219,8 @@ class DatasetRecordResponse(FlexibleModel):
     visibility: str
     allowed_users: List[str] = Field(default_factory=list)
     allowed_groups: List[str] = Field(default_factory=list)
+    query_granularity_ceiling: str = "summary"
+    ai_provider_access: str = "detailed_allowed"
     created_by: str = ""
     created_at: str = ""
     updated_at: str = ""
@@ -235,6 +270,8 @@ class SavedCohortsResponse(BaseModel):
 class DeleteResponse(BaseModel):
     deleted: bool
     id: str
+    deleted_generated_data: bool = False
+    deleted_job_count: int = 0
 
 
 class PatientSummaryResponse(FlexibleModel):

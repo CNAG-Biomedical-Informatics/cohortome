@@ -1,16 +1,26 @@
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
+import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 import app.analysis as analysis_module
+import app.analysis_catalog as analysis_catalog_module
+import app.analysis_external as analysis_external_module
 import app.analysis_sessions as analysis_sessions_module
+import app.auth as auth_module
 import app.cohorts as cohorts_module
 import app.datasets as datasets_module
+import app.jobs as jobs_module
 import app.pheno as pheno_module
 import app.query as query_module
+import app.query_policy as query_policy_module
+import app.query_scope as query_scope_module
 import app.query_store as query_store_module
+import app.routes as routes_module
 import app.user_state as user_state_module
 from app.bff import (
     build_patient_navigator,
@@ -50,6 +60,22 @@ def write_json(tmp_path, name, payload):
     return path
 
 
+def isolate_auth_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth_module, "AUTH_USERS_PATH", tmp_path / "state" / "auth" / "users.json")
+
+
+def isolate_jobs_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        jobs_module,
+        "user_state_dir",
+        lambda user_id=None: tmp_path / "state" / "users" / user_state_module.normalize_user_id(user_id),
+    )
+
+
+def make_request(session=None):
+    return SimpleNamespace(session=session or {})
+
+
 def test_ensure_data_dir_accepts_project_root_with_clinical_subdir(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -80,6 +106,93 @@ def test_pheno_plan_marks_unknown_patient_token_as_blocking(tmp_path):
     assert payload["plan"]["patient_id"] == "Beacon_5"
     assert payload["plan"]["invalid_patient_id"] == "Beacon_5"
     assert "not present in the current Pheno-Ranker reference dataset" in " ".join(payload["reasoning"])
+
+
+def test_pheno_plan_ai_provider_restricted_skips_lm_studio_and_sets_metadata(tmp_path, monkeypatch):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "{}"}}]}
+
+    monkeypatch.setattr(pheno_module, "http_json", fake_http_json)
+
+    payload = pheno_module.plan_pheno_ranker(
+        "Compare this cohort",
+        str(tmp_path),
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "pheno_plan"
+    assert payload["source"] == "deterministic"
+    assert payload["data"]["source"] == "deterministic"
+    assert payload["data"]["execution"] == "planning"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    assert calls == []
+
+
+def test_pheno_plan_uses_lm_studio_when_allowed_and_sets_planner_metadata(tmp_path, monkeypatch):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "action": "compare",
+                                "mode": "cohort",
+                                "include_terms": [],
+                                "exclude_terms": [],
+                                "reasoning": ["Planned by LM Studio."],
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(pheno_module, "http_json", fake_http_json)
+
+    payload = pheno_module.plan_pheno_ranker(
+        "Compare this cohort",
+        str(tmp_path),
+        ai_provider_access="detailed_allowed",
+    )
+
+    assert payload["intent"] == "pheno_plan"
+    assert payload["source"] == "lm_studio"
+    assert payload["data"]["source"] == "llm"
+    assert payload["data"]["execution"] == "planning"
+    assert payload["data"]["planner"]["provider"] == "lm_studio"
+    assert payload["data"]["planner"]["model"] == "local-model"
+    assert payload["data"]["model"] == "local-model"
 
 
 def test_generate_mds_points_transforms_jaccard_similarity_to_distance(tmp_path):
@@ -371,7 +484,7 @@ def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp
     assert "SYN001:week_2" not in payload["reply"]
 
 
-def test_deterministic_patient_inventory_supports_subject_and_individual_synonyms(tmp_path):
+def test_deterministic_patient_inventory_supports_subject_individual_and_participant_synonyms(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
     write_json(
@@ -386,11 +499,176 @@ def test_deterministic_patient_inventory_supports_subject_and_individual_synonym
 
     payload_subject = answer_query(str(tmp_path), "Tell me the list of subjects on the cohort")
     payload_individual = answer_query(str(tmp_path), "Tell me the list of individuals on the cohort")
+    payload_participant = answer_query(str(tmp_path), "Tell me the list of participants on the cohort")
 
     assert payload_subject["intent"] == "patient_inventory"
     assert payload_subject["data"]["patient_ids"] == ["SYN001", "SYN002"]
     assert payload_individual["intent"] == "patient_inventory"
     assert payload_individual["data"]["patient_ids"] == ["SYN001", "SYN002"]
+    assert payload_participant["intent"] == "patient_inventory"
+    assert payload_participant["data"]["patient_ids"] == ["SYN001", "SYN002"]
+
+
+def test_answer_query_defaults_to_detailed_granularity_metadata(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Tell me the list of patients on the cohort")
+
+    assert payload["data"]["granularity_requested"] == "detailed"
+    assert payload["data"]["granularity_applied"] == "detailed"
+    assert payload["data"]["external_llm_allowed"] is True
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": True,
+        "save_cohort": True,
+        "copy_patient_ids": True,
+        "use_in_pheno_ranker": True,
+    }
+
+
+def test_answer_query_summary_granularity_disables_copy_patient_ids(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN001:week_2", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Tell me the list of patients on the cohort", granularity_mode="summary")
+
+    assert payload["reply"] == "This workspace contains 2 patients."
+    assert payload["data"]["granularity_requested"] == "summary"
+    assert payload["data"]["granularity_applied"] == "summary"
+    assert payload["data"]["external_llm_allowed"] is True
+    assert "patient_ids" not in payload["data"]
+    assert "sample_ids" not in payload["data"]
+    assert payload["action_context"] == {
+        "patient_ids": [],
+        "record_ids": [],
+        "id_type": "",
+        "analysis_prompt": "",
+    }
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+
+
+def test_query_post_accepts_granularity_mode_summary(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/query",
+        json={
+            "q": "Tell me the list of patients on the cohort",
+            "data_dir": str(tmp_path),
+            "granularity_mode": "summary",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["granularity_requested"] == "summary"
+    assert payload["data"]["granularity_applied"] == "summary"
+
+
+def test_answer_query_summary_blocks_direct_patient_detail_lookup(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "101:week_0_arm_1",
+                "event_date": "2024-01-10",
+                "treatments": [
+                    {"_visit": {"id": "week_0_arm_1"}, "treatmentCode": {"label": "Prednisolone"}}
+                ],
+                "diseases": [
+                    {"_visit": {"id": "week_0_arm_1"}, "diseaseCode": {"label": "Crohn Disease"}}
+                ],
+            },
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Show the timeline for patient 101", granularity_mode="summary")
+
+    assert payload["intent"] == "patient_timeline"
+    assert "not available in Summary mode" in payload["reply"]
+    assert "timeline" not in payload["data"]
+    assert payload["action_context"] == {
+        "patient_ids": [],
+        "record_ids": [],
+        "id_type": "",
+        "analysis_prompt": "",
+    }
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+
+
+def test_answer_query_dataset_ceiling_downgrades_detailed_request(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001"},
+            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+        ],
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "Tell me the list of patients on the cohort",
+        granularity_mode="detailed",
+        granularity_ceiling="summary",
+    )
+
+    assert payload["reply"] == "This workspace contains 2 patients."
+    assert payload["data"]["granularity_requested"] == "detailed"
+    assert payload["data"]["granularity_applied"] == "summary"
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+    assert payload["action_context"] == {
+        "patient_ids": [],
+        "record_ids": [],
+        "id_type": "",
+        "analysis_prompt": "",
+    }
 
 
 def test_deterministic_sample_inventory_returns_sample_ids(tmp_path):
@@ -737,7 +1015,8 @@ def test_analysis_sessions_are_user_scoped(tmp_path, monkeypatch):
     assert [item["title"] for item in analysis_sessions_module.list_analysis_sessions(user_id="alice")] == ["Alice session"]
 
 
-def test_local_auth_login_logout_cycle(monkeypatch):
+def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -764,7 +1043,8 @@ def test_local_auth_login_logout_cycle(monkeypatch):
     assert logout.json()["authenticated"] is False
 
 
-def test_auth_enabled_protects_workspace_routes(monkeypatch):
+def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -792,7 +1072,8 @@ def test_auth_enabled_protects_workspace_routes(monkeypatch):
     assert client.get("/analysis-sessions").status_code == 200
 
 
-def test_auth_users_requires_admin(monkeypatch):
+def test_auth_users_requires_admin(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -829,7 +1110,144 @@ def test_auth_users_requires_admin(monkeypatch):
     assert [item["username"] for item in payload.json()["users"]] == ["admin", "maria"]
 
 
+def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
+    )
+    client = TestClient(app)
+
+    login_admin = client.post("/auth/login", json={"username": "admin", "password": "secret"})
+    assert login_admin.status_code == 200
+
+    created = client.post(
+        "/auth/users",
+        json={
+            "username": "alice",
+            "password": "first-secret",
+            "display_name": "Alice Example",
+            "role": "user",
+            "groups": ["cnag", "analysts"],
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 200
+    assert created.json()["username"] == "alice"
+    assert created.json()["groups"] == ["analysts", "cnag"]
+    assert created.json()["enabled"] is True
+
+    updated = client.patch(
+        "/auth/users/alice",
+        json={
+            "display_name": "Alice Updated",
+            "role": "admin",
+            "groups": ["cnag"],
+            "enabled": False,
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["display_name"] == "Alice Updated"
+    assert updated.json()["role"] == "admin"
+    assert updated.json()["groups"] == ["cnag"]
+    assert updated.json()["enabled"] is False
+
+    disabled_login = client.post("/auth/login", json={"username": "alice", "password": "first-secret"})
+    assert disabled_login.status_code == 401
+
+    reenabled = client.patch("/auth/users/alice", json={"enabled": True})
+    assert reenabled.status_code == 200
+    assert reenabled.json()["enabled"] is True
+
+    reset = client.post("/auth/users/alice/password", json={"password": "second-secret"})
+    assert reset.status_code == 200
+
+    old_password_login = client.post("/auth/login", json={"username": "alice", "password": "first-secret"})
+    assert old_password_login.status_code == 401
+    new_password_login = client.post("/auth/login", json={"username": "alice", "password": "second-secret"})
+    assert new_password_login.status_code == 200
+
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"username": "admin", "password": "secret"})
+    deleted = client.delete("/auth/users/alice")
+    assert deleted.status_code == 200
+    assert deleted.json() == {"deleted": True, "id": "alice"}
+    listing = client.get("/auth/users")
+    assert listing.status_code == 200
+    assert [item["username"] for item in listing.json()["users"]] == ["admin"]
+
+
+def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
+                {"username": "mrueda", "password": "demo", "role": "user", "display_name": "mrueda", "groups": ["admin"]},
+            ]
+        ),
+    )
+    client = TestClient(app)
+
+    login_admin = client.post("/auth/login", json={"username": "mrueda", "password": "demo"})
+    assert login_admin.status_code == 200
+
+    delete_response = client.delete("/auth/users/admin")
+    assert delete_response.status_code == 400
+    assert "last enabled admin" in delete_response.json()["detail"].lower()
+
+
+def test_auth_admin_group_member_can_access_admin_endpoints(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "mrueda", "password": "secret", "role": "user", "display_name": "mrueda", "groups": ["admin"]},
+                {"username": "alice", "password": "demo", "role": "user", "display_name": "Alice"},
+            ]
+        ),
+    )
+    client = TestClient(app)
+
+    login = client.post("/auth/login", json={"username": "mrueda", "password": "secret"})
+    assert login.status_code == 200
+    payload = client.get("/auth/users")
+    assert payload.status_code == 200
+    assert sorted(item["username"] for item in payload.json()["users"]) == ["alice", "mrueda"]
+
+
+def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "mrueda", "password": "secret", "role": "admin", "display_name": "mrueda"}]),
+    )
+    client = TestClient(app)
+
+    login = client.post("/auth/login", json={"username": "mrueda", "password": "secret"})
+    assert login.status_code == 200
+
+    delete_response = client.delete("/auth/users/mrueda")
+    assert delete_response.status_code == 400
+    assert "currently signed into this session" in delete_response.json()["detail"]
+
+    disable_response = client.patch("/auth/users/mrueda", json={"enabled": False})
+    assert disable_response.status_code == 400
+    assert "cannot disable" in disable_response.json()["detail"].lower()
+
+    demote_response = client.patch("/auth/users/mrueda", json={"role": "user"})
+    assert demote_response.status_code == 400
+    assert "cannot remove your own admin access" in demote_response.json()["detail"].lower()
+
+
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -902,6 +1320,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
 
 
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -957,6 +1376,184 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     outsider_listed = client.get("/datasets")
     assert outsider_listed.status_code == 200
     assert "cnag-dataset" not in [item["dataset_id"] for item in outsider_listed.json()["datasets"]]
+
+
+def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    restricted_root = tmp_path / "restricted"
+    restricted_clinical = restricted_root / "clinical"
+    restricted_clinical.mkdir(parents=True)
+    write_json(
+        restricted_clinical,
+        "records.json",
+        [
+            {"id": "M1:week_0", "patient_id": "M1"},
+            {"id": "M2:week_0", "patient_id": "M2"},
+        ],
+    )
+
+    registry = [
+        {
+            "dataset_id": "maria-dataset",
+            "name": "Maria dataset",
+            "root_path": str(restricted_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": ["maria"],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "summary",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login.status_code == 200
+
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    listed_dataset = next(item for item in listed.json()["datasets"] if item["dataset_id"] == "maria-dataset")
+    assert listed_dataset["query_granularity_ceiling"] == "summary"
+
+    response = client.post(
+        "/query",
+        json={
+            "q": "Tell me the list of patients on the cohort",
+            "dataset_id": "maria-dataset",
+            "granularity_mode": "detailed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["granularity_requested"] == "detailed"
+    assert payload["data"]["granularity_applied"] == "summary"
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+
+
+def test_query_route_respects_dataset_ai_provider_access(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    restricted_root = tmp_path / "restricted"
+    restricted_clinical = restricted_root / "clinical"
+    restricted_clinical.mkdir(parents=True)
+    write_json(
+        restricted_clinical,
+        "records.json",
+        [
+            {"id": "M1:week_0", "patient_id": "M1"},
+            {"id": "M2:week_0", "patient_id": "M2"},
+        ],
+    )
+
+    registry = [
+        {
+            "dataset_id": "maria-dataset",
+            "name": "Maria dataset",
+            "root_path": str(restricted_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": ["maria"],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "blocked",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append((url, log_kind))
+        return {"data": [{"id": "local-model"}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login.status_code == 200
+
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    dataset_payload = next(item for item in listed.json()["datasets"] if item["dataset_id"] == "maria-dataset")
+    assert dataset_payload["ai_provider_access"] == "blocked"
+
+    response = client.post(
+        "/query",
+        json={
+            "q": "What evidence supports the main cohort summary?",
+            "dataset_id": "maria-dataset",
+            "granularity_mode": "detailed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["intent"] == "unsupported"
+    assert payload["data"]["external_llm_allowed"] is False
+    assert payload["data"]["ai_provider_access"] == "blocked"
+    assert calls == []
+
+
+def test_restricted_dataset_clamps_ai_provider_access_to_safe_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    dataset_root = tmp_path / "restricted-dataset"
+    (dataset_root / "clinical").mkdir(parents=True)
+    write_json(dataset_root / "clinical", "records.json", [{"id": "P1:v1", "patient_id": "P1"}])
+
+    item = datasets_module.register_dataset(
+        name="Restricted dataset",
+        root_path=str(dataset_root),
+        visibility="restricted",
+        ai_provider_access="detailed_allowed",
+        created_by="admin",
+    )
+
+    assert item["visibility"] == "restricted"
+    assert item["ai_provider_access"] == "safe_summary"
+
+    stored = datasets_module.get_dataset(item["dataset_id"])
+    assert stored is not None
+    assert stored["ai_provider_access"] == "safe_summary"
 
 
 def test_normalize_placeholder_values():
@@ -1076,6 +1673,502 @@ def test_analysis_survival_kaplan_meier_for_measure_threshold(tmp_path):
     assert context["curve_points"][0]["survival_probability"] == 1.0
     assert context["curve_points"][1]["time_days"] == 14
     assert context["curve_points"][1]["survival_probability"] == 0.5
+
+
+def test_analysis_catalog_loader_normalizes_yaml_entries(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: clinical-summary
+    name: Clinical cohort summary
+    description: Summarize the active cohort.
+    default_prompt: Summarize the active cohort.
+    execution_mode: deterministic
+    tags: [clinical, summary]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    items = analysis_catalog_module.load_analysis_catalog(catalog_path)
+
+    assert len(items) == 1
+    assert items[0]["id"] == "clinical-summary"
+    assert items[0]["category"] == "General"
+    assert items[0]["execution_mode"] == "deterministic"
+    assert items[0]["runner_type"] == "builtin"
+    assert items[0]["runner_ref"] == "clinical-summary"
+    assert items[0]["tags"] == ["clinical", "summary"]
+
+
+def test_analysis_catalog_loader_keeps_external_runner_metadata(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: external-r
+    name: External R
+    description: Demo.
+    default_prompt: Run it.
+    runner_type: rscript
+    runner_ref: dummy_scope_snapshot
+""".strip(),
+        encoding="utf-8",
+    )
+
+    items = analysis_catalog_module.load_analysis_catalog(catalog_path)
+
+    assert items[0]["runner_type"] == "rscript"
+    assert items[0]["runner_ref"] == "dummy_scope_snapshot"
+    assert items[0]["execution_backend"] == "sync"
+
+
+def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2025-01-10",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            }
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Summarize the main clinical patterns in this workspace and tell me what stands out.",
+        str(tmp_path),
+        catalog_item_id="external-r-scope-snapshot",
+        deterministic_only=True,
+    )
+
+    assert payload["intent"] == "analysis_deterministic"
+    assert payload["data"]["source"] == "deterministic"
+    assert "Deterministic Workspace Summary" in payload["reply"]
+
+
+def test_analysis_catalog_payload_marks_unavailable_items_for_workspace_limits(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: detailed-only
+    name: Detailed analysis
+    description: Needs detailed access.
+    default_prompt: Show the detailed analysis.
+    requires_detailed_access: true
+  - id: molecular-only
+    name: Molecular analysis
+    description: Needs molecular data.
+    default_prompt: Show the molecular analysis.
+    requires_molecular: true
+""".strip(),
+        encoding="utf-8",
+    )
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+
+    payload = analysis_catalog_module.analysis_catalog_payload(
+        str(tmp_path),
+        granularity_ceiling="summary",
+        ai_provider_access="safe_summary",
+        path=catalog_path,
+    )
+
+    assert payload["workspace"]["granularity_ceiling"] == "summary"
+    assert payload["workspace"]["ai_provider_access"] == "safe_summary"
+    items = {item["id"]: item for item in payload["items"]}
+    assert items["detailed-only"]["available"] is False
+    assert "Detailed" in items["detailed-only"]["unavailable_reason"]
+    assert items["molecular-only"]["available"] is False
+    assert "molecular datasets" in items["molecular-only"]["unavailable_reason"]
+
+
+def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda request: None)
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id="": ["default"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id="": str(tmp_path))
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "summary")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "safe_summary")
+
+    def fake_catalog_payload(data_dir, *, granularity_ceiling="detailed", ai_provider_access="detailed_allowed", path=None):
+        captured["data_dir"] = data_dir
+        captured["granularity_ceiling"] = granularity_ceiling
+        captured["ai_provider_access"] = ai_provider_access
+        return {"items": [], "workspace": {"granularity_ceiling": granularity_ceiling}}
+
+    monkeypatch.setattr(routes_module, "analysis_catalog_payload", fake_catalog_payload)
+
+    request = Request({"type": "http", "headers": []})
+    payload = routes_module.get_analysis_catalog(request, dataset_id="default")
+
+    assert captured == {
+        "data_dir": str(tmp_path),
+        "granularity_ceiling": "summary",
+        "ai_provider_access": "safe_summary",
+    }
+    assert payload["workspace"]["granularity_ceiling"] == "summary"
+
+
+def test_analysis_external_rscript_runner_executes_curated_catalog_item(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1"},
+            {"id": "P1:week4", "patient_id": "P1"},
+            {"id": "P2:baseline", "patient_id": "P2"},
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Run the external R cohort snapshot analysis for the current Analysis scope.",
+        str(tmp_path),
+        catalog_item_id="external-r-scope-snapshot",
+        selected_patient_ids="P1",
+    )
+
+    assert payload["intent"] == "analysis_external_rscript"
+    assert "External R scope snapshot" in payload["reply"]
+    assert payload["data"]["execution"] == "external_runner"
+    assert payload["data"]["runner_type"] == "rscript"
+    assert payload["data"]["catalog_item_id"] == "external-r-scope-snapshot"
+    assert payload["data"]["context"]["mode"] == "external_rscript"
+    assert payload["data"]["context"]["scope_a_patient_count"] == 1
+
+
+def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2025-01-10",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            },
+            {
+                "id": "P1:week4",
+                "event_date": "2025-01-24",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            },
+            {
+                "id": "P2:baseline",
+                "event_date": "2025-02-01",
+                "diseases": [{"diseaseCode": {"label": "Healthy Control"}}],
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "clinical_scope_profile",
+        prompt="Run the external R clinical scope profile for the current Analysis scope.",
+        data_dir=str(tmp_path),
+        selected_patient_ids="P1",
+    )
+
+    assert payload["intent"] == "analysis_external_rscript"
+    assert "External R clinical scope profile" in payload["reply"]
+    assert "Cohort A top disease: Multiple Sclerosis" in payload["reply"]
+    assert payload["data"]["execution"] == "external_runner"
+    assert payload["data"]["runner_type"] == "rscript"
+    assert payload["data"]["runner_ref"] == "clinical_scope_profile"
+    assert payload["data"]["context"]["mode"] == "external_rscript_profile"
+    assert payload["data"]["context"]["cohort_a_top_disease"] == "Multiple Sclerosis"
+    assert payload["data"]["context"]["cohort_a_top_medication"] == "Ocrelizumab"
+    assert payload["data"]["context"]["cohort_a_patient_count"] == 1
+
+
+def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        analysis_module,
+        "get_analysis_catalog_item",
+        lambda item_id: {
+            "id": "external-r-clinical-profile",
+            "name": "External R clinical scope profile",
+            "default_prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "runner_type": "rscript",
+            "runner_ref": "clinical_scope_profile",
+            "execution_backend": "job",
+            "job_timeout_seconds": 1800,
+        },
+    )
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "enqueue_analysis_job", lambda job_id, user_id, timeout_seconds: "rq-job-1")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
+    assert login.status_code == 200
+
+    response = client.post(
+        "/analysis",
+        json={
+            "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "catalog_item_id": "external-r-clinical-profile",
+            "analysis_session_id": "session-1",
+            "dataset_id": "default",
+            "selected_patient_ids": "P1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["intent"] == "analysis_job"
+    assert payload["data"]["execution"] == "queued"
+    assert payload["data"]["job_status"] == "queued"
+    job_id = payload["data"]["job_id"]
+    record = jobs_module.load_job_record(job_id, "alice")
+    assert record["submitted_by"] == "alice"
+    assert record["analysis_session_id"] == "session-1"
+    assert record["catalog_item_id"] == "external-r-clinical-profile"
+    assert record["status"] == "queued"
+
+
+def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+                {"username": "bob", "password": "secret", "role": "user", "groups": []},
+            ]
+        ),
+    )
+
+    alice_job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={"feature": "analysis", "name": "Alice job", "catalog_item_id": "external-r-clinical-profile"},
+    )
+    alice_dir = jobs_module.job_dir(alice_job["job_id"], "alice")
+    (alice_dir / "stdout.txt").write_text("hello", encoding="utf-8")
+    jobs_module.save_job_result(
+        alice_job["job_id"],
+        "alice",
+        {"intent": "analysis_external_rscript", "reply": "Finished", "data": {"job_id": alice_job["job_id"]}},
+    )
+    jobs_module.update_job_record(
+        alice_job["job_id"],
+        "alice",
+        status="completed",
+        result_available=True,
+        reply_preview="Finished",
+    )
+
+    bob_job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="bob",
+        data={"feature": "analysis", "name": "Bob job", "catalog_item_id": "other"},
+    )
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    listing = client.get("/jobs")
+    assert listing.status_code == 200
+    jobs = listing.json()["jobs"]
+    assert len(jobs) == 1
+    assert jobs[0]["job_id"] == alice_job["job_id"]
+
+    detail = client.get(f"/jobs/{alice_job['job_id']}")
+    assert detail.status_code == 200
+    assert detail.json()["result_payload"]["reply"] == "Finished"
+
+    artifact = client.get(f"/jobs/{alice_job['job_id']}/artifacts/stdout.txt")
+    assert artifact.status_code == 200
+    assert artifact.text == "hello"
+
+    hidden = client.get(f"/jobs/{bob_job['job_id']}")
+    assert hidden.status_code == 404
+
+
+def test_analysis_session_delete_can_cascade_terminal_job_data(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(
+        analysis_sessions_module,
+        "LEGACY_ANALYSIS_SESSIONS_PATH",
+        tmp_path / "legacy-analysis-sessions.json",
+    )
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+            ]
+        ),
+    )
+
+    analysis_sessions_module.save_analysis_session(
+        {
+            "id": "session-1",
+            "title": "Session 1",
+            "turns": [],
+            "history": [],
+        },
+        user_id="alice",
+    )
+    job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={
+            "feature": "analysis",
+            "name": "Completed job",
+            "analysis_session_id": "session-1",
+            "catalog_item_id": "external-r-clinical-profile",
+        },
+    )
+    job_path = jobs_module.job_dir(job["job_id"], "alice")
+    (job_path / "stdout.txt").write_text("log", encoding="utf-8")
+    jobs_module.save_job_result(job["job_id"], "alice", {"reply": "done"})
+    jobs_module.update_job_record(job["job_id"], "alice", status="completed", result_available=True)
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    response = client.delete("/analysis-sessions/session-1?delete_generated_data=true")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["deleted"] is True
+    assert payload["deleted_generated_data"] is True
+    assert payload["deleted_job_count"] == 1
+    assert not job_path.exists()
+    assert analysis_sessions_module.list_analysis_sessions(user_id="alice") == []
+
+
+def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(
+        analysis_sessions_module,
+        "LEGACY_ANALYSIS_SESSIONS_PATH",
+        tmp_path / "legacy-analysis-sessions.json",
+    )
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+            ]
+        ),
+    )
+
+    analysis_sessions_module.save_analysis_session(
+        {
+            "id": "session-1",
+            "title": "Session 1",
+            "turns": [],
+            "history": [],
+        },
+        user_id="alice",
+    )
+    job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={
+            "feature": "analysis",
+            "name": "Running job",
+            "analysis_session_id": "session-1",
+            "catalog_item_id": "external-r-clinical-profile",
+        },
+    )
+    job_path = jobs_module.job_dir(job["job_id"], "alice")
+    jobs_module.update_job_record(job["job_id"], "alice", status="running")
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    response = client.delete("/analysis-sessions/session-1?delete_generated_data=true")
+
+    assert response.status_code == 409
+    assert "active background jobs" in response.json()["detail"].lower()
+    assert job_path.exists()
+    assert len(analysis_sessions_module.list_analysis_sessions(user_id="alice")) == 1
+
+
+def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        analysis_catalog_module,
+        "get_analysis_catalog_item",
+        lambda item_id, path=analysis_catalog_module.ANALYSIS_CATALOG_PATH: {
+            "id": "external-r-clinical-profile",
+            "name": "External R clinical scope profile",
+            "runner_type": "rscript",
+            "runner_ref": "clinical_scope_profile",
+        },
+    )
+    monkeypatch.setattr(
+        analysis_external_module,
+        "run_rscript_analysis",
+        lambda runner_ref, **kwargs: {
+            "intent": "analysis_external_rscript",
+            "reply": "External analysis done.",
+            "data": {
+                "source": "deterministic",
+                "execution": "external_runner",
+                "context": {"mode": "external"},
+                "runner_type": "rscript",
+                "runner_ref": runner_ref,
+            },
+        },
+    )
+
+    record = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={
+            "feature": "analysis",
+            "name": "Queued external R",
+            "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "data_dir": str(tmp_path),
+            "catalog_item_id": "external-r-clinical-profile",
+            "runner_type": "rscript",
+            "runner_ref": "clinical_scope_profile",
+            "job_timeout_seconds": 120,
+        },
+    )
+
+    payload = jobs_module.run_analysis_job(record["job_id"], "alice")
+
+    assert payload["status"] == "completed"
+    assert payload["result_payload"]["reply"] == "External analysis done."
+    stored = jobs_module.load_job_record(record["job_id"], "alice")
+    assert stored["status"] == "completed"
+    assert stored["result_available"] is True
 
 
 def test_analysis_survival_compare_kaplan_meier(tmp_path):
@@ -1643,6 +2736,369 @@ def test_analysis_deterministic_only_skips_planner_and_full_llm(tmp_path, monkey
     assert calls == []
 
 
+def test_analysis_ai_provider_blocked_skips_planner_and_llm(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Summarize the main clinical patterns in this cohort and tell me what stands out.",
+        str(tmp_path),
+        ai_provider_access="blocked",
+    )
+
+    assert payload["intent"] == "analysis_deterministic"
+    assert payload["data"]["source"] == "deterministic"
+    assert payload["data"]["ai_provider_access"] == "blocked"
+    assert payload["data"]["ai_provider_context_granularity"] == "blocked"
+    assert calls == []
+
+
+def test_analysis_ai_provider_restricted_skips_planner_and_sends_no_clinical_context(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    captured = {}
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "I do not have enough permitted context to answer that safely."}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Explain this cohort.",
+        str(tmp_path),
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["reply"] == "I do not have enough permitted context to answer that safely."
+    assert payload["data"]["source"] == "llm"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    assert calls == ["analysis_llm"]
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert "Crohn Disease" not in user_message
+    assert "Infliximab" not in user_message
+    assert "patient_count" not in user_message
+
+
+def test_analysis_llm_only_safe_summary_does_not_fall_back_to_deterministic_on_provider_error(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2025-01-10",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        raise RuntimeError("LM Studio offline")
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Write a concise workspace briefing for a clinician, including what stands out and what needs validation.",
+        str(tmp_path),
+        llm_only=True,
+        ai_provider_access="safe_summary",
+        granularity_ceiling="summary",
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["data"]["source"] == "provider_unavailable"
+    assert payload["data"]["model"] is None
+    assert "Deterministic Workspace Summary" not in payload["reply"]
+    assert "requires an AI provider" in payload["reply"]
+
+
+def test_analysis_llm_only_blocked_returns_policy_response(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2025-01-10",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            }
+        ],
+    )
+
+    payload = analysis_module.analysis_llm_reply(
+        "Interpret the disease and medication profiles in this workspace and summarize the main themes.",
+        str(tmp_path),
+        llm_only=True,
+        ai_provider_access="blocked",
+        granularity_ceiling="summary",
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["data"]["source"] == "policy"
+    assert payload["data"]["model"] is None
+    assert "Deterministic Workspace Summary" not in payload["reply"]
+    assert "AI provider access is blocked" in payload["reply"]
+
+
+def test_analysis_summary_ceiling_omits_scope_ids_from_semantic_planner_payload(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            },
+            {
+                "id": "P2:baseline",
+                "event_date": "2024-01-02",
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 12.0}}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if log_kind == "analysis_planner":
+            captured["payload"] = payload
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "analysis_plan",
+                                    "analysis_type": "summary",
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "Narrative analysis"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Summarize the main clinical patterns in this cohort and tell me what stands out.",
+        str(tmp_path),
+        selected_patient_ids="P1,P2",
+        granularity_ceiling="summary",
+    )
+
+    assert payload["intent"] == "analysis_deterministic"
+    assert payload["data"]["execution"] == "deterministic"
+    assert payload["data"]["planner"]["provider"] == "lm_studio"
+    assert payload["data"]["granularity_applied"] == "summary"
+    planner_message = captured["payload"]["messages"][1]["content"]
+    assert '"selected_patient_ids": []' in planner_message
+    assert '"conversation_history": []' in planner_message
+    assert "P1" not in planner_message
+    assert "P2" not in planner_message
+
+
+def test_pheno_explain_llm_ai_provider_restricted_returns_deterministic_metadata(tmp_path, monkeypatch):
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "rank.txt").write_text(
+        "REFERENCE(ID)\tTARGET(ID)\tJACCARD-INDEX\tINTERSECT\n"
+        "SYN002:week_0\tSYN001:week_0\t0.85\t4\n",
+        encoding="utf-8",
+    )
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "LLM explanation"}}]}
+
+    monkeypatch.setattr(pheno_module, "http_json", fake_http_json)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id: job_dir)
+
+    payload = pheno_module.pheno_ranker_explain_llm(
+        "job-1",
+        top_n=1,
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "pheno_explain"
+    assert payload["source"] == "deterministic"
+    assert payload["data"]["source"] == "deterministic"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    assert calls == []
+
+
+def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    restricted_root = tmp_path / "restricted"
+    restricted_clinical = restricted_root / "clinical"
+    restricted_clinical.mkdir(parents=True)
+    write_json(
+        restricted_clinical,
+        "records.json",
+        [
+            {"id": "M1:week_0", "patient_id": "M1"},
+        ],
+    )
+
+    registry = [
+        {
+            "dataset_id": "maria-dataset",
+            "name": "Maria dataset",
+            "root_path": str(restricted_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": ["maria"],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "summary",
+            "ai_provider_access": "use_thread_mode",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login.status_code == 200
+
+    response = client.post(
+        "/pheno-ranker/run",
+        json={
+            "dataset_id": "maria-dataset",
+            "action": "compare",
+            "mode": "cohort",
+            "selected_patient_ids": "M1",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "Detailed in-app access" in response.json()["detail"]
+
+
+def test_pheno_patient_ids_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    restricted_root = tmp_path / "restricted"
+    restricted_clinical = restricted_root / "clinical"
+    restricted_clinical.mkdir(parents=True)
+    write_json(
+        restricted_clinical,
+        "records.json",
+        [
+            {"id": "M1:week_0", "patient_id": "M1"},
+        ],
+    )
+
+    registry = [
+        {
+            "dataset_id": "maria-dataset",
+            "name": "Maria dataset",
+            "root_path": str(restricted_root),
+            "enabled": True,
+            "visibility": "restricted",
+            "allowed_users": ["maria"],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "summary",
+            "ai_provider_access": "use_thread_mode",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login.status_code == 200
+
+    response = client.get("/pheno-ranker/patient-ids", params={"dataset_id": "maria-dataset"})
+
+    assert response.status_code == 403
+    assert "Detailed in-app access" in response.json()["detail"]
+
+
 def test_api_endpoints(tmp_path):
     write_json(
         tmp_path,
@@ -1860,6 +3316,46 @@ def test_query_uses_lm_studio_fallback_when_enabled(tmp_path, monkeypatch):
     assert payload["reply"] == "LM Studio answer"
     assert payload["data"]["model"] == "local-model"
     assert payload["data"]["base_url"] == "http://192.168.1.42:1234/v1"
+    assert payload["data"]["ai_provider_access"] == "detailed_allowed"
+
+
+def test_explicit_patient_term_query_stays_deterministic_on_zero_matches(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "patient_id": "PAT-1",
+                "visit_id": "VIS-1",
+                "event_date": "2025-01-01",
+                "diagnosis": "Crohn Disease",
+                "patient": {"sex": "female"},
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append((url, log_kind))
+        return {"data": [{"id": "local-model"}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(str(tmp_path), "Which patients have Infliximab?")
+
+    assert payload["intent"] == "term_cohort"
+    assert payload["reply"] == "No patients match 'Infliximab' in this workspace."
+    assert payload["data"]["patient_count"] == 0
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+    assert calls == []
 
 
 def test_query_reports_missing_lm_studio_model(tmp_path, monkeypatch):
@@ -1872,6 +3368,33 @@ def test_query_reports_missing_lm_studio_model(tmp_path, monkeypatch):
     payload = answer_query(str(tmp_path), "Explain the cohort")
     assert payload["intent"] == "llm_unavailable"
     assert "no loaded model" in payload["reply"].lower()
+
+
+def test_query_ai_provider_blocked_skips_lm_studio(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [])
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append((url, log_kind))
+        return {"data": [{"id": "local-model"}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "What evidence supports the main cohort summary?",
+        ai_provider_access="blocked",
+    )
+
+    assert payload["intent"] == "unsupported"
+    assert "LM Studio fallback is currently unavailable" in payload["reply"]
+    assert payload["data"]["external_llm_allowed"] is False
+    assert payload["data"]["ai_provider_access"] == "blocked"
+    assert payload["data"]["ai_provider_context_granularity"] == "blocked"
+    assert calls == []
 
 
 def test_query_needs_clarification_for_short_prompt(tmp_path):
@@ -1933,6 +3456,198 @@ def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
     assert "Show patient 107" in user_message
 
 
+def test_query_summary_omits_history_and_patient_ids_from_lm_studio_context(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "107:week_0", "patient_id": "107", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "208:week_0", "patient_id": "208", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "Summary-safe answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_NAVIGATOR", "true")
+
+    payload = answer_query(
+        str(tmp_path),
+        "What changed after that?",
+        history=[
+            {"role": "user", "content": "Show patient 107"},
+            {"role": "assistant", "content": "Patient 107 has 1 visit."},
+        ],
+        granularity_mode="summary",
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert "conversation_history" not in user_message
+    assert '"patient_id"' not in user_message
+    assert '"patient_navigator"' not in user_message
+    assert "Show patient 107" not in user_message
+
+
+def test_query_ai_provider_restricted_clamps_detailed_lm_studio_context(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "107:week_0", "patient_id": "107", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "208:week_0", "patient_id": "208", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_NAVIGATOR", "true")
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "Provider-clamped answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "What changed after that?",
+        history=[
+            {"role": "user", "content": "Show patient 107"},
+            {"role": "assistant", "content": "Patient 107 has 1 visit."},
+        ],
+        granularity_mode="detailed",
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert "conversation_history" not in user_message
+    assert '"patient_id"' not in user_message
+    assert '"patient_navigator"' not in user_message
+    assert "Show patient 107" not in user_message
+    assert '"patients":' not in user_message
+    assert "Crohn Disease" not in user_message
+    assert "Ulcerative Colitis" not in user_message
+
+
+def test_query_ai_provider_restricted_skips_semantic_planner_and_uses_safe_fallback(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        calls.append(log_kind)
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "I don't have enough permitted context to answer that safely."}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "How many patients take biologics?",
+        history=[
+            {"role": "user", "content": "Show patient P1"},
+            {"role": "assistant", "content": "Patient P1 has 1 visit."},
+        ],
+        granularity_mode="detailed",
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    assert payload["data"]["granularity_applied"] == "detailed"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert calls == ["query_fallback"]
+    assert "Recent conversation history JSON" not in user_message
+    assert "Show patient P1" not in user_message
+    assert "Infliximab" not in user_message
+    assert "Mesalamine" not in user_message
+    assert '"patients":' not in user_message
+
+
+def test_query_ai_provider_restricted_explain_dataset_sends_no_clinical_content(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "I don't have enough permitted context to describe this dataset safely."}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "Explain this dataset",
+        ai_provider_access="safe_summary",
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    assert payload["data"]["ai_provider_access"] == "safe_summary"
+    assert payload["data"]["ai_provider_context_granularity"] == "safe_summary"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert "Ocrelizumab" not in user_message
+    assert "Multiple Sclerosis" not in user_message
+    assert '"patients":1' not in user_message
+    assert '"visits":1' not in user_message
+
+
 def test_query_passes_scoped_subset_into_lm_studio_context(tmp_path, monkeypatch):
     write_json(
         tmp_path,
@@ -1974,6 +3689,49 @@ def test_query_passes_scoped_subset_into_lm_studio_context(tmp_path, monkeypatch
     assert "P3" in user_message
     assert "P2" not in user_message
     assert "Ulcerative Colitis" not in user_message
+
+
+def test_query_summary_omits_scoped_patient_ids_from_lm_studio_context(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:v1", "patient_id": "P1", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "P2:v1", "patient_id": "P2", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+            {"id": "P3:v1", "patient_id": "P3", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        captured["payload"] = payload
+        return {"choices": [{"message": {"content": "Scoped summary-safe answer"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "Can you summarize the main conditions they seem to have?",
+        history=[
+            {"role": "user", "content": "How many patients have Crohn Disease?"},
+            {"role": "assistant", "content": "2 patients match disease query 'Crohn Disease'."},
+        ],
+        scoped_patient_ids=["P1", "P3"],
+        granularity_mode="summary",
+    )
+
+    assert payload["intent"] == "llm_fallback"
+    user_message = captured["payload"]["messages"][1]["content"]
+    assert '"patients":2' in user_message
+    assert "P1" not in user_message
+    assert "P3" not in user_message
+    assert '"patient_id"' not in user_message
 
 
 def test_query_uses_semantic_planner_before_generic_lm_fallback(tmp_path, monkeypatch):
@@ -2039,6 +3797,80 @@ def test_query_uses_semantic_planner_before_generic_lm_fallback(tmp_path, monkey
     assert payload["data"]["planner"]["model"] == "local-model"
     assert payload["data"]["patient_ids"] == ["P1"]
     assert calls == ["query_semantic_plan"]
+
+
+def test_query_summary_omits_history_from_semantic_planner_payload(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
+            },
+            {
+                "id": "P2:v1",
+                "event_date": "2024-01-01",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+                "treatments": [{"treatmentCode": {"label": "Mesalamine"}}],
+            },
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    captured = {}
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        if url.endswith("/models"):
+            return {"data": [{"id": "local-model"}]}
+        if log_kind == "query_semantic_plan":
+            captured["payload"] = payload
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "intent": "cohort_query",
+                                    "output": "count",
+                                    "logic": "and",
+                                    "filters": [
+                                        {
+                                            "domain": "treatment",
+                                            "operator": "contains",
+                                            "value": "Infliximab",
+                                            "negate": False,
+                                        }
+                                    ],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        return {"choices": [{"message": {"content": "generic fallback"}}]}
+
+    monkeypatch.setattr(query_module, "_http_json", fake_http_json)
+
+    payload = answer_query(
+        str(tmp_path),
+        "select subjects receiving infliximab",
+        history=[
+            {"role": "user", "content": "Show patient 107"},
+            {"role": "assistant", "content": "Patient 107 has 2 visits."},
+        ],
+        granularity_mode="summary",
+    )
+
+    assert payload["intent"] == "semantic_cohort_query"
+    planner_message = captured["payload"]["messages"][1]["content"]
+    assert "Recent conversation history JSON" not in planner_message
+    assert "Show patient 107" not in planner_message
+
 
 
 def test_query_falls_back_to_generic_lm_when_semantic_plan_is_invalid(tmp_path, monkeypatch):
@@ -2373,8 +4205,29 @@ def test_query_lists_all_patients_in_cohort(tmp_path):
         "105:week_0_arm_1",
         "1:week_0_arm_1",
     ]
-    assert "- 104:week_0_arm_1" in payload["reply"]
-    assert "- 105:week_0_arm_1" in payload["reply"]
+
+
+def test_query_counts_patients_in_workspace_with_colloquial_prompt(tmp_path):
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {"id": "101:week_0_arm_1", "treatments": []},
+            {"id": "102:week_0_arm_1", "treatments": []},
+            {"id": "103:week_0_arm_1", "treatments": []},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "How many patients we have?")
+
+    assert payload["intent"] == "patient_inventory"
+    assert payload["data"]["patient_count"] == 3
+    assert payload["data"]["patient_ids"] == [
+        "101:week_0_arm_1",
+        "102:week_0_arm_1",
+        "103:week_0_arm_1",
+    ]
+    assert payload["reply"] == "This workspace contains 3 patients."
 
 
 def test_query_supports_negative_disease_cohort(tmp_path):
@@ -2798,6 +4651,9 @@ def test_answer_query_supports_longitudinal_timepoint_queries(tmp_path):
     assert [item["patient_id"] for item in payload["data"]["patients"]] == ["101"]
 
     payload = answer_query(str(tmp_path), "Show the timeline for patient 101")
+    assert payload["intent"] == "patient_timeline"
+
+    payload = answer_query(str(tmp_path), "Show the timeline for participant 101")
     assert payload["intent"] == "patient_timeline"
 
 
@@ -3298,3 +5154,671 @@ def test_analysis_compare_follow_up_prompt_does_not_raise_name_error(tmp_path):
     assert payload["intent"] == "analysis_compare"
     assert payload["data"]["source"] == "deterministic"
     assert "Deterministic Comparison Summary" in payload["reply"]
+
+
+def test_routes_index_and_dataset_helpers(monkeypatch, tmp_path):
+    class DummyTemplates:
+        def TemplateResponse(self, request, name, context):
+            return {"template": name, "context": context}
+
+    dataset_root = tmp_path / "dataset-a"
+    dataset_root.mkdir()
+    source_file = dataset_root / "clinical" / "records.json"
+    source_file.parent.mkdir()
+    source_file.write_text("[]", encoding="utf-8")
+
+    monkeypatch.setattr(routes_module, "templates", DummyTemplates())
+    monkeypatch.setattr(routes_module, "branding_settings", lambda: {"product_name": "PN"})
+    monkeypatch.setattr(routes_module, "authorized_datasets_for_user", lambda user: [{"dataset_id": "dataset-a", "name": "Dataset A", "root_path": str(dataset_root)}])
+    monkeypatch.setattr(routes_module, "resolve_dataset", lambda request, dataset_id="": {"dataset_id": "dataset-a"})
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, key: f"/resolved/{key or 'default'}")
+    monkeypatch.setattr(routes_module, "current_dataset_id", lambda user_id="": "current-dataset")
+    monkeypatch.setattr(routes_module, "request_user_id", lambda request: "u1")
+
+    monkeypatch.setattr(routes_module, "auth_enabled", lambda: False)
+    payload = routes_module.index(make_request())
+    assert payload["template"] == "index.html"
+    assert payload["context"]["auth_enabled"] is False
+    assert payload["context"]["current_dataset_id"] == "dataset-a"
+
+    monkeypatch.setattr(routes_module, "auth_enabled", lambda: True)
+    monkeypatch.setattr(routes_module, "session_user", lambda request: {"username": "analyst"})
+    payload = routes_module.index(make_request({"username": "analyst"}))
+    assert payload["context"]["auth_enabled"] is True
+    assert payload["context"]["datasets"][0]["dataset_id"] == "dataset-a"
+
+    provenance = routes_module._dataset_provenance_from_sources(
+        make_request({"username": "analyst"}),
+        [str(source_file)],
+    )
+    assert provenance["dataset_ids"] == ["dataset-a"]
+    assert provenance["dataset_name"] == "Dataset A"
+    assert routes_module._resolve_route_dataset_dir(None, dataset_id="dataset-a") == "/resolved/dataset-a"
+    assert routes_module._resolve_route_dataset_dir(make_request(), dataset_id="", data_dir="workspace") == "/resolved/workspace"
+
+
+def test_dataset_admin_routes_map_value_errors_to_http_400(monkeypatch):
+    monkeypatch.setattr(routes_module, "require_admin", lambda request: {"username": "admin"})
+    monkeypatch.setattr(routes_module, "register_dataset", lambda **kwargs: (_ for _ in ()).throw(ValueError("bad dataset")))
+    monkeypatch.setattr(routes_module, "update_dataset", lambda dataset_id, **kwargs: (_ for _ in ()).throw(ValueError("bad update")))
+
+    create_payload = routes_module.DatasetRegistrationRequest(dataset_id="d1", name="Dataset", root_path="/tmp/data")
+    update_payload = routes_module.DatasetUpdateRequest(name="Dataset")
+
+    with pytest.raises(HTTPException) as create_exc:
+        routes_module.create_dataset_route(create_payload, make_request({"username": "admin"}))
+    with pytest.raises(HTTPException) as update_exc:
+        routes_module.update_dataset_route("d1", update_payload, make_request({"username": "admin"}))
+
+    assert create_exc.value.status_code == 400
+    assert update_exc.value.status_code == 400
+
+
+def test_auth_and_saved_cohort_route_wrappers_cover_common_error_paths(monkeypatch):
+    monkeypatch.setattr(routes_module, "auth_enabled", lambda: False)
+    assert routes_module.login_local(make_request(), routes_module.LoginRequest(username="u", password="p")) == {
+        "enabled": False,
+        "authenticated": True,
+    }
+
+    monkeypatch.setattr(routes_module, "branding_logo_path", lambda: None)
+    with pytest.raises(HTTPException) as logo_exc:
+        routes_module.get_branding_logo()
+    assert logo_exc.value.status_code == 404
+
+    monkeypatch.setattr(routes_module, "reset_local_user_password", lambda username, password: (_ for _ in ()).throw(ValueError("bad password")))
+    with pytest.raises(HTTPException) as reset_exc:
+        routes_module.reset_auth_user_password("u1", routes_module.AuthPasswordResetRequest(password="secret"), make_request())
+    assert reset_exc.value.status_code == 400
+
+    monkeypatch.setattr(routes_module, "delete_local_user", lambda username: (_ for _ in ()).throw(ValueError("User not found.")))
+    with pytest.raises(HTTPException) as delete_exc:
+        routes_module.delete_auth_user("ghost", make_request())
+    assert delete_exc.value.status_code == 404
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda request: {"username": "u1"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda request: "u1")
+    monkeypatch.setattr(routes_module, "list_sessions_referencing_saved_cohort", lambda cohort_id, user_id="": [{"title": "Session A"}])
+    with pytest.raises(HTTPException) as conflict_exc:
+        routes_module.remove_saved_cohort("c1", make_request({"username": "u1"}))
+    assert conflict_exc.value.status_code == 409
+
+    monkeypatch.setattr(routes_module, "list_sessions_referencing_saved_cohort", lambda cohort_id, user_id="": [])
+    monkeypatch.setattr(routes_module, "delete_saved_cohort", lambda cohort_id, user_id="": False)
+    with pytest.raises(HTTPException) as missing_exc:
+        routes_module.remove_saved_cohort("c1", make_request({"username": "u1"}))
+    assert missing_exc.value.status_code == 404
+
+
+def test_query_analysis_and_dashboard_route_wrappers_map_file_not_found(monkeypatch):
+    request = make_request({"username": "u1"})
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "u1"})
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, key="": ["default"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, key: "/resolved/data")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "answer_query", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing query data")))
+    monkeypatch.setattr(routes_module, "analysis_llm_reply", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing analysis data")))
+    monkeypatch.setattr(routes_module, "molecular_dataset_inventory", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing molecular data")))
+    monkeypatch.setattr(routes_module, "molecular_gene_inventory", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing genes")))
+    monkeypatch.setattr(routes_module, "molecular_expression_summary", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing expression")))
+    monkeypatch.setattr(routes_module, "dashboard_summary", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing dashboard data")))
+    monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda request, dataset_id="", data_dir="": "/resolved/data")
+
+    query_payload = routes_module.QueryRequest(q="hello")
+    analysis_payload = routes_module.AnalysisRequest(prompt="explain")
+    expression_payload = routes_module.MolecularExpressionRequest(dataset_name="rna", gene_id="TP53")
+
+    with pytest.raises(HTTPException) as query_exc:
+        routes_module.query_app_post(query_payload, request)
+    with pytest.raises(HTTPException) as analysis_exc:
+        routes_module.analysis_app(analysis_payload, request)
+    with pytest.raises(HTTPException) as datasets_exc:
+        routes_module.get_molecular_datasets(request)
+    with pytest.raises(HTTPException) as genes_exc:
+        routes_module.get_molecular_genes("rna", request)
+    with pytest.raises(HTTPException) as expression_exc:
+        routes_module.get_molecular_expression(expression_payload, request)
+    with pytest.raises(HTTPException) as dashboard_exc:
+        routes_module.get_dashboard(request)
+
+    assert query_exc.value.status_code == 404
+    assert analysis_exc.value.status_code == 404
+    assert datasets_exc.value.status_code == 404
+    assert genes_exc.value.status_code == 404
+    assert expression_exc.value.status_code == 404
+    assert dashboard_exc.value.status_code == 404
+
+
+def test_analysis_session_and_pheno_route_wrappers_enforce_expected_guards(monkeypatch):
+    request = make_request({"username": "u1"})
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "u1"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda request: "u1")
+    monkeypatch.setattr(routes_module, "save_analysis_session", lambda payload, user_id="": (_ for _ in ()).throw(ValueError("bad session")))
+    monkeypatch.setattr(routes_module, "rename_analysis_session", lambda session_id, title, user_id="": None)
+    monkeypatch.setattr(routes_module, "delete_analysis_session", lambda session_id, user_id="": False)
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, key="": ["summary-dataset"])
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "summary")
+
+    session_payload = routes_module.AnalysisSessionRequest(id="s1", title="Test", messages=[])
+    rename_payload = routes_module.AnalysisSessionRenameRequest(title="Renamed")
+    pheno_payload = routes_module.PhenoRankerRequest(action="compare", mode="cohort", data_dir="/tmp/data")
+
+    with pytest.raises(HTTPException) as save_exc:
+        routes_module.create_or_update_analysis_session(session_payload, request)
+    with pytest.raises(HTTPException) as rename_exc:
+        routes_module.update_analysis_session_title("s1", rename_payload, request)
+    with pytest.raises(HTTPException) as remove_exc:
+        routes_module.remove_analysis_session("s1", request)
+    with pytest.raises(HTTPException) as pheno_run_exc:
+        routes_module.run_pheno_ranker_route(pheno_payload, request)
+    with pytest.raises(HTTPException) as pheno_ids_exc:
+        routes_module.get_pheno_ranker_patient_ids(request)
+
+    assert save_exc.value.status_code == 400
+    assert rename_exc.value.status_code == 404
+    assert remove_exc.value.status_code == 404
+    assert pheno_run_exc.value.status_code == 403
+    assert pheno_ids_exc.value.status_code == 403
+
+
+def test_pheno_helper_normalization_and_matching_utilities(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN002:week_0",
+                "patient_id": "SYN002",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+            },
+        ],
+    )
+
+    assert pheno_module._normalize_pheno_ai_provider_access("restricted") == "safe_summary"
+    assert pheno_module._normalize_pheno_ai_provider_access("use_thread_mode") == "detailed_allowed"
+    assert pheno_module._pheno_ai_provider_context_granularity("blocked") == "blocked"
+    assert pheno_module._pheno_ai_provider_context_granularity("safe_summary") == "safe_summary"
+    assert pheno_module._pheno_ai_provider_context_granularity("detailed_allowed") == "detailed"
+
+    enriched = pheno_module._pheno_finalize_response(
+        {"source": "lm_studio", "data": {}},
+        intent="pheno_plan",
+        ai_provider_access="summary_only",
+        source="lm_studio",
+        execution="planning",
+        planner={"provider": "lm_studio"},
+        provider="lm_studio",
+        model="local-model",
+    )
+    assert enriched["intent"] == "pheno_plan"
+    assert enriched["data"]["source"] == "llm"
+    assert enriched["data"]["ai_provider_access"] == "safe_summary"
+    assert enriched["data"]["model"] == "local-model"
+
+    records = pheno_module.load_pheno_ranker_records(str(tmp_path))
+    assert pheno_module.resolve_pheno_ranker_reference_paths(str(tmp_path))[0].name == "records.json"
+    assert [item["id"] for item in pheno_module.filter_records_by_disease(records, "crohn")] == ["SYN001:week_0"]
+    assert pheno_module.find_target_record(records, "SYN002")["id"] == "SYN002:week_0"
+    assert pheno_module.find_target_record(records, "SYN001:week_0")["patient_id"] == "SYN001"
+    assert pheno_module.find_target_record(records, "missing") is None
+
+    assert pheno_module.normalize_pheno_term("phenotypes") == "phenotypicFeatures"
+    assert pheno_module.normalize_pheno_terms("diseases and measures / treatments only") == ["diseases", "measures", "treatments"]
+    assert pheno_module.normalize_pheno_metric("jaccard") == "jaccard"
+    assert pheno_module.normalize_pheno_metric("cosine") == ""
+    assert pheno_module.available_patient_ids(str(tmp_path)) == ["SYN001", "SYN002"]
+    assert pheno_module.available_reference_ids(str(tmp_path)) == ["SYN001:week_0", "SYN002:week_0"]
+    assert pheno_module.available_disease_labels(str(tmp_path)) == ["Crohn Disease", "Ulcerative Colitis"]
+    assert pheno_module.extract_patient_ids_from_text("Compare SYN001 and syn002", ["SYN001", "SYN002"]) == ["SYN001", "SYN002"]
+    assert pheno_module.extract_patient_like_tokens_from_text("Find matches to Beacon 5 and SYN-002") == ["Beacon_5", "SYN_002"]
+    assert pheno_module.extract_disease_filter_from_text("Compare by disease Crohn Disease", ["Crohn Disease"]) == "Crohn Disease"
+    assert pheno_module.extract_disease_filter_from_text("Compare with disease ulcerative colitis", []) == "ulcerative colitis"
+    assert pheno_module.is_non_actionable_pheno_request("hello") is True
+    assert pheno_module.is_non_actionable_pheno_request("compare all patients by disease") is False
+
+
+def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN001:week_2",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN002:week_0",
+                "patient_id": "SYN002",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+            },
+        ],
+    )
+
+    records = pheno_module.load_pheno_ranker_records(str(tmp_path))
+    expanded = pheno_module.expand_scope_ids_to_record_ids(records, ["SYN001", "SYN002:week_0", "MISSING"])
+    assert expanded == {
+        "record_ids": ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"],
+        "invalid_ids": ["MISSING"],
+        "expanded_patient_ids": ["SYN001"],
+        "expanded_record_count": 3,
+    }
+
+    patient_plan = pheno_module.plan_pheno_ranker_deterministic(
+        "Find closest matches to SYN001 by disease and phenotype",
+        str(tmp_path),
+    )
+    assert patient_plan["plan"]["mode"] == "patient"
+    assert patient_plan["plan"]["patient_id"] == "SYN001"
+    assert patient_plan["plan"]["align"] is True
+    assert patient_plan["plan"]["include_terms"] == ["diseases", "phenotypicFeatures"]
+
+    extract_plan = pheno_module.plan_pheno_ranker_deterministic(
+        "Extract patients with disease Crohn Disease",
+        str(tmp_path),
+        selected_patient_ids="SYN001,SYN002",
+    )
+    assert extract_plan["plan"]["action"] == "extract"
+    assert extract_plan["plan"]["mode"] == "cohort"
+    assert extract_plan["plan"]["selected_patient_ids"] == "SYN001,SYN002"
+    assert extract_plan["plan"]["render_heatmap"] is False
+    assert extract_plan["plan"]["render_mds"] is False
+
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    with pytest.raises(FileNotFoundError):
+        pheno_module.resolve_pheno_ranker_reference_paths(str(empty_dir))
+
+
+def test_pheno_execution_steps_attach_and_llm_planner(monkeypatch, tmp_path):
+    assert pheno_module.pheno_execution_steps({"action": "extract", "selected_patient_ids": "SYN001"}) == [
+        "Extract the current scope from the active reference files with jq into one subset JSON."
+    ]
+    assert pheno_module.pheno_execution_steps({"action": "extract", "selected_patient_ids": ""}) == [
+        "Extract requires a non-empty scope."
+    ]
+    assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "cohort", "selected_patient_ids": "SYN001"}) == [
+        "Extract the current scope from the active reference files with jq into one subset JSON.",
+        "Run cohort comparison on the extracted subset reference.",
+    ]
+    assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "cohort", "selected_patient_ids": ""}) == [
+        "Run cohort comparison directly on the full reference cohort."
+    ]
+    assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "patient", "patient_id": "SYN001"}) == [
+        "Extract target patient SYN001 from the active reference files with jq.",
+        "Run patient-vs-reference ranking with -r -t.",
+    ]
+    assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "patient", "patient_id": ""}) == [
+        "Patient mode requires exactly one target patient from Patient ID or Scope."
+    ]
+    assert pheno_module.attach_execution_steps({"plan": {"action": "extract", "selected_patient_ids": "SYN001"}})["plan"]["execution_steps"]
+    assert pheno_module.attach_execution_steps({"plan": None}) == {"plan": None}
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "patient_id": "SYN001", "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}]},
+            {"id": "SYN002:week_0", "patient_id": "SYN002", "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}]},
+        ],
+    )
+
+    monkeypatch.setattr(pheno_module, "lm_studio_enabled", lambda: False)
+    assert pheno_module.plan_pheno_ranker_llm("compare cohort", str(tmp_path)) is None
+    monkeypatch.setattr(pheno_module, "lm_studio_enabled", lambda: True)
+    monkeypatch.setattr(pheno_module, "resolve_lm_studio_model", lambda: "")
+    assert pheno_module.plan_pheno_ranker_llm("compare cohort", str(tmp_path)) is None
+
+    monkeypatch.setattr(pheno_module, "resolve_lm_studio_model", lambda: "local-model")
+    monkeypatch.setattr(pheno_module, "lm_studio_base_url", lambda: "http://lm")
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "action": "compare",
+                                "mode": "patient",
+                                "patient_id": "SYN001",
+                                "include_terms": ["diseases", "phenotypes"],
+                                "exclude_terms": ["measures"],
+                                "similarity_metric_cohort": "jaccard",
+                                "sort_by": "hamming",
+                                "align": True,
+                                "render_heatmap": True,
+                                "render_mds": False,
+                                "reasoning": "Planned by LM Studio.",
+                            }
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(pheno_module, "http_json", fake_http_json)
+    llm_plan = pheno_module.plan_pheno_ranker_llm("compare cohort", str(tmp_path))
+    assert llm_plan["source"] == "lm_studio"
+    assert llm_plan["plan"]["mode"] == "patient"
+    assert llm_plan["plan"]["include_terms"] == ["diseases", "phenotypicFeatures"]
+    assert llm_plan["plan"]["exclude_terms"] == ["measures"]
+    assert llm_plan["plan"]["render_mds"] is False
+
+
+def test_pheno_rank_and_alignment_helper_stack(tmp_path):
+    job_dir = tmp_path / "job1"
+    job_dir.mkdir()
+    (job_dir / "rank.txt").write_text(
+        "REFERENCE(ID)\tTARGET(ID)\tJACCARD-INDEX\tINTERSECT\tTARGET-VARS\tREFERENCE-VARS\tINTERSECT-RATE(%)\tCOMPLETENESS(%)\tHAMMING-DISTANCE\tLENGTH\n"
+        "SYN010\tTARGET1\t0.82\t8\t10\t9\t80\t88.89\t2\t11\n"
+        "SYN011\tTARGET1\t0.55\t5\t10\t8\t50\t62.5\t4\t12\n",
+        encoding="utf-8",
+    )
+    (job_dir / "alignment.target.csv").write_text(
+        "id;json-path;label;indicator;weight;hamming-distance;ref;tar\n"
+        "SYN010;diseases.label;Crohn Disease;1;1;0;1;1\n"
+        "SYN010;treatments.label;Infliximab;1;1;0;1;0\n"
+        "SYN010;phenotypicFeatures.label;Abdominal pain;1;1;0;0;1\n",
+        encoding="utf-8",
+    )
+
+    headers, rows = pheno_module.read_rank_rows(job_dir)
+    assert headers[:2] == ["REFERENCE(ID)", "TARGET(ID)"]
+    assert len(rows) == 2
+    metric_headers = pheno_module.detect_rank_metric_columns(headers, rows)
+    assert "JACCARD-INDEX" in metric_headers
+    assert pheno_module.alignment_bucket_from_json_path("interventionsOrProcedures.label") == "procedures"
+    assert pheno_module.parse_float("1.25") == 1.25
+    assert pheno_module.parse_float("x") is None
+    assert pheno_module.describe_jaccard(0.95) == "very high overlap"
+    assert pheno_module.describe_jaccard(0.8) == "high overlap"
+    assert pheno_module.describe_jaccard(0.6) == "moderate overlap"
+    assert pheno_module.describe_jaccard(0.2) == "limited overlap"
+    highlights = pheno_module.build_rank_metric_highlights(rows[0])
+    assert "Jaccard index 0.820 indicates high overlap." in highlights[0]
+
+    alignment_rows = pheno_module.load_alignment_rows(job_dir)
+    summary = pheno_module.summarize_alignment_for_reference(alignment_rows, "SYN010")
+    assert summary["shared_count"] == 1
+    assert summary["reference_only_count"] == 1
+    assert summary["target_only_count"] == 1
+
+    explained = pheno_module.explain_pheno_ranker_results(job_dir, top_n=1)
+    assert explained["source"] == "deterministic"
+    assert explained["alignment_available"] is True
+    assert explained["top_n"] == 1
+    assert explained["matches"][0]["alignment"]["shared_bucket_counts"]["diseases"] == 1
+
+
+def test_pheno_llm_explain_and_wrapper_metadata(monkeypatch, tmp_path):
+    deterministic_payload = {
+        "job_id": "job1",
+        "mode": "patient",
+        "target_id": "TARGET1",
+        "top_n": 1,
+        "alignment_available": True,
+        "metric_headers": ["JACCARD-INDEX"],
+        "metric_definitions": {"JACCARD-INDEX": "Overlap"},
+        "matches": [
+            {
+                "reference_id": "SYN010",
+                "metrics": {"JACCARD-INDEX": "0.82"},
+                "metric_highlights": ["Jaccard index 0.820 indicates high overlap."],
+                "alignment": {
+                    "shared_bucket_counts": {"diseases": 1},
+                    "top_shared_items": [{"label": "Crohn Disease", "bucket": "diseases"}],
+                    "top_reference_only_items": [{"label": "Infliximab", "bucket": "treatments"}],
+                    "top_target_only_items": [{"label": "Abdominal pain", "bucket": "phenotypicFeatures"}],
+                },
+            }
+        ],
+        "summary_lines": ["Top 1 matches for TARGET1 from rank.txt."],
+        "source": "deterministic",
+    }
+    monkeypatch.setattr(pheno_module, "explain_pheno_ranker_results", lambda job_dir, top_n=3: deterministic_payload)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id: tmp_path / job_id)
+
+    monkeypatch.setattr(pheno_module, "lm_studio_enabled", lambda: False)
+    unavailable = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
+    assert unavailable["source"] == "llm_unavailable"
+
+    monkeypatch.setattr(pheno_module, "lm_studio_enabled", lambda: True)
+    monkeypatch.setattr(pheno_module, "resolve_lm_studio_model", lambda: "")
+    no_model = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
+    assert no_model["source"] == "llm_unavailable"
+
+    monkeypatch.setattr(pheno_module, "resolve_lm_studio_model", lambda: "local-model")
+    monkeypatch.setattr(pheno_module, "lm_studio_base_url", lambda: "http://lm")
+    monkeypatch.setattr(pheno_module, "http_json", lambda *args, **kwargs: {"error": "boom"})
+    explicit_error = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
+    assert explicit_error["source"] == "llm_error"
+
+    monkeypatch.setattr(pheno_module, "http_json", lambda *args, **kwargs: {"choices": [{"message": {"content": "  Explanation  "}}]})
+    success = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
+    assert success["source"] == "lm_studio"
+    assert success["model"] == "local-model"
+    assert success["llm_reply"] == "Explanation"
+
+    explain_blocked = pheno_module.pheno_ranker_explain_llm("job1", ai_provider_access="blocked")
+    assert explain_blocked["data"]["source"] == "deterministic"
+    assert explain_blocked["data"]["ai_provider_access"] == "blocked"
+
+    monkeypatch.setattr(pheno_module, "explain_pheno_ranker_results_llm", lambda job_dir, top_n=3: {"source": "lm_studio", "model": "local-model"})
+    explain_allowed = pheno_module.pheno_ranker_explain_llm("job1", ai_provider_access="detailed_allowed")
+    assert explain_allowed["data"]["source"] == "llm"
+    assert explain_allowed["data"]["provider"] == "lm_studio"
+
+
+def test_pheno_result_serialization_and_file_helpers(monkeypatch, tmp_path):
+    job_dir = tmp_path / "job42"
+    job_dir.mkdir()
+    (job_dir / "rank.txt").write_text("data", encoding="utf-8")
+    (job_dir / "other.txt").write_text("x", encoding="utf-8")
+
+    proc = SimpleNamespace(returncode=0, stdout="ok", stderr="")
+    payload = pheno_module.serialize_pheno_result(
+        job_dir,
+        ["pheno-ranker", "-r", "ref.json"],
+        proc,
+        "cohort",
+        [{"script": "mds_points", "returncode": "0"}],
+        similarity_metric_cohort="jaccard",
+        pre_commands=["jq ..."],
+        scope_expansion_note="expanded scope",
+    )
+    assert payload["job_id"] == "job42"
+    assert payload["plots"][0]["script"] == "mds_points"
+    assert payload["files"][0]["url"].startswith("/pheno-ranker/results/job42/")
+
+    monkeypatch.setattr(pheno_module, "PHENO_RANKER_RUNS_DIR", tmp_path)
+    assert pheno_module.resolve_pheno_ranker_job_dir("job42") == job_dir
+    with pytest.raises(HTTPException):
+        pheno_module.resolve_pheno_ranker_job_dir("../escape")
+    assert pheno_module.pheno_ranker_result_file_path("job42", "rank.txt") == job_dir / "rank.txt"
+    with pytest.raises(HTTPException):
+        pheno_module.pheno_ranker_result_file_path("job42", "../secret.txt")
+
+    monkeypatch.setattr(
+        pheno_module,
+        "load_alignment_rows",
+        lambda job_dir: [
+            {"reference_id": "SYN010", "bucket": "diseases", "ref_present": True, "target_present": True},
+            {"reference_id": "SYN010", "bucket": "treatments", "ref_present": True, "target_present": False},
+            {"reference_id": "SYN010", "bucket": "measures", "ref_present": False, "target_present": True},
+        ],
+    )
+    details = pheno_module.pheno_ranker_alignment_details("job42", "SYN010", target_id="TARGET1")
+    assert details["shared_bucket_counts"] == {"diseases": 1}
+    assert details["reference_only_bucket_counts"] == {"treatments": 1}
+    assert details["target_only_bucket_counts"] == {"measures": 1}
+
+
+def test_query_policy_normalization_and_provider_granularity_helpers():
+    assert query_policy_module.normalize_query_granularity_mode("Summary") == "summary"
+    assert query_policy_module.normalize_query_granularity_mode("weird") == "detailed"
+    assert query_policy_module.normalize_query_granularity_ceiling("summary") == "summary"
+    assert query_policy_module.normalize_query_granularity_ceiling("Detailed") == "detailed"
+
+    assert query_policy_module.normalize_ai_provider_access("use_thread_mode") == "detailed_allowed"
+    assert query_policy_module.normalize_ai_provider_access("restricted") == "safe_summary"
+    assert query_policy_module.normalize_ai_provider_access("blocked") == "blocked"
+    assert query_policy_module.normalize_ai_provider_access("unknown") == "detailed_allowed"
+
+    assert query_policy_module.ai_provider_granularity_mode("detailed", "safe_summary") == "summary"
+    assert query_policy_module.ai_provider_granularity_mode("detailed", "blocked") == "detailed"
+    assert query_policy_module.ai_provider_context_granularity("detailed", "blocked") == "blocked"
+    assert query_policy_module.ai_provider_context_granularity("detailed", "safe_summary") == "safe_summary"
+    assert query_policy_module.ai_provider_context_granularity("summary", "detailed_allowed") == "summary"
+
+
+def test_query_policy_action_context_summary_shaping_and_finalization():
+    payload = {
+        "query": "Which patients have Crohn Disease?",
+        "intent": "disease_cohort",
+        "reply": "Patients: P1, P2",
+        "data": {
+            "patient_ids": ["P1", "P2"],
+            "sample_ids": ["P1:week_0", "P2:week_0"],
+            "patient_count": 2,
+            "patients": [
+                {"patient_id": "P1", "original_record_ids": ["P1:week_0"]},
+                {"patient_id": "P2", "original_record_ids": ["P2:week_0"]},
+            ],
+            "patient_context": {"foo": "bar"},
+            "timeline": [{"x": 1}],
+            "visits": [{"visit_id": "v1"}],
+        },
+    }
+
+    action_context = query_policy_module.query_action_context(payload)
+    assert action_context["patient_ids"] == ["P1", "P2"]
+    assert action_context["record_ids"] == ["P1:week_0", "P2:week_0"]
+    assert action_context["id_type"] == "sample"
+
+    actions = query_policy_module.query_available_actions(payload, "detailed")
+    assert actions == {
+        "open_in_analysis": True,
+        "save_cohort": True,
+        "copy_patient_ids": True,
+        "use_in_pheno_ranker": True,
+    }
+    assert query_policy_module.redact_action_context(action_context, "summary") == {
+        "patient_ids": [],
+        "record_ids": [],
+        "id_type": "",
+        "analysis_prompt": "",
+    }
+
+    shaped = query_policy_module.shape_summary_response(payload)
+    assert shaped["reply"] == "2 patients match this query."
+    assert shaped["data"]["patient_count"] == 2
+    assert "patients" not in shaped["data"]
+    assert "patient_context" not in shaped["data"]
+    assert "timeline" not in shaped["data"]
+
+    finalized = query_policy_module.finalize_query_response(payload, "detailed", "summary", "restricted")
+    assert finalized["data"]["granularity_requested"] == "detailed"
+    assert finalized["data"]["granularity_applied"] == "summary"
+    assert finalized["data"]["external_llm_allowed"] is True
+    assert finalized["data"]["ai_provider_access"] == "safe_summary"
+    assert finalized["data"]["ai_provider_context_granularity"] == "safe_summary"
+    assert finalized["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+    assert finalized["action_context"]["patient_ids"] == []
+
+
+def test_query_policy_patient_detail_summary_mode_response():
+    payload = {
+        "query": "Show patient SYN001",
+        "intent": "patient_summary",
+        "reply": "Detailed patient view",
+        "data": {"patient_id": "SYN001", "patient_context": {"id": "SYN001"}},
+    }
+
+    shaped = query_policy_module.shape_summary_response(payload)
+    assert shaped["intent"] == "patient_summary"
+    assert "not available in Summary mode" in shaped["reply"]
+    assert shaped["data"]["patient_id"] == "SYN001"
+    assert shaped["data"]["follow_up_suggestions"] == [
+        "How many patients are in this workspace?",
+        "Which patients have more than 1 medication?",
+    ]
+
+
+def test_query_scope_helpers_cover_inventory_scope_and_buckets(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN001:week_2",
+                "patient_id": "SYN001",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN002:week_0",
+                "patient_id": "SYN002",
+                "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
+            },
+        ],
+    )
+
+    rows = [
+        {
+            "patient_id": "SYN001",
+            "diseases": ["Crohn Disease", "Crohn Disease"],
+            "medications": ["Infliximab"],
+            "original_record_ids": ["SYN001:week_0", "SYN001:week_2"],
+        },
+        {
+            "patient_id": "SYN002",
+            "diseases": ["Ulcerative Colitis"],
+            "medications": ["Vedolizumab"],
+            "original_record_ids": ["SYN002:week_0"],
+        },
+    ]
+
+    assert query_scope_module.patient_inventory_from_records(str(tmp_path)) == ["SYN001", "SYN002"]
+    assert query_scope_module.patient_inventory_from_records(str(tmp_path), ["SYN001"]) == ["SYN001"]
+    assert query_scope_module.sample_inventory_from_records(str(tmp_path)) == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
+    assert query_scope_module.sample_inventory_from_records(str(tmp_path), ["SYN002"]) == ["SYN002:week_0"]
+
+    assert query_scope_module.apply_patient_scope_to_rows(rows, ["SYN002"]) == [rows[1]]
+    cohort = {"patients": rows, "patient_count": 2}
+    scoped_cohort = query_scope_module.apply_patient_scope_to_cohort(cohort, ["SYN001"])
+    assert scoped_cohort["patient_count"] == 1
+    assert scoped_cohort["patient_ids"] == ["SYN001"]
+    assert scoped_cohort["original_record_ids"] == ["SYN001:week_0", "SYN001:week_2"]
+
+    disease_buckets = query_scope_module.bucket_counts_from_rows(rows, "diseases", "disease")
+    medication_buckets = query_scope_module.bucket_counts_from_rows(rows, "medications", "medication")
+    assert disease_buckets[0]["disease"] == "Crohn Disease"
+    assert disease_buckets[0]["patient_count"] == 2
+    assert medication_buckets[0]["medication"] == "Infliximab"
+
+    context = query_scope_module.build_query_scope_context(str(tmp_path), rows, ["SYN001"])
+    assert context.patient_ids == ["SYN001"]
+    assert context.sample_ids == ["SYN001:week_0", "SYN001:week_2"]
+    assert context.disease_counts[0]["disease"] == "Crohn Disease"
+    assert context.medication_counts[0]["medication"] == "Infliximab"

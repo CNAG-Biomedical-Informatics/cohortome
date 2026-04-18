@@ -9,6 +9,10 @@ const config: Config = {
   title: 'Patient Navigator Docs',
   tagline: 'Documentation for workspace navigation, analysis, and administration',
   favicon: 'img/patient-navigator-logo.png',
+  markdown: {
+    mermaid: true,
+  },
+  themes: ['@docusaurus/theme-mermaid'],
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {

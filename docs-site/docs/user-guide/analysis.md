@@ -21,6 +21,7 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - Kaplan-Meier curves
 - molecular expression summaries
 - exploratory volcano plots
+- curated external analyses through reviewed runners
 
 ![Analysis tab with a plotted result and follow-up queries](/img/screenshots/analysis-tab.png)
 
@@ -84,15 +85,44 @@ That means each thread can preserve:
 
 This is useful because clinical and molecular interpretation often unfolds across several questions rather than one prompt.
 
+## Analysis Catalog and quick prompts
+
+The Analysis tab now separates two things:
+
+- `Analysis Catalog`
+  - curated structured analyses such as trajectories, Kaplan-Meier, and molecular comparisons
+- `Quick prompts`
+  - broader interpretive or exploratory prompts that are not treated as first-class analyses
+
+The main tab shows:
+
+- a compact featured analysis strip
+- a `Browse analyses` drawer with the full catalog
+- a lighter quick-prompt area for open-ended prompts
+
+The catalog is available only when the active workspace allows `Detailed` in-app access.
+
+In a summary-only workspace, the tab explains that the catalog requires `Detailed` access instead of showing a generic load failure.
+
+Selecting a catalog item does not create a separate execution system. It preconfigures the current Analysis thread with:
+
+- the prompt
+- compare-mode defaults when needed
+- the preferred execution mode
+
 ## Starter prompts
 
-The Analysis tab includes starter prompts with mode coding:
+Quick prompts still include mode coding:
 
 - `Deterministic`
 - `LLM-planned`
 - `LLM interpretation`
 
-These labels are intended to reflect how the request is routed.
+These labels reflect how the request is routed.
+
+For `LLM interpretation` prompts, the app no longer silently falls back to a deterministic clinical summary when the provider cannot be used.
+
+Instead, Analysis returns an explicit provider-policy or provider-unavailable message.
 
 ## Compare mode
 
@@ -144,6 +174,24 @@ If a cohort is still attached in the current page, the UI can block deletion loc
 
 Analysis always runs inside the current workspace. Saved cohorts narrow that workspace for a particular analysis.
 
+## In-app disclosure and AI providers
+
+Analysis follows the same policy split as Query:
+
+- in-app detail policy
+- AI-provider policy
+
+That means:
+
+- a deterministic Analysis turn may show a local clinical summary without sending it anywhere
+- if AI providers are `Safe summary`, provider-facing Analysis context is reduced to structural/provider-safe context only
+- if AI providers are `Blocked`, Analysis stays local
+- `LLM interpretation` prompts that require a provider may return a policy or availability message instead of silently degrading into a richer local summary
+
+:::note
+The in-app answer the user sees is not automatically the same as what an AI provider would be allowed to receive.
+:::
+
 ## Common analyses
 
 Examples of questions that fit well here:
@@ -154,6 +202,63 @@ Examples of questions that fit well here:
 - Kaplan-Meier time to event
 - molecular expression by medication
 - exploratory volcano comparison
+- curated external runner demo analyses
+
+## Curated external analyses
+
+The Analysis Catalog can now describe curated external runners, not only built-in Python analyses.
+
+Current supported idea:
+
+- catalog entries define a `runner_type`
+- the backend dispatches to a reviewed executor
+- catalog entries also define an `execution_backend`
+  - `sync`
+  - `job`
+
+This keeps the catalog stable while allowing future curated integrations such as:
+
+- `Rscript`
+- external CLI tools
+- containerized runners
+
+:::warning
+This is not arbitrary pasted-code execution. External analyses are curated and backend-controlled.
+:::
+
+## Background jobs
+
+Longer curated external analyses can now run through a background queue instead of holding the HTTP request open.
+
+Current model:
+
+- queue backend: `RQ + Redis`
+- user-facing surface: shared `Jobs` drawer in the app shell
+- first queued runner type: curated `Rscript`
+
+When a catalog item is configured as a background job:
+
+- the Analysis thread shows that the job was submitted
+- the `Jobs` drawer shows queued, running, completed, failed, or cancelled state
+- completed jobs can be reopened into `Analysis`
+
+If the original Analysis session no longer exists, the app can recover the completed result into a fresh Analysis session shell instead of dropping the result.
+
+## Deleting chats and generated data
+
+Analysis session deletion now has two distinct semantics:
+
+- `Delete chat only`
+  - removes the Analysis session record
+- `Delete chat and generated data`
+  - removes the Analysis session
+  - removes linked terminal job data on disk for that session
+
+Current guardrail:
+
+- if linked jobs are still `queued` or `running`, `Delete chat and generated data` is blocked
+
+This keeps active background work from being destroyed mid-run.
 
 ## Patient level versus sample level
 

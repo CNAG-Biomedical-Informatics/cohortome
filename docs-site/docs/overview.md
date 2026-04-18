@@ -9,6 +9,8 @@ Patient Navigator is a multimodal clinical exploration app for:
 - browsing dataset-backed patient workspaces
 - building subsets in `Query`
 - interpreting them in `Analysis`
+- launching curated analyses from an Analysis Catalog
+- running longer curated analyses as background jobs
 - comparing phenotypic similarity in `Pheno-Ranker`
 
 ## What the app is optimized for
@@ -17,6 +19,8 @@ Patient Navigator is a multimodal clinical exploration app for:
 - clinical plus molecular interpretation in one workspace
 - saved subset reuse across tabs
 - dataset-level access control for different users
+- curated built-in and external analysis launchers
+- background execution for longer curated analyses
 
 ![Login view](/img/screenshots/login-page.png)
 
@@ -63,6 +67,7 @@ The term `workspace` is now used for the currently loaded dataset scope because 
   - build subsets and inspect deterministic or LLM-assisted results
 - `Analysis`
   - summarize, compare, and visualize clinical or molecular patterns
+  - mix curated catalog analyses with lighter quick prompts
 - `Pheno-Ranker`
   - compare patients or subsets using phenotypic similarity
 

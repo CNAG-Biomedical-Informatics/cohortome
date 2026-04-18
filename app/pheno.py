@@ -15,6 +15,7 @@ from app.analysis import extract_record_disease_labels, extract_record_patient_i
 from app.bff import ensure_data_dir, read_bff_records
 from app.cohorts import get_saved_cohorts_by_ids
 from app.config import BASE_DIR
+from app.entity_terms import normalize_entity_synonym_mentions
 from app.lm import (
     http_json,
     lm_studio_base_url,
@@ -29,6 +30,67 @@ PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranke
 PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
 JQ_BIN = shutil.which("jq") or "jq"
+
+
+def _normalize_pheno_ai_provider_access(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "use_thread_mode": "detailed_allowed",
+        "detailed": "detailed_allowed",
+        "summary_only": "safe_summary",
+        "restricted": "safe_summary",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized in {"blocked", "safe_summary", "detailed_allowed"}:
+        return normalized
+    return "detailed_allowed"
+
+
+def _pheno_ai_provider_context_granularity(ai_provider_access: str) -> str:
+    normalized = _normalize_pheno_ai_provider_access(ai_provider_access)
+    if normalized == "blocked":
+        return "blocked"
+    if normalized == "safe_summary":
+        return "safe_summary"
+    return "detailed"
+
+
+def _pheno_finalize_response(
+    payload: Dict[str, Any],
+    *,
+    intent: str,
+    ai_provider_access: str = "detailed_allowed",
+    source: str = "",
+    execution: str = "",
+    planner: Dict[str, Any] | None = None,
+    provider: str = "",
+    model: str = "",
+    external_llm_allowed: bool | None = None,
+) -> Dict[str, Any]:
+    normalized_access = _normalize_pheno_ai_provider_access(ai_provider_access)
+    normalized_source = str(source or payload.get("source") or "").strip().lower()
+    normalized_provider = str(provider or "").strip().lower()
+    data = dict(payload.get("data") or {})
+    if normalized_source in {"lm_studio", "llm"}:
+        data["source"] = "llm"
+    else:
+        data["source"] = "deterministic"
+    if execution:
+        data["execution"] = execution
+    if planner:
+        data["planner"] = planner
+    if normalized_provider:
+        data["provider"] = normalized_provider
+    if model:
+        data["model"] = model
+    data["ai_provider_access"] = normalized_access
+    data["ai_provider_context_granularity"] = _pheno_ai_provider_context_granularity(normalized_access)
+    data["external_llm_allowed"] = (normalized_access != "blocked") if external_llm_allowed is None else bool(external_llm_allowed)
+
+    enriched = dict(payload)
+    enriched["intent"] = str(enriched.get("intent") or intent)
+    enriched["data"] = data
+    return enriched
 
 
 def load_pheno_ranker_records(data_dir: str) -> List[Dict]:
@@ -286,7 +348,7 @@ def is_non_actionable_pheno_request(text: str) -> bool:
 
 
 def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_ids: str = "") -> Dict:
-    text = text.strip()
+    text = normalize_entity_synonym_mentions(text.strip(), "patient", "patient", "patients")
     lowered = text.lower()
     if is_non_actionable_pheno_request(text):
         return {
@@ -512,7 +574,9 @@ def attach_execution_steps(payload: Dict) -> Dict:
     return enriched_payload
 
 
-def plan_pheno_ranker_llm(text: str, data_dir: str) -> Dict | None:
+def plan_pheno_ranker_llm(text: str, data_dir: str, ai_provider_access: str = "detailed_allowed") -> Dict | None:
+    if _normalize_pheno_ai_provider_access(ai_provider_access) != "detailed_allowed":
+        return None
     if not lm_studio_enabled():
         return None
     model = resolve_lm_studio_model()
@@ -577,13 +641,18 @@ def plan_pheno_ranker_llm(text: str, data_dir: str) -> Dict | None:
         "render_heatmap": bool(parsed.get("render_heatmap", True)),
         "render_mds": bool(parsed.get("render_mds", True)),
     }
-    return {"source": "lm_studio", "plan": plan, "reasoning": reasoning, "follow_up_suggestions": []}
+    return {"source": "lm_studio", "model": model, "plan": plan, "reasoning": reasoning, "follow_up_suggestions": []}
 
 
-def plan_pheno_ranker(text: str, data_dir: str, selected_patient_ids: str = "") -> Dict:
+def plan_pheno_ranker(text: str, data_dir: str, selected_patient_ids: str = "", ai_provider_access: str = "detailed_allowed") -> Dict:
     deterministic = plan_pheno_ranker_deterministic(text, data_dir, selected_patient_ids=selected_patient_ids)
     if not isinstance(deterministic.get("plan"), dict):
-        return deterministic
+        return _pheno_finalize_response(
+            deterministic,
+            intent="pheno_plan",
+            ai_provider_access=ai_provider_access,
+            execution="planning",
+        )
     lowered = text.strip().lower()
     if (
         deterministic["plan"]["patient_id"]
@@ -595,11 +664,29 @@ def plan_pheno_ranker(text: str, data_dir: str, selected_patient_ids: str = "") 
         or "compare all" in lowered
         or "extract" in lowered
     ):
-        return attach_execution_steps(deterministic)
-    llm_plan = plan_pheno_ranker_llm(text, data_dir)
+        return _pheno_finalize_response(
+            attach_execution_steps(deterministic),
+            intent="pheno_plan",
+            ai_provider_access=ai_provider_access,
+            execution="planning",
+        )
+    llm_plan = plan_pheno_ranker_llm(text, data_dir, ai_provider_access=ai_provider_access)
     if llm_plan is not None:
-        return attach_execution_steps(llm_plan)
-    return attach_execution_steps(deterministic)
+        return _pheno_finalize_response(
+            attach_execution_steps(llm_plan),
+            intent="pheno_plan",
+            ai_provider_access=ai_provider_access,
+            source="llm",
+            execution="planning",
+            planner={"provider": "lm_studio", "model": llm_plan.get("model") or ""},
+            model=str(llm_plan.get("model") or ""),
+        )
+    return _pheno_finalize_response(
+        attach_execution_steps(deterministic),
+        intent="pheno_plan",
+        ai_provider_access=ai_provider_access,
+        execution="planning",
+    )
 
 
 def pheno_ranker_job_dir() -> Path:
@@ -1377,15 +1464,20 @@ def run_pheno_ranker(request: Any) -> Dict:
     if mode == "patient":
         pre_commands.append(" ".join(extract_command))
 
-    return serialize_pheno_result(
-        job_dir,
-        command,
-        proc,
-        mode,
-        plot_runs,
-        similarity_metric_cohort=effective_similarity_metric,
-        pre_commands=pre_commands,
-        scope_expansion_note=scope_expansion_note,
+    return _pheno_finalize_response(
+        serialize_pheno_result(
+            job_dir,
+            command,
+            proc,
+            mode,
+            plot_runs,
+            similarity_metric_cohort=effective_similarity_metric,
+            pre_commands=pre_commands,
+            scope_expansion_note=scope_expansion_note,
+        ),
+        intent="pheno_run",
+        ai_provider_access=str(getattr(request, "ai_provider_access", "detailed_allowed") or "detailed_allowed"),
+        execution="deterministic",
     )
 
 
@@ -1439,11 +1531,42 @@ def pheno_ranker_alignment_details(job_id: str, reference_id: str, target_id: st
     }
 
 
-def pheno_ranker_explain(job_id: str, top_n: int = 3) -> Dict[str, Any]:
+def pheno_ranker_explain(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed") -> Dict[str, Any]:
     job_dir = resolve_pheno_ranker_job_dir(job_id)
-    return explain_pheno_ranker_results(job_dir, top_n=top_n)
+    return _pheno_finalize_response(
+        explain_pheno_ranker_results(job_dir, top_n=top_n),
+        intent="pheno_explain",
+        ai_provider_access=ai_provider_access,
+        execution="deterministic",
+    )
 
 
-def pheno_ranker_explain_llm(job_id: str, top_n: int = 3) -> Dict[str, Any]:
+def pheno_ranker_explain_llm(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed") -> Dict[str, Any]:
     job_dir = resolve_pheno_ranker_job_dir(job_id)
-    return explain_pheno_ranker_results_llm(job_dir, top_n=top_n)
+    normalized_access = _normalize_pheno_ai_provider_access(ai_provider_access)
+    if normalized_access in {"blocked", "safe_summary"}:
+        return _pheno_finalize_response(
+            explain_pheno_ranker_results(job_dir, top_n=top_n),
+            intent="pheno_explain",
+            ai_provider_access=normalized_access,
+            execution="deterministic",
+        )
+
+    payload = explain_pheno_ranker_results_llm(job_dir, top_n=top_n)
+    raw_source = str(payload.get("source") or "").strip().lower()
+    if raw_source == "lm_studio":
+        return _pheno_finalize_response(
+            payload,
+            intent="pheno_explain",
+            ai_provider_access=normalized_access,
+            source="llm",
+            execution="deterministic",
+            provider="lm_studio",
+            model=str(payload.get("model") or ""),
+        )
+    return _pheno_finalize_response(
+        payload,
+        intent="pheno_explain",
+        ai_provider_access=normalized_access,
+        execution="deterministic",
+    )

@@ -303,25 +303,92 @@ export function createQueryUi(ctx) {
     };
   }
 
-  function renderQueryBadge(label, title) {
+  function queryIconSvg(kind) {
+    const icons = {
+      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
+      disclosure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.5 7.8 8 9 4.5-1.2 8-4 8-9V7l-8-4Z"></path><path d="m9.5 12 1.8 1.8 3.2-3.6"></path></svg>',
+      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
+      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
+      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
+      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
+      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
+      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+    };
+    return icons[kind] || icons.summary;
+  }
+
+  function renderQueryIcon(kind, cls = "provenance-inline-icon") {
+    return `<span class="${cls}" aria-hidden="true">${queryIconSvg(kind)}</span>`;
+  }
+
+  function renderQueryBadge(label, title, iconKind = "") {
     const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
-    return `<span class="query-chip badge"${safeTitle}>${escapeHtml(label)}</span>`;
+    return `<span class="query-chip badge provenance-badge"${safeTitle}>${iconKind ? `${renderQueryIcon(iconKind, "provenance-badge-icon")}` : ""}<span>${escapeHtml(label)}</span></span>`;
+  }
+
+  function formatAiProviderGranularity(value) {
+    return String(value || "").replace(/_/g, " ");
   }
 
   function getQueryProvenanceChips(payload) {
     const data = payload && payload.data ? payload.data : {};
     const intentInfo = queryIntentPresentation(payload && payload.intent ? payload.intent : "unknown");
-    const chips = [renderQueryBadge(intentInfo.label, intentInfo.title)];
-    if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
-      chips.push(renderQueryBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal cohort plan."));
-      chips.push(renderQueryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result."));
-      if (data.planner.model) chips.push(renderQueryBadge(data.planner.model, "LM Studio model used for semantic query planning."));
+    const plannedByLmStudio = data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio";
+    const answeredByLmStudio = data.provider === "lm_studio";
+    const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
+    const chips = [renderQueryBadge(intentInfo.label, intentInfo.title, "summary")];
+    if (data.granularity_applied) {
+      const requested = data.granularity_requested && data.granularity_requested !== data.granularity_applied
+        ? ` Requested: ${data.granularity_requested}.`
+        : "";
+      chips.push(renderQueryBadge(
+        `Disclosure: ${data.granularity_applied}`,
+        `Applied disclosure mode for this answer: ${data.granularity_applied}.${requested}`.trim(),
+        "disclosure",
+      ));
+    }
+    if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
+      let title = "";
+      if (data.ai_provider_access === "blocked") {
+        title = "AI providers are blocked for this dataset or workspace.";
+      } else if (data.ai_provider_access === "safe_summary") {
+        title = "AI providers may be used, but they only receive provider-safe structural summary context.";
+      } else {
+        title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context.`;
+      }
+      chips.push(renderQueryBadge(
+        `AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`,
+        title,
+        "provider",
+      ));
+    }
+    if (plannedByLmStudio) {
+      chips.push(renderQueryBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal cohort plan.", "planner"));
+      chips.push(renderQueryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result.", "deterministic"));
+      if (data.planner.model) chips.push(renderQueryBadge(data.planner.model, "LM Studio model used for semantic query planning.", "llm"));
       return chips;
     }
-    chips.push(renderQueryBadge(data.provider === "lm_studio" ? "LLM answer" : "Deterministic", data.provider === "lm_studio"
-      ? "LM Studio answered directly from the provided context."
-      : "The app answered using deterministic dataset logic."));
-    if (data.model) chips.push(renderQueryBadge(data.model, "LM Studio model used for this answer."));
+    let resultLabel = "Deterministic";
+    let resultTitle = "The app answered using deterministic dataset logic.";
+    if (answeredByLmStudio) {
+      resultLabel = "LLM answer";
+      resultTitle = "LM Studio answered directly from the provided context.";
+    } else if (data.source === "policy") {
+      resultLabel = "AI blocked";
+      resultTitle = "This Query prompt required an AI provider, but provider access is blocked by workspace policy.";
+    } else if (data.source === "provider_unavailable") {
+      resultLabel = "AI unavailable";
+      resultTitle = "This Query prompt required an AI provider, but no provider reply was available.";
+    }
+    const resultIcon = answeredByLmStudio
+      ? "llm"
+      : data.source === "policy"
+        ? "blocked"
+        : data.source === "provider_unavailable"
+          ? "unavailable"
+          : "deterministic";
+    chips.push(renderQueryBadge(resultLabel, resultTitle, resultIcon));
+    if (answeredByLmStudio && data.model) chips.push(renderQueryBadge(data.model, "LM Studio model used for this answer.", "llm"));
     return chips;
   }
 
@@ -329,7 +396,16 @@ export function createQueryUi(ctx) {
     const data = payload && payload.data ? payload.data : {};
     if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
       const model = data.planner.model ? ` using ${data.planner.model}` : "";
-      return `LM Studio semantic planner${model} translated the request into an internal cohort plan, and the result was executed with deterministic dataset logic.`;
+      const providerContext = data.ai_provider_context_granularity
+        ? ` AI provider context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}.`
+        : "";
+      return `LM Studio semantic planner${model} translated the request into an internal cohort plan, and the result was executed with deterministic dataset logic.${providerContext}`;
+    }
+    if (data.provider === "lm_studio") {
+      const providerContext = data.ai_provider_context_granularity
+        ? ` AI provider context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}.`
+        : "";
+      return `Provider: LM Studio fallback.${providerContext}`;
     }
     return `Provider: ${data.provider === "lm_studio" ? "LM Studio fallback" : "deterministic dataset logic"}.`;
   }
@@ -338,9 +414,11 @@ export function createQueryUi(ctx) {
     state.queryHistory = [];
     state.queryTurns = [];
     state.queryExecutionMode = "auto";
+    state.queryFollowMemoryEnabled = false;
     renderTopDiseaseChips();
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
     setLatestQueryState({ ids: [], prompt: "", analysisPrompt: "", idType: "patient" });
+    setLatestScopedContext({ patientIds: [], recordIds: [], idType: "patient", sourceTab: "", prompt: "" });
     queryMetaEl.innerHTML = "";
     queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
     queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
@@ -424,93 +502,62 @@ export function createQueryUi(ctx) {
     return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${followups.map((item) => `<button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
   }
 
-  function inferRecordIdsFromQueryPayload(payload) {
-    const fromSampleData = payload && payload.data && Array.isArray(payload.data.sample_ids)
-      ? payload.data.sample_ids.filter(Boolean)
-      : [];
-    if (fromSampleData.length) return Array.from(new Set(fromSampleData));
-    const fromOriginalData = payload && payload.data && Array.isArray(payload.data.original_record_ids)
-      ? payload.data.original_record_ids.filter(Boolean)
-      : [];
-    if (fromOriginalData.length) return Array.from(new Set(fromOriginalData));
-    const fromPatientOriginalIds = payload && payload.data && Array.isArray(payload.data.patients)
-      ? payload.data.patients.flatMap((item) => Array.isArray(item && item.original_record_ids) ? item.original_record_ids : []).filter(Boolean)
-      : [];
-    if (fromPatientOriginalIds.length) return Array.from(new Set(fromPatientOriginalIds));
-    return [];
-  }
-
-  function inferPatientIdsFromQueryPayload(payload) {
-    const fromData = payload && payload.data && Array.isArray(payload.data.patient_ids)
-      ? payload.data.patient_ids.filter(Boolean)
-      : [];
-    if (fromData.length) return fromData;
-    const fromPatientObjects = payload && payload.data && Array.isArray(payload.data.patients)
-      ? payload.data.patients.map((item) => item && item.patient_id).filter(Boolean)
-      : [];
-    if (fromPatientObjects.length) return fromPatientObjects;
-    const replyText = String((payload && payload.reply) || "");
-    const knownIds = currentPatientsProvider().map((patient) => patient.patient_id).filter(Boolean);
-    const found = [];
-    for (const patientId of knownIds) {
-      const escaped = patientId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(`(^|[^A-Za-z0-9_])${escaped}($|[^A-Za-z0-9_])`, "i");
-      if (pattern.test(replyText) && !found.includes(patientId)) found.push(patientId);
-    }
-    if (found.length) return found;
-    const inferred = [];
-    const lines = replyText.split("\r\n").join("\n").split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim().replace(/^[-*]\s+/, "");
-      if (!trimmed) continue;
-      const match = trimmed.match(/^([A-Za-z]*_?\d+(?::[A-Za-z0-9_-]+)?)$/);
-      if (match && !inferred.includes(match[1])) inferred.push(match[1]);
-    }
-    if (inferred.length) return inferred;
-    const inlineMatches = replyText.match(/\b(?:[A-Za-z]+_)?\d+(?::[A-Za-z0-9_-]+)?\b/g) || [];
-    for (const token of inlineMatches) {
-      if (!inferred.includes(token)) inferred.push(token);
-    }
-    return inferred;
+  function queryActionContext(payload) {
+    const context = payload && payload.action_context && typeof payload.action_context === "object"
+      ? payload.action_context
+      : {};
+    const patientIds = Array.isArray(context.patient_ids) ? context.patient_ids.filter(Boolean) : [];
+    const recordIds = Array.isArray(context.record_ids) ? context.record_ids.filter(Boolean) : [];
+    return {
+      patientIds,
+      recordIds,
+      idType: context.id_type || (recordIds.length ? "sample" : "patient"),
+      analysisPrompt: typeof context.analysis_prompt === "string" ? context.analysis_prompt : "",
+    };
   }
 
   function queryActionsMarkup(payload) {
-    const patientIds = inferPatientIdsFromQueryPayload(payload);
-    const recordIds = inferRecordIdsFromQueryPayload(payload);
+    const actionContext = queryActionContext(payload);
+    const patientIds = actionContext.patientIds;
+    const recordIds = actionContext.recordIds;
+    const availableActions = payload && payload.data && payload.data.available_actions && typeof payload.data.available_actions === "object"
+      ? payload.data.available_actions
+      : {};
     setLatestQueryState({
       ids: patientIds,
       recordIds,
       prompt: questionEl.value.trim(),
-      analysisPrompt: patientIds.length ? "Interpret this selected workspace subset and summarize the main clinical and treatment patterns." : "",
-      idType: "patient",
+      analysisPrompt: actionContext.analysisPrompt,
+      idType: actionContext.idType,
     });
-    if (patientIds.length) {
+    if (patientIds.length || recordIds.length) {
       setLatestScopedContext({
         patientIds,
         recordIds,
-        idType: recordIds.length ? "sample" : "patient",
+        idType: actionContext.idType,
         sourceTab: "query",
         prompt: questionEl.value.trim(),
       });
       renderQueryExecutionMode();
     }
-    if (!patientIds.length) return "";
+    if (!Object.values(availableActions).some(Boolean)) return "";
     const phenoRankerPatientIds = phenoRankerPatientIdsProvider();
     const compatibleIds = phenoRankerPatientIds.length ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId)) : [];
     const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
+    const canUsePheno = availableActions.use_in_pheno_ranker && (recordIds.length > 0 || allCompatible);
     const idsPayload = escapeHtml(patientIds.join(","));
     const scopeIds = recordIds.length ? recordIds : patientIds;
     const scopePayload = escapeHtml(scopeIds.join(","));
     return `
       <div class="query-actions query-actions-inline" style="margin-top:12px;">
-        <button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}" data-query-scope-ids="${scopePayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>
-        <button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>
+        ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}" data-query-scope-ids="${scopePayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
+        ${availableActions.save_cohort ? `<button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>` : ""}
         <details class="query-inline-actions">
           <summary><span class="query-inline-actions-more">More actions</span><span class="query-inline-actions-less">Less actions</span></summary>
           <div class="query-actions">
-            <button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>
-            ${allCompatible ? `<button type="button" class="query-chip action" data-query-action="use-pheno" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
-            ${phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
+            ${availableActions.copy_patient_ids ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
+            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
+            ${availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
           </div>
         </details>
       </div>
@@ -564,6 +611,7 @@ export function createQueryUi(ctx) {
     if (state.queryInFlight) return;
     const question = questionEl.value.trim();
     const queryMode = state.queryExecutionMode;
+    const granularityMode = state.queryGranularityMode;
     if (!question) {
       queryStatusEl.textContent = "Enter a question first.";
       return;
@@ -596,6 +644,7 @@ export function createQueryUi(ctx) {
           q: question,
           data_dir: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
           query_mode: queryMode,
+          granularity_mode: granularityMode,
           history: state.queryHistory.slice(-6),
           scoped_patient_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
             ? state.latestScopedContext.patientIds

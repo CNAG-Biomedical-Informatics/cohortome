@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.request
 from contextlib import closing
+from pathlib import Path
 
 import pytest
 
@@ -78,6 +79,10 @@ def live_server() -> str:
 
 @pytest.fixture
 def live_server_auth() -> str:
+    auth_path = Path(os.getcwd()) / "state" / "auth" / "users.json"
+    original_auth_text = auth_path.read_text(encoding="utf-8") if auth_path.exists() else None
+    if auth_path.exists():
+        auth_path.unlink()
     process, base_url = _spawn_live_server(
         {
             "PN_AUTH_MODE": "local",
@@ -103,6 +108,12 @@ def live_server_auth() -> str:
         except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
             process.kill()
             process.wait(timeout=5)
+        if original_auth_text is None:
+            if auth_path.exists():
+                auth_path.unlink()
+        else:
+            auth_path.parent.mkdir(parents=True, exist_ok=True)
+            auth_path.write_text(original_auth_text, encoding="utf-8")
 
 
 @pytest.fixture
@@ -178,8 +189,34 @@ window.Plotly = {
 
 
 def _open_pheno_tab(page) -> None:
+    _ensure_detailed_workspace(page)
     page.locator("#phenoTabBtn").click()
     page.locator("#phenoPrompt").wait_for()
+
+
+def _ensure_detailed_workspace(page) -> None:
+    pheno_tab = page.locator("#phenoTabBtn")
+    if pheno_tab.get_attribute("aria-disabled") != "true":
+        return
+
+    page.locator("#datasetsTabBtn").click()
+    dataset_values = page.locator("#datasetPicker [data-dataset-checkbox]").evaluate_all(
+        "(inputs) => inputs.map((input) => input.getAttribute('data-dataset-checkbox'))"
+    )
+    target = "default" if "default" in dataset_values else (dataset_values[0] if dataset_values else None)
+    if target is None:
+        raise AssertionError("No dataset options are available for the UI smoke test.")
+    for value in dataset_values:
+        if not value:
+            continue
+        checkbox = page.locator(f"#datasetPicker [data-dataset-checkbox='{value}']")
+        if value == target:
+            checkbox.check(force=True)
+        else:
+            checkbox.uncheck(force=True)
+    page.locator("#loadBtn").wait_for()
+    page.locator("#loadBtn").click()
+    playwright.expect(pheno_tab).not_to_have_attribute("aria-disabled", "true")
 
 
 def _mock_pheno_reference_ids(
@@ -202,9 +239,7 @@ def _mock_pheno_reference_ids(
             body=json.dumps(payload),
         ),
     )
-    page.locator("#datasetsTabBtn").click()
-    page.locator("#loadBtn").wait_for()
-    page.locator("#loadBtn").click()
+    _ensure_detailed_workspace(page)
 
 
 def _open_query_tab(page) -> None:
@@ -540,10 +575,28 @@ def _mock_query_reply(page) -> None:
                     "intent": "disease_cohort",
                     "reply": "Patients matching disease query 'Crohn Disease': SYN001, SYN002.",
                     "data": {
-                        "provider": "deterministic",
+                        "source": "deterministic",
+                        "execution": "deterministic",
+                        "granularity_requested": "detailed",
+                        "granularity_applied": "detailed",
+                        "ai_provider_access": "detailed_allowed",
+                        "ai_provider_context_granularity": "detailed",
+                        "external_llm_allowed": True,
                         "patient_ids": ["SYN001", "SYN002"],
                         "patient_count": 2,
+                        "available_actions": {
+                            "open_in_analysis": True,
+                            "save_cohort": True,
+                            "copy_patient_ids": True,
+                            "use_in_pheno_ranker": False,
+                        },
                         "follow_up_suggestions": ["How many patients take Infliximab?"],
+                    },
+                    "action_context": {
+                        "patient_ids": ["SYN001", "SYN002"],
+                        "record_ids": [],
+                        "id_type": "patient",
+                        "analysis_prompt": "Interpret this selected workspace subset and summarize the main clinical and treatment patterns.",
                     },
                 }
             ),
@@ -764,6 +817,166 @@ def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> 
     assert captured["body"]["deterministic_only"] is True
 
 
+def test_analysis_catalog_item_prefills_prompt_and_compare_mode(page) -> None:
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisCatalogBrowseBtn").click()
+    expect(page.locator("#analysisCatalogDrawer")).to_be_visible()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Kaplan-Meier comparison")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='survival-compare']").click()
+
+    expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Compare Cohort A and Cohort B with Kaplan-Meier"))
+    expect(page.locator("#analysisCompareMode")).to_be_checked()
+
+
+def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_job",
+                    "reply": "Submitted External R clinical scope profile as a background job. Open Jobs to monitor progress and view the result when it completes.",
+                    "data": {
+                        "source": "job",
+                        "execution": "queued",
+                        "job_id": "job-123",
+                        "job_status": "queued",
+                        "catalog_item_id": "external-r-clinical-profile",
+                        "runner_type": "rscript",
+                    },
+                }
+            ),
+        ),
+    )
+    page.route(
+        "**/jobs",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "jobs": [
+                        {
+                            "job_id": "job-123",
+                            "job_type": "analysis",
+                            "feature": "analysis",
+                            "status": "completed",
+                            "submitted_at": "2026-04-18T12:00:00+00:00",
+                            "name": "External R clinical scope profile",
+                            "catalog_item_id": "external-r-clinical-profile",
+                            "runner_type": "rscript",
+                            "reply_preview": "External analysis done.",
+                            "result_available": True,
+                            "artifacts": [],
+                        }
+                    ]
+                }
+            ),
+        ),
+    )
+    page.route(
+        "**/jobs/job-123",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "job_id": "job-123",
+                    "job_type": "analysis",
+                    "feature": "analysis",
+                    "status": "completed",
+                    "name": "External R clinical scope profile",
+                    "analysis_session_id": "",
+                    "result_available": True,
+                    "artifacts": [],
+                    "result_payload": {
+                        "intent": "analysis_external_rscript",
+                        "reply": "External analysis done.",
+                        "data": {
+                            "source": "deterministic",
+                            "execution": "external_runner",
+                            "context": {"mode": "external_rscript_profile"},
+                            "runner_type": "rscript",
+                            "job_id": "job-123",
+                        },
+                    },
+                }
+            ),
+        ),
+    )
+
+    page.locator("#analysisPrompt").fill("Run the external R clinical scope profile for the current Analysis scope.")
+    page.locator("#analysisRunBtn").click()
+
+    expect(page.locator("#jobsDrawer")).to_be_visible()
+    expect(page.locator("#jobsDrawerList")).to_contain_text("External R clinical scope profile")
+    page.locator("[data-job-open-result='job-123']").click()
+    expect(page.locator("#jobsDrawer")).to_be_hidden()
+    expect(page.locator("#analysisThread")).to_contain_text("External analysis done.")
+
+
+def test_analysis_open_result_recovers_missing_session(page) -> None:
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.route(
+        "**/jobs/job-legacy",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "job_id": "job-legacy",
+                    "job_type": "analysis",
+                    "feature": "analysis",
+                    "status": "completed",
+                    "name": "Legacy external result",
+                    "prompt": "Run the legacy analysis.",
+                    "analysis_session_id": "analysis-legacy-session",
+                    "result_available": True,
+                    "artifacts": [],
+                    "result_payload": {
+                        "intent": "analysis_external_rscript",
+                        "reply": "Recovered legacy result.",
+                        "data": {
+                            "source": "deterministic",
+                            "execution": "external_runner",
+                            "context": {"mode": "external_rscript_profile"},
+                            "runner_type": "rscript",
+                            "job_id": "job-legacy",
+                        },
+                    },
+                }
+            ),
+        ),
+    )
+
+    page.evaluate(
+        """
+        () => {
+          const list = document.getElementById('jobsDrawerList');
+          list.innerHTML = '<div class="job-card"><button type="button" class="query-chip action" data-job-open-result="job-legacy">Open result</button></div>';
+          const drawer = document.getElementById('jobsDrawer');
+          drawer.classList.remove('is-hidden');
+          drawer.setAttribute('aria-hidden', 'false');
+        }
+        """
+    )
+
+    page.locator("[data-job-open-result='job-legacy']").click()
+
+    expect(page.locator("#jobsDrawer")).to_be_hidden()
+    expect(page.locator("#analysisThread")).to_contain_text("Recovered legacy result.")
+    expect(page.locator("#analysisSessionList")).to_contain_text("Legacy external result")
+
+
 def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_reply(page)
@@ -773,11 +986,11 @@ def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     page.locator("#analysisRunBtn").click()
 
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
-    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Catalog & prompts")
 
     page.locator("#analysisComposerExamplesBtn").click()
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
-    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Starter prompts")
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Catalog & prompts")
 
 
 def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:

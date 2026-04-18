@@ -44,7 +44,9 @@ dataset_root/
         <li>review dataset visibility</li>
         <li>assign allowed groups</li>
         <li>assign allowed users</li>
-        <li>inspect effective local access</li>
+        <li>set Query detail policy</li>
+        <li>set AI-provider policy</li>
+        <li>inspect effective dataset access</li>
       </ul>
 
       <p>This happens in <code>Data Administration</code>, not in the user-facing <code>Datasets</code> tab.</p>
@@ -119,16 +121,63 @@ It currently allows admins to edit:
 - `Visibility`
 - `Allowed groups`
 - `Allowed users`
+- `In-app Query detail`
+- `AI providers`
 
-User records and group membership still come from local auth configuration.
+User records are managed in the `Users` admin tab. Dataset cards do not edit user identity directly.
 
-:::warning
-The current UI edits dataset policy, not user identity. Changing local users or groups still requires updating the auth configuration source.
-:::
+## Query policy fields
 
-## Effective local access
+The admin UI now separates Query-related policy into two concepts.
 
-The admin UI also shows an `Effective local access` preview.
+### In-app Query detail
+
+This controls what Query may return inside Patient Navigator itself:
+
+- `Summary only`
+- `Detailed allowed`
+
+If a workspace includes more than one dataset, the strictest selected dataset wins.
+
+That means if any selected dataset is `Summary only`, the Query thread cannot switch to `Detailed`.
+
+In the current product, users do not manually switch Query between `Summary` and `Detailed`.
+
+Instead:
+
+- the effective Query mode is applied automatically from the active workspace policy
+- the Query header shows the resulting mode as read-only state
+
+### AI providers
+
+This controls what Patient Navigator may send to AI models/providers for Query behavior.
+
+Current options are:
+
+- `Detailed allowed`
+- `Safe summary`
+- `Blocked`
+
+`AI providers` is a dataset-level setting, not a per-user setting.
+
+For multi-dataset workspaces, the strictest selected dataset wins:
+
+- `Blocked` overrides everything
+- `Safe summary` overrides `Detailed allowed`
+
+### Safe summary
+
+`Safe summary` does not mean “send aggregate clinical content.”
+
+In current Query behavior it means:
+
+- only structural, non-clinical context may leave the backend
+- semantic planning is skipped
+- if the prompt needs private clinical context, the provider should answer that it lacks enough permitted context
+
+## Effective dataset access
+
+The admin UI also shows a `Users with access` preview.
 
 This preview answers:
 
@@ -145,5 +194,8 @@ In `Data Administration`, admins can:
 - review dataset visibility
 - assign allowed groups
 - assign allowed users
+- choose whether Query is `Summary only` or `Detailed allowed` in-app
+- choose the dataset AI-provider policy for Query
+- review which current local users effectively match the dataset access policy
 
-Users and group membership themselves still come from local auth configuration.
+This means the admin policy is the ceiling, and the app applies the effective behavior automatically in `Query`.

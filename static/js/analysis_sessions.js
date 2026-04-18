@@ -10,6 +10,12 @@ export function createAnalysisSessionsUi(ctx) {
     analysisCompareSavedCohortSelectionEl,
     analysisStatusEl,
     analysisMetaEl,
+    analysisSessionDeleteDialogEl,
+    analysisSessionDeleteCloseBtnEl,
+    analysisSessionDeleteSummaryEl,
+    analysisSessionDeleteStatusEl,
+    analysisSessionDeleteOnlyBtnEl,
+    analysisSessionDeleteAllBtnEl,
     dataDirEl,
   } = refs;
   const { escapeHtml, shortTimestamp, nowIso } = helpers;
@@ -25,6 +31,8 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisMeta,
   } = callbacks;
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
+  let pendingDeleteSessionId = "";
+  let deleteInFlight = false;
 
   function analysisSessionsStorageKey() {
     const namespace = typeof getStorageNamespace === "function" ? String(getStorageNamespace() || "").trim() : "";
@@ -56,6 +64,44 @@ export function createAnalysisSessionsUi(ctx) {
     return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
   }
 
+  function setDeleteDialogOpen(open) {
+    if (!analysisSessionDeleteDialogEl) return;
+    analysisSessionDeleteDialogEl.classList.toggle("is-hidden", !open);
+    analysisSessionDeleteDialogEl.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function resetDeleteDialogStatus() {
+    if (!analysisSessionDeleteStatusEl) return;
+    analysisSessionDeleteStatusEl.className = "query-status is-hidden";
+    analysisSessionDeleteStatusEl.textContent = "";
+  }
+
+  function setDeleteDialogBusy(busy) {
+    deleteInFlight = busy;
+    if (analysisSessionDeleteCloseBtnEl) analysisSessionDeleteCloseBtnEl.disabled = busy;
+    if (analysisSessionDeleteOnlyBtnEl) analysisSessionDeleteOnlyBtnEl.disabled = busy;
+    if (analysisSessionDeleteAllBtnEl) analysisSessionDeleteAllBtnEl.disabled = busy;
+  }
+
+  function closeDeleteDialog() {
+    if (deleteInFlight) return;
+    pendingDeleteSessionId = "";
+    resetDeleteDialogStatus();
+    setDeleteDialogOpen(false);
+  }
+
+  function openDeleteDialog(sessionId) {
+    const session = state.analysisSessions.find((item) => item.id === sessionId);
+    if (!session || !analysisSessionDeleteDialogEl) return;
+    pendingDeleteSessionId = sessionId;
+    resetDeleteDialogStatus();
+    setDeleteDialogBusy(false);
+    if (analysisSessionDeleteSummaryEl) {
+      analysisSessionDeleteSummaryEl.textContent = `Delete analysis session "${analysisSessionTitle(session)}"?`;
+    }
+    setDeleteDialogOpen(true);
+  }
+
   function timeValue(value) {
     const parsed = Date.parse(String(value || ""));
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -83,6 +129,7 @@ export function createAnalysisSessionsUi(ctx) {
           id: session.id,
           title: session.title || "",
           data_dir: session.dataDir || "",
+          catalog_item_id: session.catalogItemId || "",
           prompt_draft: session.promptDraft || "",
           scope: session.scope || "",
           saved_cohort_id_a: session.savedCohortIdA || "",
@@ -109,10 +156,28 @@ export function createAnalysisSessionsUi(ctx) {
     }
   }
 
-  async function deleteAnalysisSessionFromBackend(sessionId) {
+  async function deleteAnalysisSessionFromBackend(sessionId, options) {
+    const settings = options || {};
+    const deleteGeneratedData = Boolean(settings.deleteGeneratedData);
     try {
-      await fetch(`/analysis-sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
-    } catch (_error) {
+      const response = await fetch(
+        `/analysis-sessions/${encodeURIComponent(sessionId)}?delete_generated_data=${deleteGeneratedData ? "true" : "false"}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) {
+        let detail = "Unable to delete analysis session.";
+        try {
+          const payload = await response.json();
+          if (payload && typeof payload.detail === "string" && payload.detail.trim()) {
+            detail = payload.detail.trim();
+          }
+        } catch (_error) {
+        }
+        throw new Error(detail);
+      }
+      return await response.json();
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("Unable to delete analysis session.");
     }
   }
 
@@ -125,6 +190,7 @@ export function createAnalysisSessionsUi(ctx) {
         id: item.id,
         title: item.title,
         dataDir: item.data_dir,
+        catalogItemId: item.catalog_item_id,
         promptDraft: item.prompt_draft,
         scope: item.scope,
         savedCohortIdA: item.saved_cohort_id_a,
@@ -202,6 +268,7 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     session.promptDraft = analysisPromptEl.value;
+    session.catalogItemId = state.analysisSelectedCatalogItemId || "";
     session.scope = analysisSelectedPatientIdsEl.value.trim();
     session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     session.compareScope = analysisCompareSelectedPatientIdsEl ? analysisCompareSelectedPatientIdsEl.value.trim() : "";
@@ -219,6 +286,7 @@ export function createAnalysisSessionsUi(ctx) {
   function applyAnalysisSession(session) {
     state.analysisExamplesPinnedOpen = false;
     analysisPromptEl.value = session.promptDraft || "";
+    state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
     analysisSelectedPatientIdsEl.value = session.scope || "";
     if (analysisCompareModeEl) analysisCompareModeEl.checked = Boolean(session.compareMode);
     if (analysisCompareSelectedPatientIdsEl) analysisCompareSelectedPatientIdsEl.value = session.compareScope || "";
@@ -297,11 +365,26 @@ export function createAnalysisSessionsUi(ctx) {
     void upsertAnalysisSessionToBackend(session);
   }
 
-  function deleteAnalysisSessionById(sessionId) {
+  async function confirmDeleteAnalysisSession(deleteGeneratedData) {
+    const sessionId = String(pendingDeleteSessionId || "").trim();
+    if (!sessionId || deleteInFlight) return;
     const session = state.analysisSessions.find((item) => item.id === sessionId);
-    if (!session) return;
-    const confirmed = window.confirm(`Delete analysis session "${analysisSessionTitle(session)}"?`);
-    if (!confirmed) return;
+    if (!session) {
+      closeDeleteDialog();
+      return;
+    }
+    setDeleteDialogBusy(true);
+    resetDeleteDialogStatus();
+    try {
+      await deleteAnalysisSessionFromBackend(sessionId, { deleteGeneratedData });
+    } catch (error) {
+      if (analysisSessionDeleteStatusEl) {
+        analysisSessionDeleteStatusEl.className = "query-status error";
+        analysisSessionDeleteStatusEl.textContent = error instanceof Error ? error.message : "Unable to delete analysis session.";
+      }
+      setDeleteDialogBusy(false);
+      return;
+    }
     state.analysisSessions = state.analysisSessions.filter((item) => item.id !== sessionId);
     if (!state.analysisSessions.length) {
       createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
@@ -313,9 +396,16 @@ export function createAnalysisSessionsUi(ctx) {
       persistAnalysisSessions();
     }
     persistAnalysisSessions();
-    void deleteAnalysisSessionFromBackend(sessionId);
+    setDeleteDialogBusy(false);
+    closeDeleteDialog();
     analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = "Analysis session deleted.";
+    analysisStatusEl.textContent = deleteGeneratedData
+      ? "Analysis session and generated data deleted."
+      : "Analysis session deleted.";
+  }
+
+  function deleteAnalysisSessionById(sessionId) {
+    openDeleteDialog(sessionId);
   }
 
   function prepareAnalysisSessionForDataDir(nextDataDir) {
@@ -332,6 +422,22 @@ export function createAnalysisSessionsUi(ctx) {
     session.dataDir = normalizedNext;
     syncCurrentAnalysisSessionFromUi({ render: true });
   }
+
+  analysisSessionDeleteCloseBtnEl && analysisSessionDeleteCloseBtnEl.addEventListener("click", () => {
+    closeDeleteDialog();
+  });
+  analysisSessionDeleteOnlyBtnEl && analysisSessionDeleteOnlyBtnEl.addEventListener("click", () => {
+    void confirmDeleteAnalysisSession(false);
+  });
+  analysisSessionDeleteAllBtnEl && analysisSessionDeleteAllBtnEl.addEventListener("click", () => {
+    void confirmDeleteAnalysisSession(true);
+  });
+  analysisSessionDeleteDialogEl && analysisSessionDeleteDialogEl.addEventListener("click", (event) => {
+    const closeTrigger = event.target.closest("[data-analysis-session-delete-close='true']");
+    if (closeTrigger && analysisSessionDeleteDialogEl.contains(closeTrigger)) {
+      closeDeleteDialog();
+    }
+  });
 
   return {
     persistAnalysisSessions,

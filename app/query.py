@@ -1,12 +1,8 @@
 import json
 import os
 import re
-import time
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib import error, request
-from uuid import uuid4
+from urllib import error
 
 from app.bff import (
     build_patient_navigator,
@@ -21,7 +17,30 @@ from app.bff import (
     normalize_value,
     read_bff_records,
 )
-from app.entity_terms import entity_identifier_prefixes, inventory_prompt_matches
+from app.entity_terms import entity_identifier_prefixes, inventory_count_prompt_matches, inventory_prompt_matches
+from app.entity_terms import normalize_entity_synonym_mentions
+from app.lm import (
+    http_json as _http_json,
+    lm_studio_base_url as _lm_studio_base_url,
+    lm_studio_enabled as _lm_studio_enabled,
+    sanitize_lm_text as _sanitize_lm_text,
+)
+from app.query_policy import (
+    ai_provider_context_granularity as _ai_provider_context_granularity,
+    ai_provider_granularity_mode as _ai_provider_granularity_mode,
+    finalize_query_response as _finalize_query_response,
+    normalize_ai_provider_access as _normalize_ai_provider_access,
+    normalize_query_granularity_ceiling as _normalize_query_granularity_ceiling,
+    normalize_query_granularity_mode as _normalize_query_granularity_mode,
+)
+from app.query_scope import (
+    QueryScopeContext,
+    apply_patient_scope_to_cohort as _apply_patient_scope_to_cohort,
+    apply_patient_scope_to_rows as _apply_patient_scope_to_rows,
+    build_query_scope_context as _build_query_scope_context_from_rows,
+    patient_inventory_from_records as _patient_inventory_from_records,
+    sample_inventory_from_records as _sample_inventory_from_records,
+)
 from app.query_store import (
     cohort_over_time_summary as store_cohort_over_time_summary,
     disease_cohort as store_disease_cohort,
@@ -33,20 +52,6 @@ from app.query_store import (
     patient_query_index as store_patient_query_index,
     patient_visit_count_cohort as store_patient_visit_count_cohort,
 )
-
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
-
-
-@dataclass
-class QueryScopeContext:
-    patient_ids: List[str]
-    patient_rows: List[Dict[str, Any]]
-    sample_ids: List[str]
-    disease_counts: List[Dict[str, Any]]
-    medication_counts: List[Dict[str, Any]]
-
 
 def _contains_label(values: List[str], query: str) -> bool:
     lowered = query.lower()
@@ -268,84 +273,11 @@ def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def _apply_patient_scope_to_rows(rows: List[Dict[str, Any]], scoped_patient_ids: Optional[List[str]]) -> List[Dict[str, Any]]:
-    if not scoped_patient_ids:
-        return rows
-    allowed = {str(item).strip() for item in scoped_patient_ids if str(item).strip()}
-    if not allowed:
-        return rows
-    return [row for row in rows if str(row.get("patient_id") or "").strip() in allowed]
-
-
-def _apply_patient_scope_to_cohort(cohort: Dict[str, Any], scoped_patient_ids: Optional[List[str]]) -> Dict[str, Any]:
-    if not scoped_patient_ids:
-        return cohort
-    allowed = {str(item).strip() for item in scoped_patient_ids if str(item).strip()}
-    if not allowed:
-        return cohort
-    patients = [
-        item for item in cohort.get("patients", [])
-        if str(item.get("patient_id") or "").strip() in allowed
-    ]
-    scoped = dict(cohort)
-    scoped["patients"] = patients
-    scoped["patient_count"] = len(patients)
-    scoped["patient_ids"] = [item["patient_id"] for item in patients if isinstance(item, dict) and item.get("patient_id")]
-    original_ids = []
-    for item in patients:
-        for record_id in item.get("original_record_ids", []) if isinstance(item, dict) else []:
-            if record_id not in original_ids:
-                original_ids.append(record_id)
-    if original_ids:
-        scoped["original_record_ids"] = original_ids
-    return scoped
-
-
-def _sample_inventory_from_records(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
-    resolved_dir = ensure_data_dir(data_dir)
-    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
-    ids: List[str] = []
-    seen = set()
-    for _, _, record in read_bff_records(resolved_dir):
-        patient_id = normalize_value(record.get("patient_id"))
-        if allowed and str(patient_id or "").strip() not in allowed:
-            continue
-        raw_id = normalize_value(record.get("id"))
-        candidate = str(raw_id or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        ids.append(candidate)
-    return sorted(ids)
-
-
-def _bucket_counts_from_rows(rows: List[Dict[str, Any]], key: str, label_key: str) -> List[Dict[str, Any]]:
-    counts: Dict[str, Dict[str, Any]] = {}
-    for row in rows:
-        patient_id = str(row.get("patient_id") or "").strip()
-        for label in row.get(key, []) if isinstance(row, dict) else []:
-            normalized = str(label).strip()
-            if not normalized:
-                continue
-            entry = counts.setdefault(
-                normalized,
-                {label_key: normalized, "patient_count": 0, "patients": []},
-            )
-            entry["patient_count"] += 1
-            if patient_id:
-                entry["patients"].append(patient_id)
-    return sorted(counts.values(), key=lambda item: (-item["patient_count"], item[label_key]))
-
-
 def _build_query_scope_context(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> QueryScopeContext:
-    patient_rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
-    patient_ids = _patient_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids)
-    return QueryScopeContext(
-        patient_ids=patient_ids,
-        patient_rows=patient_rows,
-        sample_ids=_sample_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids),
-        disease_counts=_bucket_counts_from_rows(patient_rows, "diseases", "disease"),
-        medication_counts=_bucket_counts_from_rows(patient_rows, "medications", "medication"),
+    return _build_query_scope_context_from_rows(
+        data_dir,
+        _patient_query_index(data_dir),
+        scoped_patient_ids=scoped_patient_ids,
     )
 
 
@@ -643,6 +575,17 @@ def _resolve_patient_filter_kind(
     if disease["patient_count"] >= medication["patient_count"]:
         return "disease", disease
     return "medication", medication
+
+
+def _looks_like_treatment_category_candidate(term: str) -> bool:
+    normalized = normalize_value(term).strip().lower()
+    if not normalized:
+        return False
+    if not re.fullmatch(r"[a-z][a-z\s-]{2,}", normalized):
+        return False
+    if normalized in {"disease", "diseases", "treatment", "treatments", "medication", "medications"}:
+        return False
+    return normalized.endswith("s")
 
 
 def _parse_patient_filter_clause(clause: str) -> Optional[Dict[str, str]]:
@@ -985,6 +928,10 @@ def _is_sample_list_query(text: str) -> bool:
     return inventory_prompt_matches(text, "sample")
 
 
+def _is_patient_count_query(text: str) -> bool:
+    return inventory_count_prompt_matches(text, "patient")
+
+
 def _render_patient_summary(navigator: Dict[str, Any]) -> str:
     summary = navigator["summary"]
     context = navigator["patient_context"]
@@ -1028,62 +975,6 @@ def _render_patient_timeline(navigator: Dict[str, Any]) -> str:
             )
         )
     return "\n".join(lines)
-
-
-def _lm_studio_enabled() -> bool:
-    value = os.getenv("LM_STUDIO_ENABLED", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
-def _lm_studio_base_url() -> str:
-    return os.getenv("LM_STUDIO_BASE_URL", "http://192.168.1.42:1234/v1").rstrip("/")
-
-
-def _lm_studio_timeout() -> float:
-    raw = os.getenv("LM_STUDIO_TIMEOUT", "30").strip()
-    try:
-        return float(raw)
-    except ValueError:
-        return 30.0
-
-
-def _lm_studio_api_key() -> str:
-    return os.getenv("LM_STUDIO_API_KEY", "lm-studio")
-
-
-def _lm_studio_debug_log_enabled() -> bool:
-    value = os.getenv("LM_STUDIO_DEBUG_LOG", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
-def _write_lm_studio_debug_log(
-    *,
-    kind: str,
-    url: str,
-    payload: Optional[Dict[str, Any]],
-    response_body: Optional[Dict[str, Any]],
-    elapsed_ms: float,
-    error_text: Optional[str] = None,
-) -> None:
-    if not _lm_studio_debug_log_enabled():
-        return
-    try:
-        LM_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        log_path = LM_DEBUG_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-{kind}-{uuid4().hex[:8]}.json"
-        content = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-            "kind": kind,
-            "url": url,
-            "elapsed_ms": round(elapsed_ms, 2),
-            "request_chars": len(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))) if payload is not None else 0,
-            "response_chars": len(json.dumps(response_body, ensure_ascii=True, separators=(",", ":"))) if response_body is not None else 0,
-            "request": payload,
-            "response": response_body,
-            "error": error_text,
-        }
-        log_path.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
 
 
 def _lm_studio_max_patient_summaries() -> int:
@@ -1172,117 +1063,6 @@ def _needs_clarification(query: str) -> bool:
     return len(tokens) < 3
 
 
-def _http_json(url: str, payload: Optional[Dict[str, Any]] = None, *, log_kind: str = "generic") -> Dict[str, Any]:
-    started = time.time()
-    body = None if payload is None else json.dumps(payload).encode("utf-8")
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {_lm_studio_api_key()}",
-    }
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-    req = request.Request(url, data=body, headers=headers, method="POST" if body is not None else "GET")
-    try:
-        with request.urlopen(req, timeout=_lm_studio_timeout()) as response:
-            parsed = json.loads(response.read().decode("utf-8"))
-        _write_lm_studio_debug_log(
-            kind=log_kind,
-            url=url,
-            payload=payload,
-            response_body=parsed,
-            elapsed_ms=(time.time() - started) * 1000,
-        )
-        return parsed
-    except Exception as exc:
-        _write_lm_studio_debug_log(
-            kind=log_kind,
-            url=url,
-            payload=payload,
-            response_body=None,
-            elapsed_ms=(time.time() - started) * 1000,
-            error_text=str(exc),
-        )
-        raise
-
-
-def _sanitize_lm_text(content: str) -> str:
-    original = content.strip()
-    split_markers = re.findall(r"<unused\d+>", original, flags=re.IGNORECASE)
-    if split_markers:
-        parts = re.split(r"<unused\d+>", original, flags=re.IGNORECASE)
-        tail = parts[-1].strip()
-        if tail:
-            return tail
-
-    text = re.sub(r"^\s*<unused\d+>thought\s*", "", original, flags=re.IGNORECASE)
-    text = re.sub(r"^\s*thought\s*", "", text, flags=re.IGNORECASE)
-    lines = text.splitlines()
-    if not lines:
-        return text.strip()
-
-    reasoning_markers = (
-        "the user wants to",
-        "identify the core question",
-        "analyze the request",
-        "scan the context",
-        "formulate the answer",
-        "synthesize the findings",
-        "evaluate if",
-        "examine the",
-        "look for data points",
-        "read through the json",
-        "provided json context",
-    )
-
-    def _is_reasoning_line(line: str) -> bool:
-        lowered = line.strip().lower()
-        if not lowered:
-            return False
-        if re.match(r"^\d+\.\s", lowered):
-            return True
-        if lowered.startswith(("*", "-", "•")):
-            return True
-        return any(marker in lowered for marker in reasoning_markers)
-
-    first_non_empty = next((line for line in lines if line.strip()), "")
-    if not _is_reasoning_line(first_non_empty):
-        return text.strip()
-
-    kept: List[str] = []
-    started_answer = False
-    for line in lines:
-        stripped = line.strip()
-        if not started_answer:
-            if not stripped:
-                continue
-            if _is_reasoning_line(stripped):
-                continue
-            started_answer = True
-        if started_answer:
-            kept.append(line)
-
-    cleaned = "\n".join(kept).strip()
-    return cleaned or text.strip()
-
-
-def _resolve_lm_studio_model() -> Optional[str]:
-    configured = os.getenv("LM_STUDIO_MODEL", "").strip()
-    if configured:
-        return configured
-    try:
-        payload = _http_json(f"{_lm_studio_base_url()}/models", log_kind="query_models")
-    except (error.URLError, TimeoutError, json.JSONDecodeError):
-        return None
-    data = payload.get("data")
-    if not isinstance(data, list) or not data:
-        return None
-    first = data[0]
-    if not isinstance(first, dict):
-        return None
-    model_id = first.get("id")
-    return model_id if isinstance(model_id, str) and model_id.strip() else None
-
-
 def _lm_scoped_overview(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     medication_counts: Dict[str, int] = {}
@@ -1304,13 +1084,28 @@ def _lm_scoped_overview(data_dir: str, scoped_patient_ids: Optional[List[str]] =
     }
 
 
+def _lm_history_context(
+    history: Optional[List[Dict[str, str]]],
+    granularity_mode: str,
+) -> List[Dict[str, str]]:
+    if not history or granularity_mode == "summary":
+        return []
+    max_history_turns = _lm_studio_max_history_turns()
+    return history[-max_history_turns:] if max_history_turns else []
+
+
 def _lm_studio_context(
     data_dir: str,
     query: str,
     history: Optional[List[Dict[str, str]]] = None,
     scoped_patient_ids: Optional[List[str]] = None,
     scope_context: Optional[QueryScopeContext] = None,
+    granularity_mode: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
+    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
+    if normalized_ai_provider_access == "safe_summary":
+        return _restricted_ai_provider_context(query)
     summaries = list_patient_summaries(data_dir)
     allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
     if allowed:
@@ -1339,22 +1134,33 @@ def _lm_studio_context(
         "top_medications": scoped_overview["top_medications"],
         "top_diseases": scoped_overview["top_diseases"],
         "patient_summaries": [
-            {
-                "patient_id": summary.patient_id,
-                "visit_count": summary.visit_count,
-                "sex": summary.sex,
-                "first_event_date": summary.first_event_date,
-                "last_event_date": summary.last_event_date,
-                "disease_count": summary.evidence.diseases.count,
-                "treatment_count": summary.evidence.treatments.count,
-            }
+            (
+                {
+                    "visit_count": summary.visit_count,
+                    "sex": summary.sex,
+                    "first_event_date": summary.first_event_date,
+                    "last_event_date": summary.last_event_date,
+                    "disease_count": summary.evidence.diseases.count,
+                    "treatment_count": summary.evidence.treatments.count,
+                }
+                if granularity_mode == "summary"
+                else {
+                    "patient_id": summary.patient_id,
+                    "visit_count": summary.visit_count,
+                    "sex": summary.sex,
+                    "first_event_date": summary.first_event_date,
+                    "last_event_date": summary.last_event_date,
+                    "disease_count": summary.evidence.diseases.count,
+                    "treatment_count": summary.evidence.treatments.count,
+                }
+            )
             for summary in summaries[: _lm_studio_max_patient_summaries()]
         ],
     }
-    if history:
-        max_history_turns = _lm_studio_max_history_turns()
-        context["conversation_history"] = history[-max_history_turns:] if max_history_turns else []
-    if patient_id is not None and _lm_studio_include_patient_navigator():
+    history_context = _lm_history_context(history, granularity_mode)
+    if history_context:
+        context["conversation_history"] = history_context
+    if granularity_mode != "summary" and patient_id is not None and _lm_studio_include_patient_navigator():
         navigator = build_patient_navigator(data_dir, patient_id)
         if navigator is not None:
             context["patient_navigator"] = {
@@ -1393,11 +1199,39 @@ def _extract_lm_response_text(response: Dict[str, Any]) -> Optional[str]:
     return _sanitize_lm_text(content)
 
 
+def _resolve_lm_studio_model() -> Optional[str]:
+    configured = os.getenv("LM_STUDIO_MODEL", "").strip()
+    if configured:
+        return configured
+    try:
+        payload = _http_json(f"{_lm_studio_base_url()}/models", log_kind="query_models")
+    except (error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    data = payload.get("data")
+    if not isinstance(data, list) or not data:
+        return None
+    first = data[0]
+    if not isinstance(first, dict):
+        return None
+    model_id = first.get("id")
+    return model_id if isinstance(model_id, str) and model_id.strip() else None
+
+
 def _semantic_query_catalog(
     data_dir: str,
     scoped_patient_ids: Optional[List[str]] = None,
     scope_context: Optional[QueryScopeContext] = None,
+    ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
+    if _normalize_ai_provider_access(ai_provider_access) == "safe_summary":
+        return {
+            "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
+            "supported_outputs": ["count", "patient_list"],
+            "supported_logic": ["and", "or"],
+            "supported_string_operators": ["contains", "eq"],
+            "supported_numeric_operators": ["eq", "gt", "gte", "lt", "lte"],
+            "catalog_policy": "Safe-summary AI-provider mode does not expose patient-derived clinical catalog values.",
+        }
     context = scope_context or _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids)
     return {
         "patient_count": len(context.patient_ids),
@@ -1602,7 +1436,11 @@ def _semantic_query_plan(
     history: Optional[List[Dict[str, str]]] = None,
     scoped_patient_ids: Optional[List[str]] = None,
     scope_context: Optional[QueryScopeContext] = None,
+    granularity_mode: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
 ) -> Optional[Dict[str, Any]]:
+    if _normalize_ai_provider_access(ai_provider_access) == "safe_summary":
+        return None
     if not _lm_studio_enabled():
         return None
 
@@ -1610,6 +1448,7 @@ def _semantic_query_plan(
     if model is None:
         return None
 
+    history_context = _lm_history_context(history, granularity_mode)
     payload = {
         "model": model,
         "temperature": 0,
@@ -1636,6 +1475,7 @@ def _semantic_query_plan(
                             data_dir,
                             scoped_patient_ids=scoped_patient_ids,
                             scope_context=scope_context,
+                            ai_provider_access=ai_provider_access,
                         ),
                         ensure_ascii=True,
                         separators=(",", ":"),
@@ -1643,9 +1483,9 @@ def _semantic_query_plan(
                     query,
                     (
                         "\n\nRecent conversation history JSON:\n%s"
-                        % json.dumps(history[-4:], ensure_ascii=True, separators=(",", ":"))
+                        % json.dumps(history_context, ensure_ascii=True, separators=(",", ":"))
                     )
-                    if history
+                    if history_context
                     else "",
                 ),
             },
@@ -1678,6 +1518,8 @@ def _lm_studio_reply(
     history: Optional[List[Dict[str, str]]] = None,
     scoped_patient_ids: Optional[List[str]] = None,
     scope_context: Optional[QueryScopeContext] = None,
+    granularity_mode: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
 ) -> Optional[Dict[str, Any]]:
     if not _lm_studio_enabled():
         return None
@@ -1700,7 +1542,10 @@ def _lm_studio_reply(
         history=history,
         scoped_patient_ids=scoped_patient_ids,
         scope_context=scope_context,
+        granularity_mode=granularity_mode,
+        ai_provider_access=ai_provider_access,
     )
+    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
     payload = {
         "model": model,
         "temperature": 0.1,
@@ -1708,11 +1553,22 @@ def _lm_studio_reply(
             {
                 "role": "system",
                 "content": (
-                    "You answer questions about a patient navigation dataset. "
-                    "Use only the supplied JSON context. "
-                    "If the answer is not supported by the context, say that clearly. "
-                    "Prefer short answers. "
-                    "Be concise and factual."
+                    (
+                        "You answer questions about a patient navigation dataset. "
+                        "Use only the supplied JSON context. "
+                        "If the answer is not supported by the context, say that clearly. "
+                        "Prefer short answers. "
+                        "Be concise and factual."
+                    )
+                    if normalized_ai_provider_access != "safe_summary"
+                    else (
+                        "You answer questions using only provider-safe, non-clinical structural summary context. "
+                        "Do not infer or reveal patient counts, visit counts, diseases, treatments, phenotypes, timelines, "
+                        "or any other patient-derived clinical facts. "
+                        "If the question requires clinical context, say that you do not have enough permitted context to answer safely. "
+                        "Prefer short answers. "
+                        "Be concise and factual."
+                    )
                 ),
             },
             {
@@ -1797,16 +1653,50 @@ def _lm_studio_reply(
     }
 
 
-def answer_query(
+def _ai_provider_blocked_response(query: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    return {
+        "query": query,
+        "intent": "unsupported",
+        "reply": (
+            "AI provider access is blocked for this dataset. "
+            "Use a deterministic query or update Data Administration."
+        ),
+        "data": {
+            "follow_up_suggestions": _follow_up_suggestions(query),
+            "conversation_history": history[-8:] if history else [],
+        },
+    }
+
+
+def _restricted_ai_provider_context(query: str) -> Dict[str, Any]:
+    return {
+        "question": query,
+        "permitted_context": "restricted_non_clinical",
+        "workspace_capabilities": {
+            "query_support": [
+                "deterministic patient, disease, medication, and timeline queries inside the app",
+                "deterministic cohort counts and lists inside the app",
+                "llm assistance only when permitted context is available",
+            ],
+            "policy": "No patient-derived clinical facts, counts, diseases, medications, timelines, or scoped cohort details are available to the AI provider for this dataset.",
+        },
+    }
+
+
+def _answer_query_impl(
     data_dir: str,
     query: str,
     query_mode: str = "auto",
     history: Optional[List[Dict[str, str]]] = None,
     scoped_patient_ids: Optional[List[str]] = None,
+    granularity_mode: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
-    text = query.strip()
+    text = normalize_entity_synonym_mentions(query.strip(), "patient", "patient", "patients")
     lowered = text.lower()
     mode = str(query_mode or "auto").strip().lower()
+    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
+    provider_granularity_mode = _ai_provider_granularity_mode(granularity_mode, normalized_ai_provider_access)
     active_scoped_patient_ids = scoped_patient_ids if _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
 
     if not text:
@@ -1834,6 +1724,8 @@ def answer_query(
     scope_context = _build_query_scope_context(data_dir, scoped_patient_ids=active_scoped_patient_ids)
 
     if mode in {"planner_only", "llm_only"}:
+        if normalized_ai_provider_access == "blocked":
+            return _ai_provider_blocked_response(query, history=history)
         if mode == "planner_only":
             semantic_fallback = _semantic_query_plan(
                 data_dir,
@@ -1841,6 +1733,8 @@ def answer_query(
                 history=history,
                 scoped_patient_ids=active_scoped_patient_ids,
                 scope_context=scope_context,
+                granularity_mode=provider_granularity_mode,
+                ai_provider_access=normalized_ai_provider_access,
             )
             if semantic_fallback is not None:
                 return semantic_fallback
@@ -1850,6 +1744,8 @@ def answer_query(
             history=history,
             scoped_patient_ids=active_scoped_patient_ids,
             scope_context=scope_context,
+            granularity_mode=provider_granularity_mode,
+            ai_provider_access=normalized_ai_provider_access,
         )
         if fallback is not None:
             return fallback
@@ -1867,6 +1763,7 @@ def answer_query(
         }
 
     medication_count_constraint = _medication_count_constraint(text)
+    visit_count_constraint = _visit_count_constraint(text)
     if medication_count_constraint is not None and (
         lowered.startswith("which patients")
         or lowered.startswith("how many patients")
@@ -2040,6 +1937,30 @@ def answer_query(
                     "How many timepoints are in this workspace?",
                     "Tell me the list of patients in the workspace",
                     "What happened to this workspace over time?",
+                ],
+            },
+        }
+
+    if _is_patient_count_query(text):
+        patient_ids = scope_context.patient_ids
+        sample_ids = scope_context.sample_ids
+        return {
+            "query": query,
+            "intent": "patient_inventory",
+            "reply": "This workspace contains %s %s." % (
+                len(patient_ids),
+                "patient" if len(patient_ids) == 1 else "patients",
+            ),
+            "data": {
+                "patient_count": len(patient_ids),
+                "patient_ids": patient_ids,
+                "sample_count": len(sample_ids),
+                "sample_ids": sample_ids,
+                "scoped_follow_up": bool(active_scoped_patient_ids),
+                "follow_up_suggestions": [
+                    "List all patients in the workspace",
+                    "How many timepoints are in this workspace?",
+                    "Which patients have more than 1 medication?",
                 ],
             },
         }
@@ -2364,66 +2285,73 @@ def answer_query(
             },
         }
 
-    if lowered.startswith("how many patients have ") or lowered.startswith("which patients have "):
+    explicit_medication_match = re.match(
+        r"^(how many|which)\s+patients?\s+(?:take|takes|are taking|receive|receives|received|are on|on|use|uses|using|treated with)\s+(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if explicit_medication_match:
+        term = explicit_medication_match.group(2).strip(" ?.")
+        if not _looks_like_treatment_category_candidate(term):
+            medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), active_scoped_patient_ids)
+            if lowered.startswith("how many"):
+                reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
+            else:
+                reply = (
+                    "Patients matching medication query '%s' are shown below." % term
+                    if medication["patient_count"] > 0
+                    else "No patients match medication query '%s'." % term
+                )
+            return {
+                "query": query,
+                "intent": "medication_cohort",
+                "reply": reply,
+                "data": {
+                    **medication,
+                    "scoped_follow_up": bool(active_scoped_patient_ids),
+                    "follow_up_suggestions": _follow_up_suggestions(term),
+                },
+            }
+
+    if (
+        visit_count_constraint is None
+        and "in the name" not in lowered
+        and (lowered.startswith("how many patients have ") or lowered.startswith("which patients have "))
+    ):
         term = re.sub(r"^(how many patients have|which patients have)\s+", "", text, flags=re.IGNORECASE).strip(" ?.")
-        medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), active_scoped_patient_ids)
-        disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), active_scoped_patient_ids)
-        if medication["patient_count"] > 0 and disease["patient_count"] == 0:
+        kind, cohort = _resolve_patient_filter_kind(data_dir, term, scoped_patient_ids=active_scoped_patient_ids)
+        if kind is not None:
             if lowered.startswith("how many"):
-                reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
+                reply = "%s patients match %s query '%s'." % (cohort["patient_count"], kind, term)
             else:
                 reply = (
-                    "Patients matching medication query '%s' are shown below." % term
-                    if medication["patient_count"] > 0
-                    else "No patients match medication query '%s'." % term
+                    "Patients matching %s query '%s' are shown below." % (kind, term)
+                    if cohort["patient_count"] > 0
+                    else "No patients match %s query '%s'." % (kind, term)
                 )
             return {
                 "query": query,
-                "intent": "medication_cohort",
+                "intent": f"{kind}_cohort",
                 "reply": reply,
                 "data": {
-                    **medication,
+                    **cohort,
                     "scoped_follow_up": bool(active_scoped_patient_ids),
                     "follow_up_suggestions": _follow_up_suggestions(term),
                 },
             }
-
-        disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), active_scoped_patient_ids)
-        if disease["patient_count"] > 0:
+        if not _looks_like_treatment_category_candidate(term):
             if lowered.startswith("how many"):
-                reply = "%s patients match disease query '%s'." % (disease["patient_count"], term)
+                reply = "0 patients match '%s' in this workspace." % term
             else:
-                reply = (
-                    "Patients matching disease query '%s' are shown below." % term
-                    if disease["patient_count"] > 0
-                    else "No patients match disease query '%s'." % term
-                )
+                reply = "No patients match '%s' in this workspace." % term
             return {
                 "query": query,
-                "intent": "disease_cohort",
+                "intent": "term_cohort",
                 "reply": reply,
                 "data": {
-                    **disease,
-                    "scoped_follow_up": bool(active_scoped_patient_ids),
-                    "follow_up_suggestions": _follow_up_suggestions(term),
-                },
-            }
-
-        if medication["patient_count"] > 0:
-            if lowered.startswith("how many"):
-                reply = "%s patients match medication query '%s'." % (medication["patient_count"], term)
-            else:
-                reply = (
-                    "Patients matching medication query '%s' are shown below." % term
-                    if medication["patient_count"] > 0
-                    else "No patients match medication query '%s'." % term
-                )
-            return {
-                "query": query,
-                "intent": "medication_cohort",
-                "reply": reply,
-                "data": {
-                    **medication,
+                    "patient_count": 0,
+                    "patient_ids": [],
+                    "patients": [],
                     "scoped_follow_up": bool(active_scoped_patient_ids),
                     "follow_up_suggestions": _follow_up_suggestions(term),
                 },
@@ -2548,7 +2476,6 @@ def answer_query(
             },
         }
 
-    visit_count_constraint = _visit_count_constraint(text)
     if visit_count_constraint is not None and any(keyword in lowered for keyword in ("with", "mention")):
         term = _term_from_timepoint_query(text)
         if term:
@@ -2616,25 +2543,30 @@ def answer_query(
             },
         }
 
-    semantic_fallback = _semantic_query_plan(
-        data_dir,
-        query,
-        history=history,
-        scoped_patient_ids=active_scoped_patient_ids,
-        scope_context=scope_context,
-    )
-    if semantic_fallback is not None:
-        return semantic_fallback
+    if normalized_ai_provider_access != "blocked":
+        semantic_fallback = _semantic_query_plan(
+            data_dir,
+            query,
+            history=history,
+            scoped_patient_ids=active_scoped_patient_ids,
+            scope_context=scope_context,
+            granularity_mode=provider_granularity_mode,
+            ai_provider_access=normalized_ai_provider_access,
+        )
+        if semantic_fallback is not None:
+            return semantic_fallback
 
-    fallback = _lm_studio_reply(
-        data_dir,
-        query,
-        history=history,
-        scoped_patient_ids=active_scoped_patient_ids,
-        scope_context=scope_context,
-    )
-    if fallback is not None:
-        return fallback
+        fallback = _lm_studio_reply(
+            data_dir,
+            query,
+            history=history,
+            scoped_patient_ids=active_scoped_patient_ids,
+            scope_context=scope_context,
+            granularity_mode=provider_granularity_mode,
+            ai_provider_access=normalized_ai_provider_access,
+        )
+        if fallback is not None:
+            return fallback
 
     return {
         "query": query,
@@ -2650,3 +2582,29 @@ def answer_query(
             "conversation_history": history[-8:] if history else [],
         },
     }
+
+
+def answer_query(
+    data_dir: str,
+    query: str,
+    query_mode: str = "auto",
+    history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+    granularity_mode: str = "detailed",
+    granularity_ceiling: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
+) -> Dict[str, Any]:
+    normalized_mode = _normalize_query_granularity_mode(granularity_mode)
+    normalized_ceiling = _normalize_query_granularity_ceiling(granularity_ceiling)
+    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
+    applied_mode = "summary" if normalized_mode == "summary" or normalized_ceiling == "summary" else "detailed"
+    payload = _answer_query_impl(
+        data_dir,
+        query,
+        query_mode=query_mode,
+        history=history,
+        scoped_patient_ids=scoped_patient_ids,
+        granularity_mode=applied_mode,
+        ai_provider_access=normalized_ai_provider_access,
+    )
+    return _finalize_query_response(payload, normalized_mode, applied_mode, normalized_ai_provider_access)

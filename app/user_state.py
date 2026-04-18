@@ -27,9 +27,11 @@ def request_user_id(request: Request | None) -> str:
         user = session_user(request)
         if user:
             return normalize_user_id(str(user.get("username") or DEFAULT_LOCAL_USER_ID))
+    headers = getattr(request, "headers", {}) or {}
+    cookies = getattr(request, "cookies", {}) or {}
     return normalize_user_id(
-        request.headers.get("X-User-Id")
-        or request.cookies.get("pn_user_id")
+        headers.get("X-User-Id")
+        or cookies.get("pn_user_id")
         or DEFAULT_LOCAL_USER_ID
     )
 

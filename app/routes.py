@@ -7,8 +7,22 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.auth import auth_enabled, authenticate_local_user, local_auth_diagnostics, local_users, require_admin, require_authenticated, session_user
+from app.auth import (
+    auth_enabled,
+    authenticate_local_user,
+    auth_provider_mode,
+    create_local_user,
+    delete_local_user,
+    local_auth_diagnostics,
+    local_users,
+    require_admin,
+    require_authenticated,
+    reset_local_user_password,
+    session_user,
+    update_local_user,
+)
 from app.analysis import analysis_llm_reply
+from app.analysis_catalog import analysis_catalog_payload
 from app.analysis_sessions import (
     delete_analysis_session,
     list_analysis_sessions,
@@ -31,6 +45,8 @@ from app.datasets import (
     current_dataset_id,
     current_dataset_ids,
     dataset_scope_id,
+    effective_ai_provider_access,
+    effective_query_granularity_ceiling,
     register_dataset,
     resolve_dataset,
     resolve_dataset_dir,
@@ -40,6 +56,14 @@ from app.datasets import (
     update_dataset,
 )
 from app.lm import lm_studio_base_url, lm_studio_enabled, resolve_lm_studio_model
+from app.jobs import (
+    delete_job,
+    list_job_records,
+    list_jobs_for_analysis_session,
+    load_job_record,
+    public_job_payload,
+    resolve_job_artifact_path,
+)
 from app.pheno import (
     pheno_ranker_alignment_details,
     pheno_ranker_explain,
@@ -55,7 +79,11 @@ from app.schemas import (
     AnalysisSessionRenameRequest,
     AnalysisSessionRequest,
     AuthDiagnosticsResponse,
+    AuthPasswordResetRequest,
     AuthStatusResponse,
+    AuthUserCreateRequest,
+    AuthUserResponse,
+    AuthUserUpdateRequest,
     AuthUsersResponse,
     DatasetRecordResponse,
     DatasetRegistrationRequest,
@@ -205,6 +233,8 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
             visibility=payload.visibility,
             allowed_users=payload.allowed_users,
             allowed_groups=payload.allowed_groups,
+            query_granularity_ceiling=payload.query_granularity_ceiling,
+            ai_provider_access=payload.ai_provider_access,
             enabled=payload.enabled,
             created_by=str(user.get("username") or "admin"),
         )
@@ -224,6 +254,8 @@ def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request
             visibility=payload.visibility,
             allowed_users=payload.allowed_users,
             allowed_groups=payload.allowed_groups,
+            query_granularity_ceiling=payload.query_granularity_ceiling,
+            ai_provider_access=payload.ai_provider_access,
             enabled=payload.enabled,
         )
     except ValueError as exc:
@@ -380,17 +412,98 @@ def get_auth_users(request: Request) -> Dict:
     if auth_enabled():
         require_admin(request)
     return {
-        "mode": "local" if auth_enabled() else "none",
-        "users": [
-            {
-                "username": str(item.get("username") or ""),
-                "role": str(item.get("role") or "user"),
-                "display_name": str(item.get("display_name") or item.get("username") or ""),
-                "groups": list(item.get("groups") or []),
-            }
-            for item in local_users()
-        ],
+        "mode": auth_provider_mode(),
+        "users": local_users(),
     }
+
+
+def create_auth_user(request: AuthUserCreateRequest, raw_request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(raw_request)
+    try:
+        user = create_local_user(
+            username=request.username,
+            password=request.password,
+            display_name=request.display_name,
+            role=request.role,
+            groups=request.groups,
+            enabled=request.enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "username": str(user.get("username") or ""),
+        "role": str(user.get("role") or "user"),
+        "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "groups": list(user.get("groups") or []),
+        "enabled": bool(user.get("enabled", True)),
+        "auth_source": str(user.get("auth_source") or "local"),
+    }
+
+
+def update_auth_user(username: str, request: AuthUserUpdateRequest, raw_request: Request) -> Dict:
+    actor = None
+    if auth_enabled():
+        actor = require_admin(raw_request)
+    actor_username = str((actor or {}).get("username") or "").strip()
+    target_username = str(username or "").strip()
+    if actor_username and actor_username == target_username:
+        if request.enabled is False:
+            raise HTTPException(status_code=400, detail="You cannot disable the user currently signed into this session.")
+        if request.role is not None and str(request.role or "").strip().lower() != "admin":
+            raise HTTPException(status_code=400, detail="You cannot remove your own admin access while signed into this session.")
+    try:
+        user = update_local_user(
+            username,
+            display_name=request.display_name,
+            role=request.role,
+            groups=request.groups,
+            enabled=request.enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "username": str(user.get("username") or ""),
+        "role": str(user.get("role") or "user"),
+        "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "groups": list(user.get("groups") or []),
+        "enabled": bool(user.get("enabled", True)),
+        "auth_source": str(user.get("auth_source") or "local"),
+    }
+
+
+def reset_auth_user_password(username: str, request: AuthPasswordResetRequest, raw_request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(raw_request)
+    try:
+        user = reset_local_user_password(username, request.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "username": str(user.get("username") or ""),
+        "role": str(user.get("role") or "user"),
+        "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "groups": list(user.get("groups") or []),
+        "enabled": bool(user.get("enabled", True)),
+        "auth_source": str(user.get("auth_source") or "local"),
+    }
+
+
+def delete_auth_user(username: str, request: Request) -> Dict:
+    actor = None
+    if auth_enabled():
+        actor = require_admin(request)
+    actor_username = str((actor or {}).get("username") or "").strip()
+    target_username = str(username or "").strip()
+    if actor_username and actor_username == target_username:
+        raise HTTPException(status_code=400, detail="You cannot delete the user currently signed into this session.")
+    try:
+        delete_local_user(username)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if message == "User not found." else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    return {"deleted": True, "id": username}
 
 
 def get_saved_cohorts(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -441,6 +554,7 @@ def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
 
 def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return answer_query(
@@ -449,6 +563,9 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
             query_mode=request.query_mode,
             history=[turn.model_dump() for turn in request.history],
             scoped_patient_ids=request.scoped_patient_ids,
+            granularity_mode=request.granularity_mode,
+            granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+            ai_provider_access=effective_ai_provider_access(selected_ids),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -456,17 +573,60 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return analysis_llm_reply(
             request.prompt,
             resolved_dir,
+            catalog_item_id=request.catalog_item_id,
+            dataset_id=request.dataset_id or "",
+            analysis_session_id=request.analysis_session_id,
+            user_id=request_user_id(raw_request),
             selected_patient_ids=request.selected_patient_ids,
             compare_mode=request.compare_mode,
             compare_selected_patient_ids=request.compare_selected_patient_ids,
             llm_only=request.llm_only,
             deterministic_only=request.deterministic_only,
             history=[turn.model_dump() for turn in request.history],
+            granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+            ai_provider_access=effective_ai_provider_access(selected_ids),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def get_jobs(request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    items = [public_job_payload(item, user_id=user_id) for item in list_job_records(user_id)]
+    return {"jobs": items}
+
+
+def get_job(job_id: str, request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    return public_job_payload(record, include_result=True, user_id=user_id)
+
+
+def get_job_artifact(job_id: str, filename: str, request: Request) -> FileResponse:
+    require_authenticated(request)
+    file_path = resolve_job_artifact_path(job_id, request_user_id(request), filename)
+    return FileResponse(file_path)
+
+
+def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+    require_authenticated(request)
+    selected_ids = resolve_dataset_ids(request, dataset_id or "")
+    resolved_dir = resolve_dataset_dir(request, dataset_id or data_dir)
+    try:
+        return analysis_catalog_payload(
+            resolved_dir,
+            granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+            ai_provider_access=effective_ai_provider_access(selected_ids),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -529,32 +689,80 @@ def update_analysis_session_title(session_id: str, request: AnalysisSessionRenam
     return item
 
 
-def remove_analysis_session(session_id: str, request: Request) -> Dict:
+def remove_analysis_session(
+    session_id: str,
+    request: Request,
+    delete_generated_data: bool = Query(default=False),
+) -> Dict:
     require_authenticated(request)
-    deleted = delete_analysis_session(session_id, user_id=request_user_id(request))
+    user_id = request_user_id(request)
+    session_exists = any(
+        str(item.get("id") or "").strip() == session_id
+        for item in list_analysis_sessions(user_id=user_id)
+    )
+    if not session_exists:
+        raise HTTPException(status_code=404, detail="Analysis session not found.")
+    deleted_job_count = 0
+    if delete_generated_data:
+        related_jobs = list_jobs_for_analysis_session(session_id, user_id)
+        active = [
+            item
+            for item in related_jobs
+            if str(item.get("status") or "").strip().lower() in {"queued", "running"}
+        ]
+        if active:
+            raise HTTPException(
+                status_code=409,
+                detail="This analysis session has active background jobs. Wait for them to finish before deleting generated data.",
+            )
+        for item in related_jobs:
+            if delete_job(str(item.get("job_id") or "").strip(), user_id):
+                deleted_job_count += 1
+    deleted = delete_analysis_session(session_id, user_id=user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Analysis session not found.")
-    return {"deleted": True, "id": session_id}
+    return {
+        "deleted": True,
+        "id": session_id,
+        "deleted_generated_data": bool(delete_generated_data),
+        "deleted_job_count": deleted_job_count,
+    }
 
 
 def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     resolved_dataset_id = request.dataset_id or request.data_dir
-    payload = request.model_copy(update={"data_dir": resolve_dataset_dir(raw_request, resolved_dataset_id), "dataset_id": resolved_dataset_id})
+    selected_ids = resolve_dataset_ids(raw_request, resolved_dataset_id)
+    granularity_ceiling = effective_query_granularity_ceiling(selected_ids)
+    if granularity_ceiling != "detailed":
+        raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
+    payload = request.model_copy(
+        update={
+            "data_dir": resolve_dataset_dir(raw_request, resolved_dataset_id),
+            "dataset_id": resolved_dataset_id,
+            "granularity_ceiling": granularity_ceiling,
+            "ai_provider_access": effective_ai_provider_access(selected_ids),
+        }
+    )
     return run_pheno_ranker(payload)
 
 
 def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
     return plan_pheno_ranker(
         request.text,
         resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir),
         selected_patient_ids=request.selected_patient_ids,
+        ai_provider_access=effective_ai_provider_access(selected_ids),
     )
 
 
 def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
+    selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
     return pheno_ranker_patient_ids_payload(_resolve_route_dataset_dir(request, dataset_id, data_dir))
 
 
@@ -571,12 +779,14 @@ def get_pheno_ranker_alignment(job_id: str, reference_id: str, request: Request,
 
 def explain_pheno_ranker_results(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
-    return pheno_ranker_explain(job_id, top_n=top_n)
+    selected_ids = resolve_dataset_ids(request, "")
+    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids))
 
 
 def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
-    return pheno_ranker_explain_llm(job_id, top_n=top_n)
+    selected_ids = resolve_dataset_ids(request, "")
+    return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids))
 
 
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -604,6 +814,10 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"], tags=["auth"], summary="Inspect auth diagnostics", description="Returns local-auth diagnostics useful during development and deployment troubleshooting.", response_model=AuthDiagnosticsResponse)
     app.add_api_route("/auth/users", get_auth_users, methods=["GET"], tags=["auth"], summary="List visible local users", description="Returns local users and groups. When auth is enabled, this endpoint is admin-only.", response_model=AuthUsersResponse)
+    app.add_api_route("/auth/users", create_auth_user, methods=["POST"], tags=["auth"], summary="Create a local user", description="Creates a persisted local user with application role and groups. Admin-only when auth is enabled.", response_model=AuthUserResponse)
+    app.add_api_route("/auth/users/{username}", update_auth_user, methods=["PATCH"], tags=["auth"], summary="Update a local user", description="Updates display name, role, groups, or enabled state for a local user. Admin-only when auth is enabled.", response_model=AuthUserResponse)
+    app.add_api_route("/auth/users/{username}/password", reset_auth_user_password, methods=["POST"], tags=["auth"], summary="Reset a local user password", description="Replaces the password for a local user. Admin-only when auth is enabled.", response_model=AuthUserResponse)
+    app.add_api_route("/auth/users/{username}", delete_auth_user, methods=["DELETE"], tags=["auth"], summary="Delete a local user", description="Deletes a persisted local user. Admin-only when auth is enabled.", response_model=DeleteResponse)
     app.add_api_route("/datasets", get_datasets, methods=["GET"], tags=["datasets"], summary="List authorized datasets", description="Returns datasets visible to the current user plus the currently active workspace selection.", response_model=DatasetsResponse)
     app.add_api_route("/datasets/select", select_dataset, methods=["POST"], tags=["datasets"], summary="Select the active dataset workspace", description="Applies one or more authorized dataset IDs as the current workspace for the authenticated user.", response_model=DatasetSelectionResponse)
     app.add_api_route("/datasets", create_dataset_route, methods=["POST"], tags=["datasets"], summary="Register a dataset", description="Creates a new dataset registry entry. Admin-only.", response_model=DatasetRecordResponse)
@@ -613,7 +827,11 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"], tags=["cohorts"], summary="Create a saved cohort", description="Persists a saved cohort containing canonical sample IDs and derived patient IDs.", response_model=SavedCohortResponse)
     app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"], tags=["cohorts"], summary="Delete a saved cohort", description="Deletes a saved cohort owned by the current user.", response_model=DeleteResponse)
     app.add_api_route("/query", query_app_post, methods=["POST"], tags=["query"], summary="Run a workspace query", description="Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.")
+    app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or molecular analysis over the active workspace or selected saved cohorts.")
+    app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")
+    app.add_api_route("/jobs/{job_id}", get_job, methods=["GET"], tags=["jobs"], summary="Get one background job", description="Returns detailed status plus the completed payload for one background job visible to the current user.")
+    app.add_api_route("/jobs/{job_id}/artifacts/{filename}", get_job_artifact, methods=["GET"], tags=["jobs"], summary="Download one background job artifact", description="Returns one persisted artifact for a background job visible to the current user.")
     app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"], tags=["molecular"], summary="List molecular datasets in scope", description="Returns transcriptomic datasets visible in the current workspace.", response_model=MolecularDatasetsResponse)
     app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"], tags=["molecular"], summary="Search genes in a molecular dataset", description="Returns gene identifiers for a selected molecular dataset with optional search and limit filtering.")
     app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"], tags=["molecular"], summary="Summarize gene expression", description="Returns scoped gene expression summaries for one molecular dataset, optionally comparing cohort A and cohort B.")

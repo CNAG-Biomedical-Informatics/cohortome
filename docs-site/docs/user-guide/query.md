@@ -15,8 +15,8 @@ Use `Query` first when your goal is to define a subset cleanly before interpreti
 - list patients or samples in the current workspace
 - filter by disease or medication
 - support deterministic and LLM-planned prompts
-- save subsets as saved cohorts
-- open the current result in Analysis
+- save subsets as saved cohorts when the current Query thread allows detailed handoff
+- open the current result in Analysis when the current Query thread allows detailed handoff
 
 ![Query tab with a subset result and workflow actions](/img/screenshots/query-tab.png)
 
@@ -58,9 +58,47 @@ The app now prefers `workspace` for the loaded data scope. That means prompts li
 - `Tell me the list of patients in the workspace`
 - `How many timepoints are in this workspace?`
 
+## Query disclosure mode
+
+`Query` still has two effective in-app disclosure levels:
+
+- `Summary`
+- `Detailed`
+
+But users no longer switch them manually in the Query tab.
+
+The mode is now applied automatically from the active workspace policy:
+
+- if every selected dataset allows detailed Query, the workspace runs in `Detailed`
+- if any selected dataset is `Summary only`, the workspace runs in `Summary`
+
+The Query header shows the effective mode as a read-only workspace indicator.
+
+### Summary
+
+Use `Summary` when the active workspace is governed for reduced in-app answers such as:
+
+- counts
+- grouped summaries
+- aggregate-style answers
+
+In `Summary`:
+
+- patient and record detail lookups are blocked
+- Query does not expose patient or record IDs to the client
+- Query handoff actions are hidden or disabled
+
+### Detailed
+
+`Detailed` is available only when the workspace policy allows it. In that mode Query can return:
+
+- patient-level answers
+- record-level answers
+- Query handoff actions such as `Open in Analysis` or `Save cohort`
+
 ## Prompt scope
 
-`Query` now has its own local prompt-scope control.
+`Query` has its own local prompt-scope control.
 
 This is different from the global workspace shown in the top bar:
 
@@ -69,7 +107,7 @@ This is different from the global workspace shown in the top bar:
 - `Query` prompt scope
   - the scope used for the next Query prompt
 
-The button in the Query composer can show states such as:
+The button can show states such as:
 
 - `Prompt scope: workspace`
 - `Prompt scope: previous result (5 patients)`
@@ -101,6 +139,12 @@ Query memory is opt-in.
 The app does not silently narrow follow-up prompts unless the user enables the prompt-scope control.
 :::
 
+:::note
+`Prompt scope` is currently available only when the active workspace is in `Detailed`.
+
+It is hidden in `Summary` because `Summary` does not expose the patient/record identifiers needed for client-side follow-up scope reuse.
+:::
+
 ## Full-workspace override
 
 Even when Query memory is enabled, the user can explicitly ask for the broader scope again.
@@ -129,6 +173,71 @@ In practice:
 - more natural phrasing and mixed conditions often benefit from `Use LLM planner`
 - LLM fallback still uses the current Query prompt scope when one is active
 
+:::note
+`Use LLM planner` here describes execution behavior, not a permanent user-facing mode switch. The current Query tab applies in-app disclosure automatically from workspace policy.
+:::
+
+## AI-provider policy
+
+`Query` distinguishes:
+
+- what the user is allowed to see inside Patient Navigator
+- what Patient Navigator is allowed to send to AI providers
+
+The dataset/workspace AI-provider policy is separate from the in-app Query mode:
+
+- `Detailed allowed`
+- `Safe summary`
+- `Blocked`
+
+Examples:
+
+- a workspace may allow `Detailed` in-app Query answers while still allowing only `Safe summary` context to AI providers
+- a deterministic Query turn may show a rich local answer without sending anything to a provider at all
+
+:::info
+Provider badges appear only when an AI provider was actually used for that Query turn.
+:::
+
+## Query Label Meanings
+
+The Query badges distinguish three different execution paths:
+
+```mermaid
+flowchart TD
+    Q[User prompt] --> D{Deterministic route exists?}
+    D -->|Yes| B[Deterministic]
+    D -->|No| P{LLM planner available and useful?}
+    P -->|Yes| G[LLM-planned<br/>Deterministic execution]
+    P -->|No structured route| A[LLM answer]
+
+    B --> B2[Backend answers from local query logic]
+    G --> G2[LLM translates prompt into a constrained plan<br/>Backend executes the plan locally]
+    A --> A2[LLM answers directly from the permitted context]
+
+    classDef deterministic fill:#dbeafe,stroke:#2563eb,color:#1d4ed8,stroke-width:1.5px;
+    classDef planned fill:#dcfce7,stroke:#16a34a,color:#15803d,stroke-width:1.5px;
+    classDef llm fill:#fef3c7,stroke:#b45309,color:#92400e,stroke-width:1.5px;
+    classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#334155,stroke-width:1.2px;
+
+    class B,B2 deterministic;
+    class G,G2 planned;
+    class A,A2 llm;
+    class Q,D,P neutral;
+```
+
+Read the labels as:
+
+- `Deterministic`
+  - blue
+  - the app answered using local query logic only
+- `LLM-planned`
+  - green
+  - the model translated the language into a constrained internal plan, but the app still executed the result locally
+- `LLM answer`
+  - amber
+  - the model answered directly from the permitted context because no deterministic or structured planned route was used
+
 ## Disease shortcuts
 
 The disease selector in Query is a shortcut for deterministic or LLM-planned subset building. It is especially useful for:
@@ -145,10 +254,12 @@ Query results can be reused through the action buttons:
 - `Save cohort`
 - `More actions`
 
-These are available for subset-style results and can also be useful when the current result spans the full workspace.
+These are available only when the current Query thread and current result allow them.
 
 :::note
-The visible Query answer may be patient-oriented, but the handoff metadata can still preserve sample-level scope when available.
+In current Query behavior, `Summary` does not offer handoff actions.
+
+Use a workspace with `Detailed` in-app Query access when the next step is to save, inspect, or hand off the matching subset.
 :::
 
 ## Practical advice
@@ -163,6 +274,8 @@ Use `Prompt scope: previous result` when:
 
 - the user is refining the same subset step by step
 - the next question should stay local to the previous Query result
+
+This currently means using a `Detailed` Query thread.
 
 Leave it at `Prompt scope: workspace` when:
 

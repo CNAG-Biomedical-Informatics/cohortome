@@ -38,6 +38,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'developer-guide/architecture',
         'developer-guide/design-decisions',
+        'developer-guide/query-disclosure-modes',
         'developer-guide/state-and-persistence',
         'developer-guide/api-reference',
       ],

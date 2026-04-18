@@ -12,12 +12,15 @@ dependencies = [
   "uvicorn>=0.30,<0.31",
   "pydantic>=2.10,<2.11",
   "duckdb>=1.5,<1.6",
+  "redis>=5,<6",
+  "rq>=2.0,<3",
 ]
 
 [project.optional-dependencies]
 test = [
   "pytest>=8.3,<9",
   "httpx>=0.28,<0.29",
+  "pytest-cov>=5,<6",
 ]
 ui_test = [
   "pytest>=8.3,<9",

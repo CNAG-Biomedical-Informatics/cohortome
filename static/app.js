@@ -62,6 +62,8 @@
       const queryThreadEl = document.getElementById("queryThread");
       const queryPlannerBtnEl = document.getElementById("queryPlannerBtn");
       const queryMemoryBtnEl = document.getElementById("queryMemoryBtn");
+      const queryGranularityModeValueEl = document.getElementById("queryGranularityModeValue");
+      const queryPolicyInfoBtnEl = document.getElementById("queryPolicyInfoBtn");
       const queryClearBtnEl = document.getElementById("queryClearBtn");
       const questionEl = document.getElementById("question");
       const askBtnEl = document.getElementById("askBtn");
@@ -70,6 +72,18 @@
       const analysisExamplesEl = document.getElementById("analysisExamples");
       const analysisStarterPanelEl = document.getElementById("analysisStarterPanel");
       const analysisComposerExamplesBtnEl = document.getElementById("analysisComposerExamplesBtn");
+      const analysisCatalogStatusEl = document.getElementById("analysisCatalogStatus");
+      const analysisCatalogListEl = document.getElementById("analysisCatalogList");
+      const analysisCatalogBrowseBtnEl = document.getElementById("analysisCatalogBrowseBtn");
+      const analysisCatalogDrawerEl = document.getElementById("analysisCatalogDrawer");
+      const analysisCatalogDrawerCloseBtnEl = document.getElementById("analysisCatalogDrawerCloseBtn");
+      const analysisCatalogDrawerListEl = document.getElementById("analysisCatalogDrawerList");
+      const jobsDrawerBtnEl = document.getElementById("jobsDrawerBtn");
+      const jobsDrawerCountEl = document.getElementById("jobsDrawerCount");
+      const jobsDrawerEl = document.getElementById("jobsDrawer");
+      const jobsDrawerCloseBtnEl = document.getElementById("jobsDrawerCloseBtn");
+      const jobsDrawerStatusEl = document.getElementById("jobsDrawerStatus");
+      const jobsDrawerListEl = document.getElementById("jobsDrawerList");
       const molecularDashboardStatusEl = document.getElementById("molecularDashboardStatus");
       const molecularDashboardCardsEl = document.getElementById("molecularDashboardCards");
       const analysisMolecularDatasetListEl = document.getElementById("analysisMolecularDatasetList");
@@ -94,14 +108,28 @@
       const analysisDatasetScopeEl = document.getElementById("analysisDatasetScope");
       const analysisThreadEl = document.getElementById("analysisThread");
       const analysisSessionListEl = document.getElementById("analysisSessionList");
+      const analysisSessionDeleteDialogEl = document.getElementById("analysisSessionDeleteDialog");
+      const analysisSessionDeleteCloseBtnEl = document.getElementById("analysisSessionDeleteCloseBtn");
+      const analysisSessionDeleteSummaryEl = document.getElementById("analysisSessionDeleteSummary");
+      const analysisSessionDeleteStatusEl = document.getElementById("analysisSessionDeleteStatus");
+      const analysisSessionDeleteOnlyBtnEl = document.getElementById("analysisSessionDeleteOnlyBtn");
+      const analysisSessionDeleteAllBtnEl = document.getElementById("analysisSessionDeleteAllBtn");
       const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
       const loadBtnEl = document.getElementById("loadBtn");
       const loadBtnIconEl = document.getElementById("loadBtnIcon");
       const loadBtnLabelEl = document.getElementById("loadBtnLabel");
       const datasetAdminControlsEl = document.getElementById("datasetAdminControls");
       const datasetAdminListEl = document.getElementById("datasetAdminList");
+      const usersCreateCardEl = document.getElementById("usersCreateCard");
       const usersStatusEl = document.getElementById("usersStatus");
       const usersListEl = document.getElementById("usersList");
+      const userCreateUsernameEl = document.getElementById("userCreateUsername");
+      const userCreateDisplayNameEl = document.getElementById("userCreateDisplayName");
+      const userCreatePasswordEl = document.getElementById("userCreatePassword");
+      const userCreateRoleEl = document.getElementById("userCreateRole");
+      const userCreateGroupsEl = document.getElementById("userCreateGroups");
+      const userCreateEnabledEl = document.getElementById("userCreateEnabled");
+      const userCreateBtnEl = document.getElementById("userCreateBtn");
       const authUsernameEl = document.getElementById("authUsername");
       const authPasswordEl = document.getElementById("authPassword");
       const authLoginBtnEl = document.getElementById("authLoginBtn");
@@ -185,6 +213,7 @@
       let queryHistory = [];
       let queryTurns = [];
       let queryExecutionMode = "auto";
+      let queryGranularityMode = "summary";
       let queryFollowMemoryEnabled = false;
       let queryProgressTimer = null;
       let analysisInFlight = false;
@@ -208,6 +237,11 @@
       let analysisProgressTimer = null;
       let analysisExamplesPinnedOpen = false;
       let analysisExecutionMode = "auto";
+      let analysisSelectedCatalogItemId = "";
+      let analysisCatalogItems = [];
+      let analysisCatalogWorkspace = null;
+      let recentJobs = [];
+      let jobsPollTimer = null;
       let analysisSessions = [];
       let currentAnalysisSessionId = "";
       let analysisSelectedSavedCohortId = "";
@@ -222,6 +256,8 @@
       let currentDatasetIds = [];
       let pendingDatasetIds = [];
       let currentDatasetScopeId = "";
+      let datasetAdminFeedback = {};
+      let datasetAdminFeedbackTimers = {};
       let authState = {
         enabled: false,
         authenticated: true,
@@ -296,6 +332,7 @@
           id: session.id || analysisSessionId(),
           title: typeof session.title === "string" ? session.title : "",
           dataDir: typeof session.dataDir === "string" ? session.dataDir : (dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : ""),
+          catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
           promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
           scope: typeof session.scope === "string" ? session.scope : "",
           compareMode: Boolean(session.compareMode),
@@ -352,6 +389,12 @@
           analysisCompareSavedCohortSelectionEl,
           analysisStatusEl,
           analysisMetaEl,
+          analysisSessionDeleteDialogEl,
+          analysisSessionDeleteCloseBtnEl,
+          analysisSessionDeleteSummaryEl,
+          analysisSessionDeleteStatusEl,
+          analysisSessionDeleteOnlyBtnEl,
+          analysisSessionDeleteAllBtnEl,
           dataDirEl,
         },
         helpers: {
@@ -381,6 +424,8 @@
           set analysisTurns(value) { analysisTurns = value; },
           get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
           set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
+          get analysisSelectedCatalogItemId() { return analysisSelectedCatalogItemId; },
+          set analysisSelectedCatalogItemId(value) { analysisSelectedCatalogItemId = value; },
           get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
           set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
           get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
@@ -435,7 +480,31 @@
         analysisSessionsUi.prepareAnalysisSessionForDataDir(nextDataDir);
       }
 
+      function phenoTabAvailable(datasetIds = currentDatasetIds) {
+        return effectiveQueryGranularityCeiling(datasetIds) === "detailed";
+      }
+
+      function renderPhenoTabAvailability() {
+        if (!phenoTabBtnEl) {
+          return;
+        }
+        const available = phenoTabAvailable();
+        phenoTabBtnEl.classList.toggle("is-disabled", !available);
+        phenoTabBtnEl.setAttribute("aria-disabled", available ? "false" : "true");
+        phenoTabBtnEl.title = available
+          ? "Open Pheno-Ranker."
+          : "Pheno-Ranker requires Detailed workspace access.";
+      }
+
       function setActiveTab(tabName) {
+        if (tabName === "pheno" && !phenoTabAvailable()) {
+          renderPhenoTabAvailability();
+          if (loadStatusEl) {
+            loadStatusEl.className = "load-status";
+            loadStatusEl.textContent = "Pheno-Ranker requires Detailed workspace access.";
+          }
+          return;
+        }
         const showDashboard = tabName === "dashboard";
         const showDatasets = tabName === "datasets";
         const showData = tabName === "data";
@@ -544,6 +613,112 @@
         return availableDatasets.find((item) => String(item.dataset_id || "") === currentDatasetIds[0]) || null;
       }
 
+      function normalizeDatasetQueryGranularityCeiling(value) {
+        return String(value || "").trim().toLowerCase() === "detailed" ? "detailed" : "summary";
+      }
+
+      function effectiveQueryGranularityCeiling(datasetIds = currentDatasetIds) {
+        const selected = new Set((Array.isArray(datasetIds) ? datasetIds : [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean));
+        if (!selected.size) {
+          return "summary";
+        }
+        const records = availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
+        if (!records.length) {
+          return "summary";
+        }
+        return records.every((item) => normalizeDatasetQueryGranularityCeiling(item.query_granularity_ceiling) === "detailed")
+          ? "detailed"
+          : "summary";
+      }
+
+      function normalizeAiProviderAccess(value) {
+        const normalized = String(value || "").trim().toLowerCase();
+        if (["summary_only", "restricted", "safe_summary"].includes(normalized)) {
+          return "safe_summary";
+        }
+        if (["use_thread_mode", "detailed_allowed", "detailed"].includes(normalized)) {
+          return "detailed_allowed";
+        }
+        return ["detailed_allowed", "safe_summary", "blocked"].includes(normalized) ? normalized : "detailed_allowed";
+      }
+
+      function effectiveAiProviderAccess(datasetIds = currentDatasetIds) {
+        const selected = new Set((Array.isArray(datasetIds) ? datasetIds : [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean));
+        if (!selected.size) {
+          return "detailed_allowed";
+        }
+        const records = availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
+        if (!records.length) {
+          return "detailed_allowed";
+        }
+        if (records.some((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked")) {
+          return "blocked";
+        }
+        if (records.some((item) => normalizeAiProviderAccess(item.ai_provider_access) === "safe_summary")) {
+          return "safe_summary";
+        }
+        return "detailed_allowed";
+      }
+
+      function queryWorkspacePolicyExplanation() {
+        const records = selectedDatasetRecords();
+        if (!records.length) {
+          return null;
+        }
+        const effectiveProviderAccess = effectiveAiProviderAccess();
+        const effectiveDisclosure = effectiveQueryGranularityCeiling();
+        const blockedCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked").length;
+        const safeSummaryCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "safe_summary").length;
+        if (effectiveProviderAccess === "blocked") {
+          return blockedCount > 0
+            ? `AI provider policy: Blocked. ${blockedCount} selected dataset${blockedCount === 1 ? "" : "s"} require this stricter policy.`
+            : "AI provider policy: Blocked.";
+        }
+        if (effectiveProviderAccess === "safe_summary") {
+          return safeSummaryCount > 0
+            ? `AI provider policy: Safe summary. ${safeSummaryCount} selected dataset${safeSummaryCount === 1 ? "" : "s"} require provider-safe summary access.`
+            : "AI provider policy: Safe summary.";
+        }
+        if (records.length > 1 && effectiveDisclosure !== "detailed") {
+          const summaryCount = records.filter((item) => normalizeDatasetQueryGranularityCeiling(item.query_granularity_ceiling) === "summary").length;
+          return `Query detail policy: Summary only. ${summaryCount} selected dataset${summaryCount === 1 ? "" : "s"} require the stricter in-app disclosure mode.`;
+        }
+        if (records.length > 1) {
+          return "Mixed workspace: the strictest selected dataset policy is applied automatically.";
+        }
+        return null;
+      }
+
+      function syncQueryGranularityWithWorkspacePolicy(options = {}) {
+        const { announce = false } = options;
+        const nextMode = effectiveQueryGranularityCeiling();
+        const changed = queryGranularityMode !== nextMode;
+        queryGranularityMode = nextMode;
+        if (queryGranularityMode !== "detailed") {
+          queryFollowMemoryEnabled = false;
+        }
+        if (changed && (queryTurns.length || queryHistory.length)) {
+          resetQueryWorkspace();
+          if (announce && queryStatusEl) {
+            queryStatusEl.className = "query-status";
+            queryStatusEl.textContent = `Query thread reset. Workspace mode is now ${nextMode === "detailed" ? "Detailed" : "Summary"}.`;
+          }
+        }
+        renderPhenoTabAvailability();
+        if (nextMode !== "detailed" && currentTabName() === "pheno") {
+          setActiveTab("query");
+          if (loadStatusEl) {
+            loadStatusEl.className = "load-status";
+            loadStatusEl.textContent = "Pheno-Ranker was closed because this workspace is now Summary-only.";
+          }
+        }
+        renderQueryExecutionMode();
+      }
+
       function pendingDatasetSelectionIds() {
         return pendingDatasetIds.length ? pendingDatasetIds.slice() : currentDatasetIds.slice();
       }
@@ -610,9 +785,13 @@
           .filter((user) => {
             const username = String(user && user.username || "").trim().toLowerCase();
             const role = String(user && user.role || "user").trim().toLowerCase();
+            const enabled = Boolean(user && user.enabled !== false);
             const groups = new Set((Array.isArray(user && user.groups) ? user.groups : [])
               .map((item) => String(item || "").trim())
               .filter(Boolean));
+            if (!enabled) {
+              return false;
+            }
             if (role === "admin") {
               return true;
             }
@@ -764,10 +943,12 @@
         datasetAdminListEl.innerHTML = availableDatasets.map((dataset) => {
           const datasetId = String(dataset.dataset_id || "");
           const visibility = String(dataset.visibility || "all_authenticated");
+          const providerDetailedAllowed = visibility === "all_authenticated";
           const description = String(dataset.description || "").trim();
           const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
           const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
           const effectiveUsers = effectiveDatasetUserLabels(dataset);
+          const feedback = datasetAdminFeedback[datasetId];
           return `
             <div class="dataset-picker-card">
               <div>
@@ -782,39 +963,96 @@
                 </div>
                 ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
                 <div class="dataset-picker-access">
-                  <div class="section-note">Access is granted through visibility, matching groups, or direct allowed users.</div>
-                  <div class="dataset-picker-access-row">
-                    <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
-                    <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
-                      <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
-                      <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
-                      <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
-                    </select>
+                  <div class="dataset-policy-section">
+                    <div class="dataset-policy-heading">Internal</div>
+                    <div class="section-note">Controls who can use this dataset inside Patient Navigator and how much Query detail is allowed in-app.</div>
+                    <div class="dataset-picker-access-row">
+                      <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
+                      <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
+                        <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
+                        <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
+                        <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
+                      </select>
+                    </div>
+                    <div class="dataset-picker-access-row">
+                      <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
+                      <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
+                    </div>
+                    <div class="dataset-picker-access-row">
+                      <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
+                      <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
+                    </div>
+                    <div class="dataset-picker-access-row">
+                      <label for="dataset-query-granularity-${escapeHtml(datasetId)}">Query detail in app</label>
+                      <select id="dataset-query-granularity-${escapeHtml(datasetId)}" data-dataset-query-granularity="${escapeHtml(datasetId)}">
+                        <option value="summary" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "summary" ? "selected" : ""}>Summary only</option>
+                        <option value="detailed" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "detailed" ? "selected" : ""}>Detailed allowed</option>
+                      </select>
+                    </div>
+                    <div class="dataset-picker-access-row">
+                      <label>Users with access</label>
+                      <div class="identity-tags">
+                        ${effectiveUsers.length
+                          ? effectiveUsers.map((label) => `<span class="identity-tag">${escapeHtml(label)}</span>`).join("")
+                          : '<span class="identity-tag">No currently configured local users match this policy</span>'}
+                      </div>
+                    </div>
                   </div>
-                  <div class="dataset-picker-access-row">
-                    <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
-                    <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
-                  </div>
-                  <div class="dataset-picker-access-row">
-                    <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
-                    <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
-                  </div>
-                  <div class="dataset-picker-access-row">
-                    <label>Effective local access</label>
-                    <div class="identity-tags">
-                      ${effectiveUsers.length
-                        ? effectiveUsers.map((label) => `<span class="identity-tag">${escapeHtml(label)}</span>`).join("")
-                        : '<span class="identity-tag">no matching users</span>'}
+                  <div class="dataset-policy-section dataset-policy-section-muted">
+                    <div class="dataset-policy-heading">AI Providers</div>
+                    <div class="section-note">Controls what Patient Navigator may send to the currently configured AI provider. LM Studio is the active provider today.</div>
+                    <div class="dataset-picker-access-row">
+                      <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">LM Studio</label>
+                      <select id="dataset-ai-provider-access-${escapeHtml(datasetId)}" data-dataset-ai-provider-access="${escapeHtml(datasetId)}">
+                        <option value="detailed_allowed" ${["detailed_allowed", "use_thread_mode"].includes(String(dataset.ai_provider_access || "detailed_allowed")) ? "selected" : ""} ${providerDetailedAllowed ? "" : "disabled"}>Detailed allowed</option>
+                        <option value="safe_summary" ${["safe_summary", "restricted", "summary_only"].includes(String(dataset.ai_provider_access || "")) ? "selected" : ""}>Safe summary</option>
+                        <option value="blocked" ${String(dataset.ai_provider_access || "") === "blocked" ? "selected" : ""}>Blocked</option>
+                      </select>
+                    </div>
+                    <div class="dataset-picker-access-row">
+                      <label>Current behavior</label>
+                      <div class="dataset-policy-placeholder">${
+                        normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "blocked"
+                          ? "LM Studio is disabled for this dataset."
+                          : !providerDetailedAllowed
+                            ? "Restricted and admin-only datasets are capped at Safe summary for AI providers."
+                          : normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
+                            ? "LM Studio may be used, but only with provider-safe structural summary context."
+                            : "LM Studio may receive detailed context when the current in-app result allows it."
+                      }</div>
                     </div>
                   </div>
                   <div class="dataset-picker-access-actions">
-                    <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save access</button>
+                    <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
                   </div>
+                  ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
                 </div>
               </div>
             </div>
           `;
         }).join("");
+      }
+
+      function setDatasetAdminFeedback(datasetId, text, tone = "success", autoClearMs = 2600) {
+        const key = String(datasetId || "").trim();
+        if (!key) {
+          return;
+        }
+        datasetAdminFeedback = {
+          ...datasetAdminFeedback,
+          [key]: { text: String(text || ""), tone },
+        };
+        renderDatasetAdminList();
+        if (datasetAdminFeedbackTimers[key]) {
+          window.clearTimeout(datasetAdminFeedbackTimers[key]);
+        }
+        if (autoClearMs > 0) {
+          datasetAdminFeedbackTimers[key] = window.setTimeout(() => {
+            delete datasetAdminFeedback[key];
+            delete datasetAdminFeedbackTimers[key];
+            renderDatasetAdminList();
+          }, autoClearMs);
+        }
       }
 
       async function saveDatasetAccess(datasetId) {
@@ -824,7 +1062,9 @@
         const visibilityEl = datasetAdminListEl.querySelector(`[data-dataset-visibility="${CSS.escape(datasetId)}"]`);
         const groupsEl = datasetAdminListEl.querySelector(`[data-dataset-groups="${CSS.escape(datasetId)}"]`);
         const usersEl = datasetAdminListEl.querySelector(`[data-dataset-users="${CSS.escape(datasetId)}"]`);
-        if (!visibilityEl || !groupsEl || !usersEl) {
+        const queryGranularityEl = datasetAdminListEl.querySelector(`[data-dataset-query-granularity="${CSS.escape(datasetId)}"]`);
+        const aiProviderAccessEl = datasetAdminListEl.querySelector(`[data-dataset-ai-provider-access="${CSS.escape(datasetId)}"]`);
+        if (!visibilityEl || !groupsEl || !usersEl || !queryGranularityEl || !aiProviderAccessEl) {
           return;
         }
         const allowedGroups = String(groupsEl.value || "")
@@ -835,8 +1075,14 @@
           .split(",")
           .map((item) => item.trim())
           .filter(Boolean);
+        const normalizedVisibility = String(visibilityEl.value || "all_authenticated").trim().toLowerCase();
+        const requestedAiProviderAccess = String(aiProviderAccessEl.value || "detailed_allowed").trim();
+        const effectiveAiProviderAccess = (normalizedVisibility === "restricted" || normalizedVisibility === "admin_only")
+          ? (requestedAiProviderAccess === "blocked" ? "blocked" : "safe_summary")
+          : requestedAiProviderAccess;
         loadStatusEl.className = "load-status loading";
         loadStatusEl.textContent = `Saving access for ${datasetId}...`;
+        setDatasetAdminFeedback(datasetId, "Saving settings...", "success", 0);
         try {
           const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}`, {
             method: "PATCH",
@@ -845,6 +1091,8 @@
               visibility: visibilityEl.value,
               allowed_groups: allowedGroups,
               allowed_users: allowedUsers,
+              query_granularity_ceiling: queryGranularityEl.value,
+              ai_provider_access: effectiveAiProviderAccess,
             }),
           });
           if (!response.ok) {
@@ -853,10 +1101,17 @@
           }
           await loadDatasets();
           loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = `Updated access for ${datasetId}.`;
+          loadStatusEl.textContent = `Updated settings for ${datasetId}.`;
+          setDatasetAdminFeedback(datasetId, "Settings saved.", "success");
         } catch (error) {
           loadStatusEl.className = "load-status";
           loadStatusEl.textContent = error && error.message ? error.message : "Unable to save dataset access.";
+          setDatasetAdminFeedback(
+            datasetId,
+            error && error.message ? error.message : "Unable to save dataset settings.",
+            "error",
+            4200,
+          );
         }
       }
 
@@ -896,6 +1151,7 @@
           }
           renderDatasetScopeSummary();
           renderAnalysisDatasetScope();
+          syncQueryGranularityWithWorkspacePolicy();
         } catch (_error) {
           availableDatasets = [];
           currentDatasetIds = [];
@@ -907,6 +1163,7 @@
           }
           renderDatasetScopeSummary();
           renderAnalysisDatasetScope();
+          syncQueryGranularityWithWorkspacePolicy();
         }
       }
 
@@ -986,17 +1243,24 @@
             : "Skip deterministic matching for the next query and use the LLM planner first.";
         }
         if (queryMemoryBtnEl) {
+          const scopeAvailable = queryGranularityMode === "detailed";
           queryMemoryBtnEl.classList.toggle("is-active", queryFollowMemoryEnabled);
           queryMemoryBtnEl.setAttribute("aria-pressed", queryFollowMemoryEnabled ? "true" : "false");
-          queryMemoryBtnEl.title = queryFollowMemoryEnabled
-            ? "Prompt scope follows the previous Query result for patient-oriented follow-up questions."
-            : "Prompt scope is the current workspace unless you explicitly select scope elsewhere.";
+          queryMemoryBtnEl.disabled = !scopeAvailable;
+          queryMemoryBtnEl.classList.toggle("is-hidden", !scopeAvailable);
+          queryMemoryBtnEl.title = !scopeAvailable
+            ? "Prompt scope is unavailable in Summary mode."
+            : queryFollowMemoryEnabled
+              ? "Prompt scope follows the previous Query result for patient-oriented follow-up questions."
+              : "Prompt scope is the current workspace unless you explicitly select scope elsewhere.";
           const scopedPatientIds = latestScopedContext && Array.isArray(latestScopedContext.patientIds)
             ? latestScopedContext.patientIds
             : [];
           const labelEl = queryMemoryBtnEl.querySelector("span:last-child");
           if (labelEl) {
-            if (!queryFollowMemoryEnabled) {
+            if (!scopeAvailable) {
+              labelEl.textContent = "Prompt scope";
+            } else if (!queryFollowMemoryEnabled) {
               labelEl.textContent = "Prompt scope: workspace";
             } else if (scopedPatientIds.length) {
               labelEl.textContent = `Prompt scope: previous result (${scopedPatientIds.length} patients)`;
@@ -1004,6 +1268,19 @@
               labelEl.textContent = "Prompt scope: waiting for previous result";
             }
           }
+        }
+        if (queryGranularityModeValueEl) {
+          queryGranularityModeValueEl.textContent = queryGranularityMode === "detailed" ? "Detailed" : "Summary";
+          queryGranularityModeValueEl.title = queryGranularityMode === "detailed"
+            ? "This workspace allows detailed in-app Query results."
+            : "This workspace is limited to summary-level in-app Query results.";
+        }
+        if (queryPolicyInfoBtnEl) {
+          const explanation = queryWorkspacePolicyExplanation();
+          queryPolicyInfoBtnEl.classList.toggle("is-hidden", !explanation);
+          queryPolicyInfoBtnEl.classList.toggle("is-warning", Boolean(explanation));
+          queryPolicyInfoBtnEl.title = explanation || "Workspace policy details";
+          queryPolicyInfoBtnEl.setAttribute("aria-label", explanation || "Workspace policy details");
         }
       }
 
@@ -1026,7 +1303,460 @@
           siblingToggle.classList.remove("is-hidden");
         }
         analysisComposerExamplesBtnEl.hidden = !(Array.isArray(analysisTurns) && analysisTurns.length > 0);
-        analysisComposerExamplesBtnEl.textContent = "Starter prompts";
+        analysisComposerExamplesBtnEl.textContent = "Catalog & prompts";
+      }
+
+      function normalizeAnalysisCatalogExecutionMode(value) {
+        const normalized = String(value || "").trim().toLowerCase();
+        if (normalized === "deterministic") return "deterministic";
+        if (normalized === "llm_only") return "llm_only";
+        return "auto";
+      }
+
+      function analysisCatalogModeBadge(item) {
+        const mode = String(item && item.execution_mode ? item.execution_mode : "auto");
+        if (mode === "deterministic") {
+          return { css: "query-chip-deterministic", label: "Deterministic" };
+        }
+        if (mode === "llm_only") {
+          return { css: "query-chip-llm", label: "LLM answer" };
+        }
+        return { css: "query-chip-planner", label: "LLM-planned" };
+      }
+
+      function analysisCatalogIconSvg(kind) {
+        const icons = {
+          clinical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+          compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8"></path><path d="M8 17h8"></path><path d="m6 9 2-2 2 2"></path><path d="m18 15-2 2-2-2"></path></svg>',
+          trajectory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
+          survival: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m6 7 4 5 3-3 5 6"></path></svg>',
+          molecular: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
+          external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 14v5H5V5h5"></path></svg>',
+          general: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>',
+        };
+        return icons[kind] || icons.general;
+      }
+
+      function analysisCatalogIconKind(item) {
+        const runnerType = String(item && item.runner_type ? item.runner_type : "").toLowerCase();
+        if (runnerType && runnerType !== "builtin") return "external";
+        const category = String(item && item.category ? item.category : "").toLowerCase();
+        const id = String(item && item.id ? item.id : "").toLowerCase();
+        if (category.includes("survival") || id.includes("survival") || id.includes("kaplan")) return "survival";
+        if (category.includes("trajectory") || id.includes("trajectory")) return "trajectory";
+        if (category.includes("molecular") || id.includes("molecular") || id.includes("volcano")) return "molecular";
+        if (category.includes("compare") || id.includes("compare")) return "compare";
+        if (category.includes("clinical") || id.includes("summary")) return "clinical";
+        return "general";
+      }
+
+      function renderAnalysisCatalogCard(item, options = {}) {
+        const compact = Boolean(options.compact);
+        const drawer = Boolean(options.drawer);
+        const modeBadge = analysisCatalogModeBadge(item);
+        const iconKind = analysisCatalogIconKind(item);
+        const metaBadges = [
+          `<span class="query-chip badge ${modeBadge.css}">${escapeHtml(modeBadge.label)}</span>`,
+        ];
+        if (item.default_compare_mode) {
+          metaBadges.push('<span class="query-chip badge">Compare mode</span>');
+        }
+        if (item.requires_molecular) {
+          metaBadges.push('<span class="query-chip badge">Molecular</span>');
+        }
+        if (item.requires_detailed_access) {
+          metaBadges.push('<span class="query-chip badge">Detailed required</span>');
+        }
+        if (item.runner_type && item.runner_type !== "builtin") {
+          metaBadges.push(`<span class="query-chip badge">${escapeHtml(String(item.runner_type).toUpperCase())}</span>`);
+        }
+        if (String(item.execution_backend || "").toLowerCase() === "job") {
+          metaBadges.push('<span class="query-chip badge">Background job</span>');
+        }
+        const requirements = Array.isArray(item.workspace_requirements) ? item.workspace_requirements : [];
+        const requirementsHtml = !compact && requirements.length
+          ? `<div class="section-note">${escapeHtml(requirements.join(" "))}</div>`
+          : "";
+        const guidanceHtml = !compact && item.guidance
+          ? `<div class="section-note">${escapeHtml(item.guidance)}</div>`
+          : "";
+        const tagsHtml = !compact && Array.isArray(item.tags) && item.tags.length
+          ? `<div class="analysis-catalog-tags">${item.tags.map((tag) => `<span class="query-chip badge">${escapeHtml(tag)}</span>`).join("")}</div>`
+          : "";
+        const availabilityHtml = item.available
+          ? ""
+          : `<div class="analysis-catalog-unavailable">${escapeHtml(item.unavailable_reason || "Unavailable in this workspace.")}</div>`;
+        return `
+          <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${item.available ? "" : " is-disabled"}">
+            <div class="analysis-catalog-card-head">
+              <strong class="analysis-catalog-title"><span class="analysis-catalog-icon" aria-hidden="true">${analysisCatalogIconSvg(iconKind)}</span><span>${escapeHtml(item.name || "Analysis")}</span></strong>
+              <div class="analysis-catalog-badges">${metaBadges.join("")}</div>
+            </div>
+            <p>${escapeHtml(item.description || "")}</p>
+            ${guidanceHtml}
+            ${requirementsHtml}
+            ${tagsHtml}
+            ${availabilityHtml}
+            <div class="analysis-catalog-actions">
+              <button
+                type="button"
+                class="query-chip action"
+                data-analysis-catalog-id="${escapeHtml(item.id || "")}"
+                ${item.available ? "" : "disabled"}
+                title="${escapeHtml(item.available ? `Use ${item.name || "analysis"}` : (item.unavailable_reason || "Unavailable in this workspace."))}"
+              >Use analysis</button>
+            </div>
+          </article>
+        `;
+      }
+
+      function setAnalysisCatalogDrawerOpen(open) {
+        if (!analysisCatalogDrawerEl) {
+          return;
+        }
+        analysisCatalogDrawerEl.classList.toggle("is-hidden", !open);
+        analysisCatalogDrawerEl.classList.toggle("is-open", Boolean(open));
+        analysisCatalogDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+
+      function setJobsDrawerOpen(open) {
+        if (!jobsDrawerEl) {
+          return;
+        }
+        jobsDrawerEl.classList.toggle("is-hidden", !open);
+        jobsDrawerEl.classList.toggle("is-open", Boolean(open));
+        jobsDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+
+      function runningJobCount() {
+        return Array.isArray(recentJobs)
+          ? recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : ""))).length
+          : 0;
+      }
+
+      function renderJobsButton() {
+        if (jobsDrawerBtnEl) {
+          jobsDrawerBtnEl.classList.toggle("is-hidden", !authState || !authState.authenticated);
+          jobsDrawerBtnEl.title = runningJobCount()
+            ? `${runningJobCount()} background job${runningJobCount() === 1 ? "" : "s"} still active.`
+            : "Open recent background jobs.";
+        }
+        if (jobsDrawerCountEl) {
+          const count = runningJobCount();
+          jobsDrawerCountEl.classList.toggle("is-hidden", count === 0);
+          jobsDrawerCountEl.textContent = String(count);
+        }
+      }
+
+      function renderJobStatusChip(item) {
+        const status = String(item && item.status ? item.status : "").trim() || "queued";
+        const label = status.charAt(0).toUpperCase() + status.slice(1);
+        return `<span class="job-status-chip is-${escapeHtml(status)}">${escapeHtml(label)}</span>`;
+      }
+
+      function renderJobGroup(title, items) {
+        if (!Array.isArray(items) || !items.length) {
+          return "";
+        }
+        return `
+          <section class="jobs-group">
+            <div class="jobs-group-label">${escapeHtml(title)}</div>
+            <div class="jobs-group-list">${items.map(renderJobCard).join("")}</div>
+          </section>
+        `;
+      }
+
+      function renderJobCard(item) {
+        const submitted = String(item && item.submitted_at ? item.submitted_at : "").replace("T", " ").replace(/\.\d+.*$/, " UTC");
+        const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
+        const feature = String(item && item.feature ? item.feature : "job");
+        const runnerType = String(item && item.runner_type ? item.runner_type : "");
+        const metaBits = [feature.charAt(0).toUpperCase() + feature.slice(1)];
+        if (runnerType) metaBits.push(runnerType.toUpperCase());
+        const actions = [];
+        if (item && item.result_available) {
+          actions.push(`<button type="button" class="query-chip action" data-job-open-result="${escapeHtml(item.job_id || "")}">Open result</button>`);
+        }
+        const artifactLinks = artifacts.map((artifact) => {
+          const url = String(artifact && artifact.url ? artifact.url : "").trim();
+          const name = String(artifact && artifact.name ? artifact.name : "").trim();
+          if (!url || !name) return "";
+          return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
+        }).filter(Boolean);
+        return `
+          <article class="job-card">
+            <div class="job-card-topline">
+              ${renderJobStatusChip(item)}
+              <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}</span>
+            </div>
+            <div class="job-card-header">
+              <div class="job-card-title">
+                <strong>${escapeHtml(String(item && item.name ? item.name : "Background job"))}</strong>
+                <div class="job-card-subtitle">${escapeHtml(metaBits.join(" · "))}</div>
+              </div>
+            </div>
+            ${item && item.reply_preview ? `<div class="job-card-preview">${escapeHtml(String(item.reply_preview))}</div>` : ""}
+            ${item && item.error ? `<div class="job-card-error">${escapeHtml(String(item.error))}</div>` : ""}
+            ${(actions.length || artifactLinks.length) ? `
+              <div class="job-card-footer">
+                ${actions.length ? `<div class="job-card-actions">${actions.join("")}</div>` : ""}
+                ${artifactLinks.length ? `<div class="job-card-artifacts">${artifactLinks.join("")}</div>` : ""}
+              </div>
+            ` : ""}
+          </article>
+        `;
+      }
+
+      function renderJobsDrawer() {
+        renderJobsButton();
+        if (!jobsDrawerListEl) {
+          return;
+        }
+        if (!authState || !authState.authenticated) {
+          jobsDrawerListEl.innerHTML = '<div class="empty">Sign in to view background jobs.</div>';
+          if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "Jobs unavailable.";
+          return;
+        }
+        if (!Array.isArray(recentJobs) || !recentJobs.length) {
+          jobsDrawerListEl.innerHTML = '<div class="empty">No background jobs yet.</div>';
+          if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "No background jobs yet.";
+          return;
+        }
+        const running = runningJobCount();
+        if (jobsDrawerStatusEl) {
+          jobsDrawerStatusEl.textContent = running
+            ? `${running} job${running === 1 ? "" : "s"} still running.`
+            : `${recentJobs.length} recent job${recentJobs.length === 1 ? "" : "s"}.`;
+        }
+        const activeItems = recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "")));
+        const doneItems = recentJobs.filter((item) => !["queued", "running"].includes(String(item && item.status ? item.status : "")));
+        jobsDrawerListEl.innerHTML = [
+          renderJobGroup("Active", activeItems),
+          renderJobGroup("Recent", doneItems),
+        ].filter(Boolean).join("");
+      }
+
+      function scheduleJobsPolling() {
+        if (jobsPollTimer) {
+          window.clearTimeout(jobsPollTimer);
+          jobsPollTimer = null;
+        }
+        if (!runningJobCount()) {
+          return;
+        }
+        jobsPollTimer = window.setTimeout(() => {
+          void loadRecentJobs({ silent: true });
+        }, 3000);
+      }
+
+      async function loadRecentJobs(options = {}) {
+        const silent = Boolean(options.silent);
+        if (!authState || !authState.authenticated) {
+          recentJobs = [];
+          renderJobsDrawer();
+          return;
+        }
+        if (!silent && jobsDrawerStatusEl) {
+          jobsDrawerStatusEl.textContent = "Loading recent jobs...";
+        }
+        try {
+          const response = await fetch("/jobs");
+          if (!response.ok) {
+            throw new Error("Unable to load jobs.");
+          }
+          const payload = await response.json();
+          recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+          renderJobsDrawer();
+          scheduleJobsPolling();
+        } catch (error) {
+          if (!silent && jobsDrawerStatusEl) {
+            jobsDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load jobs.";
+          }
+        }
+      }
+
+      async function openJobResult(jobId) {
+        const normalized = String(jobId || "").trim();
+        if (!normalized) return;
+        const response = await fetch(`/jobs/${encodeURIComponent(normalized)}`);
+        if (!response.ok) {
+          throw new Error("Unable to load job result.");
+        }
+        const payload = await response.json();
+        if (!payload || !payload.result_payload) {
+          throw new Error("This job does not have a completed result yet.");
+        }
+        setJobsDrawerOpen(false);
+        setActiveTab("analysis");
+        const sessionId = String(payload.analysis_session_id || "").trim();
+        const existingSession = sessionId
+          ? analysisSessions.find((item) => item.id === sessionId)
+          : null;
+        if (existingSession) {
+          selectAnalysisSession(sessionId);
+        } else if (sessionId) {
+          createAndSelectAnalysisSession({
+            id: sessionId,
+            title: String(payload.name || payload.catalog_item_name || "Recovered analysis result").trim(),
+            promptDraft: String(payload.prompt || "").trim(),
+            dataDir: dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "",
+            history: [],
+            turns: [],
+          });
+        }
+        const resultPayload = payload.result_payload;
+        const existingIndex = Array.isArray(analysisTurns)
+          ? analysisTurns.findIndex((turn) => {
+              const data = turn && turn.payload ? turn.payload.data : null;
+              return turn && turn.role === "assistant"
+                && data
+                && String(data.job_id || "") === normalized;
+            })
+          : -1;
+        const turn = { role: "assistant", payload: resultPayload, showPlots: analysisUi.analysisPayloadHasPlots(resultPayload) };
+        if (existingIndex >= 0) {
+          analysisTurns[existingIndex] = turn;
+        } else {
+          analysisTurns.push(turn);
+        }
+        analysisHistory.push({ role: "assistant", content: resultPayload.reply || "" });
+        analysisHistory = analysisHistory.slice(-8);
+        renderAnalysisMeta(resultPayload);
+        renderAnalysisThread();
+        syncCurrentAnalysisSessionFromUi({ render: true });
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = "Loaded completed job result into Analysis.";
+      }
+
+      function renderAnalysisCatalog() {
+        if (!analysisCatalogListEl) {
+          return;
+        }
+        if (!Array.isArray(analysisCatalogItems) || !analysisCatalogItems.length) {
+          analysisCatalogListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
+          if (analysisCatalogDrawerListEl) {
+            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
+          }
+          if (analysisCatalogStatusEl) {
+            analysisCatalogStatusEl.textContent = "No curated analyses available.";
+          }
+          return;
+        }
+        const unavailableCount = analysisCatalogItems.filter((item) => !item.available).length;
+        if (analysisCatalogStatusEl) {
+          const summaryBits = [`${analysisCatalogItems.length} curated analyses`];
+          if (unavailableCount) {
+            summaryBits.push(`${unavailableCount} unavailable in this workspace`);
+          }
+          if (analysisCatalogWorkspace && analysisCatalogWorkspace.has_molecular_datasets) {
+            summaryBits.push(`${analysisCatalogWorkspace.molecular_dataset_count} molecular dataset${analysisCatalogWorkspace.molecular_dataset_count === 1 ? "" : "s"}`);
+          }
+          analysisCatalogStatusEl.textContent = summaryBits.join(" · ");
+        }
+        const featured = analysisCatalogItems.slice(0, 4);
+        analysisCatalogListEl.innerHTML = `<div class="analysis-catalog-featured-strip">${featured.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("")}</div>`;
+        const grouped = analysisCatalogItems.reduce((acc, item) => {
+          const key = String(item.category || "General");
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(item);
+          return acc;
+        }, {});
+        if (analysisCatalogDrawerListEl) {
+          analysisCatalogDrawerListEl.innerHTML = Object.entries(grouped).map(([category, items]) => {
+            const cards = items.map((item) => renderAnalysisCatalogCard(item, { drawer: true })).join("");
+            return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid">${cards}</div></section>`;
+          }).join("");
+        }
+      }
+
+      async function loadAnalysisCatalog() {
+        if (!analysisCatalogListEl) {
+          return;
+        }
+        if (!isWorkspaceAccessible()) {
+          analysisCatalogItems = [];
+          analysisCatalogWorkspace = null;
+          analysisCatalogListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
+          if (analysisCatalogDrawerListEl) {
+            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
+          }
+          if (analysisCatalogStatusEl) {
+            analysisCatalogStatusEl.textContent = "Workspace unavailable.";
+          }
+          return;
+        }
+        if (analysisCatalogBrowseBtnEl) {
+          analysisCatalogBrowseBtnEl.disabled = false;
+          analysisCatalogBrowseBtnEl.title = "";
+        }
+        if (queryGranularityMode !== "detailed") {
+          analysisCatalogItems = [];
+          analysisCatalogWorkspace = null;
+          analysisCatalogListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
+          if (analysisCatalogDrawerListEl) {
+            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
+          }
+          if (analysisCatalogStatusEl) {
+            analysisCatalogStatusEl.textContent = "Analysis Catalog requires Detailed workspace access.";
+          }
+          if (analysisCatalogBrowseBtnEl) {
+            analysisCatalogBrowseBtnEl.disabled = true;
+            analysisCatalogBrowseBtnEl.title = "Analysis Catalog requires Detailed workspace access.";
+          }
+          setAnalysisCatalogDrawerOpen(false);
+          return;
+        }
+        analysisCatalogListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
+        if (analysisCatalogDrawerListEl) {
+          analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
+        }
+        if (analysisCatalogStatusEl) {
+          analysisCatalogStatusEl.textContent = "Loading curated analyses...";
+        }
+        try {
+          const response = await fetch(`/analysis/catalog?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`);
+          if (!response.ok) {
+            throw new Error("Unable to load Analysis Catalog.");
+          }
+          const payload = await response.json();
+          analysisCatalogItems = Array.isArray(payload.items) ? payload.items : [];
+          analysisCatalogWorkspace = payload.workspace || null;
+          renderAnalysisCatalog();
+        } catch (error) {
+          analysisCatalogItems = [];
+          analysisCatalogWorkspace = null;
+          analysisCatalogListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
+          if (analysisCatalogDrawerListEl) {
+            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
+          }
+          if (analysisCatalogStatusEl) {
+            analysisCatalogStatusEl.textContent = error && error.message ? error.message : "Unable to load curated analyses.";
+          }
+        }
+      }
+
+      function applyAnalysisCatalogItemById(itemId) {
+        const item = Array.isArray(analysisCatalogItems)
+          ? analysisCatalogItems.find((entry) => String(entry.id || "") === String(itemId || ""))
+          : null;
+        if (!item || !item.available) {
+          return;
+        }
+        analysisPromptEl.value = String(item.default_prompt || "").trim();
+        analysisExecutionMode = normalizeAnalysisCatalogExecutionMode(item.execution_mode);
+        analysisSelectedCatalogItemId = String(item.id || "").trim();
+        if (analysisCompareModeEl) {
+          analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
+          renderAnalysisCompareMode();
+        }
+        analysisExamplesPinnedOpen = false;
+        syncCurrentAnalysisSessionFromUi({ render: true });
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = item.guidance
+          ? `${item.name} selected. ${item.guidance}`
+          : `${item.name} selected. Review the prompt and run the analysis.`;
+        setAnalysisCatalogDrawerOpen(false);
+        analysisPromptEl.focus();
       }
 
       function stopQueryProgressUpdates() {
@@ -1403,7 +2133,14 @@
 
       function canManageDataset() {
         if (!authState.enabled) return true;
-        return Boolean(authState.authenticated && authState.user && authState.user.role === "admin");
+        if (!(authState.authenticated && authState.user)) {
+          return false;
+        }
+        if (String(authState.user.role || "").trim().toLowerCase() === "admin") {
+          return true;
+        }
+        const groups = Array.isArray(authState.user.groups) ? authState.user.groups : [];
+        return groups.some((group) => String(group || "").trim().toLowerCase() === "admin");
       }
 
       function isWorkspaceAccessible() {
@@ -1429,13 +2166,99 @@
         }
       }
 
+      function parseUserGroupsInput(value) {
+        return String(value || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function formatUserGroupsInput(groups) {
+        return Array.isArray(groups) ? groups.join(", ") : "";
+      }
+
+      function clearUserCreateForm() {
+        if (userCreateUsernameEl) userCreateUsernameEl.value = "";
+        if (userCreateDisplayNameEl) userCreateDisplayNameEl.value = "";
+        if (userCreatePasswordEl) userCreatePasswordEl.value = "";
+        if (userCreateRoleEl) userCreateRoleEl.value = "user";
+        if (userCreateGroupsEl) userCreateGroupsEl.value = "";
+        if (userCreateEnabledEl) userCreateEnabledEl.checked = true;
+      }
+
+      function renderAuthUsersList(users) {
+        if (!usersListEl) {
+          return;
+        }
+        if (!users.length) {
+          usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
+          return;
+        }
+        usersListEl.innerHTML = users.map((user) => {
+          const username = String(user.username || "");
+          const displayName = String(user.display_name || user.username || "");
+          const role = String(user.role || "user");
+          const enabled = user.enabled !== false;
+          const authSource = String(user.auth_source || "local");
+          const groups = Array.isArray(user.groups) ? user.groups : [];
+          return `
+            <div class="dataset-picker-card" data-auth-user-card="${escapeHtml(username)}">
+              <div>
+                <div class="dataset-picker-title">
+                  <span>${escapeHtml(displayName || username || "Unknown user")}</span>
+                  <div class="dataset-picker-meta">
+                    <span class="dataset-picker-tag">${escapeHtml(username)}</span>
+                    <span class="dataset-picker-tag">${escapeHtml(role)}</span>
+                    <span class="dataset-picker-tag">${enabled ? "enabled" : "disabled"}</span>
+                    <span class="dataset-picker-tag">auth: ${escapeHtml(authSource)}</span>
+                  </div>
+                </div>
+                <div class="query-grid query-grid-compact" style="margin-top:12px;">
+                  <div>
+                    <label>Display name</label>
+                    <input type="text" data-auth-user-field="display_name" data-auth-user="${escapeHtml(username)}" value="${escapeHtml(displayName)}">
+                  </div>
+                  <div>
+                    <label>Role</label>
+                    <select data-auth-user-field="role" data-auth-user="${escapeHtml(username)}">
+                      <option value="user"${role === "user" ? " selected" : ""}>User</option>
+                      <option value="admin"${role === "admin" ? " selected" : ""}>Admin</option>
+                    </select>
+                  </div>
+                  <div class="query-grid-span-2">
+                    <label>Groups</label>
+                    <input type="text" data-auth-user-field="groups" data-auth-user="${escapeHtml(username)}" value="${escapeHtml(formatUserGroupsInput(groups))}" placeholder="Comma-separated groups">
+                  </div>
+                </div>
+                <div class="query-row" style="margin-top:12px;">
+                  <label class="dataset-picker-check">
+                    <input type="checkbox" data-auth-user-field="enabled" data-auth-user="${escapeHtml(username)}"${enabled ? " checked" : ""}>
+                    <span>Enabled</span>
+                  </label>
+                  <button type="button" class="query-chip query-chip-deterministic" data-auth-user-action="save" data-auth-user="${escapeHtml(username)}">Save</button>
+                  <input type="password" data-auth-user-field="password" data-auth-user="${escapeHtml(username)}" placeholder="New password">
+                  <button type="button" class="query-chip" data-auth-user-action="reset-password" data-auth-user="${escapeHtml(username)}">Reset password</button>
+                  <button type="button" class="query-chip query-chip-llm" data-auth-user-action="delete" data-auth-user="${escapeHtml(username)}">Delete</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
       async function loadAuthUsers() {
         if (!usersListEl || !usersStatusEl) return;
         if (!canManageDataset()) {
           usersStatusEl.className = "query-status";
           usersStatusEl.textContent = "Admin access required.";
           usersListEl.innerHTML = '<div class="empty">User administration is only visible to administrators.</div>';
+          if (usersCreateCardEl) {
+            usersCreateCardEl.classList.add("is-hidden");
+          }
           return;
+        }
+        if (usersCreateCardEl) {
+          usersCreateCardEl.classList.remove("is-hidden");
         }
         usersStatusEl.className = "query-status loading";
         usersStatusEl.textContent = "Loading users...";
@@ -1451,33 +2274,137 @@
           usersStatusEl.className = "query-status";
           usersStatusEl.textContent = `${users.length} user${users.length === 1 ? "" : "s"} configured.`;
           renderDatasetAdminList();
-          if (!users.length) {
-            usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
-            return;
-          }
-          usersListEl.innerHTML = users.map((user) => `
-            <div class="analysis-session-card">
-              <div class="analysis-session-main">
-                <div class="analysis-session-title">${escapeHtml(user.display_name || user.username || "Unknown user")}</div>
-                <div class="analysis-session-meta">
-                  <div>${escapeHtml(user.username || "")}</div>
-                  <div>${escapeHtml(user.role || "user")}</div>
-                  <div>Auth source: local</div>
-                </div>
-                <div class="identity-tags">
-                  ${(Array.isArray(user.groups) && user.groups.length)
-                    ? user.groups.map((group) => `<span class="identity-tag">${escapeHtml(group)}</span>`).join("")
-                    : '<span class="identity-tag">no groups</span>'}
-                </div>
-              </div>
-            </div>
-          `).join("");
+          renderAuthUsersList(users);
         } catch (error) {
           availableAuthUsers = [];
           renderDatasetAdminList();
           usersStatusEl.className = "query-status";
           usersStatusEl.textContent = error && error.message ? error.message : "Unable to load users.";
           usersListEl.innerHTML = '<div class="empty">User list unavailable.</div>';
+        }
+      }
+
+      async function createAuthUser() {
+        if (!canManageDataset()) {
+          return;
+        }
+        const username = userCreateUsernameEl ? userCreateUsernameEl.value.trim() : "";
+        const password = userCreatePasswordEl ? userCreatePasswordEl.value : "";
+        const displayName = userCreateDisplayNameEl ? userCreateDisplayNameEl.value.trim() : "";
+        const role = userCreateRoleEl ? userCreateRoleEl.value : "user";
+        const groups = parseUserGroupsInput(userCreateGroupsEl ? userCreateGroupsEl.value : "");
+        const enabled = userCreateEnabledEl ? userCreateEnabledEl.checked : true;
+        usersStatusEl.className = "query-status loading";
+        usersStatusEl.textContent = "Creating user...";
+        try {
+          const response = await fetch("/auth/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username,
+              password,
+              display_name: displayName,
+              role,
+              groups,
+              enabled,
+            }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.detail || "Unable to create user.");
+          }
+          clearUserCreateForm();
+          await loadAuthUsers();
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = `User ${payload.username || username} created.`;
+        } catch (error) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = error && error.message ? error.message : "Unable to create user.";
+        }
+      }
+
+      async function saveAuthUser(username) {
+        const card = usersListEl ? usersListEl.querySelector(`[data-auth-user-card="${CSS.escape(username)}"]`) : null;
+        if (!card) {
+          return;
+        }
+        const displayName = card.querySelector('[data-auth-user-field="display_name"]')?.value?.trim() || "";
+        const role = card.querySelector('[data-auth-user-field="role"]')?.value || "user";
+        const groups = parseUserGroupsInput(card.querySelector('[data-auth-user-field="groups"]')?.value || "");
+        const enabled = Boolean(card.querySelector('[data-auth-user-field="enabled"]')?.checked);
+        usersStatusEl.className = "query-status loading";
+        usersStatusEl.textContent = `Saving ${username}...`;
+        try {
+          const response = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              display_name: displayName,
+              role,
+              groups,
+              enabled,
+            }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.detail || "Unable to update user.");
+          }
+          await loadAuthUsers();
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = `User ${payload.username || username} updated.`;
+        } catch (error) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = error && error.message ? error.message : "Unable to update user.";
+        }
+      }
+
+      async function resetAuthUserPassword(username) {
+        const card = usersListEl ? usersListEl.querySelector(`[data-auth-user-card="${CSS.escape(username)}"]`) : null;
+        const passwordField = card ? card.querySelector('[data-auth-user-field="password"]') : null;
+        const password = passwordField ? passwordField.value : "";
+        usersStatusEl.className = "query-status loading";
+        usersStatusEl.textContent = `Resetting password for ${username}...`;
+        try {
+          const response = await fetch(`/auth/users/${encodeURIComponent(username)}/password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.detail || "Unable to reset password.");
+          }
+          if (passwordField) {
+            passwordField.value = "";
+          }
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = `Password reset for ${payload.username || username}.`;
+        } catch (error) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = error && error.message ? error.message : "Unable to reset password.";
+        }
+      }
+
+      async function deleteAuthUser(username) {
+        if (!window.confirm(`Delete user ${username}?`)) {
+          return;
+        }
+        usersStatusEl.className = "query-status loading";
+        usersStatusEl.textContent = `Deleting ${username}...`;
+        try {
+          const response = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
+            method: "DELETE",
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.detail || "Unable to delete user.");
+          }
+          await loadAuthUsers();
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = `User ${username} deleted.`;
+        } catch (error) {
+          usersStatusEl.className = "query-status";
+          usersStatusEl.textContent = error && error.message ? error.message : "Unable to delete user.";
         }
       }
 
@@ -1497,12 +2424,19 @@
           authBrandHeroEl && authBrandHeroEl.classList.add("is-hidden");
           authGateEl && authGateEl.classList.add("is-hidden");
           appShellEl && appShellEl.classList.remove("is-hidden");
-          heroAuthUtilityEl && heroAuthUtilityEl.classList.add("is-hidden");
+          heroAuthUtilityEl && heroAuthUtilityEl.classList.remove("is-hidden");
+          heroLogoutBtnEl && heroLogoutBtnEl.classList.add("is-hidden");
+          jobsDrawerBtnEl && jobsDrawerBtnEl.classList.remove("is-hidden");
+          if (heroAuthIdentityEl) {
+            heroAuthIdentityEl.textContent = "Local user";
+          }
           datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
           datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
           dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
           usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
+          usersCreateCardEl && usersCreateCardEl.classList.remove("is-hidden");
           updateLoadButtonAvailability();
+          renderJobsDrawer();
           renderGlobalContext();
           return;
         }
@@ -1524,6 +2458,7 @@
           dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
           usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
           datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
+          usersCreateCardEl && usersCreateCardEl.classList.toggle("is-hidden", !admin);
           if (!admin && (currentTabName() === "data" || currentTabName() === "users")) {
             setActiveTab("datasets");
           }
@@ -1538,11 +2473,13 @@
           dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
           usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
           datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
+          usersCreateCardEl && usersCreateCardEl.classList.add("is-hidden");
           if (authGateStatusEl) {
             authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
           }
         }
         updateLoadButtonAvailability();
+        renderJobsDrawer();
         renderGlobalContext();
       }
 
@@ -1552,11 +2489,15 @@
           currentAnalysisSessionId = "";
           analysisHistory = [];
           analysisTurns = [];
+          analysisCatalogItems = [];
+          analysisCatalogWorkspace = null;
           renderAnalysisSessionList();
           renderAnalysisThread();
+          renderAnalysisCatalog();
           return;
         }
         await loadSavedCohorts();
+        await loadAnalysisCatalog();
         analysisSessions = [];
         currentAnalysisSessionId = "";
         ensureAnalysisSessionsLoaded();
@@ -1586,6 +2527,12 @@
           };
         }
         renderAuthUi();
+        if (!authState.enabled || authState.authenticated) {
+          void loadRecentJobs({ silent: true });
+        } else {
+          recentJobs = [];
+          renderJobsDrawer();
+        }
       }
 
       async function loginLocal() {
@@ -1659,6 +2606,14 @@
           syncCurrentAnalysisSessionFromUi,
           startAnalysisProgressUpdates,
           stopAnalysisProgressUpdates,
+          handleAnalysisJobSubmission: (payload) => {
+            setJobsDrawerOpen(true);
+            void loadRecentJobs();
+            if (payload && payload.data && payload.data.job_id) {
+              analysisStatusEl.className = "query-status";
+              analysisStatusEl.textContent = `Background job ${payload.data.job_id} submitted. Open Jobs to monitor progress.`;
+            }
+          },
           renderGlobalContext,
           renderAnalysisScopeSummary,
           renderAnalysisCompareScopeSummary,
@@ -1672,6 +2627,9 @@
           set analysisTurns(value) { analysisTurns = value; },
           get analysisExecutionMode() { return analysisExecutionMode; },
           set analysisExecutionMode(value) { analysisExecutionMode = value; },
+          get analysisSelectedCatalogItemId() { return analysisSelectedCatalogItemId; },
+          set analysisSelectedCatalogItemId(value) { analysisSelectedCatalogItemId = value; },
+          get currentAnalysisSessionId() { return currentAnalysisSessionId; },
           get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
           set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
           get savedCohorts() { return savedCohorts; },
@@ -1856,6 +2814,8 @@
           set queryTurns(value) { queryTurns = value; },
           get queryExecutionMode() { return queryExecutionMode; },
           set queryExecutionMode(value) { queryExecutionMode = value; },
+          get queryGranularityMode() { return queryGranularityMode; },
+          set queryGranularityMode(value) { queryGranularityMode = value; },
           get queryFollowMemoryEnabled() { return queryFollowMemoryEnabled; },
           set queryFollowMemoryEnabled(value) { queryFollowMemoryEnabled = Boolean(value); },
           get latestQueryPatientIds() { return latestQueryPatientIds; },
@@ -1972,6 +2932,7 @@
         }
         analysisPromptEl.value = normalizedPrompt;
         analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
+        analysisSelectedCatalogItemId = "";
         setActiveTab("analysis");
         renderAnalysisScopeSummary();
         syncCurrentAnalysisSessionFromUi({ render: true });
@@ -2187,6 +3148,8 @@
           renderLoadButtonState();
           prepareAnalysisSessionForDataDir(currentDatasetSelectionKey());
           resetQueryWorkspace();
+          syncQueryGranularityWithWorkspacePolicy();
+          await loadAnalysisCatalog();
           await loadSavedCohorts();
           await loadQueryDiseaseOptions();
           await loadMolecularDatasets();
@@ -2316,10 +3279,14 @@
         renderQueryExecutionMode();
       });
       queryMemoryBtnEl && queryMemoryBtnEl.addEventListener("click", () => {
+        if (queryGranularityMode !== "detailed") {
+          renderQueryExecutionMode();
+          return;
+        }
         queryFollowMemoryEnabled = !queryFollowMemoryEnabled;
         renderQueryExecutionMode();
       });
-      queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.addEventListener("click", () => {
+        queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.addEventListener("click", () => {
         const willOpen = !queryDiseasePanelEl || queryDiseasePanelEl.classList.contains("is-hidden");
         if (queryDiseasePanelEl) queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
         queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
@@ -2350,6 +3317,27 @@
       usersTabBtnEl && usersTabBtnEl.addEventListener("click", () => {
         setActiveTab("users");
         void loadAuthUsers();
+      });
+      userCreateBtnEl && userCreateBtnEl.addEventListener("click", () => {
+        void createAuthUser();
+      });
+      usersListEl && usersListEl.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-auth-user-action]");
+        if (!trigger) {
+          return;
+        }
+        const action = String(trigger.dataset.authUserAction || "");
+        const username = String(trigger.dataset.authUser || "");
+        if (!username) {
+          return;
+        }
+        if (action === "save") {
+          void saveAuthUser(username);
+        } else if (action === "reset-password") {
+          void resetAuthUserPassword(username);
+        } else if (action === "delete") {
+          void deleteAuthUser(username);
+        }
       });
       queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
       analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
@@ -2465,16 +3453,67 @@
         } else {
           analysisExecutionMode = "auto";
         }
+        analysisSelectedCatalogItemId = "";
         analysisExamplesPinnedOpen = false;
         syncCurrentAnalysisSessionFromUi({ render: true });
         renderAnalysisStarterPrompts();
         analysisPromptEl.focus();
+      });
+      analysisCatalogListEl && analysisCatalogListEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-analysis-catalog-id]");
+        if (!button || !analysisCatalogListEl.contains(button)) {
+          return;
+        }
+        applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
+      });
+      analysisCatalogDrawerListEl && analysisCatalogDrawerListEl.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-analysis-catalog-id]");
+        if (!button || !analysisCatalogDrawerListEl.contains(button)) {
+          return;
+        }
+        applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
+      });
+      analysisCatalogBrowseBtnEl && analysisCatalogBrowseBtnEl.addEventListener("click", () => {
+        setAnalysisCatalogDrawerOpen(true);
+      });
+      jobsDrawerBtnEl && jobsDrawerBtnEl.addEventListener("click", () => {
+        setJobsDrawerOpen(true);
+        void loadRecentJobs();
+      });
+      analysisCatalogDrawerCloseBtnEl && analysisCatalogDrawerCloseBtnEl.addEventListener("click", () => {
+        setAnalysisCatalogDrawerOpen(false);
+      });
+      jobsDrawerCloseBtnEl && jobsDrawerCloseBtnEl.addEventListener("click", () => {
+        setJobsDrawerOpen(false);
+      });
+      analysisCatalogDrawerEl && analysisCatalogDrawerEl.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-analysis-catalog-close='true']");
+        if (!trigger || !analysisCatalogDrawerEl.contains(trigger)) {
+          return;
+        }
+        setAnalysisCatalogDrawerOpen(false);
+      });
+      jobsDrawerEl && jobsDrawerEl.addEventListener("click", (event) => {
+        const closeTrigger = event.target.closest("[data-jobs-drawer-close='true']");
+        if (closeTrigger && jobsDrawerEl.contains(closeTrigger)) {
+          setJobsDrawerOpen(false);
+          return;
+        }
+        const openButton = event.target.closest("[data-job-open-result]");
+        if (!openButton || !jobsDrawerEl.contains(openButton)) {
+          return;
+        }
+        void openJobResult(openButton.dataset.jobOpenResult || "").catch((error) => {
+          analysisStatusEl.className = "query-status";
+          analysisStatusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
+        });
       });
       analysisThreadEl.addEventListener("click", (event) => {
         analysisUi.handleAnalysisFollowUpsClick(event);
       });
       analysisPromptEl && analysisPromptEl.addEventListener("input", () => {
         analysisExecutionMode = "auto";
+        analysisSelectedCatalogItemId = "";
       });
       analysisSessionListEl && analysisSessionListEl.addEventListener("click", (event) => {
         const deleteButton = event.target.closest("[data-analysis-session-delete]");

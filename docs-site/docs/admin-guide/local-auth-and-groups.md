@@ -8,7 +8,11 @@ The current app uses local authentication for development and controlled deploym
 
 ## Source of truth
 
-User identity currently comes from environment configuration, not from the browser UI.
+User identity is now persisted locally in:
+
+- `state/auth/users.json`
+
+Environment configuration is still used as bootstrap seed data when no local user store exists yet.
 
 Typical setup:
 
@@ -35,6 +39,8 @@ A role controls application-level privileges such as:
 Current important role:
 
 - `admin`
+
+The app also accepts membership in the `admin` group as an administrative path for UI visibility and backend admin endpoints.
 
 ### Group
 
@@ -72,27 +78,34 @@ Such a user:
 
 This matters because not every local user needs to belong to an organizational group.
 
-## What the UI can and cannot edit
+## What the UI can edit
 
-### Editable in the UI
+### Dataset policy
 
-`Data Administration` can edit dataset policy:
+`Data Administration` can edit:
 
 - visibility
 - allowed groups
 - allowed users
 
-### Not editable in the UI
+### Users
 
-The current `Users` tab is read-only.
+The `Users` tab can now manage local users directly:
 
-It shows:
+- create local users
+- edit display name
+- edit role
+- edit groups
+- enable or disable accounts
+- reset passwords
+- delete local users
 
-- configured users
-- their roles
-- their groups
+Current protections include:
 
-But user creation, deletion, and group membership still come from the environment configuration.
+- no deleting the currently signed-in user
+- no disabling the currently signed-in user
+- no self-demotion from the current admin session
+- no deleting the last enabled admin
 
 ## Admin group direction
 
@@ -104,3 +117,18 @@ That means the long-term model can be:
 - real administrative capability can also be granted through the `admin` group
 
 For now, local role-based admin support still exists and is useful during development.
+
+## Future direction
+
+The local auth model is now provider-ready:
+
+- current provider: `local`
+- future provider: external identity such as Google OIDC
+
+Patient Navigator should continue to own authorization concepts such as:
+
+- roles
+- groups
+- dataset access
+- in-app disclosure policy
+- AI-provider policy

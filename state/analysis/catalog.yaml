@@ -1,0 +1,163 @@
+version: 1
+items:
+  - id: clinical-summary
+    name: Clinical cohort summary
+    category: Clinical
+    kind: summary
+    runner_type: builtin
+    runner_ref: clinical_summary
+    description: Summarize the main diseases, medications, visit density, and temporal signals in the active Analysis scope.
+    guidance: Best first-pass analysis for a cohort or the full workspace.
+    default_prompt: Summarize the main clinical patterns in this workspace and tell me what stands out.
+    execution_mode: deterministic
+    tags: [clinical, summary, deterministic]
+
+  - id: cohort-compare-summary
+    name: Cohort comparison
+    category: Clinical
+    kind: compare
+    runner_type: builtin
+    runner_ref: compare_summary
+    description: Compare diseases, medications, and workload patterns between Cohort A and Cohort B.
+    guidance: Select saved cohorts for A and B before running.
+    default_prompt: Compare Cohort A and Cohort B by disease burden and treatment patterns.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    tags: [clinical, compare, deterministic]
+
+  - id: trajectory-single
+    name: Trajectory analysis
+    category: Trajectories
+    kind: trajectory
+    runner_type: builtin
+    runner_ref: trajectory
+    description: Plot a longitudinal clinical measure over time for the active scope.
+    guidance: Edit the measure in the prompt if you want a different marker.
+    default_prompt: Show the trajectory of Leukocyte Count over time.
+    execution_mode: deterministic
+    tags: [trajectory, longitudinal, deterministic]
+
+  - id: trajectory-compare
+    name: Trajectory comparison
+    category: Trajectories
+    kind: trajectory_compare
+    runner_type: builtin
+    runner_ref: trajectory_compare
+    description: Compare longitudinal behavior of a clinical measure between Cohort A and Cohort B.
+    guidance: Select saved cohorts for A and B before running.
+    default_prompt: Compare the active analysis scopes using Leukocyte Count trajectories.
+    execution_mode: auto
+    default_compare_mode: true
+    supports_compare_mode: true
+    tags: [trajectory, compare, longitudinal]
+
+  - id: treatment-response
+    name: Treatment response trajectory
+    category: Trajectories
+    kind: treatment_response
+    runner_type: builtin
+    runner_ref: treatment_response
+    description: Track a clinical marker over time relative to treatment exposure.
+    guidance: Edit the treatment or measure in the prompt if needed.
+    default_prompt: Show response to Infliximab using CRP.
+    execution_mode: deterministic
+    tags: [trajectory, treatment-response, deterministic]
+
+  - id: survival-single
+    name: Kaplan-Meier survival
+    category: Survival
+    kind: survival
+    runner_type: builtin
+    runner_ref: survival
+    description: Estimate time-to-event behavior for the active scope using a clinical threshold event.
+    guidance: Edit the measure, operator, or threshold in the prompt if needed.
+    default_prompt: Show a Kaplan-Meier curve for time to Clinical relapse > 0.
+    execution_mode: deterministic
+    tags: [survival, kaplan-meier, deterministic]
+
+  - id: survival-compare
+    name: Kaplan-Meier comparison
+    category: Survival
+    kind: survival_compare
+    runner_type: builtin
+    runner_ref: survival_compare
+    description: Compare time-to-event behavior between Cohort A and Cohort B.
+    guidance: Select saved cohorts for A and B before running.
+    default_prompt: Compare Cohort A and Cohort B with Kaplan-Meier for time to Clinical relapse > 0.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    tags: [survival, kaplan-meier, compare, deterministic]
+
+  - id: molecular-expression
+    name: Molecular expression summary
+    category: Molecular
+    kind: molecular_expression
+    runner_type: builtin
+    runner_ref: molecular_expression
+    description: Summarize scoped expression for a selected gene across available molecular datasets.
+    guidance: Replace the gene identifier in the prompt if needed.
+    default_prompt: Show expression of ENSG00002700028 in the current Analysis scope.
+    execution_mode: deterministic
+    requires_molecular: true
+    tags: [molecular, expression, deterministic]
+
+  - id: molecular-medication-compare
+    name: Molecular medication comparison
+    category: Molecular
+    kind: molecular_compare
+    runner_type: builtin
+    runner_ref: molecular_medication_compare
+    description: Compare transcriptomic profiles across medication-defined groups in the current Analysis scope.
+    guidance: Works best when the workspace contains transcriptomic datasets.
+    default_prompt: Explain differences in gene expression according to medication.
+    execution_mode: deterministic
+    requires_molecular: true
+    tags: [molecular, volcano, medication, deterministic]
+
+  - id: external-r-scope-snapshot
+    name: External R cohort snapshot
+    category: External
+    kind: external_rscript
+    execution_backend: sync
+    runner_type: rscript
+    runner_ref: dummy_scope_snapshot
+    description: Run a curated external Rscript over the active Analysis scope to prove external execution wiring.
+    guidance: Demonstration runner only. It reports workspace and scope counts through an external Rscript.
+    default_prompt: Run the external R cohort snapshot analysis for the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    tags: [external, rscript, demo]
+
+  - id: external-r-clinical-profile
+    name: External R clinical scope profile
+    category: External
+    kind: external_rscript
+    execution_backend: job
+    expected_runtime: medium
+    job_timeout_seconds: 1800
+    runner_type: rscript
+    runner_ref: clinical_scope_profile
+    description: Build a scoped clinical profile in Python, hand it to a curated Rscript, and return a real external summary of diseases, medications, and active periods.
+    guidance: Uses the current Analysis scope and works best when the scope contains recognizable disease and treatment labels.
+    default_prompt: Run the external R clinical scope profile for the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    tags: [external, rscript, clinical]
+
+  - id: external-r-long-job-demo
+    name: External R long-running demo
+    category: External
+    kind: external_rscript
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 1800
+    runner_type: rscript
+    runner_ref: dummy_long_job
+    description: Curated background R job that intentionally sleeps before returning a reply, useful to validate queue behavior and the shared Jobs drawer.
+    guidance: Demonstration runner only. It simulates a long-running external analysis by sleeping for 60 seconds before returning.
+    default_prompt: Run the external long-running R demo for the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    tags: [external, rscript, demo, background]

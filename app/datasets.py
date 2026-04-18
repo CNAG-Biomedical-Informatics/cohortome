@@ -17,6 +17,10 @@ from app.user_state import normalize_user_id, user_state_file
 
 DATASET_REGISTRY_PATH = STATE_ROOT_DIR / "datasets" / "registry.json"
 DATASET_VISIBILITIES = {"admin_only", "all_authenticated", "restricted"}
+QUERY_GRANULARITY_CEILINGS = {"summary", "detailed"}
+DEFAULT_QUERY_GRANULARITY_CEILING = "summary"
+AI_PROVIDER_ACCESS_MODES = {"detailed_allowed", "safe_summary", "blocked"}
+DEFAULT_AI_PROVIDER_ACCESS = "detailed_allowed"
 DEFAULT_DATASET_ID = "default"
 _SAFE_DATASET_ID_RE = re.compile(r"[^a-z0-9._-]+")
 _SCOPE_PREFIX = "scope--"
@@ -49,6 +53,37 @@ def normalize_dataset_id(value: str | None) -> str:
     return normalized
 
 
+def normalize_query_granularity_ceiling(value: str | None) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized in QUERY_GRANULARITY_CEILINGS:
+        return normalized
+    return DEFAULT_QUERY_GRANULARITY_CEILING
+
+
+def normalize_ai_provider_access(value: str | None) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "use_thread_mode": "detailed_allowed",
+        "detailed": "detailed_allowed",
+        "full": "detailed_allowed",
+        "full_context": "detailed_allowed",
+        "summary_only": "safe_summary",
+        "restricted": "safe_summary",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized in AI_PROVIDER_ACCESS_MODES:
+        return normalized
+    return DEFAULT_AI_PROVIDER_ACCESS
+
+
+def clamp_ai_provider_access_for_visibility(value: str | None, visibility: str | None) -> str:
+    normalized = normalize_ai_provider_access(value)
+    normalized_visibility = str(visibility or "all_authenticated").strip().lower()
+    if normalized_visibility in {"restricted", "admin_only"} and normalized == "detailed_allowed":
+        return "safe_summary"
+    return normalized
+
+
 def _default_dataset_record() -> Dict[str, Any]:
     return {
         "dataset_id": DEFAULT_DATASET_ID,
@@ -59,6 +94,8 @@ def _default_dataset_record() -> Dict[str, Any]:
         "visibility": "all_authenticated",
         "allowed_users": [],
         "allowed_groups": [],
+        "query_granularity_ceiling": "detailed",
+        "ai_provider_access": DEFAULT_AI_PROVIDER_ACCESS,
         "created_by": "system",
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
@@ -95,6 +132,9 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
             if str(value).strip()
         }
     )
+    query_granularity_ceiling = normalize_query_granularity_ceiling(item.get("query_granularity_ceiling"))
+    if dataset_id == DEFAULT_DATASET_ID and "query_granularity_ceiling" not in item:
+        query_granularity_ceiling = "detailed"
     return {
         "dataset_id": dataset_id,
         "name": str(item.get("name") or dataset_id).strip() or dataset_id,
@@ -104,6 +144,8 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
         "visibility": visibility,
         "allowed_users": allowed_users,
         "allowed_groups": allowed_groups,
+        "query_granularity_ceiling": query_granularity_ceiling,
+        "ai_provider_access": clamp_ai_provider_access_for_visibility(item.get("ai_provider_access"), visibility),
         "created_by": str(item.get("created_by") or "system").strip() or "system",
         "created_at": str(item.get("created_at") or _now_iso()),
         "updated_at": str(item.get("updated_at") or _now_iso()),
@@ -386,6 +428,37 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
     return str(root)
 
 
+def effective_query_granularity_ceiling(dataset_ids: List[str]) -> str:
+    normalized = [normalize_dataset_id(item) for item in (dataset_ids or []) if normalize_dataset_id(item)]
+    if not normalized:
+        return DEFAULT_QUERY_GRANULARITY_CEILING
+    ceiling = "detailed"
+    for dataset_id in normalized:
+        dataset = get_dataset(dataset_id)
+        if dataset is None:
+            continue
+        item_ceiling = normalize_query_granularity_ceiling(dataset.get("query_granularity_ceiling"))
+        if item_ceiling == "summary":
+            return "summary"
+    return ceiling
+
+
+def effective_ai_provider_access(dataset_ids: List[str]) -> str:
+    normalized = [normalize_dataset_id(item) for item in (dataset_ids or []) if normalize_dataset_id(item)]
+    if not normalized:
+        return DEFAULT_AI_PROVIDER_ACCESS
+    order = {"blocked": 2, "safe_summary": 1, "detailed_allowed": 0}
+    effective = DEFAULT_AI_PROVIDER_ACCESS
+    for dataset_id in normalized:
+        dataset = get_dataset(dataset_id)
+        if dataset is None:
+            continue
+        item_mode = normalize_ai_provider_access(dataset.get("ai_provider_access"))
+        if order[item_mode] > order[effective]:
+            effective = item_mode
+    return effective
+
+
 def register_dataset(
     *,
     name: str,
@@ -394,6 +467,8 @@ def register_dataset(
     visibility: str = "all_authenticated",
     allowed_users: List[str] | None = None,
     allowed_groups: List[str] | None = None,
+    query_granularity_ceiling: str = DEFAULT_QUERY_GRANULARITY_CEILING,
+    ai_provider_access: str = DEFAULT_AI_PROVIDER_ACCESS,
     enabled: bool = True,
     created_by: str = "system",
 ) -> Dict[str, Any]:
@@ -434,6 +509,8 @@ def register_dataset(
                 if str(value).strip()
             }
         ),
+        "query_granularity_ceiling": normalize_query_granularity_ceiling(query_granularity_ceiling),
+        "ai_provider_access": clamp_ai_provider_access_for_visibility(ai_provider_access, normalized_visibility),
         "created_by": str(created_by or "system").strip() or "system",
         "created_at": now,
         "updated_at": now,
@@ -452,6 +529,8 @@ def update_dataset(
     visibility: str | None = None,
     allowed_users: List[str] | None = None,
     allowed_groups: List[str] | None = None,
+    query_granularity_ceiling: str | None = None,
+    ai_provider_access: str | None = None,
     enabled: bool | None = None,
 ) -> Dict[str, Any]:
     needle = normalize_dataset_id(dataset_id)
@@ -487,6 +566,14 @@ def update_dataset(
                     if str(value).strip()
                 }
             )
+        if query_granularity_ceiling is not None:
+            updated["query_granularity_ceiling"] = normalize_query_granularity_ceiling(query_granularity_ceiling)
+        if ai_provider_access is not None:
+            updated["ai_provider_access"] = normalize_ai_provider_access(ai_provider_access)
+        updated["ai_provider_access"] = clamp_ai_provider_access_for_visibility(
+            updated.get("ai_provider_access"),
+            updated.get("visibility"),
+        )
         if enabled is not None:
             updated["enabled"] = bool(enabled)
         updated["updated_at"] = _now_iso()

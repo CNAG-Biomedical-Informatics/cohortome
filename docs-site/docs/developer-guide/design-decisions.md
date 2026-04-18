@@ -186,28 +186,101 @@ Consequence:
 - groupless users are still valid
 - they simply need broad visibility or direct allowed-user access
 
-## 11. UI should not fake authority it does not have
+## 11. Local user administration is now real, but provider-ready
 
-The current app lets the frontend edit:
+The current app now lets the frontend edit local users, while still keeping the auth model provider-ready.
 
-- dataset policy
+Current local-user operations include:
 
-But not:
-
-- user identity
-- group membership
+- create user
+- edit display name
+- edit role
+- edit groups
+- enable or disable
+- reset password
+- delete user
 
 Why:
 
-- users and groups still come from environment-backed local auth
-- pretending the UI edits that would be misleading
+- local controlled deployments need real admin ergonomics
+- the app still needs a clean path toward external identity providers later
 
 Consequence:
 
-- `Users` is read-only
-- `Data Administration` edits dataset access, not identities
+- local users persist in state, not only environment variables
+- environment JSON acts as bootstrap seed data
+- future Google/OIDC-style authentication can plug into the same authorization model
 
-## 12. OpenAPI is a product asset, not only an integration artifact
+## 12. Query disclosure is policy-driven, not manually user-switched
+
+`Query` no longer treats `Summary` vs `Detailed` as a normal user toggle.
+
+Why:
+
+- disclosure policy is easier to reason about at dataset/workspace level
+- mixed workspaces need strictest-wins behavior
+- manual disclosure switching caused avoidable privacy and UX edge cases
+
+Consequence:
+
+- dataset policy defines the ceiling
+- the active workspace applies the strictest selected dataset policy
+- Query shows the effective mode as read-only state
+
+## 13. Analysis Catalog is a launch layer, not an execution engine
+
+The Analysis Catalog exists to make built-in and curated analyses discoverable, not to replace the Analysis backend.
+
+Why:
+
+- existing analyses were becoming hidden behind prompts and chips
+- users need stable, named analysis entry points
+- future external runners need a registry layer
+
+Consequence:
+
+- catalog items preconfigure the current Analysis thread
+- built-in analyses and curated external analyses share the same Analysis tab
+- quick prompts still exist for lighter, non-catalog analysis questions
+- the catalog may choose between synchronous and queued execution without changing the Analysis UX model
+
+## 14. External analysis runners are curated, not arbitrary code execution
+
+External integrations should be declared and dispatched through reviewed runner types such as:
+
+- `rscript`
+- CLI tools
+- containers later
+
+Why:
+
+- arbitrary pasted code execution creates security and operational problems too early
+- curated runners are easier to audit, test, and document
+
+Consequence:
+
+- YAML can describe an analysis runner
+- backend code still owns execution
+- the product moves toward an Analysis Catalog, not a live code box
+
+## 15. Background jobs are a shared substrate, not an Analysis-only special case
+
+Longer curated analyses should not hold the request open.
+
+Why:
+
+- external runners can take tens of seconds or more
+- blocking HTTP requests creates poor UX and brittle operational behavior
+- future queued work is likely to matter outside `Analysis` too
+
+Consequence:
+
+- catalog items can declare `execution_backend: job`
+- the backend submits queued work through `RQ + Redis`
+- the app exposes a shared jobs drawer rather than a separate top-level jobs tab
+- completed results can be reopened into Analysis, even when the original session is gone
+
+## 16. OpenAPI is a product asset, not only an integration artifact
 
 The API contract is being formalized through FastAPI response and request models.
 

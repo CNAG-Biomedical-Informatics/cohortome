@@ -93,13 +93,38 @@ export function createPhenoUi(ctx) {
     referenceFiles: [],
   };
 
+  function provenanceIconSvg(kind) {
+    const icons = {
+      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
+      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
+      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
+      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
+      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
+      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
+      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+    };
+    return icons[kind] || icons.summary;
+  }
+
+  function renderProvenanceIcon(kind, cls = "provenance-inline-icon") {
+    return `<span class="${cls}" aria-hidden="true">${provenanceIconSvg(kind)}</span>`;
+  }
+
+  function renderProvenanceBadge(label, title = "", iconKind = "") {
+    return `<span class="query-chip badge provenance-badge"${title ? ` title="${escapeHtml(title)}"` : ""}>${iconKind ? `${renderProvenanceIcon(iconKind, "provenance-badge-icon")}` : ""}<span>${escapeHtml(label)}</span></span>`;
+  }
+
   function updatePhenoMode() {
     const patientMode = phenoModeEl.value === "patient";
     const extractMode = phenoActionEl.value === "extract";
+    const cohortMode = !patientMode && !extractMode;
     phenoPatientFieldEl.classList.toggle("is-hidden", !patientMode || extractMode);
     phenoMaxOutFieldEl.classList.toggle("is-hidden", !patientMode || extractMode);
     phenoAlignChecksEl.classList.toggle("is-hidden", !patientMode || extractMode);
     phenoPlotChecksEl.classList.toggle("is-hidden", patientMode || extractMode);
+    if (cohortMode && phenoRenderMdsEl) {
+      phenoRenderMdsEl.checked = true;
+    }
   }
 
   function renderPhenoPlanReasoning(items, plan = null) {
@@ -197,14 +222,45 @@ export function createPhenoUi(ctx) {
   }
 
   function renderPhenoPlanMeta(source) {
-    if (!source) {
+    const data = source && typeof source === "object" ? (source.data || {}) : {};
+    const rawSource = source && typeof source === "object" ? String(source.source || "") : String(source || "");
+    const planner = data.planner && typeof data.planner === "object" ? data.planner : null;
+    const aiProviderConsulted = (
+      (data.execution === "planning" && planner && planner.provider === "lm_studio")
+      || data.provider === "lm_studio"
+      || rawSource === "lm_studio"
+    );
+    if (!rawSource && !planner) {
       phenoPlanMetaEl.innerHTML = "";
       return;
     }
-    const isLm = String(source) === "lm_studio";
-    const label = isLm ? "LLM answer" : "Deterministic";
-    const className = isLm ? "query-chip query-chip-llm badge" : "query-chip query-chip-deterministic badge";
-    phenoPlanMetaEl.innerHTML = `<span class="${className}">${escapeHtml(label)}</span>`;
+    const chips = [];
+    const formatAiProviderGranularity = (value) => String(value || "").replace(/_/g, " ");
+    if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
+      let title = "";
+      if (data.ai_provider_access === "blocked") {
+        title = "AI providers are blocked for this dataset or workspace.";
+      } else if (data.ai_provider_access === "safe_summary") {
+        title = "AI providers may be used, but they only receive provider-safe structural summary context.";
+      } else {
+        title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context for Pheno-Ranker planning.`;
+      }
+      chips.push(renderProvenanceBadge(`AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
+    }
+    if (planner && planner.provider === "lm_studio") {
+      chips.push(renderProvenanceBadge("LLM-planned", "LM Studio translated the prompt into a Pheno-Ranker execution plan.", "planner"));
+      if (planner.model) {
+        chips.push(renderProvenanceBadge(String(planner.model), "LM Studio model used for Pheno-Ranker planning.", "llm"));
+      }
+    } else {
+      const isLm = rawSource === "lm_studio";
+      const label = isLm ? "LLM-planned" : "Deterministic";
+      const title = isLm
+        ? "LM Studio translated the prompt into a Pheno-Ranker execution plan."
+        : "The app derived the Pheno-Ranker plan using deterministic prompt parsing.";
+      chips.push(renderProvenanceBadge(label, title, isLm ? "planner" : "deterministic"));
+    }
+    phenoPlanMetaEl.innerHTML = chips.join("");
   }
 
   function setPhenoResultWorkspaceVisible(visible) {
@@ -497,7 +553,7 @@ export function createPhenoUi(ctx) {
       }
       const payload = await response.json();
       stopPhenoPlanProgressUpdates();
-      renderPhenoPlanMeta(payload.source || "deterministic");
+      renderPhenoPlanMeta(payload);
       if (!payload.plan || typeof payload.plan !== "object") {
         renderPhenoNoPlanState(payload.reasoning || []);
         return payload;
@@ -764,10 +820,39 @@ export function createPhenoUi(ctx) {
     }
     const targetId = payload.target_id || "unknown";
     const topN = String(payload.top_n || matches.length);
-    const isLlm = payload.source === "lm_studio";
-    const source = isLlm
-      ? '<span class="query-chip query-chip-llm badge">LLM answer</span>'
-      : '<span class="query-chip query-chip-deterministic badge">Deterministic</span>';
+    const data = payload && payload.data ? payload.data : {};
+    const isLlm = data.source === "llm" || payload.source === "lm_studio";
+    const badges = [];
+    const formatAiProviderGranularity = (value) => String(value || "").replace(/_/g, " ");
+    if (isLlm && data.ai_provider_context_granularity && data.ai_provider_access) {
+      let title = "";
+      if (data.ai_provider_access === "blocked") {
+        title = "AI providers are blocked for this dataset or workspace.";
+      } else if (data.ai_provider_access === "safe_summary") {
+        title = "AI providers may be used, but they only receive provider-safe structural summary context.";
+      } else {
+        title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context for this Pheno-Ranker explanation.`;
+      }
+      badges.push(renderProvenanceBadge(`AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
+    }
+    const resultIcon = isLlm
+      ? "llm"
+      : data.source === "policy"
+        ? "blocked"
+        : data.source === "provider_unavailable"
+          ? "unavailable"
+          : "deterministic";
+    badges.push(renderProvenanceBadge(
+      isLlm ? "LLM answer" : "Deterministic",
+      isLlm
+        ? "LM Studio generated the narrative explanation from the provided Pheno-Ranker evidence."
+        : "The app explained these Pheno-Ranker results deterministically from local artifacts.",
+      resultIcon,
+    ));
+    if (data.model) {
+      badges.push(renderProvenanceBadge(String(data.model), "LM Studio model used for this Pheno-Ranker explanation.", "llm"));
+    }
+    const source = badges.join("");
     const llmReply = payload.llm_reply
       ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM answer</h4>${renderQueryReply(payload.llm_reply)}</div>`
       : "";
