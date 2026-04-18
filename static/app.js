@@ -1471,8 +1471,15 @@
         const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
         const feature = String(item && item.feature ? item.feature : "job");
         const runnerType = String(item && item.runner_type ? item.runner_type : "");
+        const jobCode = String(item && item.job_code ? item.job_code : "").trim();
+        const sessionTitle = String(item && item.analysis_session_title ? item.analysis_session_title : "").trim();
+        const datasetId = String(item && item.dataset_id ? item.dataset_id : "").trim();
+        const prompt = String(item && item.prompt ? item.prompt : "").trim();
         const metaBits = [feature.charAt(0).toUpperCase() + feature.slice(1)];
+        if (jobCode) metaBits.push(jobCode);
         if (runnerType) metaBits.push(runnerType.toUpperCase());
+        if (datasetId) metaBits.push(`dataset ${datasetId}`);
+        if (sessionTitle) metaBits.push(sessionTitle);
         const actions = [];
         if (item && item.result_available) {
           actions.push(`<button type="button" class="query-chip action" data-job-open-result="${escapeHtml(item.job_id || "")}">Open result</button>`);
@@ -1495,6 +1502,7 @@
                 <div class="job-card-subtitle">${escapeHtml(metaBits.join(" · "))}</div>
               </div>
             </div>
+            ${prompt ? `<div class="job-card-prompt">${escapeHtml(prompt)}</div>` : ""}
             ${item && item.reply_preview ? `<div class="job-card-preview">${escapeHtml(String(item.reply_preview))}</div>` : ""}
             ${item && item.error ? `<div class="job-card-error">${escapeHtml(String(item.error))}</div>` : ""}
             ${(actions.length || artifactLinks.length) ? `
@@ -2609,9 +2617,10 @@
           handleAnalysisJobSubmission: (payload) => {
             setJobsDrawerOpen(true);
             void loadRecentJobs();
-            if (payload && payload.data && payload.data.job_id) {
+            if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
               analysisStatusEl.className = "query-status";
-              analysisStatusEl.textContent = `Background job ${payload.data.job_id} submitted. Open Jobs to monitor progress.`;
+              const label = String(payload.data.job_code || payload.data.job_id || "").trim();
+              analysisStatusEl.textContent = `Background job ${label} submitted. Open Jobs to monitor progress.`;
             }
           },
           renderGlobalContext,

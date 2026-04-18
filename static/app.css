@@ -1769,6 +1769,12 @@
         color: var(--muted);
         font-size: 0.8rem;
       }
+      .job-card-prompt {
+        color: var(--ink);
+        font-size: 0.84rem;
+        line-height: 1.45;
+        font-weight: 600;
+      }
       .job-card-preview {
         color: var(--muted);
         font-size: 0.86rem;
@@ -1940,6 +1946,11 @@
       .analysis-turn-assistant {
         background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 255, 0.92));
       }
+      .analysis-turn-error {
+        background: linear-gradient(145deg, rgba(254, 242, 242, 0.98), rgba(255, 255, 255, 0.94));
+        border-color: rgba(220, 38, 38, 0.22);
+        box-shadow: 0 18px 46px rgba(153, 27, 27, 0.08);
+      }
       .analysis-turn-pending {
         background: linear-gradient(145deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.94));
         border-style: dashed;
@@ -1950,6 +1961,18 @@
         letter-spacing: 0.12em;
         color: var(--muted);
         margin-bottom: 10px;
+      }
+      .analysis-turn-error .analysis-turn-label {
+        color: #b91c1c;
+      }
+      .analysis-turn-error .analysis-turn-body {
+        color: #7f1d1d;
+      }
+      .analysis-turn-error .analysis-turn-context {
+        color: #991b1b;
+      }
+      .analysis-turn-error .query-section summary {
+        color: #991b1b;
       }
       .analysis-turn-meta {
         display: flex;

@@ -42,6 +42,16 @@ def list_analysis_sessions(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[st
     return sorted(items, key=lambda item: str(item.get("updated_at") or ""), reverse=True)
 
 
+def get_analysis_session(session_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> Dict[str, Any] | None:
+    wanted = str(session_id or "").strip()
+    if not wanted:
+        return None
+    for item in _read_sessions(user_id):
+        if str(item.get("id") or "").strip() == wanted:
+            return dict(item)
+    return None
+
+
 def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USER_ID) -> Dict[str, Any]:
     session_id = str(item.get("id") or "").strip()
     if not session_id:

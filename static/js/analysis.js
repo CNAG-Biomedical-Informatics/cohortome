@@ -772,8 +772,12 @@ export function createAnalysisUi(ctx) {
         contextParts.push(`event: ${formatTimeToEventLabel(context)}`);
       }
       if (notable.length) contextParts.push(...notable);
+      const isErrorTurn = String(turn.payload && turn.payload.intent ? turn.payload.intent : "").trim() === "analysis_error"
+        || String(turn.payload && turn.payload.data && turn.payload.data.source ? turn.payload.data.source : "").trim() === "error";
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
-      return `<article class="analysis-turn analysis-turn-assistant"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
+      const turnLabel = isErrorTurn ? "Analysis Error" : "Analysis";
+      return `<article class="${turnClass}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
     }).join("");
     mountAnalysisPlots();
   }

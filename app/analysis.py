@@ -179,11 +179,13 @@ def _analysis_catalog_dispatch(
             compare_selected_patient_ids=compare_selected_patient_ids,
             compare_mode=bool(compare_selected_patient_ids),
         )
+        job_code = str(payload.get("job_code") or "").strip()
+        job_label = f" {job_code}." if job_code else ""
         return {
             "intent": "analysis_job",
             "reply": (
                 f"Submitted {str(item.get('name') or 'analysis').strip() or 'analysis'} as a background job. "
-                "Open Jobs to monitor progress and view the result when it completes."
+                f"Open Jobs to monitor progress and view the result when it completes.{job_label}"
             ),
             "data": {
                 "source": "job",
@@ -192,12 +194,15 @@ def _analysis_catalog_dispatch(
                     "mode": "queued_job",
                     "feature": "analysis",
                     "job_id": payload["job_id"],
+                    "job_code": job_code,
                     "job_status": payload["status"],
                 },
                 "model": None,
                 "base_url": "",
                 "job_id": payload["job_id"],
+                "job_code": job_code,
                 "job_status": payload["status"],
+                "analysis_session_title": str(payload.get("analysis_session_title") or "").strip(),
                 "catalog_item_id": str(item.get("id") or "").strip(),
                 "catalog_item_name": str(item.get("name") or "").strip(),
                 "runner_type": runner_type,

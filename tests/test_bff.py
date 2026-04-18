@@ -1894,6 +1894,85 @@ def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(
+        analysis_sessions_module,
+        "LEGACY_ANALYSIS_SESSIONS_PATH",
+        tmp_path / "legacy-analysis-sessions.json",
+    )
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+            ]
+        ),
+    )
+    analysis_sessions_module.save_analysis_session(
+        {
+            "id": "session-1",
+            "title": "Scoped analysis",
+            "turns": [],
+            "history": [],
+        },
+        user_id="alice",
+    )
+    monkeypatch.setattr(
+        analysis_module,
+        "get_analysis_catalog_item",
+        lambda item_id: {
+            "id": "external-r-clinical-profile",
+            "name": "External R clinical scope profile",
+            "default_prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "runner_type": "rscript",
+            "runner_ref": "clinical_scope_profile",
+            "execution_backend": "job",
+            "job_timeout_seconds": 1800,
+        },
+    )
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "analysis_worker_available", lambda: True)
+    monkeypatch.setattr(jobs_module, "enqueue_analysis_job", lambda job_id, user_id, timeout_seconds: "rq-job-1")
+
+    client = TestClient(app)
+    login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
+    assert login.status_code == 200
+
+    response = client.post(
+        "/analysis",
+        json={
+            "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "catalog_item_id": "external-r-clinical-profile",
+            "analysis_session_id": "session-1",
+            "dataset_id": "default",
+            "selected_patient_ids": "P1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["intent"] == "analysis_job"
+    assert "Job " in payload["reply"]
+    assert payload["data"]["execution"] == "queued"
+    assert payload["data"]["job_status"] == "queued"
+    assert payload["data"]["analysis_session_title"] == "Scoped analysis"
+    job_id = payload["data"]["job_id"]
+    assert payload["data"]["job_code"] == f"Job {job_id[:8].upper()}"
+    record = jobs_module.load_job_record(job_id, "alice")
+    assert record["submitted_by"] == "alice"
+    assert record["analysis_session_id"] == "session-1"
+    assert record["analysis_session_title"] == "Scoped analysis"
+    assert record["run_number"] == 1
+    assert record["catalog_item_id"] == "external-r-clinical-profile"
+    assert record["status"] == "queued"
+
+
+def test_analysis_job_submission_requires_live_worker(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -1919,7 +1998,7 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
     monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
     monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
     monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
-    monkeypatch.setattr(jobs_module, "enqueue_analysis_job", lambda job_id, user_id, timeout_seconds: "rq-job-1")
+    monkeypatch.setattr(jobs_module, "analysis_worker_available", lambda: False)
 
     client = TestClient(app)
     login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
@@ -1936,17 +2015,9 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
         },
     )
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["intent"] == "analysis_job"
-    assert payload["data"]["execution"] == "queued"
-    assert payload["data"]["job_status"] == "queued"
-    job_id = payload["data"]["job_id"]
-    record = jobs_module.load_job_record(job_id, "alice")
-    assert record["submitted_by"] == "alice"
-    assert record["analysis_session_id"] == "session-1"
-    assert record["catalog_item_id"] == "external-r-clinical-profile"
-    assert record["status"] == "queued"
+    assert response.status_code == 400
+    assert "no analysis worker is running" in response.json()["detail"].lower()
+    assert jobs_module.list_job_records("alice") == []
 
 
 def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monkeypatch):

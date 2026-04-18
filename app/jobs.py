@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.analysis_sessions import get_analysis_session
 from app.user_state import normalize_user_id, user_state_dir
 
 
@@ -74,6 +75,13 @@ def job_dir(job_id: str, user_id: str, *, create: bool = False) -> Path:
 
 def job_record_path(job_id: str, user_id: str, *, create: bool = False) -> Path:
     return job_dir(job_id, user_id, create=create) / JOB_RECORD_FILENAME
+
+
+def job_code(job_id: str) -> str:
+    normalized = str(job_id or "").strip().replace("-", "")
+    if not normalized:
+        return ""
+    return f"Job {normalized[:8].upper()}"
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -192,6 +200,21 @@ def list_jobs_for_analysis_session(session_id: str, user_id: str) -> List[Dict[s
     ]
 
 
+def next_run_number_for_analysis_session(session_id: str, user_id: str) -> int:
+    existing = list_jobs_for_analysis_session(session_id, user_id)
+    numeric_values: List[int] = []
+    for item in existing:
+        try:
+            value = int(item.get("run_number") or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value > 0:
+            numeric_values.append(value)
+    if numeric_values:
+        return max(numeric_values) + 1
+    return len(existing) + 1 if existing else 1
+
+
 def delete_job(job_id: str, user_id: str) -> bool:
     record = load_job_record(job_id, user_id)
     status = str(record.get("status") or "").strip().lower()
@@ -230,8 +253,10 @@ def resolve_job_artifact_path(job_id: str, user_id: str, filename: str) -> Path:
 
 
 def public_job_payload(record: Dict[str, Any], *, include_result: bool = False, user_id: str = "") -> Dict[str, Any]:
+    normalized_job_id = str(record.get("job_id") or "").strip()
     payload = {
-        "job_id": str(record.get("job_id") or "").strip(),
+        "job_id": normalized_job_id,
+        "job_code": job_code(normalized_job_id),
         "job_type": str(record.get("job_type") or "").strip(),
         "feature": str(record.get("feature") or "").strip(),
         "status": str(record.get("status") or "").strip(),
@@ -243,6 +268,8 @@ def public_job_payload(record: Dict[str, Any], *, include_result: bool = False, 
         "prompt": str(record.get("prompt") or "").strip(),
         "dataset_id": str(record.get("dataset_id") or "").strip(),
         "analysis_session_id": str(record.get("analysis_session_id") or "").strip(),
+        "analysis_session_title": str(record.get("analysis_session_title") or "").strip(),
+        "run_number": int(record.get("run_number") or 0) if str(record.get("run_number") or "").strip() else 0,
         "catalog_item_id": str(record.get("catalog_item_id") or "").strip(),
         "catalog_item_name": str(record.get("catalog_item_name") or "").strip(),
         "runner_type": str(record.get("runner_type") or "").strip(),
@@ -281,6 +308,33 @@ def _rq_queue():
     return Queue(jobs_queue_name(), connection=_rq_connection())
 
 
+def analysis_worker_available() -> bool:
+    if not jobs_enabled():
+        return False
+    try:
+        from rq import Worker
+
+        connection = _rq_connection()
+        connection.ping()
+        wanted_queue = jobs_queue_name()
+        for worker in Worker.all(connection=connection):
+            queue_names: List[str] = []
+            queue_names_method = getattr(worker, "queue_names", None)
+            if callable(queue_names_method):
+                try:
+                    queue_names = [str(name or "").strip() for name in queue_names_method()]
+                except Exception:
+                    queue_names = []
+            if not queue_names:
+                queue_objects = getattr(worker, "queues", None) or []
+                queue_names = [str(getattr(queue, "name", "") or "").strip() for queue in queue_objects]
+            if wanted_queue in queue_names:
+                return True
+    except Exception:
+        return False
+    return False
+
+
 def enqueue_analysis_job(job_id: str, user_id: str, timeout_seconds: int) -> str:
     queue = _rq_queue()
     rq_job = queue.enqueue(
@@ -308,7 +362,13 @@ def submit_analysis_job(
 ) -> Dict[str, Any]:
     if not jobs_enabled():
         raise RuntimeError("Background jobs require RQ and Redis to be installed and configured.")
+    if not analysis_worker_available():
+        raise RuntimeError("Background jobs are currently unavailable because no analysis worker is running.")
     timeout_seconds = int(catalog_item.get("job_timeout_seconds") or jobs_default_timeout_seconds())
+    normalized_session_id = str(analysis_session_id or "").strip()
+    session = get_analysis_session(normalized_session_id, user_id=user_id) if normalized_session_id else None
+    session_title = str(session.get("title") or "").strip() if session else ""
+    run_number = next_run_number_for_analysis_session(normalized_session_id, user_id) if normalized_session_id else 0
     record = create_job_record(
         job_type="analysis",
         user_id=user_id,
@@ -318,7 +378,9 @@ def submit_analysis_job(
             "prompt": str(prompt or "").strip(),
             "dataset_id": str(dataset_id or "").strip(),
             "data_dir": str(data_dir or "").strip(),
-            "analysis_session_id": str(analysis_session_id or "").strip(),
+            "analysis_session_id": normalized_session_id,
+            "analysis_session_title": session_title,
+            "run_number": run_number,
             "catalog_item_id": str(catalog_item.get("id") or "").strip(),
             "catalog_item_name": str(catalog_item.get("name") or "").strip(),
             "runner_type": str(catalog_item.get("runner_type") or "").strip(),
