@@ -1,0 +1,245 @@
+      #queryReply {
+        padding: 14px 16px;
+        border-radius: 18px;
+        min-height: 72px;
+        background: linear-gradient(135deg, var(--teal-soft), #f0f9ff);
+        border: 1px solid rgba(37, 99, 235, 0.12);
+        color: var(--ink);
+      }
+      #queryReply p,
+      #queryReply ul {
+        margin: 0 0 10px;
+      }
+      #queryReply p:last-child,
+      #queryReply ul:last-child {
+        margin-bottom: 0;
+      }
+      #queryReply ul {
+        padding-left: 20px;
+      }
+      #queryReply code {
+        padding: 2px 6px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid var(--line);
+        font-size: 0.92em;
+      }
+      #queryReply pre {
+        margin: 0 0 10px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid var(--line);
+        overflow: auto;
+      }
+      #queryReply pre:last-child {
+        margin-bottom: 0;
+      }
+      #queryReply h4 {
+        margin: 0 0 8px;
+        letter-spacing: -0.02em;
+      }
+      #queryReply table,
+      .query-thread-turn .analysis-turn-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 10px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      #queryReply th,
+      #queryReply td,
+      .query-thread-turn .analysis-turn-body th,
+      .query-thread-turn .analysis-turn-body td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      #queryReply th:last-child,
+      #queryReply td:last-child,
+      .query-thread-turn .analysis-turn-body th:last-child,
+      .query-thread-turn .analysis-turn-body td:last-child {
+        border-right: 0;
+      }
+      #queryReply tr:last-child td,
+      .query-thread-turn .analysis-turn-body tr:last-child td {
+        border-bottom: 0;
+      }
+      #queryReply th,
+      .query-thread-turn .analysis-turn-body th {
+        background: rgba(219, 234, 254, 0.55);
+      }
+      .query-starter-panel {
+        display: grid;
+        gap: 12px;
+        padding: 16px 18px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
+        box-shadow: var(--shadow);
+      }
+      .query-starter-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .query-composer-disease-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .query-chip.is-active-chip {
+        border-color: rgba(37, 99, 235, 0.45);
+        background: rgba(37, 99, 235, 0.14);
+        color: #1d4ed8;
+      }
+      .query-composer {
+        display: grid;
+        gap: 12px;
+        padding: 16px 18px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: var(--shadow);
+      }
+      .query-composer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .query-composer-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .query-followups {
+        display: grid;
+        gap: 8px;
+      }
+      .query-followups-label {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .query-followups-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .query-actions-inline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .query-inline-actions {
+        display: inline-flex;
+      }
+      .query-inline-actions summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 600;
+        list-style: none;
+      }
+      .query-inline-actions-less {
+        display: none;
+      }
+      .query-inline-actions[open] .query-inline-actions-more {
+        display: none;
+      }
+      .query-inline-actions[open] .query-inline-actions-less {
+        display: inline;
+      }
+      .query-inline-actions summary::-webkit-details-marker {
+        display: none;
+      }
+      .query-inline-actions[open] {
+        width: 100%;
+      }
+      .query-inline-actions[open] .query-actions {
+        margin-top: 10px;
+      }
+      .query-thread-turn {
+        position: relative;
+      }
+      .query-thread-turn .analysis-turn-body {
+        margin-bottom: 0;
+      }
+      .query-thread-turn-user {
+        background: linear-gradient(145deg, rgba(207, 250, 254, 0.72), rgba(255, 255, 255, 0.9));
+      }
+      .query-thread-turn-assistant {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
+      }
+      .query-thread-turn-error {
+        background: linear-gradient(145deg, rgba(254, 226, 226, 0.82), rgba(255, 255, 255, 0.94));
+      }
+      .query-thread-turn-pending {
+        border-style: dashed;
+      }
+      .query-thread-turn-pending .analysis-turn-label {
+        color: var(--accent);
+      }
+      .query-thread-turn-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      #queryTab.query-tab-empty .controls {
+        gap: 12px;
+      }
+      #queryTab.query-tab-empty .analysis-history-header {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+      #queryTab.query-tab-empty .query-thread-mode {
+        opacity: 0.96;
+      }
+      #queryTab.query-tab-empty #queryThread {
+        min-height: 0;
+      }
+      #queryTab.query-tab-empty #queryThread .empty {
+        padding: 12px 0 4px;
+      }
+      #queryTab.query-tab-empty .query-section {
+        display: none;
+      }
+      #queryClearBtn {
+        margin-left: auto;
+      }
+      #queryPlannerBtn.is-active {
+        box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.18);
+        background: rgba(187, 247, 208, 0.98);
+      }
+      #queryMemoryBtn.is-active {
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
+        background: rgba(204, 251, 241, 0.98);
+        color: var(--handoff-deep);
+      }
+      #queryDiseaseBuilderBtn.is-active {
+        box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
+        background: rgba(219, 234, 254, 0.98);
+      }
+      #queryReason {
+        color: var(--muted);
+      }
+      .section-note {
+        font-size: 0.92rem;
+        color: var(--muted);
+        margin-bottom: 16px;
+      }

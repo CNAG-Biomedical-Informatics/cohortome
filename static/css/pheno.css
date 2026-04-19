@@ -1,0 +1,350 @@
+      .pheno-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pheno-advanced-grid {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .pheno-status {
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .pheno-status.loading {
+        color: var(--accent-deep);
+      }
+      .pheno-status.warning {
+        color: #b91c1c;
+      }
+      .pheno-manual-override-note {
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(180, 83, 9, 0.18);
+        background: rgba(254, 243, 199, 0.78);
+        color: #92400e;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      .pheno-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .pheno-actions button {
+        width: auto;
+        min-width: 180px;
+        padding: 12px 16px;
+        border-radius: 999px;
+      }
+      .pheno-actions-primary {
+        justify-content: flex-start;
+      }
+      .pheno-actions-primary .query-chip {
+        width: auto;
+        min-width: 0;
+      }
+      .pheno-actions-secondary {
+        justify-content: flex-end;
+      }
+      .pheno-actions-secondary button {
+        min-width: 0;
+      }
+      .pheno-result-card-toolbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .pheno-checks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .pheno-checks label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        letter-spacing: 0;
+        text-transform: none;
+        font-size: 0.95rem;
+      }
+      .pheno-checks input[type="checkbox"] {
+        width: auto;
+      }
+      #phenoSelectedPatientIdsSummary {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        border: 1px solid var(--line);
+      }
+      .pheno-result-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+      }
+      .pheno-result-grid-secondary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .pheno-result-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+      .pheno-empty-state {
+        text-align: center;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.62);
+      }
+      .pheno-empty-state strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--ink);
+      }
+      #phenoPlan.is-blocking,
+      #phenoPlanReasoning.is-blocking {
+        border-color: rgba(185, 28, 28, 0.24);
+        background: rgba(254, 242, 242, 0.92);
+      }
+      .planner-warning {
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(185, 28, 28, 0.24);
+        background: rgba(254, 242, 242, 0.96);
+        color: #7f1d1d;
+      }
+      .planner-warning strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .pheno-plan-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .pheno-plan-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.2;
+        border: 1px solid transparent;
+      }
+      .pheno-plan-chip-action {
+        background: rgba(37, 99, 235, 0.12);
+        color: #1d4ed8;
+        border-color: rgba(37, 99, 235, 0.18);
+      }
+      .pheno-plan-chip-patient {
+        background: rgba(220, 252, 231, 0.94);
+        color: #166534;
+        border-color: rgba(22, 101, 52, 0.18);
+      }
+      .pheno-plan-chip-cohort {
+        background: rgba(224, 242, 254, 0.94);
+        color: #075985;
+        border-color: rgba(7, 89, 133, 0.18);
+      }
+      .pheno-plan-chip-target {
+        background: rgba(254, 249, 195, 0.96);
+        color: #854d0e;
+        border-color: rgba(133, 77, 14, 0.18);
+      }
+      .pheno-plan-chip-scope {
+        background: rgba(243, 232, 255, 0.96);
+        color: #6d28d9;
+        border-color: rgba(109, 40, 217, 0.16);
+      }
+      .pheno-plan-chip-invalid {
+        background: rgba(254, 226, 226, 0.96);
+        color: #b91c1c;
+        border-color: rgba(185, 28, 28, 0.18);
+      }
+      .pheno-result-card-full {
+        grid-column: 1 / -1;
+      }
+      .pheno-result-card details summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .pheno-result-card details summary::-webkit-details-marker {
+        display: none;
+      }
+      .pheno-result-card details summary::after {
+        content: "+";
+        color: var(--accent-deep);
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+      .pheno-result-card details[open] summary::after {
+        content: "-";
+      }
+      .pheno-result-card details summary h3 {
+        margin: 0;
+      }
+      .pheno-result-card details pre,
+      .pheno-result-card details .empty,
+      .pheno-result-card details .pheno-file-list {
+        margin-top: 12px;
+      }
+      .pheno-interpretation-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 12px;
+      }
+      .pheno-interpretation-grid h4 {
+        margin: 0 0 8px;
+      }
+      .pheno-file-list {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .pheno-output-table-wrap {
+        overflow: auto;
+      }
+      .pheno-output-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .pheno-output-table th,
+      .pheno-output-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      .pheno-output-table tbody tr.is-clickable {
+        cursor: pointer;
+      }
+      .pheno-output-table tbody tr.is-clickable:hover {
+        background: rgba(37, 99, 235, 0.06);
+      }
+      .pheno-output-table tbody tr.is-selected {
+        background: rgba(37, 99, 235, 0.12);
+      }
+      .pheno-output-table th {
+        position: sticky;
+        top: 0;
+        background: #eef5ff;
+        z-index: 1;
+      }
+      .pheno-sort-btn {
+        width: auto;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        box-shadow: none;
+        font: inherit;
+        font-weight: 700;
+      }
+      .pheno-sort-btn[data-active="true"] {
+        color: var(--accent-deep);
+      }
+      .pheno-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pheno-preview-card {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--line);
+      }
+      .pheno-preview-details {
+        padding: 0;
+      }
+      .pheno-preview-card-full {
+        grid-column: 1 / -1;
+      }
+      .pheno-preview-card strong {
+        display: block;
+        margin-bottom: 10px;
+      }
+      .pheno-preview-summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 18px 20px 12px;
+      }
+      .pheno-preview-summary::-webkit-details-marker {
+        display: none;
+      }
+      .pheno-preview-summary::before {
+        content: "▾";
+        display: inline-block;
+        margin-right: 8px;
+        color: var(--muted);
+      }
+      .pheno-preview-details:not([open]) .pheno-preview-summary::before {
+        content: "▸";
+      }
+      .pheno-preview-summary strong {
+        display: inline;
+        margin-bottom: 0;
+      }
+      .pheno-preview-body {
+        padding: 4px 20px 20px;
+      }
+      .pheno-cohort-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 10px;
+      }
+      .pheno-cohort-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--cohort-color) 28%, white);
+        background: color-mix(in srgb, var(--cohort-color) 10%, white);
+        color: var(--ink);
+        font-size: 0.84rem;
+        font-weight: 700;
+      }
+      .pheno-cohort-chip-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--cohort-color);
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+      }
+      .pheno-mds-plot {
+        width: 100%;
+        min-height: 440px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.92);
+      }
+      .pheno-preview-grid img {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: white;
+      }
+      .analysis-plot-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }

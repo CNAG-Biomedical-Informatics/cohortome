@@ -1,0 +1,315 @@
+      .molecular-hero {
+        padding: 18px 20px;
+        border-radius: 24px;
+        background:
+          radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 42%),
+          linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
+        border: 1px solid rgba(14, 165, 233, 0.16);
+      }
+      .molecular-hero-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(14, 165, 233, 0.14);
+        color: var(--accent-deep);
+        font-size: 0.94rem;
+        font-weight: 600;
+      }
+      .dashboard-panel-frame {
+        gap: 18px;
+      }
+      .dashboard-hero {
+        padding: 18px 20px;
+        border-radius: 24px;
+      }
+      .dashboard-hero-clinical {
+        background:
+          radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 42%),
+          linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 253, 245, 0.92));
+        border: 1px solid rgba(16, 185, 129, 0.16);
+      }
+      .dashboard-hero-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(16, 185, 129, 0.14);
+        color: #166534;
+        font-size: 0.94rem;
+        font-weight: 600;
+      }
+      .dashboard-plot-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .dashboard-plot-grid-compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .dashboard-plot-card {
+        padding: 14px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(248, 251, 255, 0.98);
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .dashboard-plot-card h4 {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--accent-deep);
+      }
+      .dashboard-plot-frame {
+        width: 100%;
+        height: 220px;
+        min-height: 220px;
+        min-width: 0;
+      }
+      .molecular-status-strip {
+        padding: 8px 2px 2px;
+      }
+      .molecular-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .molecular-dataset-select {
+        display: grid;
+        gap: 8px;
+      }
+      .molecular-dataset-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+      }
+      .molecular-dataset-option input[type="checkbox"] {
+        width: auto;
+        margin-top: 2px;
+      }
+      .molecular-dataset-option span {
+        display: grid;
+        gap: 2px;
+      }
+      .molecular-dataset-option small {
+        color: var(--muted);
+      }
+      .molecular-dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .molecular-workspace-summary {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: 18px;
+        padding: 20px 22px;
+        border-radius: 22px;
+        border: 1px solid rgba(14, 165, 233, 0.12);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
+          radial-gradient(circle at top right, rgba(16, 185, 129, 0.08), transparent 36%);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.04);
+      }
+      .molecular-workspace-summary-copy {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        min-width: 0;
+      }
+      .molecular-workspace-summary-title {
+        font-size: 1.08rem;
+        color: var(--ink);
+      }
+      .molecular-workspace-kpis {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .molecular-dashboard-card {
+        padding: 20px;
+        border-radius: 22px;
+        border: 1px solid rgba(14, 165, 233, 0.14);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92)),
+          radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 35%);
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+        display: grid;
+        gap: 16px;
+      }
+      .molecular-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .molecular-card-header > div {
+        min-width: 0;
+        flex: 1 1 240px;
+      }
+      .molecular-card-eyebrow {
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .molecular-card-title {
+        display: block;
+        font-size: 1.08rem;
+        line-height: 1.35;
+        color: var(--accent-deep);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      .molecular-modality-badge {
+        width: auto;
+        max-width: 100%;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.3;
+      }
+      .molecular-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: -4px;
+      }
+      .molecular-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 12px;
+      }
+      .molecular-kpi {
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(239, 246, 255, 0.9);
+        border: 1px solid rgba(14, 165, 233, 0.12);
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .molecular-kpi.molecular-kpi-compact {
+        padding: 12px 14px;
+      }
+      .molecular-kpi-label {
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      .molecular-kpi-value {
+        font-size: 1.2rem;
+        color: var(--accent-deep);
+        min-width: 0;
+      }
+      .molecular-card-section {
+        display: grid;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(248, 250, 252, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.10);
+      }
+      .molecular-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 10px;
+      }
+      .molecular-summary-item {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(248, 250, 252, 0.92);
+        border: 1px solid var(--line);
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      .molecular-summary-item span {
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      .molecular-summary-item strong {
+        color: var(--ink);
+        font-size: 1.02rem;
+      }
+      .molecular-gene-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .molecular-gene-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 11px;
+        border-radius: 999px;
+        background: rgba(220, 252, 231, 0.94);
+        border: 1px solid rgba(22, 163, 74, 0.18);
+        color: #166534;
+        font-size: 0.86rem;
+        font-weight: 600;
+      }
+      .molecular-result {
+        display: grid;
+        gap: 12px;
+      }
+      .molecular-expression-card {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+      }
+      .molecular-result-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+      .molecular-result-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .molecular-scope-card {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+      }
+      .molecular-scope-card h4 {
+        margin-bottom: 10px;
+      }
+      .molecular-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .molecular-table-wrap {
+        overflow-x: auto;
+      }
+      .molecular-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+      }
+      .molecular-table th,
+      .molecular-table td {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+      }

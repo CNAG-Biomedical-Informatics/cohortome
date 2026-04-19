@@ -1,0 +1,38 @@
+      @media (max-width: 900px) {
+        .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .dashboard-shell, .viz-grid, .metrics-grid, .workspace-grid { grid-template-columns: 1fr; }
+        .molecular-grid, .molecular-result-grid, .molecular-dashboard-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
+        .molecular-workspace-summary { grid-template-columns: 1fr; }
+        .molecular-kpi-grid, .molecular-summary-grid, .molecular-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .dashboard-loader-row { grid-template-columns: 1fr; align-items: stretch; }
+        .analysis-shell { grid-template-columns: 1fr; }
+        .analysis-sidebar { position: static; }
+        .analysis-session-list { max-height: none; }
+        #queryClearBtn { margin-left: 0; }
+      }
+      @media (max-width: 640px) {
+        .context-bar { grid-template-columns: 1fr; }
+        .molecular-kpi-grid, .molecular-summary-grid, .molecular-workspace-kpis, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
+        .dashboard-subtabs {
+          display: flex;
+          width: 100%;
+        }
+        .dashboard-subtab {
+          flex: 1 1 0;
+        }
+        .hero {
+          flex-direction: column;
+        }
+        .hero-brand {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .hero-utility {
+          width: 100%;
+          justify-content: space-between;
+        }
+        .auth-gate-form {
+          grid-template-columns: 1fr;
+        }
+      }
+    

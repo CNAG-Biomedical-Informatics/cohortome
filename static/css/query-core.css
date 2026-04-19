@@ -1,0 +1,242 @@
+      .query-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .query-row button {
+        width: auto;
+        min-width: 120px;
+        padding: 12px 16px;
+        border-radius: 999px;
+      }
+      .query-examples, .query-followups, .query-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .query-examples-toggle {
+        margin-top: 10px;
+      }
+      .query-examples.is-collapsed .query-chip.is-extra-example {
+        display: none;
+      }
+      .query-chip.query-chip-toggle {
+        background: rgba(255, 255, 255, 0.72);
+        border-style: dashed;
+        color: var(--muted);
+      }
+      .query-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .workflow-hint {
+        margin: 14px 0 16px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(220, 252, 231, 0.82), rgba(255, 255, 255, 0.9));
+        border: 1px solid rgba(22, 163, 74, 0.18);
+        color: #166534;
+      }
+      .workflow-hint strong {
+        color: #14532d;
+      }
+      .query-actions .query-workflow-primary {
+        background: linear-gradient(135deg, #0f766e, #115e59);
+      }
+      .query-actions .query-workflow-secondary {
+        border-color: rgba(15, 118, 110, 0.22);
+        color: #115e59;
+      }
+      .file-label-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .section-note-inline {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .saved-cohort-list {
+        display: grid;
+        gap: 10px;
+      }
+      .saved-cohort-inline-status {
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        background: rgba(254, 226, 226, 0.72);
+        color: #991b1b;
+        font-size: 0.92rem;
+        line-height: 1.45;
+        font-weight: 600;
+      }
+      .saved-cohort-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+      .saved-cohort-card strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .saved-cohort-card small {
+        color: var(--muted);
+        display: block;
+        line-height: 1.4;
+      }
+      .saved-cohort-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .saved-cohort-actions .query-chip {
+        margin: 0;
+      }
+      .query-chip {
+        width: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--accent-deep);
+        box-shadow: none;
+        font-weight: 600;
+      }
+      .query-chip.query-chip-deterministic {
+        background: rgba(219, 234, 254, 0.92);
+        border-color: rgba(37, 99, 235, 0.24);
+        color: #1d4ed8;
+      }
+      .query-chip.query-chip-planner {
+        background: rgba(220, 252, 231, 0.92);
+        border-color: rgba(22, 163, 74, 0.24);
+        color: #15803d;
+      }
+      .query-chip.query-chip-llm {
+        background: rgba(254, 243, 199, 0.92);
+        border-color: rgba(180, 83, 9, 0.24);
+        color: #92400e;
+      }
+      .analysis-domain-icon,
+      .analysis-domain-icons {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+      .analysis-domain-icons {
+        gap: 3px;
+      }
+      .analysis-domain-icon svg {
+        width: 14px;
+        height: 14px;
+      }
+      .query-chip.badge {
+        cursor: default;
+      }
+      .query-chip.action {
+        color: white;
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        border: none;
+      }
+      #loadBtn,
+      #askBtn,
+      #analysisRunBtn,
+      #phenoRunBtn {
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        color: white;
+        border: none;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+      }
+      #analysisMolecularRunBtn,
+      #phenoPlanBtn,
+      #queryPlannerBtn,
+      #analysisComposerExamplesBtn,
+      #phenoExplainBtn,
+      #phenoExplainLlmBtn,
+      [data-pheno-heatmap-mode],
+      [data-pheno-plot-action="copy"],
+      #phenoCopyIdsBtn,
+      [data-query-action="copy-ids"],
+      [data-saved-cohort-action="copy"] {
+        background: var(--utility-soft);
+        color: var(--utility);
+        border: 1px solid rgba(71, 85, 105, 0.18);
+        box-shadow: none;
+      }
+      #queryClearBtn,
+      [data-saved-cohort-action="delete"] {
+        background: rgba(254, 226, 226, 0.88);
+        color: #b91c1c;
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        box-shadow: none;
+      }
+      #phenoAnalysisBtn,
+      [data-pheno-plot-action="analysis"],
+      [data-query-action="use-analysis"],
+      [data-query-action="use-pheno"],
+      [data-saved-cohort-action="load-analysis"],
+      [data-saved-cohort-action="load-analysis-b"],
+      [data-saved-cohort-action="load-pheno"],
+      .query-actions .query-workflow-primary,
+      .query-chip.action.query-workflow-primary {
+        background: linear-gradient(135deg, var(--handoff), var(--handoff-deep));
+        color: white;
+        border: none;
+        box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
+      }
+      #queryPlannerBtn,
+      #phenoPlanBtn {
+        background: var(--warning-soft);
+        color: var(--warning);
+        border: 1px solid rgba(180, 83, 9, 0.16);
+      }
+      #analysisComposerExamplesBtn {
+        background: rgba(237, 233, 254, 0.82);
+        color: #6d28d9;
+        border: 1px solid rgba(109, 40, 217, 0.16);
+      }
+      #phenoExplainBtn {
+        background: rgba(219, 234, 254, 0.92);
+        color: #1d4ed8;
+        border: 1px solid rgba(37, 99, 235, 0.24);
+      }
+      #phenoExplainLlmBtn {
+        background: rgba(254, 243, 199, 0.92);
+        color: #92400e;
+        border: 1px solid rgba(180, 83, 9, 0.24);
+      }
+      button:disabled,
+      .query-chip:disabled {
+        opacity: 0.58;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      .query-section {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+      }
+      .query-section h3 {
+        margin-bottom: 10px;
+      }
+      .query-status {
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .query-status.loading {
+        color: var(--accent-deep);
+      }
