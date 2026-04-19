@@ -8,9 +8,11 @@ export function createDashboardUi(ctx) {
     molecularDashboardStatusEl,
     molecularDashboardCardsEl,
     analysisMolecularDatasetListEl,
+    analysisCatalogMolecularDatasetListEl,
     analysisMolecularGeneEl,
     analysisMolecularGenesEl,
     analysisMolecularStatusEl,
+    analysisCatalogMolecularStatusEl,
     analysisMolecularResultEl,
     analysisSelectedPatientIdsEl,
     analysisSelectedPatientIdsSummaryEl,
@@ -415,6 +417,11 @@ export function createDashboardUi(ctx) {
       : null;
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort);
+    const selectedCohortUsesSampleIds = Boolean(
+      selectedCohort
+      && Array.isArray(selectedCohort.sample_ids)
+      && selectedCohort.sample_ids.length
+    );
     const ids = selectedCohort && Array.isArray(selectedCohort.sample_ids) && selectedCohort.sample_ids.length
       ? selectedCohort.sample_ids.map((item) => String(item).trim()).filter(Boolean)
       : selectedCohort && Array.isArray(selectedCohort.patient_ids)
@@ -425,13 +432,13 @@ export function createDashboardUi(ctx) {
         .filter(Boolean);
     const countLabel = selectedCohort
       ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
-      : `${ids.length} IDs`;
+      : `${ids.length} ${ids.length === 1 ? "ID" : "IDs"}`;
     analysisSelectedPatientIdsSummaryEl.textContent = compareMode
       ? (selectedCohort
-        ? `Cohort A: using saved cohort "${selectedCohort.name}" (${countLabel}).`
+        ? `Cohort A: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
         : "Cohort A: select a saved cohort from Saved Cohorts to compare.")
       : (selectedCohort
-        ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}).`
+        ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
         : ids.length
           ? `Scope: ${ids.length} IDs in scope.`
           : "Scope: full workspace.");
@@ -444,6 +451,7 @@ export function createDashboardUi(ctx) {
         analysisSelectedSavedCohortSelectionEl.innerHTML = "";
       }
     }
+    renderMolecularDatasetSelector();
     renderMolecularDashboardCards(state.molecularDatasetsState);
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
@@ -457,6 +465,11 @@ export function createDashboardUi(ctx) {
     if (analysisCompareSelectedPatientIdsEl) {
       analysisCompareSelectedPatientIdsEl.disabled = true;
     }
+    const selectedCohortUsesSampleIds = Boolean(
+      selectedCohort
+      && Array.isArray(selectedCohort.sample_ids)
+      && selectedCohort.sample_ids.length
+    );
     const ids = selectedCohort && Array.isArray(selectedCohort.sample_ids) && selectedCohort.sample_ids.length
       ? selectedCohort.sample_ids.map((item) => String(item).trim()).filter(Boolean)
       : selectedCohort && Array.isArray(selectedCohort.patient_ids)
@@ -469,7 +482,7 @@ export function createDashboardUi(ctx) {
       ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
       : `${ids.length} IDs`;
     analysisCompareSelectedPatientIdsSummaryEl.textContent = selectedCohort
-      ? `Cohort B: using saved cohort "${selectedCohort.name}" (${countLabel}).`
+      ? `Cohort B: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
       : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
     if (analysisCompareSavedCohortSelectionEl) {
       if (selectedCohort) {
@@ -480,6 +493,7 @@ export function createDashboardUi(ctx) {
         analysisCompareSavedCohortSelectionEl.innerHTML = "";
       }
     }
+    renderMolecularDatasetSelector();
     renderMolecularDashboardCards(state.molecularDatasetsState);
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
@@ -553,30 +567,94 @@ export function createDashboardUi(ctx) {
     return state.selectedMolecularDatasets.slice();
   }
 
+  function molecularDatasetListElements() {
+    return [analysisMolecularDatasetListEl, analysisCatalogMolecularDatasetListEl].filter(Boolean);
+  }
+
+  function currentAnalysisCatalogItem() {
+    return Array.isArray(state.analysisCatalogItems)
+      ? state.analysisCatalogItems.find((item) => String(item && item.id ? item.id : "") === String(state.analysisSelectedCatalogItemId || ""))
+      : null;
+  }
+
+  function contextualMolecularDatasets() {
+    const item = currentAnalysisCatalogItem();
+    if (!item || !item.requires_molecular) {
+      return [];
+    }
+    const compareRequired = Boolean(item.default_compare_mode);
+    const compatible = state.molecularDatasetsState.filter((dataset) => {
+      const overlap = currentMolecularScopeOverlap(dataset.patient_ids);
+      if (compareRequired) {
+        return overlap.overlapA > 0 && overlap.overlapB > 0;
+      }
+      return overlap.overlapA > 0 || overlap.overlapB > 0;
+    });
+    const compatibleNames = new Set(compatible.map((dataset) => dataset.dataset_name));
+    const filteredSelected = state.selectedMolecularDatasets.filter((name) => compatibleNames.has(name));
+    if (filteredSelected.length !== state.selectedMolecularDatasets.length) {
+      state.selectedMolecularDatasets = filteredSelected;
+    }
+    if (
+      String(item.id || "") === "molecular-differential-expression"
+      && compatible.length === 1
+      && (
+        state.selectedMolecularDatasets.length !== 1
+        || state.selectedMolecularDatasets[0] !== compatible[0].dataset_name
+      )
+    ) {
+      state.selectedMolecularDatasets = [compatible[0].dataset_name];
+    }
+    return compatible;
+  }
+
   function renderMolecularDatasetSelector() {
-    if (!analysisMolecularDatasetListEl) return;
+    const item = currentAnalysisCatalogItem();
+    const contextRequiresMolecular = Boolean(item && item.requires_molecular);
+    const mainListEl = analysisMolecularDatasetListEl;
+    const contextualListEl = analysisCatalogMolecularDatasetListEl;
+    if (!mainListEl && !contextualListEl) return;
     if (!state.molecularDatasetsState.length) {
-      analysisMolecularDatasetListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
+      if (mainListEl) mainListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
+      if (contextualListEl) contextualListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
       return;
     }
     const selected = new Set(state.selectedMolecularDatasets);
-    analysisMolecularDatasetListEl.innerHTML = state.molecularDatasetsState.map((item) => `
+    const renderOption = (dataset, options = {}) => {
+      const overlap = currentMolecularScopeOverlap(dataset.patient_ids);
+      const small = options.includeOverlap
+        ? `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
+        : `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes`;
+      return `
       <label class="molecular-dataset-option">
-        <input type="checkbox" value="${escapeHtml(item.dataset_name)}"${selected.has(item.dataset_name) ? " checked" : ""}>
+        <input type="checkbox" value="${escapeHtml(dataset.dataset_name)}"${selected.has(dataset.dataset_name) ? " checked" : ""}>
         <span>
-          <strong>${escapeHtml(item.dataset_name)}</strong>
-          <small>${escapeHtml(String(item.sample_count || 0))} samples, ${escapeHtml(String(item.gene_count || 0))} genes</small>
+          <strong>${escapeHtml(dataset.dataset_name)}</strong>
+          <small>${small}</small>
         </span>
       </label>
-    `).join("");
+    `;
+    };
+    if (mainListEl) {
+      mainListEl.innerHTML = state.molecularDatasetsState.map((dataset) => renderOption(dataset)).join("");
+    }
+    if (contextualListEl) {
+      if (!contextRequiresMolecular) {
+        contextualListEl.innerHTML = '<div class="empty">Choose a molecular analysis to select a compatible dataset.</div>';
+        return;
+      }
+      const compatible = contextualMolecularDatasets();
+      if (!compatible.length) {
+        contextualListEl.innerHTML = '<div class="empty">No molecular datasets overlap the current Analysis cohorts.</div>';
+        return;
+      }
+      contextualListEl.innerHTML = compatible.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("");
+    }
   }
 
   function syncSelectedMolecularDatasets() {
     const available = new Set(state.molecularDatasetsState.map((item) => item.dataset_name));
     state.selectedMolecularDatasets = state.selectedMolecularDatasets.filter((item) => available.has(item));
-    if (!state.selectedMolecularDatasets.length && state.molecularDatasetsState.length) {
-      state.selectedMolecularDatasets = state.molecularDatasetsState.map((item) => item.dataset_name);
-    }
     renderMolecularDatasetSelector();
   }
 
@@ -723,6 +801,9 @@ export function createDashboardUi(ctx) {
     const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
     analysisMolecularStatusEl.className = "query-status loading";
     analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
+    if (analysisCatalogMolecularStatusEl) {
+      analysisCatalogMolecularStatusEl.textContent = "Checking molecular datasets...";
+    }
     molecularDashboardStatusEl.className = "query-status loading";
     molecularDashboardStatusEl.textContent = "Checking molecular datasets...";
     try {
@@ -736,6 +817,9 @@ export function createDashboardUi(ctx) {
       if (!datasets.length) {
         analysisMolecularStatusEl.className = "query-status";
         analysisMolecularStatusEl.textContent = "No molecular datasets are currently available for quick expression checks.";
+        if (analysisCatalogMolecularStatusEl) {
+          analysisCatalogMolecularStatusEl.textContent = "No molecular datasets are currently available in this workspace.";
+        }
         molecularDashboardStatusEl.className = "query-status";
         molecularDashboardStatusEl.textContent = "No molecular datasets are currently available.";
         renderMolecularExpressionResult(null);
@@ -743,12 +827,20 @@ export function createDashboardUi(ctx) {
       }
       analysisMolecularStatusEl.className = "query-status";
       analysisMolecularStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"} for quick expression checks.`;
+      if (analysisCatalogMolecularStatusEl) {
+        analysisCatalogMolecularStatusEl.textContent = datasets.length === 1
+          ? `1 molecular dataset available for Analysis.`
+          : `${datasets.length} molecular datasets available. Differential expression requires exactly one selected dataset.`;
+      }
       molecularDashboardStatusEl.className = "query-status";
       molecularDashboardStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"}.`;
       await loadMolecularGeneSuggestions();
     } catch (error) {
       analysisMolecularStatusEl.className = "query-status";
       analysisMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
+      if (analysisCatalogMolecularStatusEl) {
+        analysisCatalogMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
+      }
       molecularDashboardStatusEl.className = "query-status";
       molecularDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
       state.molecularDatasetsState = [];
@@ -809,11 +901,15 @@ export function createDashboardUi(ctx) {
   }
 
   function handleMolecularDatasetSelectionChange() {
-    if (!analysisMolecularDatasetListEl) return;
-    const selected = Array.from(analysisMolecularDatasetListEl.querySelectorAll('input[type="checkbox"]:checked'))
+    const sourceEl = analysisCatalogMolecularDatasetListEl && analysisCatalogMolecularDatasetListEl.querySelector('input[type="checkbox"]')
+      ? analysisCatalogMolecularDatasetListEl
+      : analysisMolecularDatasetListEl;
+    if (!sourceEl) return;
+    const selected = Array.from(sourceEl.querySelectorAll('input[type="checkbox"]:checked'))
       .map((item) => item.value)
       .filter(Boolean);
     state.selectedMolecularDatasets = selected;
+    renderMolecularDatasetSelector();
     void loadMolecularGeneSuggestions();
   }
 
@@ -827,6 +923,7 @@ export function createDashboardUi(ctx) {
     renderDashboard,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
+    renderMolecularDatasetSelector,
     renderMolecularExpressionResult,
     renderMolecularDashboardCards,
     loadMolecularDatasets,

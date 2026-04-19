@@ -821,13 +821,14 @@ def test_analysis_catalog_item_prefills_prompt_and_compare_mode(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
 
+    expect(page.locator("#analysisCatalogList")).to_contain_text("Clinical cohort summary")
     page.locator("#analysisCatalogBrowseBtn").click()
     expect(page.locator("#analysisCatalogDrawer")).to_be_visible()
-    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Kaplan-Meier comparison")
-    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='survival-compare']").click()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Clinical cohort summary")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='clinical-summary']").click()
 
-    expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Compare Cohort A and Cohort B with Kaplan-Meier"))
-    expect(page.locator("#analysisCompareMode")).to_be_checked()
+    expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Summarize the main clinical patterns in this workspace"))
+    expect(page.locator("#analysisCompareMode")).not_to_be_checked()
 
 
 def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
@@ -1115,6 +1116,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     page_auth.locator("#authPassword").fill("secret")
     page_auth.locator("#authLoginBtn").click()
 
+    expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
     expect(page_auth.locator("#authGate")).to_be_hidden()
     expect(page_auth.locator("#appShell")).to_be_visible()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")

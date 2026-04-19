@@ -1,3640 +1,1068 @@
-      import { escapeHtml, fallbackCopyText, renderActivityCard } from "/static/js/shared.js";
-      import { createDashboardUi } from "/static/js/dashboard.js";
-      import { createAnalysisSessionsUi } from "/static/js/analysis_sessions.js";
-      import { createSavedCohortsUi } from "/static/js/saved_cohorts.js";
-      import { createPhenoUi } from "/static/js/pheno.js";
-      import { createQueryUi } from "/static/js/query.js";
-      import { createAnalysisUi } from "/static/js/analysis.js";
+import { escapeHtml, fallbackCopyText, renderActivityCard } from "/static/js/shared.js";
+import { createAppRefs } from "/static/js/app_refs.js";
+import { createAppState } from "/static/js/app_state.js";
+import { nowIso, shortTimestamp, currentStorageNamespace, createAnalysisSession, formatNumber } from "/static/js/app_helpers.js";
+import { createNavigationUi } from "/static/js/app_navigation.js";
+import { createWorkspaceUi } from "/static/js/workspace_ui.js";
+import { createAuthUi } from "/static/js/auth_ui.js";
+import { createUsersAdminUi } from "/static/js/users_admin_ui.js";
+import { createDatasetsUi } from "/static/js/datasets_ui.js";
+import { createAnalysisCatalogUi } from "/static/js/analysis_catalog_ui.js";
+import { createJobsUi } from "/static/js/jobs_ui.js";
+import { createDashboardUi } from "/static/js/dashboard.js";
+import { createAnalysisSessionsUi } from "/static/js/analysis_sessions.js";
+import { createSavedCohortsUi } from "/static/js/saved_cohorts.js";
+import { createPhenoUi } from "/static/js/pheno.js";
+import { createQueryUi } from "/static/js/query.js";
+import { createAnalysisUi } from "/static/js/analysis.js";
 
-      const appShellEl = document.getElementById("appShell");
-      const authGateEl = document.getElementById("authGate");
-      const authBrandHeroEl = document.getElementById("authBrandHero");
-      const authGateStatusEl = document.getElementById("authGateStatus");
-      const heroAuthUtilityEl = document.getElementById("heroAuthUtility");
-      const heroAuthIdentityEl = document.getElementById("heroAuthIdentity");
-      const heroLogoutBtnEl = document.getElementById("heroLogoutBtn");
-      const dashboardTabBtnEl = document.getElementById("dashboardTabBtn");
-      const datasetsTabBtnEl = document.getElementById("datasetsTabBtn");
-      const dataTabBtnEl = document.getElementById("dataTabBtn");
-      const usersTabBtnEl = document.getElementById("usersTabBtn");
-      const queryTabBtnEl = document.getElementById("queryTabBtn");
-      const analysisTabBtnEl = document.getElementById("analysisTabBtn");
-      const phenoTabBtnEl = document.getElementById("phenoTabBtn");
-      const dashboardClinicalBtnEl = document.getElementById("dashboardClinicalBtn");
-      const dashboardMolecularBtnEl = document.getElementById("dashboardMolecularBtn");
-      const tabHelperTextEl = document.getElementById("tabHelperText");
-      const dashboardTabEl = document.getElementById("dashboardTab");
-      const datasetsTabEl = document.getElementById("datasetsTab");
-      const dataTabEl = document.getElementById("dataTab");
-      const usersTabEl = document.getElementById("usersTab");
-      const queryTabEl = document.getElementById("queryTab");
-      const analysisTabEl = document.getElementById("analysisTab");
-      const phenoTabEl = document.getElementById("phenoTab");
-      const dashboardClinicalPanelEl = document.getElementById("dashboardClinicalPanel");
-      const dashboardMolecularPanelEl = document.getElementById("dashboardMolecularPanel");
-      const contextDataDirEl = document.getElementById("contextDataDir");
-      const contextCohortEl = document.getElementById("contextCohort");
-      const contextLmModelEl = document.getElementById("contextLmModel");
-      const contextScopeEl = document.getElementById("contextScope");
-      const contextAuthEl = document.getElementById("contextAuth");
-      const patientsEl = document.getElementById("patients");
-      const dashboardEl = document.getElementById("dashboard");
-      const detailEl = document.getElementById("detail");
-      const dataDirEl = document.getElementById("dataDir");
-      const datasetPickerEl = document.getElementById("datasetPicker");
-      const loadStatusEl = document.getElementById("loadStatus");
-      const datasetScopeSummaryEl = document.getElementById("datasetScopeSummary");
-      const queryReplyEl = document.getElementById("queryReply");
-      const queryStatusEl = document.getElementById("queryStatus");
-      const queryMetaEl = document.getElementById("queryMeta");
-      const lmStatusEl = document.getElementById("lmStatus");
-      const queryReasonEl = document.getElementById("queryReason");
-      const queryActionsEl = document.getElementById("queryActions");
-      const queryFollowupsEl = document.getElementById("queryFollowups");
-      const queryExamplesEl = document.getElementById("queryExamples");
-      const queryStarterPanelEl = document.getElementById("queryStarterPanel");
-      const queryDiseaseBuilderBtnEl = document.getElementById("queryDiseaseBuilderBtn");
-      const queryDiseasePanelEl = document.getElementById("queryDiseasePanel");
-      const queryDiseaseTopChipsEl = document.getElementById("queryDiseaseTopChips");
-      const queryDiseaseStatusEl = document.getElementById("queryDiseaseStatus");
-      const queryDataEl = document.getElementById("queryData");
-      const queryDetailsEl = document.getElementById("queryDetails");
-      const queryThreadEl = document.getElementById("queryThread");
-      const queryPlannerBtnEl = document.getElementById("queryPlannerBtn");
-      const queryMemoryBtnEl = document.getElementById("queryMemoryBtn");
-      const queryGranularityModeValueEl = document.getElementById("queryGranularityModeValue");
-      const queryPolicyInfoBtnEl = document.getElementById("queryPolicyInfoBtn");
-      const queryClearBtnEl = document.getElementById("queryClearBtn");
-      const questionEl = document.getElementById("question");
-      const askBtnEl = document.getElementById("askBtn");
-      const analysisPromptEl = document.getElementById("analysisPrompt");
-      const analysisRunBtnEl = document.getElementById("analysisRunBtn");
-      const analysisExamplesEl = document.getElementById("analysisExamples");
-      const analysisStarterPanelEl = document.getElementById("analysisStarterPanel");
-      const analysisComposerExamplesBtnEl = document.getElementById("analysisComposerExamplesBtn");
-      const analysisCatalogStatusEl = document.getElementById("analysisCatalogStatus");
-      const analysisCatalogListEl = document.getElementById("analysisCatalogList");
-      const analysisCatalogBrowseBtnEl = document.getElementById("analysisCatalogBrowseBtn");
-      const analysisCatalogDrawerEl = document.getElementById("analysisCatalogDrawer");
-      const analysisCatalogDrawerCloseBtnEl = document.getElementById("analysisCatalogDrawerCloseBtn");
-      const analysisCatalogDrawerListEl = document.getElementById("analysisCatalogDrawerList");
-      const jobsDrawerBtnEl = document.getElementById("jobsDrawerBtn");
-      const jobsDrawerCountEl = document.getElementById("jobsDrawerCount");
-      const jobsDrawerEl = document.getElementById("jobsDrawer");
-      const jobsDrawerCloseBtnEl = document.getElementById("jobsDrawerCloseBtn");
-      const jobsDrawerStatusEl = document.getElementById("jobsDrawerStatus");
-      const jobsDrawerListEl = document.getElementById("jobsDrawerList");
-      const molecularDashboardStatusEl = document.getElementById("molecularDashboardStatus");
-      const molecularDashboardCardsEl = document.getElementById("molecularDashboardCards");
-      const analysisMolecularDatasetListEl = document.getElementById("analysisMolecularDatasetList");
-      const analysisMolecularGeneEl = document.getElementById("analysisMolecularGene");
-      const analysisMolecularGenesEl = document.getElementById("analysisMolecularGenes");
-      const analysisMolecularRunBtnEl = document.getElementById("analysisMolecularRunBtn");
-      const analysisMolecularStatusEl = document.getElementById("analysisMolecularStatus");
-      const analysisMolecularResultEl = document.getElementById("analysisMolecularResult");
-      const analysisSelectedPatientIdsEl = document.getElementById("analysisSelectedPatientIds");
-      const analysisSelectedPatientIdsSummaryEl = document.getElementById("analysisSelectedPatientIdsSummary");
-      const analysisSelectedSavedCohortSelectionEl = document.getElementById("analysisSelectedSavedCohortSelection");
-      const analysisCompareModeEl = document.getElementById("analysisCompareMode");
-      const analysisCompareFieldEl = document.getElementById("analysisCompareField");
-      const analysisCompareSelectedPatientIdsEl = document.getElementById("analysisCompareSelectedPatientIds");
-      const analysisCompareSelectedPatientIdsSummaryEl = document.getElementById("analysisCompareSelectedPatientIdsSummary");
-      const analysisCompareSavedCohortSelectionEl = document.getElementById("analysisCompareSavedCohortSelection");
-      const savedCohortsEl = document.getElementById("savedCohorts");
-      const phenoSavedCohortsEl = document.getElementById("phenoSavedCohorts");
-      const analysisStatusEl = document.getElementById("analysisStatus");
-      const analysisMetaEl = document.getElementById("analysisMeta");
-      const analysisLmStatusEl = document.getElementById("analysisLmStatus");
-      const analysisDatasetScopeEl = document.getElementById("analysisDatasetScope");
-      const analysisThreadEl = document.getElementById("analysisThread");
-      const analysisSessionListEl = document.getElementById("analysisSessionList");
-      const analysisSessionDeleteDialogEl = document.getElementById("analysisSessionDeleteDialog");
-      const analysisSessionDeleteCloseBtnEl = document.getElementById("analysisSessionDeleteCloseBtn");
-      const analysisSessionDeleteSummaryEl = document.getElementById("analysisSessionDeleteSummary");
-      const analysisSessionDeleteStatusEl = document.getElementById("analysisSessionDeleteStatus");
-      const analysisSessionDeleteOnlyBtnEl = document.getElementById("analysisSessionDeleteOnlyBtn");
-      const analysisSessionDeleteAllBtnEl = document.getElementById("analysisSessionDeleteAllBtn");
-      const analysisNewSessionBtnEl = document.getElementById("analysisNewSessionBtn");
-      const loadBtnEl = document.getElementById("loadBtn");
-      const loadBtnIconEl = document.getElementById("loadBtnIcon");
-      const loadBtnLabelEl = document.getElementById("loadBtnLabel");
-      const datasetAdminControlsEl = document.getElementById("datasetAdminControls");
-      const datasetAdminListEl = document.getElementById("datasetAdminList");
-      const usersCreateCardEl = document.getElementById("usersCreateCard");
-      const usersStatusEl = document.getElementById("usersStatus");
-      const usersListEl = document.getElementById("usersList");
-      const userCreateUsernameEl = document.getElementById("userCreateUsername");
-      const userCreateDisplayNameEl = document.getElementById("userCreateDisplayName");
-      const userCreatePasswordEl = document.getElementById("userCreatePassword");
-      const userCreateRoleEl = document.getElementById("userCreateRole");
-      const userCreateGroupsEl = document.getElementById("userCreateGroups");
-      const userCreateEnabledEl = document.getElementById("userCreateEnabled");
-      const userCreateBtnEl = document.getElementById("userCreateBtn");
-      const authUsernameEl = document.getElementById("authUsername");
-      const authPasswordEl = document.getElementById("authPassword");
-      const authLoginBtnEl = document.getElementById("authLoginBtn");
-      const patientSearchEl = document.getElementById("patientSearch");
-      const phenoActionEl = document.getElementById("phenoAction");
-      const phenoModeEl = document.getElementById("phenoMode");
-      const phenoPromptEl = document.getElementById("phenoPrompt");
-      const phenoExamplesEl = document.getElementById("phenoExamples");
-      const phenoPlanBtnEl = document.getElementById("phenoPlanBtn");
-      const phenoPlanRunBtnEl = document.getElementById("phenoPlanRunBtn");
-      const phenoPlanStatusEl = document.getElementById("phenoPlanStatus");
-      const phenoPlanMetaEl = document.getElementById("phenoPlanMeta");
-      const phenoManualOverrideNoteEl = document.getElementById("phenoManualOverrideNote");
-      const phenoLmStatusEl = document.getElementById("phenoLmStatus");
-      const phenoPlanDetailsEl = document.getElementById("phenoPlanDetails");
-      const phenoPlanEl = document.getElementById("phenoPlan");
-      const phenoPlanReasoningEl = document.getElementById("phenoPlanReasoning");
-      const phenoReferenceFilesSummaryEl = document.getElementById("phenoReferenceFilesSummary");
-      const phenoSavedCohortsSelectionEl = document.getElementById("phenoSavedCohortsSelection");
-      const phenoPatientFieldEl = document.getElementById("phenoPatientField");
-      const phenoPatientIdEl = document.getElementById("phenoPatientId");
-      const phenoSelectedPatientIdsEl = document.getElementById("phenoSelectedPatientIds");
-      const phenoSelectedPatientIdsSummaryEl = document.getElementById("phenoSelectedPatientIdsSummary");
-      const phenoIncludeTermsEl = document.getElementById("phenoIncludeTerms");
-      const phenoExcludeTermsEl = document.getElementById("phenoExcludeTerms");
-      const phenoSimilarityMetricEl = document.getElementById("phenoSimilarityMetric");
-      const phenoSortByEl = document.getElementById("phenoSortBy");
-      const phenoMaxOutFieldEl = document.getElementById("phenoMaxOutField");
-      const phenoMaxOutEl = document.getElementById("phenoMaxOut");
-      const phenoAlignChecksEl = document.getElementById("phenoAlignChecks");
-      const phenoAlignEl = document.getElementById("phenoAlign");
-      const phenoRenderHeatmapEl = document.getElementById("phenoRenderHeatmap");
-      const phenoRenderMdsEl = document.getElementById("phenoRenderMds");
-      const phenoPlotChecksEl = document.getElementById("phenoPlotChecks");
-      const phenoRunBtnEl = document.getElementById("phenoRunBtn");
-      const phenoExplainBtnEl = document.getElementById("phenoExplainBtn");
-      const phenoExplainLlmBtnEl = document.getElementById("phenoExplainLlmBtn");
-      const phenoAnalysisBtnEl = document.getElementById("phenoAnalysisBtn");
-      const phenoCopyIdsBtnEl = document.getElementById("phenoCopyIdsBtn");
-      const phenoStatusEl = document.getElementById("phenoStatus");
-      const phenoExplainCardEl = document.getElementById("phenoExplainCard");
-      const phenoAlignmentCardEl = document.getElementById("phenoAlignmentCard");
-      const phenoExplainDetailEl = document.getElementById("phenoExplainDetail");
-      const phenoCommandEl = document.getElementById("phenoCommand");
-      const phenoFilesEl = document.getElementById("phenoFiles");
-      const phenoResultEmptyStateEl = document.getElementById("phenoResultEmptyState");
-      const phenoResultWorkspaceEl = document.getElementById("phenoResultWorkspace");
-      const phenoOutputDetailsEl = document.getElementById("phenoOutputDetails");
-      const phenoOutputPreviewEl = document.getElementById("phenoOutputPreview");
-      const phenoAlignmentDetailEl = document.getElementById("phenoAlignmentDetail");
-      const phenoLogsEl = document.getElementById("phenoLogs");
-      const phenoPreviewsEl = document.getElementById("phenoPreviews");
-      const MAX_VISIBLE_PATIENTS = 80;
-      const PHENO_BUCKET_STYLES = {
-        diseases: { bg: "#dbeafe", ink: "#1d4ed8" },
-        phenotypicFeatures: { bg: "#dcfce7", ink: "#166534" },
-        treatments: { bg: "#fef3c7", ink: "#92400e" },
-        procedures: { bg: "#fee2e2", ink: "#b91c1c" },
-        exposures: { bg: "#ede9fe", ink: "#6d28d9" },
-        measures: { bg: "#cffafe", ink: "#0f766e" },
-        sex: { bg: "#fce7f3", ink: "#be185d" },
-        ethnicity: { bg: "#e0f2fe", ink: "#0369a1" },
-        identifier: { bg: "#f3f4f6", ink: "#111827" },
-        other: { bg: "#e5e7eb", ink: "#374151" },
-      };
-      const PHENO_COHORT_COLORS = [
-        "#2563eb",
-        "#ea580c",
-        "#16a34a",
-        "#7c3aed",
-        "#dc2626",
-        "#0891b2",
-        "#ca8a04",
-        "#4f46e5",
+const refs = createAppRefs(document);
+const state = createAppState();
+
+const MAX_VISIBLE_PATIENTS = 80;
+const MAX_VISIBLE_EXAMPLES = 8;
+const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
+const DASHBOARD_SUBTAB_STORAGE_KEY = "patient-navigator.dashboard-subtab";
+const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
+const TAB_HELPER_TEXT = {
+  dashboard: "Browse the loaded clinical and molecular data",
+  datasets: "Choose the authorized datasets that define your active workspace scope",
+  data: "Admin-only dataset visibility and access policy management",
+  users: "Admin-only read-only user visibility",
+  query: "Build and refine cohorts (LLM-assisted, deterministic results)",
+  analysis: "Interpret and compare cohorts (LLM-assisted insights)",
+  pheno: "Compare patients or cohorts and inspect similarity results",
+};
+
+const PHENO_BUCKET_STYLES = {
+  diseases: { bg: "#dbeafe", ink: "#1d4ed8" },
+  phenotypicFeatures: { bg: "#dcfce7", ink: "#166534" },
+  treatments: { bg: "#fef3c7", ink: "#92400e" },
+  procedures: { bg: "#fee2e2", ink: "#b91c1c" },
+  exposures: { bg: "#ede9fe", ink: "#6d28d9" },
+  measures: { bg: "#cffafe", ink: "#0f766e" },
+  sex: { bg: "#fce7f3", ink: "#be185d" },
+  ethnicity: { bg: "#e0f2fe", ink: "#0369a1" },
+  identifier: { bg: "#f3f4f6", ink: "#111827" },
+  other: { bg: "#e5e7eb", ink: "#374151" },
+};
+
+const PHENO_COHORT_COLORS = [
+  "#2563eb",
+  "#ea580c",
+  "#16a34a",
+  "#7c3aed",
+  "#dc2626",
+  "#0891b2",
+  "#ca8a04",
+  "#4f46e5",
+];
+
+let navigationUi;
+let workspaceUi;
+let authUi;
+let usersAdminUi;
+let datasetsUi;
+let analysisCatalogUi;
+let jobsUi;
+let dashboardUi;
+let analysisSessionsUi;
+let savedCohortsUi;
+let phenoUi;
+let queryUi;
+let analysisUi;
+
+function isMultiDatasetWorkspace() {
+  return state.currentDatasetIds.length > 1;
+}
+
+function currentAnalysisSession() {
+  return state.analysisSessions.find((session) => session.id === state.currentAnalysisSessionId) || null;
+}
+
+function makeAnalysisSession(overrides = {}) {
+  return createAnalysisSession(overrides, refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : "");
+}
+
+function setLatestQueryState(patch) {
+  if (Object.prototype.hasOwnProperty.call(patch, "ids")) {
+    state.latestQueryPatientIds = Array.isArray(patch.ids) ? patch.ids : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "recordIds")) {
+    state.latestQueryRecordIds = Array.isArray(patch.recordIds) ? patch.recordIds : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "prompt")) {
+    state.latestQueryPrompt = patch.prompt || "";
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "analysisPrompt")) {
+    state.latestQueryAnalysisPrompt = patch.analysisPrompt || "";
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "idType")) {
+    state.latestQueryIdType = patch.idType || "patient";
+  }
+}
+
+function setLatestScopedContext(patch) {
+  state.latestScopedContext = {
+    patientIds: Array.isArray(patch && patch.patientIds) ? patch.patientIds : state.latestScopedContext.patientIds,
+    recordIds: Array.isArray(patch && patch.recordIds) ? patch.recordIds : state.latestScopedContext.recordIds,
+    idType: patch && patch.idType ? patch.idType : state.latestScopedContext.idType,
+    sourceTab: patch && patch.sourceTab ? patch.sourceTab : state.latestScopedContext.sourceTab,
+    prompt: patch && typeof patch.prompt === "string" ? patch.prompt : state.latestScopedContext.prompt,
+  };
+}
+
+function renderQueryReply(payloadOrValue) {
+  return queryUi.renderQueryReply(payloadOrValue);
+}
+
+function sendPatientIdsToPhenoRanker() {
+  const scopeIds = state.latestQueryRecordIds.length ? state.latestQueryRecordIds : state.latestQueryPatientIds;
+  if (!scopeIds.length) {
+    return;
+  }
+  refs.phenoActionEl.value = "compare";
+  refs.phenoModeEl.value = "cohort";
+  refs.phenoSelectedPatientIdsEl.value = scopeIds.join(",");
+  phenoUi.renderSelectedPatientIdsSummary();
+  phenoUi.updatePhenoMode();
+  navigationUi.setActiveTab("pheno");
+  refs.phenoStatusEl.className = "pheno-status";
+  refs.phenoStatusEl.textContent = state.latestQueryRecordIds.length
+    ? `Loaded ${state.latestQueryRecordIds.length} sample IDs from the query result into the current Pheno-Ranker scope.`
+    : `Loaded ${state.latestQueryPatientIds.length} patient IDs from the query result into the current Pheno-Ranker scope.`;
+}
+
+function sendPatientIdsToAnalysis() {
+  const scopeIds = state.latestQueryRecordIds.length ? state.latestQueryRecordIds : state.latestQueryPatientIds;
+  if (!scopeIds.length) {
+    return;
+  }
+  state.analysisSelectedSavedCohortId = "";
+  refs.analysisSelectedPatientIdsEl.value = scopeIds.join(",");
+  if (state.latestQueryAnalysisPrompt && !refs.analysisPromptEl.value.trim()) {
+    refs.analysisPromptEl.value = state.latestQueryAnalysisPrompt;
+  }
+  dashboardUi.renderAnalysisScopeSummary();
+  navigationUi.setActiveTab("analysis");
+  analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+  refs.analysisStatusEl.className = "query-status";
+  refs.analysisStatusEl.textContent = state.latestQueryRecordIds.length
+    ? `Loaded ${state.latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`
+    : `Loaded ${state.latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`;
+}
+
+function sendPromptToAnalysis(prompt, options) {
+  const settings = options || {};
+  const normalizedPrompt = String(prompt || "").trim();
+  if (!normalizedPrompt) {
+    return;
+  }
+  refs.analysisPromptEl.value = normalizedPrompt;
+  state.analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
+  state.analysisSelectedCatalogItemId = "";
+  analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+  navigationUi.setActiveTab("analysis");
+  dashboardUi.renderAnalysisScopeSummary();
+  analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+  refs.analysisStatusEl.className = "query-status";
+  refs.analysisStatusEl.textContent = state.latestQueryPatientIds.length
+    ? `Analysis prompt prepared for the ${state.latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
+    : "Analysis prompt prepared. Select a scope or use the full workspace.";
+  refs.analysisPromptEl.focus();
+}
+
+function stopQueryProgressUpdates() {
+  if (state.queryProgressTimer !== null) {
+    window.clearInterval(state.queryProgressTimer);
+    state.queryProgressTimer = null;
+  }
+}
+
+function queryPendingStages() {
+  return [
+    { label: "Parsing request", detail: "Interpreting the cohort question and selecting the right query path." },
+    { label: "Checking cohort facts", detail: "Reviewing counts, patient IDs, and dataset-backed matches." },
+    { label: "Preparing answer", detail: "Formatting the reply, actions, and follow-up suggestions." },
+  ];
+}
+
+function startQueryProgressUpdates() {
+  stopQueryProgressUpdates();
+  const stages = queryPendingStages();
+  let index = 0;
+  const applyStage = () => {
+    const lastTurn = state.queryTurns[state.queryTurns.length - 1];
+    if (!lastTurn || !lastTurn.pending) {
+      stopQueryProgressUpdates();
+      return;
+    }
+    const stage = stages[Math.min(index, stages.length - 1)];
+    lastTurn.pendingLabel = stage.label;
+    lastTurn.pendingDetail = stage.detail;
+    queryUi.renderQueryThread();
+    if (index < stages.length - 1) {
+      index += 1;
+    }
+  };
+  applyStage();
+  state.queryProgressTimer = window.setInterval(applyStage, 1400);
+}
+
+function stopAnalysisProgressUpdates() {
+  if (state.analysisProgressTimer !== null) {
+    window.clearInterval(state.analysisProgressTimer);
+    state.analysisProgressTimer = null;
+  }
+}
+
+function analysisPendingStages(compareMode, showPlots) {
+  if (showPlots) {
+    return [
+      { label: "Parsing request", detail: "Interpreting the analysis prompt and identifying the deterministic analysis path." },
+      { label: compareMode ? "Comparing cohorts" : "Computing analysis", detail: compareMode ? "Preparing both cohort contexts and computing the requested comparison plots." : "Computing the requested analysis and preparing the related plots." },
+      { label: "Preparing answer", detail: "Formatting the explanation, metadata, and visual outputs for the thread." },
+    ];
+  }
+  return [
+    { label: "Parsing request", detail: "Interpreting the analysis prompt and assembling the relevant cohort context." },
+    { label: compareMode ? "Comparing cohorts" : "Checking cohort context", detail: compareMode ? "Reviewing the selected comparison cohorts and their main differences." : "Reviewing the selected cohort and its main clinical context." },
+    { label: "Preparing answer", detail: "Formatting the analysis reply and supporting context." },
+  ];
+}
+
+function startAnalysisProgressUpdates(compareMode, showPlots) {
+  stopAnalysisProgressUpdates();
+  const stages = analysisPendingStages(compareMode, showPlots);
+  let index = 0;
+  const applyStage = () => {
+    const lastTurn = state.analysisTurns[state.analysisTurns.length - 1];
+    if (!lastTurn || !lastTurn.pending) {
+      stopAnalysisProgressUpdates();
+      return;
+    }
+    const stage = stages[Math.min(index, stages.length - 1)];
+    lastTurn.pendingLabel = stage.label;
+    lastTurn.pendingDetail = stage.detail;
+    analysisUi.renderAnalysisThread();
+    if (index < stages.length - 1) {
+      index += 1;
+    }
+  };
+  applyStage();
+  state.analysisProgressTimer = window.setInterval(applyStage, 1500);
+}
+
+function stopPhenoPlanProgressUpdates() {
+  if (state.phenoPlanProgressTimer !== null) {
+    window.clearInterval(state.phenoPlanProgressTimer);
+    state.phenoPlanProgressTimer = null;
+  }
+}
+
+function startPhenoPlanProgressUpdates() {
+  stopPhenoPlanProgressUpdates();
+  const stages = [
+    { label: "Interpreting request", detail: "Reading the natural-language request and extracting a runnable Pheno-Ranker plan." },
+    { label: "Checking scope", detail: "Aligning the request with the current dataset and selected patient scope." },
+    { label: "Preparing plan", detail: "Formatting the interpreted command, options, and reasoning for review." },
+  ];
+  let index = 0;
+  const applyStage = () => {
+    const stage = stages[Math.min(index, stages.length - 1)];
+    refs.phenoPlanStatusEl.className = "pheno-status loading";
+    refs.phenoPlanStatusEl.textContent = stage.label;
+    refs.phenoPlanEl.innerHTML = renderActivityCard(stage.label, stage.detail);
+    refs.phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
+    if (index < stages.length - 1) {
+      index += 1;
+    }
+  };
+  applyStage();
+  state.phenoPlanProgressTimer = window.setInterval(applyStage, 1600);
+}
+
+function stopPhenoRunProgressUpdates() {
+  if (state.phenoRunProgressTimer !== null) {
+    window.clearInterval(state.phenoRunProgressTimer);
+    state.phenoRunProgressTimer = null;
+  }
+}
+
+function startPhenoRunProgressUpdates() {
+  stopPhenoRunProgressUpdates();
+  const patientMode = refs.phenoModeEl.value === "patient";
+  const stages = patientMode
+    ? [
+        { label: "Preparing run", detail: "Building the patient-comparison command and validating the selected scope." },
+        { label: "Running similarity job", detail: "Executing the comparison and waiting for rank and alignment outputs." },
+        { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
+      ]
+    : [
+        { label: "Preparing run", detail: "Building the cohort or extraction command and validating the selected scope." },
+        { label: "Running Pheno-Ranker", detail: "Executing the job and waiting for result files and plots." },
+        { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
       ];
-      let selectedPatientId = null;
-      let currentPatients = [];
-      let molecularDatasetsState = [];
-      let selectedMolecularDatasets = [];
-      let queryInFlight = false;
-      let queryHistory = [];
-      let queryTurns = [];
-      let queryExecutionMode = "auto";
-      let queryGranularityMode = "summary";
-      let queryFollowMemoryEnabled = false;
-      let queryProgressTimer = null;
-      let analysisInFlight = false;
-      let loadInFlight = false;
-      let phenoPlanProgressTimer = null;
-      let phenoRunProgressTimer = null;
-      let latestQueryPatientIds = [];
-      let latestQueryRecordIds = [];
-      let latestQueryIdType = "patient";
-      let latestQueryPrompt = "";
-      let latestQueryAnalysisPrompt = "";
-      let latestScopedContext = {
-        patientIds: [],
-        recordIds: [],
-        idType: "patient",
-        sourceTab: "",
-        prompt: "",
-      };
-      let analysisHistory = [];
-      let analysisTurns = [];
-      let analysisProgressTimer = null;
-      let analysisExamplesPinnedOpen = false;
-      let analysisExecutionMode = "auto";
-      let analysisSelectedCatalogItemId = "";
-      let analysisCatalogItems = [];
-      let analysisCatalogWorkspace = null;
-      let recentJobs = [];
-      let jobsPollTimer = null;
-      let analysisSessions = [];
-      let currentAnalysisSessionId = "";
-      let analysisSelectedSavedCohortId = "";
-      let analysisCompareSavedCohortId = "";
-      let phenoRankerPatientIds = [];
-      let phenoReferenceFiles = [];
-      let phenoSelectedSavedCohortIds = [];
-      let dashboardSummaryState = null;
-      let savedCohorts = [];
-      let availableDatasets = [];
-      let availableAuthUsers = [];
-      let currentDatasetIds = [];
-      let pendingDatasetIds = [];
-      let currentDatasetScopeId = "";
-      let datasetAdminFeedback = {};
-      let datasetAdminFeedbackTimers = {};
-      let authState = {
-        enabled: false,
-        authenticated: true,
-        user: { username: "local", role: "admin", display_name: "Local user" },
-      };
-      const MAX_VISIBLE_EXAMPLES = 8;
-      const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
-      const DASHBOARD_SUBTAB_STORAGE_KEY = "patient-navigator.dashboard-subtab";
-      const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
-      const TAB_HELPER_TEXT = {
-        dashboard: "Browse the loaded clinical and molecular data",
-        datasets: "Choose the authorized datasets that define your active workspace scope",
-        data: "Admin-only dataset visibility and access policy management",
-        users: "Admin-only read-only user visibility",
-        query: "Build and refine cohorts (LLM-assisted, deterministic results)",
-        analysis: "Interpret and compare cohorts (LLM-assisted insights)",
-        pheno: "Compare patients or cohorts and inspect similarity results",
-      };
-
-      let currentDashboardSubtab = "clinical";
-
-      function renderTabHelperText(tabName) {
-        if (!tabHelperTextEl) {
-          return;
-        }
-        if (tabName === "dashboard") {
-          tabHelperTextEl.textContent = currentDashboardSubtab === "molecular"
-            ? "Inspect loaded molecular datasets and quick transcriptomics summaries"
-            : "Browse patients and orient yourself in the loaded clinical dataset";
-          return;
-        }
-        tabHelperTextEl.textContent = TAB_HELPER_TEXT[tabName] || "";
-      }
-
-      function nowIso() {
-        return new Date().toISOString();
-      }
-
-      function shortTimestamp(value) {
-        if (!value) {
-          return "Just now";
-        }
-        const parsed = new Date(value);
-        if (Number.isNaN(parsed.getTime())) {
-          return "Just now";
-        }
-        return parsed.toLocaleString([], {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
-
-      function analysisSessionId() {
-        return `analysis-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      }
-
-      function currentStorageNamespace() {
-        if (authState.enabled) {
-          if (authState.authenticated && authState.user && authState.user.username) {
-            return `user.${authState.user.username}`;
-          }
-          return "user.signed-out";
-        }
-        return "user.local";
-      }
-
-      function createAnalysisSession(overrides) {
-        const session = overrides || {};
-        return {
-          id: session.id || analysisSessionId(),
-          title: typeof session.title === "string" ? session.title : "",
-          dataDir: typeof session.dataDir === "string" ? session.dataDir : (dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : ""),
-          catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
-          promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
-          scope: typeof session.scope === "string" ? session.scope : "",
-          compareMode: Boolean(session.compareMode),
-          compareScope: typeof session.compareScope === "string" ? session.compareScope : "",
-          savedCohortIdA: typeof session.savedCohortIdA === "string" ? session.savedCohortIdA : "",
-          savedCohortIdB: typeof session.savedCohortIdB === "string" ? session.savedCohortIdB : "",
-          history: Array.isArray(session.history) ? session.history : [],
-          turns: Array.isArray(session.turns) ? session.turns : [],
-          updatedAt: typeof session.updatedAt === "string" ? session.updatedAt : nowIso(),
-        };
-      }
-
-      function currentAnalysisSession() {
-        return analysisSessions.find((session) => session.id === currentAnalysisSessionId) || null;
-      }
-
-      function analysisSessionTitle(session) {
-        const customTitle = String(session.title || "").trim();
-        if (customTitle) {
-          return customTitle;
-        }
-        const firstUserTurn = (session.turns || []).find((turn) => turn.role === "user" && turn.prompt);
-        const raw = (firstUserTurn && firstUserTurn.prompt)
-          || (session.compareMode ? "Compare cohorts" : "")
-          || (String(session.scope || "").trim() ? "Scoped analysis" : "")
-          || session.promptDraft
-          || "New analysis";
-        const trimmed = String(raw).trim();
-        if (!trimmed) {
-          return "New analysis";
-        }
-        return trimmed.length > 56 ? `${trimmed.slice(0, 56)}...` : trimmed;
-      }
-
-      function analysisSessionScopeSummary(session) {
-        const scopeCount = String(session.scope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
-        const compareCount = String(session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
-        if (session.compareMode) {
-          const aLabel = scopeCount ? `${scopeCount} in A` : "full workspace in A";
-          const bLabel = compareCount ? `${compareCount} in B` : "full workspace in B";
-          return `${aLabel} vs ${bLabel}`;
-        }
-        return scopeCount ? `${scopeCount} IDs in scope` : "Full workspace";
-      }
-
-      const analysisSessionsUi = createAnalysisSessionsUi({
-        refs: {
-          analysisSessionListEl,
-          analysisPromptEl,
-          analysisSelectedPatientIdsEl,
-          analysisCompareModeEl,
-          analysisCompareSelectedPatientIdsEl,
-          analysisSelectedSavedCohortSelectionEl,
-          analysisCompareSavedCohortSelectionEl,
-          analysisStatusEl,
-          analysisMetaEl,
-          analysisSessionDeleteDialogEl,
-          analysisSessionDeleteCloseBtnEl,
-          analysisSessionDeleteSummaryEl,
-          analysisSessionDeleteStatusEl,
-          analysisSessionDeleteOnlyBtnEl,
-          analysisSessionDeleteAllBtnEl,
-          dataDirEl,
-        },
-        helpers: {
-          escapeHtml,
-          shortTimestamp,
-          nowIso,
-        },
-        callbacks: {
-          createAnalysisSession,
-          currentAnalysisSession,
-          getStorageNamespace: currentStorageNamespace,
-          renderAnalysisCompareMode,
-          renderAnalysisScopeSummary,
-          renderAnalysisCompareScopeSummary,
-          renderAnalysisStarterPrompts,
-          renderAnalysisThread,
-          renderAnalysisMeta,
-        },
-        state: {
-          get analysisSessions() { return analysisSessions; },
-          set analysisSessions(value) { analysisSessions = value; },
-          get currentAnalysisSessionId() { return currentAnalysisSessionId; },
-          set currentAnalysisSessionId(value) { currentAnalysisSessionId = value; },
-          get analysisHistory() { return analysisHistory; },
-          set analysisHistory(value) { analysisHistory = value; },
-          get analysisTurns() { return analysisTurns; },
-          set analysisTurns(value) { analysisTurns = value; },
-          get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
-          set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
-          get analysisSelectedCatalogItemId() { return analysisSelectedCatalogItemId; },
-          set analysisSelectedCatalogItemId(value) { analysisSelectedCatalogItemId = value; },
-          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
-          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
-          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
-          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
-        },
-        constants: {
-          ANALYSIS_SESSIONS_STORAGE_KEY,
-        },
-      });
-
-      function persistAnalysisSessions() {
-        analysisSessionsUi.persistAnalysisSessions();
-      }
-
-      async function loadAnalysisSessionsFromBackend() {
-        return analysisSessionsUi.loadAnalysisSessionsFromBackend();
-      }
-
-      function renderAnalysisSessionList() {
-        analysisSessionsUi.renderAnalysisSessionList();
-      }
-
-      function syncCurrentAnalysisSessionFromUi(options) {
-        analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options);
-      }
-
-      function applyAnalysisSession(session) {
-        analysisSessionsUi.applyAnalysisSession(session);
-      }
-
-      function selectAnalysisSession(sessionId) {
-        analysisSessionsUi.selectAnalysisSession(sessionId);
-      }
-
-      function createAndSelectAnalysisSession(overrides) {
-        analysisSessionsUi.createAndSelectAnalysisSession(overrides);
-      }
-
-      function ensureAnalysisSessionsLoaded() {
-        analysisSessionsUi.ensureAnalysisSessionsLoaded();
-      }
-
-      function renameAnalysisSession(sessionId) {
-        analysisSessionsUi.renameAnalysisSession(sessionId);
-      }
-
-      function deleteAnalysisSessionById(sessionId) {
-        analysisSessionsUi.deleteAnalysisSessionById(sessionId);
-      }
-
-      function prepareAnalysisSessionForDataDir(nextDataDir) {
-        analysisSessionsUi.prepareAnalysisSessionForDataDir(nextDataDir);
-      }
-
-      function phenoTabAvailable(datasetIds = currentDatasetIds) {
-        return effectiveQueryGranularityCeiling(datasetIds) === "detailed";
-      }
-
-      function renderPhenoTabAvailability() {
-        if (!phenoTabBtnEl) {
-          return;
-        }
-        const available = phenoTabAvailable();
-        phenoTabBtnEl.classList.toggle("is-disabled", !available);
-        phenoTabBtnEl.setAttribute("aria-disabled", available ? "false" : "true");
-        phenoTabBtnEl.title = available
-          ? "Open Pheno-Ranker."
-          : "Pheno-Ranker requires Detailed workspace access.";
-      }
-
-      function setActiveTab(tabName) {
-        if (tabName === "pheno" && !phenoTabAvailable()) {
-          renderPhenoTabAvailability();
-          if (loadStatusEl) {
-            loadStatusEl.className = "load-status";
-            loadStatusEl.textContent = "Pheno-Ranker requires Detailed workspace access.";
-          }
-          return;
-        }
-        const showDashboard = tabName === "dashboard";
-        const showDatasets = tabName === "datasets";
-        const showData = tabName === "data";
-        const showUsers = tabName === "users";
-        const showQuery = tabName === "query";
-        const showAnalysis = tabName === "analysis";
-        const showPheno = tabName === "pheno";
-        dashboardTabBtnEl.classList.toggle("active", showDashboard);
-        datasetsTabBtnEl && datasetsTabBtnEl.classList.toggle("active", showDatasets);
-        dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
-        usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
-        queryTabBtnEl.classList.toggle("active", showQuery);
-        analysisTabBtnEl.classList.toggle("active", showAnalysis);
-        phenoTabBtnEl.classList.toggle("active", showPheno);
-        dashboardTabEl.classList.toggle("active", showDashboard);
-        datasetsTabEl && datasetsTabEl.classList.toggle("active", showDatasets);
-        dataTabEl && dataTabEl.classList.toggle("active", showData);
-        usersTabEl && usersTabEl.classList.toggle("active", showUsers);
-        queryTabEl.classList.toggle("active", showQuery);
-        analysisTabEl.classList.toggle("active", showAnalysis);
-        phenoTabEl.classList.toggle("active", showPheno);
-        try {
-          window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
-        } catch (_error) {
-        }
-        renderTabHelperText(tabName);
-        renderGlobalContext();
-      }
-
-      function setDashboardSubtab(subtabName) {
-        currentDashboardSubtab = subtabName === "molecular" ? "molecular" : "clinical";
-        dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", currentDashboardSubtab === "clinical");
-        dashboardMolecularBtnEl && dashboardMolecularBtnEl.classList.toggle("active", currentDashboardSubtab === "molecular");
-        dashboardClinicalPanelEl && dashboardClinicalPanelEl.classList.toggle("active", currentDashboardSubtab === "clinical");
-        dashboardMolecularPanelEl && dashboardMolecularPanelEl.classList.toggle("active", currentDashboardSubtab === "molecular");
-        try {
-          window.localStorage.setItem(DASHBOARD_SUBTAB_STORAGE_KEY, currentDashboardSubtab);
-        } catch (_error) {
-        }
-        if (currentTabName() === "dashboard") {
-          renderTabHelperText("dashboard");
-          renderGlobalContext();
-        }
-      }
-
-      function renderLoadButtonState() {
-        if (!loadBtnEl) {
-          return;
-        }
-        const activeIds = currentDatasetIds.slice();
-        const pendingIds = pendingDatasetSelectionIds();
-        const hasPendingChange = activeIds.length !== pendingIds.length
-          || activeIds.some((item, index) => item !== pendingIds[index]);
-        loadBtnEl.classList.toggle("is-loading", Boolean(loadInFlight));
-        loadBtnEl.classList.toggle("has-pending-change", Boolean(hasPendingChange && !loadInFlight));
-        if (loadBtnLabelEl) {
-          loadBtnLabelEl.textContent = loadInFlight
-            ? "Applying..."
-            : hasPendingChange
-              ? "Apply workspace"
-              : "Reload workspace";
-        }
-        if (loadBtnIconEl) {
-          loadBtnIconEl.innerHTML = loadInFlight
-            ? '<span class="button-spinner" aria-hidden="true"></span>'
-            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                 <path d="M12 3v12"></path>
-                 <path d="m7 10 5 5 5-5"></path>
-                 <path d="M5 21h14"></path>
-               </svg>`;
-        }
-      }
-
-      function formatNumber(value) {
-        return new Intl.NumberFormat().format(value);
-      }
-
-      function selectedDatasetIdsFromUi() {
-        if (!dataDirEl) {
-          return [];
-        }
-        return Array.from(dataDirEl.selectedOptions || [])
-          .map((option) => String(option.value || "").trim())
-          .filter(Boolean);
-      }
-
-      function currentDatasetId() {
-        return currentDatasetIds.length === 1 ? currentDatasetIds[0] : "";
-      }
-
-      function currentDatasetSelectionKey() {
-        const selected = currentDatasetIds.length ? currentDatasetIds.slice() : [];
-        if (!selected.length) {
-          return "";
-        }
-        if (selected.length === 1) {
-          return selected[0];
-        }
-        return `scope--${selected.slice().sort().join("--")}`;
-      }
-
-      function currentDatasetRecord() {
-        if (currentDatasetIds.length !== 1) {
-          return null;
-        }
-        return availableDatasets.find((item) => String(item.dataset_id || "") === currentDatasetIds[0]) || null;
-      }
-
-      function normalizeDatasetQueryGranularityCeiling(value) {
-        return String(value || "").trim().toLowerCase() === "detailed" ? "detailed" : "summary";
-      }
-
-      function effectiveQueryGranularityCeiling(datasetIds = currentDatasetIds) {
-        const selected = new Set((Array.isArray(datasetIds) ? datasetIds : [])
-          .map((item) => String(item || "").trim())
-          .filter(Boolean));
-        if (!selected.size) {
-          return "summary";
-        }
-        const records = availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
-        if (!records.length) {
-          return "summary";
-        }
-        return records.every((item) => normalizeDatasetQueryGranularityCeiling(item.query_granularity_ceiling) === "detailed")
-          ? "detailed"
-          : "summary";
-      }
-
-      function normalizeAiProviderAccess(value) {
-        const normalized = String(value || "").trim().toLowerCase();
-        if (["summary_only", "restricted", "safe_summary"].includes(normalized)) {
-          return "safe_summary";
-        }
-        if (["use_thread_mode", "detailed_allowed", "detailed"].includes(normalized)) {
-          return "detailed_allowed";
-        }
-        return ["detailed_allowed", "safe_summary", "blocked"].includes(normalized) ? normalized : "detailed_allowed";
-      }
-
-      function effectiveAiProviderAccess(datasetIds = currentDatasetIds) {
-        const selected = new Set((Array.isArray(datasetIds) ? datasetIds : [])
-          .map((item) => String(item || "").trim())
-          .filter(Boolean));
-        if (!selected.size) {
-          return "detailed_allowed";
-        }
-        const records = availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
-        if (!records.length) {
-          return "detailed_allowed";
-        }
-        if (records.some((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked")) {
-          return "blocked";
-        }
-        if (records.some((item) => normalizeAiProviderAccess(item.ai_provider_access) === "safe_summary")) {
-          return "safe_summary";
-        }
-        return "detailed_allowed";
-      }
-
-      function queryWorkspacePolicyExplanation() {
-        const records = selectedDatasetRecords();
-        if (!records.length) {
-          return null;
-        }
-        const effectiveProviderAccess = effectiveAiProviderAccess();
-        const effectiveDisclosure = effectiveQueryGranularityCeiling();
-        const blockedCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked").length;
-        const safeSummaryCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "safe_summary").length;
-        if (effectiveProviderAccess === "blocked") {
-          return blockedCount > 0
-            ? `AI provider policy: Blocked. ${blockedCount} selected dataset${blockedCount === 1 ? "" : "s"} require this stricter policy.`
-            : "AI provider policy: Blocked.";
-        }
-        if (effectiveProviderAccess === "safe_summary") {
-          return safeSummaryCount > 0
-            ? `AI provider policy: Safe summary. ${safeSummaryCount} selected dataset${safeSummaryCount === 1 ? "" : "s"} require provider-safe summary access.`
-            : "AI provider policy: Safe summary.";
-        }
-        if (records.length > 1 && effectiveDisclosure !== "detailed") {
-          const summaryCount = records.filter((item) => normalizeDatasetQueryGranularityCeiling(item.query_granularity_ceiling) === "summary").length;
-          return `Query detail policy: Summary only. ${summaryCount} selected dataset${summaryCount === 1 ? "" : "s"} require the stricter in-app disclosure mode.`;
-        }
-        if (records.length > 1) {
-          return "Mixed workspace: the strictest selected dataset policy is applied automatically.";
-        }
-        return null;
-      }
-
-      function syncQueryGranularityWithWorkspacePolicy(options = {}) {
-        const { announce = false } = options;
-        const nextMode = effectiveQueryGranularityCeiling();
-        const changed = queryGranularityMode !== nextMode;
-        queryGranularityMode = nextMode;
-        if (queryGranularityMode !== "detailed") {
-          queryFollowMemoryEnabled = false;
-        }
-        if (changed && (queryTurns.length || queryHistory.length)) {
-          resetQueryWorkspace();
-          if (announce && queryStatusEl) {
-            queryStatusEl.className = "query-status";
-            queryStatusEl.textContent = `Query thread reset. Workspace mode is now ${nextMode === "detailed" ? "Detailed" : "Summary"}.`;
-          }
-        }
-        renderPhenoTabAvailability();
-        if (nextMode !== "detailed" && currentTabName() === "pheno") {
-          setActiveTab("query");
-          if (loadStatusEl) {
-            loadStatusEl.className = "load-status";
-            loadStatusEl.textContent = "Pheno-Ranker was closed because this workspace is now Summary-only.";
-          }
-        }
-        renderQueryExecutionMode();
-      }
-
-      function pendingDatasetSelectionIds() {
-        return pendingDatasetIds.length ? pendingDatasetIds.slice() : currentDatasetIds.slice();
-      }
-
-      function selectedDatasetRecords() {
-        const selected = new Set(currentDatasetIds);
-        return availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
-      }
-
-      function pendingDatasetRecords() {
-        const selected = new Set(pendingDatasetSelectionIds());
-        return availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
-      }
-
-      function datasetScopeLabel() {
-        const records = selectedDatasetRecords();
-        if (!records.length) {
-          return "No dataset selected";
-        }
-        const names = records
-          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
-          .filter(Boolean);
-        if (names.length <= 2) {
-          return names.join(" + ");
-        }
-        return `${names[0]}, ${names[1]} + ${names.length - 2} more`;
-      }
-
-      function pendingDatasetScopeLabel() {
-        const records = pendingDatasetRecords();
-        if (!records.length) {
-          return "No dataset selected";
-        }
-        const names = records
-          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
-          .filter(Boolean);
-        if (names.length <= 2) {
-          return names.join(" + ");
-        }
-        return `${names[0]}, ${names[1]} + ${names.length - 2} more`;
-      }
-
-      function datasetLabelsForIds(ids) {
-        const selected = new Set((Array.isArray(ids) ? ids : []).map((item) => String(item || "").trim()).filter(Boolean));
-        return availableDatasets
-          .filter((item) => selected.has(String(item.dataset_id || "")))
-          .map((item) => String(item.name || item.dataset_id || "Dataset").trim())
-          .filter(Boolean);
-      }
-
-      function effectiveDatasetUserLabels(dataset) {
-        const users = Array.isArray(availableAuthUsers) ? availableAuthUsers : [];
-        if (!users.length) {
-          return [];
-        }
-        const visibility = String(dataset && dataset.visibility || "all_authenticated");
-        const allowedUsers = new Set((Array.isArray(dataset && dataset.allowed_users) ? dataset.allowed_users : [])
-          .map((item) => String(item || "").trim().toLowerCase())
-          .filter(Boolean));
-        const allowedGroups = new Set((Array.isArray(dataset && dataset.allowed_groups) ? dataset.allowed_groups : [])
-          .map((item) => String(item || "").trim())
-          .filter(Boolean));
-        return users
-          .filter((user) => {
-            const username = String(user && user.username || "").trim().toLowerCase();
-            const role = String(user && user.role || "user").trim().toLowerCase();
-            const enabled = Boolean(user && user.enabled !== false);
-            const groups = new Set((Array.isArray(user && user.groups) ? user.groups : [])
-              .map((item) => String(item || "").trim())
-              .filter(Boolean));
-            if (!enabled) {
-              return false;
-            }
-            if (role === "admin") {
-              return true;
-            }
-            if (visibility === "all_authenticated") {
-              return true;
-            }
-            if (visibility === "admin_only") {
-              return false;
-            }
-            if (allowedUsers.has(username)) {
-              return true;
-            }
-            for (const group of groups) {
-              if (allowedGroups.has(group)) {
-                return true;
-              }
-            }
-            return false;
-          })
-          .map((user) => String(user.display_name || user.username || "").trim())
-          .filter(Boolean);
-      }
-
-      function renderAnalysisDatasetScope() {
-        if (!analysisDatasetScopeEl) {
-          return;
-        }
-        const labels = datasetLabelsForIds(currentDatasetIds);
-        analysisDatasetScopeEl.textContent = labels.length > 1
-          ? `Workspace datasets: ${labels.join(", ")}.`
-          : labels.length
-            ? `Workspace dataset: ${labels[0]}.`
-            : "Workspace dataset: none selected.";
-      }
-
-      function renderDatasetScopeSummary() {
-        if (!datasetScopeSummaryEl) {
-          return;
-        }
-        const records = selectedDatasetRecords();
-        if (!records.length) {
-          datasetScopeSummaryEl.textContent = "Active workspace: no dataset selected.";
-          return;
-        }
-        const selectedCount = records.length;
-        const authorizedCount = availableDatasets.length;
-        const noun = selectedCount === 1 ? "dataset" : "datasets";
-        const activeIds = currentDatasetIds.slice();
-        const pendingIds = pendingDatasetSelectionIds();
-        const sameSelection = activeIds.length === pendingIds.length && activeIds.every((item, index) => item === pendingIds[index]);
-        const base = `Active workspace: ${datasetScopeLabel()} (${selectedCount} ${noun}${authorizedCount ? `, ${authorizedCount} authorized` : ""}).`;
-        datasetScopeSummaryEl.textContent = sameSelection
-          ? base
-          : `${base} Pending workspace: ${pendingDatasetScopeLabel()}. Click Apply workspace to switch.`;
-      }
-
-      function renderDatasetSelect() {
-        if (!dataDirEl) {
-          return;
-        }
-        const selectedIds = new Set(pendingDatasetSelectionIds());
-        dataDirEl.innerHTML = "";
-        if (!availableDatasets.length) {
-          const option = document.createElement("option");
-          option.value = "";
-          option.textContent = "No dataset available";
-          dataDirEl.appendChild(option);
-          return;
-        }
-        availableDatasets.forEach((dataset) => {
-          const option = document.createElement("option");
-          option.value = String(dataset.dataset_id || "");
-          option.textContent = String(dataset.name || dataset.dataset_id || "Unnamed dataset");
-          if (selectedIds.has(option.value)) {
-            option.selected = true;
-          }
-          dataDirEl.appendChild(option);
-        });
-        if (!selectedIds.size && availableDatasets[0]) {
-          dataDirEl.options[0].selected = true;
-        }
-        dataDirEl.dataset.scopeId = currentDatasetSelectionKey();
-        renderDatasetPicker();
-        renderDatasetAdminList();
-        renderDatasetScopeSummary();
-      }
-
-      function renderDatasetPicker() {
-        if (!datasetPickerEl) {
-          return;
-        }
-        const selectedIds = new Set(pendingDatasetSelectionIds());
-        const activeIds = new Set(currentDatasetIds);
-        if (!availableDatasets.length) {
-          datasetPickerEl.innerHTML = '<div class="empty">No dataset available.</div>';
-          return;
-        }
-        datasetPickerEl.innerHTML = availableDatasets.map((dataset) => {
-          const datasetId = String(dataset.dataset_id || "");
-          const checked = selectedIds.has(datasetId);
-          const active = activeIds.has(datasetId);
-          const visibility = String(dataset.visibility || "all_authenticated");
-          const description = String(dataset.description || "").trim();
-          const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
-          const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
-          const stateBadges = [];
-          if (active) {
-            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-active">Active</span>');
-          }
-          if (checked && !active) {
-            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-pending">Pending add</span>');
-          }
-          if (active && !checked) {
-            stateBadges.push('<span class="dataset-picker-state dataset-picker-state-removal">Pending removal</span>');
-          }
-          return `
-            <label class="dataset-picker-card${checked ? " is-selected" : ""}${active ? " is-active" : ""}${checked && !active ? " is-pending-add" : ""}${active && !checked ? " is-pending-removal" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
-              <input type="checkbox" data-dataset-checkbox="${escapeHtml(datasetId)}" ${checked ? "checked" : ""}>
-              <div>
-                <div class="dataset-picker-title">
-                  <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
-                  ${stateBadges.join("")}
-                </div>
-                <div class="dataset-picker-meta">
-                  <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                  <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
-                  ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-                  ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
-                </div>
-                ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
-              </div>
-            </label>
-          `;
-        }).join("");
-      }
-
-      function renderDatasetAdminList() {
-        if (!datasetAdminListEl) {
-          return;
-        }
-        if (!canManageDataset()) {
-          datasetAdminListEl.innerHTML = '<div class="empty">Dataset administration is only visible to administrators.</div>';
-          return;
-        }
-        if (!availableDatasets.length) {
-          datasetAdminListEl.innerHTML = '<div class="empty">No dataset administration entries available.</div>';
-          return;
-        }
-        datasetAdminListEl.innerHTML = availableDatasets.map((dataset) => {
-          const datasetId = String(dataset.dataset_id || "");
-          const visibility = String(dataset.visibility || "all_authenticated");
-          const providerDetailedAllowed = visibility === "all_authenticated";
-          const description = String(dataset.description || "").trim();
-          const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
-          const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
-          const effectiveUsers = effectiveDatasetUserLabels(dataset);
-          const feedback = datasetAdminFeedback[datasetId];
-          return `
-            <div class="dataset-picker-card">
-              <div>
-                <div class="dataset-picker-title">
-                  <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
-                </div>
-                <div class="dataset-picker-meta">
-                  <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                  <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
-                  ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-                  ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
-                </div>
-                ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
-                <div class="dataset-picker-access">
-                  <div class="dataset-policy-section">
-                    <div class="dataset-policy-heading">Internal</div>
-                    <div class="section-note">Controls who can use this dataset inside Patient Navigator and how much Query detail is allowed in-app.</div>
-                    <div class="dataset-picker-access-row">
-                      <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
-                      <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
-                        <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
-                        <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
-                        <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
-                      </select>
-                    </div>
-                    <div class="dataset-picker-access-row">
-                      <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
-                      <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
-                    </div>
-                    <div class="dataset-picker-access-row">
-                      <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
-                      <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
-                    </div>
-                    <div class="dataset-picker-access-row">
-                      <label for="dataset-query-granularity-${escapeHtml(datasetId)}">Query detail in app</label>
-                      <select id="dataset-query-granularity-${escapeHtml(datasetId)}" data-dataset-query-granularity="${escapeHtml(datasetId)}">
-                        <option value="summary" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "summary" ? "selected" : ""}>Summary only</option>
-                        <option value="detailed" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "detailed" ? "selected" : ""}>Detailed allowed</option>
-                      </select>
-                    </div>
-                    <div class="dataset-picker-access-row">
-                      <label>Users with access</label>
-                      <div class="identity-tags">
-                        ${effectiveUsers.length
-                          ? effectiveUsers.map((label) => `<span class="identity-tag">${escapeHtml(label)}</span>`).join("")
-                          : '<span class="identity-tag">No currently configured local users match this policy</span>'}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="dataset-policy-section dataset-policy-section-muted">
-                    <div class="dataset-policy-heading">AI Providers</div>
-                    <div class="section-note">Controls what Patient Navigator may send to the currently configured AI provider. LM Studio is the active provider today.</div>
-                    <div class="dataset-picker-access-row">
-                      <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">LM Studio</label>
-                      <select id="dataset-ai-provider-access-${escapeHtml(datasetId)}" data-dataset-ai-provider-access="${escapeHtml(datasetId)}">
-                        <option value="detailed_allowed" ${["detailed_allowed", "use_thread_mode"].includes(String(dataset.ai_provider_access || "detailed_allowed")) ? "selected" : ""} ${providerDetailedAllowed ? "" : "disabled"}>Detailed allowed</option>
-                        <option value="safe_summary" ${["safe_summary", "restricted", "summary_only"].includes(String(dataset.ai_provider_access || "")) ? "selected" : ""}>Safe summary</option>
-                        <option value="blocked" ${String(dataset.ai_provider_access || "") === "blocked" ? "selected" : ""}>Blocked</option>
-                      </select>
-                    </div>
-                    <div class="dataset-picker-access-row">
-                      <label>Current behavior</label>
-                      <div class="dataset-policy-placeholder">${
-                        normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "blocked"
-                          ? "LM Studio is disabled for this dataset."
-                          : !providerDetailedAllowed
-                            ? "Restricted and admin-only datasets are capped at Safe summary for AI providers."
-                          : normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
-                            ? "LM Studio may be used, but only with provider-safe structural summary context."
-                            : "LM Studio may receive detailed context when the current in-app result allows it."
-                      }</div>
-                    </div>
-                  </div>
-                  <div class="dataset-picker-access-actions">
-                    <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
-                  </div>
-                  ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
-                </div>
-              </div>
-            </div>
-          `;
-        }).join("");
-      }
-
-      function setDatasetAdminFeedback(datasetId, text, tone = "success", autoClearMs = 2600) {
-        const key = String(datasetId || "").trim();
-        if (!key) {
-          return;
-        }
-        datasetAdminFeedback = {
-          ...datasetAdminFeedback,
-          [key]: { text: String(text || ""), tone },
-        };
-        renderDatasetAdminList();
-        if (datasetAdminFeedbackTimers[key]) {
-          window.clearTimeout(datasetAdminFeedbackTimers[key]);
-        }
-        if (autoClearMs > 0) {
-          datasetAdminFeedbackTimers[key] = window.setTimeout(() => {
-            delete datasetAdminFeedback[key];
-            delete datasetAdminFeedbackTimers[key];
-            renderDatasetAdminList();
-          }, autoClearMs);
-        }
-      }
-
-      async function saveDatasetAccess(datasetId) {
-        if (!datasetAdminListEl || !canManageDataset()) {
-          return;
-        }
-        const visibilityEl = datasetAdminListEl.querySelector(`[data-dataset-visibility="${CSS.escape(datasetId)}"]`);
-        const groupsEl = datasetAdminListEl.querySelector(`[data-dataset-groups="${CSS.escape(datasetId)}"]`);
-        const usersEl = datasetAdminListEl.querySelector(`[data-dataset-users="${CSS.escape(datasetId)}"]`);
-        const queryGranularityEl = datasetAdminListEl.querySelector(`[data-dataset-query-granularity="${CSS.escape(datasetId)}"]`);
-        const aiProviderAccessEl = datasetAdminListEl.querySelector(`[data-dataset-ai-provider-access="${CSS.escape(datasetId)}"]`);
-        if (!visibilityEl || !groupsEl || !usersEl || !queryGranularityEl || !aiProviderAccessEl) {
-          return;
-        }
-        const allowedGroups = String(groupsEl.value || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-        const allowedUsers = String(usersEl.value || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-        const normalizedVisibility = String(visibilityEl.value || "all_authenticated").trim().toLowerCase();
-        const requestedAiProviderAccess = String(aiProviderAccessEl.value || "detailed_allowed").trim();
-        const effectiveAiProviderAccess = (normalizedVisibility === "restricted" || normalizedVisibility === "admin_only")
-          ? (requestedAiProviderAccess === "blocked" ? "blocked" : "safe_summary")
-          : requestedAiProviderAccess;
-        loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = `Saving access for ${datasetId}...`;
-        setDatasetAdminFeedback(datasetId, "Saving settings...", "success", 0);
-        try {
-          const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              visibility: visibilityEl.value,
-              allowed_groups: allowedGroups,
-              allowed_users: allowedUsers,
-              query_granularity_ceiling: queryGranularityEl.value,
-              ai_provider_access: effectiveAiProviderAccess,
-            }),
-          });
-          if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.detail || "Unable to save dataset access.");
-          }
-          await loadDatasets();
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = `Updated settings for ${datasetId}.`;
-          setDatasetAdminFeedback(datasetId, "Settings saved.", "success");
-        } catch (error) {
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = error && error.message ? error.message : "Unable to save dataset access.";
-          setDatasetAdminFeedback(
-            datasetId,
-            error && error.message ? error.message : "Unable to save dataset settings.",
-            "error",
-            4200,
-          );
-        }
-      }
-
-      function syncDatasetSelectionFromPicker() {
-        if (!dataDirEl || !datasetPickerEl) {
-          return;
-        }
-        const selected = Array.from(datasetPickerEl.querySelectorAll("[data-dataset-checkbox]:checked"))
-          .map((input) => String(input.getAttribute("data-dataset-checkbox") || "").trim())
-          .filter(Boolean);
-        Array.from(dataDirEl.options).forEach((option) => {
-          option.selected = selected.includes(String(option.value || "").trim());
-        });
-        pendingDatasetIds = selected;
-        renderDatasetPicker();
-        renderDatasetAdminList();
-        renderDatasetScopeSummary();
-      }
-
-      async function loadDatasets() {
-        if (!dataDirEl) {
-          return;
-        }
-        try {
-          const response = await fetch("/datasets");
-          if (!response.ok) {
-            throw new Error("Unable to load datasets.");
-          }
-          const payload = await response.json();
-          availableDatasets = Array.isArray(payload.datasets) ? payload.datasets : [];
-          currentDatasetIds = Array.isArray(payload.current_dataset_ids) ? payload.current_dataset_ids : [];
-          pendingDatasetIds = currentDatasetIds.slice();
-          currentDatasetScopeId = String(payload.current_dataset_scope_id || "");
-          renderDatasetSelect();
-          if (dataDirEl) {
-            dataDirEl.dataset.scopeId = currentDatasetScopeId;
-          }
-          renderDatasetScopeSummary();
-          renderAnalysisDatasetScope();
-          syncQueryGranularityWithWorkspacePolicy();
-        } catch (_error) {
-          availableDatasets = [];
-          currentDatasetIds = [];
-          pendingDatasetIds = [];
-          currentDatasetScopeId = "";
-          renderDatasetSelect();
-          if (dataDirEl) {
-            dataDirEl.dataset.scopeId = "";
-          }
-          renderDatasetScopeSummary();
-          renderAnalysisDatasetScope();
-          syncQueryGranularityWithWorkspacePolicy();
-        }
-      }
-
-      function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
-        if (!container) {
-          return;
-        }
-        const chips = Array.from(container.querySelectorAll(".query-chip"))
-          .filter((chip) => !chip.classList.contains("badge") && !chip.classList.contains("query-chip-toggle"));
-        if (chips.length <= maxVisible) {
-          return;
-        }
-        chips.forEach((chip, index) => {
-          chip.classList.toggle("is-extra-example", index >= maxVisible);
-        });
-        container.classList.add("is-collapsed");
-
-        const toggleWrap = document.createElement("div");
-        toggleWrap.className = "query-examples-toggle";
-
-        const toggleBtn = document.createElement("button");
-        toggleBtn.type = "button";
-        toggleBtn.className = "query-chip query-chip-toggle";
-        toggleBtn.textContent = `See more (${chips.length - maxVisible})`;
-        toggleBtn.addEventListener("click", () => {
-          const expanded = container.classList.toggle("is-collapsed");
-          toggleBtn.textContent = expanded ? `See more (${chips.length - maxVisible})` : "Show fewer";
-        });
-
-        toggleWrap.appendChild(toggleBtn);
-        container.insertAdjacentElement("afterend", toggleWrap);
-      }
-
-      function renderStarterPanelVisibility(panelEl, composerToggleEl, hasTurns, pinnedOpen) {
-        if (!panelEl || !composerToggleEl) {
-          return;
-        }
-        const visible = hasTurns ? pinnedOpen : true;
-        panelEl.hidden = !visible;
-        panelEl.classList.toggle("is-hidden", !visible);
-        const inlineToggle = panelEl.querySelector(".query-examples-toggle");
-        if (inlineToggle) {
-          inlineToggle.hidden = !visible;
-          inlineToggle.classList.toggle("is-hidden", !visible);
-        }
-        const siblingToggle = panelEl.nextElementSibling && panelEl.nextElementSibling.classList && panelEl.nextElementSibling.classList.contains("query-examples-toggle")
-          ? panelEl.nextElementSibling
-          : null;
-        if (siblingToggle) {
-          siblingToggle.hidden = !visible;
-          siblingToggle.classList.toggle("is-hidden", !visible);
-        }
-        composerToggleEl.hidden = !hasTurns;
-        composerToggleEl.textContent = "Starter prompts";
-      }
-
-      function renderQueryStarterPrompts() {
-        if (!queryStarterPanelEl) {
-          return;
-        }
-        queryStarterPanelEl.hidden = false;
-        const siblingToggle = queryStarterPanelEl.nextElementSibling && queryStarterPanelEl.nextElementSibling.classList && queryStarterPanelEl.nextElementSibling.classList.contains("query-examples-toggle")
-          ? queryStarterPanelEl.nextElementSibling
-          : null;
-        if (siblingToggle) {
-          siblingToggle.hidden = false;
-        }
-      }
-
-      function renderQueryExecutionMode() {
-        if (queryPlannerBtnEl) {
-          const active = queryExecutionMode === "planner_only";
-          queryPlannerBtnEl.classList.toggle("is-active", active);
-          queryPlannerBtnEl.setAttribute("aria-pressed", active ? "true" : "false");
-          queryPlannerBtnEl.title = active
-            ? "Semantic planner is enabled for the next query."
-            : "Skip deterministic matching for the next query and use the LLM planner first.";
-        }
-        if (queryMemoryBtnEl) {
-          const scopeAvailable = queryGranularityMode === "detailed";
-          queryMemoryBtnEl.classList.toggle("is-active", queryFollowMemoryEnabled);
-          queryMemoryBtnEl.setAttribute("aria-pressed", queryFollowMemoryEnabled ? "true" : "false");
-          queryMemoryBtnEl.disabled = !scopeAvailable;
-          queryMemoryBtnEl.classList.toggle("is-hidden", !scopeAvailable);
-          queryMemoryBtnEl.title = !scopeAvailable
-            ? "Prompt scope is unavailable in Summary mode."
-            : queryFollowMemoryEnabled
-              ? "Prompt scope follows the previous Query result for patient-oriented follow-up questions."
-              : "Prompt scope is the current workspace unless you explicitly select scope elsewhere.";
-          const scopedPatientIds = latestScopedContext && Array.isArray(latestScopedContext.patientIds)
-            ? latestScopedContext.patientIds
-            : [];
-          const labelEl = queryMemoryBtnEl.querySelector("span:last-child");
-          if (labelEl) {
-            if (!scopeAvailable) {
-              labelEl.textContent = "Prompt scope";
-            } else if (!queryFollowMemoryEnabled) {
-              labelEl.textContent = "Prompt scope: workspace";
-            } else if (scopedPatientIds.length) {
-              labelEl.textContent = `Prompt scope: previous result (${scopedPatientIds.length} patients)`;
-            } else {
-              labelEl.textContent = "Prompt scope: waiting for previous result";
-            }
-          }
-        }
-        if (queryGranularityModeValueEl) {
-          queryGranularityModeValueEl.textContent = queryGranularityMode === "detailed" ? "Detailed" : "Summary";
-          queryGranularityModeValueEl.title = queryGranularityMode === "detailed"
-            ? "This workspace allows detailed in-app Query results."
-            : "This workspace is limited to summary-level in-app Query results.";
-        }
-        if (queryPolicyInfoBtnEl) {
-          const explanation = queryWorkspacePolicyExplanation();
-          queryPolicyInfoBtnEl.classList.toggle("is-hidden", !explanation);
-          queryPolicyInfoBtnEl.classList.toggle("is-warning", Boolean(explanation));
-          queryPolicyInfoBtnEl.title = explanation || "Workspace policy details";
-          queryPolicyInfoBtnEl.setAttribute("aria-label", explanation || "Workspace policy details");
-        }
-      }
-
-      function renderAnalysisStarterPrompts() {
-        if (!analysisStarterPanelEl || !analysisComposerExamplesBtnEl) {
-          return;
-        }
-        analysisStarterPanelEl.hidden = false;
-        analysisStarterPanelEl.classList.remove("is-hidden");
-        const inlineToggle = analysisStarterPanelEl.querySelector(".query-examples-toggle");
-        if (inlineToggle) {
-          inlineToggle.hidden = false;
-          inlineToggle.classList.remove("is-hidden");
-        }
-        const siblingToggle = analysisStarterPanelEl.nextElementSibling && analysisStarterPanelEl.nextElementSibling.classList && analysisStarterPanelEl.nextElementSibling.classList.contains("query-examples-toggle")
-          ? analysisStarterPanelEl.nextElementSibling
-          : null;
-        if (siblingToggle) {
-          siblingToggle.hidden = false;
-          siblingToggle.classList.remove("is-hidden");
-        }
-        analysisComposerExamplesBtnEl.hidden = !(Array.isArray(analysisTurns) && analysisTurns.length > 0);
-        analysisComposerExamplesBtnEl.textContent = "Catalog & prompts";
-      }
-
-      function normalizeAnalysisCatalogExecutionMode(value) {
-        const normalized = String(value || "").trim().toLowerCase();
-        if (normalized === "deterministic") return "deterministic";
-        if (normalized === "llm_only") return "llm_only";
-        return "auto";
-      }
-
-      function analysisCatalogModeBadge(item) {
-        const mode = String(item && item.execution_mode ? item.execution_mode : "auto");
-        if (mode === "deterministic") {
-          return { css: "query-chip-deterministic", label: "Deterministic" };
-        }
-        if (mode === "llm_only") {
-          return { css: "query-chip-llm", label: "LLM answer" };
-        }
-        return { css: "query-chip-planner", label: "LLM-planned" };
-      }
-
-      function analysisCatalogIconSvg(kind) {
-        const icons = {
-          clinical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
-          compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8"></path><path d="M8 17h8"></path><path d="m6 9 2-2 2 2"></path><path d="m18 15-2 2-2-2"></path></svg>',
-          trajectory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
-          survival: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m6 7 4 5 3-3 5 6"></path></svg>',
-          molecular: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
-          external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 14v5H5V5h5"></path></svg>',
-          general: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>',
-        };
-        return icons[kind] || icons.general;
-      }
-
-      function analysisCatalogIconKind(item) {
-        const runnerType = String(item && item.runner_type ? item.runner_type : "").toLowerCase();
-        if (runnerType && runnerType !== "builtin") return "external";
-        const category = String(item && item.category ? item.category : "").toLowerCase();
-        const id = String(item && item.id ? item.id : "").toLowerCase();
-        if (category.includes("survival") || id.includes("survival") || id.includes("kaplan")) return "survival";
-        if (category.includes("trajectory") || id.includes("trajectory")) return "trajectory";
-        if (category.includes("molecular") || id.includes("molecular") || id.includes("volcano")) return "molecular";
-        if (category.includes("compare") || id.includes("compare")) return "compare";
-        if (category.includes("clinical") || id.includes("summary")) return "clinical";
-        return "general";
-      }
-
-      function renderAnalysisCatalogCard(item, options = {}) {
-        const compact = Boolean(options.compact);
-        const drawer = Boolean(options.drawer);
-        const modeBadge = analysisCatalogModeBadge(item);
-        const iconKind = analysisCatalogIconKind(item);
-        const metaBadges = [
-          `<span class="query-chip badge ${modeBadge.css}">${escapeHtml(modeBadge.label)}</span>`,
-        ];
-        if (item.default_compare_mode) {
-          metaBadges.push('<span class="query-chip badge">Compare mode</span>');
-        }
-        if (item.requires_molecular) {
-          metaBadges.push('<span class="query-chip badge">Molecular</span>');
-        }
-        if (item.requires_detailed_access) {
-          metaBadges.push('<span class="query-chip badge">Detailed required</span>');
-        }
-        if (item.runner_type && item.runner_type !== "builtin") {
-          metaBadges.push(`<span class="query-chip badge">${escapeHtml(String(item.runner_type).toUpperCase())}</span>`);
-        }
-        if (String(item.execution_backend || "").toLowerCase() === "job") {
-          metaBadges.push('<span class="query-chip badge">Background job</span>');
-        }
-        const requirements = Array.isArray(item.workspace_requirements) ? item.workspace_requirements : [];
-        const requirementsHtml = !compact && requirements.length
-          ? `<div class="section-note">${escapeHtml(requirements.join(" "))}</div>`
-          : "";
-        const guidanceHtml = !compact && item.guidance
-          ? `<div class="section-note">${escapeHtml(item.guidance)}</div>`
-          : "";
-        const tagsHtml = !compact && Array.isArray(item.tags) && item.tags.length
-          ? `<div class="analysis-catalog-tags">${item.tags.map((tag) => `<span class="query-chip badge">${escapeHtml(tag)}</span>`).join("")}</div>`
-          : "";
-        const availabilityHtml = item.available
-          ? ""
-          : `<div class="analysis-catalog-unavailable">${escapeHtml(item.unavailable_reason || "Unavailable in this workspace.")}</div>`;
-        return `
-          <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${item.available ? "" : " is-disabled"}">
-            <div class="analysis-catalog-card-head">
-              <strong class="analysis-catalog-title"><span class="analysis-catalog-icon" aria-hidden="true">${analysisCatalogIconSvg(iconKind)}</span><span>${escapeHtml(item.name || "Analysis")}</span></strong>
-              <div class="analysis-catalog-badges">${metaBadges.join("")}</div>
-            </div>
-            <p>${escapeHtml(item.description || "")}</p>
-            ${guidanceHtml}
-            ${requirementsHtml}
-            ${tagsHtml}
-            ${availabilityHtml}
-            <div class="analysis-catalog-actions">
-              <button
-                type="button"
-                class="query-chip action"
-                data-analysis-catalog-id="${escapeHtml(item.id || "")}"
-                ${item.available ? "" : "disabled"}
-                title="${escapeHtml(item.available ? `Use ${item.name || "analysis"}` : (item.unavailable_reason || "Unavailable in this workspace."))}"
-              >Use analysis</button>
-            </div>
-          </article>
-        `;
-      }
-
-      function setAnalysisCatalogDrawerOpen(open) {
-        if (!analysisCatalogDrawerEl) {
-          return;
-        }
-        analysisCatalogDrawerEl.classList.toggle("is-hidden", !open);
-        analysisCatalogDrawerEl.classList.toggle("is-open", Boolean(open));
-        analysisCatalogDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
-      }
-
-      function setJobsDrawerOpen(open) {
-        if (!jobsDrawerEl) {
-          return;
-        }
-        jobsDrawerEl.classList.toggle("is-hidden", !open);
-        jobsDrawerEl.classList.toggle("is-open", Boolean(open));
-        jobsDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
-      }
-
-      function runningJobCount() {
-        return Array.isArray(recentJobs)
-          ? recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : ""))).length
-          : 0;
-      }
-
-      function renderJobsButton() {
-        if (jobsDrawerBtnEl) {
-          jobsDrawerBtnEl.classList.toggle("is-hidden", !authState || !authState.authenticated);
-          jobsDrawerBtnEl.title = runningJobCount()
-            ? `${runningJobCount()} background job${runningJobCount() === 1 ? "" : "s"} still active.`
-            : "Open recent background jobs.";
-        }
-        if (jobsDrawerCountEl) {
-          const count = runningJobCount();
-          jobsDrawerCountEl.classList.toggle("is-hidden", count === 0);
-          jobsDrawerCountEl.textContent = String(count);
-        }
-      }
-
-      function renderJobStatusChip(item) {
-        const status = String(item && item.status ? item.status : "").trim() || "queued";
-        const label = status.charAt(0).toUpperCase() + status.slice(1);
-        return `<span class="job-status-chip is-${escapeHtml(status)}">${escapeHtml(label)}</span>`;
-      }
-
-      function renderJobGroup(title, items) {
-        if (!Array.isArray(items) || !items.length) {
-          return "";
-        }
-        return `
-          <section class="jobs-group">
-            <div class="jobs-group-label">${escapeHtml(title)}</div>
-            <div class="jobs-group-list">${items.map(renderJobCard).join("")}</div>
-          </section>
-        `;
-      }
-
-      function renderJobCard(item) {
-        const submitted = String(item && item.submitted_at ? item.submitted_at : "").replace("T", " ").replace(/\.\d+.*$/, " UTC");
-        const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
-        const feature = String(item && item.feature ? item.feature : "job");
-        const runnerType = String(item && item.runner_type ? item.runner_type : "");
-        const jobCode = String(item && item.job_code ? item.job_code : "").trim();
-        const sessionTitle = String(item && item.analysis_session_title ? item.analysis_session_title : "").trim();
-        const datasetId = String(item && item.dataset_id ? item.dataset_id : "").trim();
-        const prompt = String(item && item.prompt ? item.prompt : "").trim();
-        const metaBits = [feature.charAt(0).toUpperCase() + feature.slice(1)];
-        if (jobCode) metaBits.push(jobCode);
-        if (runnerType) metaBits.push(runnerType.toUpperCase());
-        if (datasetId) metaBits.push(`dataset ${datasetId}`);
-        if (sessionTitle) metaBits.push(sessionTitle);
-        const actions = [];
-        if (item && item.result_available) {
-          actions.push(`<button type="button" class="query-chip action" data-job-open-result="${escapeHtml(item.job_id || "")}">Open result</button>`);
-        }
-        const artifactLinks = artifacts.map((artifact) => {
-          const url = String(artifact && artifact.url ? artifact.url : "").trim();
-          const name = String(artifact && artifact.name ? artifact.name : "").trim();
-          if (!url || !name) return "";
-          return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
-        }).filter(Boolean);
-        return `
-          <article class="job-card">
-            <div class="job-card-topline">
-              ${renderJobStatusChip(item)}
-              <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}</span>
-            </div>
-            <div class="job-card-header">
-              <div class="job-card-title">
-                <strong>${escapeHtml(String(item && item.name ? item.name : "Background job"))}</strong>
-                <div class="job-card-subtitle">${escapeHtml(metaBits.join(" · "))}</div>
-              </div>
-            </div>
-            ${prompt ? `<div class="job-card-prompt">${escapeHtml(prompt)}</div>` : ""}
-            ${item && item.reply_preview ? `<div class="job-card-preview">${escapeHtml(String(item.reply_preview))}</div>` : ""}
-            ${item && item.error ? `<div class="job-card-error">${escapeHtml(String(item.error))}</div>` : ""}
-            ${(actions.length || artifactLinks.length) ? `
-              <div class="job-card-footer">
-                ${actions.length ? `<div class="job-card-actions">${actions.join("")}</div>` : ""}
-                ${artifactLinks.length ? `<div class="job-card-artifacts">${artifactLinks.join("")}</div>` : ""}
-              </div>
-            ` : ""}
-          </article>
-        `;
-      }
-
-      function renderJobsDrawer() {
-        renderJobsButton();
-        if (!jobsDrawerListEl) {
-          return;
-        }
-        if (!authState || !authState.authenticated) {
-          jobsDrawerListEl.innerHTML = '<div class="empty">Sign in to view background jobs.</div>';
-          if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "Jobs unavailable.";
-          return;
-        }
-        if (!Array.isArray(recentJobs) || !recentJobs.length) {
-          jobsDrawerListEl.innerHTML = '<div class="empty">No background jobs yet.</div>';
-          if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "No background jobs yet.";
-          return;
-        }
-        const running = runningJobCount();
-        if (jobsDrawerStatusEl) {
-          jobsDrawerStatusEl.textContent = running
-            ? `${running} job${running === 1 ? "" : "s"} still running.`
-            : `${recentJobs.length} recent job${recentJobs.length === 1 ? "" : "s"}.`;
-        }
-        const activeItems = recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "")));
-        const doneItems = recentJobs.filter((item) => !["queued", "running"].includes(String(item && item.status ? item.status : "")));
-        jobsDrawerListEl.innerHTML = [
-          renderJobGroup("Active", activeItems),
-          renderJobGroup("Recent", doneItems),
-        ].filter(Boolean).join("");
-      }
-
-      function scheduleJobsPolling() {
-        if (jobsPollTimer) {
-          window.clearTimeout(jobsPollTimer);
-          jobsPollTimer = null;
-        }
-        if (!runningJobCount()) {
-          return;
-        }
-        jobsPollTimer = window.setTimeout(() => {
-          void loadRecentJobs({ silent: true });
-        }, 3000);
-      }
-
-      async function loadRecentJobs(options = {}) {
-        const silent = Boolean(options.silent);
-        if (!authState || !authState.authenticated) {
-          recentJobs = [];
-          renderJobsDrawer();
-          return;
-        }
-        if (!silent && jobsDrawerStatusEl) {
-          jobsDrawerStatusEl.textContent = "Loading recent jobs...";
-        }
-        try {
-          const response = await fetch("/jobs");
-          if (!response.ok) {
-            throw new Error("Unable to load jobs.");
-          }
-          const payload = await response.json();
-          recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-          renderJobsDrawer();
-          scheduleJobsPolling();
-        } catch (error) {
-          if (!silent && jobsDrawerStatusEl) {
-            jobsDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load jobs.";
-          }
-        }
-      }
-
-      async function openJobResult(jobId) {
-        const normalized = String(jobId || "").trim();
-        if (!normalized) return;
-        const response = await fetch(`/jobs/${encodeURIComponent(normalized)}`);
-        if (!response.ok) {
-          throw new Error("Unable to load job result.");
-        }
-        const payload = await response.json();
-        if (!payload || !payload.result_payload) {
-          throw new Error("This job does not have a completed result yet.");
-        }
-        setJobsDrawerOpen(false);
-        setActiveTab("analysis");
-        const sessionId = String(payload.analysis_session_id || "").trim();
-        const existingSession = sessionId
-          ? analysisSessions.find((item) => item.id === sessionId)
-          : null;
-        if (existingSession) {
-          selectAnalysisSession(sessionId);
-        } else if (sessionId) {
-          createAndSelectAnalysisSession({
-            id: sessionId,
-            title: String(payload.name || payload.catalog_item_name || "Recovered analysis result").trim(),
-            promptDraft: String(payload.prompt || "").trim(),
-            dataDir: dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "",
-            history: [],
-            turns: [],
-          });
-        }
-        const resultPayload = payload.result_payload;
-        const existingIndex = Array.isArray(analysisTurns)
-          ? analysisTurns.findIndex((turn) => {
-              const data = turn && turn.payload ? turn.payload.data : null;
-              return turn && turn.role === "assistant"
-                && data
-                && String(data.job_id || "") === normalized;
-            })
-          : -1;
-        const turn = { role: "assistant", payload: resultPayload, showPlots: analysisUi.analysisPayloadHasPlots(resultPayload) };
-        if (existingIndex >= 0) {
-          analysisTurns[existingIndex] = turn;
-        } else {
-          analysisTurns.push(turn);
-        }
-        analysisHistory.push({ role: "assistant", content: resultPayload.reply || "" });
-        analysisHistory = analysisHistory.slice(-8);
-        renderAnalysisMeta(resultPayload);
-        renderAnalysisThread();
-        syncCurrentAnalysisSessionFromUi({ render: true });
-        analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = "Loaded completed job result into Analysis.";
-      }
-
-      function renderAnalysisCatalog() {
-        if (!analysisCatalogListEl) {
-          return;
-        }
-        if (!Array.isArray(analysisCatalogItems) || !analysisCatalogItems.length) {
-          analysisCatalogListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
-          if (analysisCatalogDrawerListEl) {
-            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
-          }
-          if (analysisCatalogStatusEl) {
-            analysisCatalogStatusEl.textContent = "No curated analyses available.";
-          }
-          return;
-        }
-        const unavailableCount = analysisCatalogItems.filter((item) => !item.available).length;
-        if (analysisCatalogStatusEl) {
-          const summaryBits = [`${analysisCatalogItems.length} curated analyses`];
-          if (unavailableCount) {
-            summaryBits.push(`${unavailableCount} unavailable in this workspace`);
-          }
-          if (analysisCatalogWorkspace && analysisCatalogWorkspace.has_molecular_datasets) {
-            summaryBits.push(`${analysisCatalogWorkspace.molecular_dataset_count} molecular dataset${analysisCatalogWorkspace.molecular_dataset_count === 1 ? "" : "s"}`);
-          }
-          analysisCatalogStatusEl.textContent = summaryBits.join(" · ");
-        }
-        const featured = analysisCatalogItems.slice(0, 4);
-        analysisCatalogListEl.innerHTML = `<div class="analysis-catalog-featured-strip">${featured.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("")}</div>`;
-        const grouped = analysisCatalogItems.reduce((acc, item) => {
-          const key = String(item.category || "General");
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(item);
-          return acc;
-        }, {});
-        if (analysisCatalogDrawerListEl) {
-          analysisCatalogDrawerListEl.innerHTML = Object.entries(grouped).map(([category, items]) => {
-            const cards = items.map((item) => renderAnalysisCatalogCard(item, { drawer: true })).join("");
-            return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid">${cards}</div></section>`;
-          }).join("");
-        }
-      }
-
-      async function loadAnalysisCatalog() {
-        if (!analysisCatalogListEl) {
-          return;
-        }
-        if (!isWorkspaceAccessible()) {
-          analysisCatalogItems = [];
-          analysisCatalogWorkspace = null;
-          analysisCatalogListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
-          if (analysisCatalogDrawerListEl) {
-            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
-          }
-          if (analysisCatalogStatusEl) {
-            analysisCatalogStatusEl.textContent = "Workspace unavailable.";
-          }
-          return;
-        }
-        if (analysisCatalogBrowseBtnEl) {
-          analysisCatalogBrowseBtnEl.disabled = false;
-          analysisCatalogBrowseBtnEl.title = "";
-        }
-        if (queryGranularityMode !== "detailed") {
-          analysisCatalogItems = [];
-          analysisCatalogWorkspace = null;
-          analysisCatalogListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
-          if (analysisCatalogDrawerListEl) {
-            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
-          }
-          if (analysisCatalogStatusEl) {
-            analysisCatalogStatusEl.textContent = "Analysis Catalog requires Detailed workspace access.";
-          }
-          if (analysisCatalogBrowseBtnEl) {
-            analysisCatalogBrowseBtnEl.disabled = true;
-            analysisCatalogBrowseBtnEl.title = "Analysis Catalog requires Detailed workspace access.";
-          }
-          setAnalysisCatalogDrawerOpen(false);
-          return;
-        }
-        analysisCatalogListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
-        if (analysisCatalogDrawerListEl) {
-          analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
-        }
-        if (analysisCatalogStatusEl) {
-          analysisCatalogStatusEl.textContent = "Loading curated analyses...";
-        }
-        try {
-          const response = await fetch(`/analysis/catalog?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`);
-          if (!response.ok) {
-            throw new Error("Unable to load Analysis Catalog.");
-          }
-          const payload = await response.json();
-          analysisCatalogItems = Array.isArray(payload.items) ? payload.items : [];
-          analysisCatalogWorkspace = payload.workspace || null;
-          renderAnalysisCatalog();
-        } catch (error) {
-          analysisCatalogItems = [];
-          analysisCatalogWorkspace = null;
-          analysisCatalogListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
-          if (analysisCatalogDrawerListEl) {
-            analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
-          }
-          if (analysisCatalogStatusEl) {
-            analysisCatalogStatusEl.textContent = error && error.message ? error.message : "Unable to load curated analyses.";
-          }
-        }
-      }
-
-      function applyAnalysisCatalogItemById(itemId) {
-        const item = Array.isArray(analysisCatalogItems)
-          ? analysisCatalogItems.find((entry) => String(entry.id || "") === String(itemId || ""))
-          : null;
-        if (!item || !item.available) {
-          return;
-        }
-        analysisPromptEl.value = String(item.default_prompt || "").trim();
-        analysisExecutionMode = normalizeAnalysisCatalogExecutionMode(item.execution_mode);
-        analysisSelectedCatalogItemId = String(item.id || "").trim();
-        if (analysisCompareModeEl) {
-          analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
-          renderAnalysisCompareMode();
-        }
-        analysisExamplesPinnedOpen = false;
-        syncCurrentAnalysisSessionFromUi({ render: true });
-        analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = item.guidance
-          ? `${item.name} selected. ${item.guidance}`
-          : `${item.name} selected. Review the prompt and run the analysis.`;
-        setAnalysisCatalogDrawerOpen(false);
-        analysisPromptEl.focus();
-      }
-
-      function stopQueryProgressUpdates() {
-        if (queryProgressTimer !== null) {
-          window.clearInterval(queryProgressTimer);
-          queryProgressTimer = null;
-        }
-      }
-
-      function queryPendingStages() {
-        return [
-          { label: "Parsing request", detail: "Interpreting the cohort question and selecting the right query path." },
-          { label: "Checking cohort facts", detail: "Reviewing counts, patient IDs, and dataset-backed matches." },
-          { label: "Preparing answer", detail: "Formatting the reply, actions, and follow-up suggestions." },
-        ];
-      }
-
-      function startQueryProgressUpdates() {
-        stopQueryProgressUpdates();
-        const stages = queryPendingStages();
-        let index = 0;
-        const applyStage = () => {
-          const lastTurn = queryTurns[queryTurns.length - 1];
-          if (!lastTurn || !lastTurn.pending) {
-            stopQueryProgressUpdates();
-            return;
-          }
-          const stage = stages[Math.min(index, stages.length - 1)];
-          lastTurn.pendingLabel = stage.label;
-          lastTurn.pendingDetail = stage.detail;
-          renderQueryThread();
-          if (index < stages.length - 1) {
-            index += 1;
-          }
-        };
-        applyStage();
-        queryProgressTimer = window.setInterval(applyStage, 1400);
-      }
-
-      function stopAnalysisProgressUpdates() {
-        if (analysisProgressTimer !== null) {
-          window.clearInterval(analysisProgressTimer);
-          analysisProgressTimer = null;
-        }
-      }
-
-      function analysisPendingStages(compareMode, showPlots) {
-        if (showPlots) {
-          return [
-            { label: "Parsing request", detail: "Interpreting the analysis prompt and identifying the deterministic analysis path." },
-            { label: compareMode ? "Comparing cohorts" : "Computing analysis", detail: compareMode ? "Preparing both cohort contexts and computing the requested comparison plots." : "Computing the requested analysis and preparing the related plots." },
-            { label: "Preparing answer", detail: "Formatting the explanation, metadata, and visual outputs for the thread." },
-          ];
-        }
-        return [
-          { label: "Parsing request", detail: "Interpreting the analysis prompt and assembling the relevant cohort context." },
-          { label: compareMode ? "Comparing cohorts" : "Checking cohort context", detail: compareMode ? "Reviewing the selected comparison cohorts and their main differences." : "Reviewing the selected cohort and its main clinical context." },
-          { label: "Preparing answer", detail: "Formatting the analysis reply and supporting context." },
-        ];
-      }
-
-      function startAnalysisProgressUpdates(compareMode, showPlots) {
-        stopAnalysisProgressUpdates();
-        const stages = analysisPendingStages(compareMode, showPlots);
-        let index = 0;
-        const applyStage = () => {
-          const lastTurn = analysisTurns[analysisTurns.length - 1];
-          if (!lastTurn || !lastTurn.pending) {
-            stopAnalysisProgressUpdates();
-            return;
-          }
-          const stage = stages[Math.min(index, stages.length - 1)];
-          lastTurn.pendingLabel = stage.label;
-          lastTurn.pendingDetail = stage.detail;
-          renderAnalysisThread();
-          if (index < stages.length - 1) {
-            index += 1;
-          }
-        };
-        applyStage();
-        analysisProgressTimer = window.setInterval(applyStage, 1500);
-      }
-
-      function stopPhenoPlanProgressUpdates() {
-        if (phenoPlanProgressTimer !== null) {
-          window.clearInterval(phenoPlanProgressTimer);
-          phenoPlanProgressTimer = null;
-        }
-      }
-
-      function startPhenoPlanProgressUpdates() {
-        stopPhenoPlanProgressUpdates();
-        const stages = [
-          { label: "Interpreting request", detail: "Reading the natural-language request and extracting a runnable Pheno-Ranker plan." },
-          { label: "Checking scope", detail: "Aligning the request with the current dataset and selected patient scope." },
-          { label: "Preparing plan", detail: "Formatting the interpreted command, options, and reasoning for review." },
-        ];
-        let index = 0;
-        const applyStage = () => {
-          const stage = stages[Math.min(index, stages.length - 1)];
-          phenoPlanStatusEl.className = "pheno-status loading";
-          phenoPlanStatusEl.textContent = stage.label;
-          phenoPlanEl.innerHTML = renderActivityCard(stage.label, stage.detail);
-          phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
-          if (index < stages.length - 1) {
-            index += 1;
-          }
-        };
-        applyStage();
-        phenoPlanProgressTimer = window.setInterval(applyStage, 1600);
-      }
-
-      function stopPhenoRunProgressUpdates() {
-        if (phenoRunProgressTimer !== null) {
-          window.clearInterval(phenoRunProgressTimer);
-          phenoRunProgressTimer = null;
-        }
-      }
-
-      function startPhenoRunProgressUpdates() {
-        stopPhenoRunProgressUpdates();
-        const patientMode = phenoModeEl.value === "patient";
-        const stages = patientMode
-          ? [
-              { label: "Preparing run", detail: "Building the patient-comparison command and validating the selected scope." },
-              { label: "Running similarity job", detail: "Executing the comparison and waiting for rank and alignment outputs." },
-              { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
-            ]
-          : [
-              { label: "Preparing run", detail: "Building the cohort or extraction command and validating the selected scope." },
-              { label: "Running Pheno-Ranker", detail: "Executing the job and waiting for result files and plots." },
-              { label: "Collecting outputs", detail: "Loading previews, logs, and result files from the completed run." },
-            ];
-        let index = 0;
-        const applyStage = () => {
-          const stage = stages[Math.min(index, stages.length - 1)];
-          phenoStatusEl.className = "pheno-status loading";
-          phenoStatusEl.textContent = stage.label;
-          phenoOutputPreviewEl.innerHTML = renderActivityCard(stage.label, stage.detail);
-          phenoPreviewsEl.innerHTML = renderActivityCard("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.");
-          if (index < stages.length - 1) {
-            index += 1;
-          }
-        };
-        applyStage();
-        phenoRunProgressTimer = window.setInterval(applyStage, 1800);
-      }
-
-      const savedCohortsUi = createSavedCohortsUi({
-        refs: {
-          savedCohortsEl,
-          phenoSavedCohortsEl,
-          phenoSavedCohortsSelectionEl,
-          phenoSelectedPatientIdsEl,
-          phenoSelectedPatientIdsSummaryEl,
-          analysisSelectedPatientIdsEl,
-          analysisCompareModeEl,
-          analysisCompareSelectedPatientIdsEl,
-          analysisSelectedSavedCohortSelectionEl,
-          analysisCompareSavedCohortSelectionEl,
-          analysisStatusEl,
-          phenoStatusEl,
-          dataDirEl,
-        },
-        helpers: {
-          escapeHtml,
-        },
-        callbacks: {
-          setActiveTab,
-          renderAnalysisScopeSummary,
-          renderAnalysisCompareMode,
-          renderAnalysisCompareScopeSummary,
-          renderSelectedPatientIdsSummary,
-          renderGlobalContext,
-          datasetLabelsForIds,
-          currentDatasetIds: () => currentDatasetIds.slice(),
-          currentTabName,
-          queryStatusEl: () => queryStatusEl,
-        },
-        state: {
-          get savedCohorts() { return savedCohorts; },
-          set savedCohorts(value) { savedCohorts = value; },
-          get phenoSelectedSavedCohortIds() { return phenoSelectedSavedCohortIds; },
-          set phenoSelectedSavedCohortIds(value) { phenoSelectedSavedCohortIds = value; },
-          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
-          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
-          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
-          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
-          get latestQueryPatientIds() { return latestQueryPatientIds; },
-          get latestQueryRecordIds() { return latestQueryRecordIds; },
-          get latestQueryPrompt() { return latestQueryPrompt; },
-          get latestQueryIdType() { return latestQueryIdType; },
-        },
-      });
-
-      function renderPhenoSavedCohortsSelection() {
-        savedCohortsUi.renderPhenoSavedCohortsSelection();
-      }
-
-      function renderSavedCohorts() {
-        savedCohortsUi.renderSavedCohorts();
-      }
-
-      async function loadSavedCohorts() {
-        await savedCohortsUi.loadSavedCohorts();
-      }
-
-      async function saveLatestQueryAsCohort() {
-        await savedCohortsUi.saveLatestQueryAsCohort();
-      }
-
-      async function saveIdsAsCohort(options) {
-        return savedCohortsUi.saveIdsAsCohort(options);
-      }
-
-      function removeSavedCohortFromPheno(cohortId) {
-        savedCohortsUi.removeSavedCohortFromPheno(cohortId);
-      }
-
-      function handleSavedCohortAction(button) {
-        savedCohortsUi.handleSavedCohortAction(button);
-      }
-
-      async function loadLmStatus() {
-        if (!lmStatusEl || !phenoLmStatusEl || !analysisLmStatusEl) {
-          return;
-        }
-        try {
-          const response = await fetch("/lm-status");
-          if (!response.ok) {
-            throw new Error("Unable to load LM status.");
-          }
-          const payload = await response.json();
-          let text = "LM Studio: disabled";
-          if (payload.enabled) {
-            text = payload.model
-              ? `LM Studio model: ${payload.model}`
-              : "LM Studio: enabled, but no model is loaded";
-          }
-          lmStatusEl.textContent = text;
-          phenoLmStatusEl.textContent = text;
-          analysisLmStatusEl.textContent = text;
-          if (contextLmModelEl) {
-            contextLmModelEl.textContent = payload.enabled
-              ? (payload.model || "Enabled, no model loaded")
-              : "Disabled";
-          }
-        } catch (error) {
-          const text = "LM Studio model: unavailable";
-          lmStatusEl.textContent = text;
-          phenoLmStatusEl.textContent = text;
-          analysisLmStatusEl.textContent = text;
-          if (contextLmModelEl) {
-            contextLmModelEl.textContent = "Unavailable";
-          }
-        }
-        renderGlobalContext();
-      }
-
-      function currentTabName() {
-        if (phenoTabEl.classList.contains("active")) return "pheno";
-        if (datasetsTabEl && datasetsTabEl.classList.contains("active")) return "datasets";
-        if (dataTabEl && dataTabEl.classList.contains("active")) return "data";
-        if (usersTabEl && usersTabEl.classList.contains("active")) return "users";
-        if (dashboardTabEl.classList.contains("active")) return "dashboard";
-        if (analysisTabEl.classList.contains("active")) return "analysis";
-        if (queryTabEl.classList.contains("active")) return "query";
-        return "dashboard";
-      }
-
-      function summarizeScopeForTab(tabName) {
-        const selectedAnalysisCohortA = Array.isArray(savedCohorts)
-          ? savedCohorts.find((item) => item.id === analysisSelectedSavedCohortId)
-          : null;
-        const selectedAnalysisCohortB = Array.isArray(savedCohorts)
-          ? savedCohorts.find((item) => item.id === analysisCompareSavedCohortId)
-          : null;
-        if (tabName === "pheno") {
-          const ids = getCurrentScopeIds();
-          if (!ids.length && !phenoSelectedSavedCohortIds.length) {
-            return "Full workspace";
-          }
-          if (phenoSelectedSavedCohortIds.length) {
-            return `${phenoSelectedSavedCohortIds.length} saved cohort${phenoSelectedSavedCohortIds.length === 1 ? "" : "s"}`;
-          }
-          return `${ids.length} IDs in Pheno scope`;
-        }
-        if (tabName === "analysis") {
-          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
-            ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-            : String(analysisSelectedPatientIdsEl.value || "")
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean);
-          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
-            ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-            : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean);
-          if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-            const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
-            const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
-            return `${labelA} vs ${labelB}`;
-          }
-          if (!ids.length) {
-            return "Full workspace";
-          }
-          return `${ids.length} IDs in Analysis scope`;
-        }
-        if (tabName === "dashboard" && currentDashboardSubtab === "molecular") {
-          const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
-            ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-            : String(analysisSelectedPatientIdsEl.value || "")
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean);
-          const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
-            ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-            : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean);
-          if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-            const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
-            const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
-            return `${labelA} vs ${labelB}`;
-          }
-          if (!ids.length) {
-            return "Full workspace";
-          }
-          return `${ids.length} IDs in Molecular scope`;
-        }
-        return "Full workspace";
-      }
-
-      function renderGlobalContext() {
-        if (!contextDataDirEl || !contextCohortEl || !contextLmModelEl || !contextScopeEl) {
-          return;
-        }
-        const dataset = currentDatasetRecord();
-        contextDataDirEl.textContent = dataset
-          ? String(dataset.name || dataset.dataset_id || "Dataset")
-          : (currentDatasetIds.length > 1
-            ? datasetScopeLabel()
-            : (currentDatasetSelectionKey() || "Not configured"));
-
-        if (dashboardSummaryState && dashboardSummaryState.totals) {
-          const totals = dashboardSummaryState.totals;
-          contextCohortEl.textContent = `${formatNumber(totals.patients || 0)} patients, ${formatNumber(totals.visits || 0)} timepoints`;
-        } else if (currentPatients.length) {
-          const totalVisits = currentPatients.reduce((sum, patient) => sum + Number(patient.visit_count || 0), 0);
-          contextCohortEl.textContent = `${formatNumber(currentPatients.length)} patients, ${formatNumber(totalVisits)} timepoints`;
-        } else if (loadInFlight) {
-          contextCohortEl.textContent = "Loading...";
-        } else {
-          contextCohortEl.textContent = "No cohort loaded";
-        }
-
-        if (!contextLmModelEl.textContent.trim()) {
-          contextLmModelEl.textContent = "Checking...";
-        }
-        contextScopeEl.textContent = summarizeScopeForTab(currentTabName());
-        if (contextAuthEl) {
-          if (!authState.enabled) {
-            contextAuthEl.textContent = "Local user";
-          } else if (authState.authenticated && authState.user) {
-            contextAuthEl.textContent = `${authState.user.display_name || authState.user.username} (${authState.user.role || "user"})`;
-          } else {
-            contextAuthEl.textContent = "Signed out";
-          }
-        }
-      }
-
-      function canManageDataset() {
-        if (!authState.enabled) return true;
-        if (!(authState.authenticated && authState.user)) {
-          return false;
-        }
-        if (String(authState.user.role || "").trim().toLowerCase() === "admin") {
-          return true;
-        }
-        const groups = Array.isArray(authState.user.groups) ? authState.user.groups : [];
-        return groups.some((group) => String(group || "").trim().toLowerCase() === "admin");
-      }
-
-      function isWorkspaceAccessible() {
-        return !authState.enabled || Boolean(authState.authenticated && authState.user);
-      }
-
-      function clearLoadedWorkspaceForSignedOutState() {
-        currentPatients = [];
-        selectedPatientId = null;
-        dashboardSummaryState = null;
-        molecularDatasetsState = [];
-        selectedMolecularDatasets = [];
-        savedCohorts = [];
-        patientsEl.innerHTML = '<div class="empty">Sign in to access the shared clinical workspace.</div>';
-        detailEl.innerHTML = '<div class="empty">Patient workspace hidden until you sign in.</div>';
-        dashboardEl.innerHTML = '<div class="empty">Clinical dashboard hidden until you sign in.</div>';
-        if (molecularDashboardCardsEl) {
-          molecularDashboardCardsEl.innerHTML = '<div class="empty">Molecular dashboard hidden until you sign in.</div>';
-        }
-        if (molecularDashboardStatusEl) {
-          molecularDashboardStatusEl.className = "query-status";
-          molecularDashboardStatusEl.textContent = "Sign in to access shared molecular datasets.";
-        }
-      }
-
-      function parseUserGroupsInput(value) {
-        return String(value || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-
-      function formatUserGroupsInput(groups) {
-        return Array.isArray(groups) ? groups.join(", ") : "";
-      }
-
-      function clearUserCreateForm() {
-        if (userCreateUsernameEl) userCreateUsernameEl.value = "";
-        if (userCreateDisplayNameEl) userCreateDisplayNameEl.value = "";
-        if (userCreatePasswordEl) userCreatePasswordEl.value = "";
-        if (userCreateRoleEl) userCreateRoleEl.value = "user";
-        if (userCreateGroupsEl) userCreateGroupsEl.value = "";
-        if (userCreateEnabledEl) userCreateEnabledEl.checked = true;
-      }
-
-      function renderAuthUsersList(users) {
-        if (!usersListEl) {
-          return;
-        }
-        if (!users.length) {
-          usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
-          return;
-        }
-        usersListEl.innerHTML = users.map((user) => {
-          const username = String(user.username || "");
-          const displayName = String(user.display_name || user.username || "");
-          const role = String(user.role || "user");
-          const enabled = user.enabled !== false;
-          const authSource = String(user.auth_source || "local");
-          const groups = Array.isArray(user.groups) ? user.groups : [];
-          return `
-            <div class="dataset-picker-card" data-auth-user-card="${escapeHtml(username)}">
-              <div>
-                <div class="dataset-picker-title">
-                  <span>${escapeHtml(displayName || username || "Unknown user")}</span>
-                  <div class="dataset-picker-meta">
-                    <span class="dataset-picker-tag">${escapeHtml(username)}</span>
-                    <span class="dataset-picker-tag">${escapeHtml(role)}</span>
-                    <span class="dataset-picker-tag">${enabled ? "enabled" : "disabled"}</span>
-                    <span class="dataset-picker-tag">auth: ${escapeHtml(authSource)}</span>
-                  </div>
-                </div>
-                <div class="query-grid query-grid-compact" style="margin-top:12px;">
-                  <div>
-                    <label>Display name</label>
-                    <input type="text" data-auth-user-field="display_name" data-auth-user="${escapeHtml(username)}" value="${escapeHtml(displayName)}">
-                  </div>
-                  <div>
-                    <label>Role</label>
-                    <select data-auth-user-field="role" data-auth-user="${escapeHtml(username)}">
-                      <option value="user"${role === "user" ? " selected" : ""}>User</option>
-                      <option value="admin"${role === "admin" ? " selected" : ""}>Admin</option>
-                    </select>
-                  </div>
-                  <div class="query-grid-span-2">
-                    <label>Groups</label>
-                    <input type="text" data-auth-user-field="groups" data-auth-user="${escapeHtml(username)}" value="${escapeHtml(formatUserGroupsInput(groups))}" placeholder="Comma-separated groups">
-                  </div>
-                </div>
-                <div class="query-row" style="margin-top:12px;">
-                  <label class="dataset-picker-check">
-                    <input type="checkbox" data-auth-user-field="enabled" data-auth-user="${escapeHtml(username)}"${enabled ? " checked" : ""}>
-                    <span>Enabled</span>
-                  </label>
-                  <button type="button" class="query-chip query-chip-deterministic" data-auth-user-action="save" data-auth-user="${escapeHtml(username)}">Save</button>
-                  <input type="password" data-auth-user-field="password" data-auth-user="${escapeHtml(username)}" placeholder="New password">
-                  <button type="button" class="query-chip" data-auth-user-action="reset-password" data-auth-user="${escapeHtml(username)}">Reset password</button>
-                  <button type="button" class="query-chip query-chip-llm" data-auth-user-action="delete" data-auth-user="${escapeHtml(username)}">Delete</button>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join("");
-      }
-
-      async function loadAuthUsers() {
-        if (!usersListEl || !usersStatusEl) return;
-        if (!canManageDataset()) {
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = "Admin access required.";
-          usersListEl.innerHTML = '<div class="empty">User administration is only visible to administrators.</div>';
-          if (usersCreateCardEl) {
-            usersCreateCardEl.classList.add("is-hidden");
-          }
-          return;
-        }
-        if (usersCreateCardEl) {
-          usersCreateCardEl.classList.remove("is-hidden");
-        }
-        usersStatusEl.className = "query-status loading";
-        usersStatusEl.textContent = "Loading users...";
-        try {
-          const response = await fetch("/auth/users");
-          if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.detail || "Unable to load users.");
-          }
-          const payload = await response.json();
-          const users = Array.isArray(payload.users) ? payload.users : [];
-          availableAuthUsers = users.slice();
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = `${users.length} user${users.length === 1 ? "" : "s"} configured.`;
-          renderDatasetAdminList();
-          renderAuthUsersList(users);
-        } catch (error) {
-          availableAuthUsers = [];
-          renderDatasetAdminList();
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = error && error.message ? error.message : "Unable to load users.";
-          usersListEl.innerHTML = '<div class="empty">User list unavailable.</div>';
-        }
-      }
-
-      async function createAuthUser() {
-        if (!canManageDataset()) {
-          return;
-        }
-        const username = userCreateUsernameEl ? userCreateUsernameEl.value.trim() : "";
-        const password = userCreatePasswordEl ? userCreatePasswordEl.value : "";
-        const displayName = userCreateDisplayNameEl ? userCreateDisplayNameEl.value.trim() : "";
-        const role = userCreateRoleEl ? userCreateRoleEl.value : "user";
-        const groups = parseUserGroupsInput(userCreateGroupsEl ? userCreateGroupsEl.value : "");
-        const enabled = userCreateEnabledEl ? userCreateEnabledEl.checked : true;
-        usersStatusEl.className = "query-status loading";
-        usersStatusEl.textContent = "Creating user...";
-        try {
-          const response = await fetch("/auth/users", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username,
-              password,
-              display_name: displayName,
-              role,
-              groups,
-              enabled,
-            }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(payload.detail || "Unable to create user.");
-          }
-          clearUserCreateForm();
-          await loadAuthUsers();
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = `User ${payload.username || username} created.`;
-        } catch (error) {
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = error && error.message ? error.message : "Unable to create user.";
-        }
-      }
-
-      async function saveAuthUser(username) {
-        const card = usersListEl ? usersListEl.querySelector(`[data-auth-user-card="${CSS.escape(username)}"]`) : null;
-        if (!card) {
-          return;
-        }
-        const displayName = card.querySelector('[data-auth-user-field="display_name"]')?.value?.trim() || "";
-        const role = card.querySelector('[data-auth-user-field="role"]')?.value || "user";
-        const groups = parseUserGroupsInput(card.querySelector('[data-auth-user-field="groups"]')?.value || "");
-        const enabled = Boolean(card.querySelector('[data-auth-user-field="enabled"]')?.checked);
-        usersStatusEl.className = "query-status loading";
-        usersStatusEl.textContent = `Saving ${username}...`;
-        try {
-          const response = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              display_name: displayName,
-              role,
-              groups,
-              enabled,
-            }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(payload.detail || "Unable to update user.");
-          }
-          await loadAuthUsers();
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = `User ${payload.username || username} updated.`;
-        } catch (error) {
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = error && error.message ? error.message : "Unable to update user.";
-        }
-      }
-
-      async function resetAuthUserPassword(username) {
-        const card = usersListEl ? usersListEl.querySelector(`[data-auth-user-card="${CSS.escape(username)}"]`) : null;
-        const passwordField = card ? card.querySelector('[data-auth-user-field="password"]') : null;
-        const password = passwordField ? passwordField.value : "";
-        usersStatusEl.className = "query-status loading";
-        usersStatusEl.textContent = `Resetting password for ${username}...`;
-        try {
-          const response = await fetch(`/auth/users/${encodeURIComponent(username)}/password`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(payload.detail || "Unable to reset password.");
-          }
-          if (passwordField) {
-            passwordField.value = "";
-          }
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = `Password reset for ${payload.username || username}.`;
-        } catch (error) {
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = error && error.message ? error.message : "Unable to reset password.";
-        }
-      }
-
-      async function deleteAuthUser(username) {
-        if (!window.confirm(`Delete user ${username}?`)) {
-          return;
-        }
-        usersStatusEl.className = "query-status loading";
-        usersStatusEl.textContent = `Deleting ${username}...`;
-        try {
-          const response = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
-            method: "DELETE",
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(payload.detail || "Unable to delete user.");
-          }
-          await loadAuthUsers();
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = `User ${username} deleted.`;
-        } catch (error) {
-          usersStatusEl.className = "query-status";
-          usersStatusEl.textContent = error && error.message ? error.message : "Unable to delete user.";
-        }
-      }
-
-      function updateLoadButtonAvailability() {
-        if (!loadBtnEl) return;
-        const blocked = !isWorkspaceAccessible();
-        loadBtnEl.disabled = Boolean(loadInFlight || blocked);
-        renderLoadButtonState();
-        if (blocked && !loadInFlight) {
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = "Sign in to load your authorized dataset scope.";
-        }
-      }
-
-      function renderAuthUi() {
-        if (!authState.enabled) {
-          authBrandHeroEl && authBrandHeroEl.classList.add("is-hidden");
-          authGateEl && authGateEl.classList.add("is-hidden");
-          appShellEl && appShellEl.classList.remove("is-hidden");
-          heroAuthUtilityEl && heroAuthUtilityEl.classList.remove("is-hidden");
-          heroLogoutBtnEl && heroLogoutBtnEl.classList.add("is-hidden");
-          jobsDrawerBtnEl && jobsDrawerBtnEl.classList.remove("is-hidden");
-          if (heroAuthIdentityEl) {
-            heroAuthIdentityEl.textContent = "Local user";
-          }
-          datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
-          datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
-          dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
-          usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
-          usersCreateCardEl && usersCreateCardEl.classList.remove("is-hidden");
-          updateLoadButtonAvailability();
-          renderJobsDrawer();
-          renderGlobalContext();
-          return;
-        }
-        const authenticated = Boolean(authState.authenticated && authState.user);
-        authBrandHeroEl && authBrandHeroEl.classList.toggle("is-hidden", authenticated);
-        authGateEl && authGateEl.classList.toggle("is-hidden", authenticated);
-        appShellEl && appShellEl.classList.toggle("is-hidden", !authenticated);
-        heroAuthUtilityEl && heroAuthUtilityEl.classList.toggle("is-hidden", !authenticated);
-        heroLogoutBtnEl && heroLogoutBtnEl.classList.toggle("is-hidden", !authenticated);
-        if (authenticated) {
-          if (heroAuthIdentityEl) {
-            heroAuthIdentityEl.textContent = `${authState.user.display_name || authState.user.username} (${authState.user.role || "user"})`;
-          }
-          if (authGateStatusEl) {
-            authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
-          }
-          const admin = canManageDataset();
-          datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
-          dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
-          usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
-          datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
-          usersCreateCardEl && usersCreateCardEl.classList.toggle("is-hidden", !admin);
-          if (!admin && (currentTabName() === "data" || currentTabName() === "users")) {
-            setActiveTab("datasets");
-          }
-          if (admin) {
-            void loadAuthUsers();
-          }
-        } else {
-          if (heroAuthIdentityEl) {
-            heroAuthIdentityEl.textContent = "Signed out";
-          }
-          datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
-          dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
-          usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
-          datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
-          usersCreateCardEl && usersCreateCardEl.classList.add("is-hidden");
-          if (authGateStatusEl) {
-            authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
-          }
-        }
-        updateLoadButtonAvailability();
-        renderJobsDrawer();
-        renderGlobalContext();
-      }
-
-      async function refreshUserWorkspaceState() {
-        if (!isWorkspaceAccessible()) {
-          analysisSessions = [];
-          currentAnalysisSessionId = "";
-          analysisHistory = [];
-          analysisTurns = [];
-          analysisCatalogItems = [];
-          analysisCatalogWorkspace = null;
-          renderAnalysisSessionList();
-          renderAnalysisThread();
-          renderAnalysisCatalog();
-          return;
-        }
-        await loadSavedCohorts();
-        await loadAnalysisCatalog();
-        analysisSessions = [];
-        currentAnalysisSessionId = "";
-        ensureAnalysisSessionsLoaded();
-        const loaded = await loadAnalysisSessionsFromBackend();
-        if (!loaded) {
-          analysisSessions = [createAnalysisSession({ dataDir: dataDirEl.value.trim() })];
-          currentAnalysisSessionId = analysisSessions[0].id;
-          applyAnalysisSession(currentAnalysisSession());
-        }
-      }
-
-      async function fetchAuthStatus() {
-        try {
-          const response = await fetch("/auth/me");
-          if (!response.ok) throw new Error("Unable to check authentication.");
-          const payload = await response.json();
-          authState = {
-            enabled: Boolean(payload.enabled),
-            authenticated: Boolean(payload.authenticated),
-            user: payload.user || null,
-          };
-        } catch (_error) {
-          authState = {
-            enabled: false,
-            authenticated: true,
-            user: { username: "local", role: "admin", display_name: "Local user" },
-          };
-        }
-        renderAuthUi();
-        if (!authState.enabled || authState.authenticated) {
-          void loadRecentJobs({ silent: true });
-        } else {
-          recentJobs = [];
-          renderJobsDrawer();
-        }
-      }
-
-      async function loginLocal() {
-        if (!authState.enabled) return;
-        const username = String(authUsernameEl && authUsernameEl.value ? authUsernameEl.value : "").trim();
-        const password = String(authPasswordEl && authPasswordEl.value ? authPasswordEl.value : "");
-        if (authGateStatusEl) {
-          authGateStatusEl.textContent = "Signing in...";
-        }
-        try {
-          const response = await fetch("/auth/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-          });
-          if (!response.ok) {
-            const raw = await response.text();
-            let message = "Sign-in failed.";
-            try {
-              const parsed = JSON.parse(raw);
-              message = parsed.detail || parsed.message || message;
-            } catch (_error) {
-              message = raw || message;
-            }
-            throw new Error(message);
-          }
-          if (authPasswordEl) authPasswordEl.value = "";
-          await fetchAuthStatus();
-          await loadDatasets();
-          await refreshUserWorkspaceState();
-          await loadPatients({ respectAdminGate: false });
-        } catch (error) {
-          if (authGateStatusEl) {
-            authGateStatusEl.textContent = error && error.message ? error.message : "Sign-in failed.";
-          }
-        }
-      }
-
-      async function logoutLocal() {
-        try {
-          await fetch("/auth/logout", { method: "POST" });
-        } catch (_error) {
-        }
-        await fetchAuthStatus();
-        await loadDatasets();
-        clearLoadedWorkspaceForSignedOutState();
-        loadStatusEl.className = "load-status";
-        loadStatusEl.textContent = "Signed out.";
-        await refreshUserWorkspaceState();
-      }
-
-      const analysisUi = createAnalysisUi({
-        refs: {
-          dataDirEl,
-          analysisMetaEl,
-          analysisThreadEl,
-          analysisStatusEl,
-          analysisRunBtnEl,
-          analysisPromptEl,
-          analysisSelectedPatientIdsEl,
-          analysisCompareModeEl,
-          analysisCompareSelectedPatientIdsEl,
-          analysisCompareFieldEl,
-        },
-        helpers: {
-          escapeHtml,
-          renderQueryReply,
-        },
-        callbacks: {
-          renderAnalysisStarterPrompts,
-          syncCurrentAnalysisSessionFromUi,
-          startAnalysisProgressUpdates,
-          stopAnalysisProgressUpdates,
-          handleAnalysisJobSubmission: (payload) => {
-            setJobsDrawerOpen(true);
-            void loadRecentJobs();
-            if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
-              analysisStatusEl.className = "query-status";
-              const label = String(payload.data.job_code || payload.data.job_id || "").trim();
-              analysisStatusEl.textContent = `Background job ${label} submitted. Open Jobs to monitor progress.`;
-            }
-          },
-          renderGlobalContext,
-          renderAnalysisScopeSummary,
-          renderAnalysisCompareScopeSummary,
-        },
-        state: {
-          get analysisInFlight() { return analysisInFlight; },
-          set analysisInFlight(value) { analysisInFlight = value; },
-          get analysisHistory() { return analysisHistory; },
-          set analysisHistory(value) { analysisHistory = value; },
-          get analysisTurns() { return analysisTurns; },
-          set analysisTurns(value) { analysisTurns = value; },
-          get analysisExecutionMode() { return analysisExecutionMode; },
-          set analysisExecutionMode(value) { analysisExecutionMode = value; },
-          get analysisSelectedCatalogItemId() { return analysisSelectedCatalogItemId; },
-          set analysisSelectedCatalogItemId(value) { analysisSelectedCatalogItemId = value; },
-          get currentAnalysisSessionId() { return currentAnalysisSessionId; },
-          get analysisExamplesPinnedOpen() { return analysisExamplesPinnedOpen; },
-          set analysisExamplesPinnedOpen(value) { analysisExamplesPinnedOpen = value; },
-          get savedCohorts() { return savedCohorts; },
-          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
-          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
-          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
-          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
-        },
-      });
-
-      function renderAnalysisMeta(payload) {
-        analysisUi.renderAnalysisMeta(payload);
-      }
-
-      function renderAnalysisCompareMode() {
-        analysisUi.renderAnalysisCompareMode();
-      }
-
-      function analysisPromptRequestsPlots(prompt) {
-        return analysisUi.analysisPromptRequestsPlots(prompt);
-      }
-
-      function analysisPayloadHasPlots(payload) {
-        return analysisUi.analysisPayloadHasPlots(payload);
-      }
-
-      function renderAnalysisThread() {
-        analysisUi.renderAnalysisThread();
-      }
-
-      async function runAnalysis() {
-        return analysisUi.runAnalysis();
-      }
-
-      const dashboardUi = createDashboardUi({
-        refs: {
-          patientsEl,
-          dashboardEl,
-          detailEl,
-          dataDirEl,
-          molecularDashboardStatusEl,
-          molecularDashboardCardsEl,
-          analysisMolecularDatasetListEl,
-          analysisMolecularGeneEl,
-          analysisMolecularGenesEl,
-          analysisMolecularStatusEl,
-          analysisMolecularResultEl,
-          analysisSelectedPatientIdsEl,
-          analysisSelectedPatientIdsSummaryEl,
-          analysisSelectedSavedCohortSelectionEl,
-          analysisCompareModeEl,
-          analysisCompareSelectedPatientIdsEl,
-          analysisCompareSelectedPatientIdsSummaryEl,
-          analysisCompareSavedCohortSelectionEl,
-        },
-        helpers: {
-          escapeHtml,
-          formatNumber,
-        },
-        callbacks: {
-          renderGlobalContext,
-          syncCurrentAnalysisSessionFromUi,
-          isMultiDatasetWorkspace: () => currentDatasetIds.length > 1,
-        },
-        state: {
-          get selectedPatientId() { return selectedPatientId; },
-          set selectedPatientId(value) { selectedPatientId = value; },
-          get currentPatients() { return currentPatients; },
-          set currentPatients(value) { currentPatients = value; },
-          get molecularDatasetsState() { return molecularDatasetsState; },
-          set molecularDatasetsState(value) { molecularDatasetsState = value; },
-          get selectedMolecularDatasets() { return selectedMolecularDatasets; },
-          set selectedMolecularDatasets(value) { selectedMolecularDatasets = value; },
-          get dashboardSummaryState() { return dashboardSummaryState; },
-          set dashboardSummaryState(value) { dashboardSummaryState = value; },
-          get savedCohorts() { return savedCohorts; },
-          get analysisSelectedSavedCohortId() { return analysisSelectedSavedCohortId; },
-          set analysisSelectedSavedCohortId(value) { analysisSelectedSavedCohortId = value; },
-          get analysisCompareSavedCohortId() { return analysisCompareSavedCohortId; },
-          set analysisCompareSavedCohortId(value) { analysisCompareSavedCohortId = value; },
-        },
-        constants: {
-          MAX_VISIBLE_PATIENTS,
-        },
-      });
-
-      function renderPatientList(items) {
-        dashboardUi.renderPatientList(items);
-      }
-
-      function renderDetail(patient) {
-        dashboardUi.renderDetail(patient);
-      }
-
-      function renderDashboard(summary) {
-        dashboardUi.renderDashboard(summary);
-      }
-
-      function renderInlineCode(value) {
-        const parts = String(value).split("`");
-        return parts.map((part, index) => {
-          if (index % 2 === 1) {
-            return `<code>${escapeHtml(part)}</code>`;
-          }
-          return escapeHtml(part)
-            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-            .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-        }).join("");
-      }
-
-      const queryUi = createQueryUi({
-        refs: {
-          dataDirEl,
-          queryReplyEl,
-          queryStatusEl,
-          queryMetaEl,
-          queryReasonEl,
-          queryActionsEl,
-          queryFollowupsEl,
-          queryDataEl,
-          queryDetailsEl,
-          queryThreadEl,
-          questionEl,
-          askBtnEl,
-          queryTabEl,
-          queryExamplesEl,
-          queryDiseaseTopChipsEl,
-          queryDiseaseStatusEl,
-          analysisSelectedPatientIdsEl,
-        },
-        helpers: {
-          escapeHtml,
-          renderActivityCard,
-          fallbackCopyText,
-        },
-        callbacks: {
-          renderQueryStarterPrompts,
-          renderQueryExecutionMode,
-          startQueryProgressUpdates,
-          stopQueryProgressUpdates,
-          nextFrame,
-          saveLatestQueryAsCohort,
-          sendPatientIdsToPhenoRanker,
-          sendPatientIdsToAnalysis,
-          sendPromptToAnalysis,
-          currentPatientsProvider: () => currentPatients,
-          phenoRankerPatientIdsProvider: () => phenoRankerPatientIds,
-          isMultiDatasetWorkspace: () => currentDatasetIds.length > 1,
-          setLatestQueryState: (patch) => {
-            if (Object.prototype.hasOwnProperty.call(patch, 'ids')) {
-              latestQueryPatientIds = Array.isArray(patch.ids) ? patch.ids : [];
-            }
-            if (Object.prototype.hasOwnProperty.call(patch, 'recordIds')) {
-              latestQueryRecordIds = Array.isArray(patch.recordIds) ? patch.recordIds : [];
-            }
-            if (Object.prototype.hasOwnProperty.call(patch, 'prompt')) {
-              latestQueryPrompt = patch.prompt || '';
-            }
-            if (Object.prototype.hasOwnProperty.call(patch, 'analysisPrompt')) {
-              latestQueryAnalysisPrompt = patch.analysisPrompt || '';
-            }
-            if (Object.prototype.hasOwnProperty.call(patch, 'idType')) {
-              latestQueryIdType = patch.idType || 'patient';
-            }
-          },
-          setLatestScopedContext: (patch) => {
-            latestScopedContext = {
-              patientIds: Array.isArray(patch && patch.patientIds) ? patch.patientIds : latestScopedContext.patientIds,
-              recordIds: Array.isArray(patch && patch.recordIds) ? patch.recordIds : latestScopedContext.recordIds,
-              idType: patch && patch.idType ? patch.idType : latestScopedContext.idType,
-              sourceTab: patch && patch.sourceTab ? patch.sourceTab : latestScopedContext.sourceTab,
-              prompt: patch && typeof patch.prompt === 'string' ? patch.prompt : latestScopedContext.prompt,
-            };
-          },
-        },
-        state: {
-          get queryInFlight() { return queryInFlight; },
-          set queryInFlight(value) { queryInFlight = value; },
-          get queryHistory() { return queryHistory; },
-          set queryHistory(value) { queryHistory = value; },
-          get queryTurns() { return queryTurns; },
-          set queryTurns(value) { queryTurns = value; },
-          get queryExecutionMode() { return queryExecutionMode; },
-          set queryExecutionMode(value) { queryExecutionMode = value; },
-          get queryGranularityMode() { return queryGranularityMode; },
-          set queryGranularityMode(value) { queryGranularityMode = value; },
-          get queryFollowMemoryEnabled() { return queryFollowMemoryEnabled; },
-          set queryFollowMemoryEnabled(value) { queryFollowMemoryEnabled = Boolean(value); },
-          get latestQueryPatientIds() { return latestQueryPatientIds; },
-          get latestQueryRecordIds() { return latestQueryRecordIds; },
-          get latestScopedContext() { return latestScopedContext; },
-        },
-      });
-
-      function renderQueryReply(payloadOrValue) {
-        return queryUi.renderQueryReply(payloadOrValue);
-      }
-
-      function renderQueryMeta(payload) {
-        queryUi.renderQueryMeta(payload);
-      }
-
-      function resetQueryWorkspace() {
-        queryUi.resetQueryWorkspace();
-      }
-
-      function renderQueryThread() {
-        queryUi.renderQueryThread();
-      }
-
-      function renderQueryReason(payload) {
-        queryUi.renderQueryReason(payload);
-      }
-
-      function renderFollowupButtons(items) {
-        queryFollowupsEl.innerHTML = '';
-      }
-
-      function renderQueryActions(payload) {
-        queryUi.renderQueryActions(payload);
-      }
-
-      async function askQuery() {
-        await queryUi.askQuery();
-      }
-
-      async function loadQueryDiseaseOptions() {
-        await queryUi.loadDiseaseOptions();
-      }
-
-      function renderAnalysisScopeSummary() {
-        dashboardUi.renderAnalysisScopeSummary();
-      }
-
-      function renderAnalysisCompareScopeSummary() {
-        dashboardUi.renderAnalysisCompareScopeSummary();
-      }
-
-      function renderMolecularExpressionResult(payload) {
-        dashboardUi.renderMolecularExpressionResult(payload);
-      }
-
-      function renderMolecularDashboardCards(datasets) {
-        dashboardUi.renderMolecularDashboardCards(datasets);
-      }
-
-      async function loadMolecularDatasets() {
-        await dashboardUi.loadMolecularDatasets();
-      }
-
-      async function runMolecularExpressionAnalysis() {
-        await dashboardUi.runMolecularExpressionAnalysis();
-      }
-
-      function renderSelectedPatientIdsSummary() {
-        phenoUi.renderSelectedPatientIdsSummary();
-      }
-
-      function sendPatientIdsToPhenoRanker() {
-        const scopeIds = latestQueryRecordIds.length ? latestQueryRecordIds : latestQueryPatientIds;
-        if (!scopeIds.length) {
-          return;
-        }
-        phenoActionEl.value = "compare";
-        phenoModeEl.value = "cohort";
-        phenoSelectedPatientIdsEl.value = scopeIds.join(",");
-        renderSelectedPatientIdsSummary();
-        updatePhenoMode();
-        setActiveTab("pheno");
-        phenoStatusEl.className = "pheno-status";
-        phenoStatusEl.textContent = latestQueryRecordIds.length
-          ? `Loaded ${latestQueryRecordIds.length} sample IDs from the query result into the current Pheno-Ranker scope.`
-          : `Loaded ${latestQueryPatientIds.length} patient IDs from the query result into the current Pheno-Ranker scope.`;
-      }
-
-      function sendPatientIdsToAnalysis() {
-        const scopeIds = latestQueryRecordIds.length ? latestQueryRecordIds : latestQueryPatientIds;
-        if (!scopeIds.length) {
-          return;
-        }
-        analysisSelectedSavedCohortId = "";
-        analysisSelectedPatientIdsEl.value = scopeIds.join(",");
-        if (latestQueryAnalysisPrompt && !analysisPromptEl.value.trim()) {
-          analysisPromptEl.value = latestQueryAnalysisPrompt;
-        }
-        renderAnalysisScopeSummary();
-        setActiveTab("analysis");
-        syncCurrentAnalysisSessionFromUi({ render: true });
-        analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = latestQueryRecordIds.length
-          ? `Loaded ${latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`
-          : `Loaded ${latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`;
-      }
-
-      function sendPromptToAnalysis(prompt, options) {
-        const settings = options || {};
-        const normalizedPrompt = String(prompt || "").trim();
-        if (!normalizedPrompt) {
-          return;
-        }
-        analysisPromptEl.value = normalizedPrompt;
-        analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
-        analysisSelectedCatalogItemId = "";
-        setActiveTab("analysis");
-        renderAnalysisScopeSummary();
-        syncCurrentAnalysisSessionFromUi({ render: true });
-        analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = latestQueryPatientIds.length
-          ? `Analysis prompt prepared for the ${latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
-          : "Analysis prompt prepared. Select a scope or use the full workspace.";
-        analysisPromptEl.focus();
-      }
-
-      function nextFrame() {
-        return new Promise((resolve) => {
-          window.requestAnimationFrame(() => resolve());
-        });
-      }
-
-      function getCurrentScopeIds() {
-        return String(phenoSelectedPatientIdsEl.value || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-
-      const phenoUi = createPhenoUi({
-        refs: {
-          dataDirEl,
-          phenoActionEl,
-          phenoModeEl,
-          phenoPromptEl,
-          phenoPlanBtnEl,
-          phenoPlanRunBtnEl,
-          phenoPlanStatusEl,
-          phenoPlanMetaEl,
-          phenoManualOverrideNoteEl,
-          phenoPlanDetailsEl,
-          phenoPlanEl,
-          phenoPlanReasoningEl,
-          phenoReferenceFilesSummaryEl,
-          phenoPatientFieldEl,
-          phenoPatientIdEl,
-          phenoSelectedPatientIdsEl,
-          phenoSelectedPatientIdsSummaryEl,
-          phenoIncludeTermsEl,
-          phenoExcludeTermsEl,
-          phenoSimilarityMetricEl,
-          phenoSortByEl,
-          phenoMaxOutFieldEl,
-          phenoMaxOutEl,
-          phenoAlignChecksEl,
-          phenoAlignEl,
-          phenoRenderHeatmapEl,
-          phenoRenderMdsEl,
-          phenoPlotChecksEl,
-          phenoRunBtnEl,
-          phenoExplainBtnEl,
-          phenoExplainLlmBtnEl,
-          phenoAnalysisBtnEl,
-          phenoCopyIdsBtnEl,
-          phenoStatusEl,
-          phenoExplainCardEl,
-          phenoAlignmentCardEl,
-          phenoExplainDetailEl,
-          phenoCommandEl,
-          phenoFilesEl,
-          phenoResultEmptyStateEl,
-          phenoResultWorkspaceEl,
-          phenoOutputDetailsEl,
-          phenoOutputPreviewEl,
-          phenoAlignmentDetailEl,
-          phenoLogsEl,
-          phenoPreviewsEl,
-          analysisSelectedPatientIdsEl,
-          analysisPromptEl,
-          analysisStatusEl,
-        },
-        constants: {
-          PHENO_BUCKET_STYLES,
-          PHENO_COHORT_COLORS,
-        },
-        helpers: {
-          escapeHtml,
-          renderActivityCard,
-          fallbackCopyText,
-          renderQueryReply,
-          nextFrame,
-        },
-        callbacks: {
-          setActiveTab,
-          renderGlobalContext,
-          renderAnalysisScopeSummary,
-          syncCurrentAnalysisSessionFromUi,
-          startPhenoPlanProgressUpdates,
-          stopPhenoPlanProgressUpdates,
-          startPhenoRunProgressUpdates,
-          stopPhenoRunProgressUpdates,
-          saveIdsAsCohort,
-          getSelectedSavedCohortIds: () => phenoSelectedSavedCohortIds.slice(),
-          getCurrentScopeIds,
-          onPatientIdsLoaded: (ids) => { phenoRankerPatientIds = ids.slice(); },
-          onReferenceFilesLoaded: (files) => { phenoReferenceFiles = files.slice(); },
-        },
-      });
-
-      async function loadPhenoRankerPatientIds() {
-        await phenoUi.loadPhenoRankerPatientIds();
-      }
-
-      function updatePhenoMode() {
-        phenoUi.updatePhenoMode();
-      }
-
-      function updatePhenoExplainActions() {
-        phenoUi.updatePhenoExplainActions();
-      }
-
-      function updatePhenoResultActions() {
-        phenoUi.updatePhenoResultActions();
-      }
-
-      function updatePhenoRunAvailability() {
-        phenoUi.updatePhenoRunAvailability();
-      }
-
-      function setPhenoResultWorkspaceVisible(visible) {
-        phenoUi.setPhenoResultWorkspaceVisible(visible);
-      }
-
-      function resetPhenoRunWorkspace() {
-        phenoUi.resetPhenoRunWorkspace();
-      }
-
-      function markPhenoManualOverride() {
-        phenoUi.markPhenoManualOverride();
-      }
-
-      function clearPhenoManualOverrides() {
-        phenoUi.setPhenoManualOverrides(false);
-      }
-
-      async function planPhenoRanker() {
-        await phenoUi.planPhenoRanker();
-      }
-
-      async function planAndRunPhenoRanker() {
-        await phenoUi.planAndRunPhenoRanker();
-      }
-
-      async function runPhenoRanker(usePromptPlanner = true) {
-        await phenoUi.runPhenoRanker(usePromptPlanner);
-      }
-
-      async function copyPhenoMatchIds() {
-        await phenoUi.copyPhenoMatchIds();
-      }
-
-      function sendPhenoMatchesToAnalysis() {
-        phenoUi.sendPhenoMatchesToAnalysis();
-      }
-
-      async function explainPhenoResults() {
-        await phenoUi.explainPhenoResults();
-      }
-
-      async function explainPhenoResultsWithLlm() {
-        await phenoUi.explainPhenoResultsWithLlm();
-      }
-
-      async function loadPhenoAlignment(referenceId, targetId) {
-        await phenoUi.loadPhenoAlignment(referenceId, targetId);
-      }
-
-      function renderPhenoAlignmentPlaceholder(message) {
-        phenoUi.renderPhenoAlignmentPlaceholder(message);
-      }
-
-      function renderPhenoExplainPlaceholder(message) {
-        phenoUi.renderPhenoExplainPlaceholder(message);
-      }
-
-      async function loadPatients(options = {}) {
-        const { respectAdminGate = true } = options;
-        if (loadInFlight) {
-          return;
-        }
-        if (respectAdminGate && !isWorkspaceAccessible()) {
-          updateLoadButtonAvailability();
-          return;
-        }
-        loadInFlight = true;
-        renderGlobalContext();
-        updateLoadButtonAvailability();
-        loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = "Loading patients and dashboard...";
-        await nextFrame();
-
-        try {
-          const datasetId = encodeURIComponent(currentDatasetId());
-          const selectedIds = pendingDatasetSelectionIds();
-          await fetch("/datasets/select", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dataset_ids: selectedIds }),
-          });
-          currentDatasetIds = selectedIds.slice();
-          pendingDatasetIds = selectedIds.slice();
-          currentDatasetScopeId = currentDatasetSelectionKey();
-          if (dataDirEl) {
-            dataDirEl.dataset.scopeId = currentDatasetScopeId;
-          }
-          renderDatasetPicker();
-          renderDatasetAdminList();
-          renderDatasetScopeSummary();
-          renderLoadButtonState();
-          prepareAnalysisSessionForDataDir(currentDatasetSelectionKey());
-          resetQueryWorkspace();
-          syncQueryGranularityWithWorkspacePolicy();
-          await loadAnalysisCatalog();
-          await loadSavedCohorts();
-          await loadQueryDiseaseOptions();
-          await loadMolecularDatasets();
-          await loadPhenoRankerPatientIds();
-          const patientResponse = await fetch(`/patients?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`);
-          if (!patientResponse.ok) {
-            const error = await patientResponse.json();
-            patientsEl.innerHTML = `<div class="empty">${error.detail}</div>`;
-            detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
-            dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-            dashboardSummaryState = null;
-            loadStatusEl.className = "load-status";
-            loadStatusEl.textContent = "Load failed.";
-            renderGlobalContext();
-            return;
-          }
-
-          const patients = await patientResponse.json();
-          currentPatients = patients;
-          if (!patients.length) {
-            selectedPatientId = null;
-            patientsEl.innerHTML = '<div class="empty">No patient records found in the selected directory.</div>';
-            detailEl.innerHTML = '<div class="empty">No timeline to display.</div>';
-            dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
-            dashboardSummaryState = null;
-            loadStatusEl.className = "load-status";
-            loadStatusEl.textContent = "No patients found.";
-            renderGlobalContext();
-            return;
-          }
-
-          renderPatientList(filterPatients(patientSearchEl.value));
-          selectedPatientId = null;
-          detailEl.innerHTML = '<div class="empty">Select a patient to inspect the patient workspace.</div>';
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = `Loaded ${patients.length} patients.`;
-          renderGlobalContext();
-
-          dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
-          window.setTimeout(() => {
-            fetch(`/dashboard?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`)
-            .then(async (response) => {
-              if (!response.ok) {
-                dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-                dashboardSummaryState = null;
-                renderGlobalContext();
-                return;
-              }
-              dashboardSummaryState = await response.json();
-              renderDashboard(dashboardSummaryState);
-              renderGlobalContext();
-            })
-            .catch(() => {
-              dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-              dashboardSummaryState = null;
-              renderGlobalContext();
-            });
-          }, 0);
-        } catch (error) {
-          patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
-          detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
-          dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-          dashboardSummaryState = null;
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = error && error.message ? error.message : "Load failed.";
-          renderGlobalContext();
-        } finally {
-          loadInFlight = false;
-          updateLoadButtonAvailability();
-        }
-      }
-
-      function filterPatients(query) {
-        const value = (query || "").trim().toLowerCase();
-        if (!value) return currentPatients;
-        return currentPatients.filter((patient) => patient.patient_id.toLowerCase().includes(value));
-      }
-
-      async function loadPatient(patientId) {
-        selectedPatientId = patientId;
-        const datasetId = encodeURIComponent(currentDatasetSelectionKey());
-        const response = await fetch(`/patients/${patientId}/navigator?dataset_id=${datasetId}`);
-        if (!response.ok) {
-          const error = await response.json();
-          detailEl.innerHTML = `<div class="empty">${error.detail}</div>`;
-          return;
-        }
-        const patient = await response.json();
-        renderDetail(patient);
-        renderPatientList(filterPatients(patientSearchEl.value));
-      }
-
-      dataDirEl && dataDirEl.addEventListener("change", () => {
-        pendingDatasetIds = selectedDatasetIdsFromUi();
-        renderDatasetPicker();
-        renderDatasetAdminList();
-        renderDatasetScopeSummary();
-      });
-      datasetPickerEl && datasetPickerEl.addEventListener("change", (event) => {
-        const checkbox = event.target.closest("[data-dataset-checkbox]");
-        if (!checkbox || !datasetPickerEl.contains(checkbox)) {
-          return;
-        }
-        syncDatasetSelectionFromPicker();
-      });
-      datasetAdminListEl && datasetAdminListEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-dataset-save]");
-        if (!button || !datasetAdminListEl.contains(button)) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        void saveDatasetAccess(button.getAttribute("data-dataset-save") || "");
-      });
-      loadBtnEl.addEventListener("click", () => loadPatients({ respectAdminGate: true }));
-      authLoginBtnEl && authLoginBtnEl.addEventListener("click", loginLocal);
-      heroLogoutBtnEl && heroLogoutBtnEl.addEventListener("click", logoutLocal);
-      authPasswordEl && authPasswordEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          loginLocal();
-        }
-      });
-      askBtnEl.addEventListener("click", askQuery);
-      queryPlannerBtnEl && queryPlannerBtnEl.addEventListener("click", () => {
-        queryExecutionMode = queryExecutionMode === "planner_only" ? "auto" : "planner_only";
-        renderQueryExecutionMode();
-      });
-      queryMemoryBtnEl && queryMemoryBtnEl.addEventListener("click", () => {
-        if (queryGranularityMode !== "detailed") {
-          renderQueryExecutionMode();
-          return;
-        }
-        queryFollowMemoryEnabled = !queryFollowMemoryEnabled;
-        renderQueryExecutionMode();
-      });
-        queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.addEventListener("click", () => {
-        const willOpen = !queryDiseasePanelEl || queryDiseasePanelEl.classList.contains("is-hidden");
-        if (queryDiseasePanelEl) queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
-        queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
-      });
-      queryClearBtnEl && queryClearBtnEl.addEventListener("click", () => {
-        resetQueryWorkspace();
-        queryFollowMemoryEnabled = false;
-        if (queryDiseasePanelEl) queryDiseasePanelEl.classList.add("is-hidden");
-        queryDiseaseBuilderBtnEl && queryDiseaseBuilderBtnEl.classList.remove("is-active");
-        queryStatusEl.className = "query-status";
-        queryStatusEl.textContent = "Query thread cleared.";
-        renderQueryExecutionMode();
-      });
-      analysisRunBtnEl.addEventListener("click", runAnalysis);
-      analysisComposerExamplesBtnEl && analysisComposerExamplesBtnEl.addEventListener("click", () => {
-        analysisExamplesPinnedOpen = true;
-        renderAnalysisStarterPrompts();
-        if (analysisStarterPanelEl && !analysisStarterPanelEl.hidden) {
-          analysisStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      });
-      analysisNewSessionBtnEl && analysisNewSessionBtnEl.addEventListener("click", () => {
-        createAndSelectAnalysisSession({ dataDir: dataDirEl.value.trim() });
-      });
-      dashboardTabBtnEl.addEventListener("click", () => setActiveTab("dashboard"));
-      datasetsTabBtnEl && datasetsTabBtnEl.addEventListener("click", () => setActiveTab("datasets"));
-      dataTabBtnEl && dataTabBtnEl.addEventListener("click", () => setActiveTab("data"));
-      usersTabBtnEl && usersTabBtnEl.addEventListener("click", () => {
-        setActiveTab("users");
-        void loadAuthUsers();
-      });
-      userCreateBtnEl && userCreateBtnEl.addEventListener("click", () => {
-        void createAuthUser();
-      });
-      usersListEl && usersListEl.addEventListener("click", (event) => {
-        const trigger = event.target.closest("[data-auth-user-action]");
-        if (!trigger) {
-          return;
-        }
-        const action = String(trigger.dataset.authUserAction || "");
-        const username = String(trigger.dataset.authUser || "");
-        if (!username) {
-          return;
-        }
-        if (action === "save") {
-          void saveAuthUser(username);
-        } else if (action === "reset-password") {
-          void resetAuthUserPassword(username);
-        } else if (action === "delete") {
-          void deleteAuthUser(username);
-        }
-      });
-      queryTabBtnEl.addEventListener("click", () => setActiveTab("query"));
-      analysisTabBtnEl.addEventListener("click", () => setActiveTab("analysis"));
-      phenoTabBtnEl.addEventListener("click", () => setActiveTab("pheno"));
-      dashboardClinicalBtnEl && dashboardClinicalBtnEl.addEventListener("click", () => setDashboardSubtab("clinical"));
-      dashboardMolecularBtnEl && dashboardMolecularBtnEl.addEventListener("click", () => setDashboardSubtab("molecular"));
-      phenoPlanBtnEl.addEventListener("click", planPhenoRanker);
-      phenoPlanRunBtnEl.addEventListener("click", planAndRunPhenoRanker);
-      phenoRunBtnEl.addEventListener("click", runPhenoRanker);
-      phenoAnalysisBtnEl.addEventListener("click", sendPhenoMatchesToAnalysis);
-      phenoCopyIdsBtnEl.addEventListener("click", copyPhenoMatchIds);
-      phenoExplainBtnEl.addEventListener("click", explainPhenoResults);
-      phenoExplainLlmBtnEl.addEventListener("click", explainPhenoResultsWithLlm);
-      phenoModeEl.addEventListener("change", () => {
-        markPhenoManualOverride();
-        updatePhenoMode();
-      });
-      phenoActionEl.addEventListener("change", () => {
-        markPhenoManualOverride();
-        updatePhenoMode();
-      });
-      updatePhenoExplainActions();
-      updatePhenoResultActions();
-      updatePhenoRunAvailability();
-      phenoSelectedPatientIdsEl.addEventListener("input", () => {
-        markPhenoManualOverride();
-        renderSelectedPatientIdsSummary();
-      });
-      [
-        phenoPatientIdEl,
-        phenoIncludeTermsEl,
-        phenoExcludeTermsEl,
-        phenoSimilarityMetricEl,
-        phenoSortByEl,
-        phenoMaxOutEl,
-      ].forEach((element) => {
-        element && element.addEventListener("input", markPhenoManualOverride);
-      });
-      [
-        phenoAlignEl,
-        phenoRenderHeatmapEl,
-        phenoRenderMdsEl,
-      ].forEach((element) => {
-        element && element.addEventListener("change", markPhenoManualOverride);
-      });
-      analysisSelectedPatientIdsEl.addEventListener("input", renderAnalysisScopeSummary);
-      analysisCompareModeEl && analysisCompareModeEl.addEventListener("change", renderAnalysisCompareMode);
-      analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.addEventListener("input", renderAnalysisCompareScopeSummary);
-      analysisPromptEl.addEventListener("input", () => syncCurrentAnalysisSessionFromUi({ render: true }));
-      analysisMolecularDatasetListEl && analysisMolecularDatasetListEl.addEventListener("change", (event) => {
-        const checkbox = event.target.closest('input[type="checkbox"]');
-        if (!checkbox) {
-          return;
-        }
-        dashboardUi.handleMolecularDatasetSelectionChange();
-      });
-      analysisMolecularGeneEl && analysisMolecularGeneEl.addEventListener("input", () => {
-        dashboardUi.handleMolecularGeneInput();
-      });
-      analysisMolecularRunBtnEl && analysisMolecularRunBtnEl.addEventListener("click", runMolecularExpressionAnalysis);
-      initializeExampleToggle(queryExamplesEl);
-      initializeExampleToggle(phenoExamplesEl);
-      initializeExampleToggle(analysisExamplesEl);
-      renderQueryStarterPrompts();
-      renderAnalysisStarterPrompts();
-      setDashboardSubtab(currentDashboardSubtab);
-      try {
-        const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
-        const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
-        if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
-          setDashboardSubtab(savedDashboardSubtab);
-        }
-        if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
-          if (savedTab === "cohort") {
-            setDashboardSubtab("clinical");
-            setActiveTab("dashboard");
-          } else if (savedTab === "molecular") {
-            setDashboardSubtab("molecular");
-            setActiveTab("dashboard");
-          } else if ((savedTab === "data" || savedTab === "users") && authState.enabled && !canManageDataset()) {
-            setActiveTab("datasets");
-          } else {
-            setActiveTab(savedTab);
-          }
-        }
-      } catch (_error) {
-      }
-      window.__patientNavigatorLoadPatients = loadPatients;
-      window.__patientNavigatorAskQuery = askQuery;
-      patientsEl.addEventListener("click", (event) => {
-        const card = event.target.closest(".patient-card");
-        if (!card || !patientsEl.contains(card)) {
-          return;
-        }
-        loadPatient(card.dataset.patientId);
-      });
-      queryExamplesEl.addEventListener("click", (event) => {
-        queryUi.handleQueryExamplesClick(event);
-      });
-      queryFollowupsEl.addEventListener("click", (event) => {
-        queryUi.handleQueryFollowupsClick(event);
-      });
-      analysisExamplesEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-analysis-prompt]");
-        if (!button || !analysisExamplesEl.contains(button)) {
-          return;
-        }
-        analysisPromptEl.value = button.dataset.analysisPrompt;
-        if (button.dataset.analysisLlmOnly === "true") {
-          analysisExecutionMode = "llm_only";
-        } else if (button.dataset.analysisDeterministic === "true") {
-          analysisExecutionMode = "deterministic";
-        } else {
-          analysisExecutionMode = "auto";
-        }
-        analysisSelectedCatalogItemId = "";
-        analysisExamplesPinnedOpen = false;
-        syncCurrentAnalysisSessionFromUi({ render: true });
-        renderAnalysisStarterPrompts();
-        analysisPromptEl.focus();
-      });
-      analysisCatalogListEl && analysisCatalogListEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-analysis-catalog-id]");
-        if (!button || !analysisCatalogListEl.contains(button)) {
-          return;
-        }
-        applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
-      });
-      analysisCatalogDrawerListEl && analysisCatalogDrawerListEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-analysis-catalog-id]");
-        if (!button || !analysisCatalogDrawerListEl.contains(button)) {
-          return;
-        }
-        applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
-      });
-      analysisCatalogBrowseBtnEl && analysisCatalogBrowseBtnEl.addEventListener("click", () => {
-        setAnalysisCatalogDrawerOpen(true);
-      });
-      jobsDrawerBtnEl && jobsDrawerBtnEl.addEventListener("click", () => {
-        setJobsDrawerOpen(true);
-        void loadRecentJobs();
-      });
-      analysisCatalogDrawerCloseBtnEl && analysisCatalogDrawerCloseBtnEl.addEventListener("click", () => {
-        setAnalysisCatalogDrawerOpen(false);
-      });
-      jobsDrawerCloseBtnEl && jobsDrawerCloseBtnEl.addEventListener("click", () => {
-        setJobsDrawerOpen(false);
-      });
-      analysisCatalogDrawerEl && analysisCatalogDrawerEl.addEventListener("click", (event) => {
-        const trigger = event.target.closest("[data-analysis-catalog-close='true']");
-        if (!trigger || !analysisCatalogDrawerEl.contains(trigger)) {
-          return;
-        }
-        setAnalysisCatalogDrawerOpen(false);
-      });
-      jobsDrawerEl && jobsDrawerEl.addEventListener("click", (event) => {
-        const closeTrigger = event.target.closest("[data-jobs-drawer-close='true']");
-        if (closeTrigger && jobsDrawerEl.contains(closeTrigger)) {
-          setJobsDrawerOpen(false);
-          return;
-        }
-        const openButton = event.target.closest("[data-job-open-result]");
-        if (!openButton || !jobsDrawerEl.contains(openButton)) {
-          return;
-        }
-        void openJobResult(openButton.dataset.jobOpenResult || "").catch((error) => {
-          analysisStatusEl.className = "query-status";
-          analysisStatusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
-        });
-      });
-      analysisThreadEl.addEventListener("click", (event) => {
-        analysisUi.handleAnalysisFollowUpsClick(event);
-      });
-      analysisPromptEl && analysisPromptEl.addEventListener("input", () => {
-        analysisExecutionMode = "auto";
-        analysisSelectedCatalogItemId = "";
-      });
-      analysisSessionListEl && analysisSessionListEl.addEventListener("click", (event) => {
-        const deleteButton = event.target.closest("[data-analysis-session-delete]");
-        if (deleteButton && analysisSessionListEl.contains(deleteButton)) {
-          deleteAnalysisSessionById(deleteButton.dataset.analysisSessionDelete || "");
-          return;
-        }
-        const renameButton = event.target.closest("[data-analysis-session-rename]");
-        if (renameButton && analysisSessionListEl.contains(renameButton)) {
-          renameAnalysisSession(renameButton.dataset.analysisSessionRename || "");
-          return;
-        }
-        const button = event.target.closest("[data-analysis-session-id]");
-        if (!button || !analysisSessionListEl.contains(button)) {
-          return;
-        }
-        selectAnalysisSession(button.dataset.analysisSessionId || "");
-      });
-      phenoExamplesEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-pheno-prompt]");
-        if (!button || !phenoExamplesEl.contains(button)) {
-          return;
-        }
-        phenoPromptEl.value = button.dataset.phenoPrompt;
-        clearPhenoManualOverrides();
-        updatePhenoRunAvailability();
-        phenoPromptEl.focus();
-      });
-      phenoPromptEl.addEventListener("input", () => {
-        clearPhenoManualOverrides();
-        updatePhenoRunAvailability();
-      });
-      phenoPreviewsEl.addEventListener("click", (event) => {
-        phenoUi.handlePreviewsClick(event);
-      });
-      document.addEventListener("click", (event) => {
-        queryUi.handleDocumentClick(event);
-      });
-      savedCohortsEl && savedCohortsEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-saved-cohort-action]");
-        if (!button || !savedCohortsEl.contains(button)) {
-          return;
-        }
-        handleSavedCohortAction(button);
-      });
-      analysisSelectedSavedCohortSelectionEl && analysisSelectedSavedCohortSelectionEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-analysis-clear-saved-cohort]");
-        if (!button || !analysisSelectedSavedCohortSelectionEl.contains(button)) {
-          return;
-        }
-        savedCohortsUi.clearSavedCohortFromAnalysis("a");
-      });
-      analysisCompareSavedCohortSelectionEl && analysisCompareSavedCohortSelectionEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-analysis-clear-saved-cohort]");
-        if (!button || !analysisCompareSavedCohortSelectionEl.contains(button)) {
-          return;
-        }
-        savedCohortsUi.clearSavedCohortFromAnalysis("b");
-      });
-      phenoSavedCohortsEl && phenoSavedCohortsEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-saved-cohort-action]");
-        if (!button || !phenoSavedCohortsEl.contains(button)) {
-          return;
-        }
-        handleSavedCohortAction(button);
-      });
-      phenoSavedCohortsSelectionEl && phenoSavedCohortsSelectionEl.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-pheno-selected-cohort-id]");
-        if (!button || !phenoSavedCohortsSelectionEl.contains(button)) {
-          return;
-        }
-        removeSavedCohortFromPheno(button.dataset.phenoSelectedCohortId || "");
-      });
-      phenoOutputPreviewEl.addEventListener("click", (event) => {
-        phenoUi.handleOutputPreviewClick(event);
-      });
-      questionEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          askQuery();
-        }
-      });
-      questionEl.addEventListener("input", () => {
-        renderQueryExecutionMode();
-      });
-      analysisPromptEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          runAnalysis();
-        }
-      });
-      patientSearchEl.addEventListener("input", () => renderPatientList(filterPatients(patientSearchEl.value)));
-      updatePhenoMode();
-      renderSelectedPatientIdsSummary();
-      renderQueryExecutionMode();
-      setPhenoResultWorkspaceVisible(false);
-      renderPhenoSavedCohortsSelection();
-      ensureAnalysisSessionsLoaded();
-      void loadAnalysisSessionsFromBackend();
-      renderAnalysisCompareMode();
-      renderAnalysisCompareScopeSummary();
-      loadLmStatus();
-      void fetchAuthStatus().then(async () => {
-        if (!isWorkspaceAccessible()) {
-          clearLoadedWorkspaceForSignedOutState();
-          return;
-        }
-        await loadDatasets();
-        await refreshUserWorkspaceState();
-        await loadPatients({ respectAdminGate: false });
-      });
-      renderGlobalContext();
-      renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
-      renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
-    
+  let index = 0;
+  const applyStage = () => {
+    const stage = stages[Math.min(index, stages.length - 1)];
+    refs.phenoStatusEl.className = "pheno-status loading";
+    refs.phenoStatusEl.textContent = stage.label;
+    refs.phenoOutputPreviewEl.innerHTML = renderActivityCard(stage.label, stage.detail);
+    refs.phenoPreviewsEl.innerHTML = renderActivityCard("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.");
+    if (index < stages.length - 1) {
+      index += 1;
+    }
+  };
+  applyStage();
+  state.phenoRunProgressTimer = window.setInterval(applyStage, 1800);
+}
+
+navigationUi = createNavigationUi({
+  refs,
+  state,
+  constants: {
+    ACTIVE_TAB_STORAGE_KEY,
+    DASHBOARD_SUBTAB_STORAGE_KEY,
+    TAB_HELPER_TEXT,
+  },
+  callbacks: {
+    effectiveQueryGranularityCeiling: (datasetIds) => datasetsUi.effectiveQueryGranularityCeiling(datasetIds),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+  },
+});
+
+dashboardUi = createDashboardUi({
+  refs,
+  helpers: {
+    escapeHtml,
+    formatNumber,
+  },
+  callbacks: {
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+    isMultiDatasetWorkspace,
+  },
+  state,
+  constants: {
+    MAX_VISIBLE_PATIENTS,
+  },
+});
+
+usersAdminUi = createUsersAdminUi({
+  refs,
+  state,
+  callbacks: {
+    canManageDataset: () => authUi.canManageDataset(),
+    renderDatasetAdminList: () => datasetsUi.renderDatasetAdminList(),
+  },
+});
+
+analysisCatalogUi = createAnalysisCatalogUi({
+  refs,
+  state,
+  helpers: {
+    escapeHtml,
+  },
+  constants: {
+    MAX_VISIBLE_EXAMPLES,
+  },
+  callbacks: {
+    queryWorkspacePolicyExplanation: () => datasetsUi.queryWorkspacePolicyExplanation(),
+    renderMolecularDatasetSelector: () => dashboardUi.renderMolecularDatasetSelector(),
+    renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
+    syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+    currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
+    isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
+  },
+});
+
+savedCohortsUi = createSavedCohortsUi({
+  refs,
+  helpers: {
+    escapeHtml,
+  },
+  callbacks: {
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
+    renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
+    renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
+    renderSelectedPatientIdsSummary: () => phenoUi.renderSelectedPatientIdsSummary(),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    datasetLabelsForIds: (ids) => datasetsUi.datasetLabelsForIds(ids),
+    currentDatasetIds: () => state.currentDatasetIds.slice(),
+    currentTabName: () => navigationUi.currentTabName(),
+    queryStatusEl: () => refs.queryStatusEl,
+  },
+  state,
+});
+
+queryUi = createQueryUi({
+  refs,
+  helpers: {
+    escapeHtml,
+    renderActivityCard,
+    fallbackCopyText,
+  },
+  callbacks: {
+    renderQueryStarterPrompts: () => analysisCatalogUi.renderQueryStarterPrompts(),
+    renderQueryExecutionMode: () => analysisCatalogUi.renderQueryExecutionMode(),
+    startQueryProgressUpdates,
+    stopQueryProgressUpdates,
+    nextFrame: () => workspaceUi.nextFrame(),
+    saveLatestQueryAsCohort: () => savedCohortsUi.saveLatestQueryAsCohort(),
+    sendPatientIdsToPhenoRanker,
+    sendPatientIdsToAnalysis,
+    sendPromptToAnalysis,
+    currentPatientsProvider: () => state.currentPatients,
+    phenoRankerPatientIdsProvider: () => state.phenoRankerPatientIds,
+    isMultiDatasetWorkspace,
+    setLatestQueryState,
+    setLatestScopedContext,
+  },
+  state,
+});
+
+analysisUi = createAnalysisUi({
+  refs,
+  helpers: {
+    escapeHtml,
+    renderQueryReply,
+  },
+  callbacks: {
+    renderAnalysisStarterPrompts: () => analysisCatalogUi.renderAnalysisStarterPrompts(),
+    syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+    startAnalysisProgressUpdates,
+    stopAnalysisProgressUpdates,
+    handleAnalysisJobSubmission: (payload) => {
+      jobsUi.setJobsDrawerOpen(true);
+      void jobsUi.loadRecentJobs();
+      if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
+        refs.analysisStatusEl.className = "query-status";
+        const label = String(payload.data.job_code || payload.data.job_id || "").trim();
+        refs.analysisStatusEl.textContent = `Background job ${label} submitted. Open Jobs to monitor progress.`;
+      }
+    },
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
+    renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
+  },
+  state,
+});
+
+analysisSessionsUi = createAnalysisSessionsUi({
+  refs,
+  helpers: {
+    escapeHtml,
+    shortTimestamp,
+    nowIso,
+  },
+  callbacks: {
+    createAnalysisSession: makeAnalysisSession,
+    currentAnalysisSession,
+    getStorageNamespace: () => currentStorageNamespace(state.authState),
+    renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
+    renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
+    renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
+    renderAnalysisStarterPrompts: () => analysisCatalogUi.renderAnalysisStarterPrompts(),
+    renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
+    renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
+  },
+  state,
+  constants: {
+    ANALYSIS_SESSIONS_STORAGE_KEY,
+  },
+});
+
+phenoUi = createPhenoUi({
+  refs,
+  constants: {
+    PHENO_BUCKET_STYLES,
+    PHENO_COHORT_COLORS,
+  },
+  helpers: {
+    escapeHtml,
+    renderActivityCard,
+    fallbackCopyText,
+    renderQueryReply,
+    nextFrame: () => workspaceUi.nextFrame(),
+  },
+  callbacks: {
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
+    syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+    startPhenoPlanProgressUpdates,
+    stopPhenoPlanProgressUpdates,
+    startPhenoRunProgressUpdates,
+    stopPhenoRunProgressUpdates,
+    saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
+    getSelectedSavedCohortIds: () => state.phenoSelectedSavedCohortIds.slice(),
+    getCurrentScopeIds: () => workspaceUi.getCurrentScopeIds(),
+    onPatientIdsLoaded: (ids) => { state.phenoRankerPatientIds = ids.slice(); },
+    onReferenceFilesLoaded: (files) => { state.phenoReferenceFiles = files.slice(); },
+  },
+  state,
+});
+
+jobsUi = createJobsUi({
+  refs,
+  state,
+  helpers: {
+    escapeHtml,
+  },
+  callbacks: {
+    currentAnalysisSessionId: () => state.currentAnalysisSessionId,
+    analysisPayloadHasPlots: (payload) => analysisUi.analysisPayloadHasPlots(payload),
+    selectAnalysisSession: (sessionId) => analysisSessionsUi.selectAnalysisSession(sessionId),
+    createAndSelectAnalysisSession: (overrides) => analysisSessionsUi.createAndSelectAnalysisSession(overrides),
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
+    renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
+    syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+  },
+});
+
+workspaceUi = createWorkspaceUi({
+  refs,
+  state,
+  helpers: {
+    formatNumber,
+  },
+  callbacks: {
+    currentTabName: () => navigationUi.currentTabName(),
+    currentDatasetRecord: () => datasetsUi.currentDatasetRecord(),
+    datasetScopeLabel: () => datasetsUi.datasetScopeLabel(),
+    pendingDatasetSelectionIds: () => datasetsUi.pendingDatasetSelectionIds(),
+    currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
+    renderDatasetPicker: () => datasetsUi.renderDatasetPicker(),
+    renderDatasetAdminList: () => datasetsUi.renderDatasetAdminList(),
+    renderDatasetScopeSummary: () => datasetsUi.renderDatasetScopeSummary(),
+    renderLoadButtonState: () => datasetsUi.renderLoadButtonState(),
+    prepareAnalysisSessionForDataDir: (value) => analysisSessionsUi.prepareAnalysisSessionForDataDir(value),
+    resetQueryWorkspace: () => queryUi.resetQueryWorkspace(),
+    syncQueryGranularityWithWorkspacePolicy: (options) => datasetsUi.syncQueryGranularityWithWorkspacePolicy(options),
+    loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
+    loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
+    loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
+    loadMolecularDatasets: () => dashboardUi.loadMolecularDatasets(),
+    loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
+    renderPatientList: (items) => dashboardUi.renderPatientList(items),
+    renderDetail: (patient) => dashboardUi.renderDetail(patient),
+    renderDashboard: (summary) => dashboardUi.renderDashboard(summary),
+    isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
+    updateLoadButtonAvailability: () => authUi.updateLoadButtonAvailability(),
+  },
+});
+
+datasetsUi = createDatasetsUi({
+  refs,
+  state,
+  helpers: {
+    escapeHtml,
+  },
+  callbacks: {
+    canManageDataset: () => authUi.canManageDataset(),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    prepareAnalysisSessionForDataDir: (value) => analysisSessionsUi.prepareAnalysisSessionForDataDir(value),
+    resetQueryWorkspace: () => queryUi.resetQueryWorkspace(),
+    loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
+    loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
+    loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
+    loadMolecularDatasets: () => dashboardUi.loadMolecularDatasets(),
+    loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
+    renderPhenoTabAvailability: () => navigationUi.renderPhenoTabAvailability(),
+    currentTabName: () => navigationUi.currentTabName(),
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    renderQueryExecutionMode: () => analysisCatalogUi.renderQueryExecutionMode(),
+    loadAuthUsers: () => usersAdminUi.loadAuthUsers(),
+  },
+});
+
+authUi = createAuthUi({
+  refs,
+  state,
+  callbacks: {
+    renderLoadButtonState: () => datasetsUi.renderLoadButtonState(),
+    renderJobsDrawer: () => jobsUi.renderJobsDrawer(),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    currentTabName: () => navigationUi.currentTabName(),
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    loadAuthUsers: () => usersAdminUi.loadAuthUsers(),
+    loadRecentJobs: (options) => jobsUi.loadRecentJobs(options),
+    loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
+    loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
+    renderAnalysisSessionList: () => analysisSessionsUi.renderAnalysisSessionList(),
+    renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
+    renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
+    createAnalysisSession: makeAnalysisSession,
+    ensureAnalysisSessionsLoaded: () => analysisSessionsUi.ensureAnalysisSessionsLoaded(),
+    loadAnalysisSessionsFromBackend: () => analysisSessionsUi.loadAnalysisSessionsFromBackend(),
+    applyAnalysisSession: (session) => analysisSessionsUi.applyAnalysisSession(session),
+    loadDatasets: () => datasetsUi.loadDatasets(),
+    loadPatients: (options) => workspaceUi.loadPatients(options),
+  },
+});
+
+function bindEvents() {
+  refs.dataDirEl && refs.dataDirEl.addEventListener("change", () => {
+    state.pendingDatasetIds = datasetsUi.selectedDatasetIdsFromUi();
+    datasetsUi.renderDatasetPicker();
+    datasetsUi.renderDatasetAdminList();
+    datasetsUi.renderDatasetScopeSummary();
+  });
+
+  refs.datasetPickerEl && refs.datasetPickerEl.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-dataset-checkbox]");
+    if (!checkbox || !refs.datasetPickerEl.contains(checkbox)) {
+      return;
+    }
+    datasetsUi.syncDatasetSelectionFromPicker();
+  });
+
+  refs.datasetAdminListEl && refs.datasetAdminListEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-dataset-save]");
+    if (!button || !refs.datasetAdminListEl.contains(button)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    void datasetsUi.saveDatasetAccess(button.getAttribute("data-dataset-save") || "");
+  });
+
+  refs.loadBtnEl && refs.loadBtnEl.addEventListener("click", () => {
+    void workspaceUi.loadPatients({ respectAdminGate: true });
+  });
+
+  refs.authLoginBtnEl && refs.authLoginBtnEl.addEventListener("click", () => {
+    void authUi.loginLocal();
+  });
+  refs.heroLogoutBtnEl && refs.heroLogoutBtnEl.addEventListener("click", () => {
+    void authUi.logoutLocal();
+  });
+  refs.authPasswordEl && refs.authPasswordEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void authUi.loginLocal();
+    }
+  });
+
+  refs.askBtnEl && refs.askBtnEl.addEventListener("click", () => {
+    void queryUi.askQuery();
+  });
+  refs.queryPlannerBtnEl && refs.queryPlannerBtnEl.addEventListener("click", () => {
+    queryUi.setExecutionMode(state.queryExecutionMode === "planner_only" ? "auto" : "planner_only");
+    analysisCatalogUi.renderQueryExecutionMode();
+  });
+  refs.queryMemoryBtnEl && refs.queryMemoryBtnEl.addEventListener("click", () => {
+    if (state.queryGranularityMode !== "detailed") {
+      analysisCatalogUi.renderQueryExecutionMode();
+      return;
+    }
+    state.queryFollowMemoryEnabled = !state.queryFollowMemoryEnabled;
+    analysisCatalogUi.renderQueryExecutionMode();
+  });
+  refs.queryDiseaseBuilderBtnEl && refs.queryDiseaseBuilderBtnEl.addEventListener("click", () => {
+    const willOpen = !refs.queryDiseasePanelEl || refs.queryDiseasePanelEl.classList.contains("is-hidden");
+    if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
+    refs.queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
+  });
+  refs.queryClearBtnEl && refs.queryClearBtnEl.addEventListener("click", () => {
+    queryUi.resetQueryWorkspace();
+    state.queryFollowMemoryEnabled = false;
+    if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.add("is-hidden");
+    refs.queryDiseaseBuilderBtnEl && refs.queryDiseaseBuilderBtnEl.classList.remove("is-active");
+    refs.queryStatusEl.className = "query-status";
+    refs.queryStatusEl.textContent = "Query thread cleared.";
+    analysisCatalogUi.renderQueryExecutionMode();
+  });
+
+  refs.analysisRunBtnEl && refs.analysisRunBtnEl.addEventListener("click", () => {
+    void analysisUi.runAnalysis();
+  });
+  refs.analysisComposerExamplesBtnEl && refs.analysisComposerExamplesBtnEl.addEventListener("click", () => {
+    state.analysisExamplesPinnedOpen = true;
+    analysisCatalogUi.renderAnalysisStarterPrompts();
+    if (refs.analysisStarterPanelEl && !refs.analysisStarterPanelEl.hidden) {
+      refs.analysisStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+  refs.analysisNewSessionBtnEl && refs.analysisNewSessionBtnEl.addEventListener("click", () => {
+    analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
+  });
+
+  refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("dashboard"));
+  refs.datasetsTabBtnEl && refs.datasetsTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("datasets"));
+  refs.dataTabBtnEl && refs.dataTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("data"));
+  refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
+    navigationUi.setActiveTab("users");
+    void usersAdminUi.loadAuthUsers();
+  });
+  refs.queryTabBtnEl && refs.queryTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("query"));
+  refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
+  refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
+  refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
+  refs.dashboardMolecularBtnEl && refs.dashboardMolecularBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("molecular"));
+
+  refs.userCreateBtnEl && refs.userCreateBtnEl.addEventListener("click", () => {
+    void usersAdminUi.createAuthUser();
+  });
+  refs.usersListEl && refs.usersListEl.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-auth-user-action]");
+    if (!trigger) {
+      return;
+    }
+    const action = String(trigger.dataset.authUserAction || "");
+    const username = String(trigger.dataset.authUser || "");
+    if (!username) {
+      return;
+    }
+    if (action === "save") {
+      void usersAdminUi.saveAuthUser(username);
+    } else if (action === "reset-password") {
+      void usersAdminUi.resetAuthUserPassword(username);
+    } else if (action === "delete") {
+      void usersAdminUi.deleteAuthUser(username);
+    }
+  });
+
+  refs.phenoPlanBtnEl && refs.phenoPlanBtnEl.addEventListener("click", () => {
+    void phenoUi.planPhenoRanker();
+  });
+  refs.phenoPlanRunBtnEl && refs.phenoPlanRunBtnEl.addEventListener("click", () => {
+    void phenoUi.planAndRunPhenoRanker();
+  });
+  refs.phenoRunBtnEl && refs.phenoRunBtnEl.addEventListener("click", () => {
+    void phenoUi.runPhenoRanker();
+  });
+  refs.phenoAnalysisBtnEl && refs.phenoAnalysisBtnEl.addEventListener("click", () => {
+    phenoUi.sendPhenoMatchesToAnalysis();
+  });
+  refs.phenoCopyIdsBtnEl && refs.phenoCopyIdsBtnEl.addEventListener("click", () => {
+    void phenoUi.copyPhenoMatchIds();
+  });
+  refs.phenoExplainBtnEl && refs.phenoExplainBtnEl.addEventListener("click", () => {
+    void phenoUi.explainPhenoResults();
+  });
+  refs.phenoExplainLlmBtnEl && refs.phenoExplainLlmBtnEl.addEventListener("click", () => {
+    void phenoUi.explainPhenoResultsWithLlm();
+  });
+  refs.phenoModeEl && refs.phenoModeEl.addEventListener("change", () => {
+    phenoUi.markPhenoManualOverride();
+    phenoUi.updatePhenoMode();
+  });
+  refs.phenoActionEl && refs.phenoActionEl.addEventListener("change", () => {
+    phenoUi.markPhenoManualOverride();
+    phenoUi.updatePhenoMode();
+  });
+  refs.phenoSelectedPatientIdsEl && refs.phenoSelectedPatientIdsEl.addEventListener("input", () => {
+    phenoUi.markPhenoManualOverride();
+    phenoUi.renderSelectedPatientIdsSummary();
+  });
+  [
+    refs.phenoPatientIdEl,
+    refs.phenoIncludeTermsEl,
+    refs.phenoExcludeTermsEl,
+    refs.phenoSimilarityMetricEl,
+    refs.phenoSortByEl,
+    refs.phenoMaxOutEl,
+  ].forEach((element) => {
+    element && element.addEventListener("input", () => phenoUi.markPhenoManualOverride());
+  });
+  [
+    refs.phenoAlignEl,
+    refs.phenoRenderHeatmapEl,
+    refs.phenoRenderMdsEl,
+  ].forEach((element) => {
+    element && element.addEventListener("change", () => phenoUi.markPhenoManualOverride());
+  });
+
+  refs.analysisSelectedPatientIdsEl && refs.analysisSelectedPatientIdsEl.addEventListener("input", () => {
+    dashboardUi.renderAnalysisScopeSummary();
+    analysisCatalogUi.renderAnalysisCatalog();
+  });
+  refs.analysisCompareModeEl && refs.analysisCompareModeEl.addEventListener("change", () => {
+    analysisUi.renderAnalysisCompareMode();
+    analysisCatalogUi.renderAnalysisCatalog();
+  });
+  refs.analysisCompareSelectedPatientIdsEl && refs.analysisCompareSelectedPatientIdsEl.addEventListener("input", () => {
+    dashboardUi.renderAnalysisCompareScopeSummary();
+    analysisCatalogUi.renderAnalysisCatalog();
+  });
+  refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("input", () => {
+    state.analysisExecutionMode = "auto";
+    state.analysisSelectedCatalogItemId = "";
+    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+  });
+
+  const handleMolecularDatasetListChange = (event) => {
+    const checkbox = event.target.closest('input[type="checkbox"]');
+    if (!checkbox) {
+      return;
+    }
+    dashboardUi.handleMolecularDatasetSelectionChange();
+    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    analysisCatalogUi.renderAnalysisCatalog();
+  };
+  refs.analysisMolecularDatasetListEl && refs.analysisMolecularDatasetListEl.addEventListener("change", handleMolecularDatasetListChange);
+  refs.analysisCatalogMolecularDatasetListEl && refs.analysisCatalogMolecularDatasetListEl.addEventListener("change", handleMolecularDatasetListChange);
+  refs.analysisMolecularGeneEl && refs.analysisMolecularGeneEl.addEventListener("input", () => {
+    dashboardUi.handleMolecularGeneInput();
+  });
+  refs.analysisMolecularRunBtnEl && refs.analysisMolecularRunBtnEl.addEventListener("click", () => {
+    void dashboardUi.runMolecularExpressionAnalysis();
+  });
+
+  refs.patientsEl && refs.patientsEl.addEventListener("click", (event) => {
+    const card = event.target.closest(".patient-card");
+    if (!card || !refs.patientsEl.contains(card)) {
+      return;
+    }
+    void workspaceUi.loadPatient(card.dataset.patientId);
+  });
+  refs.patientSearchEl && refs.patientSearchEl.addEventListener("input", () => {
+    dashboardUi.renderPatientList(workspaceUi.filterPatients(refs.patientSearchEl.value));
+  });
+
+  refs.queryExamplesEl && refs.queryExamplesEl.addEventListener("click", (event) => {
+    queryUi.handleQueryExamplesClick(event);
+  });
+  refs.queryFollowupsEl && refs.queryFollowupsEl.addEventListener("click", (event) => {
+    queryUi.handleQueryFollowupsClick(event);
+  });
+  document.addEventListener("click", (event) => {
+    queryUi.handleDocumentClick(event);
+  });
+
+  refs.analysisExamplesEl && refs.analysisExamplesEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-prompt]");
+    if (!button || !refs.analysisExamplesEl.contains(button)) {
+      return;
+    }
+    refs.analysisPromptEl.value = button.dataset.analysisPrompt || "";
+    state.analysisExecutionMode = button.dataset.analysisLlmOnly === "true"
+      ? "llm_only"
+      : (button.dataset.analysisDeterministic === "true" ? "deterministic" : "auto");
+    state.analysisSelectedCatalogItemId = "";
+    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    state.analysisExamplesPinnedOpen = false;
+    analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+    analysisCatalogUi.renderAnalysisStarterPrompts();
+    refs.analysisPromptEl.focus();
+  });
+  refs.analysisCatalogListEl && refs.analysisCatalogListEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-catalog-id]");
+    if (!button || !refs.analysisCatalogListEl.contains(button)) {
+      return;
+    }
+    analysisCatalogUi.applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
+  });
+  refs.analysisCatalogDrawerListEl && refs.analysisCatalogDrawerListEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-catalog-id]");
+    if (!button || !refs.analysisCatalogDrawerListEl.contains(button)) {
+      return;
+    }
+    analysisCatalogUi.applyAnalysisCatalogItemById(button.dataset.analysisCatalogId || "");
+  });
+  refs.analysisCatalogBrowseBtnEl && refs.analysisCatalogBrowseBtnEl.addEventListener("click", () => {
+    analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
+  });
+  refs.analysisCatalogDrawerCloseBtnEl && refs.analysisCatalogDrawerCloseBtnEl.addEventListener("click", () => {
+    analysisCatalogUi.setAnalysisCatalogDrawerOpen(false);
+  });
+  refs.analysisCatalogDrawerEl && refs.analysisCatalogDrawerEl.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-analysis-catalog-close='true']");
+    if (!trigger || !refs.analysisCatalogDrawerEl.contains(trigger)) {
+      return;
+    }
+    analysisCatalogUi.setAnalysisCatalogDrawerOpen(false);
+  });
+
+  refs.jobsDrawerBtnEl && refs.jobsDrawerBtnEl.addEventListener("click", () => {
+    jobsUi.setJobsDrawerOpen(true);
+    void jobsUi.loadRecentJobs();
+  });
+  refs.jobsDrawerCloseBtnEl && refs.jobsDrawerCloseBtnEl.addEventListener("click", () => {
+    jobsUi.setJobsDrawerOpen(false);
+  });
+  refs.jobsDrawerEl && refs.jobsDrawerEl.addEventListener("click", (event) => {
+    const closeTrigger = event.target.closest("[data-jobs-drawer-close='true']");
+    if (closeTrigger && refs.jobsDrawerEl.contains(closeTrigger)) {
+      jobsUi.setJobsDrawerOpen(false);
+      return;
+    }
+    const openButton = event.target.closest("[data-job-open-result]");
+    if (!openButton || !refs.jobsDrawerEl.contains(openButton)) {
+      return;
+    }
+    void jobsUi.openJobResult(openButton.dataset.jobOpenResult || "").catch((error) => {
+      refs.analysisStatusEl.className = "query-status";
+      refs.analysisStatusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
+    });
+  });
+
+  refs.analysisThreadEl && refs.analysisThreadEl.addEventListener("click", (event) => {
+    analysisUi.handleAnalysisPlotViewClick(event);
+    analysisUi.handleAnalysisFollowUpsClick(event);
+  });
+  refs.analysisSessionListEl && refs.analysisSessionListEl.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest("[data-analysis-session-delete]");
+    if (deleteButton && refs.analysisSessionListEl.contains(deleteButton)) {
+      analysisSessionsUi.deleteAnalysisSessionById(deleteButton.dataset.analysisSessionDelete || "");
+      return;
+    }
+    const renameButton = event.target.closest("[data-analysis-session-rename]");
+    if (renameButton && refs.analysisSessionListEl.contains(renameButton)) {
+      analysisSessionsUi.renameAnalysisSession(renameButton.dataset.analysisSessionRename || "");
+      return;
+    }
+    const button = event.target.closest("[data-analysis-session-id]");
+    if (!button || !refs.analysisSessionListEl.contains(button)) {
+      return;
+    }
+    analysisSessionsUi.selectAnalysisSession(button.dataset.analysisSessionId || "");
+  });
+
+  refs.phenoExamplesEl && refs.phenoExamplesEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-pheno-prompt]");
+    if (!button || !refs.phenoExamplesEl.contains(button)) {
+      return;
+    }
+    refs.phenoPromptEl.value = button.dataset.phenoPrompt || "";
+    phenoUi.setPhenoManualOverrides(false);
+    phenoUi.updatePhenoRunAvailability();
+    refs.phenoPromptEl.focus();
+  });
+  refs.phenoPromptEl && refs.phenoPromptEl.addEventListener("input", () => {
+    phenoUi.setPhenoManualOverrides(false);
+    phenoUi.updatePhenoRunAvailability();
+  });
+  refs.phenoPreviewsEl && refs.phenoPreviewsEl.addEventListener("click", (event) => {
+    phenoUi.handlePreviewsClick(event);
+  });
+  refs.phenoOutputPreviewEl && refs.phenoOutputPreviewEl.addEventListener("click", (event) => {
+    phenoUi.handleOutputPreviewClick(event);
+  });
+
+  refs.savedCohortsEl && refs.savedCohortsEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-saved-cohort-action]");
+    if (!button || !refs.savedCohortsEl.contains(button)) {
+      return;
+    }
+    savedCohortsUi.handleSavedCohortAction(button);
+  });
+  refs.analysisSelectedSavedCohortSelectionEl && refs.analysisSelectedSavedCohortSelectionEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-clear-saved-cohort]");
+    if (!button || !refs.analysisSelectedSavedCohortSelectionEl.contains(button)) {
+      return;
+    }
+    savedCohortsUi.clearSavedCohortFromAnalysis("a");
+    analysisCatalogUi.renderAnalysisCatalog();
+  });
+  refs.analysisCompareSavedCohortSelectionEl && refs.analysisCompareSavedCohortSelectionEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-clear-saved-cohort]");
+    if (!button || !refs.analysisCompareSavedCohortSelectionEl.contains(button)) {
+      return;
+    }
+    savedCohortsUi.clearSavedCohortFromAnalysis("b");
+    analysisCatalogUi.renderAnalysisCatalog();
+  });
+  refs.phenoSavedCohortsEl && refs.phenoSavedCohortsEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-saved-cohort-action]");
+    if (!button || !refs.phenoSavedCohortsEl.contains(button)) {
+      return;
+    }
+    savedCohortsUi.handleSavedCohortAction(button);
+  });
+  refs.phenoSavedCohortsSelectionEl && refs.phenoSavedCohortsSelectionEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-pheno-selected-cohort-id]");
+    if (!button || !refs.phenoSavedCohortsSelectionEl.contains(button)) {
+      return;
+    }
+    savedCohortsUi.removeSavedCohortFromPheno(button.dataset.phenoSelectedCohortId || "");
+  });
+
+  refs.questionEl && refs.questionEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void queryUi.askQuery();
+    }
+  });
+  refs.questionEl && refs.questionEl.addEventListener("input", () => {
+    analysisCatalogUi.renderQueryExecutionMode();
+  });
+  refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void analysisUi.runAnalysis();
+    }
+  });
+}
+
+function applyStoredTabPreferences() {
+  try {
+    const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+    const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
+    if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
+      navigationUi.setDashboardSubtab(savedDashboardSubtab);
+    }
+    if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
+      if (savedTab === "cohort") {
+        navigationUi.setDashboardSubtab("clinical");
+        navigationUi.setActiveTab("dashboard");
+      } else if (savedTab === "molecular") {
+        navigationUi.setDashboardSubtab("molecular");
+        navigationUi.setActiveTab("dashboard");
+      } else if ((savedTab === "data" || savedTab === "users") && state.authState.enabled && !authUi.canManageDataset()) {
+        navigationUi.setActiveTab("datasets");
+      } else {
+        navigationUi.setActiveTab(savedTab);
+      }
+    }
+  } catch (_error) {
+  }
+}
+
+function initializeUiShell() {
+  analysisCatalogUi.initializeExampleToggle(refs.queryExamplesEl);
+  analysisCatalogUi.initializeExampleToggle(refs.phenoExamplesEl);
+  analysisCatalogUi.initializeExampleToggle(refs.analysisExamplesEl);
+  analysisCatalogUi.renderQueryStarterPrompts();
+  analysisCatalogUi.renderAnalysisStarterPrompts();
+  navigationUi.setDashboardSubtab(state.currentDashboardSubtab);
+  applyStoredTabPreferences();
+  phenoUi.updatePhenoExplainActions();
+  phenoUi.updatePhenoResultActions();
+  phenoUi.updatePhenoRunAvailability();
+  phenoUi.updatePhenoMode();
+  phenoUi.renderSelectedPatientIdsSummary();
+  analysisCatalogUi.renderQueryExecutionMode();
+  phenoUi.setPhenoResultWorkspaceVisible(false);
+  savedCohortsUi.renderPhenoSavedCohortsSelection();
+  analysisSessionsUi.ensureAnalysisSessionsLoaded();
+  void analysisSessionsUi.loadAnalysisSessionsFromBackend();
+  analysisUi.renderAnalysisCompareMode();
+  dashboardUi.renderAnalysisCompareScopeSummary();
+  workspaceUi.renderGlobalContext();
+  phenoUi.renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
+  phenoUi.renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
+}
+
+async function bootstrap() {
+  bindEvents();
+  initializeUiShell();
+  window.__patientNavigatorLoadPatients = (options) => workspaceUi.loadPatients(options);
+  window.__patientNavigatorAskQuery = () => queryUi.askQuery();
+  await workspaceUi.loadLmStatus();
+  await authUi.fetchAuthStatus();
+  if (!authUi.isWorkspaceAccessible()) {
+    authUi.clearLoadedWorkspaceForSignedOutState();
+    return;
+  }
+  await datasetsUi.loadDatasets();
+  await authUi.refreshUserWorkspaceState();
+  await workspaceUi.loadPatients({ respectAdminGate: false });
+}
+
+void bootstrap();

@@ -9,7 +9,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
+import yaml
+
 from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
+import app.query_store as query_store_module
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -17,6 +20,7 @@ RSCRIPT_RUNNERS = {
     "dummy_scope_snapshot": SCRIPTS_DIR / "analysis_dummy_scope_snapshot.R",
     "clinical_scope_profile": SCRIPTS_DIR / "analysis_r_clinical_profile.R",
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
+    "molecular_differential_expression": SCRIPTS_DIR / "analysis_r_differential_expression.R",
 }
 
 
@@ -152,6 +156,10 @@ def _write_tsv(path: Path, fieldnames: List[str], rows: List[Dict[str, Any]]) ->
             writer.writerow({field: row.get(field, "") for field in fieldnames})
 
 
+def _write_yaml(path: Path, payload: Dict[str, Any]) -> None:
+    path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
 def _clinical_profile_tables(
     data_dir: str,
     selected_patient_ids: str = "",
@@ -236,11 +244,249 @@ def _clinical_profile_tables(
     }
 
 
+def _molecular_scope_tokens(value: str) -> List[str]:
+    return [item.strip() for item in str(value or "").split(",") if item.strip()]
+
+
+def _resolve_molecular_scope(value: str) -> Dict[str, List[str]]:
+    sample_ids: List[str] = []
+    patient_ids: List[str] = []
+    seen_samples = set()
+    seen_patients = set()
+    for item in _molecular_scope_tokens(value):
+        normalized = str(item or "").strip()
+        if not normalized:
+            continue
+        if ":" in normalized and normalized not in seen_samples:
+            seen_samples.add(normalized)
+            sample_ids.append(normalized)
+        patient_id = normalized.split(":", 1)[0].strip()
+        if patient_id and ":" not in normalized and patient_id not in seen_patients:
+            seen_patients.add(patient_id)
+            patient_ids.append(patient_id)
+    return {"sample_ids": sample_ids, "patient_ids": patient_ids}
+
+
+def _choose_molecular_dataset(data_dir: str, requested_name: str = "") -> Dict[str, Any]:
+    inventory = query_store_module.molecular_dataset_inventory(data_dir)
+    if not inventory:
+        raise RuntimeError("No molecular datasets are available in the current workspace.")
+    wanted = str(requested_name or "").strip()
+    if wanted:
+        for item in inventory:
+            if str(item.get("dataset_name") or "").strip() == wanted:
+                return dict(item or {})
+        raise RuntimeError(f"Molecular dataset '{wanted}' is not available in the current workspace.")
+    if len(inventory) != 1:
+        raise RuntimeError("Differential expression requires one explicitly selected molecular dataset.")
+    return dict(inventory[0] or {})
+
+
+def _prepare_molecular_differential_expression_bundle(
+    data_dir: str,
+    *,
+    prompt: str,
+    molecular_dataset_name: str,
+    selected_patient_ids: str,
+    compare_selected_patient_ids: str,
+    output_dir: Path,
+) -> Dict[str, Any]:
+    cohort_a_scope = _resolve_molecular_scope(selected_patient_ids)
+    cohort_b_scope = _resolve_molecular_scope(compare_selected_patient_ids)
+    cohort_a_tokens = cohort_a_scope["sample_ids"] + cohort_a_scope["patient_ids"]
+    cohort_b_tokens = cohort_b_scope["sample_ids"] + cohort_b_scope["patient_ids"]
+    if not cohort_a_tokens or not cohort_b_tokens:
+        raise RuntimeError("Differential expression requires both Cohort A and Cohort B.")
+    overlap = sorted(set(cohort_a_tokens) & set(cohort_b_tokens))
+    if overlap:
+        raise RuntimeError("Differential expression requires disjoint Cohort A and Cohort B selections.")
+
+    dataset = _choose_molecular_dataset(data_dir, molecular_dataset_name)
+    dataset_name = str(dataset.get("dataset_name") or "").strip()
+    if not dataset_name:
+        raise RuntimeError("No valid molecular dataset name is available for differential expression.")
+
+    query_store_module.ensure_query_store(data_dir)
+    con = query_store_module._connect(data_dir)
+    try:
+        where_clauses = ["dataset_name = ?"]
+        query_params: List[Any] = [dataset_name]
+        wanted_sample_ids = cohort_a_scope["sample_ids"] + cohort_b_scope["sample_ids"]
+        wanted_patient_ids = cohort_a_scope["patient_ids"] + cohort_b_scope["patient_ids"]
+        if wanted_sample_ids:
+            sample_placeholders = ",".join("?" for _ in wanted_sample_ids)
+            where_clauses.append(f"sample_id IN ({sample_placeholders})")
+            query_params.extend(wanted_sample_ids)
+        if wanted_patient_ids:
+            patient_placeholders = ",".join("?" for _ in wanted_patient_ids)
+            where_clauses.append(f"patient_id IN ({patient_placeholders})")
+            query_params.extend(wanted_patient_ids)
+        if len(where_clauses) == 1:
+            raise RuntimeError("Differential expression requires both Cohort A and Cohort B.")
+        sample_rows = con.execute(
+            f"""
+            SELECT sample_id, patient_id
+            FROM molecular_samples
+            WHERE {" AND ".join([where_clauses[0], "(" + " OR ".join(where_clauses[1:]) + ")"])}
+            ORDER BY sample_id
+            """,
+            query_params,
+        ).fetchall()
+        if not sample_rows:
+            raise RuntimeError(f"No molecular samples overlap the current Analysis scope for dataset '{dataset_name}'.")
+
+        sample_table_rows: List[Dict[str, Any]] = []
+        sample_ids: List[str] = []
+        cohort_a_samples = set(cohort_a_scope["sample_ids"])
+        cohort_b_samples = set(cohort_b_scope["sample_ids"])
+        cohort_a_patients = set(cohort_a_scope["patient_ids"])
+        cohort_b_patients = set(cohort_b_scope["patient_ids"])
+        for sample_id, patient_id in sample_rows:
+            sample_text = str(sample_id or "").strip()
+            patient_text = str(patient_id or "").strip()
+            if not sample_text or not patient_text:
+                continue
+            belongs_to_a = sample_text in cohort_a_samples or patient_text in cohort_a_patients
+            belongs_to_b = sample_text in cohort_b_samples or patient_text in cohort_b_patients
+            if belongs_to_a and belongs_to_b:
+                raise RuntimeError("Differential expression requires disjoint sample selections across Cohort A and Cohort B.")
+            if belongs_to_a:
+                cohort = "A"
+            elif belongs_to_b:
+                cohort = "B"
+            else:
+                continue
+            sample_ids.append(sample_text)
+            sample_table_rows.append(
+                {
+                    "sample_id": sample_text,
+                    "patient_id": patient_text,
+                    "cohort": cohort,
+                    "group_label": "Cohort A" if cohort == "A" else "Cohort B",
+                }
+            )
+        if not sample_table_rows:
+            raise RuntimeError(f"No molecular samples overlap the selected cohorts for dataset '{dataset_name}'.")
+        cohort_a_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "A")
+        cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
+        if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
+            raise RuntimeError(
+                f"Dataset '{dataset_name}' must contain at least one sample in both Cohort A and Cohort B."
+            )
+
+        sample_placeholders = ",".join("?" for _ in sample_ids)
+        count_rows = con.execute(
+            f"""
+            SELECT gene_id, sample_id, raw_count
+            FROM transcript_counts
+            WHERE dataset_name = ? AND sample_id IN ({sample_placeholders})
+            ORDER BY gene_id, sample_id
+            """,
+            [dataset_name, *sample_ids],
+        ).fetchall()
+    finally:
+        con.close()
+
+    matrix_values: Dict[str, Dict[str, int]] = defaultdict(dict)
+    for gene_id, sample_id, raw_count in count_rows:
+        gene_text = str(gene_id or "").strip()
+        sample_text = str(sample_id or "").strip()
+        if not gene_text or not sample_text:
+            continue
+        matrix_values[gene_text][sample_text] = int(raw_count or 0)
+
+    counts_matrix_rows: List[Dict[str, Any]] = []
+    for gene_id in sorted(matrix_values):
+        row: Dict[str, Any] = {"gene_id": gene_id}
+        gene_counts = matrix_values[gene_id]
+        for sample_id in sample_ids:
+            row[sample_id] = gene_counts.get(sample_id, 0)
+        counts_matrix_rows.append(row)
+    if not counts_matrix_rows:
+        raise RuntimeError(f"No transcript count rows are available for dataset '{dataset_name}' in the selected cohorts.")
+
+    cohort_a_rows = [
+        {"patient_id": row["patient_id"], "sample_id": row["sample_id"], "cohort": row["cohort"]}
+        for row in sample_table_rows
+        if row["cohort"] == "A"
+    ]
+    cohort_b_rows = [
+        {"patient_id": row["patient_id"], "sample_id": row["sample_id"], "cohort": row["cohort"]}
+        for row in sample_table_rows
+        if row["cohort"] == "B"
+    ]
+
+    sample_table_path = output_dir / "sample_table.tsv"
+    counts_matrix_path = output_dir / "counts_matrix.tsv"
+    cohort_a_path = output_dir / "cohort_a.tsv"
+    cohort_b_path = output_dir / "cohort_b.tsv"
+    params_path = output_dir / "params.yaml"
+    manifest_path = output_dir / "manifest.yaml"
+    _write_tsv(sample_table_path, ["sample_id", "patient_id", "cohort", "group_label"], sample_table_rows)
+    _write_tsv(counts_matrix_path, ["gene_id", *sample_ids], counts_matrix_rows)
+    _write_tsv(cohort_a_path, ["patient_id", "sample_id", "cohort"], cohort_a_rows)
+    _write_tsv(cohort_b_path, ["patient_id", "sample_id", "cohort"], cohort_b_rows)
+    params_payload = {
+        "analysis_type": "differential_expression",
+        "method": "log2_cpm_welch",
+        "prompt": str(prompt or "").strip(),
+        "dataset_name": dataset_name,
+        "contrast": {"numerator": "Cohort A", "denominator": "Cohort B"},
+        "minimum_samples_per_group": 1,
+    }
+    _write_yaml(params_path, params_payload)
+    manifest_payload = {
+        "version": 1,
+        "analysis_type": "molecular_differential_expression",
+        "dataset_name": dataset_name,
+        "prompt": str(prompt or "").strip(),
+        "cohorts": {
+            "A": {
+                "label": "Cohort A",
+                "patient_count": len({row["patient_id"] for row in cohort_a_rows}),
+                "sample_count": cohort_a_sample_count,
+                "file": cohort_a_path.name,
+            },
+            "B": {
+                "label": "Cohort B",
+                "patient_count": len({row["patient_id"] for row in cohort_b_rows}),
+                "sample_count": cohort_b_sample_count,
+                "file": cohort_b_path.name,
+            },
+        },
+        "inputs": {
+            "sample_table": sample_table_path.name,
+            "counts_matrix": counts_matrix_path.name,
+            "params": params_path.name,
+        },
+        "outputs": {
+            "results_table": "de_results.tsv",
+            "volcano_points": "volcano_points.tsv",
+            "summary": "summary.json",
+            "plot": "volcano_plot.png",
+        },
+    }
+    _write_yaml(manifest_path, manifest_payload)
+    return {
+        "dataset_name": dataset_name,
+        "manifest_path": manifest_path,
+        "params_path": params_path,
+        "sample_table_path": sample_table_path,
+        "counts_matrix_path": counts_matrix_path,
+        "cohort_a_patient_count": manifest_payload["cohorts"]["A"]["patient_count"],
+        "cohort_a_sample_count": cohort_a_sample_count,
+        "cohort_b_patient_count": manifest_payload["cohorts"]["B"]["patient_count"],
+        "cohort_b_sample_count": cohort_b_sample_count,
+        "gene_count": len(counts_matrix_rows),
+    }
+
+
 def run_rscript_analysis(
     runner_ref: str,
     *,
     prompt: str,
     data_dir: str,
+    molecular_dataset_name: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -321,6 +567,41 @@ def run_rscript_analysis(
                 str(prompt or ""),
                 "--sleep-seconds",
                 "60",
+            ]
+        elif runner_ref == "molecular_differential_expression":
+            bundle = _prepare_molecular_differential_expression_bundle(
+                data_dir,
+                prompt=prompt,
+                molecular_dataset_name=molecular_dataset_name,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+            )
+            command = [
+                binary,
+                str(script_path),
+                "--job-dir",
+                str(temp_path),
+                "--manifest",
+                str(bundle["manifest_path"]),
+                "--params",
+                str(bundle["params_path"]),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--counts-matrix",
+                str(bundle["counts_matrix_path"]),
+                "--results-table",
+                str(temp_path / "de_results.tsv"),
+                "--volcano-table",
+                str(temp_path / "volcano_points.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "volcano_plot.png"),
             ]
         else:
             raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")

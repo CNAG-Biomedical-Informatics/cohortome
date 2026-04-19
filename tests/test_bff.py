@@ -635,6 +635,54 @@ def test_answer_query_summary_blocks_direct_patient_detail_lookup(tmp_path):
     }
 
 
+def test_query_can_build_explicit_patient_id_cohort_from_prompt(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN019:week_2", "patient_id": "SYN019"},
+            {"id": "SYN019:week_6", "patient_id": "SYN019"},
+            {"id": "SYN020:week_2", "patient_id": "SYN020"},
+            {"id": "SYN021:week_2", "patient_id": "SYN021"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "Create a cohort with patients SYN019 and SYN020")
+
+    assert payload["intent"] == "explicit_patient_id_cohort"
+    assert payload["reply"] == "Selected patients: SYN019, SYN020."
+    assert payload["data"]["patient_ids"] == ["SYN019", "SYN020"]
+    assert payload["data"]["sample_ids"] == ["SYN019:week_2", "SYN019:week_6", "SYN020:week_2"]
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": True,
+        "save_cohort": True,
+        "copy_patient_ids": True,
+        "use_in_pheno_ranker": True,
+    }
+
+
+def test_query_can_build_explicit_patient_id_cohort_from_pasted_ids(tmp_path):
+    clinical_dir = tmp_path / "clinical"
+    clinical_dir.mkdir()
+    write_json(
+        clinical_dir,
+        "records.json",
+        [
+            {"id": "SYN019:week_2", "patient_id": "SYN019"},
+            {"id": "SYN020:week_2", "patient_id": "SYN020"},
+            {"id": "SYN021:week_2", "patient_id": "SYN021"},
+        ],
+    )
+
+    payload = answer_query(str(tmp_path), "patient ids: SYN019, SYN020")
+
+    assert payload["intent"] == "explicit_patient_id_cohort"
+    assert payload["data"]["patient_ids"] == ["SYN019", "SYN020"]
+    assert payload["data"]["invalid_patient_ids"] == []
+
+
 def test_answer_query_dataset_ceiling_downgrades_detailed_request(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -1172,7 +1220,12 @@ def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, 
     client.post("/auth/login", json={"username": "admin", "password": "secret"})
     deleted = client.delete("/auth/users/alice")
     assert deleted.status_code == 200
-    assert deleted.json() == {"deleted": True, "id": "alice"}
+    assert deleted.json() == {
+        "deleted": True,
+        "id": "alice",
+        "deleted_generated_data": False,
+        "deleted_job_count": 0,
+    }
     listing = client.get("/auth/users")
     assert listing.status_code == 200
     assert [item["username"] for item in listing.json()["users"]] == ["admin"]
@@ -1889,6 +1942,126 @@ def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
     assert payload["data"]["context"]["cohort_a_top_disease"] == "Multiple Sclerosis"
     assert payload["data"]["context"]["cohort_a_top_medication"] == "Ocrelizumab"
     assert payload["data"]["context"]["cohort_a_patient_count"] == 1
+
+
+def test_analysis_external_rscript_molecular_differential_expression_runner_executes(tmp_path):
+    if shutil.which("Rscript") is None or not duckdb_available():
+        pytest.skip("Rscript and duckdb are required")
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN001:week_2", "event_date": "2024-01-15"},
+            {"id": "SYN002:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN002:week_2", "event_date": "2024-01-15"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2",
+                "ENSG00000111111;100;120;5;7",
+                "ENSG00000122222;6;8;90;110",
+                "ENSG00000133333;40;42;38;39",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        job_dir = tmp_path / "job-output"
+        payload = analysis_external_module.run_rscript_analysis(
+            "molecular_differential_expression",
+            prompt="Run differential expression between Cohort A and Cohort B for the current molecular workspace.",
+            data_dir=str(tmp_path),
+            molecular_dataset_name="synthetic_transcriptome_raw_counts",
+            selected_patient_ids="SYN001",
+            compare_selected_patient_ids="SYN002",
+            job_dir=job_dir,
+            timeout_seconds=60,
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_external_rscript"
+    assert "External R differential expression" in payload["reply"]
+    assert payload["data"]["execution"] == "external_runner"
+    assert payload["data"]["runner_type"] == "rscript"
+    assert payload["data"]["runner_ref"] == "molecular_differential_expression"
+    assert payload["data"]["context"]["mode"] == "external_rscript_molecular_differential_expression"
+    assert payload["data"]["context"]["dataset_name"] == "synthetic_transcriptome_raw_counts"
+    assert payload["data"]["context"]["cohort_a_sample_count"] == 2
+    assert payload["data"]["context"]["cohort_b_sample_count"] == 2
+    assert payload["data"]["context"]["gene_count"] == 3
+    assert (job_dir / "manifest.yaml").exists()
+    assert (job_dir / "sample_table.tsv").exists()
+    assert (job_dir / "counts_matrix.tsv").exists()
+    assert (job_dir / "de_results.tsv").exists()
+    assert (job_dir / "volcano_points.tsv").exists()
+    assert (job_dir / "summary.json").exists()
+    assert (job_dir / "volcano_plot.png").exists()
+
+
+def test_analysis_external_rscript_molecular_differential_expression_runner_accepts_sample_scopes(tmp_path):
+    if shutil.which("Rscript") is None or not duckdb_available():
+        pytest.skip("Rscript and duckdb are required")
+
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN001:week_2", "event_date": "2024-01-15"},
+            {"id": "SYN002:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN002:week_2", "event_date": "2024-01-15"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2",
+                "ENSG00000111111;100;120;5;7",
+                "ENSG00000122222;6;8;90;110",
+                "ENSG00000133333;40;42;38;39",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        job_dir = tmp_path / "job-output-sample-scope"
+        payload = analysis_external_module.run_rscript_analysis(
+            "molecular_differential_expression",
+            prompt="Run differential expression between Cohort A and Cohort B for the current molecular workspace.",
+            data_dir=str(tmp_path),
+            molecular_dataset_name="synthetic_transcriptome_raw_counts",
+            selected_patient_ids="SYN001:week_0,SYN001:week_2",
+            compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
+            job_dir=job_dir,
+            timeout_seconds=60,
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_external_rscript"
+    assert payload["data"]["context"]["dataset_name"] == "synthetic_transcriptome_raw_counts"
+    assert payload["data"]["context"]["cohort_a_sample_count"] == 2
+    assert payload["data"]["context"]["cohort_b_sample_count"] == 2
+    sample_table = (job_dir / "sample_table.tsv").read_text(encoding="utf-8")
+    assert "SYN001:week_0\tSYN001\tA" in sample_table
+    assert "SYN001:week_2\tSYN001\tA" in sample_table
+    assert "SYN002:week_0\tSYN002\tB" in sample_table
+    assert "SYN002:week_2\tSYN002\tB" in sample_table
 
 
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):

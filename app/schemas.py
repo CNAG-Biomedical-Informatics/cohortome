@@ -34,6 +34,7 @@ class AnalysisRequest(BaseModel):
     catalog_item_id: str = Field(default="", description="Optional Analysis Catalog item identifier used for structured curated analyses.")
     analysis_session_id: str = Field(default="", description="Current Analysis session identifier used to associate queued jobs back to the active session.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the analysis workspace.")
+    molecular_dataset_name: str = Field(default="", description="Selected molecular dataset for curated molecular analyses that require one explicit transcriptomics source.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.")
     compare_mode: bool = Field(default=False, description="Whether to run a compare-mode analysis using cohort A vs cohort B.")

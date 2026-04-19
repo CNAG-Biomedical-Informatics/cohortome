@@ -286,6 +286,7 @@ export function createQueryUi(ctx) {
       semantic_cohort_query: { label: "Workspace query", title: "A workspace-style query result returned by the app." },
       medication_cohort: { label: "Medication workspace query", title: "Deterministic workspace lookup based on treatment labels in the dataset." },
       disease_cohort: { label: "Disease workspace query", title: "Deterministic workspace lookup based on disease labels in the dataset." },
+      explicit_patient_id_cohort: { label: "Selected patient cohort", title: "Deterministic cohort built directly from explicit patient IDs present in the workspace." },
       patient_filter_cohort: { label: "Patient filter query", title: "Deterministic workspace filtering across multiple include or exclude conditions." },
       patient_transition_cohort: { label: "Transition query", title: "Deterministic query over patients who changed from one term to another over time." },
       patient_started_after_cohort: { label: "Started-after query", title: "Deterministic temporal query over patients who started one term after another." },

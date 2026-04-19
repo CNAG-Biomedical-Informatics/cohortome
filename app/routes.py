@@ -581,6 +581,7 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
             resolved_dir,
             catalog_item_id=request.catalog_item_id,
             dataset_id=request.dataset_id or "",
+            molecular_dataset_name=request.molecular_dataset_name,
             analysis_session_id=request.analysis_session_id,
             user_id=request_user_id(raw_request),
             selected_patient_ids=request.selected_patient_ids,

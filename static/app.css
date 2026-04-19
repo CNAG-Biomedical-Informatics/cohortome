@@ -1416,6 +1416,21 @@
         font-size: 0.9rem;
         font-weight: 600;
       }
+      .analysis-molecular-panel {
+        display: grid;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(14, 165, 233, 0.16);
+        background: rgba(248, 251, 255, 0.88);
+      }
+      .analysis-molecular-panel-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
       .analysis-starter-panel {
         display: grid;
         gap: 12px;
@@ -2649,6 +2664,49 @@
       .analysis-plot-frame {
         width: 100%;
         min-height: 240px;
+      }
+      .analysis-view-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 12px 0 14px;
+      }
+      .analysis-view-tab {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .analysis-view-tab.is-active {
+        border-color: rgba(37, 99, 235, 0.34);
+        background: rgba(219, 234, 254, 0.95);
+        color: #1d4ed8;
+      }
+      .analysis-view-tab.is-disabled,
+      .analysis-view-tab:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .analysis-view-panel {
+        display: none;
+      }
+      .analysis-view-panel.is-active {
+        display: block;
+      }
+      .analysis-artifact-image-frame {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.96);
+      }
+      .analysis-artifact-image {
+        display: block;
+        width: 100%;
+        height: auto;
       }
       .analysis-plot-frame .js-plotly-plot,
       .analysis-plot-frame .plot-container,

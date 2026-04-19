@@ -231,6 +231,81 @@ def _extract_patient_id(text: str) -> Optional[str]:
     return None
 
 
+def _extract_patient_ids_from_text(text: str, known_ids: List[str]) -> List[str]:
+    found: List[str] = []
+    lowered = str(text or "").lower()
+    for patient_id in known_ids:
+        token = patient_id.lower()
+        pattern = rf"(?<![A-Za-z0-9_]){re.escape(token)}(?![A-Za-z0-9_])"
+        if re.search(pattern, lowered) and patient_id not in found:
+            found.append(patient_id)
+    return found
+
+
+def _extract_patient_like_tokens_from_text(text: str) -> List[str]:
+    candidates: List[str] = []
+    seen = set()
+    for match in re.finditer(r"\b(?:beacon|syn)[_: -]?\d+(?::[A-Za-z0-9._-]+)?\b", str(text or ""), flags=re.IGNORECASE):
+        token = match.group(0).strip().replace(" ", "_").replace("-", "_")
+        normalized = token.upper()
+        if normalized not in seen:
+            seen.add(normalized)
+            candidates.append(normalized)
+    return candidates
+
+
+def _explicit_patient_cohort_ids(text: str, known_ids: List[str]) -> Optional[Dict[str, List[str]]]:
+    normalized = normalize_entity_synonym_mentions(text, "patient", "patient", "patients").strip()
+    if not normalized:
+        return None
+    matched_ids = _extract_patient_ids_from_text(normalized, known_ids)
+    if len(matched_ids) < 2:
+        return None
+
+    lowered = normalized.lower()
+    if re.match(
+        r"^(?:which|what|list|show|select|find)\s+patients?\s+(?:are|is)\b",
+        lowered,
+    ) or re.match(
+        r"^(?:create|make|build|save)\s+(?:a\s+)?cohort\b",
+        lowered,
+    ) or re.match(
+        r"^(?:patients?|patient ids?|ids?)\s*[:=]",
+        lowered,
+    ):
+        candidate_tokens = _extract_patient_like_tokens_from_text(normalized)
+        invalid_ids = [token for token in candidate_tokens if token not in set(matched_ids)]
+        return {
+            "patient_ids": matched_ids,
+            "invalid_ids": invalid_ids,
+        }
+
+    residue = normalized
+    for patient_id in matched_ids:
+        residue = re.sub(
+            rf"(?<![A-Za-z0-9_]){re.escape(patient_id)}(?![A-Za-z0-9_])",
+            " ",
+            residue,
+            flags=re.IGNORECASE,
+        )
+    residue = re.sub(r"[,:;(){}\[\]]+", " ", residue)
+    residue = re.sub(
+        r"\b(?:and|or|vs|versus|patients?|subjects?|individuals?|participants?|ids?)\b",
+        " ",
+        residue,
+        flags=re.IGNORECASE,
+    )
+    residue = re.sub(r"\s+", " ", residue).strip()
+    if residue:
+        return None
+    candidate_tokens = _extract_patient_like_tokens_from_text(normalized)
+    invalid_ids = [token for token in candidate_tokens if token not in set(matched_ids)]
+    return {
+        "patient_ids": matched_ids,
+        "invalid_ids": invalid_ids,
+    }
+
+
 def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
     if duckdb_available():
         try:
@@ -1937,6 +2012,46 @@ def _answer_query_impl(
                     "How many timepoints are in this workspace?",
                     "Tell me the list of patients in the workspace",
                     "What happened to this workspace over time?",
+                ],
+            },
+        }
+
+    explicit_patient_cohort = _explicit_patient_cohort_ids(text, _patient_inventory(data_dir))
+    if explicit_patient_cohort is not None:
+        inventory = _patient_query_index(data_dir)
+        rows_by_id = {str(row.get("patient_id") or "").strip(): row for row in inventory}
+        patient_ids = [
+            patient_id
+            for patient_id in explicit_patient_cohort["patient_ids"]
+            if patient_id in rows_by_id
+        ]
+        matched_rows = [rows_by_id[patient_id] for patient_id in patient_ids]
+        original_record_ids: List[str] = []
+        for row in matched_rows:
+            for record_id in row.get("original_record_ids", []) if isinstance(row, dict) else []:
+                normalized = str(record_id or "").strip()
+                if normalized and normalized not in original_record_ids:
+                    original_record_ids.append(normalized)
+        reply = "Selected patients: %s." % ", ".join(patient_ids)
+        invalid_ids = explicit_patient_cohort.get("invalid_ids", [])
+        if invalid_ids:
+            reply += " Ignored unknown IDs: %s." % ", ".join(invalid_ids)
+        return {
+            "query": query,
+            "intent": "explicit_patient_id_cohort",
+            "reply": reply,
+            "data": {
+                "patient_count": len(patient_ids),
+                "patient_ids": patient_ids,
+                "patients": matched_rows,
+                "sample_count": len(original_record_ids),
+                "sample_ids": original_record_ids,
+                "invalid_patient_ids": invalid_ids,
+                "scoped_follow_up": False,
+                "follow_up_suggestions": [
+                    "Show patient %s" % patient_ids[0],
+                    "Open this selected cohort in Analysis",
+                    "Save this selected cohort",
                 ],
             },
         }

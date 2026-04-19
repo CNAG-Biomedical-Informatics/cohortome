@@ -116,6 +116,25 @@ items:
     requires_molecular: true
     tags: [molecular, volcano, medication, deterministic]
 
+  - id: molecular-differential-expression
+    name: Differential expression
+    category: Molecular
+    kind: differential_expression
+    execution_backend: job
+    expected_runtime: medium
+    job_timeout_seconds: 1800
+    runner_type: rscript
+    runner_ref: molecular_differential_expression
+    description: Run a curated external molecular differential-expression analysis between Cohort A and Cohort B using a job-scoped sample table and count matrix bundle.
+    guidance: Select Cohort A and Cohort B before running. The first compatible molecular dataset in the workspace is used automatically.
+    default_prompt: Run differential expression between Cohort A and Cohort B for the current molecular workspace.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    requires_detailed_access: true
+    requires_molecular: true
+    tags: [molecular, differential-expression, background, rscript]
+
   - id: external-r-scope-snapshot
     name: External R cohort snapshot
     category: External

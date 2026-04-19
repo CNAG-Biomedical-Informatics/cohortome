@@ -1,0 +1,130 @@
+export function createNavigationUi(ctx) {
+  const { refs, state, constants, callbacks } = ctx;
+  const {
+    dashboardTabBtnEl,
+    datasetsTabBtnEl,
+    dataTabBtnEl,
+    usersTabBtnEl,
+    queryTabBtnEl,
+    analysisTabBtnEl,
+    phenoTabBtnEl,
+    dashboardClinicalBtnEl,
+    dashboardMolecularBtnEl,
+    tabHelperTextEl,
+    dashboardTabEl,
+    datasetsTabEl,
+    dataTabEl,
+    usersTabEl,
+    queryTabEl,
+    analysisTabEl,
+    phenoTabEl,
+    dashboardClinicalPanelEl,
+    dashboardMolecularPanelEl,
+    loadStatusEl,
+  } = refs;
+  const { ACTIVE_TAB_STORAGE_KEY, DASHBOARD_SUBTAB_STORAGE_KEY, TAB_HELPER_TEXT } = constants;
+  const { effectiveQueryGranularityCeiling, renderGlobalContext } = callbacks;
+
+  function renderTabHelperText(tabName) {
+    if (!tabHelperTextEl) {
+      return;
+    }
+    if (tabName === "dashboard") {
+      tabHelperTextEl.textContent = state.currentDashboardSubtab === "molecular"
+        ? "Inspect loaded molecular datasets and quick transcriptomics summaries"
+        : "Browse patients and orient yourself in the loaded clinical dataset";
+      return;
+    }
+    tabHelperTextEl.textContent = TAB_HELPER_TEXT[tabName] || "";
+  }
+
+  function phenoTabAvailable(datasetIds = state.currentDatasetIds) {
+    return effectiveQueryGranularityCeiling(datasetIds) === "detailed";
+  }
+
+  function renderPhenoTabAvailability() {
+    if (!phenoTabBtnEl) {
+      return;
+    }
+    const available = phenoTabAvailable();
+    phenoTabBtnEl.classList.toggle("is-disabled", !available);
+    phenoTabBtnEl.setAttribute("aria-disabled", available ? "false" : "true");
+    phenoTabBtnEl.title = available
+      ? "Open Pheno-Ranker."
+      : "Pheno-Ranker requires Detailed workspace access.";
+  }
+
+  function setActiveTab(tabName) {
+    if (tabName === "pheno" && !phenoTabAvailable()) {
+      renderPhenoTabAvailability();
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status";
+        loadStatusEl.textContent = "Pheno-Ranker requires Detailed workspace access.";
+      }
+      return;
+    }
+    const showDashboard = tabName === "dashboard";
+    const showDatasets = tabName === "datasets";
+    const showData = tabName === "data";
+    const showUsers = tabName === "users";
+    const showQuery = tabName === "query";
+    const showAnalysis = tabName === "analysis";
+    const showPheno = tabName === "pheno";
+    dashboardTabBtnEl && dashboardTabBtnEl.classList.toggle("active", showDashboard);
+    datasetsTabBtnEl && datasetsTabBtnEl.classList.toggle("active", showDatasets);
+    dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
+    usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
+    queryTabBtnEl && queryTabBtnEl.classList.toggle("active", showQuery);
+    analysisTabBtnEl && analysisTabBtnEl.classList.toggle("active", showAnalysis);
+    phenoTabBtnEl && phenoTabBtnEl.classList.toggle("active", showPheno);
+    dashboardTabEl && dashboardTabEl.classList.toggle("active", showDashboard);
+    datasetsTabEl && datasetsTabEl.classList.toggle("active", showDatasets);
+    dataTabEl && dataTabEl.classList.toggle("active", showData);
+    usersTabEl && usersTabEl.classList.toggle("active", showUsers);
+    queryTabEl && queryTabEl.classList.toggle("active", showQuery);
+    analysisTabEl && analysisTabEl.classList.toggle("active", showAnalysis);
+    phenoTabEl && phenoTabEl.classList.toggle("active", showPheno);
+    try {
+      window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
+    } catch (_error) {
+    }
+    renderTabHelperText(tabName);
+    renderGlobalContext();
+  }
+
+  function setDashboardSubtab(subtabName) {
+    state.currentDashboardSubtab = subtabName === "molecular" ? "molecular" : "clinical";
+    dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");
+    dashboardMolecularBtnEl && dashboardMolecularBtnEl.classList.toggle("active", state.currentDashboardSubtab === "molecular");
+    dashboardClinicalPanelEl && dashboardClinicalPanelEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");
+    dashboardMolecularPanelEl && dashboardMolecularPanelEl.classList.toggle("active", state.currentDashboardSubtab === "molecular");
+    try {
+      window.localStorage.setItem(DASHBOARD_SUBTAB_STORAGE_KEY, state.currentDashboardSubtab);
+    } catch (_error) {
+    }
+    if (currentTabName() === "dashboard") {
+      renderTabHelperText("dashboard");
+      renderGlobalContext();
+    }
+  }
+
+  function currentTabName() {
+    if (phenoTabEl && phenoTabEl.classList.contains("active")) return "pheno";
+    if (datasetsTabEl && datasetsTabEl.classList.contains("active")) return "datasets";
+    if (dataTabEl && dataTabEl.classList.contains("active")) return "data";
+    if (usersTabEl && usersTabEl.classList.contains("active")) return "users";
+    if (dashboardTabEl && dashboardTabEl.classList.contains("active")) return "dashboard";
+    if (analysisTabEl && analysisTabEl.classList.contains("active")) return "analysis";
+    if (queryTabEl && queryTabEl.classList.contains("active")) return "query";
+    return "dashboard";
+  }
+
+  return {
+    renderTabHelperText,
+    phenoTabAvailable,
+    renderPhenoTabAvailability,
+    setActiveTab,
+    setDashboardSubtab,
+    currentTabName,
+  };
+}

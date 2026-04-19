@@ -67,6 +67,7 @@ export function createAnalysisUi(ctx) {
       displaylogo: false,
       responsive: true,
       modeBarButtonsToRemove: [
+        "toImage",
         "select2d",
         "lasso2d",
         "hoverCompareCartesian",
@@ -94,8 +95,46 @@ export function createAnalysisUi(ctx) {
     return `<div class="viz-card"><h3>${escapeHtml(title)}</h3>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div>`;
   }
 
-  function renderAnalysisPlotsMarkup(context, turnIndex) {
+  function renderAnalysisPlotsMarkup(payload, turnIndex) {
+    const data = payload && payload.data ? payload.data : null;
+    const context = data && data.context ? data.context : null;
+    const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
+    if (context.mode === "external_rscript_molecular_differential_expression") {
+      const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_plot.png");
+      const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "de_results.tsv");
+      const volcanoArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_points.tsv");
+      const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
+      const downloads = [plotArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]
+        .filter(Boolean)
+        .map((item) => `<a class="query-chip" href="${escapeHtml(String(item.url || ""))}" target="_blank" rel="noopener">${escapeHtml(String(item.name || ""))}</a>`)
+        .join("");
+      const summaryItems = [
+        { label: "Dataset", value: String(context.dataset_name || "n/a") },
+        { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
+        { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
+        { label: "Genes tested", value: Number(context.gene_count || 0) },
+        { label: "Significant genes", value: Number(context.significant_gene_count || 0) },
+      ];
+      return `
+        <div class="viz-card" style="grid-column: 1 / -1;">
+          <h3>Differential Expression Volcano Plot</h3>
+          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))}.</p>
+          <div class="analysis-view-tabs" role="tablist" aria-label="Differential expression plot views">
+            <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
+            <button type="button" class="analysis-view-tab${volcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}" role="tab" aria-selected="false"${volcanoArtifact ? "" : " disabled"}>Interactive plot</button>
+          </div>
+          <div class="analysis-view-panel is-active" data-de-view-panel="png" data-turn-index="${turnIndex}">
+            ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Differential expression volcano plot"></div>` : '<div class="empty">Volcano plot preview unavailable.</div>'}
+          </div>
+          <div class="analysis-view-panel" data-de-view-panel="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}">
+            ${volcanoArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-de-volcano`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>volcano_points.tsv</code>. The canonical artifact remains <code>volcano_plot.png</code>.</p>` : '<div class="empty">Interactive volcano plot unavailable.</div>'}
+          </div>
+          <div class="analysis-catalog-tags" style="margin-top:12px;">${downloads}</div>
+        </div>
+        ${renderBarChartCard(`analysis-plot-${turnIndex}-de-summary`, "Differential Expression Summary", summaryItems, "label", "value")}
+      `;
+    }
     if (context.mode === "molecular_medication_compare") {
       const comparisons = Array.isArray(context.comparisons) ? context.comparisons : [];
       const cards = comparisons.map((item, index) => {
@@ -387,6 +426,125 @@ export function createAnalysisUi(ctx) {
     };
   }
 
+  async function loadTabularArtifactRows(url) {
+    const response = await fetch(String(url || ""));
+    if (!response.ok) {
+      throw new Error("Unable to load interactive plot data.");
+    }
+    const text = await response.text();
+    const lines = String(text || "").split(/\r?\n/).filter((line) => line.trim());
+    if (!lines.length) return [];
+    const headers = lines[0].split("\t").map((item) => item.trim());
+    return lines.slice(1).map((line) => {
+      const values = line.split("\t");
+      const row = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] !== undefined ? values[index] : "";
+      });
+      return row;
+    });
+  }
+
+  function buildDifferentialExpressionVolcanoPlot(points, datasetName) {
+    const rows = (Array.isArray(points) ? points : []).filter((item) => item && item.gene_id !== undefined);
+    const colors = rows.map((item) => {
+      const adjP = Number(item.adj_p_value || 1);
+      return adjP < 0.05 ? "#d9485f" : "#94a3b8";
+    });
+    const topHits = rows
+      .slice()
+      .sort((left, right) => {
+        const leftAdj = Number(left.adj_p_value || 1);
+        const rightAdj = Number(right.adj_p_value || 1);
+        if (leftAdj !== rightAdj) return leftAdj - rightAdj;
+        return Math.abs(Number(right.log2_fold_change || 0)) - Math.abs(Number(left.log2_fold_change || 0));
+      })
+      .slice(0, 5);
+    return {
+      traces: [{
+        type: "scatter",
+        mode: "markers",
+        name: datasetName || "Differential expression",
+        x: rows.map((item) => Number(item.log2_fold_change || 0)),
+        y: rows.map((item) => Number(item.neg_log10_p || 0)),
+        text: rows.map((item) => String(item.gene_id || "")),
+        customdata: rows.map((item) => [
+          String(item.gene_id || ""),
+          Number(item.p_value || 1),
+          Number(item.adj_p_value || 1),
+        ]),
+        marker: {
+          size: 8,
+          color: colors,
+          opacity: 0.82,
+        },
+        hovertemplate: "Gene: %{customdata[0]}<br>log2FC: %{x:.3f}<br>-log10(p): %{y:.3f}<br>p: %{customdata[1]:.3g}<br>adj p: %{customdata[2]:.3g}<extra></extra>",
+      }, {
+        type: "scatter",
+        mode: "text",
+        name: "Top hits",
+        x: topHits.map((item) => Number(item.log2_fold_change || 0)),
+        y: topHits.map((item) => Number(item.neg_log10_p || 0)),
+        text: topHits.map((item) => String(item.gene_id || "")),
+        textposition: "top center",
+        textfont: { color: "#111827", size: 11 },
+        hoverinfo: "skip",
+        showlegend: false,
+      }],
+      layout: basePlotLayout({
+        xaxis: {
+          ...basePlotLayout().xaxis,
+          title: { text: "log2 fold change", font: { color: "#61758c", size: 12 } },
+          zeroline: true,
+          zerolinecolor: "#475569",
+          zerolinewidth: 1,
+        },
+        yaxis: {
+          ...basePlotLayout().yaxis,
+          title: { text: "-log10(p-value)", font: { color: "#61758c", size: 12 } },
+        },
+        shapes: [{
+          type: "line",
+          x0: 0,
+          x1: 0,
+          y0: 0,
+          y1: 1,
+          xref: "x",
+          yref: "paper",
+          line: { color: "#475569", width: 1, dash: "dot" },
+        }],
+      }),
+    };
+  }
+
+  async function mountDifferentialExpressionInteractivePlot(turnIndex, payload) {
+    const panelEl = document.querySelector(`[data-de-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
+    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
+      return;
+    }
+    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-de-volcano`);
+    if (!plotEl) return;
+    const artifactUrl = String(panelEl.dataset.volcanoUrl || "").trim();
+    if (!artifactUrl) {
+      plotEl.innerHTML = '<div class="empty">Interactive volcano plot unavailable.</div>';
+      panelEl.dataset.loaded = "true";
+      return;
+    }
+    panelEl.dataset.loading = "true";
+    plotEl.innerHTML = '<div class="empty">Loading interactive plot...</div>';
+    try {
+      const rows = await loadTabularArtifactRows(artifactUrl);
+      const context = payload && payload.data ? payload.data.context : null;
+      const volcano = buildDifferentialExpressionVolcanoPlot(rows, context && context.dataset_name ? context.dataset_name : "");
+      mountPlot(`analysis-plot-${turnIndex}-de-volcano`, volcano.traces, volcano.layout);
+      panelEl.dataset.loaded = "true";
+    } catch (_error) {
+      plotEl.innerHTML = '<div class="empty">Unable to render the interactive volcano plot.</div>';
+    } finally {
+      panelEl.dataset.loading = "false";
+    }
+  }
+
   function mountAnalysisPlots() {
     state.analysisTurns.forEach((turn, turnIndex) => {
       if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
@@ -399,6 +557,16 @@ export function createAnalysisUi(ctx) {
           const volcano = buildExploratoryVolcanoPlot(points, `${item.medication_a || "A"} vs ${item.medication_b || "B"}`);
           mountPlot(`analysis-plot-${turnIndex}-molecular-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
         });
+        return;
+      }
+      if (context.mode === "external_rscript_molecular_differential_expression") {
+        const summary = buildHorizontalBar([
+          { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
+          { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
+          { label: "Genes tested", value: Number(context.gene_count || 0) },
+          { label: "Significant genes", value: Number(context.significant_gene_count || 0) },
+        ], "label", "value", "#2563eb");
+        mountPlot(`analysis-plot-${turnIndex}-de-summary`, summary.traces, summary.layout);
         return;
       }
       if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
@@ -618,9 +786,10 @@ export function createAnalysisUi(ctx) {
   function formatAnalysisScopeLabel(scopeValue) {
     const ids = String(scopeValue || "").split(",").map((item) => item.trim()).filter(Boolean);
     if (!ids.length) return "Full workspace";
+    const usesSampleIds = ids.some((item) => item.includes(":"));
     const preview = ids.slice(0, 6).join(", ");
     const suffix = ids.length > 6 ? ` ... (+${ids.length - 6} more)` : "";
-    return `${ids.length} IDs: ${preview}${suffix}`;
+    return `${ids.length} ${usesSampleIds ? "sample IDs" : "patient IDs"}: ${preview}${suffix}`;
   }
 
   function renderAnalysisCompareMode() {
@@ -659,6 +828,7 @@ export function createAnalysisUi(ctx) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
+      "external_rscript_molecular_differential_expression",
       "molecular_medication_compare",
       "trajectory",
       "trajectory_response",
@@ -777,7 +947,7 @@ export function createAnalysisUi(ctx) {
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
       const turnLabel = isErrorTurn ? "Analysis Error" : "Analysis";
-      return `<article class="${turnClass}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(context, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      return `<article class="${turnClass}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(turn.payload, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
     }).join("");
     mountAnalysisPlots();
   }
@@ -803,9 +973,18 @@ export function createAnalysisUi(ctx) {
     const deterministicOnly = state.analysisExecutionMode === "deterministic";
     const showPlots = analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+    const selectedMolecularDatasets = Array.isArray(state.selectedMolecularDatasets) ? state.selectedMolecularDatasets : [];
     if (compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "Analysis cohort comparison requires saved Cohort A and Cohort B.";
+      state.analysisExecutionMode = "auto";
+      return;
+    }
+    if (String(state.analysisSelectedCatalogItemId || "") === "molecular-differential-expression" && selectedMolecularDatasets.length !== 1) {
+      analysisStatusEl.className = "query-status";
+      analysisStatusEl.textContent = selectedMolecularDatasets.length
+        ? "Differential expression requires exactly one selected molecular dataset."
+        : "Select one molecular dataset before running differential expression.";
       state.analysisExecutionMode = "auto";
       return;
     }
@@ -823,6 +1002,7 @@ export function createAnalysisUi(ctx) {
           prompt,
           catalog_item_id: state.analysisSelectedCatalogItemId || "",
           analysis_session_id: state.currentAnalysisSessionId || "",
+          molecular_dataset_name: selectedMolecularDatasets.length === 1 ? selectedMolecularDatasets[0] : "",
           data_dir: (refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId) ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl.value.trim() || refs.dataDirEl.value),
           selected_patient_ids: currentScope,
           compare_mode: compareMode,
@@ -891,6 +1071,30 @@ export function createAnalysisUi(ctx) {
     analysisPromptRequestsPlots,
     analysisPayloadHasPlots,
     renderAnalysisThread,
+    handleAnalysisPlotViewClick(event) {
+      const button = event.target.closest("[data-de-view-btn]");
+      if (!button || !analysisThreadEl.contains(button) || button.disabled) return;
+      const turnIndex = String(button.dataset.turnIndex || "").trim();
+      const view = String(button.dataset.deViewBtn || "").trim();
+      if (!turnIndex || !view) return;
+      const allButtons = analysisThreadEl.querySelectorAll(`[data-de-view-btn][data-turn-index="${turnIndex}"]`);
+      const allPanels = analysisThreadEl.querySelectorAll(`[data-de-view-panel][data-turn-index="${turnIndex}"]`);
+      allButtons.forEach((item) => {
+        const active = item === button;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      allPanels.forEach((panel) => {
+        panel.classList.toggle("is-active", String(panel.dataset.deViewPanel || "") === view);
+      });
+      if (view === "interactive") {
+        const index = Number(turnIndex);
+        const turn = Number.isInteger(index) ? state.analysisTurns[index] : null;
+        if (turn && turn.payload) {
+          void mountDifferentialExpressionInteractivePlot(index, turn.payload);
+        }
+      }
+    },
     handleAnalysisFollowUpsClick(event) {
       const button = event.target.closest("[data-analysis-followup-prompt]");
       if (!button || !analysisThreadEl.contains(button)) return;
