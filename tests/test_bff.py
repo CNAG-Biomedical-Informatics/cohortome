@@ -1828,6 +1828,33 @@ items:
     assert items[1]["execution_backend"] == "job"
 
 
+def test_analysis_catalog_nextflow_availability_accepts_env_override(tmp_path, monkeypatch):
+    catalog_item = {
+        "id": "nextflow-demo",
+        "name": "Nextflow demo",
+        "description": "Demo.",
+        "default_prompt": "Run it.",
+        "runner_type": "nextflow",
+        "runner_ref": "dummy_queue_demo",
+        "execution_backend": "job",
+    }
+    nextflow_path = tmp_path / "nextflow"
+    nextflow_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    nextflow_path.chmod(0o755)
+
+    monkeypatch.setattr(analysis_catalog_module.shutil, "which", lambda name: None)
+    monkeypatch.setenv("NEXTFLOW_BIN", str(nextflow_path))
+
+    availability = analysis_catalog_module._availability_for_item(
+        catalog_item,
+        granularity_ceiling="detailed",
+        has_molecular=True,
+    )
+
+    assert availability["available"] is True
+    assert availability["unavailable_reason"] == ""
+
+
 def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_path):
     write_json(
         tmp_path,
@@ -2188,6 +2215,7 @@ def test_analysis_external_nextflow_runner_executes(tmp_path, monkeypatch):
         "which",
         lambda name: "/usr/bin/nextflow" if name == "nextflow" else None,
     )
+    monkeypatch.delenv("NEXTFLOW_BIN", raising=False)
 
     def fake_run(command, **kwargs):
         result_index = command.index("--result_json")
@@ -2226,9 +2254,64 @@ def test_analysis_external_nextflow_runner_executes(tmp_path, monkeypatch):
     assert payload["data"]["runner_type"] == "nextflow"
     assert payload["data"]["runner_ref"] == "dummy_queue_demo"
     assert payload["data"]["context"]["mode"] == "external_nextflow_dummy"
+    assert (job_dir / "command.txt").read_text(encoding="utf-8").splitlines()[0].startswith("/usr/bin/nextflow ")
     assert (job_dir / "command.txt").exists()
     assert (job_dir / "stdout.txt").exists()
     assert (job_dir / "stderr.txt").exists()
+
+
+def test_analysis_external_nextflow_runner_uses_env_override(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1"},
+            {"id": "P2:baseline", "patient_id": "P2"},
+        ],
+    )
+
+    nextflow_path = tmp_path / "nextflow"
+    nextflow_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    nextflow_path.chmod(0o755)
+
+    monkeypatch.setattr(analysis_external_module.shutil, "which", lambda name: None)
+    monkeypatch.setenv("NEXTFLOW_BIN", str(nextflow_path))
+
+    def fake_run(command, **kwargs):
+        result_index = command.index("--result_json")
+        summary_index = command.index("--summary_txt")
+        result_path = Path(command[result_index + 1])
+        summary_path = Path(command[summary_index + 1])
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "reply": "Nextflow env override workflow completed for Cohort A vs Cohort B.",
+                    "context": {"mode": "external_nextflow_dummy", "scope_summary": "Cohort A vs Cohort B"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        summary_path.write_text("dummy summary\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="nextflow ok\n", stderr="")
+
+    monkeypatch.setattr(analysis_external_module.subprocess, "run", fake_run)
+
+    job_dir = tmp_path / "nextflow-job-env"
+    payload = analysis_external_module.run_nextflow_analysis(
+        "dummy_queue_demo",
+        prompt="Run the external Nextflow demo for the current Analysis scope.",
+        data_dir=str(tmp_path),
+        selected_patient_ids="P1",
+        compare_selected_patient_ids="P2",
+        job_dir=job_dir,
+        timeout_seconds=60,
+    )
+
+    assert payload["intent"] == "analysis_external_nextflow"
+    assert "env override workflow completed" in payload["reply"]
+    assert (job_dir / "command.txt").read_text(encoding="utf-8").splitlines()[0].startswith(f"{nextflow_path} ")
 
 
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):

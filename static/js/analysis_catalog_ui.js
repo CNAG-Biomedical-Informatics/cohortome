@@ -10,9 +10,13 @@ export function createAnalysisCatalogUi(ctx) {
     analysisStarterHostEl,
     analysisComposerExamplesBtnEl,
     analysisCatalogStatusEl,
+    analysisCatalogSearchEl,
+    analysisCatalogFiltersEl,
     analysisCatalogListEl,
     analysisCatalogBrowseBtnEl,
     analysisCatalogDrawerEl,
+    analysisCatalogDrawerSearchEl,
+    analysisCatalogDrawerFiltersEl,
     analysisCatalogDrawerListEl,
     analysisCatalogMolecularPanelEl,
     analysisCatalogMolecularStatusEl,
@@ -20,7 +24,7 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCompareModeEl,
     analysisStatusEl,
   } = refs;
-  const { escapeHtml } = helpers;
+  const { escapeHtml, currentStorageNamespace } = helpers;
   const { MAX_VISIBLE_EXAMPLES } = constants;
   const {
     queryWorkspacePolicyExplanation,
@@ -255,6 +259,159 @@ export function createAnalysisCatalogUi(ctx) {
       : null;
   }
 
+  function analysisCatalogUsageStorageKey() {
+    return `${currentStorageNamespace(state.authState)}.analysisCatalogUsage`;
+  }
+
+  function readAnalysisCatalogUsage() {
+    try {
+      const raw = window.localStorage.getItem(analysisCatalogUsageStorageKey());
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeAnalysisCatalogUsage(value) {
+    try {
+      window.localStorage.setItem(analysisCatalogUsageStorageKey(), JSON.stringify(value || {}));
+    } catch (error) {
+      // Ignore storage failures; suggestions are a convenience feature only.
+    }
+  }
+
+  function recordAnalysisCatalogUsage(itemId) {
+    const normalized = String(itemId || "").trim();
+    if (!normalized) return;
+    const usage = readAnalysisCatalogUsage();
+    const current = usage[normalized] && typeof usage[normalized] === "object" ? usage[normalized] : {};
+    usage[normalized] = {
+      count: Number(current.count || 0) + 1,
+      lastUsedAt: Date.now(),
+    };
+    writeAnalysisCatalogUsage(usage);
+  }
+
+  function normalizeAnalysisCatalogQuery(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function normalizeAnalysisCatalogFilter(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return ["all", "clinical", "molecular", "background", "external"].includes(normalized) ? normalized : "all";
+  }
+
+  function analysisCatalogFilterLabel(value) {
+    const normalized = normalizeAnalysisCatalogFilter(value);
+    if (normalized === "clinical") return "Clinical";
+    if (normalized === "molecular") return "Molecular";
+    if (normalized === "background") return "Background jobs";
+    if (normalized === "external") return "External";
+    return "All";
+  }
+
+  function analysisCatalogItemMatchesFilter(item, filter) {
+    const normalized = normalizeAnalysisCatalogFilter(filter);
+    if (normalized === "all") return true;
+    if (normalized === "molecular") {
+      return Boolean(item && item.requires_molecular);
+    }
+    if (normalized === "background") {
+      return String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase() === "job";
+    }
+    if (normalized === "external") {
+      return String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() !== "builtin";
+    }
+    if (normalized === "clinical") {
+      return !Boolean(item && item.requires_molecular);
+    }
+    return true;
+  }
+
+  function analysisCatalogItemSearchText(item) {
+    return [
+      String(item && item.name ? item.name : ""),
+      String(item && item.description ? item.description : ""),
+      String(item && item.category ? item.category : ""),
+      String(item && item.guidance ? item.guidance : ""),
+      String(item && item.runner_type ? analysisCatalogRunnerTypeLabel(item.runner_type) : ""),
+      ...(Array.isArray(item && item.tags) ? item.tags : []),
+    ].join(" ").toLowerCase();
+  }
+
+  function filteredAnalysisCatalogItems() {
+    const items = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
+    const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
+    const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
+    return items.filter((item) => {
+      if (!analysisCatalogItemMatchesFilter(item, filter)) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return analysisCatalogItemSearchText(item).includes(query);
+    });
+  }
+
+  function analysisCatalogSuggestionScore(item, usage) {
+    const itemId = String(item && item.id ? item.id : "").trim();
+    const current = usage[itemId] && typeof usage[itemId] === "object" ? usage[itemId] : {};
+    const count = Number(current.count || 0);
+    const lastUsedAt = Number(current.lastUsedAt || 0);
+    const compareRequired = Boolean(item && item.default_compare_mode);
+    const molecularRequired = Boolean(item && item.requires_molecular);
+    const external = String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() !== "builtin";
+    const background = String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase() === "job";
+    const selected = itemId === String(state.analysisSelectedCatalogItemId || "").trim();
+    let score = 0;
+    if (selected) score += 10000;
+    if (item && item.available) score += 200;
+    if (count > 0) score += Math.min(count, 8) * 120;
+    if (lastUsedAt > 0) {
+      const ageHours = Math.max(0, (Date.now() - lastUsedAt) / 3600000);
+      score += Math.max(0, 96 - ageHours);
+    }
+    if (compareRequired && analysisCompareModeEl && analysisCompareModeEl.checked) score += 40;
+    if (!compareRequired && !(analysisCompareModeEl && analysisCompareModeEl.checked)) score += 18;
+    if (molecularRequired && state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_molecular_datasets) score += 24;
+    if (background) score += 12;
+    if (external) score += 8;
+    return score;
+  }
+
+  function suggestedAnalysisCatalogItems(items) {
+    const visibleItems = Array.isArray(items) ? items : [];
+    if (!visibleItems.length) {
+      return [];
+    }
+    const usage = readAnalysisCatalogUsage();
+    return [...visibleItems]
+      .sort((left, right) => analysisCatalogSuggestionScore(right, usage) - analysisCatalogSuggestionScore(left, usage))
+      .slice(0, 4);
+  }
+
+  function syncAnalysisCatalogControls() {
+    const query = String(state.analysisCatalogQuery || "");
+    const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
+    if (analysisCatalogSearchEl && analysisCatalogSearchEl.value !== query) {
+      analysisCatalogSearchEl.value = query;
+    }
+    if (analysisCatalogDrawerSearchEl && analysisCatalogDrawerSearchEl.value !== query) {
+      analysisCatalogDrawerSearchEl.value = query;
+    }
+    [analysisCatalogFiltersEl, analysisCatalogDrawerFiltersEl].forEach((container) => {
+      if (!container) return;
+      Array.from(container.querySelectorAll("[data-analysis-catalog-filter]")).forEach((button) => {
+        const active = normalizeAnalysisCatalogFilter(button.dataset.analysisCatalogFilter || "") === filter;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    });
+  }
+
   function renderAnalysisCatalogMolecularPanel() {
     if (!analysisCatalogMolecularPanelEl || !analysisCatalogMolecularStatusEl) {
       return;
@@ -307,6 +464,7 @@ export function createAnalysisCatalogUi(ctx) {
     const availability = analysisCatalogUiAvailability(item);
     const modeBadge = analysisCatalogModeBadge(item);
     const iconKind = analysisCatalogIconKind(item);
+    const selected = String(item && item.id ? item.id : "") === String(state.analysisSelectedCatalogItemId || "");
     const metaBadges = [
       `<span class="query-chip badge ${modeBadge.css}">${escapeHtml(modeBadge.label)}</span>`,
     ];
@@ -339,7 +497,7 @@ export function createAnalysisCatalogUi(ctx) {
       ? ""
       : `<div class="analysis-catalog-unavailable">${escapeHtml(availability.unavailableReason || "Unavailable in this workspace.")}</div>`;
     return `
-      <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${availability.available ? "" : " is-disabled"}">
+      <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${availability.available ? "" : " is-disabled"}${selected ? " is-selected" : ""}">
         <div class="analysis-catalog-head">
           <div class="analysis-catalog-icon" aria-hidden="true">${analysisCatalogIconSvg(iconKind)}</div>
           <div>
@@ -369,6 +527,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (!analysisCatalogListEl) {
       return;
     }
+    syncAnalysisCatalogControls();
     if (!Array.isArray(state.analysisCatalogItems) || !state.analysisCatalogItems.length) {
       analysisCatalogListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
       if (analysisCatalogDrawerListEl) {
@@ -380,9 +539,18 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisCatalogMolecularPanel();
       return;
     }
-    const unavailableCount = state.analysisCatalogItems.filter((item) => !item.available).length;
+    const visibleItems = filteredAnalysisCatalogItems();
+    const unavailableCount = visibleItems.filter((item) => !item.available).length;
+    const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
+    const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
     if (analysisCatalogStatusEl) {
-      const summaryBits = [`${state.analysisCatalogItems.length} curated analyses`];
+      const summaryBits = [`${visibleItems.length} of ${state.analysisCatalogItems.length} tools`];
+      if (filter !== "all") {
+        summaryBits.push(analysisCatalogFilterLabel(filter));
+      }
+      if (query) {
+        summaryBits.push(`matching "${query}"`);
+      }
       if (unavailableCount) {
         summaryBits.push(`${unavailableCount} unavailable in this workspace`);
       }
@@ -391,14 +559,33 @@ export function createAnalysisCatalogUi(ctx) {
       }
       analysisCatalogStatusEl.textContent = summaryBits.join(" · ");
     }
-    const featured = state.analysisCatalogItems.slice(0, 4);
-    analysisCatalogListEl.innerHTML = `<div class="analysis-catalog-featured-strip">${featured.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("")}</div>`;
-    const grouped = state.analysisCatalogItems.reduce((acc, item) => {
+    if (!visibleItems.length) {
+      const message = query || filter !== "all"
+        ? "No analyses match the current search and filters."
+        : "No curated analyses available.";
+      analysisCatalogListEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+      if (analysisCatalogDrawerListEl) {
+        analysisCatalogDrawerListEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+      }
+      renderAnalysisCatalogMolecularPanel();
+      return;
+    }
+    const suggested = suggestedAnalysisCatalogItems(visibleItems);
+    const grouped = visibleItems.reduce((acc, item) => {
       const key = String(item.category || "General");
       if (!acc[key]) acc[key] = [];
       acc[key].push(item);
       return acc;
     }, {});
+    analysisCatalogListEl.innerHTML = [
+      suggested.length
+        ? `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">Suggested</div><div class="analysis-catalog-grid analysis-catalog-grid-compact">${suggested.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("")}</div></section>`
+        : "",
+      ...Object.entries(grouped).map(([category, items]) => {
+      const cards = items.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("");
+      return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid analysis-catalog-grid-compact">${cards}</div></section>`;
+      }),
+    ].filter(Boolean).join("");
     if (analysisCatalogDrawerListEl) {
       analysisCatalogDrawerListEl.innerHTML = Object.entries(grouped).map(([category, items]) => {
         const cards = items.map((item) => renderAnalysisCatalogCard(item, { drawer: true })).join("");
@@ -406,6 +593,16 @@ export function createAnalysisCatalogUi(ctx) {
       }).join("");
     }
     renderAnalysisCatalogMolecularPanel();
+  }
+
+  function setAnalysisCatalogSearch(value) {
+    state.analysisCatalogQuery = String(value || "").trim();
+    renderAnalysisCatalog();
+  }
+
+  function setAnalysisCatalogFilter(value) {
+    state.analysisCatalogFilter = normalizeAnalysisCatalogFilter(value);
+    renderAnalysisCatalog();
   }
 
   async function loadAnalysisCatalog() {
@@ -493,6 +690,8 @@ export function createAnalysisCatalogUi(ctx) {
     }
     state.analysisExecutionMode = normalizeAnalysisCatalogExecutionMode(item.execution_mode);
     state.analysisSelectedCatalogItemId = String(item.id || "").trim();
+    recordAnalysisCatalogUsage(state.analysisSelectedCatalogItemId);
+    renderAnalysisCatalog();
     renderAnalysisCatalogMolecularPanel();
     if (analysisCompareModeEl) {
       analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
@@ -529,6 +728,8 @@ export function createAnalysisCatalogUi(ctx) {
     renderAnalysisCatalogCard,
     setAnalysisCatalogDrawerOpen,
     renderAnalysisCatalog,
+    setAnalysisCatalogSearch,
+    setAnalysisCatalogFilter,
     loadAnalysisCatalog,
     applyAnalysisCatalogItemById,
   };

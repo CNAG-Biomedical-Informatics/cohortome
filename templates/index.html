@@ -817,6 +817,19 @@
                             <button id="analysisCatalogBrowseBtn" type="button" class="query-chip action">Browse analyses</button>
                           </div>
                         </div>
+                        <div class="analysis-catalog-toolbar">
+                          <label class="analysis-catalog-search">
+                            <span class="analysis-catalog-search-label">Search</span>
+                            <input id="analysisCatalogSearch" type="search" placeholder="Find tools by name, tag, runner, or description">
+                          </label>
+                          <div id="analysisCatalogFilters" class="analysis-catalog-filters" role="tablist" aria-label="Analysis Catalog filters">
+                            <button type="button" class="query-chip is-active" data-analysis-catalog-filter="all" aria-pressed="true">All</button>
+                            <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
+                            <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
+                            <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background jobs</button>
+                            <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
+                          </div>
+                        </div>
                         <div id="analysisCatalogList" class="analysis-catalog-featured">
                           <div class="empty">Loading curated analyses...</div>
                         </div>
@@ -870,6 +883,19 @@
                     <div class="section-note">Curated, structured analyses that preconfigure the current Analysis thread.</div>
                   </div>
                   <button id="analysisCatalogDrawerCloseBtn" type="button" class="query-chip">Close</button>
+                </div>
+                <div class="analysis-catalog-toolbar analysis-catalog-toolbar-drawer">
+                  <label class="analysis-catalog-search">
+                    <span class="analysis-catalog-search-label">Search</span>
+                    <input id="analysisCatalogDrawerSearch" type="search" placeholder="Find tools by name, tag, runner, or description">
+                  </label>
+                  <div id="analysisCatalogDrawerFilters" class="analysis-catalog-filters" role="tablist" aria-label="Analysis Catalog filters">
+                    <button type="button" class="query-chip is-active" data-analysis-catalog-filter="all" aria-pressed="true">All</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background jobs</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
+                  </div>
                 </div>
                 <div id="analysisCatalogDrawerList" class="analysis-catalog-list">
                   <div class="empty">Loading curated analyses...</div>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -28,6 +29,15 @@ SNAKEMAKE_RUNNERS = {
 NEXTFLOW_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_nextflow" / "main.nf",
 }
+
+
+def _configured_binary(env_var: str, default_name: str) -> str | None:
+    configured = str(os.environ.get(env_var) or "").strip()
+    if configured:
+        path = Path(configured)
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    return shutil.which(default_name)
 
 
 def _split_scope_ids(value: str) -> List[str]:
@@ -773,7 +783,7 @@ def run_nextflow_analysis(
     job_dir: Path | None = None,
     timeout_seconds: int = 30,
 ) -> Dict[str, Any]:
-    binary = shutil.which("nextflow")
+    binary = _configured_binary("NEXTFLOW_BIN", "nextflow")
     if not binary:
         raise RuntimeError("Nextflow is not available on this installation.")
     workflow_path = NEXTFLOW_RUNNERS.get(str(runner_ref or "").strip())

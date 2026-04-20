@@ -65,8 +65,10 @@ export function createJobsUi(ctx) {
 
   function renderJobStatusChip(item) {
     const status = String(item && item.status ? item.status : "queued").trim();
-    const css = ["completed", "failed", "cancelled"].includes(status) ? `query-chip-${status}` : "query-chip-planner";
-    return `<span class="query-chip badge ${css}">${escapeHtml(status)}</span>`;
+    const css = ["queued", "running", "completed", "failed", "cancelled"].includes(status)
+      ? `is-${status}`
+      : "";
+    return `<span class="job-status-chip ${css}">${escapeHtml(status)}</span>`;
   }
 
   function renderJobGroup(title, items) {

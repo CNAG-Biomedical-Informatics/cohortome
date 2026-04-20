@@ -107,6 +107,14 @@ The main tab shows:
 - a `Browse analyses` drawer with the full catalog
 - a visible quick-prompt area for direct questions
 
+The foldable catalog strip and the drawer share the same browsing state:
+
+- search text
+- active filter
+- selected analysis
+
+That means if you search or filter in one place, the other surface stays in sync.
+
 The catalog is available only when the active workspace allows `Detailed` in-app access.
 
 In a summary-only workspace, the tab explains that the catalog requires `Detailed` access instead of showing a generic load failure.
@@ -118,6 +126,46 @@ Selecting a catalog item does not create a separate execution system. It preconf
 - the preferred execution mode
 
 The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
+
+## Catalog search, filters, and suggestions
+
+The Analysis Catalog is optimized for tool discovery, not only for scrolling.
+
+Search matches against:
+
+- tool name
+- description
+- category
+- runner type
+- tags
+
+Filters are intentionally coarse:
+
+- `All`
+- `Clinical`
+- `Molecular`
+- `Background jobs`
+- `External`
+
+These filters are meant to reduce browse cost quickly, not to replace the catalog structure.
+
+The folded catalog in the main tab also shows a `Suggested` strip.
+
+Suggestions are lightweight and local:
+
+- the currently selected tool is favored
+- recently used tools are favored
+- frequently used tools are favored
+- tools that fit the current workspace and setup are ranked higher
+
+Examples of setup-aware suggestions:
+
+- molecular tools rank better when molecular datasets are available
+- compare-oriented tools rank better when compare mode is active
+
+:::note
+Suggested tools are a convenience ranking, not a backend recommendation service. They are derived from local browser state for the current user.
+:::
 
 ## Starter prompts
 

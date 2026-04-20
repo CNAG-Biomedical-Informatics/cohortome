@@ -267,6 +267,29 @@ Consequence:
 - backend code still owns execution
 - the product moves toward an Analysis Catalog, not a live code box
 
+The current catalog browsing model is intentionally lightweight:
+
+- shared search state between the folded catalog and the drawer
+- coarse filters rather than deep faceting
+- local per-user suggestion ranking in the browser
+
+Search currently matches:
+
+- tool name
+- description
+- category
+- runner type
+- tags
+
+Suggestions are not a server-side personalization system. They are derived from:
+
+- the currently selected tool
+- recent local usage
+- frequent local usage
+- current workspace/setup fit
+
+This keeps catalog navigation fast without introducing a separate recommendation backend or catalog-specific persistence model.
+
 ## 15. Background jobs are a shared substrate, not an Analysis-only special case
 
 Longer curated analyses should not hold the request open.

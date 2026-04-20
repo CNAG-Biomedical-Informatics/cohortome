@@ -885,6 +885,26 @@ function bindEvents() {
   refs.analysisCatalogBrowseBtnEl && refs.analysisCatalogBrowseBtnEl.addEventListener("click", () => {
     analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
   });
+  refs.analysisCatalogSearchEl && refs.analysisCatalogSearchEl.addEventListener("input", () => {
+    analysisCatalogUi.setAnalysisCatalogSearch(refs.analysisCatalogSearchEl.value || "");
+  });
+  refs.analysisCatalogDrawerSearchEl && refs.analysisCatalogDrawerSearchEl.addEventListener("input", () => {
+    analysisCatalogUi.setAnalysisCatalogSearch(refs.analysisCatalogDrawerSearchEl.value || "");
+  });
+  refs.analysisCatalogFiltersEl && refs.analysisCatalogFiltersEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-catalog-filter]");
+    if (!button || !refs.analysisCatalogFiltersEl.contains(button)) {
+      return;
+    }
+    analysisCatalogUi.setAnalysisCatalogFilter(button.dataset.analysisCatalogFilter || "all");
+  });
+  refs.analysisCatalogDrawerFiltersEl && refs.analysisCatalogDrawerFiltersEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-catalog-filter]");
+    if (!button || !refs.analysisCatalogDrawerFiltersEl.contains(button)) {
+      return;
+    }
+    analysisCatalogUi.setAnalysisCatalogFilter(button.dataset.analysisCatalogFilter || "all");
+  });
   refs.analysisCatalogDrawerCloseBtnEl && refs.analysisCatalogDrawerCloseBtnEl.addEventListener("click", () => {
     analysisCatalogUi.setAnalysisCatalogDrawerOpen(false);
   });

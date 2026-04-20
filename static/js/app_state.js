@@ -35,6 +35,8 @@ export function createAppState() {
     analysisSelectedCatalogItemId: "",
     analysisCatalogItems: [],
     analysisCatalogWorkspace: null,
+    analysisCatalogQuery: "",
+    analysisCatalogFilter: "all",
     recentJobs: [],
     jobsPollTimer: null,
     analysisSessions: [],

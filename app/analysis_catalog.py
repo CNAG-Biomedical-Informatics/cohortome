@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List
@@ -13,6 +14,14 @@ ANALYSIS_CATALOG_PATH = Path(__file__).resolve().parent.parent / "state" / "anal
 VALID_EXECUTION_MODES = {"auto", "deterministic", "llm_only"}
 VALID_RUNNER_TYPES = {"builtin", "rscript", "snakemake", "nextflow", "cli", "container"}
 VALID_EXECUTION_BACKENDS = {"sync", "job"}
+
+
+def _configured_runtime_available(env_var: str, default_name: str) -> bool:
+    configured = str(os.environ.get(env_var) or "").strip()
+    if configured:
+        path = Path(configured)
+        return path.is_file() and os.access(path, os.X_OK)
+    return shutil.which(default_name) is not None
 
 
 def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
@@ -119,7 +128,7 @@ def _availability_for_item(item: Dict[str, Any], *, granularity_ceiling: str, ha
         unavailable_reason = "Rscript is not available on this installation."
     elif item.get("runner_type") == "snakemake" and not shutil.which("snakemake"):
         unavailable_reason = "Snakemake is not available on this installation."
-    elif item.get("runner_type") == "nextflow" and not shutil.which("nextflow"):
+    elif item.get("runner_type") == "nextflow" and not _configured_runtime_available("NEXTFLOW_BIN", "nextflow"):
         unavailable_reason = "Nextflow is not available on this installation."
     return {
         "available": unavailable_reason == "",
