@@ -236,12 +236,14 @@ Why:
 - existing analyses were becoming hidden behind prompts and chips
 - users need stable, named analysis entry points
 - future external runners need a registry layer
+- prompt-like summaries and interpretation requests are better expressed as questions, not catalog entries
 
 Consequence:
 
 - catalog items preconfigure the current Analysis thread
+- catalog is reserved for tools, methods, and runner-backed analyses
 - built-in analyses and curated external analyses share the same Analysis tab
-- quick prompts still exist for lighter, non-catalog analysis questions
+- quick prompts still exist for lighter analysis questions
 - the catalog may choose between synchronous and queued execution without changing the Analysis UX model
 
 ## 14. External analysis runners are curated, not arbitrary code execution
@@ -249,6 +251,8 @@ Consequence:
 External integrations should be declared and dispatched through reviewed runner types such as:
 
 - `rscript`
+- `snakemake`
+- `nextflow`
 - CLI tools
 - containers later
 
@@ -279,6 +283,7 @@ Consequence:
 - the backend submits queued work through `RQ + Redis`
 - the app exposes a shared jobs drawer rather than a separate top-level jobs tab
 - completed results can be reopened into Analysis, even when the original session is gone
+- current queued `Pheno-Ranker` cohort runs are intentionally capped at `2500` resolved samples until the large-output path is redesigned
 
 ## 16. OpenAPI is a product asset, not only an integration artifact
 

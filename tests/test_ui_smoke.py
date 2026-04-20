@@ -821,13 +821,14 @@ def test_analysis_catalog_item_prefills_prompt_and_compare_mode(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
 
-    expect(page.locator("#analysisCatalogList")).to_contain_text("Clinical cohort summary")
+    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
+    expect(page.locator("#analysisCatalogList")).to_contain_text("Trajectory analysis")
     page.locator("#analysisCatalogBrowseBtn").click()
     expect(page.locator("#analysisCatalogDrawer")).to_be_visible()
-    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Clinical cohort summary")
-    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='clinical-summary']").click()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Trajectory analysis")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='trajectory-single']").click()
 
-    expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Summarize the main clinical patterns in this workspace"))
+    expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Show the trajectory of Leukocyte Count over time"))
     expect(page.locator("#analysisCompareMode")).not_to_be_checked()
 
 
@@ -1000,7 +1001,8 @@ def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
 
-    page.locator("#analysisTab summary").filter(has_text="Saved Cohorts").click()
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
+    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
 
     expect(page.locator("#analysisSelectedPatientIds")).to_be_disabled()
@@ -1015,6 +1017,7 @@ def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
 
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
     page.locator("#analysisCompareMode").check()
 
     expect(page.locator("#analysisSelectedPatientIds")).to_be_disabled()
@@ -1025,6 +1028,25 @@ def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
     page.locator("#analysisPrompt").fill("Compare Cohort A and Cohort B by disease burden")
     page.locator("#analysisRunBtn").click()
     expect(page.locator("#analysisStatus")).to_contain_text("requires saved Cohort A and Cohort B")
+
+
+def test_analysis_differential_expression_enables_after_saved_cohorts_selected(page) -> None:
+    _mock_saved_cohorts(page)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
+    page.locator("#analysisCompareMode").check()
+    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
+
+    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
+    page.locator("#analysisCatalogBrowseBtn").click()
+
+    de_button = page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-differential-expression']")
+    expect(de_button).to_be_enabled()
 
 
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:

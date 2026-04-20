@@ -1,31 +1,5 @@
 version: 1
 items:
-  - id: clinical-summary
-    name: Clinical cohort summary
-    category: Clinical
-    kind: summary
-    runner_type: builtin
-    runner_ref: clinical_summary
-    description: Summarize the main diseases, medications, visit density, and temporal signals in the active Analysis scope.
-    guidance: Best first-pass analysis for a cohort or the full workspace.
-    default_prompt: Summarize the main clinical patterns in this workspace and tell me what stands out.
-    execution_mode: deterministic
-    tags: [clinical, summary, deterministic]
-
-  - id: cohort-compare-summary
-    name: Cohort comparison
-    category: Clinical
-    kind: compare
-    runner_type: builtin
-    runner_ref: compare_summary
-    description: Compare diseases, medications, and workload patterns between Cohort A and Cohort B.
-    guidance: Select saved cohorts for A and B before running.
-    default_prompt: Compare Cohort A and Cohort B by disease burden and treatment patterns.
-    execution_mode: deterministic
-    default_compare_mode: true
-    supports_compare_mode: true
-    tags: [clinical, compare, deterministic]
-
   - id: trajectory-single
     name: Trajectory analysis
     category: Trajectories
@@ -180,3 +154,35 @@ items:
     execution_mode: deterministic
     requires_detailed_access: true
     tags: [external, rscript, demo, background]
+
+  - id: external-snakemake-demo
+    name: External Snakemake demo
+    category: External
+    kind: external_workflow
+    execution_backend: job
+    expected_runtime: medium
+    job_timeout_seconds: 1800
+    runner_type: snakemake
+    runner_ref: dummy_queue_demo
+    description: Curated background Snakemake workflow that writes a small structured result bundle for the current Analysis scope.
+    guidance: Demonstration workflow only. It validates queued Snakemake execution and artifact handling.
+    default_prompt: Run the external Snakemake demo for the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    tags: [external, snakemake, demo, background]
+
+  - id: external-nextflow-demo
+    name: External Nextflow demo
+    category: External
+    kind: external_workflow
+    execution_backend: job
+    expected_runtime: medium
+    job_timeout_seconds: 1800
+    runner_type: nextflow
+    runner_ref: dummy_queue_demo
+    description: Curated background Nextflow workflow that writes a small structured result bundle for the current Analysis scope.
+    guidance: Demonstration workflow only. It validates queued Nextflow execution and artifact handling.
+    default_prompt: Run the external Nextflow demo for the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    tags: [external, nextflow, demo, background]

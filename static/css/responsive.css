@@ -8,6 +8,7 @@
         .analysis-shell { grid-template-columns: 1fr; }
         .analysis-sidebar { position: static; }
         .analysis-session-list { max-height: none; }
+        .analysis-setup-summary { grid-template-columns: 1fr; }
         #queryClearBtn { margin-left: 0; }
       }
       @media (max-width: 640px) {
@@ -30,6 +31,11 @@
         .hero-utility {
           width: 100%;
           justify-content: space-between;
+        }
+        .analysis-setup-summary,
+        .analysis-setup-body {
+          padding-left: 14px;
+          padding-right: 14px;
         }
         .auth-gate-form {
           grid-template-columns: 1fr;

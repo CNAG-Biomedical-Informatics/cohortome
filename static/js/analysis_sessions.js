@@ -22,6 +22,7 @@ export function createAnalysisSessionsUi(ctx) {
   const {
     createAnalysisSession,
     currentAnalysisSession,
+    currentDatasetSelectionKey,
     getStorageNamespace,
     renderAnalysisCompareMode,
     renderAnalysisScopeSummary,
@@ -62,6 +63,14 @@ export function createAnalysisSessionsUi(ctx) {
       return `${aLabel} vs ${bLabel}`;
     }
     return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
+  }
+
+  function analysisWorkspaceStatusLabel(session) {
+    const status = session && session.workspaceStatus && typeof session.workspaceStatus === "object" ? session.workspaceStatus : {};
+    const value = String(status.state || "").trim();
+    if (value === "stale") return "Workspace changed";
+    if (value === "unavailable") return "Workspace unavailable";
+    return "";
   }
 
   function setDeleteDialogOpen(open) {
@@ -128,7 +137,9 @@ export function createAnalysisSessionsUi(ctx) {
         body: JSON.stringify({
           id: session.id,
           title: session.title || "",
+          dataset_id: session.datasetId || "",
           data_dir: session.dataDir || "",
+          workspace_fingerprint: session.workspaceFingerprint || {},
           catalog_item_id: session.catalogItemId || "",
           prompt_draft: session.promptDraft || "",
           scope: session.scope || "",
@@ -189,7 +200,10 @@ export function createAnalysisSessionsUi(ctx) {
       const backendSessions = Array.isArray(payload.sessions) ? payload.sessions.map((item) => createAnalysisSession({
         id: item.id,
         title: item.title,
+        datasetId: item.dataset_id,
         dataDir: item.data_dir,
+        workspaceFingerprint: item.workspace_fingerprint,
+        workspaceStatus: item.workspace_status,
         catalogItemId: item.catalog_item_id,
         promptDraft: item.prompt_draft,
         scope: item.scope,
@@ -244,6 +258,7 @@ export function createAnalysisSessionsUi(ctx) {
       const dirLabel = dataDir ? dataDir.split("/").filter(Boolean).slice(-1)[0] : "No dataset";
       const turnCount = Array.isArray(session.turns) ? session.turns.length : 0;
       const active = session.id === state.currentAnalysisSessionId ? " is-active" : "";
+      const workspaceLabel = analysisWorkspaceStatusLabel(session);
       return `
         <div class="analysis-session-card${active}">
           <button type="button" class="analysis-session-main" data-analysis-session-id="${escapeHtml(session.id)}">
@@ -251,6 +266,7 @@ export function createAnalysisSessionsUi(ctx) {
             <div class="analysis-session-meta">
               <div>${escapeHtml(dirLabel)}</div>
               <div>${escapeHtml(analysisSessionScopeSummary(session))}</div>
+              ${workspaceLabel ? `<div>${escapeHtml(workspaceLabel)}</div>` : ""}
               <div>${escapeHtml(String(turnCount))} turns • ${escapeHtml(shortTimestamp(session.updatedAt))}</div>
             </div>
           </button>
@@ -268,6 +284,9 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     session.promptDraft = analysisPromptEl.value;
+    session.datasetId = typeof currentDatasetSelectionKey === "function"
+      ? String(currentDatasetSelectionKey() || "").trim()
+      : (session.datasetId || "");
     session.catalogItemId = state.analysisSelectedCatalogItemId || "";
     session.scope = analysisSelectedPatientIdsEl.value.trim();
     session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
@@ -315,13 +334,19 @@ export function createAnalysisSessionsUi(ctx) {
     state.currentAnalysisSessionId = session.id;
     applyAnalysisSession(session);
     persistAnalysisSessions();
+    const workspaceStatus = session.workspaceStatus && typeof session.workspaceStatus === "object" ? session.workspaceStatus : {};
     analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = `Loaded analysis session: ${analysisSessionTitle(session)}.`;
+    analysisStatusEl.textContent = workspaceStatus.state === "stale" || workspaceStatus.state === "unavailable"
+      ? String(workspaceStatus.message || "This analysis session no longer matches the current workspace.")
+      : `Loaded analysis session: ${analysisSessionTitle(session)}.`;
   }
 
   function createAndSelectAnalysisSession(overrides) {
     syncCurrentAnalysisSessionFromUi({ touch: false, render: false });
-    const session = createAnalysisSession(overrides);
+    const session = createAnalysisSession({
+      ...(overrides || {}),
+      datasetId: typeof currentDatasetSelectionKey === "function" ? String(currentDatasetSelectionKey() || "").trim() : "",
+    });
     state.analysisSessions = state.analysisSessions.concat([session]);
     state.currentAnalysisSessionId = session.id;
     applyAnalysisSession(session);
@@ -375,15 +400,21 @@ export function createAnalysisSessionsUi(ctx) {
     }
     setDeleteDialogBusy(true);
     resetDeleteDialogStatus();
+    let missingOnBackend = false;
     try {
       await deleteAnalysisSessionFromBackend(sessionId, { deleteGeneratedData });
     } catch (error) {
-      if (analysisSessionDeleteStatusEl) {
-        analysisSessionDeleteStatusEl.className = "query-status error";
-        analysisSessionDeleteStatusEl.textContent = error instanceof Error ? error.message : "Unable to delete analysis session.";
+      const message = error instanceof Error ? error.message : "Unable to delete analysis session.";
+      if (message === "Analysis session not found.") {
+        missingOnBackend = true;
+      } else {
+        if (analysisSessionDeleteStatusEl) {
+          analysisSessionDeleteStatusEl.className = "query-status error";
+          analysisSessionDeleteStatusEl.textContent = message;
+        }
+        setDeleteDialogBusy(false);
+        return;
       }
-      setDeleteDialogBusy(false);
-      return;
     }
     state.analysisSessions = state.analysisSessions.filter((item) => item.id !== sessionId);
     if (!state.analysisSessions.length) {
@@ -399,9 +430,11 @@ export function createAnalysisSessionsUi(ctx) {
     setDeleteDialogBusy(false);
     closeDeleteDialog();
     analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = deleteGeneratedData
-      ? "Analysis session and generated data deleted."
-      : "Analysis session deleted.";
+    analysisStatusEl.textContent = missingOnBackend
+      ? "Removed stale local analysis session."
+      : deleteGeneratedData
+        ? "Analysis session and generated data deleted."
+        : "Analysis session deleted.";
   }
 
   function deleteAnalysisSessionById(sessionId) {

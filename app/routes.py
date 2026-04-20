@@ -25,6 +25,7 @@ from app.analysis import analysis_llm_reply
 from app.analysis_catalog import analysis_catalog_payload
 from app.analysis_sessions import (
     delete_analysis_session,
+    get_analysis_session,
     list_analysis_sessions,
     list_sessions_referencing_saved_cohort,
     rename_analysis_session,
@@ -54,15 +55,18 @@ from app.datasets import (
     set_current_dataset,
     set_current_datasets,
     update_dataset,
+    workspace_fingerprint_for_data_dir,
 )
 from app.lm import lm_studio_base_url, lm_studio_enabled, resolve_lm_studio_model
 from app.jobs import (
+    active_feature_job,
     delete_job,
     list_job_records,
     list_jobs_for_analysis_session,
     load_job_record,
     public_job_payload,
     resolve_job_artifact_path,
+    submit_pheno_job,
 )
 from app.pheno import (
     pheno_ranker_alignment_details,
@@ -70,6 +74,7 @@ from app.pheno import (
     pheno_ranker_explain_llm,
     pheno_ranker_patient_ids_payload,
     pheno_ranker_result_file_path,
+    pheno_run_requires_background_job,
     plan_pheno_ranker,
     run_pheno_ranker,
 )
@@ -105,6 +110,81 @@ from app.schemas import (
     LoginRequest,
 )
 from app.query import answer_query
+
+
+def _workspace_changed_detail(status: Dict[str, Any]) -> str:
+    removed = list(status.get("removed_files") or [])
+    added = list(status.get("added_files") or [])
+    if removed and not added:
+        removed_label = removed[0] if len(removed) == 1 else f"{len(removed)} clinical files"
+        return f"This analysis session was created against an older workspace version. Missing from the current workspace: {removed_label}."
+    if added and not removed:
+        added_label = added[0] if len(added) == 1 else f"{len(added)} clinical files"
+        return f"This analysis session was created against an older workspace version. The current workspace now includes additional clinical files such as {added_label}."
+    if removed or added:
+        return "This analysis session was created against an older workspace version. The active clinical file set has changed."
+    return "This analysis session was created against an older workspace version."
+
+
+def _analysis_session_workspace_status(session: Dict[str, Any], request: Request) -> Dict[str, Any]:
+    dataset_key = str(session.get("dataset_id") or "").strip() or str(session.get("data_dir") or "").strip()
+    stored = session.get("workspace_fingerprint") if isinstance(session.get("workspace_fingerprint"), dict) else {}
+    if not dataset_key:
+        return {
+            "state": "unknown",
+            "message": "No stored workspace fingerprint is available for this analysis session.",
+            "stored_fingerprint": stored,
+            "current_fingerprint": {},
+            "removed_files": [],
+            "added_files": [],
+        }
+    try:
+        selected_ids = resolve_dataset_ids(request, dataset_key)
+        resolved_scope_id = dataset_scope_id(selected_ids)
+        resolved_dir = resolve_dataset_dir(request, dataset_key)
+        current = workspace_fingerprint_for_data_dir(resolved_dir, dataset_id=resolved_scope_id, dataset_ids=selected_ids)
+    except HTTPException as exc:
+        detail = str(exc.detail or "").strip() or "The original dataset is no longer available."
+        return {
+            "state": "unavailable",
+            "message": detail,
+            "stored_fingerprint": stored,
+            "current_fingerprint": {},
+            "removed_files": [],
+            "added_files": [],
+        }
+    stored_names = [str(item.get("name") or "").strip() for item in (stored.get("clinical_files") or []) if str(item.get("name") or "").strip()]
+    current_names = [str(item.get("name") or "").strip() for item in (current.get("clinical_files") or []) if str(item.get("name") or "").strip()]
+    removed = sorted(set(stored_names) - set(current_names))
+    added = sorted(set(current_names) - set(stored_names))
+    if not stored:
+        return {
+            "state": "unknown",
+            "message": "No stored workspace fingerprint is available for this analysis session.",
+            "stored_fingerprint": stored,
+            "current_fingerprint": current,
+            "removed_files": removed,
+            "added_files": added,
+        }
+    if str(stored.get("token") or "").strip() != str(current.get("token") or "").strip():
+        status = {
+            "state": "stale",
+            "message": "",
+            "stored_fingerprint": stored,
+            "current_fingerprint": current,
+            "removed_files": removed,
+            "added_files": added,
+        }
+        status["message"] = _workspace_changed_detail(status)
+        return status
+    return {
+        "state": "current",
+        "message": "",
+        "stored_fingerprint": stored,
+        "current_fingerprint": current,
+        "removed_files": removed,
+        "added_files": added,
+    }
 from app.query import disease_counts as query_disease_counts
 from app.user_state import request_user_id
 
@@ -575,6 +655,12 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+    if str(request.analysis_session_id or "").strip():
+        session = get_analysis_session(request.analysis_session_id, user_id=request_user_id(raw_request))
+        if session:
+            workspace_status = _analysis_session_workspace_status(session, raw_request)
+            if workspace_status["state"] in {"stale", "unavailable"}:
+                raise HTTPException(status_code=409, detail=workspace_status["message"] or "This analysis session is no longer aligned with the current workspace.")
     try:
         return analysis_llm_reply(
             request.prompt,
@@ -669,15 +755,36 @@ def get_molecular_expression(request: MolecularExpressionRequest, raw_request: R
 
 def get_analysis_sessions(request: Request) -> Dict:
     require_authenticated(request)
-    return {"sessions": list_analysis_sessions(user_id=request_user_id(request))}
+    sessions = []
+    for item in list_analysis_sessions(user_id=request_user_id(request)):
+        session = dict(item)
+        session["workspace_status"] = _analysis_session_workspace_status(session, request)
+        sessions.append(session)
+    return {"sessions": sessions}
 
 
 def create_or_update_analysis_session(request: AnalysisSessionRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     try:
         payload = request.model_dump()
-        payload["dataset_id"] = request.dataset_id
-        return save_analysis_session(payload, user_id=request_user_id(raw_request))
+        user_id = request_user_id(raw_request)
+        existing = get_analysis_session(request.id, user_id=user_id)
+        selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or request.data_dir)
+        resolved_scope_id = dataset_scope_id(selected_ids)
+        resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+        payload["dataset_id"] = resolved_scope_id
+        payload["data_dir"] = resolved_dir
+        if existing and isinstance(existing.get("workspace_fingerprint"), dict) and existing.get("workspace_fingerprint"):
+            payload["workspace_fingerprint"] = existing.get("workspace_fingerprint")
+        else:
+            payload["workspace_fingerprint"] = workspace_fingerprint_for_data_dir(
+                resolved_dir,
+                dataset_id=resolved_scope_id,
+                dataset_ids=selected_ids,
+            )
+        saved = save_analysis_session(payload, user_id=user_id)
+        saved["workspace_status"] = _analysis_session_workspace_status(saved, raw_request)
+        return saved
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -732,19 +839,92 @@ def remove_analysis_session(
 
 def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    user_id = request_user_id(raw_request)
     resolved_dataset_id = request.dataset_id or request.data_dir
     selected_ids = resolve_dataset_ids(raw_request, resolved_dataset_id)
+    resolved_scope_id = dataset_scope_id(selected_ids)
     granularity_ceiling = effective_query_granularity_ceiling(selected_ids)
     if granularity_ceiling != "detailed":
         raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
     payload = request.model_copy(
         update={
             "data_dir": resolve_dataset_dir(raw_request, resolved_dataset_id),
-            "dataset_id": resolved_dataset_id,
+            "dataset_id": resolved_scope_id,
             "granularity_ceiling": granularity_ceiling,
             "ai_provider_access": effective_ai_provider_access(selected_ids),
         }
     )
+    active_pheno_job = active_feature_job(user_id, "pheno")
+    if active_pheno_job:
+        label = str(active_pheno_job.get("job_code") or active_pheno_job.get("job_id") or "").strip()
+        detail = "A Pheno-Ranker background run is already in progress."
+        if label:
+            detail = f"{detail} {label}."
+        raise HTTPException(status_code=409, detail=detail)
+
+    pheno_background = pheno_run_requires_background_job(payload, user_id=user_id)
+    if pheno_background.get("exceeds_hard_cap"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Pheno-Ranker cohort runs are currently capped at "
+                f"{int(pheno_background.get('hard_cap') or 0)} resolved samples. "
+                f"This request resolved to {int(pheno_background.get('resolved_sample_count') or 0)} samples."
+            ),
+        )
+    if pheno_background["requires_background_job"]:
+        try:
+            job = submit_pheno_job(
+                user_id=user_id,
+                payload={
+                    "name": "Pheno-Ranker cohort run",
+                    "prompt": request.prompt,
+                    "dataset_id": resolved_scope_id,
+                    "data_dir": payload.data_dir,
+                    "action": payload.action,
+                    "mode": payload.mode,
+                    "patient_id": payload.patient_id,
+                    "selected_patient_ids": payload.selected_patient_ids,
+                    "selected_saved_cohort_ids": payload.selected_saved_cohort_ids,
+                    "disease_filter": payload.disease_filter,
+                    "include_terms": payload.include_terms,
+                    "exclude_terms": payload.exclude_terms,
+                    "similarity_metric_cohort": payload.similarity_metric_cohort,
+                    "sort_by": payload.sort_by,
+                    "max_out": payload.max_out,
+                    "align": payload.align,
+                    "render_heatmap": payload.render_heatmap,
+                    "render_mds": payload.render_mds,
+                    "granularity_ceiling": payload.granularity_ceiling,
+                    "ai_provider_access": payload.ai_provider_access,
+                    "resolved_sample_count": pheno_background["resolved_sample_count"],
+                },
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "intent": "pheno_run",
+            "job_id": str(job.get("job_id") or ""),
+            "job_code": str(job.get("job_code") or ""),
+            "status": str(job.get("status") or "queued"),
+            "feature": "pheno",
+            "mode": str(payload.mode or "cohort"),
+            "dataset_id": resolved_scope_id,
+            "resolved_sample_count": int(pheno_background["resolved_sample_count"]),
+            "background_threshold": int(pheno_background["threshold"]),
+            "reply": (
+                f"Background Pheno-Ranker run {str(job.get('job_code') or job.get('job_id') or '').strip()} "
+                f"submitted for {int(pheno_background['resolved_sample_count'])} samples."
+            ),
+            "data": {
+                "source": "deterministic",
+                "execution": "queued",
+                "job_id": str(job.get("job_id") or ""),
+                "job_status": str(job.get("status") or "queued"),
+                "job_code": str(job.get("job_code") or ""),
+                "feature": "pheno",
+            },
+        }
     return run_pheno_ranker(payload)
 
 
@@ -769,25 +949,25 @@ def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_di
 
 def get_pheno_ranker_result(job_id: str, filename: str, request: Request) -> FileResponse:
     require_authenticated(request)
-    file_path = pheno_ranker_result_file_path(job_id, filename)
+    file_path = pheno_ranker_result_file_path(job_id, filename, user_id=request_user_id(request))
     return FileResponse(file_path)
 
 
 def get_pheno_ranker_alignment(job_id: str, reference_id: str, request: Request, target_id: str = "") -> Dict:
     require_authenticated(request)
-    return pheno_ranker_alignment_details(job_id, reference_id, target_id=target_id)
+    return pheno_ranker_alignment_details(job_id, reference_id, target_id=target_id, user_id=request_user_id(request))
 
 
 def explain_pheno_ranker_results(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, "")
-    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids))
+    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
 
 
 def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, "")
-    return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids))
+    return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
 
 
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:

@@ -342,6 +342,7 @@ dashboardUi = createDashboardUi({
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     isMultiDatasetWorkspace,
+    renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
   },
   state,
   constants: {
@@ -496,8 +497,21 @@ phenoUi = createPhenoUi({
     stopPhenoPlanProgressUpdates,
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
+    handlePhenoJobSubmission: (payload) => {
+      jobsUi.setJobsDrawerOpen(true);
+      void jobsUi.loadRecentJobs();
+      if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
+        refs.phenoStatusEl.className = "pheno-status";
+        const label = String(payload.data.job_code || payload.data.job_id || "").trim();
+        refs.phenoStatusEl.textContent = `Background Pheno-Ranker run ${label} submitted. Open Jobs to monitor progress.`;
+      }
+    },
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
     getSelectedSavedCohortIds: () => state.phenoSelectedSavedCohortIds.slice(),
+    setSelectedSavedCohortIds: (ids) => {
+      state.phenoSelectedSavedCohortIds = Array.isArray(ids) ? ids.slice() : [];
+      savedCohortsUi.renderPhenoSavedCohortsSelection();
+    },
     getCurrentScopeIds: () => workspaceUi.getCurrentScopeIds(),
     onPatientIdsLoaded: (ids) => { state.phenoRankerPatientIds = ids.slice(); },
     onReferenceFilesLoaded: (files) => { state.phenoReferenceFiles = files.slice(); },
@@ -513,6 +527,7 @@ jobsUi = createJobsUi({
   },
   callbacks: {
     currentAnalysisSessionId: () => state.currentAnalysisSessionId,
+    currentDatasetScopeId: () => state.currentDatasetScopeId,
     analysisPayloadHasPlots: (payload) => analysisUi.analysisPayloadHasPlots(payload),
     selectAnalysisSession: (sessionId) => analysisSessionsUi.selectAnalysisSession(sessionId),
     createAndSelectAnalysisSession: (overrides) => analysisSessionsUi.createAndSelectAnalysisSession(overrides),
@@ -520,6 +535,8 @@ jobsUi = createJobsUi({
     renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
     renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
+    loadCompletedPhenoJob: (jobPayload, resultPayload) => phenoUi.loadCompletedPhenoJob(jobPayload, resultPayload),
+    renderPhenoBackgroundJobBanner: () => phenoUi.renderPhenoBackgroundJobBanner(),
   },
 });
 
@@ -883,6 +900,10 @@ function bindEvents() {
     jobsUi.setJobsDrawerOpen(true);
     void jobsUi.loadRecentJobs();
   });
+  refs.jobsFloatingPillEl && refs.jobsFloatingPillEl.addEventListener("click", () => {
+    jobsUi.setJobsDrawerOpen(true);
+    void jobsUi.loadRecentJobs();
+  });
   refs.jobsDrawerCloseBtnEl && refs.jobsDrawerCloseBtnEl.addEventListener("click", () => {
     jobsUi.setJobsDrawerOpen(false);
   });
@@ -892,13 +913,15 @@ function bindEvents() {
       jobsUi.setJobsDrawerOpen(false);
       return;
     }
-    const openButton = event.target.closest("[data-job-open-result]");
+    const openButton = event.target.closest("[data-job-open-result], [data-job-open-pheno]");
     if (!openButton || !refs.jobsDrawerEl.contains(openButton)) {
       return;
     }
-    void jobsUi.openJobResult(openButton.dataset.jobOpenResult || "").catch((error) => {
-      refs.analysisStatusEl.className = "query-status";
-      refs.analysisStatusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
+    void jobsUi.openJobResult(openButton.dataset.jobOpenResult || openButton.dataset.jobOpenPheno || "").catch((error) => {
+      const isPheno = Boolean(openButton.dataset.jobOpenPheno);
+      const statusEl = isPheno ? refs.phenoStatusEl : refs.analysisStatusEl;
+      statusEl.className = "query-status";
+      statusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
     });
   });
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,7 @@ from fastapi import HTTPException, Query
 from app.analysis import extract_record_disease_labels, extract_record_patient_id
 from app.bff import ensure_data_dir, read_bff_records
 from app.cohorts import get_saved_cohorts_by_ids
-from app.config import BASE_DIR
+from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
 from app.entity_terms import normalize_entity_synonym_mentions
 from app.lm import (
     http_json,
@@ -30,6 +31,30 @@ PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranke
 PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
 JQ_BIN = shutil.which("jq") or "jq"
+
+
+def pheno_background_sample_threshold() -> int:
+    raw = str(os.getenv("PN_PHENO_BACKGROUND_SAMPLE_THRESHOLD", "1500")).strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1500
+
+
+def pheno_max_sample_cap() -> int:
+    raw = str(os.getenv("PN_PHENO_MAX_SAMPLE_CAP", "2500")).strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 2500
+
+
+def pheno_mds_max_records() -> int:
+    raw = str(os.getenv("PN_PHENO_MDS_MAX_RECORDS", str(pheno_background_sample_threshold()))).strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return pheno_background_sample_threshold()
 
 
 def _normalize_pheno_ai_provider_access(value: str) -> str:
@@ -695,15 +720,111 @@ def pheno_ranker_job_dir() -> Path:
     return job_dir
 
 
-def resolve_pheno_ranker_job_dir(job_id: str) -> Path:
+def resolve_pheno_ranker_job_dir(job_id: str, user_id: str = "") -> Path:
     safe_job_id = Path(job_id).name
     job_dir = (PHENO_RANKER_RUNS_DIR / safe_job_id).resolve()
     runs_root = PHENO_RANKER_RUNS_DIR.resolve()
     if job_dir != runs_root and runs_root not in job_dir.parents:
         raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
-    if not job_dir.exists() or not job_dir.is_dir():
-        raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
-    return job_dir
+    if job_dir.exists() and job_dir.is_dir():
+        return job_dir
+    normalized_user_id = str(user_id or "").strip()
+    if normalized_user_id:
+        try:
+            from app.jobs import job_dir as shared_job_dir, load_job_record
+
+            record = load_job_record(safe_job_id, normalized_user_id)
+            if str(record.get("feature") or "").strip() != "pheno":
+                raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
+            shared_dir = shared_job_dir(safe_job_id, normalized_user_id, create=False)
+            if shared_dir.exists() and shared_dir.is_dir():
+                return shared_dir
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+    raise HTTPException(status_code=404, detail="Pheno-Ranker job not found.")
+
+
+def estimate_pheno_cohort_sample_count(request: Any, user_id: str = DEFAULT_LOCAL_USER_ID) -> int:
+    action = str(getattr(request, "action", "") or "").strip().lower() or "compare"
+    mode = str(getattr(request, "mode", "") or "").strip().lower() or "cohort"
+    if action != "compare" or mode != "cohort":
+        return 0
+
+    data_dir = str(getattr(request, "data_dir", "") or "").strip()
+    if not data_dir:
+        return 0
+
+    all_record_ids = available_reference_ids(data_dir, limit=100000)
+    selected_saved_cohort_ids = [
+        str(item or "").strip()
+        for item in getattr(request, "selected_saved_cohort_ids", []) or []
+        if str(item or "").strip()
+    ]
+    selected_scope_ids = split_terms(str(getattr(request, "selected_patient_ids", "") or ""))
+
+    if not selected_saved_cohort_ids and not selected_scope_ids:
+        return len(all_record_ids)
+
+    records: List[Dict] | None = None
+    resolved_record_ids: List[str] = []
+    seen_record_ids = set()
+
+    def append_ids(raw_ids: List[str], *, patient_level: bool = False) -> None:
+        nonlocal records
+        values = [str(item or "").strip() for item in raw_ids if str(item or "").strip()]
+        if not values:
+            return
+        if patient_level:
+            if records is None:
+                records = load_pheno_ranker_records(data_dir)
+            expanded = expand_scope_ids_to_record_ids(records, values)
+            values = expanded["record_ids"]
+        for value in values:
+            if value and value not in seen_record_ids:
+                seen_record_ids.add(value)
+                resolved_record_ids.append(value)
+
+    if selected_saved_cohort_ids:
+        dataset_id = str(getattr(request, "dataset_id", "") or "").strip() or None
+        saved_cohorts = get_saved_cohorts_by_ids(selected_saved_cohort_ids, dataset_id, user_id=user_id)
+        found_ids = {str(item.get("id") or "").strip() for item in saved_cohorts}
+        missing = [cohort_id for cohort_id in selected_saved_cohort_ids if cohort_id not in found_ids]
+        if missing:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "message": "One or more saved cohorts were not found for the current data directory.",
+                    "missing_saved_cohort_ids": missing,
+                },
+            )
+        for cohort in saved_cohorts:
+            if bool(cohort.get("is_full_dataset")):
+                return len(all_record_ids)
+            sample_ids = [str(item or "").strip() for item in (cohort.get("sample_ids") or []) if str(item or "").strip()]
+            patient_ids = [str(item or "").strip() for item in (cohort.get("patient_ids") or []) if str(item or "").strip()]
+            id_type = str(cohort.get("id_type") or "").strip().lower()
+            use_patient_ids = id_type == "patient" or (patient_ids and not any(":" in item for item in sample_ids))
+            append_ids(patient_ids if use_patient_ids else sample_ids, patient_level=use_patient_ids)
+        return len(resolved_record_ids)
+
+    records = load_pheno_ranker_records(data_dir)
+    expanded = expand_scope_ids_to_record_ids(records, selected_scope_ids)
+    return len(expanded["record_ids"])
+
+
+def pheno_run_requires_background_job(request: Any, user_id: str = DEFAULT_LOCAL_USER_ID) -> Dict[str, Any]:
+    resolved_sample_count = estimate_pheno_cohort_sample_count(request, user_id=user_id)
+    threshold = pheno_background_sample_threshold()
+    hard_cap = pheno_max_sample_cap()
+    return {
+        "resolved_sample_count": resolved_sample_count,
+        "threshold": threshold,
+        "hard_cap": hard_cap,
+        "exceeds_hard_cap": resolved_sample_count > hard_cap,
+        "requires_background_job": resolved_sample_count > threshold,
+    }
 
 
 def alignment_bucket_from_json_path(json_path: str) -> str:
@@ -1136,6 +1257,18 @@ def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "") -
     output_path = matrix_path.parent / "mds_points.tsv"
     try:
         with matrix_path.open("r", encoding="utf-8") as handle:
+            header_line = handle.readline().rstrip("\n")
+        header_cells = header_line.split("\t") if header_line else []
+        record_count = max(0, len(header_cells) - 1)
+        max_records = pheno_mds_max_records()
+        if record_count > max_records:
+            return {
+                "script": "mds_points",
+                "returncode": "0",
+                "stdout": f"Skipped MDS for {record_count} records because it exceeds the configured limit of {max_records}.",
+                "stderr": "",
+            }
+        with matrix_path.open("r", encoding="utf-8") as handle:
             reader = csv.reader(handle, delimiter="\t")
             rows = [row for row in reader if row]
         if len(rows) < 2 or len(rows[0]) < 2:
@@ -1258,7 +1391,12 @@ def run_pheno_ranker(request: Any) -> Dict:
     if not PHENO_RANKER_BIN.exists():
         raise HTTPException(status_code=500, detail=f"Pheno-Ranker binary not found: {PHENO_RANKER_BIN}")
 
-    job_dir = pheno_ranker_job_dir()
+    job_dir_override = getattr(request, "job_dir_override", None) or getattr(request, "job_dir", None)
+    if job_dir_override:
+        job_dir = Path(str(job_dir_override)).expanduser().resolve()
+        job_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        job_dir = pheno_ranker_job_dir()
     action = request.action.strip().lower() or "compare"
     mode = request.mode.strip().lower() or "cohort"
     records: List[Dict] = []
@@ -1490,8 +1628,8 @@ def pheno_ranker_patient_ids_payload(data_dir: str) -> Dict[str, Any]:
     }
 
 
-def pheno_ranker_result_file_path(job_id: str, filename: str) -> Path:
-    job_dir = resolve_pheno_ranker_job_dir(job_id)
+def pheno_ranker_result_file_path(job_id: str, filename: str, user_id: str = "") -> Path:
+    job_dir = resolve_pheno_ranker_job_dir(job_id, user_id=user_id)
     safe_filename = Path(filename).name
     file_path = (job_dir / safe_filename).resolve()
     if job_dir not in file_path.parents:
@@ -1501,8 +1639,8 @@ def pheno_ranker_result_file_path(job_id: str, filename: str) -> Path:
     return file_path
 
 
-def pheno_ranker_alignment_details(job_id: str, reference_id: str, target_id: str = "") -> Dict[str, Any]:
-    job_dir = resolve_pheno_ranker_job_dir(job_id)
+def pheno_ranker_alignment_details(job_id: str, reference_id: str, target_id: str = "", user_id: str = "") -> Dict[str, Any]:
+    job_dir = resolve_pheno_ranker_job_dir(job_id, user_id=user_id)
     rows = [row for row in load_alignment_rows(job_dir) if row["reference_id"] == reference_id]
     if not rows:
         raise HTTPException(status_code=404, detail=f"No alignment details found for reference patient: {reference_id}")
@@ -1531,8 +1669,8 @@ def pheno_ranker_alignment_details(job_id: str, reference_id: str, target_id: st
     }
 
 
-def pheno_ranker_explain(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed") -> Dict[str, Any]:
-    job_dir = resolve_pheno_ranker_job_dir(job_id)
+def pheno_ranker_explain(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed", user_id: str = "") -> Dict[str, Any]:
+    job_dir = resolve_pheno_ranker_job_dir(job_id, user_id=user_id)
     return _pheno_finalize_response(
         explain_pheno_ranker_results(job_dir, top_n=top_n),
         intent="pheno_explain",
@@ -1541,8 +1679,8 @@ def pheno_ranker_explain(job_id: str, top_n: int = 3, ai_provider_access: str = 
     )
 
 
-def pheno_ranker_explain_llm(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed") -> Dict[str, Any]:
-    job_dir = resolve_pheno_ranker_job_dir(job_id)
+def pheno_ranker_explain_llm(job_id: str, top_n: int = 3, ai_provider_access: str = "detailed_allowed", user_id: str = "") -> Dict[str, Any]:
+    job_dir = resolve_pheno_ranker_job_dir(job_id, user_id=user_id)
     normalized_access = _normalize_pheno_ai_provider_access(ai_provider_access)
     if normalized_access in {"blocked", "safe_summary"}:
         return _pheno_finalize_response(

@@ -37,7 +37,10 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
   return {
     id: session.id || analysisSessionId(),
     title: typeof session.title === "string" ? session.title : "",
+    datasetId: typeof session.datasetId === "string" ? session.datasetId : "",
     dataDir: typeof session.dataDir === "string" ? session.dataDir : defaultDataDir,
+    workspaceFingerprint: session.workspaceFingerprint && typeof session.workspaceFingerprint === "object" ? session.workspaceFingerprint : {},
+    workspaceStatus: session.workspaceStatus && typeof session.workspaceStatus === "object" ? session.workspaceStatus : {},
     catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
     promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
     scope: typeof session.scope === "string" ? session.scope : "",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -43,6 +44,47 @@ def _scope_root() -> Path:
     path = STATE_ROOT_DIR / "datasets" / "scopes"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _workspace_clinical_dir(data_dir: str) -> Path:
+    root = resolve_project_data_dir(data_dir)
+    clinical_dir = root / "clinical"
+    return clinical_dir if clinical_dir.is_dir() else root
+
+
+def workspace_fingerprint_for_data_dir(
+    data_dir: str,
+    *,
+    dataset_id: str = "",
+    dataset_ids: List[str] | None = None,
+) -> Dict[str, Any]:
+    clinical_dir = _workspace_clinical_dir(data_dir)
+    items: List[Dict[str, Any]] = []
+    for path in sorted(clinical_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if path.suffix not in {".json", ".gz"} and not path.name.endswith(".json.gz"):
+            continue
+        stat = path.stat()
+        items.append(
+            {
+                "name": path.name,
+                "size": int(stat.st_size),
+                "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+            }
+        )
+    normalized_ids = [normalize_dataset_id(item) for item in (dataset_ids or []) if normalize_dataset_id(item)]
+    payload = {
+        "dataset_id": str(dataset_id or "").strip(),
+        "dataset_ids": normalized_ids,
+        "clinical_files": items,
+    }
+    token = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return {
+        **payload,
+        "clinical_file_count": len(items),
+        "token": token,
+    }
 
 
 def normalize_dataset_id(value: str | None) -> str:

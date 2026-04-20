@@ -7,6 +7,7 @@ export function createAnalysisCatalogUi(ctx) {
     queryGranularityModeValueEl,
     queryPolicyInfoBtnEl,
     analysisStarterPanelEl,
+    analysisStarterHostEl,
     analysisComposerExamplesBtnEl,
     analysisCatalogStatusEl,
     analysisCatalogListEl,
@@ -83,6 +84,15 @@ export function createAnalysisCatalogUi(ctx) {
     composerToggleEl.textContent = "Starter prompts";
   }
 
+  function ensureAnalysisStarterPanelPlacement() {
+    if (!analysisStarterHostEl || !analysisStarterPanelEl) {
+      return;
+    }
+    if (analysisStarterPanelEl.parentElement !== analysisStarterHostEl) {
+      analysisStarterHostEl.appendChild(analysisStarterPanelEl);
+    }
+  }
+
   function renderQueryStarterPrompts() {
     if (!queryStarterPanelEl) {
       return;
@@ -148,6 +158,7 @@ export function createAnalysisCatalogUi(ctx) {
   }
 
   function renderAnalysisStarterPrompts() {
+    ensureAnalysisStarterPanelPlacement();
     if (!analysisStarterPanelEl || !analysisComposerExamplesBtnEl) {
       return;
     }
@@ -168,6 +179,8 @@ export function createAnalysisCatalogUi(ctx) {
     analysisComposerExamplesBtnEl.hidden = !(Array.isArray(state.analysisTurns) && state.analysisTurns.length > 0);
     analysisComposerExamplesBtnEl.textContent = "Catalog & prompts";
   }
+
+  ensureAnalysisStarterPanelPlacement();
 
   function normalizeAnalysisCatalogExecutionMode(value) {
     const normalized = String(value || "").trim().toLowerCase();
@@ -211,6 +224,23 @@ export function createAnalysisCatalogUi(ctx) {
     if (category.includes("compare") || id.includes("compare")) return "compare";
     if (category.includes("clinical") || id.includes("summary")) return "clinical";
     return "general";
+  }
+
+  function analysisCatalogQueueIcon() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h11"></path><path d="M8 12h11"></path><path d="M8 18h11"></path><path d="m4 6 0 .01"></path><path d="m4 12 0 .01"></path><path d="m4 18 0 .01"></path></svg>';
+  }
+
+  function analysisCatalogRunnerTypeLabel(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return "";
+    if (normalized === "rscript") return "Rscript";
+    if (normalized === "snakemake") return "Snakemake";
+    if (normalized === "nextflow") return "Nextflow";
+    if (normalized === "python") return "Python";
+    if (normalized === "bash") return "Bash";
+    if (normalized === "cli") return "CLI";
+    if (normalized === "container") return "Container";
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
   function selectedAnalysisMolecularDatasetNames() {
@@ -290,10 +320,10 @@ export function createAnalysisCatalogUi(ctx) {
       metaBadges.push('<span class="query-chip badge">Detailed required</span>');
     }
     if (item.runner_type && item.runner_type !== "builtin") {
-      metaBadges.push(`<span class="query-chip badge">${escapeHtml(String(item.runner_type).toUpperCase())}</span>`);
+      metaBadges.push(`<span class="query-chip badge">${escapeHtml(analysisCatalogRunnerTypeLabel(item.runner_type))}</span>`);
     }
     if (String(item.execution_backend || "").toLowerCase() === "job") {
-      metaBadges.push('<span class="query-chip badge">Background job</span>');
+      metaBadges.push(`<span class="query-chip badge">${analysisCatalogQueueIcon()}<span>Background job</span></span>`);
     }
     const requirements = Array.isArray(item.workspace_requirements) ? item.workspace_requirements : [];
     const requirementsHtml = !compact && requirements.length
@@ -490,6 +520,8 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogModeBadge,
     analysisCatalogIconSvg,
     analysisCatalogIconKind,
+    analysisCatalogQueueIcon,
+    analysisCatalogRunnerTypeLabel,
     selectedAnalysisMolecularDatasetNames,
     currentAnalysisCatalogItem,
     renderAnalysisCatalogMolecularPanel,

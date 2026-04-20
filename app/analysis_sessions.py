@@ -62,6 +62,7 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
         "title": str(item.get("title") or "").strip(),
         "dataset_id": str(item.get("dataset_id") or "").strip(),
         "data_dir": str(item.get("data_dir") or "").strip(),
+        "workspace_fingerprint": item.get("workspace_fingerprint") if isinstance(item.get("workspace_fingerprint"), dict) else {},
         "catalog_item_id": str(item.get("catalog_item_id") or "").strip(),
         "prompt_draft": str(item.get("prompt_draft") or "").strip(),
         "scope": str(item.get("scope") or "").strip(),

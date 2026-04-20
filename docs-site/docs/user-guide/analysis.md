@@ -87,18 +87,25 @@ This is useful because clinical and molecular interpretation often unfolds acros
 
 ## Analysis Catalog and quick prompts
 
-The Analysis tab now separates two things:
+The Analysis tab separates two things:
 
 - `Analysis Catalog`
-  - curated structured analyses such as trajectories, Kaplan-Meier, and molecular comparisons
+  - tools
+  - curated analyses with real setup requirements, validation rules, or structured outputs
 - `Quick prompts`
-  - broader interpretive or exploratory prompts that are not treated as first-class analyses
+  - questions
+  - open-ended summaries, interpretation requests, and clinician-style prompts
+
+The practical rule is simple:
+
+- if it can be naturally asked, it belongs in prompts
+- if it invokes a specific method or runner, it belongs in the catalog
 
 The main tab shows:
 
-- a compact featured analysis strip
+- a foldable catalog strip for curated tools
 - a `Browse analyses` drawer with the full catalog
-- a lighter quick-prompt area for open-ended prompts
+- a visible quick-prompt area for direct questions
 
 The catalog is available only when the active workspace allows `Detailed` in-app access.
 
@@ -109,6 +116,8 @@ Selecting a catalog item does not create a separate execution system. It preconf
 - the prompt
 - compare-mode defaults when needed
 - the preferred execution mode
+
+The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
 
 ## Starter prompts
 
@@ -204,6 +213,11 @@ Examples of questions that fit well here:
 - exploratory volcano comparison
 - curated external runner demo analyses
 
+As a rule:
+
+- summaries and interpretation requests fit best as prompts
+- trajectories, Kaplan-Meier, molecular tools, and external runners fit best as catalog analyses
+
 ## Curated external analyses
 
 The Analysis Catalog can now describe curated external runners, not only built-in Python analyses.
@@ -219,6 +233,8 @@ Current supported idea:
 This keeps the catalog stable while allowing future curated integrations such as:
 
 - `Rscript`
+- `Snakemake`
+- `Nextflow`
 - external CLI tools
 - containerized runners
 
@@ -234,7 +250,7 @@ Current model:
 
 - queue backend: `RQ + Redis`
 - user-facing surface: shared `Jobs` drawer in the app shell
-- first queued runner type: curated `Rscript`
+- current queued runner types include curated `Rscript`, `Snakemake`, and `Nextflow`
 
 When a catalog item is configured as a background job:
 

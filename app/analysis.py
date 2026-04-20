@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any, Dict, List
 
 from app.analysis_catalog import get_analysis_catalog_item
-from app.analysis_external import run_rscript_analysis
+from app.analysis_external import run_external_analysis
 from app.jobs import submit_analysis_job
 from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
 from app.lm import (
@@ -213,8 +213,9 @@ def _analysis_catalog_dispatch(
                 "execution_backend": execution_backend,
             },
         }
-    if runner_type == "rscript":
-        payload = run_rscript_analysis(
+    if runner_type in {"rscript", "snakemake", "nextflow"}:
+        payload = run_external_analysis(
+            runner_type,
             str(item.get("runner_ref") or "").strip(),
             prompt=prompt,
             data_dir=data_dir,

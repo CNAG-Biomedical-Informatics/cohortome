@@ -11,7 +11,7 @@ from app.query_store import molecular_dataset_inventory
 
 ANALYSIS_CATALOG_PATH = Path(__file__).resolve().parent.parent / "state" / "analysis" / "catalog.yaml"
 VALID_EXECUTION_MODES = {"auto", "deterministic", "llm_only"}
-VALID_RUNNER_TYPES = {"builtin", "rscript", "cli", "container"}
+VALID_RUNNER_TYPES = {"builtin", "rscript", "snakemake", "nextflow", "cli", "container"}
 VALID_EXECUTION_BACKENDS = {"sync", "job"}
 
 
@@ -100,6 +100,10 @@ def _workspace_requirements(item: Dict[str, Any]) -> List[str]:
         requirements.append("Runs in compare mode; select Cohort A and Cohort B before executing.")
     if item.get("runner_type") == "rscript":
         requirements.append("Uses a curated external Rscript runner.")
+    if item.get("runner_type") == "snakemake":
+        requirements.append("Uses a curated Snakemake workflow.")
+    if item.get("runner_type") == "nextflow":
+        requirements.append("Uses a curated Nextflow workflow.")
     if item.get("execution_backend") == "job":
         requirements.append("Runs as a background job.")
     return requirements
@@ -113,6 +117,10 @@ def _availability_for_item(item: Dict[str, Any], *, granularity_ceiling: str, ha
         unavailable_reason = "No molecular datasets are available in the current workspace."
     elif item.get("runner_type") == "rscript" and not shutil.which("Rscript"):
         unavailable_reason = "Rscript is not available on this installation."
+    elif item.get("runner_type") == "snakemake" and not shutil.which("snakemake"):
+        unavailable_reason = "Snakemake is not available on this installation."
+    elif item.get("runner_type") == "nextflow" and not shutil.which("nextflow"):
+        unavailable_reason = "Nextflow is not available on this installation."
     return {
         "available": unavailable_reason == "",
         "unavailable_reason": unavailable_reason,

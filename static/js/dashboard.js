@@ -23,7 +23,7 @@ export function createDashboardUi(ctx) {
     analysisCompareSavedCohortSelectionEl,
   } = refs;
   const { escapeHtml, formatNumber } = helpers;
-  const { renderGlobalContext, syncCurrentAnalysisSessionFromUi, isMultiDatasetWorkspace } = callbacks;
+  const { renderGlobalContext, syncCurrentAnalysisSessionFromUi, isMultiDatasetWorkspace, renderAnalysisCatalog } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
 
@@ -453,12 +453,33 @@ export function createDashboardUi(ctx) {
     }
     renderMolecularDatasetSelector();
     renderMolecularDashboardCards(state.molecularDatasetsState);
+    if (typeof renderAnalysisCatalog === "function") {
+      renderAnalysisCatalog();
+    }
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
   }
 
   function renderAnalysisCompareScopeSummary() {
     if (!analysisCompareSelectedPatientIdsSummaryEl) return;
+    const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+    analysisCompareSelectedPatientIdsSummaryEl.classList.toggle("is-hidden", !compareMode);
+    if (analysisCompareSavedCohortSelectionEl) {
+      analysisCompareSavedCohortSelectionEl.classList.toggle("is-hidden", !compareMode);
+      if (!compareMode) {
+        analysisCompareSavedCohortSelectionEl.innerHTML = "";
+      }
+    }
+    if (!compareMode) {
+      renderMolecularDatasetSelector();
+      renderMolecularDashboardCards(state.molecularDatasetsState);
+      if (typeof renderAnalysisCatalog === "function") {
+        renderAnalysisCatalog();
+      }
+      renderGlobalContext();
+      syncCurrentAnalysisSessionFromUi({ render: true });
+      return;
+    }
     const selectedCohort = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
       : null;
@@ -486,15 +507,16 @@ export function createDashboardUi(ctx) {
       : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
     if (analysisCompareSavedCohortSelectionEl) {
       if (selectedCohort) {
-        analysisCompareSavedCohortSelectionEl.classList.remove("is-hidden");
         analysisCompareSavedCohortSelectionEl.innerHTML = `<span class="query-chip badge">Cohort B source</span> <button type="button" class="query-chip query-chip-deterministic" data-analysis-clear-saved-cohort="b">${escapeHtml(selectedCohort.name || "Saved cohort")} ×</button>`;
       } else {
-        analysisCompareSavedCohortSelectionEl.classList.add("is-hidden");
         analysisCompareSavedCohortSelectionEl.innerHTML = "";
       }
     }
     renderMolecularDatasetSelector();
     renderMolecularDashboardCards(state.molecularDatasetsState);
+    if (typeof renderAnalysisCatalog === "function") {
+      renderAnalysisCatalog();
+    }
     renderGlobalContext();
     syncCurrentAnalysisSessionFromUi({ render: true });
   }

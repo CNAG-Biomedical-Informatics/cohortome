@@ -1,6 +1,8 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import shutil
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -1609,6 +1611,25 @@ def test_restricted_dataset_clamps_ai_provider_access_to_safe_summary(tmp_path, 
     assert stored["ai_provider_access"] == "safe_summary"
 
 
+def test_generate_mds_points_skips_oversized_matrix(tmp_path, monkeypatch):
+    matrix_path = tmp_path / "matrix.txt"
+    matrix_path.write_text(
+        "\tA\tB\tC\n"
+        "A\t0\t1\t1\n"
+        "B\t1\t0\t1\n"
+        "C\t1\t1\t0\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(pheno_module, "pheno_mds_max_records", lambda: 2)
+
+    payload = pheno_module.generate_mds_points(matrix_path)
+
+    assert payload["script"] == "mds_points"
+    assert payload["returncode"] == "0"
+    assert "skipped mds" in payload["stdout"].lower()
+    assert not (tmp_path / "mds_points.tsv").exists()
+
+
 def test_normalize_placeholder_values():
     assert normalize_value("1900-01-01") is None
     assert normalize_value("P999Y") is None
@@ -1774,6 +1795,37 @@ items:
     assert items[0]["runner_type"] == "rscript"
     assert items[0]["runner_ref"] == "dummy_scope_snapshot"
     assert items[0]["execution_backend"] == "sync"
+
+
+def test_analysis_catalog_loader_accepts_workflow_runner_types(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: snakemake-demo
+    name: Snakemake demo
+    description: Demo.
+    default_prompt: Run it.
+    runner_type: snakemake
+    runner_ref: dummy_queue_demo
+    execution_backend: job
+  - id: nextflow-demo
+    name: Nextflow demo
+    description: Demo.
+    default_prompt: Run it.
+    runner_type: nextflow
+    runner_ref: dummy_queue_demo
+    execution_backend: job
+""".strip(),
+        encoding="utf-8",
+    )
+
+    items = analysis_catalog_module.load_analysis_catalog(catalog_path)
+
+    assert items[0]["runner_type"] == "snakemake"
+    assert items[0]["execution_backend"] == "job"
+    assert items[1]["runner_type"] == "nextflow"
+    assert items[1]["execution_backend"] == "job"
 
 
 def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_path):
@@ -2064,6 +2116,121 @@ def test_analysis_external_rscript_molecular_differential_expression_runner_acce
     assert "SYN002:week_2\tSYN002\tB" in sample_table
 
 
+def test_analysis_external_snakemake_runner_executes(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1"},
+            {"id": "P2:baseline", "patient_id": "P2"},
+        ],
+    )
+
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/snakemake" if name == "snakemake" else None,
+    )
+
+    def fake_run(command, **kwargs):
+        result_arg = next(item for item in command if str(item).startswith("result_json="))
+        summary_arg = next(item for item in command if str(item).startswith("summary_txt="))
+        result_path = Path(str(result_arg).split("=", 1)[1])
+        summary_path = Path(str(summary_arg).split("=", 1)[1])
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "reply": "Snakemake dummy workflow completed for current Analysis scope.",
+                    "context": {"mode": "external_snakemake_dummy", "scope_summary": "current Analysis scope"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        summary_path.write_text("dummy summary\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="snakemake ok\n", stderr="")
+
+    monkeypatch.setattr(analysis_external_module.subprocess, "run", fake_run)
+
+    job_dir = tmp_path / "snakemake-job"
+    payload = analysis_external_module.run_snakemake_analysis(
+        "dummy_queue_demo",
+        prompt="Run the external Snakemake demo for the current Analysis scope.",
+        data_dir=str(tmp_path),
+        selected_patient_ids="P1",
+        job_dir=job_dir,
+        timeout_seconds=60,
+    )
+
+    assert payload["intent"] == "analysis_external_snakemake"
+    assert "Snakemake dummy workflow completed" in payload["reply"]
+    assert payload["data"]["runner_type"] == "snakemake"
+    assert payload["data"]["runner_ref"] == "dummy_queue_demo"
+    assert payload["data"]["context"]["mode"] == "external_snakemake_dummy"
+    assert (job_dir / "command.txt").exists()
+    assert (job_dir / "stdout.txt").exists()
+    assert (job_dir / "stderr.txt").exists()
+
+
+def test_analysis_external_nextflow_runner_executes(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1"},
+            {"id": "P2:baseline", "patient_id": "P2"},
+        ],
+    )
+
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/nextflow" if name == "nextflow" else None,
+    )
+
+    def fake_run(command, **kwargs):
+        result_index = command.index("--result_json")
+        summary_index = command.index("--summary_txt")
+        result_path = Path(command[result_index + 1])
+        summary_path = Path(command[summary_index + 1])
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "reply": "Nextflow dummy workflow completed for Cohort A vs Cohort B.",
+                    "context": {"mode": "external_nextflow_dummy", "scope_summary": "Cohort A vs Cohort B"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        summary_path.write_text("dummy summary\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="nextflow ok\n", stderr="")
+
+    monkeypatch.setattr(analysis_external_module.subprocess, "run", fake_run)
+
+    job_dir = tmp_path / "nextflow-job"
+    payload = analysis_external_module.run_nextflow_analysis(
+        "dummy_queue_demo",
+        prompt="Run the external Nextflow demo for the current Analysis scope.",
+        data_dir=str(tmp_path),
+        selected_patient_ids="P1",
+        compare_selected_patient_ids="P2",
+        job_dir=job_dir,
+        timeout_seconds=60,
+    )
+
+    assert payload["intent"] == "analysis_external_nextflow"
+    assert "Nextflow dummy workflow completed" in payload["reply"]
+    assert payload["data"]["runner_type"] == "nextflow"
+    assert payload["data"]["runner_ref"] == "dummy_queue_demo"
+    assert payload["data"]["context"]["mode"] == "external_nextflow_dummy"
+    assert (job_dir / "command.txt").exists()
+    assert (job_dir / "stdout.txt").exists()
+    assert (job_dir / "stderr.txt").exists()
+
+
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
@@ -2189,8 +2356,330 @@ def test_analysis_job_submission_requires_live_worker(tmp_path, monkeypatch):
     )
 
     assert response.status_code == 400
-    assert "no analysis worker is running" in response.json()["detail"].lower()
+    assert "no background worker is running" in response.json()["detail"].lower()
     assert jobs_module.list_job_records("alice") == []
+
+
+def test_submit_pheno_job_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "analysis_worker_available", lambda: True)
+    monkeypatch.setattr(jobs_module, "enqueue_pheno_job", lambda job_id, user_id, timeout_seconds: "rq-pheno-1")
+
+    payload = jobs_module.submit_pheno_job(
+        user_id="alice",
+        payload={
+            "name": "Pheno-Ranker cohort run",
+            "prompt": "Compare the current cohort",
+            "dataset_id": "default",
+            "data_dir": str(tmp_path),
+            "action": "compare",
+            "mode": "cohort",
+            "selected_patient_ids": "SYN001:week_0,SYN002:week_0",
+            "selected_saved_cohort_ids": ["cohort-a"],
+            "include_terms": ["fatigue"],
+            "exclude_terms": ["asthma"],
+            "similarity_metric_cohort": "jaccard",
+            "sort_by": "distance",
+            "max_out": 25,
+            "align": True,
+            "render_heatmap": True,
+            "render_mds": True,
+            "resolved_sample_count": 1800,
+        },
+    )
+
+    assert payload["feature"] == "pheno"
+    assert payload["status"] == "queued"
+    assert payload["job_code"].startswith("Job ")
+    record = jobs_module.load_job_record(payload["job_id"], "alice")
+    assert record["submitted_by"] == "alice"
+    assert record["feature"] == "pheno"
+    assert record["dataset_id"] == "default"
+    assert record["selected_saved_cohort_ids"] == ["cohort-a"]
+    assert record["resolved_sample_count"] == 1800
+    assert record["rq_job_id"] == "rq-pheno-1"
+
+
+def test_run_pheno_ranker_route_queues_large_cohort_background_run(tmp_path, monkeypatch):
+    request = make_request({"username": "alice"})
+    captured = {}
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "alice"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "alice")
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "dataset_scope_id", lambda dataset_ids: "default")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(routes_module, "active_feature_job", lambda user_id, feature: None)
+    monkeypatch.setattr(
+        routes_module,
+        "pheno_run_requires_background_job",
+        lambda payload, user_id="": {"resolved_sample_count": 1801, "threshold": 1500, "requires_background_job": True},
+    )
+
+    def fake_submit_pheno_job(*, user_id, payload):
+        captured["user_id"] = user_id
+        captured["payload"] = dict(payload)
+        return {"job_id": "abc123def456", "job_code": "Job ABC123DE", "status": "queued"}
+
+    monkeypatch.setattr(routes_module, "submit_pheno_job", fake_submit_pheno_job)
+
+    response = routes_module.run_pheno_ranker_route(
+        routes_module.PhenoRankerRequest(
+            prompt="Compare the current cohort",
+            action="compare",
+            mode="cohort",
+            dataset_id="default",
+            selected_saved_cohort_ids=["cohort-a"],
+        ),
+        request,
+    )
+
+    assert response["intent"] == "pheno_run"
+    assert response["data"]["execution"] == "queued"
+    assert response["data"]["feature"] == "pheno"
+    assert response["job_code"] == "Job ABC123DE"
+    assert response["resolved_sample_count"] == 1801
+    assert captured["user_id"] == "alice"
+    assert captured["payload"]["dataset_id"] == "default"
+    assert captured["payload"]["selected_saved_cohort_ids"] == ["cohort-a"]
+    assert captured["payload"]["resolved_sample_count"] == 1801
+
+
+def test_run_pheno_ranker_route_blocks_when_background_job_active(tmp_path, monkeypatch):
+    request = make_request({"username": "alice"})
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "alice"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "alice")
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "dataset_scope_id", lambda dataset_ids: "default")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(routes_module, "active_feature_job", lambda user_id, feature: {"job_id": "job-1234", "job_code": "Job ABC12345"})
+    monkeypatch.setattr(
+        routes_module,
+        "pheno_run_requires_background_job",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("background cutoff should not run when a Pheno job is already active")),
+    )
+    monkeypatch.setattr(
+        routes_module,
+        "run_pheno_ranker",
+        lambda payload: (_ for _ in ()).throw(AssertionError("sync Pheno execution should be blocked while a background Pheno job is active")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        routes_module.run_pheno_ranker_route(
+            routes_module.PhenoRankerRequest(
+                prompt="Compare the current cohort",
+                action="compare",
+                mode="cohort",
+                dataset_id="default",
+                selected_patient_ids="SYN001:week_0",
+            ),
+            request,
+        )
+
+    assert exc.value.status_code == 409
+    assert "already in progress" in str(exc.value.detail)
+    assert "Job ABC12345" in str(exc.value.detail)
+
+
+def test_run_pheno_ranker_route_rejects_runs_above_hard_cap(tmp_path, monkeypatch):
+    request = make_request({"username": "alice"})
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "alice"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "alice")
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "dataset_scope_id", lambda dataset_ids: "default")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(routes_module, "active_feature_job", lambda user_id, feature: None)
+    monkeypatch.setattr(
+        routes_module,
+        "pheno_run_requires_background_job",
+        lambda payload, user_id="": {
+            "resolved_sample_count": 5158,
+            "threshold": 1500,
+            "hard_cap": 2500,
+            "exceeds_hard_cap": True,
+            "requires_background_job": True,
+        },
+    )
+    monkeypatch.setattr(
+        routes_module,
+        "submit_pheno_job",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("oversized Pheno runs must not be queued")),
+    )
+    monkeypatch.setattr(
+        routes_module,
+        "run_pheno_ranker",
+        lambda payload: (_ for _ in ()).throw(AssertionError("oversized Pheno runs must not run synchronously")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        routes_module.run_pheno_ranker_route(
+            routes_module.PhenoRankerRequest(
+                prompt="compare all",
+                action="compare",
+                mode="cohort",
+                dataset_id="default",
+            ),
+            request,
+        )
+
+    assert exc.value.status_code == 400
+    assert "capped at 2500" in str(exc.value.detail).lower()
+    assert "5158" in str(exc.value.detail)
+
+
+def test_run_pheno_job_persists_result_in_shared_job_dir(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    record = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={
+            "feature": "pheno",
+            "name": "Pheno-Ranker cohort run",
+            "prompt": "Compare the current cohort",
+            "dataset_id": "default",
+            "data_dir": str(tmp_path),
+            "action": "compare",
+            "mode": "cohort",
+            "selected_patient_ids": "SYN001:week_0,SYN002:week_0",
+            "selected_saved_cohort_ids": [],
+            "include_terms": ["fatigue"],
+            "exclude_terms": [],
+            "similarity_metric_cohort": "jaccard",
+            "sort_by": "distance",
+            "max_out": 10,
+            "align": True,
+            "render_heatmap": True,
+            "render_mds": True,
+            "granularity_ceiling": "detailed",
+            "ai_provider_access": "detailed_allowed",
+        },
+    )
+
+    def fake_run_pheno_ranker(request):
+        job_path = Path(request.job_dir_override)
+        (job_path / "rank.txt").write_text("id;score\nSYN001:week_0;0.1\n", encoding="utf-8")
+        return {
+            "intent": "pheno_run",
+            "reply": "Finished background cohort run.",
+            "job_id": record["job_id"],
+            "mode": "cohort",
+            "command": "pheno-ranker compare",
+            "cwd": str(job_path),
+            "stderr": "",
+            "files": [
+                {
+                    "name": "rank.txt",
+                    "url": f"/pheno-ranker/results/{record['job_id']}/rank.txt",
+                }
+            ],
+            "plots": [],
+        }
+
+    monkeypatch.setattr(pheno_module, "run_pheno_ranker", fake_run_pheno_ranker)
+
+    payload = jobs_module.run_pheno_job(record["job_id"], "alice")
+
+    assert payload["status"] == "completed"
+    assert payload["result_payload"]["reply"] == "Finished background cohort run."
+    resolved_job_dir = jobs_module.job_dir(record["job_id"], "alice")
+    assert pheno_module.resolve_pheno_ranker_job_dir(record["job_id"], user_id="alice") == resolved_job_dir
+    assert pheno_module.pheno_ranker_result_file_path(record["job_id"], "rank.txt", user_id="alice").read_text(encoding="utf-8").startswith("id;score")
+
+
+def test_list_job_records_reconciles_failed_rq_job_to_failed(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    record = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={
+            "feature": "pheno",
+            "name": "Queued Pheno job",
+            "dataset_id": "default",
+            "rq_job_id": "rq-pheno-1",
+        },
+    )
+    jobs_module.update_job_record(record["job_id"], "alice", status="running", started_at="2026-04-20T10:48:25+00:00")
+
+    class FakeConnection:
+        def ping(self):
+            return True
+
+    class FakeRqJob:
+        exc_info = "Traceback...\nMemoryError: Killed"
+        started_at = datetime(2026, 4, 20, 10, 48, 25, tzinfo=timezone.utc)
+        ended_at = datetime(2026, 4, 20, 10, 52, 31, tzinfo=timezone.utc)
+
+        def get_status(self, refresh=False):
+            assert refresh is True
+            return "failed"
+
+    import rq.job
+
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "_rq_connection", lambda: FakeConnection())
+    monkeypatch.setattr(rq.job.Job, "fetch", staticmethod(lambda job_id, connection=None: FakeRqJob()))
+
+    items = jobs_module.list_job_records("alice")
+
+    assert len(items) == 1
+    assert items[0]["status"] == "failed"
+    assert "memoryerror" in items[0]["error"].lower()
+    persisted = jobs_module.load_job_record(record["job_id"], "alice")
+    assert persisted["status"] == "failed"
+
+
+def test_load_job_record_reconciles_finished_rq_job_with_result_to_completed(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    record = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={
+            "feature": "pheno",
+            "name": "Queued Pheno job",
+            "dataset_id": "default",
+            "rq_job_id": "rq-pheno-2",
+        },
+    )
+    jobs_module.update_job_record(record["job_id"], "alice", status="running", started_at="2026-04-20T10:48:25+00:00")
+    jobs_module.save_job_result(
+        record["job_id"],
+        "alice",
+        {"reply": "Finished background cohort run."},
+    )
+
+    class FakeConnection:
+        def ping(self):
+            return True
+
+    class FakeRqJob:
+        exc_info = ""
+        started_at = datetime(2026, 4, 20, 10, 48, 25, tzinfo=timezone.utc)
+        ended_at = datetime(2026, 4, 20, 10, 52, 31, tzinfo=timezone.utc)
+
+        def get_status(self, refresh=False):
+            assert refresh is True
+            return "finished"
+
+    import rq.job
+
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "_rq_connection", lambda: FakeConnection())
+    monkeypatch.setattr(rq.job.Job, "fetch", staticmethod(lambda job_id, connection=None: FakeRqJob()))
+
+    resolved = jobs_module.load_job_record(record["job_id"], "alice")
+
+    assert resolved["status"] == "completed"
+    assert resolved["result_available"] is True
+    assert resolved["reply_preview"] == "Finished background cohort run."
 
 
 def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monkeypatch):
@@ -3209,7 +3698,7 @@ def test_pheno_explain_llm_ai_provider_restricted_returns_deterministic_metadata
         return {"choices": [{"message": {"content": "LLM explanation"}}]}
 
     monkeypatch.setattr(pheno_module, "http_json", fake_http_json)
-    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id: job_dir)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id, user_id="": job_dir)
 
     payload = pheno_module.pheno_ranker_explain_llm(
         "job-1",
@@ -5832,7 +6321,7 @@ def test_pheno_llm_explain_and_wrapper_metadata(monkeypatch, tmp_path):
         "source": "deterministic",
     }
     monkeypatch.setattr(pheno_module, "explain_pheno_ranker_results", lambda job_dir, top_n=3: deterministic_payload)
-    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id: tmp_path / job_id)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_job_dir", lambda job_id, user_id="": tmp_path / job_id)
 
     monkeypatch.setattr(pheno_module, "lm_studio_enabled", lambda: False)
     unavailable = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")

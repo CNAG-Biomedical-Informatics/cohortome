@@ -3,6 +3,8 @@ export function createJobsUi(ctx) {
   const {
     jobsDrawerBtnEl,
     jobsDrawerCountEl,
+    jobsFloatingPillEl,
+    jobsFloatingPillCountEl,
     jobsDrawerEl,
     jobsDrawerStatusEl,
     jobsDrawerListEl,
@@ -12,6 +14,7 @@ export function createJobsUi(ctx) {
   const { escapeHtml } = helpers;
   const {
     currentAnalysisSessionId,
+    currentDatasetScopeId,
     analysisPayloadHasPlots,
     selectAnalysisSession,
     createAndSelectAnalysisSession,
@@ -19,6 +22,8 @@ export function createJobsUi(ctx) {
     renderAnalysisMeta,
     renderAnalysisThread,
     syncCurrentAnalysisSessionFromUi,
+    loadCompletedPhenoJob,
+    renderPhenoBackgroundJobBanner,
   } = callbacks;
 
   function setJobsDrawerOpen(open) {
@@ -37,15 +42,25 @@ export function createJobsUi(ctx) {
     if (!jobsDrawerBtnEl || !jobsDrawerCountEl) {
       return;
     }
+    const running = runningJobCount();
     if (!state.authState || !state.authState.authenticated) {
       jobsDrawerBtnEl.classList.add("is-hidden");
       jobsDrawerCountEl.textContent = "";
+      if (jobsFloatingPillEl && jobsFloatingPillCountEl) {
+        jobsFloatingPillEl.classList.add("is-hidden");
+        jobsFloatingPillCountEl.textContent = "";
+      }
       return;
     }
     jobsDrawerBtnEl.classList.remove("is-hidden");
-    const running = runningJobCount();
     jobsDrawerCountEl.textContent = running ? String(running) : "";
     jobsDrawerBtnEl.classList.toggle("has-running-jobs", running > 0);
+    jobsDrawerCountEl.classList.toggle("is-hidden", running === 0);
+    if (jobsFloatingPillEl && jobsFloatingPillCountEl) {
+      jobsFloatingPillEl.classList.toggle("is-hidden", running === 0);
+      jobsFloatingPillCountEl.textContent = running ? String(running) : "";
+      jobsFloatingPillCountEl.classList.toggle("is-hidden", running === 0);
+    }
   }
 
   function renderJobStatusChip(item) {
@@ -59,8 +74,35 @@ export function createJobsUi(ctx) {
     return `<section class="job-group"><div class="job-group-title">${escapeHtml(title)}</div><div class="job-group-list">${items.map(renderJobCard).join("")}</div></section>`;
   }
 
+  function formatJobDuration(item) {
+    const started = String(item && item.started_at ? item.started_at : "").trim();
+    const completed = String(item && item.completed_at ? item.completed_at : "").trim();
+    if (!started || !completed) {
+      return "";
+    }
+    const startMs = Date.parse(started);
+    const endMs = Date.parse(completed);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return "";
+    }
+    const totalSeconds = Math.max(1, Math.round((endMs - startMs) / 1000));
+    if (totalSeconds < 60) {
+      return `${totalSeconds}s`;
+    }
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return seconds > 0
+        ? `${hours}h ${minutes}m ${seconds}s`
+        : `${hours}h ${minutes}m`;
+    }
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+
   function renderJobCard(item) {
     const submitted = String(item && item.submitted_at ? item.submitted_at : "").trim();
+    const duration = formatJobDuration(item);
     const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
     const prompt = String(item && item.prompt ? item.prompt : "").trim();
     const datasetId = String(item && item.dataset_id ? item.dataset_id : "").trim();
@@ -72,8 +114,12 @@ export function createJobsUi(ctx) {
     if (molecularDatasetName) metaBits.push(`molecular ${molecularDatasetName}`);
     if (sessionTitle) metaBits.push(sessionTitle);
     const actions = [];
-    if (item && item.result_available) {
+    const feature = String(item && item.feature ? item.feature : "").trim();
+    const workspaceMatches = String(currentDatasetScopeId ? currentDatasetScopeId() : "").trim() === String(item && item.dataset_id ? item.dataset_id : "").trim();
+    if (item && item.result_available && feature === "analysis") {
       actions.push(`<button type="button" class="query-chip action" data-job-open-result="${escapeHtml(item.job_id || "")}">Open result</button>`);
+    } else if (item && item.result_available && feature === "pheno" && workspaceMatches) {
+      actions.push(`<button type="button" class="query-chip action" data-job-open-pheno="${escapeHtml(item.job_id || "")}">Open in Pheno</button>`);
     }
     const artifactLinks = artifacts.map((artifact) => {
       const url = String(artifact && artifact.url ? artifact.url : "").trim();
@@ -85,7 +131,7 @@ export function createJobsUi(ctx) {
       <article class="job-card">
         <div class="job-card-topline">
           ${renderJobStatusChip(item)}
-          <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}</span>
+          <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}${duration ? ` · ${escapeHtml(duration)}` : ""}</span>
         </div>
         <div class="job-card-header">
           <div class="job-card-title">
@@ -95,6 +141,7 @@ export function createJobsUi(ctx) {
         </div>
         ${prompt ? `<div class="job-card-prompt">${escapeHtml(prompt)}</div>` : ""}
         ${item && item.reply_preview ? `<div class="job-card-preview">${escapeHtml(String(item.reply_preview))}</div>` : ""}
+        ${(item && item.result_available && feature === "pheno" && !workspaceMatches) ? `<div class="job-card-preview">Load the original workspace to reopen this Pheno-Ranker run.</div>` : ""}
         ${item && item.error ? `<div class="job-card-error">${escapeHtml(String(item.error))}</div>` : ""}
         ${(actions.length || artifactLinks.length) ? `
           <div class="job-card-footer">
@@ -235,6 +282,9 @@ export function createJobsUi(ctx) {
     if (!state.authState || !state.authState.authenticated) {
       state.recentJobs = [];
       renderJobsDrawer();
+      if (typeof renderPhenoBackgroundJobBanner === "function") {
+        renderPhenoBackgroundJobBanner();
+      }
       return;
     }
     if (!silent && jobsDrawerStatusEl) {
@@ -249,6 +299,9 @@ export function createJobsUi(ctx) {
       state.recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
       void hydrateCompletedAnalysisJobsForCurrentSession();
       renderJobsDrawer();
+      if (typeof renderPhenoBackgroundJobBanner === "function") {
+        renderPhenoBackgroundJobBanner();
+      }
       scheduleJobsPolling();
     } catch (error) {
       if (!silent && jobsDrawerStatusEl) {
@@ -267,6 +320,18 @@ export function createJobsUi(ctx) {
     const payload = await response.json();
     if (!payload || !payload.result_payload) {
       throw new Error("This job does not have a completed result yet.");
+    }
+    const feature = String(payload.feature || "").trim();
+    if (feature === "pheno") {
+      const currentWorkspaceId = String(currentDatasetScopeId ? currentDatasetScopeId() : "").trim();
+      const jobWorkspaceId = String(payload.dataset_id || "").trim();
+      if (!currentWorkspaceId || currentWorkspaceId !== jobWorkspaceId) {
+        throw new Error("Load the original workspace to reopen this Pheno-Ranker run.");
+      }
+      setJobsDrawerOpen(false);
+      setActiveTab("pheno");
+      await loadCompletedPhenoJob(payload, payload.result_payload);
+      return;
     }
     setJobsDrawerOpen(false);
     setActiveTab("analysis");

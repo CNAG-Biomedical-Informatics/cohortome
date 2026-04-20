@@ -51,6 +51,20 @@
       </section>
 
       <div id="appShell"{% if auth_enabled %} class="is-hidden"{% endif %}>
+      <button id="jobsFloatingPill" type="button" class="jobs-floating-pill is-hidden" title="Open active background jobs.">
+        <span class="button-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 6h13"></path>
+            <path d="M8 12h13"></path>
+            <path d="M8 18h13"></path>
+            <path d="M3 6h.01"></path>
+            <path d="M3 12h.01"></path>
+            <path d="M3 18h.01"></path>
+          </svg>
+        </span>
+        <span>Jobs</span>
+        <span id="jobsFloatingPillCount" class="jobs-drawer-count is-hidden">0</span>
+      </button>
       <div class="hero">
         <div class="hero-brand">
           {% if branding.logo_url %}
@@ -505,6 +519,7 @@
           <label for="phenoMode">Pheno-Ranker</label>
           <div class="section-note">Uses the selected data directory and current scope.</div>
           <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
+          <div id="phenoBackgroundJobBanner" class="saved-cohort-inline-status pheno-background-job-banner is-hidden"></div>
           <div class="query-section">
             <label for="phenoPrompt">Describe run</label>
             <textarea id="phenoPrompt" rows="3" placeholder="Compare patient SYN007:week_0 to all others and generate MDS"></textarea>
@@ -745,85 +760,107 @@
             </div>
           </aside>
           <div class="controls analysis-main">
-            <div style="margin-top:12px;">
-              <label for="analysisSelectedPatientIds">Scope</label>
-              <input id="analysisSelectedPatientIds" placeholder="Full workspace by default, or provide patient/original record IDs">
-              <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
-              <div id="analysisSelectedSavedCohortSelection" class="section-note is-hidden"></div>
-            </div>
-            <div class="pheno-checks" style="margin-top:4px;">
-              <label><input id="analysisCompareMode" type="checkbox"> Compare against a second cohort</label>
-            </div>
-            <div id="analysisCompareField" style="margin-top:12px; display:none;">
-              <input id="analysisCompareSelectedPatientIds" type="hidden" value="">
-              <div id="analysisCompareSelectedPatientIdsSummary" class="section-note">Cohort B: select a saved cohort from Saved Cohorts to compare.</div>
-              <div id="analysisCompareSavedCohortSelection" class="section-note is-hidden"></div>
-            </div>
-            <details class="query-section">
-              <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span></summary>
-              <div id="savedCohorts" class="empty">No saved cohorts yet.</div>
-            </details>
             <div class="analysis-workspace-bar">
-              <div id="analysisStatus" class="analysis-workspace-status">Use this tab for broader workspace interpretation and plot-driven analysis.</div>
+              <div id="analysisStatus" class="analysis-workspace-status"></div>
               <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>
             </div>
             <div id="analysisDatasetScope" class="section-note">Workspace dataset: current selection.</div>
-            <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
-              <div class="analysis-molecular-panel-header">
-                <strong>Molecular dataset</strong>
-                <span class="section-note">Differential expression uses exactly one selected molecular dataset in addition to Cohort A and Cohort B.</span>
-              </div>
-              <div id="analysisCatalogMolecularStatus" class="section-note">Checking molecular datasets...</div>
-              <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
-                <div class="empty">No molecular dataset loaded</div>
-              </div>
-            </div>
-            <div id="analysisStarterPanel" class="analysis-starter-panel">
-              <div class="analysis-starter-header">
-                <div>
-                  <label for="analysisPrompt">Analysis</label>
-                  <div class="section-note">Use curated analyses for structured runs, or use quick prompts for simpler open-ended interpretation.</div>
+            <details class="analysis-setup-card">
+              <summary class="analysis-setup-summary">
+                <div class="analysis-setup-summary-copy">
+                  <strong>Setup</strong>
+                  <div class="section-note">Scope and analysis selection.</div>
                 </div>
-              </div>
-              <div class="analysis-catalog-shell">
-                <div class="analysis-catalog-block">
-                  <div class="analysis-catalog-block-header">
-                    <strong>Analysis Catalog</strong>
-                    <div class="analysis-catalog-header-actions">
-                      <span id="analysisCatalogStatus" class="section-note">Loading curated analyses...</span>
-                      <button id="analysisCatalogBrowseBtn" type="button" class="query-chip action">Browse analyses</button>
+                <div class="analysis-setup-summary-body">
+                  <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
+                  <div id="analysisSelectedSavedCohortSelection" class="section-note is-hidden"></div>
+                  <div id="analysisCompareSelectedPatientIdsSummary" class="section-note is-hidden">Cohort B: select a saved cohort from Saved Cohorts to compare.</div>
+                  <div id="analysisCompareSavedCohortSelection" class="section-note is-hidden"></div>
+                </div>
+              </summary>
+              <div class="analysis-setup-body">
+                <div>
+                  <label for="analysisSelectedPatientIds">Scope</label>
+                  <input id="analysisSelectedPatientIds" placeholder="Full workspace by default, or provide patient/original record IDs">
+                </div>
+                <div class="pheno-checks analysis-setup-checks">
+                  <label><input id="analysisCompareMode" type="checkbox"> Compare against a second cohort</label>
+                </div>
+                <div id="analysisCompareField" class="analysis-setup-compare" style="display:none;">
+                  <input id="analysisCompareSelectedPatientIds" type="hidden" value="">
+                </div>
+                <details class="analysis-setup-saved-cohorts">
+                  <summary class="analysis-setup-saved-cohorts-header">
+                    <strong>Saved Cohorts</strong>
+                    <span class="section-note">Attach existing saved cohorts as Cohort A or Cohort B.</span>
+                  </summary>
+                  <div id="savedCohorts" class="empty">No saved cohorts yet.</div>
+                </details>
+                <div id="analysisStarterPanel" class="analysis-starter-panel">
+                  <div class="analysis-starter-header">
+                    <div>
+                      <label for="analysisPrompt">Analysis</label>
+                      <div class="section-note">Use curated analyses for structured runs, or use quick prompts for simpler open-ended interpretation.</div>
                     </div>
                   </div>
-                  <div id="analysisCatalogList" class="analysis-catalog-featured">
-                    <div class="empty">Loading curated analyses...</div>
-                  </div>
-                </div>
-                <div class="analysis-catalog-block">
-                  <div class="analysis-catalog-block-header">
-                    <strong>Quick prompts</strong>
-                    <span class="section-note">Generic prompts that are not treated as catalog analyses.</span>
-                  </div>
-                  <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
-                  <div class="query-examples" id="analysisExamples">
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the main clinical patterns in this workspace and tell me what stands out."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Main workspace patterns</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="What stands out in treatment usage over time?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Treatment usage over time</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this workspace."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Disease, medication, and visit burden</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Describe how this workspace changes over time and point out the most active periods."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>How the workspace changes over time</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which patient subgroups look most distinct within the current analysis scope?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Distinct patient subgroups</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the top diseases and medications and tell me which patterns are most concentrated."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Top diseases and medications</span></button>
-                    <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which numeric longitudinal measures are available in the current analysis scope?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Available longitudinal measures</span></button>
-                    <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Tell me which diseases and medications most separate the active analysis scopes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>What separates A from B</span></button>
-                    <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the active analysis scopes and focus on temporal differences and possible treatment-intensity differences."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Temporal and treatment-intensity differences</span></button>
-                    <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the active analysis scopes by disease burden, medication burden, and timepoint distribution."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare A vs B core profiles</span></button>
-                    <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this workspace and summarize the main themes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret disease and medication profiles</span></button>
-                    <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise workspace briefing for a clinician, including what stands out and what needs validation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinician-facing workspace briefing</span></button>
-                    <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the current analysis scope profile and the observed molecular expression findings."><span class="analysis-domain-icons" aria-hidden="true"><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span></span><span>Clinical + molecular summary</span></button>
-                    <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare the active analysis scopes like a clinical reviewer and summarize the main similarities, differences, and uncertainties."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinical review of A vs B</span></button>
-                    <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected workspace subset as a possible clinical subgroup and explain what evidence supports that interpretation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret selected subgroup</span></button>
+                  <div class="analysis-catalog-shell">
+                    <details class="analysis-catalog-block analysis-catalog-disclosure">
+                      <summary class="analysis-catalog-disclosure-summary">
+                        <strong>Analysis Catalog</strong>
+                        <span class="section-note">Curated analyses and structured runs.</span>
+                      </summary>
+                      <div class="analysis-catalog-disclosure-body">
+                        <div class="analysis-catalog-block-header">
+                          <strong>Analysis Catalog</strong>
+                          <div class="analysis-catalog-header-actions">
+                            <span id="analysisCatalogStatus" class="section-note">Loading curated analyses...</span>
+                            <button id="analysisCatalogBrowseBtn" type="button" class="query-chip action">Browse analyses</button>
+                          </div>
+                        </div>
+                        <div id="analysisCatalogList" class="analysis-catalog-featured">
+                          <div class="empty">Loading curated analyses...</div>
+                        </div>
+                        <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
+                          <div class="analysis-molecular-panel-header">
+                            <strong>Molecular dataset</strong>
+                            <span class="section-note">Differential expression uses exactly one selected molecular dataset in addition to Cohort A and Cohort B.</span>
+                          </div>
+                          <div id="analysisCatalogMolecularStatus" class="section-note">Checking molecular datasets...</div>
+                          <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
+                            <div class="empty">No molecular dataset loaded</div>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                    <div class="analysis-catalog-block">
+                      <div class="analysis-catalog-block-header">
+                        <strong>Quick prompts</strong>
+                        <span class="section-note">Questions you can ask directly without using a catalog tool.</span>
+                      </div>
+                      <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic summary</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
+                      <div class="query-examples" id="analysisExamples">
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the main clinical patterns in this workspace and tell me what stands out."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Main workspace patterns</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="What stands out in treatment usage over time?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Treatment usage over time</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Show the main disease burden, medication burden, and visit distribution in this workspace."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Disease, medication, and visit burden</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Describe how this workspace changes over time and point out the most active periods."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>How the workspace changes over time</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which patient subgroups look most distinct within the current analysis scope?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Distinct patient subgroups</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Summarize the top diseases and medications and tell me which patterns are most concentrated."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Top diseases and medications</span></button>
+                        <button type="button" class="query-chip query-chip-deterministic" data-analysis-deterministic="true" data-analysis-prompt="Which numeric longitudinal measures are available in the current analysis scope?"><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Available longitudinal measures</span></button>
+                        <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Tell me which diseases and medications most separate the active analysis scopes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>What separates A from B</span></button>
+                        <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the active analysis scopes and focus on temporal differences and possible treatment-intensity differences."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Temporal and treatment-intensity differences</span></button>
+                        <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the active analysis scopes by disease burden, medication burden, and timepoint distribution."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare A vs B core profiles</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this workspace and summarize the main themes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret disease and medication profiles</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise workspace briefing for a clinician, including what stands out and what needs validation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinician-facing workspace briefing</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the current analysis scope profile and the observed molecular expression findings."><span class="analysis-domain-icons" aria-hidden="true"><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span></span><span>Clinical + molecular summary</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare the active analysis scopes like a clinical reviewer and summarize the main similarities, differences, and uncertainties."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinical review of A vs B</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected workspace subset as a possible clinical subgroup and explain what evidence supports that interpretation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret selected subgroup</span></button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </details>
+            <div id="analysisStarterHost"></div>
             <div id="analysisCatalogDrawer" class="analysis-catalog-drawer is-hidden" aria-hidden="true">
               <div class="analysis-catalog-drawer-backdrop" data-analysis-catalog-close="true"></div>
               <div class="analysis-catalog-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="analysisCatalogDrawerTitle">

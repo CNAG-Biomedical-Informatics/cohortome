@@ -14,7 +14,7 @@ This page describes how the current app is structured at a high level.
 - dataset registry and per-user dataset scope
 - saved cohorts
 - Analysis sessions
-- YAML-backed Analysis Catalog
+- YAML-backed Analysis Catalog for tool-like analyses
 - curated external analysis runners
 - shared background jobs via `RQ + Redis`
 - Pheno-Ranker integration
@@ -109,21 +109,28 @@ It is session-based and supports both deterministic and LLM-assisted interpretat
 The Analysis tab now has two launch surfaces:
 
 - `Analysis Catalog`
-  - curated, structured analyses loaded from YAML
+  - curated tools loaded from YAML
+  - not prompt-like summary or interpretation questions
 - `Quick prompts`
-  - lighter exploratory prompts that still reuse the same Analysis backend
+  - lighter exploratory questions that still reuse the same Analysis backend
 
 Catalog entries are a launch/configuration layer, not a second execution engine.
 They can point to:
 
 - built-in Python analysis routes
-- curated external runners such as reviewed `Rscript` integrations
+- curated external runners such as reviewed `Rscript`, `Snakemake`, or `Nextflow` integrations
 
 ### Pheno-Ranker
 
 Consumes workspace files and sample-level scope.
 
 It can attach saved cohorts as separate references and can hand selected samples into Analysis.
+
+Current operational guardrails:
+
+- cohort runs above `1500` resolved samples are submitted as background jobs
+- cohort runs above `2500` resolved samples are rejected at route admission time
+- the hard cap exists because the current downstream post-processing path for large `matrix.txt` outputs is not robust enough to support larger cohorts safely
 
 ## Provenance
 

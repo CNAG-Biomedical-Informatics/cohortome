@@ -58,6 +58,7 @@ class AnalysisSessionRequest(BaseModel):
     title: str = Field(default="", description="Optional user-facing session title.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the session.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    workspace_fingerprint: Dict[str, Any] = Field(default_factory=dict, description="Workspace fingerprint snapshot captured when the session was first bound.")
     catalog_item_id: str = Field(default="", description="Selected Analysis Catalog item for this session, if any.")
     prompt_draft: str = Field(default="", description="Current draft prompt stored for the session.")
     scope: str = Field(default="", description="Comma-separated scope IDs for cohort A.")
@@ -76,6 +77,7 @@ class AnalysisSessionRenameRequest(BaseModel):
 
 
 class PhenoRankerRequest(BaseModel):
+    prompt: str = Field(default="", description="Current Pheno-Ranker prompt used for run metadata and queued job labels.")
     action: str = Field(default="compare", description="Pheno-Ranker action, typically compare.")
     mode: str = Field(default="cohort", description="Pheno-Ranker mode, such as cohort or patient.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the workspace.")

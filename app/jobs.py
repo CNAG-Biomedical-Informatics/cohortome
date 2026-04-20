@@ -6,6 +6,7 @@ import shutil
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List
 from uuid import uuid4
 
@@ -145,11 +146,160 @@ def create_job_record(
     return record
 
 
-def load_job_record(job_id: str, user_id: str) -> Dict[str, Any]:
+def _load_job_record_raw(job_id: str, user_id: str) -> Dict[str, Any]:
     record = _read_json(job_record_path(job_id, user_id))
     if not record:
         raise HTTPException(status_code=404, detail="Job not found.")
     return record
+
+
+def _coerce_iso_datetime(value: Any) -> str:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc).isoformat()
+        return value.astimezone(timezone.utc).isoformat()
+    text = str(value or "").strip()
+    return text
+
+
+def _job_result_exists(job_id: str, user_id: str) -> bool:
+    return job_result_path(job_id, user_id).exists()
+
+
+def _job_reply_preview(job_id: str, user_id: str) -> str:
+    payload = load_job_result(job_id, user_id) or {}
+    return str(payload.get("reply") or "").strip()[:280]
+
+
+def _feature_job_label(record: Dict[str, Any]) -> str:
+    feature = str(record.get("feature") or "").strip().lower()
+    if feature == "pheno":
+        return "Pheno-Ranker"
+    return "analysis"
+
+
+def _rq_failure_message(record: Dict[str, Any], rq_status: str, exc_info: str = "") -> str:
+    summary_lines = [line.strip() for line in str(exc_info or "").splitlines() if line.strip()]
+    if summary_lines:
+        last_line = summary_lines[-1]
+        if len(last_line) <= 280:
+            return last_line
+    label = _feature_job_label(record)
+    if rq_status in {"stopped", "canceled", "cancelled"}:
+        return f"Background {label} job was cancelled before completion."
+    if rq_status == "finished":
+        return f"Background {label} job finished in RQ but did not persist a result payload."
+    return f"Background {label} job failed before completion."
+
+
+def _reconcile_active_job_record(record: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    status = str(record.get("status") or "").strip().lower()
+    if status not in {"queued", "running"}:
+        return record
+    job_id = str(record.get("job_id") or "").strip()
+    if not job_id:
+        return record
+    result_exists = _job_result_exists(job_id, user_id)
+    rq_job_id = str(record.get("rq_job_id") or "").strip()
+
+    def persist(**updates: Any) -> Dict[str, Any]:
+        merged = dict(record)
+        merged.update(updates)
+        return save_job_record(job_id, user_id, merged)
+
+    if result_exists and not rq_job_id:
+        return persist(
+            status="completed",
+            completed_at=str(record.get("completed_at") or "").strip() or _now_iso(),
+            result_available=True,
+            reply_preview=_job_reply_preview(job_id, user_id),
+            error="",
+        )
+
+    if not jobs_enabled():
+        return record
+
+    try:
+        from rq.exceptions import NoSuchJobError
+        from rq.job import Job
+
+        connection = _rq_connection()
+        connection.ping()
+        rq_job = Job.fetch(rq_job_id, connection=connection)
+        rq_status_raw = rq_job.get_status(refresh=True)
+        rq_status = str(getattr(rq_status_raw, "value", rq_status_raw) or "").strip().lower()
+    except Exception as exc:
+        no_such_job = False
+        try:
+            from rq.exceptions import NoSuchJobError
+
+            no_such_job = isinstance(exc, NoSuchJobError)
+        except Exception:
+            no_such_job = False
+        if result_exists:
+            return persist(
+                status="completed",
+                completed_at=str(record.get("completed_at") or "").strip() or _now_iso(),
+                result_available=True,
+                reply_preview=_job_reply_preview(job_id, user_id),
+                error="",
+            )
+        if no_such_job:
+            return persist(
+                status="failed",
+                completed_at=str(record.get("completed_at") or "").strip() or _now_iso(),
+                error="Background worker exited before the job record was finalized.",
+            )
+        return record
+
+    started_at = _coerce_iso_datetime(getattr(rq_job, "started_at", ""))
+    ended_at = _coerce_iso_datetime(getattr(rq_job, "ended_at", "")) or _now_iso()
+
+    if rq_status in {"started", "running"}:
+        updates: Dict[str, Any] = {}
+        if status != "running":
+            updates["status"] = "running"
+        if started_at and started_at != str(record.get("started_at") or "").strip():
+            updates["started_at"] = started_at
+        if updates:
+            return persist(**updates)
+        return record
+    if rq_status in {"queued", "scheduled", "deferred"}:
+        updates = {}
+        if status != "queued":
+            updates["status"] = "queued"
+        if updates:
+            return persist(**updates)
+        return record
+    if rq_status == "finished":
+        if result_exists:
+            return persist(
+                status="completed",
+                started_at=started_at or str(record.get("started_at") or "").strip(),
+                completed_at=str(record.get("completed_at") or "").strip() or ended_at,
+                result_available=True,
+                reply_preview=_job_reply_preview(job_id, user_id),
+                error="",
+            )
+        return persist(
+            status="failed",
+            started_at=started_at or str(record.get("started_at") or "").strip(),
+            completed_at=str(record.get("completed_at") or "").strip() or ended_at,
+            error=_rq_failure_message(record, rq_status),
+        )
+    if rq_status in {"failed", "stopped", "canceled", "cancelled"}:
+        return persist(
+            status="cancelled" if rq_status in {"stopped", "canceled", "cancelled"} else "failed",
+            started_at=started_at or str(record.get("started_at") or "").strip(),
+            completed_at=str(record.get("completed_at") or "").strip() or ended_at,
+            error=_rq_failure_message(record, rq_status, getattr(rq_job, "exc_info", "")),
+        )
+    return record
+
+
+def load_job_record(job_id: str, user_id: str) -> Dict[str, Any]:
+    record = _load_job_record_raw(job_id, user_id)
+    return _reconcile_active_job_record(record, user_id)
 
 
 def save_job_record(job_id: str, user_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -163,7 +313,7 @@ def save_job_record(job_id: str, user_id: str, payload: Dict[str, Any]) -> Dict[
 
 
 def update_job_record(job_id: str, user_id: str, **updates: Any) -> Dict[str, Any]:
-    record = load_job_record(job_id, user_id)
+    record = _load_job_record_raw(job_id, user_id)
     record.update(updates)
     return save_job_record(job_id, user_id, record)
 
@@ -177,6 +327,7 @@ def list_job_records(user_id: str) -> List[Dict[str, Any]]:
         record = _read_json(path / JOB_RECORD_FILENAME)
         if not record:
             continue
+        record = _reconcile_active_job_record(record, user_id)
         record["artifacts"] = _artifact_inventory(path)
         items.append(record)
     items.sort(
@@ -198,6 +349,19 @@ def list_jobs_for_analysis_session(session_id: str, user_id: str) -> List[Dict[s
         for item in list_job_records(user_id)
         if str(item.get("analysis_session_id") or "").strip() == wanted
     ]
+
+
+def active_feature_job(user_id: str, feature: str) -> Dict[str, Any] | None:
+    wanted = str(feature or "").strip()
+    if not wanted:
+        return None
+    for item in list_job_records(user_id):
+        if str(item.get("feature") or "").strip() != wanted:
+            continue
+        if str(item.get("status") or "").strip() not in {"queued", "running"}:
+            continue
+        return item
+    return None
 
 
 def next_run_number_for_analysis_session(session_id: str, user_id: str) -> int:
@@ -271,6 +435,20 @@ def public_job_payload(record: Dict[str, Any], *, include_result: bool = False, 
         "analysis_session_id": str(record.get("analysis_session_id") or "").strip(),
         "analysis_session_title": str(record.get("analysis_session_title") or "").strip(),
         "run_number": int(record.get("run_number") or 0) if str(record.get("run_number") or "").strip() else 0,
+        "action": str(record.get("action") or "").strip(),
+        "mode": str(record.get("mode") or "").strip(),
+        "patient_id": str(record.get("patient_id") or "").strip(),
+        "selected_patient_ids": str(record.get("selected_patient_ids") or "").strip(),
+        "selected_saved_cohort_ids": list(record.get("selected_saved_cohort_ids") or []),
+        "include_terms": list(record.get("include_terms") or []),
+        "exclude_terms": list(record.get("exclude_terms") or []),
+        "similarity_metric_cohort": str(record.get("similarity_metric_cohort") or "").strip(),
+        "sort_by": str(record.get("sort_by") or "").strip(),
+        "max_out": int(record.get("max_out") or 0) if str(record.get("max_out") or "").strip() else 0,
+        "align": bool(record.get("align")),
+        "render_heatmap": bool(record.get("render_heatmap")),
+        "render_mds": bool(record.get("render_mds")),
+        "resolved_sample_count": int(record.get("resolved_sample_count") or 0) if str(record.get("resolved_sample_count") or "").strip() else 0,
         "catalog_item_id": str(record.get("catalog_item_id") or "").strip(),
         "catalog_item_name": str(record.get("catalog_item_name") or "").strip(),
         "runner_type": str(record.get("runner_type") or "").strip(),
@@ -349,6 +527,19 @@ def enqueue_analysis_job(job_id: str, user_id: str, timeout_seconds: int) -> str
     return str(rq_job.id)
 
 
+def enqueue_pheno_job(job_id: str, user_id: str, timeout_seconds: int) -> str:
+    queue = _rq_queue()
+    rq_job = queue.enqueue(
+        run_pheno_job,
+        job_id,
+        user_id,
+        job_timeout=timeout_seconds,
+        result_ttl=86400,
+        failure_ttl=604800,
+    )
+    return str(rq_job.id)
+
+
 def submit_analysis_job(
     *,
     user_id: str,
@@ -365,7 +556,7 @@ def submit_analysis_job(
     if not jobs_enabled():
         raise RuntimeError("Background jobs require RQ and Redis to be installed and configured.")
     if not analysis_worker_available():
-        raise RuntimeError("Background jobs are currently unavailable because no analysis worker is running.")
+        raise RuntimeError("Background jobs are currently unavailable because no background worker is running.")
     timeout_seconds = int(catalog_item.get("job_timeout_seconds") or jobs_default_timeout_seconds())
     normalized_session_id = str(analysis_session_id or "").strip()
     session = get_analysis_session(normalized_session_id, user_id=user_id) if normalized_session_id else None
@@ -406,21 +597,78 @@ def submit_analysis_job(
     return public_job_payload(record, user_id=user_id)
 
 
+def submit_pheno_job(
+    *,
+    user_id: str,
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    if not jobs_enabled():
+        raise RuntimeError("Background jobs require RQ and Redis to be installed and configured.")
+    if not analysis_worker_available():
+        raise RuntimeError("Background jobs are currently unavailable because no background worker is running.")
+    active = active_feature_job(user_id, "pheno")
+    if active:
+        label = str(active.get("job_code") or job_code(str(active.get("job_id") or "")) or "").strip()
+        if label:
+            raise RuntimeError(f"A Pheno-Ranker background run is already in progress ({label}).")
+        raise RuntimeError("A Pheno-Ranker background run is already in progress.")
+    timeout_seconds = int(payload.get("job_timeout_seconds") or jobs_default_timeout_seconds())
+    record = create_job_record(
+        job_type="pheno",
+        user_id=user_id,
+        data={
+            "feature": "pheno",
+            "name": str(payload.get("name") or "").strip() or "Pheno-Ranker background run",
+            "prompt": str(payload.get("prompt") or "").strip(),
+            "dataset_id": str(payload.get("dataset_id") or "").strip(),
+            "data_dir": str(payload.get("data_dir") or "").strip(),
+            "action": str(payload.get("action") or "").strip(),
+            "mode": str(payload.get("mode") or "").strip(),
+            "patient_id": str(payload.get("patient_id") or "").strip(),
+            "selected_patient_ids": str(payload.get("selected_patient_ids") or "").strip(),
+            "selected_saved_cohort_ids": list(payload.get("selected_saved_cohort_ids") or []),
+            "disease_filter": str(payload.get("disease_filter") or "").strip(),
+            "include_terms": list(payload.get("include_terms") or []),
+            "exclude_terms": list(payload.get("exclude_terms") or []),
+            "similarity_metric_cohort": str(payload.get("similarity_metric_cohort") or "").strip(),
+            "sort_by": str(payload.get("sort_by") or "").strip(),
+            "max_out": int(payload.get("max_out") or 0),
+            "align": bool(payload.get("align")),
+            "render_heatmap": bool(payload.get("render_heatmap")),
+            "render_mds": bool(payload.get("render_mds")),
+            "granularity_ceiling": str(payload.get("granularity_ceiling") or "").strip(),
+            "ai_provider_access": str(payload.get("ai_provider_access") or "").strip(),
+            "resolved_sample_count": int(payload.get("resolved_sample_count") or 0),
+            "execution_backend": "job",
+            "job_timeout_seconds": timeout_seconds,
+            "job_priority": str(payload.get("job_priority") or "").strip() or "normal",
+        },
+    )
+    try:
+        rq_job_id = enqueue_pheno_job(record["job_id"], user_id, timeout_seconds)
+    except Exception as exc:
+        update_job_record(record["job_id"], user_id, status="failed", error=str(exc))
+        raise RuntimeError(f"Unable to submit background job. {exc}") from exc
+    record = update_job_record(record["job_id"], user_id, rq_job_id=rq_job_id)
+    return public_job_payload(record, user_id=user_id)
+
+
 def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
     record = load_job_record(job_id, user_id)
     update_job_record(job_id, user_id, status="running", started_at=_now_iso(), error="")
     try:
         from app.analysis_catalog import get_analysis_catalog_item
-        from app.analysis_external import run_rscript_analysis
+        from app.analysis_external import run_external_analysis
 
         catalog_item_id = str(record.get("catalog_item_id") or "").strip()
         item = get_analysis_catalog_item(catalog_item_id)
         if not item:
             raise RuntimeError(f"Unknown analysis catalog item '{catalog_item_id}'.")
         runner_type = str(item.get("runner_type") or "").strip().lower()
-        if runner_type != "rscript":
+        if runner_type not in {"rscript", "snakemake", "nextflow"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
-        payload = run_rscript_analysis(
+        payload = run_external_analysis(
+            runner_type,
             str(item.get("runner_ref") or "").strip(),
             prompt=str(record.get("prompt") or ""),
             data_dir=str(record.get("data_dir") or ""),
@@ -448,6 +696,63 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         return public_job_payload(record, include_result=True, user_id=user_id)
     except Exception as exc:
         error_text = str(exc).strip() or "Background analysis job failed."
+        path = job_dir(job_id, user_id, create=True) / JOB_LOG_FILENAMES["error"]
+        path.write_text(error_text + "\n\n" + traceback.format_exc(), encoding="utf-8")
+        record = update_job_record(
+            job_id,
+            user_id,
+            status="failed",
+            completed_at=_now_iso(),
+            error=error_text,
+        )
+        return public_job_payload(record, user_id=user_id)
+
+
+def run_pheno_job(job_id: str, user_id: str) -> Dict[str, Any]:
+    record = load_job_record(job_id, user_id)
+    update_job_record(job_id, user_id, status="running", started_at=_now_iso(), error="")
+    try:
+        from app.pheno import run_pheno_ranker
+
+        request = SimpleNamespace(
+            prompt=str(record.get("prompt") or ""),
+            action=str(record.get("action") or "compare"),
+            mode=str(record.get("mode") or "cohort"),
+            dataset_id=str(record.get("dataset_id") or ""),
+            data_dir=str(record.get("data_dir") or ""),
+            patient_id=str(record.get("patient_id") or ""),
+            selected_patient_ids=str(record.get("selected_patient_ids") or ""),
+            selected_saved_cohort_ids=list(record.get("selected_saved_cohort_ids") or []),
+            disease_filter=str(record.get("disease_filter") or ""),
+            include_terms=list(record.get("include_terms") or []),
+            exclude_terms=list(record.get("exclude_terms") or []),
+            similarity_metric_cohort=str(record.get("similarity_metric_cohort") or ""),
+            sort_by=str(record.get("sort_by") or ""),
+            max_out=int(record.get("max_out") or 0),
+            align=bool(record.get("align")),
+            render_heatmap=bool(record.get("render_heatmap")),
+            render_mds=bool(record.get("render_mds")),
+            granularity_ceiling=str(record.get("granularity_ceiling") or "detailed"),
+            ai_provider_access=str(record.get("ai_provider_access") or "detailed_allowed"),
+            job_dir_override=str(job_dir(job_id, user_id, create=True)),
+        )
+        payload = run_pheno_ranker(request)
+        payload.setdefault("data", {})
+        payload["data"]["job_id"] = job_id
+        payload["data"]["job_status"] = "completed"
+        save_job_result(job_id, user_id, payload)
+        record = update_job_record(
+            job_id,
+            user_id,
+            status="completed",
+            completed_at=_now_iso(),
+            result_available=True,
+            reply_preview=str(payload.get("reply") or f"Completed {str(record.get('mode') or 'pheno')} Pheno-Ranker run.")[:280],
+            error="",
+        )
+        return public_job_payload(record, include_result=True, user_id=user_id)
+    except Exception as exc:
+        error_text = str(exc).strip() or "Background Pheno-Ranker job failed."
         path = job_dir(job_id, user_id, create=True) / JOB_LOG_FILENAMES["error"]
         path.write_text(error_text + "\n\n" + traceback.format_exc(), encoding="utf-8")
         record = update_job_record(

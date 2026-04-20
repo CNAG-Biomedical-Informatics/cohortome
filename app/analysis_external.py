@@ -22,6 +22,12 @@ RSCRIPT_RUNNERS = {
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
     "molecular_differential_expression": SCRIPTS_DIR / "analysis_r_differential_expression.R",
 }
+SNAKEMAKE_RUNNERS = {
+    "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
+}
+NEXTFLOW_RUNNERS = {
+    "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_nextflow" / "main.nf",
+}
 
 
 def _split_scope_ids(value: str) -> List[str]:
@@ -158,6 +164,53 @@ def _write_tsv(path: Path, fieldnames: List[str], rows: List[Dict[str, Any]]) ->
 
 def _write_yaml(path: Path, payload: Dict[str, Any]) -> None:
     path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _write_command_logs(
+    *,
+    target_dir: Path | None,
+    command: List[str],
+    stdout: str,
+    stderr: str,
+) -> None:
+    if not isinstance(target_dir, Path):
+        return
+    (target_dir / "command.txt").write_text(" ".join(command), encoding="utf-8")
+    (target_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
+    (target_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
+
+
+def _load_workflow_result_payload(
+    *,
+    result_path: Path,
+    runner_type: str,
+    runner_ref: str,
+    command: List[str],
+) -> Dict[str, Any]:
+    if not result_path.exists() or not result_path.is_file():
+        raise RuntimeError(f"External {runner_type} analysis did not produce result.json.")
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"External {runner_type} analysis returned invalid result.json.") from exc
+    reply = str(payload.get("reply") or "").strip()
+    context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+    if not reply:
+        raise RuntimeError(f"External {runner_type} analysis returned an empty reply.")
+    return {
+        "intent": f"analysis_external_{runner_type}",
+        "reply": reply,
+        "data": {
+            "source": "deterministic",
+            "execution": "external_runner",
+            "context": context,
+            "model": None,
+            "base_url": "",
+            "runner_type": runner_type,
+            "runner_ref": str(runner_ref or "").strip(),
+            "runner_command": command,
+        },
+    }
 
 
 def _clinical_profile_tables(
@@ -640,3 +693,193 @@ def run_rscript_analysis(
             "runner_command": command,
         },
     }
+
+
+def run_snakemake_analysis(
+    runner_ref: str,
+    *,
+    prompt: str,
+    data_dir: str,
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+    job_dir: Path | None = None,
+    timeout_seconds: int = 30,
+) -> Dict[str, Any]:
+    binary = shutil.which("snakemake")
+    if not binary:
+        raise RuntimeError("Snakemake is not available on this installation.")
+    workflow_path = SNAKEMAKE_RUNNERS.get(str(runner_ref or "").strip())
+    if workflow_path is None:
+        raise RuntimeError(f"Unsupported Snakemake analysis runner '{runner_ref}'.")
+    if not workflow_path.exists():
+        raise RuntimeError(f"Configured Snakemake analysis is missing: {workflow_path}")
+    counts = _scope_counts(
+        data_dir,
+        selected_patient_ids=selected_patient_ids,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+    )
+    with tempfile.TemporaryDirectory(prefix="pn-analysis-snakemake-") as temp_dir:
+        temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
+        temp_path.mkdir(parents=True, exist_ok=True)
+        result_path = temp_path / "result.json"
+        summary_path = temp_path / "summary.txt"
+        command = [
+            binary,
+            "--snakefile",
+            str(workflow_path),
+            "--directory",
+            str(temp_path),
+            "--cores",
+            "1",
+            "--quiet",
+            "all",
+            "--config",
+            f"prompt={str(prompt or '')}",
+            f"compare_mode={'true' if counts['compare_mode'] else 'false'}",
+            f"workspace_record_count={counts['workspace_record_count']}",
+            f"workspace_patient_count={counts['workspace_patient_count']}",
+            f"scope_a_record_count={counts['scope_a_record_count']}",
+            f"scope_a_patient_count={counts['scope_a_patient_count']}",
+            f"scope_b_record_count={counts['scope_b_record_count']}",
+            f"scope_b_patient_count={counts['scope_b_patient_count']}",
+            f"result_json={result_path}",
+            f"summary_txt={summary_path}",
+        ]
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=max(1, int(timeout_seconds or 30)),
+        )
+    _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "External Snakemake analysis failed.").strip())
+    return _load_workflow_result_payload(
+        result_path=result_path,
+        runner_type="snakemake",
+        runner_ref=runner_ref,
+        command=command,
+    )
+
+
+def run_nextflow_analysis(
+    runner_ref: str,
+    *,
+    prompt: str,
+    data_dir: str,
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+    job_dir: Path | None = None,
+    timeout_seconds: int = 30,
+) -> Dict[str, Any]:
+    binary = shutil.which("nextflow")
+    if not binary:
+        raise RuntimeError("Nextflow is not available on this installation.")
+    workflow_path = NEXTFLOW_RUNNERS.get(str(runner_ref or "").strip())
+    if workflow_path is None:
+        raise RuntimeError(f"Unsupported Nextflow analysis runner '{runner_ref}'.")
+    if not workflow_path.exists():
+        raise RuntimeError(f"Configured Nextflow analysis is missing: {workflow_path}")
+    counts = _scope_counts(
+        data_dir,
+        selected_patient_ids=selected_patient_ids,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+    )
+    with tempfile.TemporaryDirectory(prefix="pn-analysis-nextflow-") as temp_dir:
+        temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
+        temp_path.mkdir(parents=True, exist_ok=True)
+        result_path = temp_path / "result.json"
+        summary_path = temp_path / "summary.txt"
+        command = [
+            binary,
+            "run",
+            str(workflow_path),
+            "-work-dir",
+            str(temp_path / ".nextflow-work"),
+            "--job_dir",
+            str(temp_path),
+            "--prompt",
+            str(prompt or ""),
+            "--compare_mode",
+            "true" if counts["compare_mode"] else "false",
+            "--workspace_record_count",
+            str(counts["workspace_record_count"]),
+            "--workspace_patient_count",
+            str(counts["workspace_patient_count"]),
+            "--scope_a_record_count",
+            str(counts["scope_a_record_count"]),
+            "--scope_a_patient_count",
+            str(counts["scope_a_patient_count"]),
+            "--scope_b_record_count",
+            str(counts["scope_b_record_count"]),
+            "--scope_b_patient_count",
+            str(counts["scope_b_patient_count"]),
+            "--result_json",
+            str(result_path),
+            "--summary_txt",
+            str(summary_path),
+        ]
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=max(1, int(timeout_seconds or 30)),
+        )
+    _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "External Nextflow analysis failed.").strip())
+    return _load_workflow_result_payload(
+        result_path=result_path,
+        runner_type="nextflow",
+        runner_ref=runner_ref,
+        command=command,
+    )
+
+
+def run_external_analysis(
+    runner_type: str,
+    runner_ref: str,
+    *,
+    prompt: str,
+    data_dir: str,
+    molecular_dataset_name: str = "",
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+    job_dir: Path | None = None,
+    timeout_seconds: int = 30,
+) -> Dict[str, Any]:
+    normalized = str(runner_type or "").strip().lower()
+    if normalized == "rscript":
+        return run_rscript_analysis(
+            runner_ref,
+            prompt=prompt,
+            data_dir=data_dir,
+            molecular_dataset_name=molecular_dataset_name,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            job_dir=job_dir,
+            timeout_seconds=timeout_seconds,
+        )
+    if normalized == "snakemake":
+        return run_snakemake_analysis(
+            runner_ref,
+            prompt=prompt,
+            data_dir=data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            job_dir=job_dir,
+            timeout_seconds=timeout_seconds,
+        )
+    if normalized == "nextflow":
+        return run_nextflow_analysis(
+            runner_ref,
+            prompt=prompt,
+            data_dir=data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            job_dir=job_dir,
+            timeout_seconds=timeout_seconds,
+        )
+    raise RuntimeError(f"Unsupported analysis runner type '{runner_type}'.")

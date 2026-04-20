@@ -1,0 +1,45 @@
+import json
+from pathlib import Path
+
+
+rule all:
+    input:
+        config["result_json"],
+        config["summary_txt"],
+
+
+rule write_outputs:
+    output:
+        result_json=config["result_json"],
+        summary_txt=config["summary_txt"],
+    run:
+        result_path = Path(output.result_json)
+        summary_path = Path(output.summary_txt)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+
+        compare_mode = str(config.get("compare_mode", "")).strip().lower() == "true"
+        scope_summary = "Cohort A vs Cohort B" if compare_mode else "current Analysis scope"
+        prompt = str(config.get("prompt", "")).strip()
+        reply = (
+            f"Snakemake dummy workflow completed for {scope_summary}. "
+            f"Workspace patients: {config.get('workspace_patient_count', '0')}; "
+            f"scope A patients: {config.get('scope_a_patient_count', '0')}; "
+            f"scope B patients: {config.get('scope_b_patient_count', '0')}."
+        )
+        payload = {
+            "reply": reply,
+            "context": {
+                "mode": "external_snakemake_dummy",
+                "scope_summary": scope_summary,
+                "prompt": prompt,
+                "workspace_patient_count": int(config.get("workspace_patient_count", 0)),
+                "scope_a_patient_count": int(config.get("scope_a_patient_count", 0)),
+                "scope_b_patient_count": int(config.get("scope_b_patient_count", 0)),
+            },
+        }
+        result_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        summary_path.write_text(
+            f"Snakemake dummy workflow\nPrompt: {prompt}\nScope: {scope_summary}\n",
+            encoding="utf-8",
+        )

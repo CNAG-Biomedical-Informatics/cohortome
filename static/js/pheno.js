@@ -20,6 +20,7 @@ export function createPhenoUi(ctx) {
     phenoPlanEl,
     phenoPlanReasoningEl,
     phenoReferenceFilesSummaryEl,
+    phenoBackgroundJobBannerEl,
     phenoPatientFieldEl,
     phenoPatientIdEl,
     phenoSelectedPatientIdsEl,
@@ -69,8 +70,10 @@ export function createPhenoUi(ctx) {
     stopPhenoPlanProgressUpdates,
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
+    handlePhenoJobSubmission,
     saveIdsAsCohort,
     getSelectedSavedCohortIds,
+    setSelectedSavedCohortIds,
     getCurrentScopeIds,
     onPatientIdsLoaded,
     onReferenceFilesLoaded,
@@ -92,6 +95,85 @@ export function createPhenoUi(ctx) {
     rankerRecordIds: [],
     referenceFiles: [],
   };
+
+  function currentActivePhenoBackgroundJob() {
+    return Array.isArray(state.recentJobs)
+      ? state.recentJobs.find((item) => item && item.feature === "pheno" && ["queued", "running"].includes(String(item.status || "").trim()))
+      : null;
+  }
+
+  function currentCompletedPhenoJobForWorkspace() {
+    const workspaceId = String((dataDirEl && dataDirEl.dataset && dataDirEl.dataset.scopeId) || (dataDirEl && dataDirEl.value) || "").trim();
+    if (!workspaceId || !Array.isArray(state.recentJobs)) {
+      return null;
+    }
+    return state.recentJobs.find((item) => {
+      if (!item || item.feature !== "pheno") return false;
+      if (String(item.status || "").trim() !== "completed") return false;
+      return String(item.dataset_id || "").trim() === workspaceId;
+    }) || null;
+  }
+
+  function renderPhenoBackgroundJobBanner() {
+    if (!phenoBackgroundJobBannerEl) {
+      return;
+    }
+    const active = currentActivePhenoBackgroundJob();
+    if (active) {
+      const label = String(active.job_code || active.job_id || "").trim();
+      phenoBackgroundJobBannerEl.classList.remove("is-hidden");
+      phenoBackgroundJobBannerEl.textContent = label
+        ? `Background Pheno-Ranker run in progress: ${label}.`
+        : "A background Pheno-Ranker run is in progress.";
+      return;
+    }
+    const completed = currentCompletedPhenoJobForWorkspace();
+    if (completed) {
+      const label = String(completed.job_code || completed.job_id || "").trim();
+      phenoBackgroundJobBannerEl.classList.remove("is-hidden");
+      phenoBackgroundJobBannerEl.textContent = label
+        ? `Background Pheno-Ranker run completed: ${label}.`
+        : "A background Pheno-Ranker run completed.";
+      return;
+    }
+    phenoBackgroundJobBannerEl.classList.add("is-hidden");
+    phenoBackgroundJobBannerEl.textContent = "";
+  }
+
+  function seedQueuedPhenoBackgroundJob(payload) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const data = source && typeof source.data === "object" ? source.data : {};
+    const jobId = String(data.job_id || source.job_id || "").trim();
+    if (!jobId) {
+      return;
+    }
+    const workspaceId = String(
+      source.dataset_id
+      || ((dataDirEl && dataDirEl.dataset && dataDirEl.dataset.scopeId) || (dataDirEl && dataDirEl.value) || "")
+    ).trim();
+    const seededJob = {
+      job_id: jobId,
+      job_code: String(data.job_code || source.job_code || "").trim(),
+      status: String(data.job_status || source.status || "queued").trim() || "queued",
+      feature: "pheno",
+      name: "Pheno-Ranker cohort run",
+      prompt: phenoPromptEl && phenoPromptEl.value ? phenoPromptEl.value.trim() : "",
+      dataset_id: workspaceId,
+      result_available: false,
+      submitted_at: new Date().toISOString(),
+      reply_preview: String(source.reply || "").trim(),
+    };
+    state.recentJobs = [
+      seededJob,
+      ...(Array.isArray(state.recentJobs) ? state.recentJobs : []).filter((item) => {
+        const itemId = String(item && item.job_id ? item.job_id : "").trim();
+        if (itemId && itemId === jobId) {
+          return false;
+        }
+        return !(item && item.feature === "pheno" && ["queued", "running"].includes(String(item.status || "").trim()));
+      }),
+    ];
+  }
 
   function provenanceIconSvg(kind) {
     const icons = {
@@ -365,10 +447,36 @@ export function createPhenoUi(ctx) {
     if (!phenoRunBtnEl || !phenoPromptEl) {
       return;
     }
+    renderPhenoBackgroundJobBanner();
     const hasPrompt = Boolean(phenoPromptEl.value.trim());
-    const shouldDisable = state.inFlight || state.planInFlight || !hasPrompt;
+    const activeBackgroundJob = currentActivePhenoBackgroundJob();
+    const activeLabel = activeBackgroundJob ? String(activeBackgroundJob.job_code || activeBackgroundJob.job_id || "").trim() : "";
+    const shouldDisable = state.inFlight || state.planInFlight || !hasPrompt || Boolean(activeBackgroundJob);
     phenoRunBtnEl.disabled = shouldDisable;
-    phenoRunBtnEl.title = !hasPrompt ? "Describe a Pheno-Ranker request first." : "";
+    phenoRunBtnEl.classList.toggle("is-background-blocked", Boolean(activeBackgroundJob));
+    phenoRunBtnEl.title = activeBackgroundJob
+      ? "A background Pheno-Ranker run is already in progress."
+      : (!hasPrompt ? "Describe a Pheno-Ranker request first." : "");
+    if (phenoPlanRunBtnEl) {
+      phenoPlanRunBtnEl.disabled = Boolean(activeBackgroundJob) || state.planInFlight || state.inFlight;
+      phenoPlanRunBtnEl.classList.toggle("is-background-blocked", Boolean(activeBackgroundJob));
+      phenoPlanRunBtnEl.title = activeBackgroundJob ? "A background Pheno-Ranker run is already in progress." : "";
+    }
+    if (phenoPlanStatusEl) {
+      if (activeBackgroundJob) {
+        phenoPlanStatusEl.className = "pheno-status warning";
+        phenoPlanStatusEl.dataset.backgroundBlocked = "true";
+        phenoPlanStatusEl.textContent = activeLabel
+          ? `Background Pheno-Ranker run ${activeLabel} is in progress. New runs are locked until it finishes.`
+          : "A background Pheno-Ranker run is in progress. New runs are locked until it finishes.";
+      } else if (phenoPlanStatusEl.dataset.backgroundBlocked === "true") {
+        delete phenoPlanStatusEl.dataset.backgroundBlocked;
+        phenoPlanStatusEl.className = "pheno-status";
+        phenoPlanStatusEl.textContent = hasPrompt
+          ? "Preview the interpreted plan or run Pheno-Ranker for the current scope."
+          : "Describe a run in natural language. The run applies to the current scope shown above.";
+      }
+    }
   }
 
   function getPhenoPlotSelection(kind) {
@@ -408,6 +516,7 @@ export function createPhenoUi(ctx) {
     renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
     phenoLogsEl.textContent = "No logs yet.";
     phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plots available yet.</div>';
+    renderPhenoBackgroundJobBanner();
   }
 
   function renderPhenoNoPlanState(reasoning) {
@@ -1502,6 +1611,82 @@ export function createPhenoUi(ctx) {
     }
   }
 
+  function restorePhenoRunMetadata(jobPayload) {
+    const payload = jobPayload && typeof jobPayload === "object" ? jobPayload : {};
+    phenoPromptEl.value = String(payload.prompt || "").trim();
+    phenoActionEl.value = String(payload.action || "compare").trim() || "compare";
+    phenoModeEl.value = String(payload.mode || "cohort").trim() || "cohort";
+    phenoPatientIdEl.value = String(payload.patient_id || "").trim();
+    phenoSelectedPatientIdsEl.value = String(payload.selected_patient_ids || "").trim();
+    phenoIncludeTermsEl.value = Array.isArray(payload.include_terms) ? payload.include_terms.join(",") : "";
+    phenoExcludeTermsEl.value = Array.isArray(payload.exclude_terms) ? payload.exclude_terms.join(",") : "";
+    phenoSimilarityMetricEl.value = String(payload.similarity_metric_cohort || "").trim();
+    phenoSortByEl.value = String(payload.sort_by || "").trim();
+    phenoMaxOutEl.value = Number(payload.max_out || 10);
+    phenoAlignEl.checked = Boolean(payload.align);
+    phenoRenderHeatmapEl.checked = Boolean(payload.render_heatmap);
+    phenoRenderMdsEl.checked = Boolean(payload.render_mds);
+    if (typeof setSelectedSavedCohortIds === "function") {
+      setSelectedSavedCohortIds(Array.isArray(payload.selected_saved_cohort_ids) ? payload.selected_saved_cohort_ids : []);
+    }
+    updatePhenoMode();
+    renderSelectedPatientIdsSummary();
+    setPhenoManualOverrides(false);
+  }
+
+  async function applyPhenoRunPayload(payload, options = {}) {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const statusPrefix = String(options.statusPrefix || "").trim();
+    renderPhenoFiles(source.files);
+    state.runState = {
+      jobId: source.job_id,
+      mode: source.mode,
+      similarityMetricCohort: source.similarity_metric_cohort || "",
+      alignmentAvailable: Boolean(source.mode === "patient" && hasPhenoAlignmentFiles(source.files)),
+    };
+    updatePhenoExplainActions();
+    phenoOutputDetailsEl.open = source.mode === "patient";
+    phenoStatusEl.className = "pheno-status";
+    const completedLabel = statusPrefix || "Completed";
+    phenoStatusEl.textContent = source.scope_expansion_note
+      ? `${completedLabel} ${source.mode} run ${source.job_id}. ${source.scope_expansion_note}`
+      : `${completedLabel} ${source.mode} run ${source.job_id}.`;
+    phenoCommandEl.textContent = [
+      source.command || "No command metadata.",
+      source.cwd ? `\n# cwd: ${source.cwd}` : "",
+    ].join("");
+    phenoLogsEl.textContent = [source.stderr || "", ...(source.plots || []).map((item) => `${item.script}\nstdout:\n${item.stdout}\nstderr:\n${item.stderr}`)].filter(Boolean).join("\n\n") || "No diagnostic logs.";
+    setPhenoResultWorkspaceVisible(true);
+    await renderPhenoOutputPreview(source.files);
+    await renderPhenoPreviews(source.files);
+    if (source.mode === "patient" && state.runState.alignmentAvailable) {
+      renderPhenoAlignmentPlaceholder("Click one row in rank.txt to inspect matched variables for that pair.");
+    } else {
+      renderPhenoAlignmentPlaceholder("Alignment details are available only for patient-mode runs.");
+    }
+    renderPhenoExplainPlaceholder("Use Explain results to summarize the top patient matches from rank.txt.");
+    renderPhenoBackgroundJobBanner();
+  }
+
+  async function loadCompletedPhenoJob(jobPayload, resultPayload = null) {
+    const job = jobPayload && typeof jobPayload === "object" ? jobPayload : {};
+    const result = resultPayload && typeof resultPayload === "object" ? resultPayload : null;
+    if (!result) {
+      throw new Error("This Pheno-Ranker job does not have a completed result yet.");
+    }
+    restorePhenoRunMetadata(job);
+    setPhenoResultWorkspaceVisible(true);
+    phenoStatusEl.className = "pheno-status loading";
+    phenoStatusEl.textContent = "Loading completed Pheno-Ranker run...";
+    phenoCommandEl.textContent = "Loading stored command and artifacts...";
+    phenoFilesEl.innerHTML = '<div class="empty">Loading output files...</div>';
+    phenoOutputPreviewEl.innerHTML = renderActivityCard("Loading run", "Restoring the stored Pheno-Ranker result into this tab.");
+    renderPhenoAlignmentPlaceholder("Loading alignment details...");
+    phenoLogsEl.textContent = "Loading stored logs...";
+    phenoPreviewsEl.innerHTML = renderActivityCard("Loading plots", "Restoring interactive plots and output files from the completed background run.");
+    await applyPhenoRunPayload(result, { statusPrefix: "Loaded" });
+  }
+
   async function runPhenoRanker(usePromptPlanner = true) {
     if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides) {
       const payload = await requestPhenoPlan(false);
@@ -1574,6 +1759,7 @@ export function createPhenoUi(ctx) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          prompt: phenoPromptEl.value.trim(),
           action: phenoActionEl.value,
           mode: phenoModeEl.value,
           data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
@@ -1606,32 +1792,27 @@ export function createPhenoUi(ctx) {
         return;
       }
 
-      renderPhenoFiles(payload.files);
-      state.runState = {
-        jobId: payload.job_id,
-        mode: payload.mode,
-        similarityMetricCohort: payload.similarity_metric_cohort || "",
-        alignmentAvailable: Boolean(payload.mode === "patient" && hasPhenoAlignmentFiles(payload.files)),
-      };
-      updatePhenoExplainActions();
-      phenoOutputDetailsEl.open = payload.mode === "patient";
-      phenoStatusEl.className = "pheno-status";
-      phenoStatusEl.textContent = payload.scope_expansion_note
-        ? `Completed ${payload.mode} run ${payload.job_id}. ${payload.scope_expansion_note}`
-        : `Completed ${payload.mode} run ${payload.job_id}.`;
-      phenoCommandEl.textContent = [
-        payload.command,
-        payload.cwd ? `\n# cwd: ${payload.cwd}` : "",
-      ].join("");
-      phenoLogsEl.textContent = [payload.stderr || "", ...(payload.plots || []).map((item) => `${item.script}\nstdout:\n${item.stdout}\nstderr:\n${item.stderr}`)].filter(Boolean).join("\n\n") || "No diagnostic logs.";
-      await renderPhenoOutputPreview(payload.files);
-      await renderPhenoPreviews(payload.files);
-      if (payload.mode === "patient" && state.runState.alignmentAvailable) {
-        renderPhenoAlignmentPlaceholder("Click one row in rank.txt to inspect matched variables for that pair.");
-      } else {
-        renderPhenoAlignmentPlaceholder("Alignment details are available only for patient-mode runs.");
+      if (payload && payload.data && payload.data.execution === "queued") {
+        seedQueuedPhenoBackgroundJob(payload);
+        state.runState = null;
+        updatePhenoExplainActions();
+        setPhenoResultWorkspaceVisible(false);
+        phenoCommandEl.textContent = "Queued as a background Pheno-Ranker run.";
+        phenoOutputPreviewEl.innerHTML = '<div class="empty">Background run submitted. Open Jobs to monitor progress and load the completed result.</div>';
+        phenoLogsEl.textContent = "Waiting for background run logs...";
+        phenoFilesEl.innerHTML = '<div class="empty">No output files available until the background run completes.</div>';
+        phenoPreviewsEl.innerHTML = '<div class="empty">Interactive plots will appear after the background run completes.</div>';
+        phenoStatusEl.className = "pheno-status";
+        phenoStatusEl.textContent = payload.reply || "Background Pheno-Ranker run submitted.";
+        updatePhenoRunAvailability();
+        if (typeof handlePhenoJobSubmission === "function") {
+          handlePhenoJobSubmission(payload);
+        }
+        renderPhenoBackgroundJobBanner();
+        return;
       }
-      renderPhenoExplainPlaceholder("Use Explain results to summarize the top patient matches from rank.txt.");
+
+      await applyPhenoRunPayload(payload);
     } catch (error) {
       stopPhenoRunProgressUpdates();
       phenoStatusEl.className = "pheno-status";
@@ -1751,5 +1932,7 @@ export function createPhenoUi(ctx) {
     handlePreviewsClick,
     renderPhenoAlignmentPlaceholder,
     renderPhenoExplainPlaceholder,
+    renderPhenoBackgroundJobBanner,
+    loadCompletedPhenoJob,
   };
 }
