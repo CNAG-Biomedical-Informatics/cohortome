@@ -16,23 +16,35 @@ process BUILD_RESULT {
     path 'result.json'
     path 'summary.txt'
 
-    exec:
-    def compareMode = String(params.compare_mode ?: '').trim().toLowerCase() == 'true'
+    script:
+    def compareMode = (params.compare_mode ?: '').toString().trim().toLowerCase() == 'true'
     def scopeSummary = compareMode ? 'Cohort A vs Cohort B' : 'current Analysis scope'
-    def promptText = String(params.prompt ?: '').trim()
+    def promptText = (params.prompt ?: '').toString().trim()
+    def workspacePatientCount = Integer.parseInt((params.workspace_patient_count ?: '0').toString())
+    def scopeAPatientCount = Integer.parseInt((params.scope_a_patient_count ?: '0').toString())
+    def scopeBPatientCount = Integer.parseInt((params.scope_b_patient_count ?: '0').toString())
     def payload = [
-        reply: "Nextflow dummy workflow completed for ${scopeSummary}. Workspace patients: ${params.workspace_patient_count}; scope A patients: ${params.scope_a_patient_count}; scope B patients: ${params.scope_b_patient_count}.",
+        reply: "Nextflow dummy workflow completed for ${scopeSummary}. Workspace patients: ${workspacePatientCount}; scope A patients: ${scopeAPatientCount}; scope B patients: ${scopeBPatientCount}.",
         context: [
             mode: 'external_nextflow_dummy',
             scope_summary: scopeSummary,
             prompt: promptText,
-            workspace_patient_count: Integer.parseInt(String(params.workspace_patient_count ?: '0')),
-            scope_a_patient_count: Integer.parseInt(String(params.scope_a_patient_count ?: '0')),
-            scope_b_patient_count: Integer.parseInt(String(params.scope_b_patient_count ?: '0')),
+            workspace_patient_count: workspacePatientCount,
+            scope_a_patient_count: scopeAPatientCount,
+            scope_b_patient_count: scopeBPatientCount,
         ],
     ]
-    file('result.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(payload)) + '\n'
-    file('summary.txt').text = "Nextflow dummy workflow\nPrompt: ${promptText}\nScope: ${scopeSummary}\n"
+    def payloadJson = JsonOutput.prettyPrint(JsonOutput.toJson(payload))
+    [
+        "cat > result.json <<'JSON'",
+        payloadJson,
+        "JSON",
+        "cat > summary.txt <<'TXT'",
+        "Nextflow dummy workflow",
+        "Prompt: ${promptText}",
+        "Scope: ${scopeSummary}",
+        "TXT",
+    ].join('\n')
 }
 
 workflow {

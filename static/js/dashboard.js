@@ -599,6 +599,11 @@ export function createDashboardUi(ctx) {
       : null;
   }
 
+  function isDifferentialExpressionCatalogItem(item) {
+    const itemId = String(item && item.id ? item.id : "").trim();
+    return itemId === "molecular-differential-expression" || itemId === "molecular-deseq2-differential-expression";
+  }
+
   function contextualMolecularDatasets() {
     const item = currentAnalysisCatalogItem();
     if (!item || !item.requires_molecular) {
@@ -618,7 +623,7 @@ export function createDashboardUi(ctx) {
       state.selectedMolecularDatasets = filteredSelected;
     }
     if (
-      String(item.id || "") === "molecular-differential-expression"
+      isDifferentialExpressionCatalogItem(item)
       && compatible.length === 1
       && (
         state.selectedMolecularDatasets.length !== 1
@@ -852,7 +857,7 @@ export function createDashboardUi(ctx) {
       if (analysisCatalogMolecularStatusEl) {
         analysisCatalogMolecularStatusEl.textContent = datasets.length === 1
           ? `1 molecular dataset available for Analysis.`
-          : `${datasets.length} molecular datasets available. Differential expression requires exactly one selected dataset.`;
+          : `${datasets.length} molecular datasets available. Differential-expression tools require exactly one selected dataset.`;
       }
       molecularDashboardStatusEl.className = "query-status";
       molecularDashboardStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"}.`;

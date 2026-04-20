@@ -23,6 +23,17 @@ export function createAnalysisUi(ctx) {
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
 
+  function isDifferentialExpressionCatalogItem(itemId) {
+    const normalized = String(itemId || "").trim();
+    return normalized === "molecular-differential-expression" || normalized === "molecular-deseq2-differential-expression";
+  }
+
+  function isDifferentialExpressionContextMode(mode) {
+    const normalized = String(mode || "").trim();
+    return normalized === "external_rscript_molecular_differential_expression"
+      || normalized === "external_rscript_molecular_deseq2_differential_expression";
+  }
+
   function plotPlaceholder(id, height = 320) {
     return `<div class="analysis-plot-frame" id="${id}" style="height:${height}px;"></div>`;
   }
@@ -100,7 +111,7 @@ export function createAnalysisUi(ctx) {
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
-    if (context.mode === "external_rscript_molecular_differential_expression") {
+    if (isDifferentialExpressionContextMode(context.mode)) {
       const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_plot.png");
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "de_results.tsv");
       const volcanoArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_points.tsv");
@@ -559,7 +570,7 @@ export function createAnalysisUi(ctx) {
         });
         return;
       }
-      if (context.mode === "external_rscript_molecular_differential_expression") {
+      if (isDifferentialExpressionContextMode(context.mode)) {
         const summary = buildHorizontalBar([
           { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
           { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
@@ -829,6 +840,7 @@ export function createAnalysisUi(ctx) {
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
       "external_rscript_molecular_differential_expression",
+      "external_rscript_molecular_deseq2_differential_expression",
       "molecular_medication_compare",
       "trajectory",
       "trajectory_response",
@@ -980,7 +992,7 @@ export function createAnalysisUi(ctx) {
       state.analysisExecutionMode = "auto";
       return;
     }
-    if (String(state.analysisSelectedCatalogItemId || "") === "molecular-differential-expression" && selectedMolecularDatasets.length !== 1) {
+    if (isDifferentialExpressionCatalogItem(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length !== 1) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = selectedMolecularDatasets.length
         ? "Differential expression requires exactly one selected molecular dataset."

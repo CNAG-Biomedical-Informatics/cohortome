@@ -109,6 +109,25 @@ items:
     requires_molecular: true
     tags: [molecular, differential-expression, background, rscript]
 
+  - id: molecular-deseq2-differential-expression
+    name: DESeq2 differential expression
+    category: Molecular
+    kind: differential_expression
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 3600
+    runner_type: rscript
+    runner_ref: molecular_deseq2_differential_expression
+    description: Run a curated DESeq2 differential-expression analysis between Cohort A and Cohort B from one selected raw-count molecular dataset.
+    guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient, so baseline-only or one-sample-per-patient inputs are preferred.
+    default_prompt: Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    requires_detailed_access: true
+    requires_molecular: true
+    tags: [molecular, differential-expression, deseq2, background, rscript]
+
   - id: external-r-scope-snapshot
     name: External R cohort snapshot
     category: External
@@ -176,7 +195,7 @@ items:
     category: External
     kind: external_workflow
     execution_backend: job
-    expected_runtime: medium
+    expected_runtime: short
     job_timeout_seconds: 1800
     runner_type: nextflow
     runner_ref: dummy_queue_demo

@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -22,6 +22,7 @@ RSCRIPT_RUNNERS = {
     "clinical_scope_profile": SCRIPTS_DIR / "analysis_r_clinical_profile.R",
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
     "molecular_differential_expression": SCRIPTS_DIR / "analysis_r_differential_expression.R",
+    "molecular_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
 }
 SNAKEMAKE_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
@@ -353,6 +354,8 @@ def _prepare_molecular_differential_expression_bundle(
     selected_patient_ids: str,
     compare_selected_patient_ids: str,
     output_dir: Path,
+    method: str = "log2_cpm_welch",
+    minimum_samples_per_group: int = 1,
 ) -> Dict[str, Any]:
     cohort_a_scope = _resolve_molecular_scope(selected_patient_ids)
     cohort_b_scope = _resolve_molecular_scope(compare_selected_patient_ids)
@@ -491,11 +494,11 @@ def _prepare_molecular_differential_expression_bundle(
     _write_tsv(cohort_b_path, ["patient_id", "sample_id", "cohort"], cohort_b_rows)
     params_payload = {
         "analysis_type": "differential_expression",
-        "method": "log2_cpm_welch",
+        "method": str(method or "log2_cpm_welch").strip(),
         "prompt": str(prompt or "").strip(),
         "dataset_name": dataset_name,
         "contrast": {"numerator": "Cohort A", "denominator": "Cohort B"},
-        "minimum_samples_per_group": 1,
+        "minimum_samples_per_group": max(1, int(minimum_samples_per_group or 1)),
     }
     _write_yaml(params_path, params_payload)
     manifest_payload = {
@@ -536,12 +539,28 @@ def _prepare_molecular_differential_expression_bundle(
         "params_path": params_path,
         "sample_table_path": sample_table_path,
         "counts_matrix_path": counts_matrix_path,
+        "sample_table_rows": sample_table_rows,
         "cohort_a_patient_count": manifest_payload["cohorts"]["A"]["patient_count"],
         "cohort_a_sample_count": cohort_a_sample_count,
         "cohort_b_patient_count": manifest_payload["cohorts"]["B"]["patient_count"],
         "cohort_b_sample_count": cohort_b_sample_count,
         "gene_count": len(counts_matrix_rows),
     }
+
+
+def _validate_deseq2_bundle(bundle: Dict[str, Any]) -> None:
+    sample_rows = list(bundle.get("sample_table_rows") or [])
+    cohort_a_sample_count = int(bundle.get("cohort_a_sample_count") or 0)
+    cohort_b_sample_count = int(bundle.get("cohort_b_sample_count") or 0)
+    if cohort_a_sample_count < 2 or cohort_b_sample_count < 2:
+        raise RuntimeError("DESeq2 differential expression requires at least two samples in Cohort A and two samples in Cohort B.")
+    patient_counts = Counter(str(row.get("patient_id") or "").strip() for row in sample_rows if str(row.get("patient_id") or "").strip())
+    repeated_patients = sorted(patient_id for patient_id, count in patient_counts.items() if count > 1)
+    if repeated_patients:
+        raise RuntimeError(
+            "DESeq2 differential expression v1 requires one sample per patient. "
+            "Use a baseline-only dataset or choose one sample per patient before running."
+        )
 
 
 def run_rscript_analysis(
@@ -639,7 +658,47 @@ def run_rscript_analysis(
                 selected_patient_ids=selected_patient_ids,
                 compare_selected_patient_ids=compare_selected_patient_ids,
                 output_dir=temp_path,
+                method="log2_cpm_welch",
+                minimum_samples_per_group=1,
             )
+            command = [
+                binary,
+                str(script_path),
+                "--job-dir",
+                str(temp_path),
+                "--manifest",
+                str(bundle["manifest_path"]),
+                "--params",
+                str(bundle["params_path"]),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--counts-matrix",
+                str(bundle["counts_matrix_path"]),
+                "--results-table",
+                str(temp_path / "de_results.tsv"),
+                "--volcano-table",
+                str(temp_path / "volcano_points.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "volcano_plot.png"),
+            ]
+        elif runner_ref == "molecular_deseq2_differential_expression":
+            bundle = _prepare_molecular_differential_expression_bundle(
+                data_dir,
+                prompt=prompt,
+                molecular_dataset_name=molecular_dataset_name,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+                method="deseq2_apeglm",
+                minimum_samples_per_group=2,
+            )
+            _validate_deseq2_bundle(bundle)
             command = [
                 binary,
                 str(script_path),

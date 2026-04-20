@@ -259,6 +259,11 @@ export function createAnalysisCatalogUi(ctx) {
       : null;
   }
 
+  function isDifferentialExpressionCatalogItem(item) {
+    const itemId = String(item && item.id ? item.id : "").trim();
+    return itemId === "molecular-differential-expression" || itemId === "molecular-deseq2-differential-expression";
+  }
+
   function analysisCatalogUsageStorageKey() {
     return `${currentStorageNamespace(state.authState)}.analysisCatalogUsage`;
   }
@@ -424,11 +429,11 @@ export function createAnalysisCatalogUi(ctx) {
       return;
     }
     const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
-    if (String(item.id || "") === "molecular-differential-expression") {
+    if (isDifferentialExpressionCatalogItem(item)) {
       if (selectedDatasetNames.length === 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}. Differential expression will use this transcriptomics matrix.`;
+        analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}. This differential-expression tool will use the selected transcriptomics matrix.`;
       } else if (selectedDatasetNames.length > 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected ${selectedDatasetNames.length} molecular datasets. Differential expression requires exactly one dataset.`;
+        analysisCatalogMolecularStatusEl.textContent = `Selected ${selectedDatasetNames.length} molecular datasets. This differential-expression tool requires exactly one dataset.`;
       } else {
         analysisCatalogMolecularStatusEl.textContent = "Select exactly one molecular dataset for differential expression. The cohorts define the groups; the dataset defines the transcriptomics matrix.";
       }
