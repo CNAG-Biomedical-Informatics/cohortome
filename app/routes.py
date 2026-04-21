@@ -895,6 +895,7 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
                     "align": payload.align,
                     "render_heatmap": payload.render_heatmap,
                     "render_mds": payload.render_mds,
+                    "render_graph": payload.render_graph,
                     "granularity_ceiling": payload.granularity_ceiling,
                     "ai_provider_access": payload.ai_provider_access,
                     "resolved_sample_count": pheno_background["resolved_sample_count"],

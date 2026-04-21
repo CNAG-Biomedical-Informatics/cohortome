@@ -35,6 +35,7 @@ export function createPhenoUi(ctx) {
     phenoAlignEl,
     phenoRenderHeatmapEl,
     phenoRenderMdsEl,
+    phenoRenderGraphEl,
     phenoPlotChecksEl,
     phenoRunBtnEl,
     phenoExplainBtnEl,
@@ -89,6 +90,7 @@ export function createPhenoUi(ctx) {
     selectedAlignmentKey: "",
     selectedMdsRecordIds: [],
     selectedHeatmapRecordIds: [],
+    selectedGraphRecordIds: [],
     manualOverrides: false,
     isApplyingPlan: false,
     rankerPatientIds: [],
@@ -480,7 +482,13 @@ export function createPhenoUi(ctx) {
   }
 
   function getPhenoPlotSelection(kind) {
-    return kind === "heatmap" ? state.selectedHeatmapRecordIds : state.selectedMdsRecordIds;
+    if (kind === "heatmap") {
+      return state.selectedHeatmapRecordIds;
+    }
+    if (kind === "graph") {
+      return state.selectedGraphRecordIds;
+    }
+    return state.selectedMdsRecordIds;
   }
 
   function normalizePhenoSelectedRecordId(recordId) {
@@ -503,6 +511,7 @@ export function createPhenoUi(ctx) {
     state.selectedAlignmentKey = "";
     state.selectedMdsRecordIds = [];
     state.selectedHeatmapRecordIds = [];
+    state.selectedGraphRecordIds = [];
     state.tableState = null;
     state.explainInFlight = false;
     state.explainLlmInFlight = false;
@@ -607,6 +616,9 @@ export function createPhenoUi(ctx) {
     phenoAlignEl.checked = Boolean(normalized.align);
     phenoRenderHeatmapEl.checked = Boolean(normalized.render_heatmap);
     phenoRenderMdsEl.checked = Boolean(normalized.render_mds);
+    if (phenoRenderGraphEl) {
+      phenoRenderGraphEl.checked = Boolean(normalized.render_graph);
+    }
     updatePhenoMode();
     state.isApplyingPlan = false;
     state.manualOverrides = false;
@@ -1292,8 +1304,12 @@ export function createPhenoUi(ctx) {
     const items = Array.isArray(files) ? files : [];
     const mdsPointsFile = items.find((file) => file.name === "mds_points.tsv");
     const matrixFile = items.find((file) => file.name === "matrix.txt");
-    if (!mdsPointsFile && !matrixFile) {
-      phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plot data were produced for this run. Expected matrix.txt and/or mds_points.tsv.</div>';
+    const graphFile = items.find((file) => file.name === "graph.json");
+    state.selectedMdsRecordIds = [];
+    state.selectedHeatmapRecordIds = [];
+    state.selectedGraphRecordIds = [];
+    if (!mdsPointsFile && !matrixFile && !graphFile) {
+      phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plot data were produced for this run. Expected matrix.txt, mds_points.tsv, and/or graph.json.</div>';
       return;
     }
     const interactiveCard = mdsPointsFile
@@ -1302,13 +1318,18 @@ export function createPhenoUi(ctx) {
     const heatmapCard = matrixFile
       ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Heatmap</strong></summary><div class="pheno-preview-body"><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div></details>`
       : "";
-    phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard;
-    state.selectedMdsRecordIds = [];
+    const graphCard = graphFile
+      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Graph</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="graph">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="graph">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="graph">Copy selected IDs</button></div></div><div class="pheno-graph-controls"><label class="pheno-graph-threshold-label" for="phenoGraphThreshold"><span id="phenoGraphThresholdLabel">Displayed edges</span><input id="phenoGraphThreshold" type="range" min="0" max="0" step="1" value="0"></label><label class="pheno-graph-select-label" for="phenoGraphTopK"><span>Neighbors per node</span><select id="phenoGraphTopK"><option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="9999">All</option></select></label><label class="pheno-graph-checkbox"><input id="phenoGraphLargestComponent" type="checkbox" checked> Largest component only</label><div id="phenoGraphThresholdMeta" class="section-note-inline">Loading graph filter…</div></div><div id="phenoGraphCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoGraphPlot" class="pheno-mds-plot pheno-graph-plot"></div><div class="section-note" id="phenoGraphSelectionNote">Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.</div></div></details>`
+      : "";
+    phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard + graphCard;
     if (mdsPointsFile) {
       void renderInteractivePhenoMdsPlot(mdsPointsFile);
     }
     if (matrixFile) {
       void renderInteractivePhenoHeatmap(matrixFile);
+    }
+    if (graphFile) {
+      void renderInteractivePhenoGraph(graphFile);
     }
   }
 
@@ -1474,7 +1495,7 @@ export function createPhenoUi(ctx) {
         return;
       }
       const metric = getEffectivePhenoCohortMetric();
-      const metricLabel = metric === "jaccard" ? "Jaccard similarity" : "Hamming distance";
+      const metricLabel = metric === "jaccard" ? "Jaccard similarity" : "Hamming dissimilarity";
       const header = rows[0];
       const xLabels = header.slice(1);
       const body = rows.slice(1);
@@ -1522,6 +1543,387 @@ export function createPhenoUi(ctx) {
     }
   }
 
+  async function renderInteractivePhenoGraph(file) {
+    const plotEl = document.getElementById("phenoGraphPlot");
+    const noteEl = document.getElementById("phenoGraphSelectionNote");
+    const thresholdEl = document.getElementById("phenoGraphThreshold");
+    const thresholdLabelEl = document.getElementById("phenoGraphThresholdLabel");
+    const thresholdMetaEl = document.getElementById("phenoGraphThresholdMeta");
+    const topKEl = document.getElementById("phenoGraphTopK");
+    const largestComponentEl = document.getElementById("phenoGraphLargestComponent");
+    if (!plotEl) {
+      return;
+    }
+    if (typeof window.cytoscape === "undefined") {
+      plotEl.innerHTML = '<div class="empty">Interactive Cytoscape view is unavailable in this browser.</div>';
+      return;
+    }
+    if (plotEl._cy && typeof plotEl._cy.destroy === "function") {
+      plotEl._cy.destroy();
+      plotEl._cy = null;
+    }
+    try {
+      const response = await fetch(file.url);
+      if (!response.ok) {
+        plotEl.innerHTML = '<div class="empty">Unable to load the cohort graph.</div>';
+        return;
+      }
+      const payload = await response.json();
+      const elements = payload && typeof payload === "object" && payload.elements && typeof payload.elements === "object"
+        ? payload.elements
+        : {};
+      const rawNodes = Array.isArray(elements.nodes) ? elements.nodes : [];
+      const rawEdges = Array.isArray(elements.edges) ? elements.edges : [];
+      if (!rawNodes.length) {
+        plotEl.innerHTML = '<div class="empty">No graph nodes were produced for this run.</div>';
+        return;
+      }
+      const nodeIds = rawNodes
+        .map((node) => String(node && node.data && node.data.id ? node.data.id : "").trim())
+        .filter(Boolean);
+      renderPhenoCohortLegend("phenoGraphCohortLegend", nodeIds);
+      const similarityMetric = getEffectivePhenoCohortMetric();
+      const strongerIsHigher = similarityMetric !== "hamming";
+      const metricLabel = strongerIsHigher ? "Jaccard similarity" : "Hamming dissimilarity";
+      const defaultTopKNeighbors = nodeIds.length > 80 ? 1 : (nodeIds.length > 36 ? 2 : 3);
+      const normalizedNodes = rawNodes.map((node) => {
+        const id = String(node && node.data && node.data.id ? node.data.id : "").trim();
+        const cohort = getPhenoMdsCohortInfo(id);
+        return {
+          data: {
+            ...(node && node.data ? node.data : {}),
+            id,
+            label: id,
+            cohort_label: cohort.label,
+            cohort_color: cohort.color,
+          },
+        };
+      });
+      const normalizedEdges = rawEdges.map((edge) => {
+        const source = String(edge && edge.data && edge.data.source ? edge.data.source : "").trim();
+        const target = String(edge && edge.data && edge.data.target ? edge.data.target : "").trim();
+        const weightValue = Number(edge && edge.data && edge.data.weight ? edge.data.weight : NaN);
+        const weight = Number.isFinite(weightValue) ? weightValue : 0;
+        return {
+          data: {
+            ...(edge && edge.data ? edge.data : {}),
+            source,
+            target,
+            weight,
+          },
+        };
+      });
+      const edgeLookup = new Map();
+      normalizedEdges.forEach((edge) => {
+        const source = String(edge.data.source || "").trim();
+        const target = String(edge.data.target || "").trim();
+        if (!source || !target) {
+          return;
+        }
+        const key = [source, target].sort().join("\u0000");
+        edgeLookup.set(key, Number(edge.data.weight));
+      });
+      const uniqueSortedWeights = Array.from(new Set(normalizedEdges
+        .map((edge) => Number(edge.data.weight))
+        .filter((weight) => Number.isFinite(weight))))
+        .sort((a, b) => strongerIsHigher ? b - a : a - b);
+      const preferredEdgeBudget = Math.max(36, Math.min(140, Math.round(nodeIds.length * 1.5)));
+      let defaultStrengthIndex = 0;
+      if (uniqueSortedWeights.length) {
+        if (strongerIsHigher) {
+          defaultStrengthIndex = Math.max(0, Math.min(uniqueSortedWeights.length - 1, preferredEdgeBudget - 1));
+        } else {
+          const firstWeightAtOrAboveTwoIndex = uniqueSortedWeights.findIndex((weight) => weight >= 2);
+          defaultStrengthIndex = firstWeightAtOrAboveTwoIndex <= 0
+            ? 0
+            : firstWeightAtOrAboveTwoIndex - 1;
+          if (firstWeightAtOrAboveTwoIndex === -1) {
+            defaultStrengthIndex = uniqueSortedWeights.length - 1;
+          }
+        }
+      }
+      const thresholdState = {
+        cy: null,
+        thresholdValue: uniqueSortedWeights[defaultStrengthIndex] ?? null,
+      };
+
+      const computeLargestComponentNodeIds = (nodes, edges) => {
+        const adjacency = new Map();
+        nodes.forEach((node) => {
+          const id = String(node && node.data && node.data.id ? node.data.id : "").trim();
+          if (id && !adjacency.has(id)) {
+            adjacency.set(id, new Set());
+          }
+        });
+        edges.forEach((edge) => {
+          const source = String(edge && edge.data && edge.data.source ? edge.data.source : "").trim();
+          const target = String(edge && edge.data && edge.data.target ? edge.data.target : "").trim();
+          if (!source || !target) {
+            return;
+          }
+          if (!adjacency.has(source)) {
+            adjacency.set(source, new Set());
+          }
+          if (!adjacency.has(target)) {
+            adjacency.set(target, new Set());
+          }
+          adjacency.get(source).add(target);
+          adjacency.get(target).add(source);
+        });
+        const visited = new Set();
+        let largest = [];
+        adjacency.forEach((_neighbors, nodeId) => {
+          if (visited.has(nodeId)) {
+            return;
+          }
+          const queue = [nodeId];
+          const component = [];
+          visited.add(nodeId);
+          while (queue.length) {
+            const current = queue.shift();
+            component.push(current);
+            const neighbors = adjacency.get(current) || new Set();
+            neighbors.forEach((neighbor) => {
+              if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+              }
+            });
+          }
+          if (component.length > largest.length) {
+            largest = component;
+          }
+        });
+        return new Set(largest);
+      };
+
+      const qualifiesEdge = (edge, thresholdValue) => {
+        const weight = Number(edge && edge.data ? edge.data.weight : NaN);
+        if (!Number.isFinite(weight)) {
+          return false;
+        }
+        if (thresholdValue === null || thresholdValue === undefined) {
+          return true;
+        }
+        return strongerIsHigher ? weight >= thresholdValue : weight <= thresholdValue;
+      };
+
+      const buildEdgeVisual = (weight) => {
+        const numericWeight = Number(weight);
+        const normalizedStrength = strongerIsHigher
+          ? Math.max(0, Math.min(1, numericWeight))
+          : Math.max(0, Math.min(1, 1 - numericWeight));
+        return {
+          width: 1.5 + (normalizedStrength * 5),
+          opacity: 0.16 + (normalizedStrength * 0.56),
+        };
+      };
+
+      const syncSelectedNodes = (cy) => {
+        const selectedNodes = cy.$("node:selected").toArray();
+        const rawSelectedNodeIds = selectedNodes.map((node) => String(node.id() || "").trim()).filter(Boolean);
+        state.selectedGraphRecordIds = normalizePhenoSelectedRecordIds(rawSelectedNodeIds);
+        if (noteEl) {
+          if (rawSelectedNodeIds.length === 2) {
+            const [leftId, rightId] = rawSelectedNodeIds;
+            const visibleEdge = selectedNodes[0].edgesWith(selectedNodes[1]).toArray()[0] || null;
+            const visibleWeight = visibleEdge ? Number(visibleEdge.data("weight")) : NaN;
+            const edgeKey = [leftId, rightId].sort().join("\u0000");
+            const value = Number.isFinite(visibleWeight) ? visibleWeight : edgeLookup.get(edgeKey);
+            if (Number.isFinite(value)) {
+              noteEl.textContent = `Selected ${leftId} and ${rightId}. ${metricLabel} = ${Number(value).toFixed(3)}.`;
+            } else {
+              noteEl.textContent = `Selected ${leftId} and ${rightId}. No direct edge is currently available for this pair.`;
+            }
+          } else if (rawSelectedNodeIds.length) {
+            noteEl.textContent = `Selected ${rawSelectedNodeIds.length} graph nodes.`;
+          } else {
+            noteEl.textContent = "Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.";
+          }
+        }
+      };
+
+      const renderThresholdMeta = (edgeCount, thresholdValue) => {
+        if (!thresholdLabelEl || !thresholdMetaEl) {
+          return;
+        }
+        if (!Number.isFinite(thresholdValue)) {
+          thresholdLabelEl.textContent = "Displayed edges";
+          thresholdMetaEl.textContent = `${edgeCount} strongest edges shown.`;
+          return;
+        }
+        const formatted = Number(thresholdValue).toFixed(3);
+        if (strongerIsHigher) {
+          thresholdLabelEl.textContent = "Minimum similarity";
+          thresholdMetaEl.textContent = `${edgeCount} of ${normalizedEdges.length} edges shown at similarity >= ${formatted}.`;
+        } else {
+          thresholdLabelEl.textContent = "Maximum dissimilarity";
+          thresholdMetaEl.textContent = `${edgeCount} of ${normalizedEdges.length} edges shown at dissimilarity <= ${formatted}.`;
+        }
+      };
+
+      const drawGraph = (thresholdValue) => {
+        if (thresholdState.cy && typeof thresholdState.cy.destroy === "function") {
+          thresholdState.cy.destroy();
+        }
+        const thresholdFilteredEdges = normalizedEdges.filter((edge) => qualifiesEdge(edge, thresholdValue));
+        const incidentByNode = new Map();
+        thresholdFilteredEdges.forEach((edge, index) => {
+          const source = String(edge.data.source || "").trim();
+          const target = String(edge.data.target || "").trim();
+          if (!source || !target) {
+            return;
+          }
+          if (!incidentByNode.has(source)) {
+            incidentByNode.set(source, []);
+          }
+          if (!incidentByNode.has(target)) {
+            incidentByNode.set(target, []);
+          }
+          incidentByNode.get(source).push({ edge, index });
+          incidentByNode.get(target).push({ edge, index });
+        });
+        const currentTopK = Math.max(1, Number(topKEl && topKEl.value ? topKEl.value : defaultTopKNeighbors));
+        const retainedEdgeIndexes = new Set();
+        incidentByNode.forEach((items) => {
+          items
+            .slice()
+            .sort((left, right) => {
+              const leftWeight = Number(left.edge.data.weight);
+              const rightWeight = Number(right.edge.data.weight);
+              return strongerIsHigher ? rightWeight - leftWeight : leftWeight - rightWeight;
+            })
+            .slice(0, currentTopK)
+            .forEach((item) => retainedEdgeIndexes.add(item.index));
+        });
+        let filteredEdges = thresholdFilteredEdges
+          .filter((_edge, index) => retainedEdgeIndexes.has(index))
+          .map((edge) => {
+            const visual = buildEdgeVisual(edge.data.weight);
+            return {
+              data: {
+                ...edge.data,
+                width: visual.width,
+                opacity: visual.opacity,
+              },
+            };
+          });
+        const currentLargestComponentOnly = Boolean(largestComponentEl && largestComponentEl.checked);
+        if (currentLargestComponentOnly && filteredEdges.length) {
+          const largestNodeIds = computeLargestComponentNodeIds(normalizedNodes, filteredEdges);
+          filteredEdges = filteredEdges.filter((edge) => {
+            const source = String(edge.data.source || "").trim();
+            const target = String(edge.data.target || "").trim();
+            return largestNodeIds.has(source) && largestNodeIds.has(target);
+          });
+        }
+        const visibleNodeIds = new Set();
+        filteredEdges.forEach((edge) => {
+          visibleNodeIds.add(String(edge.data.source || "").trim());
+          visibleNodeIds.add(String(edge.data.target || "").trim());
+        });
+        const filteredNodes = visibleNodeIds.size
+          ? normalizedNodes.filter((node) => visibleNodeIds.has(String(node.data.id || "").trim()))
+          : normalizedNodes;
+        const cy = window.cytoscape({
+          container: plotEl,
+          elements: [...filteredNodes, ...filteredEdges],
+          layout: {
+            name: "cose",
+            animate: false,
+            fit: true,
+            padding: 28,
+            nodeRepulsion: 5000,
+            idealEdgeLength: 70,
+            edgeElasticity: 80,
+          },
+          boxSelectionEnabled: true,
+          selectionType: "additive",
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": "data(cohort_color)",
+                label: "data(label)",
+                color: "#0f172a",
+                "font-size": 10,
+                "text-wrap": "wrap",
+                "text-max-width": 96,
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-margin-y": 8,
+                "border-width": 1.5,
+                "border-color": "#ffffff",
+                width: 18,
+                height: 18,
+              },
+            },
+            {
+              selector: "edge",
+              style: {
+                width: "data(width)",
+                "line-color": "#94a3b8",
+                opacity: "data(opacity)",
+                "curve-style": "bezier",
+              },
+            },
+            {
+              selector: ":selected",
+              style: {
+                "border-color": "#991b1b",
+                "border-width": 3,
+                "overlay-color": "#fca5a5",
+                "overlay-opacity": 0.12,
+              },
+            },
+          ],
+        });
+        thresholdState.cy = cy;
+        plotEl._cy = cy;
+        cy.on("select unselect", "node", () => syncSelectedNodes(cy));
+        syncSelectedNodes(cy);
+        renderThresholdMeta(filteredEdges.length, thresholdValue);
+        if (thresholdMetaEl) {
+          const parts = [thresholdMetaEl.textContent];
+          parts.push(currentTopK >= 9999 ? "Showing all neighbors per node." : `Top ${currentTopK} neighbors per node.`);
+          if (currentLargestComponentOnly) {
+            parts.push("Largest component only.");
+          }
+          thresholdMetaEl.textContent = parts.filter(Boolean).join(" ");
+        }
+      };
+
+      if (thresholdEl && uniqueSortedWeights.length) {
+        thresholdEl.min = "0";
+        thresholdEl.max = String(uniqueSortedWeights.length - 1);
+        thresholdEl.step = "1";
+        thresholdEl.value = String(defaultStrengthIndex);
+        thresholdEl.addEventListener("input", () => {
+          const index = Math.max(0, Math.min(uniqueSortedWeights.length - 1, Number(thresholdEl.value || 0)));
+          thresholdState.thresholdValue = uniqueSortedWeights[index];
+          drawGraph(thresholdState.thresholdValue);
+        });
+      } else if (thresholdEl) {
+        thresholdEl.disabled = true;
+      }
+      if (topKEl) {
+        topKEl.value = String(defaultTopKNeighbors);
+        topKEl.addEventListener("change", () => {
+          drawGraph(thresholdState.thresholdValue);
+        });
+      }
+      if (largestComponentEl) {
+        largestComponentEl.checked = true;
+        largestComponentEl.addEventListener("change", () => {
+          drawGraph(thresholdState.thresholdValue);
+        });
+      }
+      drawGraph(thresholdState.thresholdValue);
+    } catch (error) {
+      plotEl.innerHTML = `<div class="empty">${escapeHtml(error && error.message ? error.message : "Unable to render the graph.")}</div>`;
+    }
+  }
+
   function flashPhenoActionFeedback(button, label) {
     if (!button) {
       return;
@@ -1538,7 +1940,9 @@ export function createPhenoUi(ctx) {
     const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
     if (!selectedIds.length) {
       phenoStatusEl.className = "pheno-status";
-      phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
+      phenoStatusEl.textContent = kind === "heatmap"
+        ? "Select heatmap cells first."
+        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
       flashPhenoActionFeedback(triggerButton, "No IDs");
       return;
     }
@@ -1557,7 +1961,9 @@ export function createPhenoUi(ctx) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap"
         ? `Copied ${selectedIds.length} heatmap-selected IDs.`
-        : `Copied ${selectedIds.length} selected cohort record IDs from the MDS plot.`;
+        : (kind === "graph"
+          ? `Copied ${selectedIds.length} selected graph node IDs.`
+          : `Copied ${selectedIds.length} selected cohort record IDs from the MDS plot.`);
       flashPhenoActionFeedback(triggerButton, "Copied");
     } catch (_error) {
       phenoStatusEl.className = "pheno-status";
@@ -1570,14 +1976,18 @@ export function createPhenoUi(ctx) {
     const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
     if (!selectedIds.length) {
       phenoStatusEl.className = "pheno-status";
-      phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
+      phenoStatusEl.textContent = kind === "heatmap"
+        ? "Select heatmap cells first."
+        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
       return;
     }
     analysisSelectedPatientIdsEl.value = selectedIds.join(",");
     if (!analysisPromptEl.value.trim()) {
       analysisPromptEl.value = kind === "heatmap"
         ? "Summarize the main clinical patterns in the selected heatmap subgroup and tell me what stands out."
-        : "Summarize the main clinical patterns in the selected MDS subgroup and tell me what stands out.";
+        : (kind === "graph"
+          ? "Summarize the main clinical patterns in the selected graph subgroup and tell me what stands out."
+          : "Summarize the main clinical patterns in the selected MDS subgroup and tell me what stands out.");
     }
     renderAnalysisScopeSummary();
     setActiveTab("analysis");
@@ -1585,14 +1995,18 @@ export function createPhenoUi(ctx) {
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = kind === "heatmap"
       ? `Loaded ${selectedIds.length} sample IDs from the selected heatmap subgroup into Analysis.`
-      : `Loaded ${selectedIds.length} sample IDs from the selected MDS subgroup into Analysis.`;
+      : (kind === "graph"
+        ? `Loaded ${selectedIds.length} sample IDs from the selected graph subgroup into Analysis.`
+        : `Loaded ${selectedIds.length} sample IDs from the selected MDS subgroup into Analysis.`);
   }
 
   async function saveSelectedPhenoPlotIdsAsCohort(kind, triggerButton) {
     const selectedIds = normalizePhenoSelectedRecordIds(getPhenoPlotSelection(kind));
     if (!selectedIds.length) {
       phenoStatusEl.className = "pheno-status";
-      phenoStatusEl.textContent = kind === "heatmap" ? "Select heatmap cells first." : "Select cohort points in the MDS plot first.";
+      phenoStatusEl.textContent = kind === "heatmap"
+        ? "Select heatmap cells first."
+        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
       flashPhenoActionFeedback(triggerButton, "No IDs");
       return;
     }
@@ -1603,7 +2017,7 @@ export function createPhenoUi(ctx) {
       sourceKind: "pheno_ranker_selection",
       sourcePrompt: kind === "heatmap"
         ? "Selected subgroup from Pheno-Ranker heatmap"
-        : "Selected subgroup from Pheno-Ranker MDS",
+        : (kind === "graph" ? "Selected subgroup from Pheno-Ranker graph" : "Selected subgroup from Pheno-Ranker MDS"),
       statusTarget: "pheno",
     });
     if (saved) {
@@ -1626,6 +2040,9 @@ export function createPhenoUi(ctx) {
     phenoAlignEl.checked = Boolean(payload.align);
     phenoRenderHeatmapEl.checked = Boolean(payload.render_heatmap);
     phenoRenderMdsEl.checked = Boolean(payload.render_mds);
+    if (phenoRenderGraphEl) {
+      phenoRenderGraphEl.checked = Boolean(payload.render_graph);
+    }
     if (typeof setSelectedSavedCohortIds === "function") {
       setSelectedSavedCohortIds(Array.isArray(payload.selected_saved_cohort_ids) ? payload.selected_saved_cohort_ids : []);
     }
@@ -1774,6 +2191,7 @@ export function createPhenoUi(ctx) {
           align: phenoAlignEl.checked,
           render_heatmap: phenoRenderHeatmapEl.checked,
           render_mds: phenoRenderMdsEl.checked,
+          render_graph: Boolean(phenoRenderGraphEl && phenoRenderGraphEl.checked),
         }),
       });
 
@@ -1895,7 +2313,9 @@ export function createPhenoUi(ctx) {
     if (!button || !phenoPreviewsEl.contains(button)) {
       return;
     }
-    const kind = button.dataset.phenoPlotKind === "heatmap" ? "heatmap" : "mds";
+    const kind = button.dataset.phenoPlotKind === "heatmap"
+      ? "heatmap"
+      : (button.dataset.phenoPlotKind === "graph" ? "graph" : "mds");
     if (button.dataset.phenoPlotAction === "copy") {
       void copySelectedPhenoPlotIds(kind, button);
       return;

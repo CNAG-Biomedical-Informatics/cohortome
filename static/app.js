@@ -790,6 +790,7 @@ function bindEvents() {
     refs.phenoAlignEl,
     refs.phenoRenderHeatmapEl,
     refs.phenoRenderMdsEl,
+    refs.phenoRenderGraphEl,
   ].forEach((element) => {
     element && element.addEventListener("change", () => phenoUi.markPhenoManualOverride());
   });

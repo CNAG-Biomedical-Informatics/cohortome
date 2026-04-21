@@ -168,6 +168,7 @@ export function createAppRefs(doc = document) {
     phenoAlignEl: doc.getElementById("phenoAlign"),
     phenoRenderHeatmapEl: doc.getElementById("phenoRenderHeatmap"),
     phenoRenderMdsEl: doc.getElementById("phenoRenderMds"),
+    phenoRenderGraphEl: doc.getElementById("phenoRenderGraph"),
     phenoPlotChecksEl: doc.getElementById("phenoPlotChecks"),
     phenoRunBtnEl: doc.getElementById("phenoRunBtn"),
     phenoExplainBtnEl: doc.getElementById("phenoExplainBtn"),

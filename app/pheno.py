@@ -484,6 +484,14 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
 
     render_heatmap = "mds only" not in lowered and ("heatmap" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
     render_mds = "heatmap only" not in lowered and ("mds" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
+    render_graph = mode == "cohort" and action == "compare" and any(
+        phrase in lowered
+        for phrase in (
+            "graph",
+            "network",
+            "cytoscape",
+        )
+    )
     align_requested = any(
         phrase in lowered
         for phrase in (
@@ -501,7 +509,10 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
     if action == "extract":
         render_heatmap = False
         render_mds = False
+        render_graph = False
         align = False
+    if mode != "cohort" or action != "compare":
+        render_graph = False
 
     similarity_metric = normalize_pheno_metric("jaccard" if "jaccard" in lowered else ("hamming" if "hamming" in lowered else ""))
     sort_by = normalize_pheno_metric("jaccard" if "sort by jaccard" in lowered else ("hamming" if "sort by hamming" in lowered else ""))
@@ -545,6 +556,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
             "align": align,
             "render_heatmap": render_heatmap,
             "render_mds": render_mds,
+            "render_graph": render_graph,
         },
         "reasoning": reasoning,
         "follow_up_suggestions": [
@@ -621,7 +633,7 @@ def plan_pheno_ranker_llm(text: str, data_dir: str, ai_provider_access: str = "d
                 "content": (
                     "Convert the user request into a JSON Pheno-Ranker plan. "
                     "Return JSON only with keys: action, mode, patient_id, selected_patient_ids, disease_filter, "
-                    "include_terms, exclude_terms, similarity_metric_cohort, sort_by, max_out, align, render_heatmap, render_mds, reasoning. "
+                    "include_terms, exclude_terms, similarity_metric_cohort, sort_by, max_out, align, render_heatmap, render_mds, render_graph, reasoning. "
                     "Use arrays for include_terms and exclude_terms. "
                     "Use action compare or extract. Use mode cohort or patient."
                 ),
@@ -665,7 +677,10 @@ def plan_pheno_ranker_llm(text: str, data_dir: str, ai_provider_access: str = "d
         "align": bool(parsed.get("align", parsed_mode == "patient")),
         "render_heatmap": bool(parsed.get("render_heatmap", True)),
         "render_mds": bool(parsed.get("render_mds", True)),
+        "render_graph": bool(parsed.get("render_graph", False)),
     }
+    if str(plan.get("mode") or "").strip() != "cohort" or str(plan.get("action") or "").strip() != "compare":
+        plan["render_graph"] = False
     return {"source": "lm_studio", "model": model, "plan": plan, "reasoning": reasoning, "follow_up_suggestions": []}
 
 
@@ -1571,6 +1586,13 @@ def run_pheno_ranker(request: Any) -> Dict:
         command.extend(["-max-out", str(request.max_out)])
     if action == "compare" and mode == "patient" and request.align:
         command.extend(["--align", str(job_dir / "alignment")])
+    if mode == "cohort" and bool(getattr(request, "render_graph", False)):
+        command.extend([
+            "-cytoscape-json",
+            str(job_dir / "graph.json"),
+            "-graph-stats",
+            str(job_dir / "graph_stats.txt"),
+        ])
 
     proc = subprocess.run(command, cwd=job_dir, capture_output=True, text=True, check=False)
     write_step_logs(job_dir, "pheno_ranker_main", command, proc)

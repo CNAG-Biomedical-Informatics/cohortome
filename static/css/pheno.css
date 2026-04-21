@@ -346,6 +346,50 @@
         background: var(--cohort-color);
         box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
       }
+      .pheno-graph-controls {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin: 0 0 12px;
+      }
+      .pheno-graph-threshold-label {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: min(320px, 100%);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .pheno-graph-select-label {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 132px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .pheno-graph-select-label select {
+        min-width: 120px;
+      }
+      .pheno-graph-checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+        padding-bottom: 4px;
+      }
+      .pheno-graph-checkbox input[type="checkbox"] {
+        width: auto;
+      }
+      .pheno-graph-threshold-label input[type="range"] {
+        width: min(360px, 100%);
+      }
       .pheno-mds-plot {
         width: 100%;
         min-height: 440px;
@@ -353,6 +397,9 @@
         border: 1px solid var(--line);
         overflow: hidden;
         background: rgba(255, 255, 255, 0.92);
+      }
+      .pheno-graph-plot {
+        min-height: 520px;
       }
       .pheno-preview-grid img {
         width: 100%;

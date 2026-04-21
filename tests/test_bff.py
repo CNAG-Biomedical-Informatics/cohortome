@@ -976,6 +976,7 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
             align=False,
             render_heatmap=False,
             render_mds=False,
+            render_graph=False,
         )
     )
 
@@ -2744,6 +2745,7 @@ def test_submit_pheno_job_creates_user_scoped_record_and_returns_queued_payload(
             "align": True,
             "render_heatmap": True,
             "render_mds": True,
+            "render_graph": True,
             "resolved_sample_count": 1800,
         },
     )
@@ -2757,6 +2759,7 @@ def test_submit_pheno_job_creates_user_scoped_record_and_returns_queued_payload(
     assert record["dataset_id"] == "default"
     assert record["selected_saved_cohort_ids"] == ["cohort-a"]
     assert record["resolved_sample_count"] == 1800
+    assert record["render_graph"] is True
     assert record["rq_job_id"] == "rq-pheno-1"
 
 
@@ -6526,6 +6529,13 @@ def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
     assert extract_plan["plan"]["selected_patient_ids"] == "SYN001,SYN002"
     assert extract_plan["plan"]["render_heatmap"] is False
     assert extract_plan["plan"]["render_mds"] is False
+    assert extract_plan["plan"]["render_graph"] is False
+
+    graph_plan = pheno_module.plan_pheno_ranker_deterministic(
+        "Compare all patients and render a cytoscape graph network",
+        str(tmp_path),
+    )
+    assert graph_plan["plan"]["render_graph"] is True
 
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
@@ -6592,6 +6602,7 @@ def test_pheno_execution_steps_attach_and_llm_planner(monkeypatch, tmp_path):
                                 "align": True,
                                 "render_heatmap": True,
                                 "render_mds": False,
+                                "render_graph": True,
                                 "reasoning": "Planned by LM Studio.",
                             }
                         )
@@ -6607,6 +6618,7 @@ def test_pheno_execution_steps_attach_and_llm_planner(monkeypatch, tmp_path):
     assert llm_plan["plan"]["include_terms"] == ["diseases", "phenotypicFeatures"]
     assert llm_plan["plan"]["exclude_terms"] == ["measures"]
     assert llm_plan["plan"]["render_mds"] is False
+    assert llm_plan["plan"]["render_graph"] is False
 
 
 def test_pheno_rank_and_alignment_helper_stack(tmp_path):

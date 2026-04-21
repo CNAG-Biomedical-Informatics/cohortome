@@ -94,6 +94,7 @@ class PhenoRankerRequest(BaseModel):
     align: bool = Field(default=True, description="Whether to compute term alignment details.")
     render_heatmap: bool = Field(default=True, description="Whether to generate the interactive heatmap artifact.")
     render_mds: bool = Field(default=True, description="Whether to generate the interactive MDS artifact.")
+    render_graph: bool = Field(default=False, description="Whether to generate the interactive Cytoscape graph artifact.")
     granularity_ceiling: str = Field(default="detailed", description="Internal workspace ceiling used to guard Pheno-Ranker access.")
     ai_provider_access: str = Field(default="detailed_allowed", description="Effective AI provider policy used for Pheno-Ranker planner/explanation paths.")
 
