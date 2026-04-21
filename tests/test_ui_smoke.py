@@ -1097,7 +1097,8 @@ def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> No
     _mock_cohort_run(page, metric="jaccard", request_capture=request_capture)
 
     page.locator("#phenoPrompt").fill("Compare all patients by phenotypicFeatures and diseases")
-    page.locator("summary").filter(has_text="Advanced options").click()
+    page.locator("#phenoTab summary").filter(has_text="Setup").click()
+    page.locator("#phenoTab summary").filter(has_text="Advanced options").click()
     page.locator("#phenoSimilarityMetric").select_option("jaccard")
 
     expect(page.locator("#phenoManualOverrideNote")).to_be_visible()

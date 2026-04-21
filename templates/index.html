@@ -517,8 +517,124 @@
       <section id="phenoTab" class="tab-panel">
         <div class="controls">
           <label for="phenoMode">Pheno-Ranker</label>
-          <div class="section-note">Uses the selected data directory and current scope.</div>
-          <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
+          <details class="pheno-setup-card">
+            <summary class="pheno-setup-summary">
+              <div class="pheno-setup-summary-copy">
+                <strong>Setup</strong>
+                <span class="section-note">Scope, saved cohorts, and advanced run options.</span>
+              </div>
+              <div class="pheno-setup-summary-body">
+                <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
+                <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
+              </div>
+            </summary>
+            <div class="pheno-setup-body">
+              <div>
+                <label for="phenoSelectedPatientIds">Scope</label>
+                <input id="phenoSelectedPatientIds" placeholder="Full workspace by default, or provide a subset like SYN007,SYN008,SYN009">
+              </div>
+              <details class="pheno-setup-saved-cohorts">
+                <summary class="pheno-setup-saved-cohorts-header">
+                  <span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span>
+                </summary>
+                <div id="phenoSavedCohortsSelection" class="section-note">No saved cohorts attached as separate references.</div>
+                <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
+              </details>
+              <details class="query-section pheno-advanced-options">
+                <summary>Advanced options</summary>
+                <div class="pheno-advanced-grid">
+                  <div class="pheno-grid">
+                    <div>
+                      <label for="phenoAction">Action</label>
+                      <select id="phenoAction">
+                        <option value="compare">Compare</option>
+                        <option value="extract">Extract patients of interest</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="phenoMode">Mode</label>
+                      <select id="phenoMode">
+                        <option value="cohort">Cohort mode (-r)</option>
+                        <option value="patient">Patient mode (-r -t)</option>
+                      </select>
+                    </div>
+                    <div id="phenoPatientField" class="is-hidden">
+                      <label for="phenoPatientId">Patient ID</label>
+                      <input id="phenoPatientId" placeholder="SYN007:week_0">
+                    </div>
+                    <div>
+                      <label for="phenoIncludeTerms">Include terms</label>
+                      <input id="phenoIncludeTerms" placeholder="diseases,phenotypicFeatures,treatments">
+                    </div>
+                    <div>
+                      <label for="phenoExcludeTerms">Exclude terms</label>
+                      <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures,id">
+                    </div>
+                    <div>
+                      <label for="phenoSimilarityMetric">Cohort metric</label>
+                      <select id="phenoSimilarityMetric">
+                        <option value="">Default</option>
+                        <option value="hamming">Hamming</option>
+                        <option value="jaccard">Jaccard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="phenoSortBy">Sort by</label>
+                      <select id="phenoSortBy">
+                        <option value="">Default</option>
+                        <option value="hamming">Hamming</option>
+                        <option value="jaccard">Jaccard</option>
+                      </select>
+                    </div>
+                    <div id="phenoMaxOutField">
+                      <label for="phenoMaxOut">Max output rows</label>
+                      <input id="phenoMaxOut" type="number" min="1" value="10">
+                    </div>
+                  </div>
+                  <div class="pheno-checks is-hidden" id="phenoAlignChecks">
+                    <label><input id="phenoAlign" type="checkbox" checked> Generate alignment files (--align)</label>
+                  </div>
+                  <div class="pheno-checks" id="phenoPlotChecks">
+                    <label><input id="phenoRenderHeatmap" type="checkbox" checked> Render heatmap</label>
+                    <label><input id="phenoRenderMds" type="checkbox" checked> Render MDS</label>
+                    <label><input id="phenoRenderGraph" type="checkbox"> Render graph</label>
+                  </div>
+                </div>
+              </details>
+              <div class="pheno-actions pheno-actions-primary pheno-setup-actions">
+                <button id="phenoPlanBtn" type="button" class="query-chip">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M12 4h9"></path>
+                      <path d="M3 5h4"></path>
+                      <path d="M3 12h18"></path>
+                      <path d="M3 19h4"></path>
+                      <path d="m7 4 4 8-4 8"></path>
+                    </svg>
+                  </span>
+                  <span>Preview plan</span>
+                </button>
+              </div>
+              <div id="phenoManualOverrideNote" class="pheno-manual-override-note is-hidden">Manual form changes are active. Run Pheno-Ranker will use the edited form values, not the last interpreted plan.</div>
+              <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
+              <div class="pheno-result-card pheno-setup-plan-card">
+                <details id="phenoPlanDetails">
+                  <summary><h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V18h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 2z"></path></svg></span><span>Plan preview</span></h3></summary>
+                  <div class="pheno-interpretation-grid">
+                    <div>
+                      <h4>Interpreted Plan</h4>
+                      <pre id="phenoPlan">No interpreted plan yet.</pre>
+                    </div>
+                    <div>
+                      <h4>Planner Reasoning</h4>
+                      <div id="phenoPlanReasoning" class="empty">No planner reasoning yet.</div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </details>
           <div id="phenoBackgroundJobBanner" class="saved-cohort-inline-status pheno-background-job-banner is-hidden"></div>
           <div class="query-section">
             <label for="phenoPrompt">Describe run</label>
@@ -534,30 +650,7 @@
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare all patients using the most informative top-level terms and generate both plots">Use the most informative top-level terms</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the current scope and focus on the clinically most relevant similarities">Focus on clinically relevant similarities</button>
             </div>
-            <div style="margin-top:12px;">
-              <label for="phenoSelectedPatientIds">Scope</label>
-              <input id="phenoSelectedPatientIds" placeholder="Full workspace by default, or provide a subset like SYN007,SYN008,SYN009">
-              <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
-            </div>
-            <details class="query-section" style="margin-top:12px;">
-              <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="M16 17V3"></path><path d="M11 7H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path></svg></span><span>Saved Cohorts</span></span></summary>
-              <div id="phenoSavedCohortsSelection" class="section-note">No saved cohorts attached as separate references.</div>
-              <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
-            </details>
             <div class="pheno-actions pheno-actions-primary" style="margin-top:12px;">
-              <button id="phenoPlanBtn" type="button" class="query-chip">
-                <span class="button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9"></path>
-                    <path d="M12 4h9"></path>
-                    <path d="M3 5h4"></path>
-                    <path d="M3 12h18"></path>
-                    <path d="M3 19h4"></path>
-                    <path d="m7 4 4 8-4 8"></path>
-                  </svg>
-                </span>
-                <span>Preview plan</span>
-              </button>
               <button id="phenoRunBtn" type="button">
                 <span class="button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -570,85 +663,7 @@
             <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
             <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
             <div id="phenoPlanMeta" class="query-meta"></div>
-            <div id="phenoManualOverrideNote" class="pheno-manual-override-note is-hidden">Manual form changes are active. Run Pheno-Ranker will use the edited form values, not the last interpreted plan.</div>
-            <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
           </div>
-          <div class="pheno-result-card">
-            <details id="phenoPlanDetails">
-              <summary><h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V18h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 2z"></path></svg></span><span>Plan preview</span></h3></summary>
-              <div class="pheno-interpretation-grid">
-                <div>
-                  <h4>Interpreted Plan</h4>
-                  <pre id="phenoPlan">No interpreted plan yet.</pre>
-                </div>
-                <div>
-                  <h4>Planner Reasoning</h4>
-                  <div id="phenoPlanReasoning" class="empty">No planner reasoning yet.</div>
-                </div>
-              </div>
-            </details>
-          </div>
-          <details class="query-section">
-            <summary>Advanced options</summary>
-            <div class="pheno-advanced-grid">
-              <div class="pheno-grid">
-                <div>
-                  <label for="phenoAction">Action</label>
-                  <select id="phenoAction">
-                    <option value="compare">Compare</option>
-                    <option value="extract">Extract patients of interest</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="phenoMode">Mode</label>
-                  <select id="phenoMode">
-                    <option value="cohort">Cohort mode (-r)</option>
-                    <option value="patient">Patient mode (-r -t)</option>
-                  </select>
-                </div>
-                <div id="phenoPatientField" class="is-hidden">
-                  <label for="phenoPatientId">Patient ID</label>
-                  <input id="phenoPatientId" placeholder="SYN007:week_0">
-                </div>
-                <div>
-                  <label for="phenoIncludeTerms">Include terms</label>
-                  <input id="phenoIncludeTerms" placeholder="diseases,phenotypicFeatures,treatments">
-                </div>
-                <div>
-                  <label for="phenoExcludeTerms">Exclude terms</label>
-                  <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures,id">
-                </div>
-                <div>
-                  <label for="phenoSimilarityMetric">Cohort metric</label>
-                  <select id="phenoSimilarityMetric">
-                    <option value="">Default</option>
-                    <option value="hamming">Hamming</option>
-                    <option value="jaccard">Jaccard</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="phenoSortBy">Sort by</label>
-                  <select id="phenoSortBy">
-                    <option value="">Default</option>
-                    <option value="hamming">Hamming</option>
-                    <option value="jaccard">Jaccard</option>
-                  </select>
-                </div>
-                <div id="phenoMaxOutField">
-                  <label for="phenoMaxOut">Max output rows</label>
-                  <input id="phenoMaxOut" type="number" min="1" value="10">
-                </div>
-              </div>
-              <div class="pheno-checks is-hidden" id="phenoAlignChecks">
-                <label><input id="phenoAlign" type="checkbox" checked> Generate alignment files (--align)</label>
-              </div>
-              <div class="pheno-checks" id="phenoPlotChecks">
-                <label><input id="phenoRenderHeatmap" type="checkbox" checked> Render heatmap</label>
-                <label><input id="phenoRenderMds" type="checkbox" checked> Render MDS</label>
-                <label><input id="phenoRenderGraph" type="checkbox"> Render graph</label>
-              </div>
-            </div>
-          </details>
           <div id="phenoStatus" class="pheno-status">Choose a mode and run Pheno-Ranker.</div>
           <div id="phenoResultEmptyState" class="pheno-result-card pheno-empty-state">
             <strong>No run yet.</strong>

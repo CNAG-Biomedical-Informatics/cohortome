@@ -165,14 +165,10 @@
       .analysis-setup-summary::after,
       .analysis-setup-saved-cohorts-header::after,
       .analysis-catalog-disclosure-summary::after {
-        content: "";
-        width: 10px;
-        height: 10px;
-        border-right: 1.8px solid rgba(71, 85, 105, 0.9);
-        border-bottom: 1.8px solid rgba(71, 85, 105, 0.9);
-        transform: rotate(45deg);
-        transform-origin: center;
-        transition: transform 140ms ease;
+        content: "▸";
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1;
         align-self: center;
         flex: 0 0 auto;
       }
@@ -183,7 +179,7 @@
       .analysis-setup-card[open] > .analysis-setup-summary::after,
       .analysis-setup-saved-cohorts[open] > .analysis-setup-saved-cohorts-header::after,
       .analysis-catalog-disclosure[open] > .analysis-catalog-disclosure-summary::after {
-        transform: rotate(-135deg);
+        content: "▾";
       }
       .analysis-setup-body .analysis-starter-panel {
         padding: 0;
