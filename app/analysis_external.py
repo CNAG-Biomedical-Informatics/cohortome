@@ -23,6 +23,7 @@ RSCRIPT_RUNNERS = {
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
     "molecular_differential_expression": SCRIPTS_DIR / "analysis_r_differential_expression.R",
     "molecular_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
+    "molecular_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
 }
 SNAKEMAKE_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
@@ -724,6 +725,50 @@ def run_rscript_analysis(
                 str(temp_path / "summary.json"),
                 "--plot-file",
                 str(temp_path / "volcano_plot.png"),
+                "--heatmap-file",
+                str(temp_path / "top_genes_heatmap.png"),
+                "--heatmap-table",
+                str(temp_path / "top_genes_heatmap.tsv"),
+                "--heatmap-clustering",
+                str(temp_path / "top_genes_heatmap_clustering.json"),
+            ]
+        elif runner_ref == "molecular_hallmark_pathway_enrichment":
+            bundle = _prepare_molecular_differential_expression_bundle(
+                data_dir,
+                prompt=prompt,
+                molecular_dataset_name=molecular_dataset_name,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+                method="deseq2_fgsea_hallmark",
+                minimum_samples_per_group=2,
+            )
+            _validate_deseq2_bundle(bundle)
+            command = [
+                binary,
+                str(script_path),
+                "--job-dir",
+                str(temp_path),
+                "--manifest",
+                str(bundle["manifest_path"]),
+                "--params",
+                str(bundle["params_path"]),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--counts-matrix",
+                str(bundle["counts_matrix_path"]),
+                "--results-table",
+                str(temp_path / "pathway_results.tsv"),
+                "--rankings-table",
+                str(temp_path / "gene_rankings.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "pathway_plot.png"),
             ]
         else:
             raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")

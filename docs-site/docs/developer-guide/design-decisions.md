@@ -245,6 +245,10 @@ Consequence:
 - built-in analyses and curated external analyses share the same Analysis tab
 - quick prompts still exist for lighter analysis questions
 - the catalog may choose between synchronous and queued execution without changing the Analysis UX model
+- molecular tools can require a stricter contract than prompt-based interpretation
+  - one selected raw-count dataset
+  - compare mode
+  - sample-level compatibility checks
 
 ## 14. External analysis runners are curated, not arbitrary code execution
 

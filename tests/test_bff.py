@@ -2181,12 +2181,18 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
         volcano_path = Path(command[command.index("--volcano-table") + 1])
         summary_path = Path(command[command.index("--summary-json") + 1])
         plot_path = Path(command[command.index("--plot-file") + 1])
-        for path in (results_path, volcano_path, summary_path, plot_path):
+        heatmap_path = Path(command[command.index("--heatmap-file") + 1])
+        heatmap_table_path = Path(command[command.index("--heatmap-table") + 1])
+        heatmap_clustering_path = Path(command[command.index("--heatmap-clustering") + 1])
+        for path in (results_path, volcano_path, summary_path, plot_path, heatmap_path, heatmap_table_path, heatmap_clustering_path):
             path.parent.mkdir(parents=True, exist_ok=True)
         results_path.write_text("gene_id\tbase_mean\tlog2_fold_change\tadj_p_value\nGENE1\t100\t2.3\t0.001\n", encoding="utf-8")
         volcano_path.write_text("gene_id\tlog2_fold_change\tp_value\tadj_p_value\tneg_log10_p\nGENE1\t2.3\t1e-5\t0.001\t5\n", encoding="utf-8")
         summary_path.write_text('{"significant_gene_count":1,"shrinkage_method":"apeglm"}\n', encoding="utf-8")
         plot_path.write_text("png", encoding="utf-8")
+        heatmap_path.write_text("png", encoding="utf-8")
+        heatmap_table_path.write_text("gene_id\tSYN001:baseline\tSYN002:baseline\tSYN003:baseline\tSYN004:baseline\nGENE1\t1.2\t1.0\t-1.1\t-1.0\n", encoding="utf-8")
+        heatmap_clustering_path.write_text('{"order":[1],"merge":[],"height":[],"labels":["GENE1"]}\n', encoding="utf-8")
         payload = {
             "reply": "### External R DESeq2 differential expression\n\n- Significant genes (BH < 0.05): 1",
             "context": {
@@ -2228,6 +2234,9 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
     assert (job_dir / "volcano_points.tsv").exists()
     assert (job_dir / "summary.json").exists()
     assert (job_dir / "volcano_plot.png").exists()
+    assert (job_dir / "top_genes_heatmap.png").exists()
+    assert (job_dir / "top_genes_heatmap.tsv").exists()
+    assert (job_dir / "top_genes_heatmap_clustering.json").exists()
 
 
 def test_analysis_external_rscript_molecular_deseq2_runner_rejects_repeated_patient_samples(tmp_path):
@@ -2268,6 +2277,142 @@ def test_analysis_external_rscript_molecular_deseq2_runner_rejects_repeated_pati
                 selected_patient_ids="SYN001:week_0,SYN001:week_2",
                 compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
                 job_dir=tmp_path / "job-output-deseq2-invalid",
+                timeout_seconds=60,
+            )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+
+def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN002:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN003:baseline", "event_date": "2024-01-01"},
+            {"id": "SYN004:baseline", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001:baseline;SYN002:baseline;SYN003:baseline;SYN004:baseline",
+                "ENSG00000111111;120;118;5;7",
+                "ENSG00000122222;9;11;96;101",
+                "ENSG00000133333;40;42;38;39",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    def fake_run(command, **kwargs):
+        results_path = Path(command[command.index("--results-table") + 1])
+        rankings_path = Path(command[command.index("--rankings-table") + 1])
+        summary_path = Path(command[command.index("--summary-json") + 1])
+        plot_path = Path(command[command.index("--plot-file") + 1])
+        for path in (results_path, rankings_path, summary_path, plot_path):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        results_path.write_text("pathway\tNES\tpadj\tleadingEdge\nHALLMARK_TNFA_SIGNALING_VIA_NFKB\t2.1\t0.01\tENSG1,ENSG2\n", encoding="utf-8")
+        rankings_path.write_text("gene_id\tstatistic\tlog2_fold_change\tadjusted_p_value\nENSG1\t4.2\t1.8\t0.01\n", encoding="utf-8")
+        summary_path.write_text('{"significant_pathway_count":1,"pathway_collection":"MSigDB Hallmark"}\n', encoding="utf-8")
+        plot_path.write_text("png", encoding="utf-8")
+        payload = {
+            "reply": "### Hallmark pathway enrichment\n\n- Significant pathways (BH < 0.05): 1",
+            "context": {
+                "mode": "external_rscript_molecular_hallmark_pathway_enrichment",
+                "runner": "molecular_hallmark_pathway_enrichment",
+                "dataset_name": "synthetic_transcriptome_raw_counts",
+                "cohort_a_sample_count": 2,
+                "cohort_b_sample_count": 2,
+                "ranked_gene_count": 3,
+                "pathway_count": 50,
+                "significant_pathway_count": 1,
+                "pathway_collection": "MSigDB Hallmark",
+                "top_positive_pathways": ["HALLMARK_TNFA_SIGNALING_VIA_NFKB"],
+                "top_negative_pathways": [],
+                "top_positive_pathway_labels": ["TNFA Signaling Via NFKB"],
+                "top_negative_pathway_labels": [],
+            },
+        }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(analysis_external_module.subprocess, "run", fake_run)
+
+    try:
+        job_dir = tmp_path / "job-output-pathway"
+        payload = analysis_external_module.run_rscript_analysis(
+            "molecular_hallmark_pathway_enrichment",
+            prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+            data_dir=str(tmp_path),
+            molecular_dataset_name="synthetic_transcriptome_raw_counts",
+            selected_patient_ids="SYN001,SYN002",
+            compare_selected_patient_ids="SYN003,SYN004",
+            job_dir=job_dir,
+            timeout_seconds=60,
+        )
+    finally:
+        query_store_module.MOLECULAR_DATA_DIR = original_dir
+
+    assert payload["intent"] == "analysis_external_rscript"
+    assert payload["data"]["runner_ref"] == "molecular_hallmark_pathway_enrichment"
+    assert payload["data"]["context"]["mode"] == "external_rscript_molecular_hallmark_pathway_enrichment"
+    assert payload["data"]["context"]["pathway_collection"] == "MSigDB Hallmark"
+    assert payload["data"]["context"]["top_positive_pathway_labels"] == ["TNFA Signaling Via NFKB"]
+    assert (job_dir / "pathway_results.tsv").exists()
+    assert (job_dir / "gene_rankings.tsv").exists()
+    assert (job_dir / "summary.json").exists()
+    assert (job_dir / "pathway_plot.png").exists()
+
+
+def test_analysis_external_rscript_molecular_hallmark_pathway_runner_rejects_repeated_patient_samples(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN001:week_2", "event_date": "2024-01-15"},
+            {"id": "SYN002:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN002:week_2", "event_date": "2024-01-15"},
+            {"id": "SYN003:week_0", "event_date": "2024-01-01"},
+            {"id": "SYN004:week_0", "event_date": "2024-01-01"},
+        ],
+    )
+
+    original_dir = query_store_module.MOLECULAR_DATA_DIR
+    molecular_dir = tmp_path / "molecular"
+    molecular_dir.mkdir()
+    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2;SYN003:week_0;SYN004:week_0",
+                "ENSG00000111111;100;120;90;110;5;7",
+                "ENSG00000122222;6;8;7;9;90;110",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    try:
+        with pytest.raises(RuntimeError, match="one sample per patient"):
+            analysis_external_module.run_rscript_analysis(
+                "molecular_hallmark_pathway_enrichment",
+                prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+                data_dir=str(tmp_path),
+                molecular_dataset_name="synthetic_transcriptome_raw_counts",
+                selected_patient_ids="SYN001:week_0,SYN001:week_2",
+                compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
+                job_dir=tmp_path / "job-output-pathway-invalid",
                 timeout_seconds=60,
             )
     finally:

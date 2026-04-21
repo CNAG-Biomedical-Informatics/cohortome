@@ -23,15 +23,37 @@ export function createAnalysisUi(ctx) {
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
 
-  function isDifferentialExpressionCatalogItem(itemId) {
+  function requiresSingleSelectedMolecularDataset(itemId) {
     const normalized = String(itemId || "").trim();
-    return normalized === "molecular-differential-expression" || normalized === "molecular-deseq2-differential-expression";
+    return normalized === "molecular-differential-expression"
+      || normalized === "molecular-deseq2-differential-expression"
+      || normalized === "molecular-hallmark-pathway-enrichment";
   }
 
   function isDifferentialExpressionContextMode(mode) {
     const normalized = String(mode || "").trim();
     return normalized === "external_rscript_molecular_differential_expression"
       || normalized === "external_rscript_molecular_deseq2_differential_expression";
+  }
+
+  function isPathwayEnrichmentContextMode(mode) {
+    return String(mode || "").trim() === "external_rscript_molecular_hallmark_pathway_enrichment";
+  }
+
+  function prettyHallmarkLabel(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const withoutPrefix = raw.replace(/^HALLMARK_/, "");
+    return withoutPrefix
+      .split("_")
+      .filter(Boolean)
+      .map((part) => {
+        const upper = part.toUpperCase();
+        if (["TNFA", "NFKB", "IL2", "MTOR", "PI3K", "AKT", "DNA", "UV"].includes(upper)) return upper;
+        const lower = part.toLowerCase();
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
   }
 
   function plotPlaceholder(id, height = 320) {
@@ -113,10 +135,13 @@ export function createAnalysisUi(ctx) {
     if (!context) return '<div class="empty">No analysis plots available.</div>';
     if (isDifferentialExpressionContextMode(context.mode)) {
       const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_plot.png");
+      const heatmapArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap.png");
+      const heatmapTableArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap.tsv");
+      const heatmapClusteringArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap_clustering.json");
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "de_results.tsv");
       const volcanoArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_points.tsv");
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
-      const downloads = [plotArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]
+      const downloads = [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]
         .filter(Boolean)
         .map((item) => `<a class="query-chip" href="${escapeHtml(String(item.url || ""))}" target="_blank" rel="noopener">${escapeHtml(String(item.name || ""))}</a>`)
         .join("");
@@ -143,7 +168,47 @@ export function createAnalysisUi(ctx) {
           </div>
           <div class="analysis-catalog-tags" style="margin-top:12px;">${downloads}</div>
         </div>
+        ${heatmapArtifact ? `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Top Differentially Expressed Genes Heatmap</h3><p class="section-note">Standardized expression heatmap for the top DESeq2-ranked genes across both cohorts.</p><div class="analysis-heatmap-legend" aria-label="Heatmap legend"><span class="analysis-heatmap-legend-label">Lower expression</span><span class="analysis-heatmap-legend-scale" aria-hidden="true"></span><span class="analysis-heatmap-legend-label">Higher expression</span></div><p class="section-note">Blue means lower relative expression for that gene, white is near the gene-level average, and red means higher relative expression.</p><div class="analysis-view-tabs" role="tablist" aria-label="Differential expression heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${heatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${heatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(heatmapArtifact.url || ""))}" alt="Top differentially expressed genes heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}">${heatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>top_genes_heatmap.tsv</code>. The canonical artifact remains <code>top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div>` : ""}
         ${renderBarChartCard(`analysis-plot-${turnIndex}-de-summary`, "Differential Expression Summary", summaryItems, "label", "value")}
+      `;
+    }
+    if (isPathwayEnrichmentContextMode(context.mode)) {
+      const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "pathway_plot.png");
+      const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "pathway_results.tsv");
+      const rankingsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "gene_rankings.tsv");
+      const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
+      const downloads = [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]
+        .filter(Boolean)
+        .map((item) => `<a class="query-chip" href="${escapeHtml(String(item.url || ""))}" target="_blank" rel="noopener">${escapeHtml(String(item.name || ""))}</a>`)
+        .join("");
+      const summaryItems = [
+        { label: "Dataset", value: String(context.dataset_name || "n/a") },
+        { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
+        { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
+        { label: "Ranked genes", value: Number(context.ranked_gene_count || 0) },
+        { label: "Pathways tested", value: Number(context.pathway_count || 0) },
+        { label: "Significant pathways", value: Number(context.significant_pathway_count || 0) },
+      ];
+      const positiveText = Array.isArray(context.top_positive_pathway_labels) && context.top_positive_pathway_labels.length
+        ? context.top_positive_pathway_labels.map((item) => prettyHallmarkLabel(item)).join(", ")
+        : Array.isArray(context.top_positive_pathways) && context.top_positive_pathways.length
+          ? context.top_positive_pathways.map((item) => prettyHallmarkLabel(item)).join(", ")
+          : "none at BH < 0.05";
+      const negativeText = Array.isArray(context.top_negative_pathway_labels) && context.top_negative_pathway_labels.length
+        ? context.top_negative_pathway_labels.map((item) => prettyHallmarkLabel(item)).join(", ")
+        : Array.isArray(context.top_negative_pathways) && context.top_negative_pathways.length
+          ? context.top_negative_pathways.map((item) => prettyHallmarkLabel(item)).join(", ")
+          : "none at BH < 0.05";
+      return `
+        <div class="viz-card" style="grid-column: 1 / -1;">
+          <h3>Hallmark Pathway Enrichment</h3>
+          <p class="section-note">MSigDB Hallmark enrichment for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))} using a DESeq2-ranked comparison.</p>
+          <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
+          <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
+          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
+          <div class="analysis-catalog-tags" style="margin-top:12px;">${downloads}</div>
+        </div>
+        ${renderBarChartCard(`analysis-plot-${turnIndex}-pathway-summary`, "Pathway Enrichment Summary", summaryItems, "label", "value")}
       `;
     }
     if (context.mode === "molecular_medication_compare") {
@@ -456,6 +521,14 @@ export function createAnalysisUi(ctx) {
     });
   }
 
+  async function loadJsonArtifact(url) {
+    const response = await fetch(String(url || ""));
+    if (!response.ok) {
+      throw new Error("Unable to load interactive plot metadata.");
+    }
+    return response.json();
+  }
+
   function buildDifferentialExpressionVolcanoPlot(points, datasetName) {
     const rows = (Array.isArray(points) ? points : []).filter((item) => item && item.gene_id !== undefined);
     const colors = rows.map((item) => {
@@ -528,6 +601,200 @@ export function createAnalysisUi(ctx) {
     };
   }
 
+  function buildDifferentialExpressionHeatmap(rows, datasetName) {
+    const matrixRows = Array.isArray(rows) ? rows.filter((item) => item && Object.keys(item).length) : [];
+    const sampleNames = matrixRows.length
+      ? Object.keys(matrixRows[0]).filter((key) => key !== "gene_id")
+      : [];
+    const topMargin = 32;
+    const bottomMargin = 120;
+    return {
+      traces: [{
+        type: "heatmap",
+        x: sampleNames,
+        y: matrixRows.map((item) => String(item.gene_id || "")),
+        z: matrixRows.map((item) => sampleNames.map((sample) => {
+          const value = Number(item[sample]);
+          return Number.isFinite(value) ? value : null;
+        })),
+        colorscale: [
+          [0, "#2563eb"],
+          [0.5, "#f8fafc"],
+          [1, "#dc2626"],
+        ],
+        zmid: 0,
+        showscale: false,
+        hovertemplate: "Gene: %{y}<br>Sample: %{x}<br>Scaled expression: %{z:.2f}<extra></extra>",
+      }],
+      layout: basePlotLayout({
+        margin: { t: topMargin, r: 120, b: bottomMargin, l: 24 },
+        title: datasetName ? { text: datasetName, font: { color: "#61758c", size: 12 } } : undefined,
+        xaxis: {
+          ...basePlotLayout().xaxis,
+          tickangle: -35,
+          side: "bottom",
+        },
+        yaxis: {
+          ...basePlotLayout().yaxis,
+          automargin: true,
+          side: "right",
+        },
+      }),
+    };
+  }
+
+  function euclideanDistance(valuesA, valuesB) {
+    let total = 0;
+    for (let index = 0; index < valuesA.length; index += 1) {
+      const delta = Number(valuesA[index] || 0) - Number(valuesB[index] || 0);
+      total += delta * delta;
+    }
+    return Math.sqrt(total);
+  }
+
+  function clusterDistance(leftCluster, rightCluster, pairwiseDistances) {
+    let maxDistance = 0;
+    leftCluster.members.forEach((leftMember) => {
+      rightCluster.members.forEach((rightMember) => {
+        const key = leftMember < rightMember ? `${leftMember}:${rightMember}` : `${rightMember}:${leftMember}`;
+        maxDistance = Math.max(maxDistance, Number(pairwiseDistances.get(key) || 0));
+      });
+    });
+    return maxDistance;
+  }
+
+  function buildHeatmapRowCluster(matrixRows, sampleNames) {
+    if (!Array.isArray(matrixRows) || matrixRows.length < 2 || !Array.isArray(sampleNames) || !sampleNames.length) {
+      return null;
+    }
+    const pairwiseDistances = new Map();
+    matrixRows.forEach((row, index) => {
+      const leftValues = sampleNames.map((sample) => Number(row[sample] || 0));
+      for (let rightIndex = index + 1; rightIndex < matrixRows.length; rightIndex += 1) {
+        const rightValues = sampleNames.map((sample) => Number(matrixRows[rightIndex][sample] || 0));
+        pairwiseDistances.set(`${index}:${rightIndex}`, euclideanDistance(leftValues, rightValues));
+      }
+    });
+    let nextClusterId = matrixRows.length;
+    let clusters = matrixRows.map((row, index) => ({
+      id: index,
+      members: [index],
+      height: 0,
+      left: null,
+      right: null,
+      label: String(row.gene_id || `Gene ${index + 1}`),
+    }));
+    while (clusters.length > 1) {
+      let bestPair = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let leftIndex = 0; leftIndex < clusters.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < clusters.length; rightIndex += 1) {
+          const distance = clusterDistance(clusters[leftIndex], clusters[rightIndex], pairwiseDistances);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPair = [leftIndex, rightIndex];
+          }
+        }
+      }
+      if (!bestPair) break;
+      const [leftIndex, rightIndex] = bestPair;
+      const leftCluster = clusters[leftIndex];
+      const rightCluster = clusters[rightIndex];
+      const mergedCluster = {
+        id: nextClusterId,
+        members: leftCluster.members.concat(rightCluster.members),
+        height: bestDistance,
+        left: leftCluster,
+        right: rightCluster,
+        label: "",
+      };
+      nextClusterId += 1;
+      clusters = clusters.filter((_, index) => index !== leftIndex && index !== rightIndex);
+      clusters.push(mergedCluster);
+    }
+    return clusters[0] || null;
+  }
+
+  function flattenHeatmapClusterOrder(node) {
+    if (!node) return [];
+    if (!node.left && !node.right) return [node.members[0]];
+    return flattenHeatmapClusterOrder(node.left).concat(flattenHeatmapClusterOrder(node.right));
+  }
+
+  function buildHeatmapClusterTreeFromR(payload) {
+    const labels = Array.isArray(payload && payload.labels) ? payload.labels.map((item) => String(item || "")) : [];
+    const merge = Array.isArray(payload && payload.merge) ? payload.merge : [];
+    const heights = Array.isArray(payload && payload.height) ? payload.height : [];
+    if (!labels.length || !merge.length || merge.length !== heights.length) return null;
+    const leafNodes = new Map();
+    labels.forEach((label, index) => {
+      leafNodes.set(index + 1, {
+        id: -(index + 1),
+        members: [index],
+        height: 0,
+        left: null,
+        right: null,
+        label,
+      });
+    });
+    const clusterNodes = new Map();
+    for (let index = 0; index < merge.length; index += 1) {
+      const pair = Array.isArray(merge[index]) ? merge[index] : [];
+      if (pair.length !== 2) return null;
+      const resolveNode = (value) => {
+        if (value < 0) return leafNodes.get(Math.abs(value)) || null;
+        return clusterNodes.get(value) || null;
+      };
+      const left = resolveNode(Number(pair[0]));
+      const right = resolveNode(Number(pair[1]));
+      if (!left || !right) return null;
+      clusterNodes.set(index + 1, {
+        id: index + 1,
+        members: left.members.concat(right.members),
+        height: Number(heights[index] || 0),
+        left,
+        right,
+        label: "",
+      });
+    }
+    return clusterNodes.get(merge.length) || null;
+  }
+
+  function buildHeatmapDendrogramSvg(clusterRoot, orderedRows) {
+    if (!clusterRoot || !Array.isArray(orderedRows) || orderedRows.length < 2) return "";
+    const width = 140;
+    const height = 520;
+    const paddingTop = 32;
+    const paddingBottom = 120;
+    const usableHeight = Math.max(height - paddingTop - paddingBottom, 80);
+    const rowHeight = usableHeight / orderedRows.length;
+    const leafY = new Map();
+    orderedRows.forEach((row, index) => {
+      leafY.set(String(row.gene_id || ""), paddingTop + index * rowHeight + rowHeight / 2);
+    });
+    const maxHeight = Math.max(Number(clusterRoot.height || 0), 1);
+    const lines = [];
+
+    function renderNode(node) {
+      if (!node.left && !node.right) {
+        return {
+          x: width,
+          y: leafY.get(String(node.label || "")) || paddingTop,
+        };
+      }
+      const left = renderNode(node.left);
+      const right = renderNode(node.right);
+      const x = width - (Number(node.height || 0) / maxHeight) * (width - 12);
+      lines.push(`<line x1="${x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${left.x.toFixed(2)}" y2="${left.y.toFixed(2)}"></line>`);
+      lines.push(`<line x1="${x.toFixed(2)}" y1="${right.y.toFixed(2)}" x2="${right.x.toFixed(2)}" y2="${right.y.toFixed(2)}"></line>`);
+      lines.push(`<line x1="${x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${x.toFixed(2)}" y2="${right.y.toFixed(2)}"></line>`);
+      return { x, y: (left.y + right.y) / 2 };
+    }
+
+    renderNode(clusterRoot);
+    return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Heatmap row dendrogram"><g class="analysis-heatmap-dendrogram-lines">${lines.join("")}</g></svg>`;
+  }
+
   async function mountDifferentialExpressionInteractivePlot(turnIndex, payload) {
     const panelEl = document.querySelector(`[data-de-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
     if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
@@ -556,6 +823,55 @@ export function createAnalysisUi(ctx) {
     }
   }
 
+  async function mountDifferentialExpressionInteractiveHeatmap(turnIndex, payload) {
+    const panelEl = document.querySelector(`[data-de-heatmap-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
+    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
+      return;
+    }
+    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-de-heatmap`);
+    if (!plotEl) return;
+    const artifactUrl = String(panelEl.dataset.heatmapUrl || "").trim();
+    if (!artifactUrl) {
+      plotEl.innerHTML = '<div class="empty">Interactive heatmap unavailable.</div>';
+      panelEl.dataset.loaded = "true";
+      return;
+    }
+    panelEl.dataset.loading = "true";
+    plotEl.innerHTML = '<div class="empty">Loading interactive heatmap...</div>';
+    try {
+      const clusteringUrl = String(panelEl.dataset.heatmapClusteringUrl || "").trim();
+      const [rows, clusteringPayload] = await Promise.all([
+        loadTabularArtifactRows(artifactUrl),
+        clusteringUrl ? loadJsonArtifact(clusteringUrl).catch(() => null) : Promise.resolve(null),
+      ]);
+      const context = payload && payload.data ? payload.data.context : null;
+      const sampleNames = rows.length ? Object.keys(rows[0]).filter((key) => key !== "gene_id") : [];
+      const exactClusterRoot = buildHeatmapClusterTreeFromR(clusteringPayload);
+      const exportedOrder = Array.isArray(clusteringPayload && clusteringPayload.order)
+        ? clusteringPayload.order.map((value) => Number(value) - 1).filter((value) => Number.isInteger(value) && value >= 0)
+        : [];
+      const fallbackClusterRoot = !exactClusterRoot ? buildHeatmapRowCluster(rows, sampleNames) : null;
+      const clusterRoot = exactClusterRoot || fallbackClusterRoot;
+      const rowOrder = exportedOrder.length
+        ? exportedOrder
+        : clusterRoot
+          ? flattenHeatmapClusterOrder(clusterRoot)
+          : rows.map((_, index) => index);
+      const orderedRows = rowOrder.map((index) => rows[index]).filter(Boolean);
+      const dendrogramEl = document.getElementById(`analysis-plot-${turnIndex}-de-heatmap-dendrogram`);
+      if (dendrogramEl) {
+        dendrogramEl.innerHTML = clusterRoot ? buildHeatmapDendrogramSvg(clusterRoot, orderedRows) : '<div class="empty">Dendrogram unavailable.</div>';
+      }
+      const heatmap = buildDifferentialExpressionHeatmap(orderedRows, context && context.dataset_name ? context.dataset_name : "");
+      mountPlot(`analysis-plot-${turnIndex}-de-heatmap`, heatmap.traces, heatmap.layout);
+      panelEl.dataset.loaded = "true";
+    } catch (_error) {
+      plotEl.innerHTML = '<div class="empty">Unable to render the interactive heatmap.</div>';
+    } finally {
+      panelEl.dataset.loading = "false";
+    }
+  }
+
   function mountAnalysisPlots() {
     state.analysisTurns.forEach((turn, turnIndex) => {
       if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
@@ -578,6 +894,17 @@ export function createAnalysisUi(ctx) {
           { label: "Significant genes", value: Number(context.significant_gene_count || 0) },
         ], "label", "value", "#2563eb");
         mountPlot(`analysis-plot-${turnIndex}-de-summary`, summary.traces, summary.layout);
+        return;
+      }
+      if (isPathwayEnrichmentContextMode(context.mode)) {
+        const summary = buildHorizontalBar([
+          { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
+          { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
+          { label: "Ranked genes", value: Number(context.ranked_gene_count || 0) },
+          { label: "Pathways tested", value: Number(context.pathway_count || 0) },
+          { label: "Significant pathways", value: Number(context.significant_pathway_count || 0) },
+        ], "label", "value", "#2563eb");
+        mountPlot(`analysis-plot-${turnIndex}-pathway-summary`, summary.traces, summary.layout);
         return;
       }
       if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
@@ -841,6 +1168,7 @@ export function createAnalysisUi(ctx) {
     return [
       "external_rscript_molecular_differential_expression",
       "external_rscript_molecular_deseq2_differential_expression",
+      "external_rscript_molecular_hallmark_pathway_enrichment",
       "molecular_medication_compare",
       "trajectory",
       "trajectory_response",
@@ -992,11 +1320,11 @@ export function createAnalysisUi(ctx) {
       state.analysisExecutionMode = "auto";
       return;
     }
-    if (isDifferentialExpressionCatalogItem(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length !== 1) {
+    if (requiresSingleSelectedMolecularDataset(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length !== 1) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = selectedMolecularDatasets.length
-        ? "Differential expression requires exactly one selected molecular dataset."
-        : "Select one molecular dataset before running differential expression.";
+        ? "This molecular tool requires exactly one selected molecular dataset."
+        : "Select one molecular dataset before running this molecular tool.";
       state.analysisExecutionMode = "auto";
       return;
     }
@@ -1085,25 +1413,49 @@ export function createAnalysisUi(ctx) {
     renderAnalysisThread,
     handleAnalysisPlotViewClick(event) {
       const button = event.target.closest("[data-de-view-btn]");
-      if (!button || !analysisThreadEl.contains(button) || button.disabled) return;
-      const turnIndex = String(button.dataset.turnIndex || "").trim();
-      const view = String(button.dataset.deViewBtn || "").trim();
-      if (!turnIndex || !view) return;
-      const allButtons = analysisThreadEl.querySelectorAll(`[data-de-view-btn][data-turn-index="${turnIndex}"]`);
-      const allPanels = analysisThreadEl.querySelectorAll(`[data-de-view-panel][data-turn-index="${turnIndex}"]`);
+      const heatmapButton = !button ? event.target.closest("[data-de-heatmap-view-btn]") : null;
+      const targetButton = button || heatmapButton;
+      if (!targetButton || !analysisThreadEl.contains(targetButton) || targetButton.disabled) return;
+      const turnIndex = String(targetButton.dataset.turnIndex || "").trim();
+      if (!turnIndex) return;
+      if (button) {
+        const view = String(button.dataset.deViewBtn || "").trim();
+        if (!view) return;
+        const allButtons = analysisThreadEl.querySelectorAll(`[data-de-view-btn][data-turn-index="${turnIndex}"]`);
+        const allPanels = analysisThreadEl.querySelectorAll(`[data-de-view-panel][data-turn-index="${turnIndex}"]`);
+        allButtons.forEach((item) => {
+          const active = item === button;
+          item.classList.toggle("is-active", active);
+          item.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        allPanels.forEach((panel) => {
+          panel.classList.toggle("is-active", String(panel.dataset.deViewPanel || "") === view);
+        });
+        if (view !== "interactive") return;
+        const index = Number(turnIndex);
+        const turn = Number.isInteger(index) ? state.analysisTurns[index] : null;
+        if (turn && turn.payload) {
+          void mountDifferentialExpressionInteractivePlot(index, turn.payload);
+        }
+        return;
+      }
+      const view = String(heatmapButton.dataset.deHeatmapViewBtn || "").trim();
+      if (!view) return;
+      const allButtons = analysisThreadEl.querySelectorAll(`[data-de-heatmap-view-btn][data-turn-index="${turnIndex}"]`);
+      const allPanels = analysisThreadEl.querySelectorAll(`[data-de-heatmap-view-panel][data-turn-index="${turnIndex}"]`);
       allButtons.forEach((item) => {
-        const active = item === button;
+        const active = item === heatmapButton;
         item.classList.toggle("is-active", active);
         item.setAttribute("aria-selected", active ? "true" : "false");
       });
       allPanels.forEach((panel) => {
-        panel.classList.toggle("is-active", String(panel.dataset.deViewPanel || "") === view);
+        panel.classList.toggle("is-active", String(panel.dataset.deHeatmapViewPanel || "") === view);
       });
       if (view === "interactive") {
         const index = Number(turnIndex);
         const turn = Number.isInteger(index) ? state.analysisTurns[index] : null;
         if (turn && turn.payload) {
-          void mountDifferentialExpressionInteractivePlot(index, turn.payload);
+          void mountDifferentialExpressionInteractiveHeatmap(index, turn.payload);
         }
       }
     },

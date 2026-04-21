@@ -128,6 +128,25 @@ items:
     requires_molecular: true
     tags: [molecular, differential-expression, deseq2, background, rscript]
 
+  - id: molecular-hallmark-pathway-enrichment
+    name: Hallmark pathway enrichment
+    category: Molecular
+    kind: pathway_enrichment
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 3600
+    runner_type: rscript
+    runner_ref: molecular_hallmark_pathway_enrichment
+    description: Run curated Hallmark pathway enrichment from a DESeq2-ranked comparison between Cohort A and Cohort B on one selected raw-count molecular dataset.
+    guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient, so baseline-only or one-sample-per-patient inputs are preferred.
+    default_prompt: Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    requires_detailed_access: true
+    requires_molecular: true
+    tags: [molecular, pathway-enrichment, hallmark, fgsea, background, rscript]
+
   - id: external-r-scope-snapshot
     name: External R cohort snapshot
     category: External

@@ -120,6 +120,23 @@ They can point to:
 - built-in Python analysis routes
 - curated external runners such as reviewed `Rscript`, `Snakemake`, or `Nextflow` integrations
 
+Current molecular tool pattern:
+
+- one selected raw-count molecular dataset
+- scoped `Cohort A` and `Cohort B`
+- Python materializes a job-local bundle
+  - `manifest.yaml`
+  - `params.yaml`
+  - `sample_table.tsv`
+  - `counts_matrix.tsv`
+- curated `Rscript` runners consume that bundle and return structured artifacts
+
+Current examples include:
+
+- lightweight external differential expression
+- `DESeq2` differential expression
+- Hallmark pathway enrichment using `DESeq2` ranking plus `fgsea`
+
 ### Pheno-Ranker
 
 Consumes workspace files and sample-level scope.

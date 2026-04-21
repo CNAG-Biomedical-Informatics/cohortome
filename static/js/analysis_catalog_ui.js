@@ -259,9 +259,11 @@ export function createAnalysisCatalogUi(ctx) {
       : null;
   }
 
-  function isDifferentialExpressionCatalogItem(item) {
+  function requiresSingleSelectedMolecularDataset(item) {
     const itemId = String(item && item.id ? item.id : "").trim();
-    return itemId === "molecular-differential-expression" || itemId === "molecular-deseq2-differential-expression";
+    return itemId === "molecular-differential-expression"
+      || itemId === "molecular-deseq2-differential-expression"
+      || itemId === "molecular-hallmark-pathway-enrichment";
   }
 
   function analysisCatalogUsageStorageKey() {
@@ -429,13 +431,13 @@ export function createAnalysisCatalogUi(ctx) {
       return;
     }
     const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
-    if (isDifferentialExpressionCatalogItem(item)) {
+    if (requiresSingleSelectedMolecularDataset(item)) {
       if (selectedDatasetNames.length === 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}. This differential-expression tool will use the selected transcriptomics matrix.`;
+        analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}. This molecular tool will use the selected transcriptomics matrix.`;
       } else if (selectedDatasetNames.length > 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected ${selectedDatasetNames.length} molecular datasets. This differential-expression tool requires exactly one dataset.`;
+        analysisCatalogMolecularStatusEl.textContent = `Selected ${selectedDatasetNames.length} molecular datasets. This molecular tool requires exactly one dataset.`;
       } else {
-        analysisCatalogMolecularStatusEl.textContent = "Select exactly one molecular dataset for differential expression. The cohorts define the groups; the dataset defines the transcriptomics matrix.";
+        analysisCatalogMolecularStatusEl.textContent = "Select exactly one molecular dataset for this molecular tool. The cohorts define the groups; the dataset defines the transcriptomics matrix.";
       }
       return;
     }

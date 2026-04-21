@@ -45,8 +45,12 @@ if (!requireNamespace("DESeq2", quietly = TRUE)) {
 if (!requireNamespace("apeglm", quietly = TRUE)) {
   stop("apeglm is not installed in the configured R library.")
 }
+if (!requireNamespace("jsonlite", quietly = TRUE)) {
+  stop("jsonlite is not installed in the configured R library.")
+}
 
 suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(jsonlite))
 
 prompt <- read_arg("--prompt", "")
 dataset_name <- read_arg("--dataset-name", "")
@@ -56,6 +60,9 @@ results_table_path <- read_arg("--results-table", "")
 volcano_table_path <- read_arg("--volcano-table", "")
 summary_json_path <- read_arg("--summary-json", "")
 plot_file_path <- read_arg("--plot-file", "")
+heatmap_file_path <- read_arg("--heatmap-file", "")
+heatmap_table_path <- read_arg("--heatmap-table", "")
+heatmap_clustering_path <- read_arg("--heatmap-clustering", "")
 
 sample_table <- read_tsv(sample_table_path)
 counts_frame <- read_tsv(counts_matrix_path)
@@ -135,6 +142,7 @@ top_hits <- head(result_df, 10)
 top_gene <- if (nrow(top_hits) >= 1) as.character(top_hits$gene_id[[1]]) else "n/a"
 top_log2_fc <- if (nrow(top_hits) >= 1) round(as.numeric(top_hits$log2_fold_change[[1]]), 3) else 0
 top_adj_p <- if (nrow(top_hits) >= 1) signif(as.numeric(top_hits$adj_p_value[[1]]), 3) else 1
+heatmap_available <- FALSE
 
 png(filename = plot_file_path, width = 960, height = 720)
 plot(
@@ -160,6 +168,52 @@ if (nrow(top_hits) >= 1) {
 }
 invisible(dev.off())
 
+if (nzchar(heatmap_file_path)) {
+  vst_dds <- if (nrow(filtered_counts) < 1000) {
+    varianceStabilizingTransformation(dds, blind = TRUE)
+  } else {
+    vst(dds, blind = TRUE)
+  }
+  vst_matrix <- assay(vst_dds)
+  heatmap_gene_ids <- head(result_df$gene_id, 25)
+  heatmap_gene_ids <- heatmap_gene_ids[heatmap_gene_ids %in% rownames(vst_matrix)]
+  if (length(heatmap_gene_ids) >= 2) {
+    heatmap_matrix <- vst_matrix[heatmap_gene_ids, , drop = FALSE]
+    heatmap_matrix <- t(scale(t(heatmap_matrix)))
+    heatmap_matrix[is.na(heatmap_matrix)] <- 0
+    rownames(heatmap_matrix) <- heatmap_gene_ids
+    group_labels <- paste0(sample_table$sample_id, " (", ifelse(sample_table$cohort == "A", "A", "B"), ")")
+    row_hclust <- hclust(dist(heatmap_matrix))
+    if (nzchar(heatmap_table_path)) {
+      heatmap_df <- data.frame(gene_id = heatmap_gene_ids, heatmap_matrix, check.names = FALSE, stringsAsFactors = FALSE)
+      write.table(heatmap_df, file = heatmap_table_path, sep = "\t", row.names = FALSE, quote = FALSE)
+    }
+    if (nzchar(heatmap_clustering_path)) {
+      clustering_payload <- list(
+        order = unname(as.integer(row_hclust$order)),
+        merge = lapply(seq_len(nrow(row_hclust$merge)), function(index) unname(as.integer(row_hclust$merge[index, ]))),
+        height = unname(as.numeric(row_hclust$height)),
+        labels = unname(as.character(row_hclust$labels))
+      )
+      writeLines(toJSON(clustering_payload, auto_unbox = TRUE), con = heatmap_clustering_path, useBytes = TRUE)
+    }
+    png(filename = heatmap_file_path, width = 980, height = 900)
+    heatmap(
+      heatmap_matrix,
+      Rowv = as.dendrogram(row_hclust),
+      Colv = NA,
+      scale = "none",
+      col = colorRampPalette(c("#1d4ed8", "#f8fafc", "#dc2626"))(64),
+      margins = c(9, 11),
+      labCol = group_labels,
+      labRow = rownames(heatmap_matrix),
+      main = sprintf("Top DE genes heatmap: %s", dataset_name)
+    )
+    invisible(dev.off())
+    heatmap_available <- TRUE
+  }
+}
+
 summary_json <- paste0(
   "{",
   "\"dataset_name\":", json_quote(dataset_name), ",",
@@ -168,6 +222,8 @@ summary_json <- paste0(
   "\"tested_gene_count\":", nrow(counts_matrix), ",",
   "\"filtered_gene_count\":", nrow(filtered_counts), ",",
   "\"significant_gene_count\":", nrow(significant), ",",
+  "\"heatmap_gene_count\":", min(25, nrow(result_df)), ",",
+  "\"heatmap_available\":", if (heatmap_available) "true" else "false", ",",
   "\"top_gene\":", json_quote(top_gene), ",",
   "\"top_log2_fold_change\":", top_log2_fc, ",",
   "\"top_adj_p_value\":", top_adj_p, ",",
@@ -185,6 +241,7 @@ reply_lines <- c(
   sprintf("- Genes tested: %d", nrow(counts_matrix)),
   sprintf("- Genes kept after count filtering: %d", nrow(filtered_counts)),
   sprintf("- Significant genes (BH < 0.05): %d", nrow(significant)),
+  sprintf("- Heatmap genes: %d", min(25, nrow(result_df))),
   sprintf("- Top hit: %s (shrunken log2FC %.3f, adjusted p-value %s)", top_gene, top_log2_fc, format(top_adj_p, scientific = TRUE)),
   "",
   "This result was produced by a curated external Rscript using DESeq2 with apeglm shrinkage."
@@ -204,6 +261,8 @@ json <- paste0(
   "\"tested_gene_count\":", nrow(counts_matrix), ",",
   "\"filtered_gene_count\":", nrow(filtered_counts), ",",
   "\"significant_gene_count\":", nrow(significant), ",",
+  "\"heatmap_gene_count\":", min(25, nrow(result_df)), ",",
+  "\"heatmap_available\":", if (heatmap_available) "true" else "false", ",",
   "\"top_gene\":", json_quote(top_gene), ",",
   "\"top_log2_fold_change\":", top_log2_fc, ",",
   "\"top_adj_p_value\":", top_adj_p, ",",

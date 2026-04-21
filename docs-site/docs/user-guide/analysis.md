@@ -21,6 +21,8 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - Kaplan-Meier curves
 - molecular expression summaries
 - exploratory volcano plots
+- DESeq2 differential expression on one raw-count dataset
+- Hallmark pathway enrichment from a DESeq2-ranked comparison
 - curated external analyses through reviewed runners
 
 ![Analysis tab with a plotted result and follow-up queries](/img/screenshots/analysis-tab.png)
@@ -126,6 +128,35 @@ Selecting a catalog item does not create a separate execution system. It preconf
 - the preferred execution mode
 
 The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
+
+## Molecular tool contract
+
+The current molecular catalog tools are method-driven.
+
+Examples:
+
+- `Differential expression`
+- `DESeq2 differential expression`
+- `Hallmark pathway enrichment`
+
+These tools do not compare two molecular datasets against each other.
+
+They use:
+
+- one selected raw-count molecular dataset
+- `Cohort A`
+- `Cohort B`
+
+The cohorts define the groups.
+The molecular dataset defines the transcriptomics matrix.
+
+For the current `DESeq2` and Hallmark pathway tools, the first-version constraints are:
+
+- at least two samples in `Cohort A`
+- at least two samples in `Cohort B`
+- one sample per patient
+
+In practice, that means baseline-only transcriptomics datasets are the safest first choice.
 
 ## Catalog search, filters, and suggestions
 
