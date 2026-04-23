@@ -220,7 +220,7 @@ def _analysis_catalog_dispatch(
                 "execution_backend": execution_backend,
             },
         }
-    if runner_type in {"rscript", "snakemake", "nextflow"}:
+    if runner_type in {"rscript", "snakemake", "nextflow", "workflow"}:
         payload = run_external_analysis(
             runner_type,
             str(item.get("runner_ref") or "").strip(),

@@ -51,20 +51,6 @@
       </section>
 
       <div id="appShell"{% if auth_enabled %} class="is-hidden"{% endif %}>
-      <button id="jobsFloatingPill" type="button" class="jobs-floating-pill is-hidden" title="Open active background jobs.">
-        <span class="button-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 6h13"></path>
-            <path d="M8 12h13"></path>
-            <path d="M8 18h13"></path>
-            <path d="M3 6h.01"></path>
-            <path d="M3 12h.01"></path>
-            <path d="M3 18h.01"></path>
-          </svg>
-        </span>
-        <span>Jobs</span>
-        <span id="jobsFloatingPillCount" class="jobs-drawer-count is-hidden">0</span>
-      </button>
       <div class="hero">
         <div class="hero-brand">
           {% if branding.logo_url %}
@@ -842,14 +828,12 @@
                             <button type="button" class="query-chip is-active" data-analysis-catalog-filter="all" aria-pressed="true">All</button>
                             <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
                             <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
+                            <button type="button" class="query-chip" data-analysis-catalog-filter="workflow" aria-pressed="false">Workflow</button>
                             <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background jobs</button>
                             <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
                           </div>
                         </div>
-                        <div id="analysisCatalogList" class="analysis-catalog-featured">
-                          <div class="empty">Loading curated analyses...</div>
-                        </div>
-                        <div id="analysisCatalogMolecularParking" class="is-hidden" aria-hidden="true">
+                        <div id="analysisCatalogMolecularParking">
                           <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
                             <div class="analysis-molecular-panel-header">
                               <strong id="analysisCatalogMolecularTitle">Molecular dataset</strong>
@@ -860,6 +844,9 @@
                               <div class="empty">No molecular dataset loaded</div>
                             </div>
                           </div>
+                        </div>
+                        <div id="analysisCatalogList" class="analysis-catalog-featured">
+                          <div class="empty">Loading curated analyses...</div>
                         </div>
                       </div>
                     </details>
@@ -911,6 +898,7 @@
                     <button type="button" class="query-chip is-active" data-analysis-catalog-filter="all" aria-pressed="true">All</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="workflow" aria-pressed="false">Workflow</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background jobs</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
                   </div>

@@ -3,8 +3,6 @@ export function createJobsUi(ctx) {
   const {
     jobsDrawerBtnEl,
     jobsDrawerCountEl,
-    jobsFloatingPillEl,
-    jobsFloatingPillCountEl,
     jobsDrawerEl,
     jobsDrawerStatusEl,
     jobsDrawerListEl,
@@ -21,6 +19,7 @@ export function createJobsUi(ctx) {
     setActiveTab,
     renderAnalysisMeta,
     renderAnalysisThread,
+    scrollAnalysisTurnIntoView,
     syncCurrentAnalysisSessionFromUi,
     loadCompletedPhenoJob,
     renderPhenoBackgroundJobBanner,
@@ -46,21 +45,12 @@ export function createJobsUi(ctx) {
     if (!state.authState || !state.authState.authenticated) {
       jobsDrawerBtnEl.classList.add("is-hidden");
       jobsDrawerCountEl.textContent = "";
-      if (jobsFloatingPillEl && jobsFloatingPillCountEl) {
-        jobsFloatingPillEl.classList.add("is-hidden");
-        jobsFloatingPillCountEl.textContent = "";
-      }
       return;
     }
     jobsDrawerBtnEl.classList.remove("is-hidden");
     jobsDrawerCountEl.textContent = running ? String(running) : "";
     jobsDrawerBtnEl.classList.toggle("has-running-jobs", running > 0);
     jobsDrawerCountEl.classList.toggle("is-hidden", running === 0);
-    if (jobsFloatingPillEl && jobsFloatingPillCountEl) {
-      jobsFloatingPillEl.classList.toggle("is-hidden", running === 0);
-      jobsFloatingPillCountEl.textContent = running ? String(running) : "";
-      jobsFloatingPillCountEl.classList.toggle("is-hidden", running === 0);
-    }
   }
 
   function renderJobStatusChip(item) {
@@ -129,6 +119,14 @@ export function createJobsUi(ctx) {
       if (!url || !name) return "";
       return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
     }).filter(Boolean);
+    const artifactsHtml = artifactLinks.length
+      ? `
+        <details class="job-card-artifacts">
+          <summary>Result files</summary>
+          <div class="job-card-artifact-links">${artifactLinks.join("")}</div>
+        </details>
+      `
+      : "";
     return `
       <article class="job-card">
         <div class="job-card-topline">
@@ -148,7 +146,7 @@ export function createJobsUi(ctx) {
         ${(actions.length || artifactLinks.length) ? `
           <div class="job-card-footer">
             ${actions.length ? `<div class="job-card-actions">${actions.join("")}</div>` : ""}
-            ${artifactLinks.length ? `<div class="job-card-artifacts">${artifactLinks.join("")}</div>` : ""}
+            ${artifactsHtml}
           </div>
         ` : ""}
       </article>
@@ -371,15 +369,20 @@ export function createJobsUi(ctx) {
         })
       : -1;
     const turn = { role: "assistant", payload: resultPayload, showPlots: analysisPayloadHasPlots(resultPayload) };
+    let resultTurnIndex = existingIndex;
     if (existingIndex >= 0) {
       state.analysisTurns[existingIndex] = turn;
     } else {
       state.analysisTurns.push(turn);
+      resultTurnIndex = state.analysisTurns.length - 1;
     }
     state.analysisHistory.push({ role: "assistant", content: resultPayload.reply || "" });
     state.analysisHistory = state.analysisHistory.slice(-8);
     renderAnalysisMeta(resultPayload);
     renderAnalysisThread();
+    if (typeof scrollAnalysisTurnIntoView === "function") {
+      scrollAnalysisTurnIntoView(resultTurnIndex);
+    }
     syncCurrentAnalysisSessionFromUi({ render: true });
     if (analysisStatusEl) {
       analysisStatusEl.className = "query-status";

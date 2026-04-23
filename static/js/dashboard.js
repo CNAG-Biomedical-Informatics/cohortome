@@ -603,7 +603,8 @@ export function createDashboardUi(ctx) {
     const itemId = String(item && item.id ? item.id : "").trim();
     return itemId === "molecular-differential-expression"
       || itemId === "molecular-deseq2-differential-expression"
-      || itemId === "molecular-hallmark-pathway-enrichment";
+      || itemId === "molecular-hallmark-pathway-enrichment"
+      || itemId === "molecular-signature-workflow";
   }
 
   function contextualMolecularDatasets() {
@@ -612,29 +613,36 @@ export function createDashboardUi(ctx) {
       return [];
     }
     const compareRequired = Boolean(item.default_compare_mode);
-    const compatible = state.molecularDatasetsState.filter((dataset) => {
-      const overlap = currentMolecularScopeOverlap(dataset.patient_ids);
+    const compatibleDatasets = state.molecularDatasetsState.filter((dataset) => {
+      const patientIds = Array.isArray(dataset && dataset.patient_ids) ? dataset.patient_ids : [];
+      if (!patientIds.length) {
+        return true;
+      }
+      const overlap = currentMolecularScopeOverlap(patientIds);
       if (compareRequired) {
         return overlap.overlapA > 0 && overlap.overlapB > 0;
       }
-      return overlap.overlapA > 0 || overlap.overlapB > 0;
+      if (overlap.scopeASize || overlap.scopeBSize) {
+        return overlap.overlapA > 0 || overlap.overlapB > 0;
+      }
+      return true;
     });
-    const compatibleNames = new Set(compatible.map((dataset) => dataset.dataset_name));
+    const compatibleNames = new Set(compatibleDatasets.map((dataset) => dataset.dataset_name));
     const filteredSelected = state.selectedMolecularDatasets.filter((name) => compatibleNames.has(name));
     if (filteredSelected.length !== state.selectedMolecularDatasets.length) {
       state.selectedMolecularDatasets = filteredSelected;
     }
     if (
       requiresSingleSelectedMolecularDataset(item)
-      && compatible.length === 1
+      && compatibleDatasets.length === 1
       && (
         state.selectedMolecularDatasets.length !== 1
-        || state.selectedMolecularDatasets[0] !== compatible[0].dataset_name
+        || state.selectedMolecularDatasets[0] !== compatibleDatasets[0].dataset_name
       )
     ) {
-      state.selectedMolecularDatasets = [compatible[0].dataset_name];
+      state.selectedMolecularDatasets = [compatibleDatasets[0].dataset_name];
     }
-    return compatible;
+    return compatibleDatasets;
   }
 
   function renderMolecularDatasetSelector() {
@@ -672,12 +680,12 @@ export function createDashboardUi(ctx) {
         contextualListEl.innerHTML = '<div class="empty">Choose a molecular analysis to select a compatible dataset.</div>';
         return;
       }
-      const compatible = contextualMolecularDatasets();
-      if (!compatible.length) {
-        contextualListEl.innerHTML = '<div class="empty">No molecular datasets overlap the current Analysis cohorts.</div>';
+      const availableDatasets = contextualMolecularDatasets();
+      if (!availableDatasets.length) {
+        contextualListEl.innerHTML = '<div class="empty">No molecular datasets are available in this workspace.</div>';
         return;
       }
-      contextualListEl.innerHTML = compatible.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("");
+      contextualListEl.innerHTML = availableDatasets.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("");
     }
   }
 
@@ -929,14 +937,17 @@ export function createDashboardUi(ctx) {
     }
   }
 
-  function handleMolecularDatasetSelectionChange() {
-    const sourceEl = analysisCatalogMolecularDatasetListEl && analysisCatalogMolecularDatasetListEl.querySelector('input[type="checkbox"]')
-      ? analysisCatalogMolecularDatasetListEl
-      : analysisMolecularDatasetListEl;
-    if (!sourceEl) return;
-    const selected = Array.from(sourceEl.querySelectorAll('input[type="checkbox"]:checked'))
+  function handleMolecularDatasetSelectionChange(sourceEl = null, changedInput = null) {
+    const listEl = sourceEl || analysisMolecularDatasetListEl || analysisCatalogMolecularDatasetListEl;
+    if (!listEl) return;
+    let selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked'))
       .map((item) => item.value)
       .filter(Boolean);
+    const item = currentAnalysisCatalogItem();
+    if (requiresSingleSelectedMolecularDataset(item) && selected.length > 1) {
+      const changedValue = changedInput && changedInput.checked ? String(changedInput.value || "").trim() : "";
+      selected = changedValue ? [changedValue] : selected.slice(-1);
+    }
     state.selectedMolecularDatasets = selected;
     renderMolecularDatasetSelector();
     void loadMolecularGeneSuggestions();

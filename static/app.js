@@ -534,6 +534,7 @@ jobsUi = createJobsUi({
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
     renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
+    scrollAnalysisTurnIntoView: (turnIndex) => analysisUi.scrollAnalysisTurnIntoView(turnIndex),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     loadCompletedPhenoJob: (jobPayload, resultPayload) => phenoUi.loadCompletedPhenoJob(jobPayload, resultPayload),
     renderPhenoBackgroundJobBanner: () => phenoUi.renderPhenoBackgroundJobBanner(),
@@ -819,7 +820,7 @@ function bindEvents() {
     if (!checkbox) {
       return;
     }
-    dashboardUi.handleMolecularDatasetSelectionChange();
+    dashboardUi.handleMolecularDatasetSelectionChange(event.currentTarget, checkbox);
     analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
     analysisCatalogUi.renderAnalysisCatalog();
   };
@@ -918,10 +919,6 @@ function bindEvents() {
   });
 
   refs.jobsDrawerBtnEl && refs.jobsDrawerBtnEl.addEventListener("click", () => {
-    jobsUi.setJobsDrawerOpen(true);
-    void jobsUi.loadRecentJobs();
-  });
-  refs.jobsFloatingPillEl && refs.jobsFloatingPillEl.addEventListener("click", () => {
     jobsUi.setJobsDrawerOpen(true);
     void jobsUi.loadRecentJobs();
   });

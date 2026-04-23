@@ -718,13 +718,28 @@
         border-top: 1px solid rgba(226, 232, 240, 0.8);
       }
       .job-card-actions,
-      .job-card-artifacts {
+      .job-card-artifact-links {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
       }
-      .job-card-artifacts a {
+      .job-card-artifacts summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 0.84rem;
+        font-weight: 700;
+      }
+      .job-card-artifact-links {
+        margin-top: 8px;
+      }
+      .job-card-artifact-links a {
         text-decoration: none;
+      }
+      .analysis-artifact-downloads {
+        margin-top: 12px;
+      }
+      .analysis-artifact-downloads .analysis-catalog-tags {
+        margin-top: 12px;
       }
       .job-status-chip {
         display: inline-flex;

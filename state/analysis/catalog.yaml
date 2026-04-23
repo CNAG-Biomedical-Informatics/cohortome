@@ -147,6 +147,28 @@ items:
     requires_molecular: true
     tags: [molecular, pathway-enrichment, hallmark, fgsea, background, rscript]
 
+  - id: molecular-signature-workflow
+    name: Molecular signature workflow
+    category: Molecular
+    kind: workflow
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 7200
+    runner_type: workflow
+    runner_ref: molecular_signature
+    description: "Run a curated two-step molecular workflow: DESeq2 differential expression followed by Hallmark pathway enrichment for Cohort A versus Cohort B."
+    guidance: "Select Cohort A and Cohort B plus one raw-count molecular dataset. This workflow runs both project-approved steps as one background job and returns one combined result."
+    default_prompt: Run the molecular signature workflow between Cohort A and Cohort B for the selected molecular dataset.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    requires_detailed_access: true
+    requires_molecular: true
+    steps:
+      - molecular-deseq2-differential-expression
+      - molecular-hallmark-pathway-enrichment
+    tags: [molecular, workflow, signature, deseq2, hallmark, fgsea, background]
+
   - id: external-r-scope-snapshot
     name: External R cohort snapshot
     category: External

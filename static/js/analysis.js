@@ -27,7 +27,8 @@ export function createAnalysisUi(ctx) {
     const normalized = String(itemId || "").trim();
     return normalized === "molecular-differential-expression"
       || normalized === "molecular-deseq2-differential-expression"
-      || normalized === "molecular-hallmark-pathway-enrichment";
+      || normalized === "molecular-hallmark-pathway-enrichment"
+      || normalized === "molecular-signature-workflow";
   }
 
   function isDifferentialExpressionContextMode(mode) {
@@ -128,11 +129,88 @@ export function createAnalysisUi(ctx) {
     return `<div class="viz-card"><h3>${escapeHtml(title)}</h3>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div>`;
   }
 
+  function renderArtifactDownloads(title, artifacts) {
+    const links = (Array.isArray(artifacts) ? artifacts : [])
+      .filter(Boolean)
+      .map((item) => {
+        const name = String(item && item.name ? item.name : "").trim();
+        const url = String(item && item.url ? item.url : "").trim();
+        if (!name || !url) return "";
+        return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
+      })
+      .filter(Boolean)
+      .join("");
+    if (!links) return "";
+    return `<details class="query-section analysis-artifact-downloads"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${escapeHtml(title || "Result files")}</span></span></summary><div class="analysis-catalog-tags">${links}</div></details>`;
+  }
+
   function renderAnalysisPlotsMarkup(payload, turnIndex) {
     const data = payload && payload.data ? payload.data : null;
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
+    if (context.mode === "workflow_molecular_signature") {
+      const findArtifact = (suffix) => artifacts.find((item) => String(item && item.name ? item.name : "").endsWith(suffix));
+      const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
+      const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
+      const dePlotArtifact = findArtifact("workflow/01-deseq2/volcano_plot.png");
+      const deHeatmapArtifact = findArtifact("workflow/01-deseq2/top_genes_heatmap.png");
+      const deResultsArtifact = findArtifact("workflow/01-deseq2/de_results.tsv");
+      const deSummaryArtifact = findArtifact("workflow/01-deseq2/summary.json");
+      const pathwayPlotArtifact = findArtifact("workflow/02-hallmark/pathway_plot.png");
+      const pathwayResultsArtifact = findArtifact("workflow/02-hallmark/pathway_results.tsv");
+      const rankingsArtifact = findArtifact("workflow/02-hallmark/gene_rankings.tsv");
+      const pathwaySummaryArtifact = findArtifact("workflow/02-hallmark/summary.json");
+      const workflowManifestArtifact = findArtifact("workflow/manifest.json");
+      const downloads = renderArtifactDownloads("Result files", [
+        workflowManifestArtifact,
+        dePlotArtifact,
+        deHeatmapArtifact,
+        deResultsArtifact,
+        deSummaryArtifact,
+        pathwayPlotArtifact,
+        pathwayResultsArtifact,
+        rankingsArtifact,
+        pathwaySummaryArtifact,
+      ]);
+      const deSummaryItems = [
+        { label: "Cohort A samples", value: Number(deContext.cohort_a_sample_count || 0) },
+        { label: "Cohort B samples", value: Number(deContext.cohort_b_sample_count || 0) },
+        { label: "Genes tested", value: Number(deContext.gene_count || 0) },
+        { label: "Significant genes", value: Number(deContext.significant_gene_count || 0) },
+      ];
+      const pathwaySummaryItems = [
+        { label: "Ranked genes", value: Number(hallmarkContext.ranked_gene_count || 0) },
+        { label: "Pathways tested", value: Number(hallmarkContext.pathway_count || 0) },
+        { label: "Significant pathways", value: Number(hallmarkContext.significant_pathway_count || 0) },
+      ];
+      const positiveText = Array.isArray(hallmarkContext.top_positive_pathway_labels) && hallmarkContext.top_positive_pathway_labels.length
+        ? hallmarkContext.top_positive_pathway_labels.map((item) => prettyHallmarkLabel(item)).join(", ")
+        : "none at BH < 0.05";
+      const negativeText = Array.isArray(hallmarkContext.top_negative_pathway_labels) && hallmarkContext.top_negative_pathway_labels.length
+        ? hallmarkContext.top_negative_pathway_labels.map((item) => prettyHallmarkLabel(item)).join(", ")
+        : "none at BH < 0.05";
+      return `
+        <div class="viz-card" style="grid-column: 1 / -1;">
+          <h3>Molecular Signature Workflow</h3>
+          <p class="section-note">Curated DESeq2 differential expression followed by Hallmark pathway enrichment for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))}.</p>
+          ${downloads}
+        </div>
+        <div class="viz-card" style="grid-column: 1 / -1;">
+          <h3>Step 1: DESeq2 Differential Expression</h3>
+          ${dePlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(dePlotArtifact.url || ""))}" alt="Workflow DESeq2 volcano plot"></div>` : '<div class="empty">DESeq2 volcano plot preview unavailable.</div>'}
+          ${deHeatmapArtifact ? `<div class="analysis-artifact-image-frame" style="margin-top:12px;"><img class="analysis-artifact-image" src="${escapeHtml(String(deHeatmapArtifact.url || ""))}" alt="Workflow DESeq2 heatmap"></div>` : ""}
+        </div>
+        ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-de-summary`, "DESeq2 Summary", deSummaryItems, "label", "value")}
+        <div class="viz-card" style="grid-column: 1 / -1;">
+          <h3>Step 2: Hallmark Pathway Enrichment</h3>
+          <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
+          <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
+          ${pathwayPlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(pathwayPlotArtifact.url || ""))}" alt="Workflow Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
+        </div>
+        ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-pathway-summary`, "Hallmark Summary", pathwaySummaryItems, "label", "value")}
+      `;
+    }
     if (isDifferentialExpressionContextMode(context.mode)) {
       const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_plot.png");
       const heatmapArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap.png");
@@ -141,10 +219,7 @@ export function createAnalysisUi(ctx) {
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "de_results.tsv");
       const volcanoArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_points.tsv");
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
-      const downloads = [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]
-        .filter(Boolean)
-        .map((item) => `<a class="query-chip" href="${escapeHtml(String(item.url || ""))}" target="_blank" rel="noopener">${escapeHtml(String(item.name || ""))}</a>`)
-        .join("");
+      const downloads = renderArtifactDownloads("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]);
       const summaryItems = [
         { label: "Dataset", value: String(context.dataset_name || "n/a") },
         { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
@@ -166,7 +241,7 @@ export function createAnalysisUi(ctx) {
           <div class="analysis-view-panel" data-de-view-panel="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}">
             ${volcanoArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-de-volcano`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>volcano_points.tsv</code>. The canonical artifact remains <code>volcano_plot.png</code>.</p>` : '<div class="empty">Interactive volcano plot unavailable.</div>'}
           </div>
-          <div class="analysis-catalog-tags" style="margin-top:12px;">${downloads}</div>
+          ${downloads}
         </div>
         ${heatmapArtifact ? `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Top Differentially Expressed Genes Heatmap</h3><p class="section-note">Standardized expression heatmap for the top DESeq2-ranked genes across both cohorts.</p><div class="analysis-heatmap-legend" aria-label="Heatmap legend"><span class="analysis-heatmap-legend-label">Lower expression</span><span class="analysis-heatmap-legend-scale" aria-hidden="true"></span><span class="analysis-heatmap-legend-label">Higher expression</span></div><p class="section-note">Blue means lower relative expression for that gene, white is near the gene-level average, and red means higher relative expression.</p><div class="analysis-view-tabs" role="tablist" aria-label="Differential expression heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${heatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${heatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(heatmapArtifact.url || ""))}" alt="Top differentially expressed genes heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}">${heatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>top_genes_heatmap.tsv</code>. The canonical artifact remains <code>top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div>` : ""}
         ${renderBarChartCard(`analysis-plot-${turnIndex}-de-summary`, "Differential Expression Summary", summaryItems, "label", "value")}
@@ -177,10 +252,7 @@ export function createAnalysisUi(ctx) {
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "pathway_results.tsv");
       const rankingsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "gene_rankings.tsv");
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
-      const downloads = [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]
-        .filter(Boolean)
-        .map((item) => `<a class="query-chip" href="${escapeHtml(String(item.url || ""))}" target="_blank" rel="noopener">${escapeHtml(String(item.name || ""))}</a>`)
-        .join("");
+      const downloads = renderArtifactDownloads("Result files", [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]);
       const summaryItems = [
         { label: "Dataset", value: String(context.dataset_name || "n/a") },
         { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
@@ -206,7 +278,7 @@ export function createAnalysisUi(ctx) {
           <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
           <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
           ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
-          <div class="analysis-catalog-tags" style="margin-top:12px;">${downloads}</div>
+          ${downloads}
         </div>
         ${renderBarChartCard(`analysis-plot-${turnIndex}-pathway-summary`, "Pathway Enrichment Summary", summaryItems, "label", "value")}
       `;
@@ -907,6 +979,24 @@ export function createAnalysisUi(ctx) {
         mountPlot(`analysis-plot-${turnIndex}-pathway-summary`, summary.traces, summary.layout);
         return;
       }
+      if (context.mode === "workflow_molecular_signature") {
+        const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
+        const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
+        const deSummary = buildHorizontalBar([
+          { label: "Cohort A samples", value: Number(deContext.cohort_a_sample_count || 0) },
+          { label: "Cohort B samples", value: Number(deContext.cohort_b_sample_count || 0) },
+          { label: "Genes tested", value: Number(deContext.gene_count || 0) },
+          { label: "Significant genes", value: Number(deContext.significant_gene_count || 0) },
+        ], "label", "value", "#2563eb");
+        mountPlot(`analysis-plot-${turnIndex}-workflow-de-summary`, deSummary.traces, deSummary.layout);
+        const pathwaySummary = buildHorizontalBar([
+          { label: "Ranked genes", value: Number(hallmarkContext.ranked_gene_count || 0) },
+          { label: "Pathways tested", value: Number(hallmarkContext.pathway_count || 0) },
+          { label: "Significant pathways", value: Number(hallmarkContext.significant_pathway_count || 0) },
+        ], "label", "value", "#059669");
+        mountPlot(`analysis-plot-${turnIndex}-workflow-pathway-summary`, pathwaySummary.traces, pathwaySummary.layout);
+        return;
+      }
       if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
         const comparison = buildTrajectoryComparisonPlot(buildTrajectoryComparisonSeries(context), context.time_axis_label);
         mountPlot(`analysis-plot-${turnIndex}-trajectory-compare`, comparison.traces, comparison.layout);
@@ -1169,6 +1259,7 @@ export function createAnalysisUi(ctx) {
       "external_rscript_molecular_differential_expression",
       "external_rscript_molecular_deseq2_differential_expression",
       "external_rscript_molecular_hallmark_pathway_enrichment",
+      "workflow_molecular_signature",
       "molecular_medication_compare",
       "trajectory",
       "trajectory_response",
@@ -1263,10 +1354,10 @@ export function createAnalysisUi(ctx) {
     analysisThreadEl.innerHTML = state.analysisTurns.map((turn, turnIndex) => {
       if (turn.role === "user") {
         const compareHtml = turn.compareScope ? `<div class="analysis-turn-scope"><strong>Cohort B:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.compareScope || ""))}</div>` : "";
-        return `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt)}</p><div class="analysis-turn-scope"><strong>${turn.compareScope ? "Cohort A" : "Scope"}:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>${compareHtml}</div></article>`;
+        return `<article class="analysis-turn analysis-turn-user" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt)}</p><div class="analysis-turn-scope"><strong>${turn.compareScope ? "Cohort A" : "Scope"}:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>${compareHtml}</div></article>`;
       }
       if (turn.pending) {
-        return `<article class="analysis-turn analysis-turn-pending"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta"><span class="query-chip badge">pending</span><span class="query-chip badge">${escapeHtml(turn.pendingLabel || "Preparing response")}</span></div><div class="analysis-turn-body"><div class="analysis-pending-row"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>${escapeHtml(turn.pendingDetail || "Building cohort context and waiting for the model reply.")}</span></div></div></article>`;
+        return `<article class="analysis-turn analysis-turn-pending" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta"><span class="query-chip badge">pending</span><span class="query-chip badge">${escapeHtml(turn.pendingLabel || "Preparing response")}</span></div><div class="analysis-turn-body"><div class="analysis-pending-row"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>${escapeHtml(turn.pendingDetail || "Building cohort context and waiting for the model reply.")}</span></div></div></article>`;
       }
       const context = turn.payload && turn.payload.data ? turn.payload.data.context : null;
       const notable = context && Array.isArray(context.notable_findings) ? context.notable_findings : [];
@@ -1287,9 +1378,21 @@ export function createAnalysisUi(ctx) {
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
       const turnLabel = isErrorTurn ? "Analysis Error" : "Analysis";
-      return `<article class="${turnClass}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(turn.payload, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      return `<article class="${turnClass}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(turn.payload, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
     }).join("");
     mountAnalysisPlots();
+  }
+
+  function scrollAnalysisTurnIntoView(turnIndex) {
+    if (!analysisThreadEl) return;
+    const index = Number(turnIndex);
+    const target = Number.isInteger(index)
+      ? analysisThreadEl.querySelector(`[data-analysis-turn-index="${index}"]`)
+      : analysisThreadEl.lastElementChild;
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function runAnalysis() {
@@ -1300,11 +1403,6 @@ export function createAnalysisUi(ctx) {
       analysisStatusEl.textContent = "Enter an analysis prompt first.";
       return;
     }
-    state.analysisInFlight = true;
-    analysisRunBtnEl.disabled = true;
-    analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = "Running analysis...";
-    if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     const currentScopeIds = resolveAnalysisScopeIds("a");
     const compareScopeIds = analysisCompareModeEl && analysisCompareModeEl.checked ? resolveAnalysisScopeIds("b") : [];
     const currentScope = currentScopeIds.join(",");
@@ -1328,6 +1426,11 @@ export function createAnalysisUi(ctx) {
       state.analysisExecutionMode = "auto";
       return;
     }
+    state.analysisInFlight = true;
+    analysisRunBtnEl.disabled = true;
+    analysisStatusEl.className = "query-status";
+    analysisStatusEl.textContent = "Running analysis...";
+    if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     state.analysisExamplesPinnedOpen = false;
     state.analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
     state.analysisTurns.push({ role: "assistant", pending: true, pendingLabel: "Preparing response", pendingDetail: "Building cohort context and waiting for the model reply." });
@@ -1411,6 +1514,7 @@ export function createAnalysisUi(ctx) {
     analysisPromptRequestsPlots,
     analysisPayloadHasPlots,
     renderAnalysisThread,
+    scrollAnalysisTurnIntoView,
     handleAnalysisPlotViewClick(event) {
       const button = event.target.closest("[data-de-view-btn]");
       const heatmapButton = !button ? event.target.closest("[data-de-heatmap-view-btn]") : null;

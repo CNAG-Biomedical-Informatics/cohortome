@@ -240,6 +240,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (normalized === "rscript") return "Rscript";
     if (normalized === "snakemake") return "Snakemake";
     if (normalized === "nextflow") return "Nextflow";
+    if (normalized === "workflow") return "Workflow";
     if (normalized === "python") return "Python";
     if (normalized === "bash") return "Bash";
     if (normalized === "cli") return "CLI";
@@ -263,7 +264,8 @@ export function createAnalysisCatalogUi(ctx) {
     const itemId = String(item && item.id ? item.id : "").trim();
     return itemId === "molecular-differential-expression"
       || itemId === "molecular-deseq2-differential-expression"
-      || itemId === "molecular-hallmark-pathway-enrichment";
+      || itemId === "molecular-hallmark-pathway-enrichment"
+      || itemId === "molecular-signature-workflow";
   }
 
   function analysisCatalogUsageStorageKey() {
@@ -331,13 +333,14 @@ export function createAnalysisCatalogUi(ctx) {
 
   function normalizeAnalysisCatalogFilter(value) {
     const normalized = String(value || "").trim().toLowerCase();
-    return ["all", "clinical", "molecular", "background", "external"].includes(normalized) ? normalized : "all";
+    return ["all", "clinical", "molecular", "workflow", "background", "external"].includes(normalized) ? normalized : "all";
   }
 
   function analysisCatalogFilterLabel(value) {
     const normalized = normalizeAnalysisCatalogFilter(value);
     if (normalized === "clinical") return "Clinical";
     if (normalized === "molecular") return "Molecular";
+    if (normalized === "workflow") return "Workflow";
     if (normalized === "background") return "Background jobs";
     if (normalized === "external") return "External";
     return "All";
@@ -348,6 +351,9 @@ export function createAnalysisCatalogUi(ctx) {
     if (normalized === "all") return true;
     if (normalized === "molecular") {
       return Boolean(item && item.requires_molecular);
+    }
+    if (normalized === "workflow") {
+      return String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() === "workflow";
     }
     if (normalized === "background") {
       return String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase() === "job";

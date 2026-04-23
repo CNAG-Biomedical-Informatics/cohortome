@@ -104,14 +104,15 @@ def _artifact_inventory(path: Path) -> List[Dict[str, Any]]:
     artifacts: List[Dict[str, Any]] = []
     if not path.exists() or not path.is_dir():
         return artifacts
-    for item in sorted(path.iterdir()):
+    for item in sorted(path.rglob("*")):
         if not item.is_file():
             continue
-        if item.name == JOB_RECORD_FILENAME:
+        relative_name = item.relative_to(path).as_posix()
+        if relative_name == JOB_RECORD_FILENAME:
             continue
         artifacts.append(
             {
-                "name": item.name,
+                "name": relative_name,
                 "size": item.stat().st_size,
                 "content_type": "application/json" if item.suffix == ".json" else "text/plain",
             }
@@ -408,10 +409,10 @@ def save_job_result(job_id: str, user_id: str, payload: Dict[str, Any]) -> Dict[
 
 
 def resolve_job_artifact_path(job_id: str, user_id: str, filename: str) -> Path:
-    root = job_dir(job_id, user_id)
-    safe_name = Path(str(filename or "")).name
-    path = (root / safe_name).resolve()
-    if root not in path.parents:
+    root = job_dir(job_id, user_id).resolve()
+    raw_name = str(filename or "").strip().lstrip("/")
+    path = (root / raw_name).resolve()
+    if path == root or root not in path.parents:
         raise HTTPException(status_code=404, detail="Job artifact not found.")
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Job artifact not found.")
@@ -669,7 +670,7 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         if not item:
             raise RuntimeError(f"Unknown analysis catalog item '{catalog_item_id}'.")
         runner_type = str(item.get("runner_type") or "").strip().lower()
-        if runner_type not in {"rscript", "snakemake", "nextflow"}:
+        if runner_type not in {"rscript", "snakemake", "nextflow", "workflow"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
         payload = run_external_analysis(
             runner_type,

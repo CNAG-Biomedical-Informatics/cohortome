@@ -7,8 +7,6 @@ export function createAppRefs(doc = document) {
     heroAuthUtilityEl: doc.getElementById("heroAuthUtility"),
     heroAuthIdentityEl: doc.getElementById("heroAuthIdentity"),
     heroLogoutBtnEl: doc.getElementById("heroLogoutBtn"),
-    jobsFloatingPillEl: doc.getElementById("jobsFloatingPill"),
-    jobsFloatingPillCountEl: doc.getElementById("jobsFloatingPillCount"),
     dashboardTabBtnEl: doc.getElementById("dashboardTabBtn"),
     datasetsTabBtnEl: doc.getElementById("datasetsTabBtn"),
     dataTabBtnEl: doc.getElementById("dataTabBtn"),

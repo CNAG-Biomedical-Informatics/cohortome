@@ -129,6 +129,21 @@ Selecting a catalog item does not create a separate execution system. It preconf
 
 The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
 
+## Analysis workflows
+
+Some catalog entries are pre-made workflows rather than single tools.
+
+An Analysis Workflow is a curated project-approved sequence of analysis steps. Users do not assemble these step chains manually; the app exposes only reviewed workflows with fixed execution rules.
+
+Current first workflow:
+
+- `Molecular signature workflow`
+  - runs `DESeq2 differential expression`
+  - then runs `Hallmark pathway enrichment`
+  - stores one background job with step-level artifacts under one workflow result
+
+This keeps the user-facing model simple: one workflow launch, one job in `Jobs`, one combined Analysis result.
+
 ## Molecular tool contract
 
 The current molecular catalog tools are method-driven.

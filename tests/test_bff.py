@@ -1891,6 +1891,36 @@ items:
     assert items[0]["execution_backend"] == "sync"
 
 
+def test_analysis_catalog_loader_accepts_curated_workflow_metadata(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: molecular-signature-workflow
+    name: Molecular signature workflow
+    description: Run the project workflow.
+    default_prompt: Run the molecular signature workflow.
+    runner_type: workflow
+    runner_ref: molecular_signature
+    execution_backend: job
+    steps:
+      - molecular-deseq2-differential-expression
+      - molecular-hallmark-pathway-enrichment
+""".strip(),
+        encoding="utf-8",
+    )
+
+    items = analysis_catalog_module.load_analysis_catalog(catalog_path)
+
+    assert items[0]["runner_type"] == "workflow"
+    assert items[0]["runner_ref"] == "molecular_signature"
+    assert items[0]["execution_backend"] == "job"
+    assert items[0]["steps"] == [
+        "molecular-deseq2-differential-expression",
+        "molecular-hallmark-pathway-enrichment",
+    ]
+
+
 def test_analysis_catalog_loader_preserves_debug_only_flag(tmp_path):
     catalog_path = tmp_path / "catalog.yaml"
     catalog_path.write_text(
@@ -2821,6 +2851,74 @@ def test_analysis_external_nextflow_runner_uses_env_override(tmp_path, monkeypat
     assert (job_dir / "command.txt").read_text(encoding="utf-8").splitlines()[0].startswith(f"{nextflow_path} ")
 
 
+def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+
+    def fake_run_rscript_analysis(
+        runner_ref,
+        *,
+        prompt,
+        data_dir,
+        molecular_dataset_name="",
+        selected_patient_ids="",
+        compare_selected_patient_ids="",
+        job_dir=None,
+        timeout_seconds=30,
+    ):
+        assert job_dir is not None
+        Path(job_dir).mkdir(parents=True, exist_ok=True)
+        if runner_ref == "molecular_deseq2_differential_expression":
+            (Path(job_dir) / "volcano_plot.png").write_text("png", encoding="utf-8")
+            (Path(job_dir) / "de_results.tsv").write_text("gene\tlog2FoldChange\nG1\t1.2\n", encoding="utf-8")
+            context = {
+                "mode": "external_rscript_molecular_deseq2_differential_expression",
+                "dataset_name": "synthetic_counts",
+                "cohort_a_sample_count": 2,
+                "cohort_b_sample_count": 2,
+                "gene_count": 100,
+                "significant_gene_count": 3,
+            }
+            return {"intent": "analysis_external_rscript", "reply": "DESeq2 done.", "data": {"context": context}}
+        if runner_ref == "molecular_hallmark_pathway_enrichment":
+            (Path(job_dir) / "pathway_plot.png").write_text("png", encoding="utf-8")
+            (Path(job_dir) / "pathway_results.tsv").write_text("pathway\tpadj\nHALLMARK_TNFA_SIGNALING_VIA_NFKB\t0.01\n", encoding="utf-8")
+            context = {
+                "mode": "external_rscript_molecular_hallmark_pathway_enrichment",
+                "dataset_name": "synthetic_counts",
+                "ranked_gene_count": 100,
+                "pathway_count": 50,
+                "significant_pathway_count": 2,
+                "top_positive_pathway_labels": ["HALLMARK_TNFA_SIGNALING_VIA_NFKB"],
+            }
+            return {"intent": "analysis_external_rscript", "reply": "Hallmark done.", "data": {"context": context}}
+        raise AssertionError(f"Unexpected runner_ref {runner_ref}")
+
+    monkeypatch.setattr(analysis_external_module, "run_rscript_analysis", fake_run_rscript_analysis)
+    job_dir = tmp_path / "workflow-job"
+
+    payload = analysis_external_module.run_workflow_analysis(
+        "molecular_signature",
+        prompt="Run the molecular signature workflow.",
+        data_dir=str(tmp_path),
+        molecular_dataset_name="synthetic_counts",
+        selected_patient_ids="P1,P2",
+        compare_selected_patient_ids="P3,P4",
+        job_dir=job_dir,
+        timeout_seconds=120,
+    )
+
+    assert payload["intent"] == "analysis_workflow"
+    assert payload["data"]["runner_type"] == "workflow"
+    assert payload["data"]["context"]["mode"] == "workflow_molecular_signature"
+    assert payload["data"]["context"]["deseq2"]["significant_gene_count"] == 3
+    assert payload["data"]["context"]["hallmark"]["significant_pathway_count"] == 2
+    assert (job_dir / "workflow" / "01-deseq2" / "volcano_plot.png").exists()
+    assert (job_dir / "workflow" / "02-hallmark" / "pathway_plot.png").exists()
+    manifest = json.loads((job_dir / "workflow" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "completed"
+    assert [step["status"] for step in manifest["steps"]] == ["completed", "completed"]
+
+
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
@@ -3295,6 +3393,9 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     )
     alice_dir = jobs_module.job_dir(alice_job["job_id"], "alice")
     (alice_dir / "stdout.txt").write_text("hello", encoding="utf-8")
+    nested_dir = alice_dir / "workflow" / "01-deseq2"
+    nested_dir.mkdir(parents=True)
+    (nested_dir / "de_results.tsv").write_text("gene\tlog2FoldChange\nG1\t1.2\n", encoding="utf-8")
     jobs_module.save_job_result(
         alice_job["job_id"],
         "alice",
@@ -3322,6 +3423,7 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     jobs = listing.json()["jobs"]
     assert len(jobs) == 1
     assert jobs[0]["job_id"] == alice_job["job_id"]
+    assert "workflow/01-deseq2/de_results.tsv" in [item["name"] for item in jobs[0]["artifacts"]]
 
     detail = client.get(f"/jobs/{alice_job['job_id']}")
     assert detail.status_code == 200
@@ -3330,6 +3432,9 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     artifact = client.get(f"/jobs/{alice_job['job_id']}/artifacts/stdout.txt")
     assert artifact.status_code == 200
     assert artifact.text == "hello"
+    nested_artifact = client.get(f"/jobs/{alice_job['job_id']}/artifacts/workflow/01-deseq2/de_results.tsv")
+    assert nested_artifact.status_code == 200
+    assert nested_artifact.text.startswith("gene\tlog2FoldChange")
 
     hidden = client.get(f"/jobs/{bob_job['job_id']}")
     assert hidden.status_code == 404
@@ -3494,6 +3599,56 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
     stored = jobs_module.load_job_record(record["job_id"], "alice")
     assert stored["status"] == "completed"
     assert stored["result_available"] is True
+
+
+def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        analysis_catalog_module,
+        "get_analysis_catalog_item",
+        lambda item_id, path=analysis_catalog_module.ANALYSIS_CATALOG_PATH: {
+            "id": "molecular-signature-workflow",
+            "name": "Molecular signature workflow",
+            "runner_type": "workflow",
+            "runner_ref": "molecular_signature",
+        },
+    )
+    monkeypatch.setattr(
+        analysis_external_module,
+        "run_workflow_analysis",
+        lambda runner_ref, **kwargs: {
+            "intent": "analysis_workflow",
+            "reply": "Workflow done.",
+            "data": {
+                "source": "deterministic",
+                "execution": "external_runner",
+                "context": {"mode": "workflow_molecular_signature"},
+                "runner_type": "workflow",
+                "runner_ref": runner_ref,
+            },
+        },
+    )
+
+    record = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={
+            "feature": "analysis",
+            "name": "Queued workflow",
+            "prompt": "Run the molecular signature workflow between Cohort A and Cohort B for the selected molecular dataset.",
+            "data_dir": str(tmp_path),
+            "catalog_item_id": "molecular-signature-workflow",
+            "runner_type": "workflow",
+            "runner_ref": "molecular_signature",
+            "job_timeout_seconds": 120,
+        },
+    )
+
+    payload = jobs_module.run_analysis_job(record["job_id"], "alice")
+
+    assert payload["status"] == "completed"
+    assert payload["result_payload"]["intent"] == "analysis_workflow"
+    assert payload["result_payload"]["data"]["runner_type"] == "workflow"
 
 
 def test_analysis_survival_compare_kaplan_meier(tmp_path):

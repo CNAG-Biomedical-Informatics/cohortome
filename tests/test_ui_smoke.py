@@ -440,6 +440,7 @@ def _mock_molecular_datasets(page) -> None:
                         {
                             "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
                             "modality": "transcriptomics_raw_counts",
+                            "patient_ids": ["SYN001", "SYN002"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -451,6 +452,86 @@ def _mock_molecular_datasets(page) -> None:
                             "mean_detected_genes_per_sample": 10.4,
                             "top_genes": [],
                         }
+                    ]
+                }
+            ),
+        ),
+    )
+
+
+def _mock_molecular_datasets_with_nonmatching_dataset(page) -> None:
+    page.route(
+        "**/molecular/datasets?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
+                            "modality": "transcriptomics_raw_counts",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_count": 25,
+                            "patient_count": 5,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 5,
+                            "mean_total_counts_per_sample": 1024.0,
+                            "mean_detected_genes_per_sample": 10.4,
+                            "top_genes": [],
+                        },
+                        {
+                            "dataset_name": "unrelated_transcriptome_raw_counts",
+                            "modality": "transcriptomics_raw_counts",
+                            "patient_ids": ["OTHER001", "OTHER002"],
+                            "sample_count": 12,
+                            "patient_count": 2,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 0,
+                            "mean_total_counts_per_sample": 512.0,
+                            "mean_detected_genes_per_sample": 8.2,
+                            "top_genes": [],
+                        },
+                    ]
+                }
+            ),
+        ),
+    )
+
+
+def _mock_molecular_datasets_with_two_matching_datasets(page) -> None:
+    page.route(
+        "**/molecular/datasets?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
+                            "modality": "transcriptomics_raw_counts",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_count": 25,
+                            "patient_count": 5,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 5,
+                            "mean_total_counts_per_sample": 1024.0,
+                            "mean_detected_genes_per_sample": 10.4,
+                            "top_genes": [],
+                        },
+                        {
+                            "dataset_name": "synthetic_transcriptome_raw_counts_ustekinumab",
+                            "modality": "transcriptomics_raw_counts",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_count": 25,
+                            "patient_count": 5,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 5,
+                            "mean_total_counts_per_sample": 980.0,
+                            "mean_detected_genes_per_sample": 9.8,
+                            "top_genes": [],
+                        },
                     ]
                 }
             ),
@@ -877,7 +958,10 @@ def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
                             "runner_type": "rscript",
                             "reply_preview": "External analysis done.",
                             "result_available": True,
-                            "artifacts": [],
+                            "artifacts": [
+                                {"name": "summary.json", "url": "/jobs/job-123/artifacts/summary.json"},
+                                {"name": "workflow/01-deseq2/de_results.tsv", "url": "/jobs/job-123/artifacts/workflow/01-deseq2/de_results.tsv"},
+                            ],
                         }
                     ]
                 }
@@ -920,6 +1004,11 @@ def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
 
     expect(page.locator("#jobsDrawer")).to_be_visible()
     expect(page.locator("#jobsDrawerList")).to_contain_text("External R clinical scope profile")
+    expect(page.locator("#jobsDrawerList details.job-card-artifacts")).not_to_have_attribute("open", "")
+    expect(page.locator("#jobsDrawerList .job-card-artifact-links")).to_be_hidden()
+    page.locator("#jobsDrawerList details.job-card-artifacts summary").click()
+    expect(page.locator("#jobsDrawerList .job-card-artifact-links")).to_be_visible()
+    expect(page.locator("#jobsDrawerList .job-card-artifact-links")).to_contain_text("workflow/01-deseq2/de_results.tsv")
     page.locator("[data-job-open-result='job-123']").click()
     expect(page.locator("#jobsDrawer")).to_be_hidden()
     expect(page.locator("#analysisThread")).to_contain_text("External analysis done.")
@@ -1048,6 +1137,58 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
 
     de_button = page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-differential-expression']")
     expect(de_button).to_be_enabled()
+
+
+def test_analysis_workflow_filter_shows_molecular_dataset_selector(page) -> None:
+    _mock_saved_cohorts(page)
+    _mock_molecular_datasets_with_nonmatching_dataset(page)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
+    page.locator("#analysisCompareMode").check()
+    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
+
+    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
+    page.locator("#analysisCatalogFilters [data-analysis-catalog-filter='workflow']").click()
+    expect(page.locator("#analysisCatalogList")).to_contain_text("Molecular signature workflow")
+    page.locator("#analysisCatalogList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+
+    expect(page.locator("#analysisCatalogMolecularPanel")).to_be_visible()
+    expect(page.locator("#analysisCatalogMolecularDatasetList")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#analysisCatalogMolecularDatasetList")).not_to_contain_text("unrelated_transcriptome_raw_counts")
+    expect(page.locator("#analysisCatalogMolecularDatasetList input[type='checkbox']")).to_be_checked()
+    expect(page.locator("#analysisCatalogMolecularStatus")).to_contain_text("Selected dataset: synthetic_transcriptome_raw_counts_infliximab")
+
+
+def test_analysis_workflow_molecular_selector_keeps_one_dataset_selected(page) -> None:
+    _mock_saved_cohorts(page)
+    _mock_molecular_datasets_with_two_matching_datasets(page)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
+    page.locator("#analysisCompareMode").check()
+    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
+
+    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
+    page.locator("#analysisCatalogFilters [data-analysis-catalog-filter='workflow']").click()
+    page.locator("#analysisCatalogList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+
+    first_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_infliximab']")
+    second_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_ustekinumab']")
+    first_dataset.check()
+    expect(first_dataset).to_be_checked()
+    second_dataset.check()
+    expect(second_dataset).to_be_checked()
+    expect(first_dataset).not_to_be_checked()
+    expect(page.locator("#analysisCatalogMolecularStatus")).to_contain_text("Selected dataset: synthetic_transcriptome_raw_counts_ustekinumab")
 
 
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:

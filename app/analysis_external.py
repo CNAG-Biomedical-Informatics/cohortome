@@ -31,6 +31,30 @@ SNAKEMAKE_RUNNERS = {
 NEXTFLOW_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_nextflow" / "main.nf",
 }
+WORKFLOW_RUNNERS = {
+    "molecular_signature": {
+        "id": "molecular_signature",
+        "name": "Molecular signature workflow",
+        "steps": [
+            {
+                "id": "deseq2",
+                "label": "DESeq2 differential expression",
+                "runner_type": "rscript",
+                "runner_ref": "molecular_deseq2_differential_expression",
+                "artifact_dir": "workflow/01-deseq2",
+                "prompt": "Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.",
+            },
+            {
+                "id": "hallmark",
+                "label": "Hallmark pathway enrichment",
+                "runner_type": "rscript",
+                "runner_ref": "molecular_hallmark_pathway_enrichment",
+                "artifact_dir": "workflow/02-hallmark",
+                "prompt": "Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+            },
+        ],
+    },
+}
 
 
 def _configured_binary(env_var: str, default_name: str) -> str | None:
@@ -190,6 +214,33 @@ def _write_command_logs(
     (target_dir / "command.txt").write_text(" ".join(command), encoding="utf-8")
     (target_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
     (target_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
+
+
+def _write_workflow_manifest(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _workflow_step_payload(
+    *,
+    step: Dict[str, Any],
+    payload: Dict[str, Any],
+    status: str,
+    error: str = "",
+) -> Dict[str, Any]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    context = data.get("context") if isinstance(data.get("context"), dict) else {}
+    return {
+        "id": str(step.get("id") or "").strip(),
+        "label": str(step.get("label") or "").strip(),
+        "runner_type": str(step.get("runner_type") or "").strip(),
+        "runner_ref": str(step.get("runner_ref") or "").strip(),
+        "artifact_dir": str(step.get("artifact_dir") or "").strip(),
+        "status": status,
+        "error": error,
+        "reply": str(payload.get("reply") or "").strip(),
+        "context": context,
+    }
 
 
 def _load_workflow_result_payload(
@@ -952,6 +1003,135 @@ def run_nextflow_analysis(
         )
 
 
+def run_workflow_analysis(
+    runner_ref: str,
+    *,
+    prompt: str,
+    data_dir: str,
+    molecular_dataset_name: str = "",
+    selected_patient_ids: str = "",
+    compare_selected_patient_ids: str = "",
+    job_dir: Path | None = None,
+    timeout_seconds: int = 30,
+) -> Dict[str, Any]:
+    workflow = WORKFLOW_RUNNERS.get(str(runner_ref or "").strip())
+    if workflow is None:
+        raise RuntimeError(f"Unsupported analysis workflow '{runner_ref}'.")
+    with tempfile.TemporaryDirectory(prefix="pn-analysis-workflow-") as temp_dir:
+        root = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        workflow_root = root / "workflow"
+        workflow_root.mkdir(parents=True, exist_ok=True)
+        manifest_path = workflow_root / "manifest.json"
+        steps = list(workflow.get("steps") or [])
+        manifest = {
+            "workflow_id": str(workflow.get("id") or runner_ref),
+            "workflow_name": str(workflow.get("name") or "Analysis workflow"),
+            "runner_ref": str(runner_ref or "").strip(),
+            "prompt": str(prompt or ""),
+            "data_dir": str(data_dir or ""),
+            "molecular_dataset_name": str(molecular_dataset_name or ""),
+            "selected_patient_ids": str(selected_patient_ids or ""),
+            "compare_selected_patient_ids": str(compare_selected_patient_ids or ""),
+            "steps": [
+                {
+                    "id": str(step.get("id") or "").strip(),
+                    "label": str(step.get("label") or "").strip(),
+                    "runner_type": str(step.get("runner_type") or "").strip(),
+                    "runner_ref": str(step.get("runner_ref") or "").strip(),
+                    "artifact_dir": str(step.get("artifact_dir") or "").strip(),
+                    "status": "pending",
+                    "error": "",
+                }
+                for step in steps
+            ],
+        }
+        _write_workflow_manifest(manifest_path, manifest)
+        completed_steps: List[Dict[str, Any]] = []
+        step_timeout = max(1, int(timeout_seconds or 30) // max(1, len(steps)))
+        for index, step in enumerate(steps):
+            manifest["steps"][index]["status"] = "running"
+            _write_workflow_manifest(manifest_path, manifest)
+            step_dir = root / str(step.get("artifact_dir") or f"workflow/{index + 1:02d}-{step.get('id') or 'step'}")
+            try:
+                if str(step.get("runner_type") or "").strip().lower() != "rscript":
+                    raise RuntimeError(f"Unsupported workflow step runner '{step.get('runner_type')}'.")
+                step_payload = run_rscript_analysis(
+                    str(step.get("runner_ref") or "").strip(),
+                    prompt=str(step.get("prompt") or prompt or ""),
+                    data_dir=data_dir,
+                    molecular_dataset_name=molecular_dataset_name,
+                    selected_patient_ids=selected_patient_ids,
+                    compare_selected_patient_ids=compare_selected_patient_ids,
+                    job_dir=step_dir,
+                    timeout_seconds=step_timeout,
+                )
+                step_record = _workflow_step_payload(step=step, payload=step_payload, status="completed")
+                completed_steps.append(step_record)
+                manifest["steps"][index].update(
+                    {
+                        "status": "completed",
+                        "reply": step_record["reply"],
+                        "context": step_record["context"],
+                    }
+                )
+            except Exception as exc:
+                error_text = str(exc).strip() or "Workflow step failed."
+                manifest["steps"][index]["status"] = "failed"
+                manifest["steps"][index]["error"] = error_text
+                _write_workflow_manifest(manifest_path, manifest)
+                raise RuntimeError(
+                    f"{str(step.get('label') or step.get('id') or 'Workflow step').strip()} failed: {error_text}"
+                ) from exc
+            _write_workflow_manifest(manifest_path, manifest)
+        deseq2_context = next(
+            (step["context"] for step in completed_steps if step.get("id") == "deseq2"),
+            {},
+        )
+        hallmark_context = next(
+            (step["context"] for step in completed_steps if step.get("id") == "hallmark"),
+            {},
+        )
+        dataset_name = (
+            str(deseq2_context.get("dataset_name") or "").strip()
+            or str(hallmark_context.get("dataset_name") or "").strip()
+            or str(molecular_dataset_name or "").strip()
+        )
+        significant_genes = int(deseq2_context.get("significant_gene_count") or 0) if isinstance(deseq2_context, dict) else 0
+        significant_pathways = int(hallmark_context.get("significant_pathway_count") or 0) if isinstance(hallmark_context, dict) else 0
+        reply = (
+            f"Molecular signature workflow completed for {dataset_name or 'the selected molecular dataset'}. "
+            f"DESeq2 found {significant_genes} significant genes and Hallmark enrichment found "
+            f"{significant_pathways} significant pathways."
+        )
+        manifest["status"] = "completed"
+        _write_workflow_manifest(manifest_path, manifest)
+        return {
+            "intent": "analysis_workflow",
+            "reply": reply,
+            "data": {
+                "source": "deterministic",
+                "execution": "external_runner",
+                "context": {
+                    "mode": "workflow_molecular_signature",
+                    "workflow_id": str(workflow.get("id") or runner_ref),
+                    "workflow_name": str(workflow.get("name") or "Analysis workflow"),
+                    "dataset_name": dataset_name,
+                    "step_count": len(completed_steps),
+                    "steps": completed_steps,
+                    "deseq2": deseq2_context,
+                    "hallmark": hallmark_context,
+                    "workflow_manifest": "workflow/manifest.json",
+                },
+                "model": None,
+                "base_url": "",
+                "runner_type": "workflow",
+                "runner_ref": str(runner_ref or "").strip(),
+                "workflow_id": str(workflow.get("id") or runner_ref),
+            },
+        }
+
+
 def run_external_analysis(
     runner_type: str,
     runner_ref: str,
@@ -991,6 +1171,17 @@ def run_external_analysis(
             runner_ref,
             prompt=prompt,
             data_dir=data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            job_dir=job_dir,
+            timeout_seconds=timeout_seconds,
+        )
+    if normalized == "workflow":
+        return run_workflow_analysis(
+            runner_ref,
+            prompt=prompt,
+            data_dir=data_dir,
+            molecular_dataset_name=molecular_dataset_name,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids,
             job_dir=job_dir,
