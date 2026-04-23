@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -55,6 +57,16 @@ OPENAPI_TAGS = [
     },
 ]
 
+
+def _session_secret() -> str:
+    configured = os.getenv("PN_SESSION_SECRET", "").strip()
+    if configured:
+        return configured
+    if os.getenv("PN_AUTH_MODE", "none").strip().lower() == "local":
+        raise RuntimeError("PN_SESSION_SECRET must be set when PN_AUTH_MODE=local.")
+    return "patient-navigator-dev-session"
+
+
 app = FastAPI(
     title="Patient Navigator API",
     summary="Workspace-oriented clinical and molecular exploration API.",
@@ -65,7 +77,7 @@ app = FastAPI(
     version="0.1.0",
     openapi_tags=OPENAPI_TAGS,
 )
-app.add_middleware(SessionMiddleware, secret_key="patient-navigator-local-session")
+app.add_middleware(SessionMiddleware, secret_key=_session_secret())
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 

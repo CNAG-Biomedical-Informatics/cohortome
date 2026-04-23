@@ -195,15 +195,11 @@ def shape_summary_response(payload: Dict[str, Any]) -> Dict[str, Any]:
         return payload
 
     if intent in {"patient_summary", "patient_timeline", "patient_visits"}:
-        patient_id = str(data.get("patient_id") or payload.get("query") or "").strip()
         return {
             "query": payload.get("query", ""),
             "intent": intent,
-            "reply": "Detailed patient-level answers are not available in Summary mode. Switch to Detailed to inspect %s." % (
-                patient_id if patient_id else "this patient"
-            ),
+            "reply": "Detailed patient-level answers are not available in Summary mode.",
             "data": {
-                "patient_id": str(data.get("patient_id") or "").strip(),
                 "follow_up_suggestions": [
                     "How many patients are in this workspace?",
                     "Which patients have more than 1 medication?",

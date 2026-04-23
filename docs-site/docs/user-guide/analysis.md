@@ -20,8 +20,8 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - trajectories
 - Kaplan-Meier curves
 - molecular expression summaries
-- exploratory volcano plots
 - DESeq2 differential expression on one raw-count dataset
+- legacy approximate differential expression for comparison/debugging
 - Hallmark pathway enrichment from a DESeq2-ranked comparison
 - curated external analyses through reviewed runners
 
@@ -135,8 +135,8 @@ The current molecular catalog tools are method-driven.
 
 Examples:
 
-- `Differential expression`
 - `DESeq2 differential expression`
+- `Differential expression (legacy)`
 - `Hallmark pathway enrichment`
 
 These tools do not compare two molecular datasets against each other.
@@ -157,6 +157,8 @@ For the current `DESeq2` and Hallmark pathway tools, the first-version constrain
 - one sample per patient
 
 In practice, that means baseline-only transcriptomics datasets are the safest first choice.
+
+`Differential expression (legacy)` remains available as a lighter approximate method based on log2-CPM plus per-gene t-tests. It is retained for comparison/debugging, not as the preferred RNA-seq result.
 
 ## Catalog search, filters, and suggestions
 

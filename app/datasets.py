@@ -373,6 +373,36 @@ def parse_scope_dataset_ids(value: str | None) -> List[str]:
     return [normalized] if normalized else []
 
 
+def _scope_source_files_manifest(dataset_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    manifest = {"clinical_files": [], "molecular_files": []}
+    for dataset_id in dataset_ids:
+        dataset = get_dataset(dataset_id)
+        if dataset is None:
+            continue
+        dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
+        for key, directory, patterns in (
+            ("clinical_files", dataset_root / "clinical", ("*.json", "*.json.gz")),
+            ("molecular_files", dataset_root / "molecular", ("*.csv",)),
+        ):
+            seen_paths = set()
+            for pattern in patterns:
+                for path in sorted(directory.glob(pattern)):
+                    if not path.is_file() or path in seen_paths:
+                        continue
+                    seen_paths.add(path)
+                    stat = path.stat()
+                    manifest[key].append(
+                        {
+                            "dataset_id": dataset_id,
+                            "source": str(path.resolve()),
+                            "target": f"{dataset_id}__{path.name}",
+                            "size": int(stat.st_size),
+                            "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+                        }
+                    )
+    return manifest
+
+
 def resolve_dataset(request: Request | None = None, dataset_id: str | None = None) -> Dict[str, Any]:
     user = _request_user(request)
     requested_id = normalize_dataset_id(dataset_id)
@@ -442,6 +472,7 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
     manifest = {
         "dataset_ids": normalized,
         "root_paths": [str(get_dataset(item).get("root_path") or "") for item in normalized if get_dataset(item)],
+        **_scope_source_files_manifest(normalized),
     }
     if manifest_path.exists():
         try:
@@ -458,10 +489,11 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
         if dataset is None:
             continue
         dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
-        for path in sorted((dataset_root / "clinical").glob("*.json")):
-            target = clinical_dir / f"{dataset_id}__{path.name}"
-            if not target.exists():
-                target.symlink_to(path.resolve())
+        for pattern in ("*.json", "*.json.gz"):
+            for path in sorted((dataset_root / "clinical").glob(pattern)):
+                target = clinical_dir / f"{dataset_id}__{path.name}"
+                if not target.exists():
+                    target.symlink_to(path.resolve())
         for path in sorted((dataset_root / "molecular").glob("*.csv")):
             target = molecular_dir / f"{dataset_id}__{path.name}"
             if not target.exists():

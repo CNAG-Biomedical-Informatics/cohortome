@@ -17,6 +17,7 @@ import app.auth as auth_module
 import app.cohorts as cohorts_module
 import app.datasets as datasets_module
 import app.jobs as jobs_module
+import app.main as main_module
 import app.pheno as pheno_module
 import app.query as query_module
 import app.query_policy as query_policy_module
@@ -76,6 +77,17 @@ def isolate_jobs_store(monkeypatch, tmp_path):
 
 def make_request(session=None):
     return SimpleNamespace(session=session or {})
+
+
+def test_session_secret_is_required_when_local_auth_enabled(monkeypatch):
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.delenv("PN_SESSION_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="PN_SESSION_SECRET"):
+        main_module._session_secret()
+
+    monkeypatch.setenv("PN_SESSION_SECRET", "test-secret")
+    assert main_module._session_secret() == "test-secret"
 
 
 def test_ensure_data_dir_accepts_project_root_with_clinical_subdir(tmp_path):
@@ -622,7 +634,9 @@ def test_answer_query_summary_blocks_direct_patient_detail_lookup(tmp_path):
 
     assert payload["intent"] == "patient_timeline"
     assert "not available in Summary mode" in payload["reply"]
+    assert "101" not in payload["reply"]
     assert "timeline" not in payload["data"]
+    assert "patient_id" not in payload["data"]
     assert payload["action_context"] == {
         "patient_ids": [],
         "record_ids": [],
@@ -1161,6 +1175,34 @@ def test_auth_users_requires_admin(monkeypatch, tmp_path):
     assert [item["username"] for item in payload.json()["users"]] == ["admin", "maria"]
 
 
+def test_auth_debug_requires_admin_when_auth_enabled(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
+                {"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"},
+            ]
+        ),
+    )
+    client = TestClient(app)
+
+    assert client.get("/auth/debug").status_code == 403
+
+    login_user = client.post("/auth/login", json={"username": "maria", "password": "demo"})
+    assert login_user.status_code == 200
+    assert client.get("/auth/debug").status_code == 403
+
+    client.post("/auth/logout")
+    login_admin = client.post("/auth/login", json={"username": "admin", "password": "secret"})
+    assert login_admin.status_code == 200
+    response = client.get("/auth/debug")
+    assert response.status_code == 200
+    assert response.json()["user_count"] == 2
+
+
 def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
@@ -1432,6 +1474,57 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     outsider_listed = client.get("/datasets")
     assert outsider_listed.status_code == 200
     assert "cnag-dataset" not in [item["dataset_id"] for item in outsider_listed.json()["datasets"]]
+
+
+def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_path, monkeypatch):
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_a = tmp_path / "dataset-a"
+    dataset_b = tmp_path / "dataset-b"
+    (dataset_a / "clinical").mkdir(parents=True)
+    (dataset_a / "molecular").mkdir()
+    (dataset_b / "clinical").mkdir(parents=True)
+    (dataset_b / "molecular").mkdir()
+    write_json(dataset_a / "clinical", "a_records.json", [{"id": "A1:baseline", "patient_id": "A1"}])
+    write_json(dataset_b / "clinical", "b_records.json", [{"id": "B1:baseline", "patient_id": "B1"}])
+
+    registry = [
+        {
+            "dataset_id": "dataset-a",
+            "name": "Dataset A",
+            "root_path": str(dataset_a),
+            "enabled": True,
+            "visibility": "all_authenticated",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+        {
+            "dataset_id": "dataset-b",
+            "name": "Dataset B",
+            "root_path": str(dataset_b),
+            "enabled": True,
+            "visibility": "all_authenticated",
+            "created_by": "admin",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ]
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    scope_root = Path(datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"]))
+    assert (scope_root / "clinical" / "dataset-a__a_records.json").exists()
+    assert (scope_root / "clinical" / "dataset-b__b_records.json").exists()
+
+    write_json(dataset_b / "clinical", "b_new_records.json", [{"id": "B2:baseline", "patient_id": "B2"}])
+
+    refreshed_root = Path(datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"]))
+    assert refreshed_root == scope_root
+    assert (refreshed_root / "clinical" / "dataset-b__b_new_records.json").exists()
+    manifest = json.loads((refreshed_root / "manifest.json").read_text(encoding="utf-8"))
+    assert "dataset-b__b_new_records.json" in [item["target"] for item in manifest["clinical_files"]]
 
 
 def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkeypatch):
@@ -1798,6 +1891,77 @@ items:
     assert items[0]["execution_backend"] == "sync"
 
 
+def test_analysis_catalog_loader_preserves_debug_only_flag(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: external-debug-demo
+    name: External debug demo
+    description: Demo.
+    default_prompt: Run it.
+    runner_type: rscript
+    runner_ref: dummy_scope_snapshot
+    debug_only: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    items = analysis_catalog_module.load_analysis_catalog(catalog_path)
+
+    assert items[0]["debug_only"] is True
+
+
+def test_analysis_catalog_payload_hides_debug_only_items_by_default(tmp_path, monkeypatch):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: visible-analysis
+    name: Visible analysis
+    description: Demo.
+    default_prompt: Run visible.
+  - id: debug-analysis
+    name: Debug analysis
+    description: Demo.
+    default_prompt: Run debug.
+    debug_only: true
+""".strip(),
+        encoding="utf-8",
+    )
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+    monkeypatch.delenv("PN_ANALYSIS_CATALOG_DEBUG", raising=False)
+
+    payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
+
+    assert [item["id"] for item in payload["items"]] == ["visible-analysis"]
+
+
+def test_analysis_catalog_payload_can_include_debug_only_items_with_server_flag(tmp_path, monkeypatch):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(
+        """
+items:
+  - id: visible-analysis
+    name: Visible analysis
+    description: Demo.
+    default_prompt: Run visible.
+  - id: debug-analysis
+    name: Debug analysis
+    description: Demo.
+    default_prompt: Run debug.
+    debug_only: true
+""".strip(),
+        encoding="utf-8",
+    )
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+    monkeypatch.setenv("PN_ANALYSIS_CATALOG_DEBUG", "true")
+
+    payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
+
+    assert [item["id"] for item in payload["items"]] == ["visible-analysis", "debug-analysis"]
+
+
 def test_analysis_catalog_loader_accepts_workflow_runner_types(tmp_path):
     catalog_path = tmp_path / "catalog.yaml"
     catalog_path.write_text(
@@ -1882,6 +2046,32 @@ def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_pa
     assert "Deterministic Workspace Summary" in payload["reply"]
 
 
+def test_analysis_debug_catalog_item_is_rejected_without_server_flag(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+    monkeypatch.delenv("PN_ANALYSIS_CATALOG_DEBUG", raising=False)
+
+    with pytest.raises(RuntimeError, match="not available"):
+        analysis_module.analysis_llm_reply(
+            "Run the external R cohort snapshot analysis for the current Analysis scope.",
+            str(tmp_path),
+            catalog_item_id="external-r-scope-snapshot",
+            deterministic_only=True,
+        )
+
+
+def test_analysis_catalog_item_requires_detailed_access_on_backend(tmp_path):
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+
+    with pytest.raises(RuntimeError, match="Detailed in-app access"):
+        analysis_module.analysis_llm_reply(
+            "Run the external R clinical scope profile for the current Analysis scope.",
+            str(tmp_path),
+            catalog_item_id="external-r-clinical-profile",
+            deterministic_only=True,
+            granularity_ceiling="summary",
+        )
+
+
 def test_analysis_catalog_payload_marks_unavailable_items_for_workspace_limits(tmp_path):
     catalog_path = tmp_path / "catalog.yaml"
     catalog_path.write_text(
@@ -1946,9 +2136,10 @@ def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
     assert payload["workspace"]["granularity_ceiling"] == "summary"
 
 
-def test_analysis_external_rscript_runner_executes_curated_catalog_item(tmp_path):
+def test_analysis_external_rscript_runner_executes_curated_catalog_item(tmp_path, monkeypatch):
     if shutil.which("Rscript") is None:
         pytest.skip("Rscript is not available")
+    monkeypatch.setenv("PN_ANALYSIS_CATALOG_DEBUG", "true")
 
     write_json(
         tmp_path,
@@ -2475,6 +2666,45 @@ def test_analysis_external_snakemake_runner_executes(tmp_path, monkeypatch):
     assert (job_dir / "command.txt").exists()
     assert (job_dir / "stdout.txt").exists()
     assert (job_dir / "stderr.txt").exists()
+
+
+def test_analysis_external_snakemake_sync_reads_result_before_tempdir_cleanup(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/snakemake" if name == "snakemake" else None,
+    )
+
+    def fake_run(command, **kwargs):
+        result_arg = next(item for item in command if str(item).startswith("result_json="))
+        summary_arg = next(item for item in command if str(item).startswith("summary_txt="))
+        result_path = Path(str(result_arg).split("=", 1)[1])
+        summary_path = Path(str(summary_arg).split("=", 1)[1])
+        result_path.write_text(
+            json.dumps(
+                {
+                    "reply": "Snakemake sync workflow completed.",
+                    "context": {"mode": "external_snakemake_dummy"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        summary_path.write_text("dummy summary\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout="snakemake ok\n", stderr="")
+
+    monkeypatch.setattr(analysis_external_module.subprocess, "run", fake_run)
+
+    payload = analysis_external_module.run_snakemake_analysis(
+        "dummy_queue_demo",
+        prompt="Run the external Snakemake demo for the current Analysis scope.",
+        data_dir=str(tmp_path),
+        selected_patient_ids="P1",
+        timeout_seconds=60,
+    )
+
+    assert payload["reply"] == "Snakemake sync workflow completed."
+    assert payload["data"]["runner_type"] == "snakemake"
 
 
 def test_analysis_external_nextflow_runner_executes(tmp_path, monkeypatch):
@@ -6858,7 +7088,8 @@ def test_query_policy_patient_detail_summary_mode_response():
     shaped = query_policy_module.shape_summary_response(payload)
     assert shaped["intent"] == "patient_summary"
     assert "not available in Summary mode" in shaped["reply"]
-    assert shaped["data"]["patient_id"] == "SYN001"
+    assert "SYN001" not in shaped["reply"]
+    assert "patient_id" not in shaped["data"]
     assert shaped["data"]["follow_up_suggestions"] == [
         "How many patients are in this workspace?",
         "Which patients have more than 1 medication?",

@@ -849,14 +849,16 @@
                         <div id="analysisCatalogList" class="analysis-catalog-featured">
                           <div class="empty">Loading curated analyses...</div>
                         </div>
-                        <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
-                          <div class="analysis-molecular-panel-header">
-                            <strong>Molecular dataset</strong>
-                            <span class="section-note">Differential expression uses exactly one selected molecular dataset in addition to Cohort A and Cohort B.</span>
-                          </div>
-                          <div id="analysisCatalogMolecularStatus" class="section-note">Checking molecular datasets...</div>
-                          <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
-                            <div class="empty">No molecular dataset loaded</div>
+                        <div id="analysisCatalogMolecularParking" class="is-hidden" aria-hidden="true">
+                          <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
+                            <div class="analysis-molecular-panel-header">
+                              <strong id="analysisCatalogMolecularTitle">Molecular dataset</strong>
+                              <span id="analysisCatalogMolecularNote" class="section-note">Choose the transcriptomics dataset used by this analysis.</span>
+                            </div>
+                            <div id="analysisCatalogMolecularStatus" class="section-note">Checking molecular datasets...</div>
+                            <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
+                              <div class="empty">No molecular dataset loaded</div>
+                            </div>
                           </div>
                         </div>
                       </div>

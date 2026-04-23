@@ -16,6 +16,10 @@ VALID_RUNNER_TYPES = {"builtin", "rscript", "snakemake", "nextflow", "cli", "con
 VALID_EXECUTION_BACKENDS = {"sync", "job"}
 
 
+def analysis_catalog_debug_enabled() -> bool:
+    return os.getenv("PN_ANALYSIS_CATALOG_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _configured_runtime_available(env_var: str, default_name: str) -> bool:
     configured = str(os.environ.get(env_var) or "").strip()
     if configured:
@@ -69,6 +73,7 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "name": name,
         "category": category,
         "kind": kind,
+        "debug_only": bool(raw.get("debug_only", False)),
         "description": description,
         "guidance": guidance,
         "default_prompt": prompt,
@@ -152,6 +157,8 @@ def analysis_catalog_payload(
     has_molecular = bool(molecular_datasets)
     materialized_items = []
     for item in items:
+        if item.get("debug_only") and not analysis_catalog_debug_enabled():
+            continue
         availability = _availability_for_item(
             item,
             granularity_ceiling=granularity_ceiling,

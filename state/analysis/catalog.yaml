@@ -91,7 +91,7 @@ items:
     tags: [molecular, volcano, medication, deterministic]
 
   - id: molecular-differential-expression
-    name: Differential expression
+    name: Differential expression (legacy)
     category: Molecular
     kind: differential_expression
     execution_backend: job
@@ -99,15 +99,15 @@ items:
     job_timeout_seconds: 1800
     runner_type: rscript
     runner_ref: molecular_differential_expression
-    description: Run a curated external molecular differential-expression analysis between Cohort A and Cohort B using a job-scoped sample table and count matrix bundle.
-    guidance: Select Cohort A and Cohort B before running. The first compatible molecular dataset in the workspace is used automatically.
+    description: Legacy approximate differential-expression analysis between Cohort A and Cohort B using log2-CPM plus per-gene t-tests. Prefer DESeq2 for serious RNA-seq work.
+    guidance: Select Cohort A and Cohort B before running. This legacy tool is retained for comparison/debugging; DESeq2 is the recommended default.
     default_prompt: Run differential expression between Cohort A and Cohort B for the current molecular workspace.
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
     requires_detailed_access: true
     requires_molecular: true
-    tags: [molecular, differential-expression, background, rscript]
+    tags: [molecular, differential-expression, background, rscript, legacy]
 
   - id: molecular-deseq2-differential-expression
     name: DESeq2 differential expression
@@ -151,6 +151,7 @@ items:
     name: External R cohort snapshot
     category: External
     kind: external_rscript
+    debug_only: true
     execution_backend: sync
     runner_type: rscript
     runner_ref: dummy_scope_snapshot
@@ -181,6 +182,7 @@ items:
     name: External R long-running demo
     category: External
     kind: external_rscript
+    debug_only: true
     execution_backend: job
     expected_runtime: long
     job_timeout_seconds: 1800
@@ -197,6 +199,7 @@ items:
     name: External Snakemake demo
     category: External
     kind: external_workflow
+    debug_only: true
     execution_backend: job
     expected_runtime: medium
     job_timeout_seconds: 1800
@@ -213,6 +216,7 @@ items:
     name: External Nextflow demo
     category: External
     kind: external_workflow
+    debug_only: true
     execution_backend: job
     expected_runtime: short
     job_timeout_seconds: 1800

@@ -86,6 +86,7 @@ def live_server_auth() -> str:
     process, base_url = _spawn_live_server(
         {
             "PN_AUTH_MODE": "local",
+            "PN_SESSION_SECRET": "ui-smoke-test-session-secret",
             "PN_LOCAL_USERS_JSON": json.dumps(
                 [
                     {

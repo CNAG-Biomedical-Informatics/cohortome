@@ -5,7 +5,7 @@ import re
 from datetime import date
 from typing import Any, Dict, List
 
-from app.analysis_catalog import get_analysis_catalog_item
+from app.analysis_catalog import analysis_catalog_debug_enabled, get_analysis_catalog_item
 from app.analysis_external import run_external_analysis
 from app.jobs import submit_analysis_job
 from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
@@ -153,6 +153,7 @@ def _analysis_catalog_dispatch(
     user_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
+    granularity_applied: str = "detailed",
 ) -> Dict[str, Any] | None:
     item = get_analysis_catalog_item(catalog_item_id)
     if not item:
@@ -164,6 +165,12 @@ def _analysis_catalog_dispatch(
     # normal Analysis routing.
     if not normalized_prompt or not default_prompt or normalized_prompt != default_prompt:
         return None
+    if item.get("debug_only") and not analysis_catalog_debug_enabled():
+        raise RuntimeError("This analysis is not available in the current catalog.")
+    if item.get("requires_detailed_access") and granularity_applied != "detailed":
+        raise RuntimeError("This analysis requires Detailed in-app access for the current workspace.")
+    if item.get("requires_molecular") and not store_molecular_dataset_inventory(data_dir):
+        raise RuntimeError("This analysis requires at least one molecular dataset in the active workspace.")
     runner_type = str(item.get("runner_type") or "builtin").strip().lower()
     execution_backend = str(item.get("execution_backend") or "sync").strip().lower()
     if runner_type == "builtin":
@@ -1996,6 +2003,7 @@ def _analysis_llm_reply_impl(
         user_id=user_id,
         selected_patient_ids=selected_patient_ids,
         compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
+        granularity_applied=granularity_applied,
     )
     if catalog_payload is not None:
         return catalog_payload

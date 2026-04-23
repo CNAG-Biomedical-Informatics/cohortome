@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -484,7 +485,11 @@ def logout_local(request: Request) -> Dict:
     return {"enabled": auth_enabled(), "authenticated": False}
 
 
-def get_auth_diagnostics() -> Dict:
+def get_auth_diagnostics(request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    elif os.getenv("PN_AUTH_DEBUG_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=404, detail="Auth diagnostics are disabled.")
     return local_auth_diagnostics()
 
 

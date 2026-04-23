@@ -866,15 +866,15 @@ def run_snakemake_analysis(
             text=True,
             timeout=max(1, int(timeout_seconds or 30)),
         )
-    _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
-    if result.returncode != 0:
-        raise RuntimeError((result.stderr or result.stdout or "External Snakemake analysis failed.").strip())
-    return _load_workflow_result_payload(
-        result_path=result_path,
-        runner_type="snakemake",
-        runner_ref=runner_ref,
-        command=command,
-    )
+        _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or "External Snakemake analysis failed.").strip())
+        return _load_workflow_result_payload(
+            result_path=result_path,
+            runner_type="snakemake",
+            runner_ref=runner_ref,
+            command=command,
+        )
 
 
 def run_nextflow_analysis(
@@ -941,15 +941,15 @@ def run_nextflow_analysis(
             text=True,
             timeout=max(1, int(timeout_seconds or 30)),
         )
-    _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
-    if result.returncode != 0:
-        raise RuntimeError((result.stderr or result.stdout or "External Nextflow analysis failed.").strip())
-    return _load_workflow_result_payload(
-        result_path=result_path,
-        runner_type="nextflow",
-        runner_ref=runner_ref,
-        command=command,
-    )
+        _write_command_logs(target_dir=job_dir, command=command, stdout=result.stdout or "", stderr=result.stderr or "")
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or "External Nextflow analysis failed.").strip())
+        return _load_workflow_result_payload(
+            result_path=result_path,
+            runner_type="nextflow",
+            runner_ref=runner_ref,
+            command=command,
+        )
 
 
 def run_external_analysis(

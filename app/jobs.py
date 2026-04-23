@@ -215,6 +215,8 @@ def _reconcile_active_job_record(record: Dict[str, Any], user_id: str) -> Dict[s
             reply_preview=_job_reply_preview(job_id, user_id),
             error="",
         )
+    if not rq_job_id:
+        return record
 
     if not jobs_enabled():
         return record
@@ -244,7 +246,7 @@ def _reconcile_active_job_record(record: Dict[str, Any], user_id: str) -> Dict[s
                 reply_preview=_job_reply_preview(job_id, user_id),
                 error="",
             )
-        if no_such_job:
+        if no_such_job and status == "running":
             return persist(
                 status="failed",
                 completed_at=str(record.get("completed_at") or "").strip() or _now_iso(),

@@ -270,6 +270,30 @@ export function createAnalysisCatalogUi(ctx) {
     return `${currentStorageNamespace(state.authState)}.analysisCatalogUsage`;
   }
 
+  function analysisCatalogDebugStorageKey() {
+    return `${currentStorageNamespace(state.authState)}.analysisCatalogDebug`;
+  }
+
+  function analysisCatalogDebugEnabled() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      const explicit = String(params.get("analysis_debug") || "").trim().toLowerCase();
+      if (["1", "true", "yes", "on"].includes(explicit)) {
+        return true;
+      }
+      if (["0", "false", "no", "off"].includes(explicit)) {
+        return false;
+      }
+    } catch (error) {
+      // Ignore URL parsing issues and fall back to local storage.
+    }
+    try {
+      return String(window.localStorage.getItem(analysisCatalogDebugStorageKey()) || "").trim().toLowerCase() === "true";
+    } catch (error) {
+      return false;
+    }
+  }
+
   function readAnalysisCatalogUsage() {
     try {
       const raw = window.localStorage.getItem(analysisCatalogUsageStorageKey());
@@ -352,7 +376,11 @@ export function createAnalysisCatalogUi(ctx) {
     const items = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
     const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
+    const includeDebug = analysisCatalogDebugEnabled();
     return items.filter((item) => {
+      if (item && item.debug_only && !includeDebug) {
+        return false;
+      }
       if (!analysisCatalogItemMatchesFilter(item, filter)) {
         return false;
       }
@@ -484,6 +512,12 @@ export function createAnalysisCatalogUi(ctx) {
     if (item.requires_detailed_access) {
       metaBadges.push('<span class="query-chip badge">Detailed required</span>');
     }
+    if (Array.isArray(item.tags) && item.tags.includes("legacy")) {
+      metaBadges.push('<span class="query-chip badge">Legacy</span>');
+    }
+    if (item && item.debug_only && analysisCatalogDebugEnabled()) {
+      metaBadges.push('<span class="query-chip badge">Debug</span>');
+    }
     if (item.runner_type && item.runner_type !== "builtin") {
       metaBadges.push(`<span class="query-chip badge">${escapeHtml(analysisCatalogRunnerTypeLabel(item.runner_type))}</span>`);
     }
@@ -547,11 +581,13 @@ export function createAnalysisCatalogUi(ctx) {
       return;
     }
     const visibleItems = filteredAnalysisCatalogItems();
+    const catalogUniverse = (Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [])
+      .filter((item) => !(item && item.debug_only) || analysisCatalogDebugEnabled());
     const unavailableCount = visibleItems.filter((item) => !item.available).length;
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
     const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
     if (analysisCatalogStatusEl) {
-      const summaryBits = [`${visibleItems.length} of ${state.analysisCatalogItems.length} tools`];
+      const summaryBits = [`${visibleItems.length} of ${catalogUniverse.length} tools`];
       if (filter !== "all") {
         summaryBits.push(analysisCatalogFilterLabel(filter));
       }
@@ -563,6 +599,9 @@ export function createAnalysisCatalogUi(ctx) {
       }
       if (state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_molecular_datasets) {
         summaryBits.push(`${state.analysisCatalogWorkspace.molecular_dataset_count} molecular dataset${state.analysisCatalogWorkspace.molecular_dataset_count === 1 ? "" : "s"}`);
+      }
+      if (analysisCatalogDebugEnabled()) {
+        summaryBits.push("debug tools visible");
       }
       analysisCatalogStatusEl.textContent = summaryBits.join(" · ");
     }
@@ -577,7 +616,6 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisCatalogMolecularPanel();
       return;
     }
-    const suggested = suggestedAnalysisCatalogItems(visibleItems);
     const grouped = visibleItems.reduce((acc, item) => {
       const key = String(item.category || "General");
       if (!acc[key]) acc[key] = [];
@@ -585,9 +623,6 @@ export function createAnalysisCatalogUi(ctx) {
       return acc;
     }, {});
     analysisCatalogListEl.innerHTML = [
-      suggested.length
-        ? `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">Suggested</div><div class="analysis-catalog-grid analysis-catalog-grid-compact">${suggested.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("")}</div></section>`
-        : "",
       ...Object.entries(grouped).map(([category, items]) => {
       const cards = items.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("");
       return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid analysis-catalog-grid-compact">${cards}</div></section>`;
