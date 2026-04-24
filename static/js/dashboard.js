@@ -833,9 +833,10 @@ export function createDashboardUi(ctx) {
     }
   }
 
-  async function loadMolecularDatasets() {
+  async function loadMolecularDatasets(options = {}) {
     if (!analysisMolecularStatusEl || !molecularDashboardStatusEl) return;
-    const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
+    const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
+    const dataDir = encodeURIComponent(scopeId);
     analysisMolecularStatusEl.className = "query-status loading";
     analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
     if (analysisCatalogMolecularStatusEl) {
@@ -844,9 +845,13 @@ export function createDashboardUi(ctx) {
     molecularDashboardStatusEl.className = "query-status loading";
     molecularDashboardStatusEl.textContent = "Checking molecular datasets...";
     try {
-      const response = await fetch(`/molecular/datasets?data_dir=${dataDir}`);
-      if (!response.ok) throw new Error("Unable to load molecular datasets.");
-      const payload = await response.json();
+      const payload = options.prefetched && typeof options.prefetched === "object"
+        ? options.prefetched
+        : await (async () => {
+          const response = await fetch(`/molecular/datasets?data_dir=${dataDir}`);
+          if (!response.ok) throw new Error("Unable to load molecular datasets.");
+          return response.json();
+        })();
       const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
       state.molecularDatasetsState = datasets;
       syncSelectedMolecularDatasets();

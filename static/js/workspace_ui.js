@@ -203,7 +203,7 @@ export function createWorkspaceUi(ctx) {
   }
 
   async function loadPatients(options = {}) {
-    const { respectAdminGate = true } = options;
+    const { respectAdminGate = true, targetDatasetIds = null } = options;
     if (state.loadInFlight) {
       return;
     }
@@ -213,15 +213,100 @@ export function createWorkspaceUi(ctx) {
     }
     state.loadInFlight = true;
     renderGlobalContext();
+    renderLoadButtonState();
     updateLoadButtonAvailability();
     if (loadStatusEl) {
       loadStatusEl.className = "load-status loading";
-      loadStatusEl.textContent = "Loading patients and dashboard...";
+      loadStatusEl.textContent = "Applying workspace selection...";
     }
     await nextFrame();
 
     try {
-      const selectedIds = pendingDatasetSelectionIds();
+      const selectedIds = Array.isArray(targetDatasetIds)
+        ? targetDatasetIds.map((item) => String(item || "").trim()).filter(Boolean)
+        : pendingDatasetSelectionIds();
+      const targetScopeId = currentDatasetSelectionKey(selectedIds);
+      const hadActiveWorkspace = Boolean(state.currentDatasetIds.length);
+      let prefetchedMolecularPayload = null;
+
+      if (!selectedIds.length) {
+        state.currentDatasetIds = [];
+        state.pendingDatasetIds = [];
+        state.currentDatasetScopeId = "";
+        state.currentPatients = [];
+        state.selectedPatientId = null;
+        state.dashboardSummaryState = null;
+        if (dataDirEl) {
+          dataDirEl.dataset.scopeId = "";
+        }
+        renderDatasetPicker();
+        renderDatasetAdminList();
+        renderDatasetScopeSummary();
+        renderLoadButtonState();
+        prepareAnalysisSessionForDataDir("");
+        resetQueryWorkspace();
+        syncQueryGranularityWithWorkspacePolicy();
+        if (patientsEl) {
+          patientsEl.innerHTML = '<div class="empty">No dataset selected.</div>';
+        }
+        if (detailEl) {
+          detailEl.innerHTML = '<div class="empty">Select a workspace to inspect the patient workspace.</div>';
+        }
+        if (dashboardEl) {
+          dashboardEl.innerHTML = '<div class="empty">Select a workspace to inspect the dashboard.</div>';
+        }
+        if (loadStatusEl) {
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = "No dataset selected.";
+        }
+        renderGlobalContext();
+        return;
+      }
+
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Checking the selected workspace before switching...";
+      }
+      await nextFrame();
+
+      const patientResponse = await fetch(`/patients?dataset_id=${encodeURIComponent(targetScopeId)}`);
+      if (!patientResponse.ok) {
+        const error = await patientResponse.json().catch(() => ({}));
+        if (!hadActiveWorkspace) {
+          if (patientsEl) {
+            patientsEl.innerHTML = `<div class="empty">${error.detail || "Unable to load patients."}</div>`;
+          }
+          if (detailEl) {
+            detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
+          }
+          if (dashboardEl) {
+            dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+          }
+          state.dashboardSummaryState = null;
+        }
+        if (loadStatusEl) {
+          loadStatusEl.className = "load-status";
+          loadStatusEl.textContent = error.detail || "Load failed.";
+        }
+        renderGlobalContext();
+        return;
+      }
+
+      const patients = await patientResponse.json();
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Preparing molecular datasets for the selected workspace...";
+      }
+      await nextFrame();
+      try {
+        const molecularResponse = await fetch(`/molecular/datasets?data_dir=${encodeURIComponent(targetScopeId)}`);
+        if (molecularResponse.ok) {
+          prefetchedMolecularPayload = await molecularResponse.json();
+        }
+      } catch (_error) {
+        prefetchedMolecularPayload = null;
+      }
+
       await fetch("/datasets/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -229,44 +314,36 @@ export function createWorkspaceUi(ctx) {
       });
       state.currentDatasetIds = selectedIds.slice();
       state.pendingDatasetIds = selectedIds.slice();
-      state.currentDatasetScopeId = currentDatasetSelectionKey();
+      state.currentDatasetScopeId = targetScopeId;
       if (dataDirEl) {
-        dataDirEl.dataset.scopeId = state.currentDatasetScopeId;
+        dataDirEl.dataset.scopeId = targetScopeId;
       }
       renderDatasetPicker();
       renderDatasetAdminList();
       renderDatasetScopeSummary();
+      renderGlobalContext();
       renderLoadButtonState();
-      prepareAnalysisSessionForDataDir(currentDatasetSelectionKey());
+      prepareAnalysisSessionForDataDir(targetScopeId);
       resetQueryWorkspace();
       syncQueryGranularityWithWorkspacePolicy();
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Refreshing catalog, cohorts, and query helpers...";
+      }
       await loadAnalysisCatalog();
       await loadSavedCohorts();
       await loadQueryDiseaseOptions();
-      await loadMolecularDatasets();
-      await loadPhenoRankerPatientIds();
-      const patientResponse = await fetch(`/patients?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`);
-      if (!patientResponse.ok) {
-        const error = await patientResponse.json().catch(() => ({}));
-        if (patientsEl) {
-          patientsEl.innerHTML = `<div class="empty">${error.detail || "Unable to load patients."}</div>`;
-        }
-        if (detailEl) {
-          detailEl.innerHTML = '<div class="empty">Fix the data directory and try again.</div>';
-        }
-        if (dashboardEl) {
-          dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-        }
-        state.dashboardSummaryState = null;
-        if (loadStatusEl) {
-          loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = "Load failed.";
-        }
-        renderGlobalContext();
-        return;
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Indexing molecular datasets for the selected workspace...";
       }
-
-      const patients = await patientResponse.json();
+      await nextFrame();
+      await loadMolecularDatasets({ scopeId: targetScopeId, prefetched: prefetchedMolecularPayload });
+      if (loadStatusEl) {
+        loadStatusEl.className = "load-status loading";
+        loadStatusEl.textContent = "Loading Pheno-Ranker scope IDs and patient roster...";
+      }
+      await loadPhenoRankerPatientIds();
       state.currentPatients = Array.isArray(patients) ? patients : [];
       if (!state.currentPatients.length) {
         state.selectedPatientId = null;
@@ -295,7 +372,7 @@ export function createWorkspaceUi(ctx) {
       }
       if (loadStatusEl) {
         loadStatusEl.className = "load-status";
-        loadStatusEl.textContent = `Loaded ${state.currentPatients.length} patients.`;
+        loadStatusEl.textContent = `Loaded ${state.currentPatients.length} patients. Workspace: ${datasetScopeLabel()}.`;
       }
       renderGlobalContext();
 
@@ -303,7 +380,7 @@ export function createWorkspaceUi(ctx) {
         dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
       }
       window.setTimeout(() => {
-        fetch(`/dashboard?dataset_id=${encodeURIComponent(currentDatasetSelectionKey())}`)
+        fetch(`/dashboard?dataset_id=${encodeURIComponent(targetScopeId)}`)
           .then(async (response) => {
             if (!response.ok) {
               if (dashboardEl) {
@@ -326,16 +403,18 @@ export function createWorkspaceUi(ctx) {
           });
       }, 0);
     } catch (error) {
-      if (patientsEl) {
-        patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
+      if (!state.currentDatasetIds.length) {
+        if (patientsEl) {
+          patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
+        }
+        if (detailEl) {
+          detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
+        }
+        if (dashboardEl) {
+          dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+        }
+        state.dashboardSummaryState = null;
       }
-      if (detailEl) {
-        detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
-      }
-      if (dashboardEl) {
-        dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-      }
-      state.dashboardSummaryState = null;
       if (loadStatusEl) {
         loadStatusEl.className = "load-status";
         loadStatusEl.textContent = error && error.message ? error.message : "Load failed.";
@@ -343,6 +422,7 @@ export function createWorkspaceUi(ctx) {
       renderGlobalContext();
     } finally {
       state.loadInFlight = false;
+      renderLoadButtonState();
       updateLoadButtonAvailability();
     }
   }

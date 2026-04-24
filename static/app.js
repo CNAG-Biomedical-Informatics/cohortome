@@ -618,6 +618,8 @@ authUi = createAuthUi({
     loadAnalysisSessionsFromBackend: () => analysisSessionsUi.loadAnalysisSessionsFromBackend(),
     applyAnalysisSession: (session) => analysisSessionsUi.applyAnalysisSession(session),
     loadDatasets: () => datasetsUi.loadDatasets(),
+    prepareStartupWorkspaceSelection: () => datasetsUi.prepareStartupWorkspaceSelection(),
+    startupDefaultDatasetIds: () => datasetsUi.startupDefaultDatasetIds(),
     loadPatients: (options) => workspaceUi.loadPatients(options),
   },
 });
@@ -641,6 +643,13 @@ function bindEvents() {
   refs.datasetAdminListEl && refs.datasetAdminListEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-dataset-save]");
     if (!button || !refs.datasetAdminListEl.contains(button)) {
+      const prepareButton = event.target.closest("[data-dataset-prepare]");
+      if (!prepareButton || !refs.datasetAdminListEl.contains(prepareButton)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      void datasetsUi.prepareDatasetStore(prepareButton.getAttribute("data-dataset-prepare") || "");
       return;
     }
     event.preventDefault();
@@ -1102,8 +1111,9 @@ async function bootstrap() {
     return;
   }
   await datasetsUi.loadDatasets();
+  datasetsUi.prepareStartupWorkspaceSelection();
+  await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: datasetsUi.startupDefaultDatasetIds() });
   await authUi.refreshUserWorkspaceState();
-  await workspaceUi.loadPatients({ respectAdminGate: false });
 }
 
 void bootstrap();

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import csv
+import hashlib
 import json
 import math
 import random
+import shutil
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -12,9 +15,12 @@ from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CLINICAL_PATH = ROOT / "default_dataset" / "clinical" / "synthetic_longitudinal.json"
-HC_CLINICAL_PATH = ROOT / "default_dataset" / "clinical" / "synthetic_hc_baseline.json"
-MOLECULAR_DIR = ROOT / "default_dataset" / "molecular"
+DEFAULT_DATASET_ROOT = ROOT / "default_dataset"
+CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_longitudinal.json"
+HC_CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_hc_baseline.json"
+MOLECULAR_DIR = DEFAULT_DATASET_ROOT / "molecular"
+DEFAULT_LARGE_DATASET_ROOT = ROOT / "dataset-large"
+REAL_GENE_PANEL_PATH = ROOT / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 
 VISITS = [
     ("week_0", 0),
@@ -173,7 +179,18 @@ COHORT_SPECS = [
 ]
 
 
-EXISTING_CORE_GENES = [
+GENE_MODULE_ORDER = [
+    "inflammatory",
+    "barrier",
+    "housekeeping",
+    "interferon",
+    "b_cell",
+    "stromal",
+    "airway",
+    "eosinophil",
+]
+
+LEGACY_CORE_GENES = [
     "ENSG00000111640",
     "ENSG00000169429",
     "ENSG00000124256",
@@ -196,10 +213,10 @@ def generated_ensg_ids(start: int, count: int) -> list[str]:
     return [f"ENSG{value:011d}" for value in range(start, start + count)]
 
 
-GENE_MODULES: dict[str, list[str]] = {
-    "inflammatory": EXISTING_CORE_GENES[:6] + generated_ensg_ids(2500000, 10),
-    "barrier": EXISTING_CORE_GENES[6:10] + generated_ensg_ids(2600000, 8),
-    "housekeeping": EXISTING_CORE_GENES[10:] + generated_ensg_ids(2700000, 30),
+LEGACY_GENE_MODULES: dict[str, list[str]] = {
+    "inflammatory": LEGACY_CORE_GENES[:6] + generated_ensg_ids(2500000, 10),
+    "barrier": LEGACY_CORE_GENES[6:10] + generated_ensg_ids(2600000, 8),
+    "housekeeping": LEGACY_CORE_GENES[10:] + generated_ensg_ids(2700000, 30),
     "interferon": generated_ensg_ids(2800000, 14),
     "b_cell": generated_ensg_ids(2900000, 14),
     "stromal": generated_ensg_ids(3000000, 14),
@@ -207,19 +224,255 @@ GENE_MODULES: dict[str, list[str]] = {
     "eosinophil": generated_ensg_ids(3200000, 14),
 }
 
+REAL_MODULE_SEED_SYMBOLS: dict[str, list[str]] = {
+    "inflammatory": [
+        "IL1B",
+        "IL6",
+        "TNF",
+        "CXCL8",
+        "CCL2",
+        "PTGS2",
+        "NFKB1",
+        "ICAM1",
+        "MMP9",
+        "S100A8",
+        "S100A9",
+        "CXCL10",
+    ],
+    "barrier": [
+        "EPCAM",
+        "OCLN",
+        "TJP1",
+        "CLDN1",
+        "CLDN4",
+        "MUC1",
+        "KRT8",
+        "KRT18",
+        "KRT19",
+        "DSG2",
+    ],
+    "housekeeping": [
+        "ACTB",
+        "GAPDH",
+        "HPRT1",
+        "RPLP0",
+        "B2M",
+        "PPIA",
+        "TBP",
+        "UBC",
+        "RPL13A",
+        "EEF1A1",
+        "TUBB",
+        "YWHAZ",
+    ],
+    "interferon": [
+        "IFI27",
+        "IFI44L",
+        "IFIT1",
+        "IFIT2",
+        "IFIT3",
+        "ISG15",
+        "MX1",
+        "OAS1",
+        "OAS2",
+        "OASL",
+        "STAT1",
+        "IRF7",
+        "RSAD2",
+        "XAF1",
+    ],
+    "b_cell": [
+        "CD19",
+        "MS4A1",
+        "CD79A",
+        "CD79B",
+        "CD22",
+        "CD37",
+        "CD74",
+        "BANK1",
+        "BLK",
+        "PAX5",
+        "MZB1",
+        "TNFRSF13C",
+    ],
+    "stromal": [
+        "COL1A1",
+        "COL1A2",
+        "COL3A1",
+        "COL6A1",
+        "COL6A3",
+        "DCN",
+        "LUM",
+        "TAGLN",
+        "VIM",
+        "THY1",
+        "FN1",
+        "ACTA2",
+        "FAP",
+        "PDGFRB",
+    ],
+    "airway": [
+        "KRT5",
+        "KRT14",
+        "KRT17",
+        "BPIFA1",
+        "SCGB1A1",
+        "FOXJ1",
+        "MUC5AC",
+        "MUC5B",
+        "CEACAM6",
+        "AGR2",
+    ],
+    "eosinophil": [
+        "CLC",
+        "IL5RA",
+        "CCR3",
+        "RNASE2",
+        "RNASE3",
+        "SIGLEC8",
+        "ALOX15",
+        "PRG2",
+        "EPX",
+        "CSF2RB",
+    ],
+}
 
-GENE_BASELINES: dict[str, float] = {}
-GENE_MODULE_BY_ID: dict[str, str] = {}
-for module_name, gene_ids in GENE_MODULES.items():
-    for index, gene_id in enumerate(gene_ids):
-        if module_name == "housekeeping":
-            baseline = 7.8 + 0.02 * index
-        elif module_name in {"inflammatory", "interferon", "b_cell", "stromal"}:
-            baseline = 5.6 + 0.04 * index
-        else:
-            baseline = 4.9 + 0.035 * index
-        GENE_BASELINES[gene_id] = baseline
-        GENE_MODULE_BY_ID[gene_id] = module_name
+MODULE_PANEL_WEIGHTS = {
+    module_name: len(gene_ids)
+    for module_name, gene_ids in LEGACY_GENE_MODULES.items()
+}
+
+
+def _baseline_for_gene(module_name: str, index: int) -> float:
+    if module_name == "housekeeping":
+        return 7.8 + 0.02 * index
+    if module_name in {"inflammatory", "interferon", "b_cell", "stromal"}:
+        return 5.6 + 0.04 * index
+    return 4.9 + 0.035 * index
+
+
+def compile_gene_panel(gene_modules: dict[str, list[str]]) -> tuple[list[str], dict[str, str], dict[str, float]]:
+    gene_ids: list[str] = []
+    gene_module_by_id: dict[str, str] = {}
+    gene_baselines: dict[str, float] = {}
+    seen: set[str] = set()
+    for module_name in GENE_MODULE_ORDER:
+        module_gene_ids = list(gene_modules.get(module_name, []))
+        for index, gene_id in enumerate(module_gene_ids):
+            if gene_id in seen:
+                raise ValueError(f"Duplicate gene identifier in panel: {gene_id}")
+            seen.add(gene_id)
+            gene_ids.append(gene_id)
+            gene_module_by_id[gene_id] = module_name
+            gene_baselines[gene_id] = _baseline_for_gene(module_name, index)
+    return gene_ids, gene_module_by_id, gene_baselines
+
+
+LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES = compile_gene_panel(LEGACY_GENE_MODULES)
+
+
+def load_hgnc_gene_rows(path: Path = REAL_GENE_PANEL_PATH) -> list[dict[str, str]]:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Expected HGNC symbol file at {path}. Regenerate it before requesting extended matrices."
+        )
+    rows: list[dict[str, str]] = []
+    seen_symbols: set[str] = set()
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            symbol = str(row.get("symbol") or "").strip()
+            if not symbol or symbol in seen_symbols:
+                continue
+            seen_symbols.add(symbol)
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "ensembl_gene_id": str(row.get("ensembl_gene_id") or "").strip(),
+                    "name": str(row.get("name") or "").strip(),
+                }
+            )
+    return rows
+
+
+def _stable_symbol_sort_key(symbol: str) -> str:
+    return hashlib.sha1(symbol.encode("utf-8")).hexdigest()
+
+
+def target_module_gene_counts(total_gene_count: int) -> dict[str, int]:
+    minimum_gene_count = sum(len(REAL_MODULE_SEED_SYMBOLS[module_name]) for module_name in GENE_MODULE_ORDER)
+    if total_gene_count < minimum_gene_count:
+        raise ValueError(
+            f"Extended panel size {total_gene_count} is too small; need at least {minimum_gene_count} genes "
+            "to preserve the curated module seeds."
+        )
+    remaining = total_gene_count - minimum_gene_count
+    total_weight = sum(MODULE_PANEL_WEIGHTS.values())
+    extra_counts: dict[str, int] = {}
+    remainders: list[tuple[float, str]] = []
+    for module_name in GENE_MODULE_ORDER:
+        scaled = remaining * MODULE_PANEL_WEIGHTS[module_name] / total_weight
+        whole = int(math.floor(scaled))
+        extra_counts[module_name] = whole
+        remainders.append((scaled - whole, module_name))
+    assigned = sum(extra_counts.values())
+    for _remainder, module_name in sorted(remainders, key=lambda item: (-item[0], item[1]))[: remaining - assigned]:
+        extra_counts[module_name] += 1
+    return {
+        module_name: len(REAL_MODULE_SEED_SYMBOLS[module_name]) + extra_counts[module_name]
+        for module_name in GENE_MODULE_ORDER
+    }
+
+
+def build_real_gene_modules(total_gene_count: int, path: Path = REAL_GENE_PANEL_PATH) -> dict[str, list[str]]:
+    hgnc_rows = load_hgnc_gene_rows(path)
+    available_rows = [row for row in hgnc_rows if row["symbol"] and row["ensembl_gene_id"]]
+    available_symbols = {row["symbol"] for row in available_rows}
+    symbol_to_ensembl = {row["symbol"]: row["ensembl_gene_id"] for row in available_rows}
+    missing_seeds = sorted(
+        {
+            symbol
+            for module_name in GENE_MODULE_ORDER
+            for symbol in REAL_MODULE_SEED_SYMBOLS[module_name]
+            if symbol not in available_symbols
+        }
+    )
+    if missing_seeds:
+        raise ValueError(
+            "The vendored HGNC symbol file is missing curated module seed genes: "
+            + ", ".join(missing_seeds[:10])
+        )
+    module_counts = target_module_gene_counts(total_gene_count)
+    modules = {
+        module_name: [symbol_to_ensembl[symbol] for symbol in REAL_MODULE_SEED_SYMBOLS[module_name]]
+        for module_name in GENE_MODULE_ORDER
+    }
+    used_gene_ids = {
+        gene_id
+        for module_name in GENE_MODULE_ORDER
+        for gene_id in modules[module_name]
+    }
+    filler_pool = sorted(
+        (row for row in available_rows if row["ensembl_gene_id"] not in used_gene_ids),
+        key=lambda row: _stable_symbol_sort_key(row["symbol"]),
+    )
+    cursor = 0
+    for module_name in GENE_MODULE_ORDER:
+        needed = module_counts[module_name] - len(modules[module_name])
+        if needed <= 0:
+            continue
+        chunk = filler_pool[cursor : cursor + needed]
+        if len(chunk) != needed:
+            raise ValueError(
+                f"Unable to construct a {total_gene_count}-gene panel from the vendored HGNC symbol set."
+            )
+        modules[module_name].extend(row["ensembl_gene_id"] for row in chunk)
+        cursor += needed
+    return modules
+
+
+def extended_gene_panel(total_gene_count: int) -> tuple[list[str], dict[str, str], dict[str, float]]:
+    return compile_gene_panel(build_real_gene_modules(total_gene_count))
 
 
 def visit_effect(days: int) -> float:
@@ -370,9 +623,17 @@ def build_hc_clinical_records() -> list[dict]:
     return records
 
 
-def gene_count_for_sample(patient_index: int, spec: CohortSpec, gene_id: str, visit_days: int, rng: random.Random) -> int:
-    module = GENE_MODULE_BY_ID[gene_id]
-    baseline_log2 = GENE_BASELINES[gene_id]
+def gene_count_for_sample(
+    patient_index: int,
+    spec: CohortSpec,
+    gene_id: str,
+    visit_days: int,
+    rng: random.Random,
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+) -> int:
+    module = gene_module_by_id[gene_id]
+    baseline_log2 = gene_baselines[gene_id]
     disease_effect = spec.baseline_modules.get(module, 0.0)
     response_effect = spec.treatment_targets.get(module, 0.0)
     patient_effect = ((patient_index % 4) - 1.5) * 0.12
@@ -384,25 +645,49 @@ def gene_count_for_sample(patient_index: int, spec: CohortSpec, gene_id: str, vi
     return int(round(counts))
 
 
-def build_matrix_for_samples(sample_ids: list[str], sample_meta: dict[str, tuple[int, CohortSpec, int]]) -> list[list[str]]:
+def build_matrix_for_samples(
+    sample_ids: list[str],
+    sample_meta: dict[str, tuple[int, CohortSpec, int]],
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+) -> list[list[str]]:
     rows: list[list[str]] = []
     rng = random.Random(271828)
-    for gene_id in sorted(GENE_BASELINES.keys()):
+    for gene_id in gene_ids:
         row = [gene_id]
         for sample_id in sample_ids:
             patient_index, spec, visit_days = sample_meta[sample_id]
-            row.append(str(gene_count_for_sample(patient_index, spec, gene_id, visit_days, rng)))
+            row.append(
+                str(
+                    gene_count_for_sample(
+                        patient_index,
+                        spec,
+                        gene_id,
+                        visit_days,
+                        rng,
+                        gene_module_by_id,
+                        gene_baselines,
+                    )
+                )
+            )
         rows.append(row)
     return rows
 
 
-def build_hc_matrix_for_samples(sample_ids: list[str], sample_meta: dict[str, tuple[int, int]]) -> list[list[str]]:
+def build_hc_matrix_for_samples(
+    sample_ids: list[str],
+    sample_meta: dict[str, tuple[int, int]],
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+) -> list[list[str]]:
     rows: list[list[str]] = []
     rng = random.Random(141421)
-    for gene_id in sorted(GENE_BASELINES.keys()):
+    for gene_id in gene_ids:
         row = [gene_id]
-        module = GENE_MODULE_BY_ID[gene_id]
-        baseline_log2 = GENE_BASELINES[gene_id]
+        module = gene_module_by_id[gene_id]
+        baseline_log2 = gene_baselines[gene_id]
         for sample_id in sample_ids:
             patient_index, _visit_days = sample_meta[sample_id]
             patient_effect = ((patient_index % 4) - 1.5) * 0.07
@@ -416,24 +701,45 @@ def build_hc_matrix_for_samples(sample_ids: list[str], sample_meta: dict[str, tu
     return rows
 
 
-def write_matrix(path: Path, sample_ids: list[str], sample_meta: dict[str, tuple[int, CohortSpec, int]]) -> None:
-    rows = build_matrix_for_samples(sample_ids, sample_meta)
+def write_matrix(
+    path: Path,
+    sample_ids: list[str],
+    sample_meta: dict[str, tuple[int, CohortSpec, int]],
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+) -> None:
+    rows = build_matrix_for_samples(sample_ids, sample_meta, gene_ids, gene_module_by_id, gene_baselines)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
         writer.writerow(["gene_id", *sample_ids])
         writer.writerows(rows)
 
 
-def write_hc_matrix(path: Path, sample_ids: list[str], sample_meta: dict[str, tuple[int, int]]) -> None:
-    rows = build_hc_matrix_for_samples(sample_ids, sample_meta)
+def write_hc_matrix(
+    path: Path,
+    sample_ids: list[str],
+    sample_meta: dict[str, tuple[int, int]],
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+) -> None:
+    rows = build_hc_matrix_for_samples(sample_ids, sample_meta, gene_ids, gene_module_by_id, gene_baselines)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
         writer.writerow(["gene_id", *sample_ids])
         writer.writerows(rows)
 
 
-def build_molecular_matrices() -> None:
-    MOLECULAR_DIR.mkdir(parents=True, exist_ok=True)
+def build_molecular_matrices(
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+    *,
+    molecular_dir: Path = MOLECULAR_DIR,
+    filename_suffix: str = "",
+) -> None:
+    molecular_dir.mkdir(parents=True, exist_ok=True)
     sample_meta: dict[str, tuple[int, CohortSpec, int]] = {}
     all_week0: list[str] = []
     medication_samples: dict[str, list[str]] = {}
@@ -448,20 +754,48 @@ def build_molecular_matrices() -> None:
             else:
                 medication_samples[key].append(sample_id)
 
-    write_matrix(MOLECULAR_DIR / "synthetic_transcriptome_raw_counts_baseline.csv", all_week0, sample_meta)
+    write_matrix(
+        molecular_dir / f"synthetic_transcriptome_raw_counts_baseline{filename_suffix}.csv",
+        all_week0,
+        sample_meta,
+        gene_ids,
+        gene_module_by_id,
+        gene_baselines,
+    )
     for medication_key, sample_ids in medication_samples.items():
-        write_matrix(MOLECULAR_DIR / f"synthetic_transcriptome_raw_counts_{medication_key}.csv", sample_ids, sample_meta)
+        write_matrix(
+            molecular_dir / f"synthetic_transcriptome_raw_counts_{medication_key}{filename_suffix}.csv",
+            sample_ids,
+            sample_meta,
+            gene_ids,
+            gene_module_by_id,
+            gene_baselines,
+        )
 
 
-def build_hc_molecular_matrix() -> None:
-    MOLECULAR_DIR.mkdir(parents=True, exist_ok=True)
+def build_hc_molecular_matrix(
+    gene_ids: list[str],
+    gene_module_by_id: dict[str, str],
+    gene_baselines: dict[str, float],
+    *,
+    molecular_dir: Path = MOLECULAR_DIR,
+    filename_suffix: str = "",
+) -> None:
+    molecular_dir.mkdir(parents=True, exist_ok=True)
     sample_ids: list[str] = []
     sample_meta: dict[str, tuple[int, int]] = {}
     for patient_index in range(HC_COUNT):
         sample_id = f"HC{patient_index + 1:03d}:week_0"
         sample_ids.append(sample_id)
         sample_meta[sample_id] = (patient_index, 0)
-    write_hc_matrix(MOLECULAR_DIR / "synthetic_transcriptome_raw_counts_hc_baseline.csv", sample_ids, sample_meta)
+    write_hc_matrix(
+        molecular_dir / f"synthetic_transcriptome_raw_counts_hc_baseline{filename_suffix}.csv",
+        sample_ids,
+        sample_meta,
+        gene_ids,
+        gene_module_by_id,
+        gene_baselines,
+    )
 
 
 def write_clinical_json(records: list[dict]) -> None:
@@ -472,7 +806,23 @@ def write_hc_clinical_json(records: list[dict]) -> None:
     HC_CLINICAL_PATH.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
 
-def write_readme() -> None:
+def write_molecular_readme(
+    molecular_dir: Path,
+    *,
+    large_dataset_gene_count: int | None = None,
+    large_dataset_root: Path | None = None,
+) -> None:
+    examples = []
+    if large_dataset_gene_count is not None and large_dataset_root is not None:
+        examples.extend(
+            [
+                "",
+                "Large transcriptome fixtures can also be regenerated with the fixture script:",
+                "",
+                f"- `python3 scripts/generate_synthetic_multimodal_fixture.py --large-gene-count {large_dataset_gene_count}`",
+                f"  - Rebuilds `{large_dataset_root.name}` with one active molecular panel of `{large_dataset_gene_count}` HGNC-backed genes using Ensembl row identifiers.",
+            ]
+        )
     lines = [
         "# Molecular Data",
         "",
@@ -504,6 +854,7 @@ def write_readme() -> None:
         "  - Post-treatment samples for synthetic Asthma patients treated with Mepolizumab",
         "- `synthetic_transcriptome_raw_counts_dupilumab.csv`",
         "  - Post-treatment samples for synthetic COPD patients treated with Dupilumab",
+        *examples,
         "",
         "Notes:",
         "- All sample IDs match the merged longitudinal IDs in `default_dataset/clinical/synthetic_longitudinal.json`.",
@@ -512,21 +863,97 @@ def write_readme() -> None:
         "- Healthy controls are baseline-only and intentionally omit the `diseases` field.",
         "- The expression panel is larger and structured into disease-relevant synthetic modules (inflammatory, interferon, B-cell, stromal, airway, eosinophil, barrier, housekeeping).",
         "- Counts are deterministic synthetic raw counts intended for exploratory UI development, not biological realism.",
+        "- Large transcriptome fixtures use real HGNC-approved human protein-coding genes vendored in `scripts/data/hgnc_protein_coding_symbols.tsv`.",
+        "- Matrix row identifiers use Ensembl gene IDs (`ENSG...`) even for the large fixtures.",
+        "- The gene identifiers are real, but their module assignments and count dynamics remain synthetic and deterministic for timing and queue testing.",
     ]
-    (MOLECULAR_DIR / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (molecular_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def build_large_dataset(
+    gene_count: int,
+    *,
+    dataset_root: Path = DEFAULT_LARGE_DATASET_ROOT,
+) -> None:
+    gene_ids, gene_module_by_id, gene_baselines = extended_gene_panel(gene_count)
+    if dataset_root.exists():
+        shutil.rmtree(dataset_root)
+    clinical_dir = dataset_root / "clinical"
+    molecular_dir = dataset_root / "molecular"
+    clinical_dir.mkdir(parents=True, exist_ok=True)
+    molecular_dir.mkdir(parents=True, exist_ok=True)
+    clinical_records = json.loads(CLINICAL_PATH.read_text(encoding="utf-8"))
+    hc_clinical_records = json.loads(HC_CLINICAL_PATH.read_text(encoding="utf-8"))
+    (clinical_dir / "synthetic_longitudinal.json").write_text(json.dumps(clinical_records, indent=2), encoding="utf-8")
+    (clinical_dir / "synthetic_hc_baseline.json").write_text(json.dumps(hc_clinical_records, indent=2), encoding="utf-8")
+    build_molecular_matrices(
+        gene_ids,
+        gene_module_by_id,
+        gene_baselines,
+        molecular_dir=molecular_dir,
+    )
+    build_hc_molecular_matrix(
+        gene_ids,
+        gene_module_by_id,
+        gene_baselines,
+        molecular_dir=molecular_dir,
+    )
+    write_molecular_readme(
+        molecular_dir,
+        large_dataset_gene_count=gene_count,
+        large_dataset_root=dataset_root,
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Regenerate the synthetic clinical fixtures and molecular count matrices. "
+            "Extended matrices are optional and use a vendored HGNC gene list with Ensembl row identifiers."
+        )
+    )
+    parser.add_argument(
+        "--large-gene-count",
+        dest="large_gene_count",
+        type=int,
+        default=None,
+        help="Rebuild dataset-large with one active large molecular panel using real HGNC-backed genes and Ensembl row identifiers.",
+    )
+    parser.add_argument(
+        "--large-dataset-root",
+        type=str,
+        default=str(DEFAULT_LARGE_DATASET_ROOT),
+        help="Output root for the generated large transcriptome dataset.",
+    )
+    parser.add_argument(
+        "--skip-legacy",
+        action="store_true",
+        help="Skip rewriting the existing legacy 133-gene matrices.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
+    args = parse_args()
     clinical_records = build_clinical_records()
     hc_clinical_records = build_hc_clinical_records()
     write_clinical_json(clinical_records)
     write_hc_clinical_json(hc_clinical_records)
-    build_molecular_matrices()
-    build_hc_molecular_matrix()
-    write_readme()
+    if not args.skip_legacy:
+        build_molecular_matrices(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
+        build_hc_molecular_matrix(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
+    write_molecular_readme(MOLECULAR_DIR)
+    if args.large_gene_count is not None:
+        build_large_dataset(args.large_gene_count, dataset_root=Path(args.large_dataset_root).resolve())
     print(f"Wrote {len(clinical_records)} clinical records to {CLINICAL_PATH}")
     print(f"Wrote {len(hc_clinical_records)} HC clinical records to {HC_CLINICAL_PATH}")
+    legacy_gene_count = len(LEGACY_GENE_IDS)
     print(f"Wrote molecular fixtures to {MOLECULAR_DIR}")
+    if not args.skip_legacy:
+        print(f"- Legacy panel: {legacy_gene_count} genes")
+    if args.large_gene_count is not None:
+        print(f"- Large dataset root: {Path(args.large_dataset_root).resolve()}")
+        print(f"- Large panel: {args.large_gene_count} genes")
 
 
 if __name__ == "__main__":

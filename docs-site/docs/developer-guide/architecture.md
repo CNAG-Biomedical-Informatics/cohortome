@@ -37,6 +37,7 @@ The backend is also responsible for:
 - dataset authorization
 - dataset scope resolution
 - multi-dataset scope materialization
+- dataset-store readiness checks and admin-triggered store preparation
 - saved cohort persistence
 - Analysis session persistence
 - analysis catalog loading and validation
@@ -68,21 +69,40 @@ The app operates on an active workspace, not directly on arbitrary file paths.
 That workspace may represent:
 
 - one dataset
-- several selected datasets materialized into one combined scope
+- several selected datasets materialized into one combined scope for file-based compatibility
 
 This is why the rest of the app can talk about one active workspace even when the user selected multiple datasets.
 
 ## Query store and DuckDB
 
-The app uses a DuckDB-backed query layer to normalize and reuse clinical data efficiently.
+The app uses a DuckDB-backed query layer to normalize and reuse clinical and molecular data efficiently.
+
+Current model:
+
+- each dataset has its own prepared DuckDB store
+- admins prepare or rebuild these stores in `Data Administration`
+- merged workspaces attach the selected dataset stores into one in-memory DuckDB session
+- the app no longer relies on building one physical DuckDB per dataset combination during user workspace reload
+
+Materialized scope directories can still exist under `state/datasets/scopes/`, but they are no longer the identity boundary for DuckDB storage.
 
 This query layer is:
 
-- scoped to the active workspace root
-- cached when possible
 - reused across tabs
+- reused across workspace reloads when dataset signatures still match
+- blocked at route admission if any selected dataset store is not ready
 
 The purpose of this layer is to make deterministic querying and summarization fast enough to feel interactive.
+
+### Molecular ingest path
+
+The molecular build path keeps the same schema and indexes, but ingestion is now more DuckDB-native:
+
+- matrix CSVs are loaded directly into DuckDB
+- counts are unpivoted inside DuckDB
+- the app no longer builds one large Python `transcript_counts` row list before insertion
+
+This keeps rebuild time low without changing the product-facing data model.
 
 ## How the tabs relate to one another
 
@@ -119,6 +139,7 @@ They can point to:
 
 - built-in Python analysis routes
 - curated external runners such as reviewed `Rscript`, `Snakemake`, or `Nextflow` integrations
+- curated multi-step Analysis workflows
 
 Current molecular tool pattern:
 
@@ -136,6 +157,10 @@ Current examples include:
 - lightweight external differential expression
 - `DESeq2` differential expression
 - Hallmark pathway enrichment using `DESeq2` ranking plus `fgsea`
+- Molecular signature workflow
+  - runs `DESeq2` first
+  - runs Hallmark pathway enrichment second
+  - stores one user-facing job with step directories under `workflow/`
 
 ### Pheno-Ranker
 

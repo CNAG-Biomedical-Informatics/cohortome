@@ -46,6 +46,8 @@ dataset_root/
         <li>assign allowed users</li>
         <li>set Query detail policy</li>
         <li>set AI-provider policy</li>
+        <li>inspect dataset-store readiness</li>
+        <li>prepare or rebuild dataset DuckDB stores</li>
         <li>inspect effective dataset access</li>
       </ul>
 
@@ -123,8 +125,23 @@ It currently allows admins to edit:
 - `Allowed users`
 - `In-app Query detail`
 - `AI providers`
+- dataset DuckDB store preparation state
 
 User records are managed in the `Users` admin tab. Dataset cards do not edit user identity directly.
+
+## Dataset store preparation
+
+Dataset authorization and dataset-store preparation are separate concerns.
+
+- authorization decides whether a user may select a dataset
+- store preparation decides whether the backend has a ready DuckDB store for that dataset
+
+The admin UI now shows dataset-store state and a matching action:
+
+- `Prepare store` for first build, stale, or failed states
+- `Rebuild store` when a store is already ready and you want to refresh it deliberately
+
+Normal user workspace loading should reuse prepared stores rather than triggering heavy rebuilds.
 
 ## Query policy fields
 

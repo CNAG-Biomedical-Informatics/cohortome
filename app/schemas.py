@@ -228,6 +228,7 @@ class DatasetRecordResponse(FlexibleModel):
     created_by: str = ""
     created_at: str = ""
     updated_at: str = ""
+    query_store_status: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DatasetsResponse(BaseModel):

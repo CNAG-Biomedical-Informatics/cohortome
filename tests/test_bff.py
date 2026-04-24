@@ -67,6 +67,10 @@ def isolate_auth_store(monkeypatch, tmp_path):
     monkeypatch.setattr(auth_module, "AUTH_USERS_PATH", tmp_path / "state" / "auth" / "users.json")
 
 
+def isolate_query_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(query_store_module, "QUERY_STORE_DIR", tmp_path / "state" / "query-store")
+
+
 def isolate_jobs_store(monkeypatch, tmp_path):
     monkeypatch.setattr(
         jobs_module,
@@ -1346,6 +1350,7 @@ def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
 
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
+    isolate_query_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -1357,6 +1362,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
         ),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
     monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
 
     restricted_root = tmp_path / "restricted"
@@ -1395,6 +1401,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     ]
     datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("maria-dataset")
 
     client = TestClient(app)
     login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
@@ -1419,6 +1426,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
 
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
+    isolate_query_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -1431,6 +1439,7 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
         ),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
     monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
 
     shared_root = tmp_path / "shared"
@@ -1454,6 +1463,7 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     ]
     datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("cnag-dataset")
 
     client = TestClient(app)
 
@@ -1474,6 +1484,114 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     outsider_listed = client.get("/datasets")
     assert outsider_listed.status_code == 200
     assert "cnag-dataset" not in [item["dataset_id"] for item in outsider_listed.json()["datasets"]]
+
+
+def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"}]),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_root = tmp_path / "default"
+    clinical_dir = dataset_root / "clinical"
+    clinical_dir.mkdir(parents=True)
+    write_json(clinical_dir, "records.json", [{"id": "D1:baseline", "patient_id": "D1"}])
+
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(
+        json.dumps(
+            [
+                {
+                    "dataset_id": "default",
+                    "name": "Default dataset",
+                    "root_path": str(dataset_root),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "admin", "password": "secret"}).status_code == 200
+    selected = client.post("/datasets/select", json={"dataset_id": "default"})
+    assert selected.status_code == 200
+
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    assert listed.json()["datasets"][0]["query_store_status"]["status"] == "not_built"
+
+    prepared = client.post("/datasets/default/prepare-store")
+    assert prepared.status_code == 200
+    assert prepared.json()["query_store_status"]["status"] == "ready"
+    assert prepared.json()["query_store_status"]["ready"] is True
+
+    patients = client.get("/patients", params={"dataset_id": "default"})
+    assert patients.status_code == 200
+    assert patients.json()
+
+
+def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"}]),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_root = tmp_path / "maria-dataset"
+    clinical_dir = dataset_root / "clinical"
+    clinical_dir.mkdir(parents=True)
+    write_json(clinical_dir, "records.json", [{"id": "M1:baseline", "patient_id": "M1"}])
+
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(
+        json.dumps(
+            [
+                {
+                    "dataset_id": "maria-dataset",
+                    "name": "Maria dataset",
+                    "root_path": str(dataset_root),
+                    "enabled": True,
+                    "visibility": "restricted",
+                    "allowed_users": ["maria"],
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "maria", "password": "demo"}).status_code == 200
+    selected = client.post("/datasets/select", json={"dataset_id": "maria-dataset"})
+    assert selected.status_code == 200
+
+    blocked = client.get("/patients", params={"dataset_id": "maria-dataset"})
+    assert blocked.status_code == 409
+    assert "not ready" in blocked.json()["detail"].lower()
+
+    query_store_module.prepare_dataset_query_store("maria-dataset")
+
+    patients = client.get("/patients", params={"dataset_id": "maria-dataset"})
+    assert patients.status_code == 200
+    assert patients.json()[0]["patient_id"] == "M1"
 
 
 def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_path, monkeypatch):
@@ -1525,6 +1643,82 @@ def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_pa
     assert (refreshed_root / "clinical" / "dataset-b__b_new_records.json").exists()
     manifest = json.loads((refreshed_root / "manifest.json").read_text(encoding="utf-8"))
     assert "dataset-b__b_new_records.json" in [item["target"] for item in manifest["clinical_files"]]
+
+
+def test_federated_workspace_uses_prepared_dataset_stores_without_building_combined_db(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_a = tmp_path / "dataset-a"
+    dataset_b = tmp_path / "dataset-b"
+    for root, patient_id, raw_a, raw_b in (
+        (dataset_a, "A1", 10, 20),
+        (dataset_b, "B1", 30, 40),
+    ):
+        clinical_dir = root / "clinical"
+        molecular_dir = root / "molecular"
+        clinical_dir.mkdir(parents=True)
+        molecular_dir.mkdir()
+        write_json(clinical_dir, "records.json", [{"id": f"{patient_id}:baseline", "patient_id": patient_id}])
+        (molecular_dir / "counts.csv").write_text(
+            "\n".join(
+                [
+                    f"gene_id;{patient_id}",
+                    f"GENE1;{raw_a}",
+                    f"GENE2;{raw_b}",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(
+        json.dumps(
+            [
+                {
+                    "dataset_id": "dataset-a",
+                    "name": "Dataset A",
+                    "root_path": str(dataset_a),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                },
+                {
+                    "dataset_id": "dataset-b",
+                    "name": "Dataset B",
+                    "root_path": str(dataset_b),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    query_store_module.prepare_dataset_query_store("dataset-a")
+    query_store_module.prepare_dataset_query_store("dataset-b")
+
+    scope_root = Path(datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"]))
+    combined_db_path, combined_meta_path = query_store_module._store_paths(str(scope_root))
+    assert not combined_db_path.exists()
+    assert not combined_meta_path.exists()
+
+    assert store_patient_inventory(str(scope_root)) == ["A1", "B1"]
+    inventory = store_molecular_dataset_inventory(str(scope_root))
+
+    assert [item["dataset_name"] for item in inventory] == ["dataset-a__counts", "dataset-b__counts"]
+    assert [item["patient_ids"] for item in inventory] == [["A1"], ["B1"]]
+    assert not combined_db_path.exists()
+    assert not combined_meta_path.exists()
 
 
 def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkeypatch):

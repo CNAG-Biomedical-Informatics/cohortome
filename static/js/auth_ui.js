@@ -42,6 +42,8 @@ export function createAuthUi(ctx) {
     loadAnalysisSessionsFromBackend,
     applyAnalysisSession,
     loadDatasets,
+    prepareStartupWorkspaceSelection,
+    startupDefaultDatasetIds,
     loadPatients,
   } = callbacks;
 
@@ -241,8 +243,9 @@ export function createAuthUi(ctx) {
       if (authPasswordEl) authPasswordEl.value = "";
       await fetchAuthStatus();
       await loadDatasets();
+      prepareStartupWorkspaceSelection();
+      await loadPatients({ respectAdminGate: false, targetDatasetIds: startupDefaultDatasetIds() });
       await refreshUserWorkspaceState();
-      await loadPatients({ respectAdminGate: false });
     } catch (error) {
       if (authGateStatusEl) {
         authGateStatusEl.textContent = error && error.message ? error.message : "Sign-in failed.";

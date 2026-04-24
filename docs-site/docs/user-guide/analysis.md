@@ -144,6 +144,12 @@ Current first workflow:
 
 This keeps the user-facing model simple: one workflow launch, one job in `Jobs`, one combined Analysis result.
 
+The workflow is intentionally pre-made. Users choose the approved workflow, but they do not concatenate arbitrary catalog tools.
+
+For this first workflow, select exactly one compatible raw-count transcriptomics dataset. If more than one compatible transcriptomics dataset is available, choosing a second one replaces the first selection. The workflow does not merge multiple count matrices or compare transcriptomics files against each other.
+
+The workflow result keeps interpretation and plots visible first. Raw output files are folded under `Result files` and can be opened when needed.
+
 ## Molecular tool contract
 
 The current molecular catalog tools are method-driven.
@@ -165,6 +171,10 @@ They use:
 The cohorts define the groups.
 The molecular dataset defines the transcriptomics matrix.
 
+Both cohorts must overlap the same selected molecular dataset.
+
+If the chosen dataset contributes samples to only one side, the curated differential-expression tools fail with a validation error instead of silently dropping one cohort.
+
 For the current `DESeq2` and Hallmark pathway tools, the first-version constraints are:
 
 - at least two samples in `Cohort A`
@@ -172,6 +182,8 @@ For the current `DESeq2` and Hallmark pathway tools, the first-version constrain
 - one sample per patient
 
 In practice, that means baseline-only transcriptomics datasets are the safest first choice.
+
+For the synthetic large transcriptome fixtures, remember that treatment-specific matrices only contain their own patient subset. For example, an `infliximab` matrix does not contain `vedolizumab` patients. If you want a broad split across many synthetic patients, use the baseline matrix for that workspace.
 
 `Differential expression (legacy)` remains available as a lighter approximate method based on log2-CPM plus per-gene t-tests. It is retained for comparison/debugging, not as the preferred RNA-seq result.
 
@@ -192,10 +204,13 @@ Filters are intentionally coarse:
 - `All`
 - `Clinical`
 - `Molecular`
+- `Workflow`
 - `Background jobs`
 - `External`
 
 These filters are meant to reduce browse cost quickly, not to replace the catalog structure.
+
+When a selected catalog item requires molecular data, the compatible molecular dataset selector appears below the catalog search and filters. For single-dataset molecular analyses, including the current workflow, the selector behaves as a single-select control.
 
 The folded catalog in the main tab also shows a `Suggested` strip.
 
@@ -346,13 +361,14 @@ Current model:
 
 - queue backend: `RQ + Redis`
 - user-facing surface: shared `Jobs` drawer in the app shell
-- current queued runner types include curated `Rscript`, `Snakemake`, and `Nextflow`
+- current queued runner types include curated `Rscript`, `Snakemake`, `Nextflow`, and pre-made Analysis workflows
 
 When a catalog item is configured as a background job:
 
 - the Analysis thread shows that the job was submitted
 - the `Jobs` drawer shows queued, running, completed, failed, or cancelled state
 - completed jobs can be reopened into `Analysis`
+- generated result files are folded under `Result files` in the `Jobs` drawer
 
 If the original Analysis session no longer exists, the app can recover the completed result into a fresh Analysis session shell instead of dropping the result.
 

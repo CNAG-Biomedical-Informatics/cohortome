@@ -2,6 +2,7 @@ export function createDatasetsUi(ctx) {
   const { refs, state, helpers, callbacks } = ctx;
   const {
     dataDirEl,
+    datasetPickerShellEl,
     datasetPickerEl,
     loadStatusEl,
     datasetScopeSummaryEl,
@@ -36,6 +37,10 @@ export function createDatasetsUi(ctx) {
       || activeIds.some((item, index) => item !== pendingIds[index]);
     refs.loadBtnEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     refs.loadBtnEl.classList.toggle("has-pending-change", Boolean(hasPendingChange && !state.loadInFlight));
+    refs.loadBtnEl.disabled = Boolean(state.loadInFlight);
+    if (datasetPickerShellEl) {
+      datasetPickerShellEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
+    }
     if (refs.loadBtnLabelEl) {
       refs.loadBtnLabelEl.textContent = state.loadInFlight
         ? "Applying..."
@@ -67,8 +72,8 @@ export function createDatasetsUi(ctx) {
     return state.currentDatasetIds.length === 1 ? state.currentDatasetIds[0] : "";
   }
 
-  function currentDatasetSelectionKey() {
-    const selected = state.currentDatasetIds.length ? state.currentDatasetIds.slice() : [];
+  function currentDatasetSelectionKey(datasetIds = state.currentDatasetIds) {
+    const selected = Array.isArray(datasetIds) ? datasetIds.slice() : [];
     if (!selected.length) {
       return "";
     }
@@ -195,6 +200,20 @@ export function createDatasetsUi(ctx) {
     return state.pendingDatasetIds.length ? state.pendingDatasetIds.slice() : state.currentDatasetIds.slice();
   }
 
+  function startupDefaultDatasetIds() {
+    if (!state.availableDatasets.length) {
+      return [];
+    }
+    const explicitDefault = state.availableDatasets.find((item) => String(item.dataset_id || "") === "default");
+    if (explicitDefault) {
+      return [String(explicitDefault.dataset_id || "default")];
+    }
+    const firstDataset = state.availableDatasets[0];
+    return firstDataset && firstDataset.dataset_id
+      ? [String(firstDataset.dataset_id)]
+      : [];
+  }
+
   function selectedDatasetRecords() {
     const selected = new Set(state.currentDatasetIds);
     return state.availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
@@ -305,7 +324,11 @@ export function createDatasetsUi(ctx) {
     }
     const records = selectedDatasetRecords();
     if (!records.length) {
-      datasetScopeSummaryEl.textContent = "Active workspace: no dataset selected.";
+      const pendingLabel = pendingDatasetScopeLabel();
+      const hasPendingSelection = pendingDatasetSelectionIds().length > 0;
+      datasetScopeSummaryEl.textContent = hasPendingSelection
+        ? `Active workspace: no dataset selected. Pending workspace: ${pendingLabel}. Click Apply workspace to switch.`
+        : "Active workspace: no dataset selected.";
       return;
     }
     const selectedCount = records.length;
@@ -421,6 +444,22 @@ export function createDatasetsUi(ctx) {
       const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
       const effectiveUsers = effectiveDatasetUserLabels(dataset);
       const feedback = state.datasetAdminFeedback[datasetId];
+      const storeStatus = dataset && typeof dataset.query_store_status === "object" && dataset.query_store_status
+        ? dataset.query_store_status
+        : { status: "not_built", ready: false };
+      const storeState = String(storeStatus.status || "not_built").trim().toLowerCase();
+      const storeReady = Boolean(storeStatus.ready);
+      const storeLabel = storeReady
+        ? "Ready"
+        : ({
+          building: "Building",
+          stale: "Stale",
+          failed: "Failed",
+          not_built: "Not built",
+        }[storeState] || "Not built");
+      const storeButtonLabel = storeReady ? "Rebuild store" : "Prepare store";
+      const storeDetail = String(storeStatus.last_error || "").trim()
+        || (storeStatus.last_built_at ? `Last built: ${storeStatus.last_built_at}` : "No prepared DuckDB store is available yet.");
       return `
         <div class="dataset-picker-card">
           <div>
@@ -494,8 +533,23 @@ export function createDatasetsUi(ctx) {
                   }</div>
                 </div>
               </div>
+              <div class="dataset-policy-section dataset-policy-section-muted">
+                <div class="dataset-policy-heading">DuckDB Store</div>
+                <div class="section-note">Prepared dataset-local DuckDB store used by workspace queries and merged dataset workspaces.</div>
+                <div class="dataset-picker-access-row">
+                  <label>Current status</label>
+                  <div class="identity-tags">
+                    <span class="identity-tag">${escapeHtml(storeLabel)}</span>
+                  </div>
+                </div>
+                <div class="dataset-picker-access-row">
+                  <label>Details</label>
+                  <div class="dataset-policy-placeholder">${escapeHtml(storeDetail)}</div>
+                </div>
+              </div>
               <div class="dataset-picker-access-actions">
                 <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
+                <button type="button" class="query-chip action" data-dataset-prepare="${escapeHtml(datasetId)}">${escapeHtml(storeButtonLabel)}</button>
               </div>
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
             </div>
@@ -587,6 +641,37 @@ export function createDatasetsUi(ctx) {
     }
   }
 
+  async function prepareDatasetStore(datasetId) {
+    if (!datasetId || !canManageDataset()) {
+      return;
+    }
+    loadStatusEl.className = "load-status loading";
+    loadStatusEl.textContent = `Preparing DuckDB store for ${datasetId}...`;
+    setDatasetAdminFeedback(datasetId, "Preparing DuckDB store...", "success", 0);
+    try {
+      const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}/prepare-store`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail || "Unable to prepare dataset store.");
+      }
+      await loadDatasets();
+      loadStatusEl.className = "load-status";
+      loadStatusEl.textContent = `Prepared DuckDB store for ${datasetId}.`;
+      setDatasetAdminFeedback(datasetId, "DuckDB store prepared.", "success");
+    } catch (error) {
+      loadStatusEl.className = "load-status";
+      loadStatusEl.textContent = error && error.message ? error.message : "Unable to prepare dataset store.";
+      setDatasetAdminFeedback(
+        datasetId,
+        error && error.message ? error.message : "Unable to prepare dataset store.",
+        "error",
+        4200,
+      );
+    }
+  }
+
   function syncDatasetSelectionFromPicker() {
     if (!dataDirEl || !datasetPickerEl) {
       return;
@@ -642,6 +727,20 @@ export function createDatasetsUi(ctx) {
     }
   }
 
+  function prepareStartupWorkspaceSelection() {
+    const startupIds = startupDefaultDatasetIds();
+    state.currentDatasetIds = [];
+    state.currentDatasetScopeId = "";
+    state.pendingDatasetIds = startupIds.slice();
+    renderDatasetSelect();
+    if (dataDirEl) {
+      dataDirEl.dataset.scopeId = "";
+    }
+    renderDatasetScopeSummary();
+    renderAnalysisDatasetScope();
+    renderLoadButtonState();
+  }
+
   return {
     renderLoadButtonState,
     selectedDatasetIdsFromUi,
@@ -655,6 +754,7 @@ export function createDatasetsUi(ctx) {
     queryWorkspacePolicyExplanation,
     syncQueryGranularityWithWorkspacePolicy,
     pendingDatasetSelectionIds,
+    startupDefaultDatasetIds,
     selectedDatasetRecords,
     pendingDatasetRecords,
     datasetScopeLabel,
@@ -668,7 +768,9 @@ export function createDatasetsUi(ctx) {
     renderDatasetAdminList,
     setDatasetAdminFeedback,
     saveDatasetAccess,
+    prepareDatasetStore,
     syncDatasetSelectionFromPicker,
     loadDatasets,
+    prepareStartupWorkspaceSelection,
   };
 }

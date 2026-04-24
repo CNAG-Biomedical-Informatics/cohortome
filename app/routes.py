@@ -80,6 +80,7 @@ from app.pheno import (
     run_pheno_ranker,
 )
 from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_inventory
+from app.query_store import QueryStoreNotReadyError, dataset_query_store_status, ensure_query_store, prepare_dataset_query_store
 from app.schemas import (
     AnalysisRequest,
     AnalysisSessionRenameRequest,
@@ -280,14 +281,18 @@ def _resolve_route_dataset_dir(
 
 def get_datasets(request: Request) -> Dict:
     user = require_authenticated(request)
-    datasets = authorized_datasets_for_user(user)
+    datasets = []
+    for item in authorized_datasets_for_user(user):
+        payload = dict(item)
+        payload["query_store_status"] = dataset_query_store_status(str(item.get("dataset_id") or ""))
+        datasets.append(payload)
     selected_ids = resolve_dataset_ids(request)
     return {
         "datasets": datasets,
         "current_dataset_id": selected_ids[0] if len(selected_ids) == 1 else "",
         "current_dataset_ids": selected_ids,
         "current_dataset_scope_id": dataset_scope_id(selected_ids),
-        "current_dataset": resolve_dataset(request, selected_ids[0]) if len(selected_ids) == 1 else None,
+        "current_dataset": next((item for item in datasets if str(item.get("dataset_id") or "") == selected_ids[0]), None) if len(selected_ids) == 1 else None,
     }
 
 
@@ -319,6 +324,7 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
             enabled=payload.enabled,
             created_by=str(user.get("username") or "admin"),
         )
+        dataset["query_store_status"] = dataset_query_store_status(str(dataset.get("dataset_id") or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return dataset
@@ -327,7 +333,7 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
 def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request: Request) -> Dict:
     require_admin(request)
     try:
-        return update_dataset(
+        updated = update_dataset(
             dataset_id,
             name=payload.name,
             root_path=payload.root_path,
@@ -339,17 +345,37 @@ def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request
             ai_provider_access=payload.ai_provider_access,
             enabled=payload.enabled,
         )
+        updated["query_store_status"] = dataset_query_store_status(str(updated.get("dataset_id") or ""))
+        return updated
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def prepare_dataset_route(dataset_id: str, request: Request) -> Dict:
+    require_admin(request)
+    try:
+        status = prepare_dataset_query_store(dataset_id)
+        dataset = resolve_dataset(request, dataset_id)
+        payload = dict(dataset)
+        payload["query_store_status"] = status
+        return payload
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
     if request is not None:
         require_authenticated(request)
     try:
-        patients = list_patient_summaries(_resolve_route_dataset_dir(request, dataset_id, data_dir))
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        ensure_query_store(resolved_dir)
+        patients = list_patient_summaries(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     payload: List[Dict[str, Any]] = []
     for patient in patients:
         item = patient.model_dump()
@@ -362,9 +388,13 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
     if request is not None:
         require_authenticated(request)
     try:
-        patient = get_patient_context(_resolve_route_dataset_dir(request, dataset_id, data_dir), patient_id)
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        ensure_query_store(resolved_dir)
+        patient = get_patient_context(resolved_dir, patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     if patient is None:
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
@@ -377,9 +407,13 @@ def get_patient_navigator(patient_id: str, request: Request = None, dataset_id: 
     if request is not None:
         require_authenticated(request)
     try:
-        navigator = build_patient_navigator(_resolve_route_dataset_dir(request, dataset_id, data_dir), patient_id)
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        ensure_query_store(resolved_dir)
+        navigator = build_patient_navigator(resolved_dir, patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     if navigator is None:
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
@@ -397,6 +431,8 @@ def get_medication_counts(request: Request = None, dataset_id: str = "", data_di
         return medication_counts(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_disease_counts(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
@@ -406,6 +442,8 @@ def get_disease_counts(request: Request = None, dataset_id: str = "", data_dir: 
         return query_disease_counts(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def search_medication_cohort(medication: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -415,6 +453,8 @@ def search_medication_cohort(medication: str, request: Request = None, dataset_i
         return medication_cohort(_resolve_route_dataset_dir(request, dataset_id, data_dir), medication)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -423,6 +463,8 @@ def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DE
         return answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_lm_status() -> Dict:
@@ -654,6 +696,8 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
@@ -686,6 +730,8 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -722,6 +768,8 @@ def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str =
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_molecular_datasets(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -730,6 +778,8 @@ def get_molecular_datasets(request: Request, dataset_id: str = "", data_dir: str
         return {"datasets": molecular_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
@@ -741,6 +791,8 @@ def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_molecular_expression(request: MolecularExpressionRequest, raw_request: Request) -> Dict:
@@ -756,6 +808,8 @@ def get_molecular_expression(request: MolecularExpressionRequest, raw_request: R
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_analysis_sessions(request: Request) -> Dict:
@@ -848,12 +902,17 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
     resolved_dataset_id = request.dataset_id or request.data_dir
     selected_ids = resolve_dataset_ids(raw_request, resolved_dataset_id)
     resolved_scope_id = dataset_scope_id(selected_ids)
+    resolved_dir = resolve_dataset_dir(raw_request, resolved_dataset_id)
     granularity_ceiling = effective_query_granularity_ceiling(selected_ids)
     if granularity_ceiling != "detailed":
         raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
+    try:
+        ensure_query_store(resolved_dir)
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     payload = request.model_copy(
         update={
-            "data_dir": resolve_dataset_dir(raw_request, resolved_dataset_id),
+            "data_dir": resolved_dir,
             "dataset_id": resolved_scope_id,
             "granularity_ceiling": granularity_ceiling,
             "ai_provider_access": effective_ai_provider_access(selected_ids),
@@ -937,12 +996,17 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
 def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
-    return plan_pheno_ranker(
-        request.text,
-        resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir),
-        selected_patient_ids=request.selected_patient_ids,
-        ai_provider_access=effective_ai_provider_access(selected_ids),
-    )
+    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+    try:
+        ensure_query_store(resolved_dir)
+        return plan_pheno_ranker(
+            request.text,
+            resolved_dir,
+            selected_patient_ids=request.selected_patient_ids,
+            ai_provider_access=effective_ai_provider_access(selected_ids),
+        )
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -950,7 +1014,12 @@ def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_di
     selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
     if effective_query_granularity_ceiling(selected_ids) != "detailed":
         raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
-    return pheno_ranker_patient_ids_payload(_resolve_route_dataset_dir(request, dataset_id, data_dir))
+    resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+    try:
+        ensure_query_store(resolved_dir)
+        return pheno_ranker_patient_ids_payload(resolved_dir)
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_pheno_ranker_result(job_id: str, filename: str, request: Request) -> FileResponse:
@@ -979,9 +1048,13 @@ def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int =
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return dashboard_summary(_resolve_route_dataset_dir(request, dataset_id, data_dir))
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        ensure_query_store(resolved_dir)
+        return dashboard_summary(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
@@ -1009,6 +1082,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/datasets/select", select_dataset, methods=["POST"], tags=["datasets"], summary="Select the active dataset workspace", description="Applies one or more authorized dataset IDs as the current workspace for the authenticated user.", response_model=DatasetSelectionResponse)
     app.add_api_route("/datasets", create_dataset_route, methods=["POST"], tags=["datasets"], summary="Register a dataset", description="Creates a new dataset registry entry. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"], tags=["datasets"], summary="Update dataset metadata and access", description="Updates dataset metadata, visibility, or access policy. Admin-only.", response_model=DatasetRecordResponse)
+    app.add_api_route("/datasets/{dataset_id}/prepare-store", prepare_dataset_route, methods=["POST"], tags=["datasets"], summary="Prepare dataset DuckDB store", description="Builds or rebuilds the admin-managed DuckDB store for one dataset. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"], tags=["ui"], summary="Serve the configured branding logo", description="Returns the current instance branding logo file if one is configured.")
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"], tags=["cohorts"], summary="List saved cohorts", description="Returns saved cohorts for the current user within the active dataset workspace.", response_model=SavedCohortsResponse)
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"], tags=["cohorts"], summary="Create a saved cohort", description="Persists a saved cohort containing canonical sample IDs and derived patient IDs.", response_model=SavedCohortResponse)

@@ -276,7 +276,7 @@
               <label for="dataDir">Datasets</label>
               <div class="section-note">Select at least one authorized dataset. The active workspace cannot be empty.</div>
             </div>
-            <div class="dataset-picker-shell">
+            <div id="datasetPickerShell" class="dataset-picker-shell">
               <select id="dataDir" multiple size="4" class="dataset-picker-native">
               {% for dataset in datasets %}
               <option value="{{ dataset.dataset_id }}" {% if dataset.dataset_id == current_dataset_id %}selected{% endif %}>{{ dataset.name }}</option>

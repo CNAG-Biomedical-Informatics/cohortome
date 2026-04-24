@@ -42,6 +42,7 @@ from app.query_scope import (
     sample_inventory_from_records as _sample_inventory_from_records,
 )
 from app.query_store import (
+    QueryStoreNotReadyError,
     cohort_over_time_summary as store_cohort_over_time_summary,
     disease_cohort as store_disease_cohort,
     disease_counts as store_disease_counts,
@@ -187,6 +188,8 @@ def _medication_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = 
     if duckdb_available() and not scoped_patient_ids:
         try:
             return store_medication_counts(data_dir)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     if not scoped_patient_ids:
@@ -198,6 +201,8 @@ def _disease_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = Non
     if duckdb_available() and not scoped_patient_ids:
         try:
             return store_disease_counts(data_dir)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     if not scoped_patient_ids:
@@ -209,6 +214,8 @@ def _medication_cohort(data_dir: str, medication_query: str, scoped_patient_ids:
     if duckdb_available() and not scoped_patient_ids:
         try:
             return store_medication_cohort(data_dir, medication_query)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     return _apply_patient_scope_to_cohort(medication_cohort(data_dir, medication_query), scoped_patient_ids)
@@ -218,6 +225,8 @@ def _disease_cohort(data_dir: str, disease_query: str, scoped_patient_ids: Optio
     if duckdb_available() and not scoped_patient_ids:
         try:
             return store_disease_cohort(data_dir, disease_query)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     return _apply_patient_scope_to_cohort(disease_cohort(data_dir, disease_query), scoped_patient_ids)
@@ -310,6 +319,8 @@ def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
     if duckdb_available():
         try:
             return store_patient_query_index(data_dir)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     resolved_dir = ensure_data_dir(data_dir)
@@ -457,6 +468,8 @@ def patient_medication_count_cohort(
     if duckdb_available():
         try:
             return store_patient_medication_count_cohort(data_dir, operator, target)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     patients = []
@@ -515,6 +528,8 @@ def patient_visit_count_cohort(
     if duckdb_available():
         try:
             return store_patient_visit_count_cohort(data_dir, operator, target)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     patients = []
@@ -533,6 +548,8 @@ def _cohort_over_time_summary(data_dir: str, scoped_patient_ids: Optional[List[s
     if duckdb_available():
         try:
             return store_cohort_over_time_summary(data_dir)
+        except QueryStoreNotReadyError:
+            raise
         except Exception:
             pass
     patient_rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)

@@ -36,7 +36,9 @@ When a user selects multiple datasets, the backend materializes a combined works
 
 - `state/datasets/scopes/`
 
-This lets the rest of the app operate on one resolved workspace root while preserving dataset provenance in filenames.
+This primarily supports compatibility with file-based clinical helpers while preserving dataset provenance in filenames.
+
+It is no longer the primary storage boundary for DuckDB query stores.
 
 ## Saved cohorts
 
@@ -90,11 +92,37 @@ Cache location:
 
 - `.cache/query-store/`
 
-This cache is reused when:
+Current prepared-store model:
 
-- the dataset scope path is the same
-- file signatures still match
+- one DuckDB store per dataset:
+  - `dataset-<dataset_id>.duckdb`
+  - `dataset-<dataset_id>.meta.json`
+  - `dataset-<dataset_id>.status.json`
+- merged workspaces attach the selected dataset stores in one in-memory DuckDB session
+- the app does not need to persist one separate DuckDB file for every dataset combination
+
+Prepared stores are reused when:
+
+- the dataset source signature still matches
 - schema expectations still match
+
+Store readiness is persisted separately so the app can distinguish:
+
+- `not_built`
+- `building`
+- `ready`
+- `failed`
+- `stale`
+
+This lets user routes block with a clear readiness error instead of rebuilding heavy stores on demand.
+
+## Local auth state
+
+When local auth is enabled, persisted users live in:
+
+- `state/auth/users.json`
+
+If this file already exists, it overrides bootstrap seed users from env or built-in defaults.
 
 ## Why this split exists
 
@@ -126,3 +154,11 @@ Typical contents include:
 - `command.txt`
 
 These records back the in-app `Jobs` drawer and let completed results be reopened into `Analysis`.
+
+Workflow jobs keep one top-level job record and write step-level artifacts beneath the job directory, for example:
+
+- `workflow/manifest.json`
+- `workflow/01-deseq2/`
+- `workflow/02-hallmark/`
+
+Artifact paths are preserved as nested relative paths so the Jobs drawer and Analysis result can link to individual step outputs without exposing separate user-facing jobs for internal workflow steps.

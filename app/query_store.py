@@ -16,6 +16,7 @@ from app.bff import (
     read_bff_records,
     resolve_project_data_dir,
 )
+from app.datasets import get_dataset, list_registered_datasets, normalize_dataset_id, parse_scope_dataset_ids
 
 try:
     import duckdb
@@ -27,6 +28,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
 MOLECULAR_DATA_DIR: Path | None = None
 QUERY_STORE_SCHEMA_VERSION = 2
+
+
+class QueryStoreNotReadyError(RuntimeError):
+    pass
 
 
 def duckdb_available() -> bool:
@@ -59,10 +64,78 @@ def _store_key(data_dir: str) -> str:
     return digest[:16]
 
 
-def _store_paths(data_dir: str) -> Tuple[Path, Path]:
+def _legacy_store_paths(data_dir: str) -> Tuple[Path, Path]:
     key = _store_key(data_dir)
     QUERY_STORE_DIR.mkdir(parents=True, exist_ok=True)
     return QUERY_STORE_DIR / f"{key}.duckdb", QUERY_STORE_DIR / f"{key}.meta.json"
+
+
+def _store_paths(data_dir: str) -> Tuple[Path, Path]:
+    return _legacy_store_paths(data_dir)
+
+
+def _dataset_store_paths(dataset_id: str) -> Tuple[Path, Path, Path]:
+    normalized = normalize_dataset_id(dataset_id)
+    if not normalized:
+        raise ValueError("A dataset id is required.")
+    QUERY_STORE_DIR.mkdir(parents=True, exist_ok=True)
+    return (
+        QUERY_STORE_DIR / f"dataset-{normalized}.duckdb",
+        QUERY_STORE_DIR / f"dataset-{normalized}.meta.json",
+        QUERY_STORE_DIR / f"dataset-{normalized}.status.json",
+    )
+
+
+def _dataset_root_path(dataset_id: str) -> Path:
+    dataset = get_dataset(dataset_id)
+    if dataset is None:
+        raise ValueError(f"Dataset not found: {dataset_id}")
+    root_path = str(dataset.get("root_path") or "").strip()
+    if not root_path:
+        raise ValueError(f"Dataset root is not configured: {dataset_id}")
+    return Path(root_path).expanduser().resolve()
+
+
+def _scope_manifest_dataset_ids(path: Path) -> List[str]:
+    candidates = [path]
+    if path.name in {"clinical", "molecular"}:
+        candidates.append(path.parent)
+    for candidate in candidates:
+        manifest_path = candidate / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        dataset_ids = payload.get("dataset_ids")
+        if isinstance(dataset_ids, list):
+            normalized = [normalize_dataset_id(item) for item in dataset_ids if normalize_dataset_id(item)]
+            if normalized:
+                return normalized
+    return []
+
+
+def _workspace_dataset_ids(workspace_key: str) -> List[str]:
+    raw = str(workspace_key or "").strip()
+    if not raw:
+        return []
+    parsed = parse_scope_dataset_ids(raw)
+    if parsed:
+        return parsed
+    try:
+        resolved = Path(raw).expanduser().resolve()
+    except OSError:
+        return []
+    scope_ids = _scope_manifest_dataset_ids(resolved)
+    if scope_ids:
+        return scope_ids
+    for dataset in list_registered_datasets():
+        dataset_id = normalize_dataset_id(dataset.get("dataset_id"))
+        root_path = Path(str(dataset.get("root_path") or "")).expanduser().resolve()
+        if resolved in {root_path, root_path / "clinical", root_path / "molecular"}:
+            return [dataset_id]
+    return []
 
 
 def _resolve_molecular_data_dir(data_dir: str) -> Path | None:
@@ -155,6 +228,22 @@ def _read_molecular_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, 
         return path.stem, sample_ids, rows
 
 
+def _read_molecular_matrix_header(path: Path) -> Tuple[str, str, List[str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        first_line = handle.readline()
+        if not first_line:
+            return path.stem, ";", []
+        delimiter = _detect_matrix_delimiter(first_line)
+        handle.seek(0)
+        reader = csv.reader(handle, delimiter=delimiter)
+        try:
+            header = next(reader)
+        except StopIteration:
+            return path.stem, delimiter, []
+    sample_ids = [str(item).strip() for item in header[1:] if str(item).strip()]
+    return path.stem, delimiter, sample_ids
+
+
 def _patient_id_from_molecular_sample(sample_id: str) -> str:
     value = str(sample_id).strip()
     if ":" in value:
@@ -165,8 +254,31 @@ def _patient_id_from_molecular_sample(sample_id: str) -> str:
 def _connect(data_dir: str):
     if duckdb is None:
         raise RuntimeError("duckdb is not installed")
-    db_path, _ = _store_paths(data_dir)
-    return duckdb.connect(str(db_path))
+    dataset_ids = _workspace_dataset_ids(data_dir)
+    if not dataset_ids:
+        db_path, _ = _legacy_store_paths(data_dir)
+        return duckdb.connect(str(db_path))
+    return _connect_workspace(dataset_ids)
+
+
+def _load_json(path: Path) -> Dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _signature_payload(payload: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    if payload is None:
+        return None
+    return {key: value for key, value in payload.items() if key != "built_at"}
 
 
 def _store_has_required_tables(db_path: Path) -> bool:
@@ -191,17 +303,377 @@ def _store_has_required_tables(db_path: Path) -> bool:
     return required.issubset(existing)
 
 
+def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
+    dataset_root = _dataset_root_path(dataset_id)
+    clinical_dir = dataset_root / "clinical"
+    molecular_dir = dataset_root / "molecular"
+    files = []
+    if clinical_dir.exists():
+        for pattern in ("*.json", "*.json.gz"):
+            for path in sorted(clinical_dir.glob(pattern)):
+                if not path.is_file():
+                    continue
+                stat = path.stat()
+                files.append(
+                    {
+                        "path": str(path.resolve()),
+                        "size": stat.st_size,
+                        "mtime_ns": stat.st_mtime_ns,
+                    }
+                )
+    molecular_files = []
+    if molecular_dir.exists():
+        for path in sorted(molecular_dir.glob("*.csv")):
+            if not path.is_file():
+                continue
+            stat = path.stat()
+            molecular_files.append(
+                {
+                    "path": str(path.resolve()),
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                }
+            )
+    return {
+        "schema_version": QUERY_STORE_SCHEMA_VERSION,
+        "dataset_id": normalize_dataset_id(dataset_id),
+        "root_path": str(dataset_root),
+        "files": files,
+        "molecular_files": molecular_files,
+    }
+
+
+def dataset_query_store_status(dataset_id: str) -> Dict[str, Any]:
+    normalized = normalize_dataset_id(dataset_id)
+    if not normalized:
+        return {"dataset_id": "", "status": "not_built", "ready": False}
+    db_path, meta_path, status_path = _dataset_store_paths(normalized)
+    status_payload = _load_json(status_path) or {}
+    try:
+        current_signature = _dataset_source_signature(normalized)
+    except ValueError as exc:
+        return {
+            "dataset_id": normalized,
+            "status": "failed",
+            "ready": False,
+            "last_built_at": str(status_payload.get("last_built_at") or ""),
+            "last_error": str(exc),
+        }
+    stored_signature = _load_json(meta_path)
+    if _signature_payload(stored_signature) == current_signature and _store_has_required_tables(db_path):
+        return {
+            "dataset_id": normalized,
+            "status": "ready",
+            "ready": True,
+            "last_built_at": str((stored_signature or {}).get("built_at") or status_payload.get("last_built_at") or ""),
+            "last_error": "",
+        }
+    if str(status_payload.get("status") or "").strip().lower() == "building":
+        return {
+            "dataset_id": normalized,
+            "status": "building",
+            "ready": False,
+            "last_built_at": str(status_payload.get("last_built_at") or ""),
+            "last_error": str(status_payload.get("last_error") or ""),
+        }
+    if stored_signature is not None or db_path.exists():
+        return {
+            "dataset_id": normalized,
+            "status": "stale",
+            "ready": False,
+            "last_built_at": str((stored_signature or {}).get("built_at") or status_payload.get("last_built_at") or ""),
+            "last_error": str(status_payload.get("last_error") or ""),
+        }
+    if str(status_payload.get("status") or "").strip().lower() == "failed":
+        return {
+            "dataset_id": normalized,
+            "status": "failed",
+            "ready": False,
+            "last_built_at": str(status_payload.get("last_built_at") or ""),
+            "last_error": str(status_payload.get("last_error") or ""),
+        }
+    return {
+        "dataset_id": normalized,
+        "status": "not_built",
+        "ready": False,
+        "last_built_at": "",
+        "last_error": str(status_payload.get("last_error") or ""),
+    }
+
+
+def _store_ready_or_raise(dataset_id: str) -> None:
+    status = dataset_query_store_status(dataset_id)
+    if status.get("ready"):
+        return
+    dataset = get_dataset(dataset_id) or {"name": dataset_id}
+    label = str(dataset.get("name") or dataset_id).strip() or dataset_id
+    reason = str(status.get("status") or "not_built")
+    detail = str(status.get("last_error") or "").strip()
+    message = f'Dataset store not ready for "{label}": {reason}'
+    if detail:
+        message = f"{message}. {detail}"
+    raise QueryStoreNotReadyError(message)
+
+
+def prepare_dataset_query_store(dataset_id: str) -> Dict[str, Any]:
+    normalized = normalize_dataset_id(dataset_id)
+    if not normalized:
+        raise ValueError("A dataset id is required.")
+    dataset_root = _dataset_root_path(normalized)
+    db_path, meta_path, status_path = _dataset_store_paths(normalized)
+    current_signature = _dataset_source_signature(normalized)
+    previous_status = _load_json(status_path) or {}
+    _write_json(
+        status_path,
+        {
+            "dataset_id": normalized,
+            "status": "building",
+            "last_built_at": str(previous_status.get("last_built_at") or ""),
+            "last_error": "",
+        },
+    )
+    temp_suffix = f".tmp.{normalized}"
+    temp_db = db_path.with_name(f"{db_path.stem}{temp_suffix}{db_path.suffix}")
+    temp_meta = meta_path.with_name(f"{meta_path.stem}{temp_suffix}{meta_path.suffix}")
+    try:
+        _build_query_store(str(dataset_root), temp_db, temp_meta, current_signature)
+        built_meta = _load_json(temp_meta) or dict(current_signature)
+        built_meta["built_at"] = built_meta.get("built_at") or str(Path(temp_db).stat().st_mtime_ns)
+        _write_json(temp_meta, built_meta)
+        temp_db.replace(db_path)
+        temp_meta.replace(meta_path)
+        _write_json(
+            status_path,
+            {
+                "dataset_id": normalized,
+                "status": "ready",
+                "last_built_at": str(built_meta.get("built_at") or ""),
+                "last_error": "",
+            },
+        )
+    except Exception as exc:
+        temp_db.unlink(missing_ok=True)
+        temp_meta.unlink(missing_ok=True)
+        _write_json(
+            status_path,
+            {
+                "dataset_id": normalized,
+                "status": "failed",
+                "last_built_at": str((_load_json(status_path) or {}).get("last_built_at") or ""),
+                "last_error": str(exc),
+            },
+        )
+        raise
+    return dataset_query_store_status(normalized)
+
+
+def _sql_literal(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _sql_identifier(value: str) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def _union_select(aliases: List[str], expression: str) -> str:
+    return " UNION ALL ".join(expression.format(alias=alias) for alias in aliases)
+
+
+def _insert_transcript_matrix(con: Any, matrix_path: Path) -> List[Tuple[str, str, str, str]]:
+    dataset_name, delimiter, sample_ids = _read_molecular_matrix_header(matrix_path)
+    if not sample_ids:
+        return []
+    dataset_literal = _sql_literal(dataset_name)
+    matrix_literal = _sql_literal(str(matrix_path))
+    delimiter_literal = _sql_literal(delimiter)
+    sample_identifier_list = ", ".join(_sql_identifier(sample_id) for sample_id in sample_ids)
+    con.execute(
+        f"""
+        INSERT INTO transcript_counts
+        SELECT
+            {dataset_literal} AS dataset_name,
+            sample_id,
+            CASE
+                WHEN strpos(sample_id, ':') > 0 THEN split_part(sample_id, ':', 1)
+                ELSE sample_id
+            END AS patient_id,
+            gene_id,
+            coalesce(try_cast(raw_count AS BIGINT), 0) AS raw_count
+        FROM (
+            SELECT *
+            FROM read_csv(
+                {matrix_literal},
+                delim={delimiter_literal},
+                header=true,
+                all_varchar=true
+            )
+        ) AS matrix
+        UNPIVOT(raw_count FOR sample_id IN ({sample_identifier_list}))
+        WHERE coalesce(trim(gene_id), '') <> ''
+        """
+    )
+    return [
+        (dataset_name, sample_id, _patient_id_from_molecular_sample(sample_id), "transcriptomics_raw_counts")
+        for sample_id in sample_ids
+    ]
+
+
+def _connect_workspace(dataset_ids: List[str]):
+    if duckdb is None:
+        raise RuntimeError("duckdb is not installed")
+    normalized = [normalize_dataset_id(item) for item in dataset_ids if normalize_dataset_id(item)]
+    if not normalized:
+        raise RuntimeError("At least one dataset is required.")
+    for dataset_id in normalized:
+        _store_ready_or_raise(dataset_id)
+    con = duckdb.connect()
+    aliases: List[str] = []
+    multi_dataset = len(normalized) > 1
+    for index, dataset_id in enumerate(normalized):
+        alias = f"ds{index}"
+        aliases.append(alias)
+        db_path, _, _ = _dataset_store_paths(dataset_id)
+        con.execute(f"ATTACH {_sql_literal(str(db_path))} AS {alias}")
+    patient_rows_sql = _union_select(
+        aliases,
+        """
+        SELECT
+            patient_id,
+            sex,
+            visit_count,
+            first_event_date,
+            last_event_date,
+            source_file_count
+        FROM {alias}.patients
+        """,
+    )
+    patient_diseases_sql = _union_select(aliases, "SELECT patient_id, disease FROM {alias}.patient_diseases")
+    patient_medications_sql = _union_select(aliases, "SELECT patient_id, medication FROM {alias}.patient_medications")
+    timepoints_sql = _union_select(
+        aliases,
+        """
+        SELECT
+            patient_id,
+            original_id,
+            visit_id,
+            event_date,
+            event_type,
+            diagnosis,
+            source_file,
+            record_index
+        FROM {alias}.timepoints
+        """,
+    )
+    disease_events_sql = _union_select(
+        aliases,
+        """
+        SELECT
+            patient_id,
+            original_id,
+            visit_id,
+            event_date,
+            event_type,
+            disease,
+            source_file,
+            record_index
+        FROM {alias}.disease_events
+        """,
+    )
+    medication_events_sql = _union_select(
+        aliases,
+        """
+        SELECT
+            patient_id,
+            original_id,
+            visit_id,
+            event_date,
+            event_type,
+            medication,
+            source_file,
+            record_index
+        FROM {alias}.medication_events
+        """,
+    )
+    molecular_samples_parts = []
+    transcript_counts_parts = []
+    for alias, dataset_id in zip(aliases, normalized):
+        dataset_name_expr = f"{_sql_literal(dataset_id + '__')} || dataset_name" if multi_dataset else "dataset_name"
+        molecular_samples_parts.append(
+            f"""
+            SELECT
+                {dataset_name_expr} AS dataset_name,
+                sample_id,
+                patient_id,
+                modality
+            FROM {alias}.molecular_samples
+            """
+        )
+        transcript_counts_parts.append(
+            f"""
+            SELECT
+                {dataset_name_expr} AS dataset_name,
+                sample_id,
+                patient_id,
+                gene_id,
+                raw_count
+            FROM {alias}.transcript_counts
+            """
+        )
+    con.execute(f"CREATE TEMP VIEW patient_rows AS {patient_rows_sql}")
+    con.execute(f"CREATE TEMP VIEW timepoints AS {timepoints_sql}")
+    con.execute(f"CREATE TEMP VIEW disease_events AS {disease_events_sql}")
+    con.execute(f"CREATE TEMP VIEW medication_events AS {medication_events_sql}")
+    con.execute(f"CREATE TEMP VIEW patient_diseases AS SELECT DISTINCT patient_id, disease FROM ({patient_diseases_sql})")
+    con.execute(f"CREATE TEMP VIEW patient_medications AS SELECT DISTINCT patient_id, medication FROM ({patient_medications_sql})")
+    con.execute(f"CREATE TEMP VIEW molecular_samples AS {' UNION ALL '.join(molecular_samples_parts)}")
+    con.execute(f"CREATE TEMP VIEW transcript_counts AS {' UNION ALL '.join(transcript_counts_parts)}")
+    con.execute(
+        """
+        CREATE TEMP VIEW patients AS
+        WITH medication_counts AS (
+            SELECT patient_id, COUNT(*) AS medication_count
+            FROM patient_medications
+            GROUP BY patient_id
+        ),
+        disease_counts AS (
+            SELECT patient_id, COUNT(*) AS disease_count
+            FROM patient_diseases
+            GROUP BY patient_id
+        )
+        SELECT
+            patient_id,
+            any_value(sex) AS sex,
+            sum(visit_count) AS visit_count,
+            coalesce(max(medication_counts.medication_count), 0) AS medication_count,
+            coalesce(max(disease_counts.disease_count), 0) AS disease_count,
+            min(first_event_date) AS first_event_date,
+            max(last_event_date) AS last_event_date,
+            sum(source_file_count) AS source_file_count
+        FROM patient_rows
+        LEFT JOIN medication_counts USING (patient_id)
+        LEFT JOIN disease_counts USING (patient_id)
+        GROUP BY patient_id
+        """
+    )
+    return con
+
+
 def ensure_query_store(data_dir: str) -> None:
     if duckdb is None:
         return
-    db_path, meta_path = _store_paths(data_dir)
+    dataset_ids = _workspace_dataset_ids(data_dir)
+    if dataset_ids:
+        for dataset_id in dataset_ids:
+            _store_ready_or_raise(dataset_id)
+        return
+    db_path, meta_path = _legacy_store_paths(data_dir)
     current_signature = _source_files_signature(data_dir)
     if db_path.exists() and meta_path.exists():
         try:
             stored_signature = json.loads(meta_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             stored_signature = None
-        if stored_signature == current_signature and _store_has_required_tables(db_path):
+        if _signature_payload(stored_signature) == current_signature and _store_has_required_tables(db_path):
             return
     _build_query_store(data_dir, db_path, meta_path, current_signature)
 
@@ -300,7 +772,6 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         disease_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
         medication_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
         molecular_sample_rows: List[Tuple[str, str, str, str]] = []
-        transcript_count_rows: List[Tuple[str, str, str, str, int]] = []
         seen_patient_diseases = set()
         seen_patient_medications = set()
 
@@ -382,16 +853,11 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
 
         seen_molecular_samples = set()
         for matrix_path in _molecular_matrix_files(data_dir):
-            dataset_name, sample_ids, rows = _read_molecular_matrix(matrix_path)
-            for sample_id in sample_ids:
-                patient_id = _patient_id_from_molecular_sample(sample_id)
+            for dataset_name, sample_id, patient_id, modality in _insert_transcript_matrix(con, matrix_path):
                 key = (dataset_name, sample_id)
                 if key not in seen_molecular_samples:
                     seen_molecular_samples.add(key)
-                    molecular_sample_rows.append((dataset_name, sample_id, patient_id, "transcriptomics_raw_counts"))
-            for gene_id, values in rows:
-                for sample_id, raw_count in zip(sample_ids, values):
-                    transcript_count_rows.append((dataset_name, sample_id, _patient_id_from_molecular_sample(sample_id), gene_id, raw_count))
+                    molecular_sample_rows.append((dataset_name, sample_id, patient_id, modality))
 
         patient_rows: List[Tuple[str, Optional[str], int, int, int, Optional[str], Optional[str], int]] = []
         for patient_id in sorted(patient_stats):
@@ -423,8 +889,6 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             con.executemany("INSERT INTO medication_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)", medication_event_rows)
         if molecular_sample_rows:
             con.executemany("INSERT INTO molecular_samples VALUES (?, ?, ?, ?)", molecular_sample_rows)
-        if transcript_count_rows:
-            con.executemany("INSERT INTO transcript_counts VALUES (?, ?, ?, ?, ?)", transcript_count_rows)
 
         con.execute("CREATE INDEX idx_patients_patient_id ON patients(patient_id)")
         con.execute("CREATE INDEX idx_timepoints_patient_id ON timepoints(patient_id)")
@@ -437,6 +901,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
     finally:
         con.close()
 
+    signature = {**signature, "built_at": str(int(Path(db_path).stat().st_mtime_ns))}
     meta_path.write_text(json.dumps(signature, ensure_ascii=False, indent=2), encoding="utf-8")
 
 

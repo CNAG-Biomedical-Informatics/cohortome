@@ -36,3 +36,6 @@ Notes:
 - Healthy controls are baseline-only and intentionally omit the `diseases` field.
 - The expression panel is larger and structured into disease-relevant synthetic modules (inflammatory, interferon, B-cell, stromal, airway, eosinophil, barrier, housekeeping).
 - Counts are deterministic synthetic raw counts intended for exploratory UI development, not biological realism.
+- Large transcriptome fixtures use real HGNC-approved human protein-coding genes vendored in `scripts/data/hgnc_protein_coding_symbols.tsv`.
+- Matrix row identifiers use Ensembl gene IDs (`ENSG...`) even for the large fixtures.
+- The gene identifiers are real, but their module assignments and count dynamics remain synthetic and deterministic for timing and queue testing.

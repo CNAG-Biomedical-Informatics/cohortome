@@ -35,6 +35,7 @@ export function createAppRefs(doc = document) {
     dashboardEl: doc.getElementById("dashboard"),
     detailEl: doc.getElementById("detail"),
     dataDirEl: doc.getElementById("dataDir"),
+    datasetPickerShellEl: doc.getElementById("datasetPickerShell"),
     datasetPickerEl: doc.getElementById("datasetPicker"),
     loadStatusEl: doc.getElementById("loadStatus"),
     datasetScopeSummaryEl: doc.getElementById("datasetScopeSummary"),
