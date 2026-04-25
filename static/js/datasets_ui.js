@@ -12,6 +12,7 @@ export function createDatasetsUi(ctx) {
   const { escapeHtml } = helpers;
   const {
     canManageDataset,
+    isWorkspaceAccessible,
     renderGlobalContext,
     prepareAnalysisSessionForDataDir,
     resetQueryWorkspace,
@@ -25,7 +26,49 @@ export function createDatasetsUi(ctx) {
     setActiveTab,
     renderQueryExecutionMode,
     loadAuthUsers,
+    updateLoadButtonAvailability,
   } = callbacks;
+
+  function normalizedDatasetStoreStatus(dataset) {
+    const storeStatus = dataset && typeof dataset.query_store_status === "object" && dataset.query_store_status
+      ? dataset.query_store_status
+      : { status: "not_built", ready: false };
+    const storeState = String(storeStatus.status || "not_built").trim().toLowerCase();
+    return {
+      ready: Boolean(storeStatus.ready),
+      status: storeState,
+      detail: String(storeStatus.last_error || "").trim(),
+    };
+  }
+
+  function pendingWorkspaceStoreBlocker() {
+    const pendingRecords = pendingDatasetRecords();
+    if (!pendingRecords.length) {
+      return null;
+    }
+    const blockedRecord = pendingRecords.find((dataset) => !normalizedDatasetStoreStatus(dataset).ready);
+    if (!blockedRecord) {
+      return null;
+    }
+    const storeStatus = normalizedDatasetStoreStatus(blockedRecord);
+    const datasetLabel = String(blockedRecord.name || blockedRecord.dataset_id || "Dataset").trim();
+    const actionLabel = canManageDataset()
+      ? "Prepare or rebuild it in Data Admin."
+      : "Ask an admin to prepare it in Data Admin.";
+    const statusText = ({
+      stale: "stale",
+      failed: "failed",
+      building: "still being prepared",
+      not_built: "not prepared",
+    }[storeStatus.status] || "not ready");
+    const detail = storeStatus.detail ? ` ${storeStatus.detail}` : "";
+    return {
+      datasetId: String(blockedRecord.dataset_id || "").trim(),
+      datasetLabel,
+      status: storeStatus.status,
+      message: `Cannot apply workspace: dataset store for "${datasetLabel}" is ${statusText}. ${actionLabel}${detail}`,
+    };
+  }
 
   function renderLoadButtonState() {
     if (!refs.loadBtnEl) {
@@ -35,9 +78,12 @@ export function createDatasetsUi(ctx) {
     const pendingIds = pendingDatasetSelectionIds();
     const hasPendingChange = activeIds.length !== pendingIds.length
       || activeIds.some((item, index) => item !== pendingIds[index]);
+    const blockedByAuth = typeof isWorkspaceAccessible === "function" && !isWorkspaceAccessible();
+    const storeBlocker = pendingWorkspaceStoreBlocker();
     refs.loadBtnEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     refs.loadBtnEl.classList.toggle("has-pending-change", Boolean(hasPendingChange && !state.loadInFlight));
-    refs.loadBtnEl.disabled = Boolean(state.loadInFlight);
+    refs.loadBtnEl.disabled = Boolean(state.loadInFlight || blockedByAuth || storeBlocker);
+    refs.loadBtnEl.title = storeBlocker ? storeBlocker.message : "";
     if (datasetPickerShellEl) {
       datasetPickerShellEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     }
@@ -324,10 +370,11 @@ export function createDatasetsUi(ctx) {
     }
     const records = selectedDatasetRecords();
     if (!records.length) {
-      const pendingLabel = pendingDatasetScopeLabel();
-      const hasPendingSelection = pendingDatasetSelectionIds().length > 0;
-      datasetScopeSummaryEl.textContent = hasPendingSelection
-        ? `Active workspace: no dataset selected. Pending workspace: ${pendingLabel}. Click Apply workspace to switch.`
+    const pendingLabel = pendingDatasetScopeLabel();
+    const hasPendingSelection = pendingDatasetSelectionIds().length > 0;
+    const storeBlocker = pendingWorkspaceStoreBlocker();
+    datasetScopeSummaryEl.textContent = hasPendingSelection
+        ? `Active workspace: no dataset selected. Pending workspace: ${pendingLabel}.${storeBlocker ? ` ${storeBlocker.message}` : " Click Apply workspace to switch."}`
         : "Active workspace: no dataset selected.";
       return;
     }
@@ -338,9 +385,10 @@ export function createDatasetsUi(ctx) {
     const pendingIds = pendingDatasetSelectionIds();
     const sameSelection = activeIds.length === pendingIds.length && activeIds.every((item, index) => item === pendingIds[index]);
     const base = `Active workspace: ${datasetScopeLabel()} (${selectedCount} ${noun}${authorizedCount ? `, ${authorizedCount} authorized` : ""}).`;
+    const storeBlocker = pendingWorkspaceStoreBlocker();
     datasetScopeSummaryEl.textContent = sameSelection
       ? base
-      : `${base} Pending workspace: ${pendingDatasetScopeLabel()}. Click Apply workspace to switch.`;
+      : `${base} Pending workspace: ${pendingDatasetScopeLabel()}.${storeBlocker ? ` ${storeBlocker.message}` : " Click Apply workspace to switch."}`;
   }
 
   function renderDatasetSelect() {
@@ -392,6 +440,7 @@ export function createDatasetsUi(ctx) {
       const description = String(dataset.description || "").trim();
       const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
       const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+      const storeStatus = normalizedDatasetStoreStatus(dataset);
       const stateBadges = [];
       if (active) {
         stateBadges.push('<span class="dataset-picker-state dataset-picker-state-active">Active</span>');
@@ -401,6 +450,9 @@ export function createDatasetsUi(ctx) {
       }
       if (active && !checked) {
         stateBadges.push('<span class="dataset-picker-state dataset-picker-state-removal">Pending removal</span>');
+      }
+      if (checked && !storeStatus.ready) {
+        stateBadges.push(`<span class="dataset-picker-state dataset-picker-state-removal">${escapeHtml(storeStatus.status.replaceAll("_", " "))}</span>`);
       }
       return `
         <label class="dataset-picker-card${checked ? " is-selected" : ""}${active ? " is-active" : ""}${checked && !active ? " is-pending-add" : ""}${active && !checked ? " is-pending-removal" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
@@ -686,6 +738,8 @@ export function createDatasetsUi(ctx) {
     renderDatasetPicker();
     renderDatasetAdminList();
     renderDatasetScopeSummary();
+    renderLoadButtonState();
+    updateLoadButtonAvailability();
   }
 
   async function loadDatasets() {
@@ -709,6 +763,8 @@ export function createDatasetsUi(ctx) {
       renderDatasetScopeSummary();
       renderAnalysisDatasetScope();
       syncQueryGranularityWithWorkspacePolicy();
+      renderLoadButtonState();
+      updateLoadButtonAvailability();
       if (canManageDataset()) {
         void loadAuthUsers();
       }
@@ -724,6 +780,8 @@ export function createDatasetsUi(ctx) {
       renderDatasetScopeSummary();
       renderAnalysisDatasetScope();
       syncQueryGranularityWithWorkspacePolicy();
+      renderLoadButtonState();
+      updateLoadButtonAvailability();
     }
   }
 
@@ -739,6 +797,7 @@ export function createDatasetsUi(ctx) {
     renderDatasetScopeSummary();
     renderAnalysisDatasetScope();
     renderLoadButtonState();
+    updateLoadButtonAvailability();
   }
 
   return {
@@ -763,6 +822,7 @@ export function createDatasetsUi(ctx) {
     effectiveDatasetUserLabels,
     renderAnalysisDatasetScope,
     renderDatasetScopeSummary,
+    pendingWorkspaceStoreBlocker,
     renderDatasetSelect,
     renderDatasetPicker,
     renderDatasetAdminList,

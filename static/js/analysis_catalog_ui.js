@@ -13,6 +13,9 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogSearchEl,
     analysisCatalogFiltersEl,
     analysisCatalogListEl,
+    analysisCatalogDisclosureEl,
+    analysisCatalogDisclosureTitleEl,
+    analysisCatalogDisclosureNoteEl,
     analysisCatalogBrowseBtnEl,
     analysisCatalogDrawerEl,
     analysisCatalogDrawerSearchEl,
@@ -20,9 +23,17 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogDrawerListEl,
     analysisCatalogMolecularPanelEl,
     analysisCatalogMolecularStatusEl,
+    analysisCatalogSetupBadgesEl,
+    analysisCatalogMolecularTitleEl,
+    analysisCatalogMolecularNoteEl,
+    analysisComposerSetupEl,
+    analysisComposerSetupTitleEl,
+    analysisComposerSetupNoteEl,
+    analysisComposerSetupStatusEl,
     analysisPromptEl,
     analysisCompareModeEl,
     analysisStatusEl,
+    analysisRunBtnEl,
   } = refs;
   const { escapeHtml, currentStorageNamespace } = helpers;
   const { MAX_VISIBLE_EXAMPLES } = constants;
@@ -33,6 +44,7 @@ export function createAnalysisCatalogUi(ctx) {
     syncCurrentAnalysisSessionFromUi,
     currentDatasetSelectionKey,
     isWorkspaceAccessible,
+    molecularDatasetOverlap,
   } = callbacks;
 
   function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -272,30 +284,6 @@ export function createAnalysisCatalogUi(ctx) {
     return `${currentStorageNamespace(state.authState)}.analysisCatalogUsage`;
   }
 
-  function analysisCatalogDebugStorageKey() {
-    return `${currentStorageNamespace(state.authState)}.analysisCatalogDebug`;
-  }
-
-  function analysisCatalogDebugEnabled() {
-    try {
-      const params = new URLSearchParams(window.location.search || "");
-      const explicit = String(params.get("analysis_debug") || "").trim().toLowerCase();
-      if (["1", "true", "yes", "on"].includes(explicit)) {
-        return true;
-      }
-      if (["0", "false", "no", "off"].includes(explicit)) {
-        return false;
-      }
-    } catch (error) {
-      // Ignore URL parsing issues and fall back to local storage.
-    }
-    try {
-      return String(window.localStorage.getItem(analysisCatalogDebugStorageKey()) || "").trim().toLowerCase() === "true";
-    } catch (error) {
-      return false;
-    }
-  }
-
   function readAnalysisCatalogUsage() {
     try {
       const raw = window.localStorage.getItem(analysisCatalogUsageStorageKey());
@@ -382,11 +370,7 @@ export function createAnalysisCatalogUi(ctx) {
     const items = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
     const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
-    const includeDebug = analysisCatalogDebugEnabled();
     return items.filter((item) => {
-      if (item && item.debug_only && !includeDebug) {
-        return false;
-      }
       if (!analysisCatalogItemMatchesFilter(item, filter)) {
         return false;
       }
@@ -457,46 +441,214 @@ export function createAnalysisCatalogUi(ctx) {
     if (!analysisCatalogMolecularPanelEl || !analysisCatalogMolecularStatusEl) {
       return;
     }
-    renderMolecularDatasetSelector();
     const item = currentAnalysisCatalogItem();
-    const requiresMolecular = Boolean(item && item.requires_molecular);
-    analysisCatalogMolecularPanelEl.classList.toggle("is-hidden", !requiresMolecular);
-    if (!requiresMolecular) {
-      return;
+    const hasSelectedItem = Boolean(item);
+    analysisCatalogMolecularPanelEl.classList.toggle("is-hidden", !hasSelectedItem);
+    if (analysisComposerSetupEl) {
+      analysisComposerSetupEl.classList.toggle("is-hidden", !hasSelectedItem);
     }
-    const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
-    if (requiresSingleSelectedMolecularDataset(item)) {
-      if (selectedDatasetNames.length === 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}. This molecular tool will use the selected transcriptomics matrix.`;
-      } else if (selectedDatasetNames.length > 1) {
-        analysisCatalogMolecularStatusEl.textContent = `Selected ${selectedDatasetNames.length} molecular datasets. This molecular tool requires exactly one dataset.`;
-      } else {
-        analysisCatalogMolecularStatusEl.textContent = "Select exactly one molecular dataset for this molecular tool. The cohorts define the groups; the dataset defines the transcriptomics matrix.";
+    if (!hasSelectedItem) {
+      if (analysisCatalogSetupBadgesEl) {
+        analysisCatalogSetupBadgesEl.innerHTML = "";
+      }
+      if (analysisComposerSetupTitleEl) {
+        analysisComposerSetupTitleEl.textContent = "Analysis setup";
+      }
+      if (analysisComposerSetupNoteEl) {
+        analysisComposerSetupNoteEl.textContent = "Select an analysis from the catalog to configure this run.";
+      }
+      if (analysisComposerSetupStatusEl) {
+        analysisComposerSetupStatusEl.textContent = "Ready to run with the current Analysis scope.";
+        analysisComposerSetupStatusEl.classList.remove("is-ready", "is-blocked");
+      }
+      if (analysisRunBtnEl && !state.analysisInFlight) {
+        analysisRunBtnEl.disabled = false;
       }
       return;
     }
-    if (selectedDatasetNames.length === 1) {
-      analysisCatalogMolecularStatusEl.textContent = `Selected dataset: ${selectedDatasetNames[0]}.`;
-    } else if (selectedDatasetNames.length > 1) {
-      analysisCatalogMolecularStatusEl.textContent = `${selectedDatasetNames.length} molecular datasets selected for this analysis.`;
-    } else {
-      analysisCatalogMolecularStatusEl.textContent = "Select the molecular dataset or datasets for this analysis.";
+    renderMolecularDatasetSelector();
+    const requiresMolecular = Boolean(item && item.requires_molecular);
+    const compareRequired = Boolean(item && item.default_compare_mode);
+    const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
+    const setupState = selectedAnalysisSetupState(item);
+    if (analysisCatalogMolecularTitleEl) {
+      analysisCatalogMolecularTitleEl.textContent = item && item.name ? item.name : "Analysis setup";
+    }
+    if (analysisCatalogMolecularNoteEl) {
+      analysisCatalogMolecularNoteEl.textContent = item && item.guidance
+        ? String(item.guidance || "").trim()
+        : "Complete the required inputs for this analysis.";
+    }
+    if (analysisComposerSetupTitleEl) {
+      analysisComposerSetupTitleEl.textContent = item && item.name ? item.name : "Analysis setup";
+    }
+    if (analysisComposerSetupNoteEl) {
+      analysisComposerSetupNoteEl.textContent = item && item.guidance
+        ? String(item.guidance || "").trim()
+        : "Complete the required inputs for this analysis.";
+    }
+    analysisCatalogMolecularStatusEl.classList.toggle("is-ready", Boolean(setupState.ready));
+    analysisCatalogMolecularStatusEl.classList.toggle("is-blocked", !setupState.ready);
+    if (analysisComposerSetupStatusEl) {
+      analysisComposerSetupStatusEl.classList.toggle("is-ready", Boolean(setupState.ready));
+      analysisComposerSetupStatusEl.classList.toggle("is-blocked", !setupState.ready);
+    }
+    if (analysisCatalogSetupBadgesEl) {
+      const badges = [];
+      badges.push(`<span class="query-chip badge">${requiresMolecular ? "Needs molecular dataset" : "No molecular dataset required"}</span>`);
+      badges.push(`<span class="query-chip badge">${compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"}</span>`);
+      if (compareRequired) {
+        badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Cohort A ready" : "Choose Cohort A"}</span>`);
+        badges.push(`<span class="query-chip badge">${state.analysisCompareSavedCohortId ? "Cohort B ready" : "Choose Cohort B"}</span>`);
+      } else {
+        badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Saved scope selected" : "Workspace or manual scope"}</span>`);
+      }
+      if (requiresMolecular) {
+        const selectedCount = selectedDatasetNames.length;
+        const datasetBadge = requiresSingleSelectedMolecularDataset(item)
+          ? (selectedCount === 1 ? `Dataset ready: ${selectedDatasetNames[0]}` : selectedCount > 1 ? `${selectedCount} datasets selected` : "Choose 1 dataset")
+          : (selectedCount ? `${selectedCount} dataset${selectedCount === 1 ? "" : "s"} selected` : "Choose dataset");
+        badges.push(`<span class="query-chip badge">${escapeHtml(datasetBadge)}</span>`);
+      }
+      analysisCatalogSetupBadgesEl.innerHTML = badges.join("");
+    }
+    if (analysisRunBtnEl && !state.analysisInFlight) {
+      analysisRunBtnEl.disabled = !setupState.ready;
+    }
+    [refs.analysisCatalogMolecularDatasetListEl].filter(Boolean).forEach((listEl) => {
+      listEl.classList.toggle("is-hidden", !requiresMolecular);
+    });
+    if (!requiresMolecular) {
+      analysisCatalogMolecularStatusEl.textContent = setupState.message;
+      if (analysisComposerSetupStatusEl) {
+        analysisComposerSetupStatusEl.textContent = setupState.message;
+      }
+      return;
+    }
+    if (requiresSingleSelectedMolecularDataset(item)) {
+      if (selectedDatasetNames.length === 1) {
+        const overlap = typeof molecularDatasetOverlap === "function"
+          ? molecularDatasetOverlap(selectedDatasetNames[0])
+          : null;
+        if (overlap && item && item.default_compare_mode) {
+          const overlapMessage = `Cohort A overlap: ${overlap.overlapA}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` · Cohort B overlap: ${overlap.overlapB}` : ""}.`;
+          const statusMessage = setupState.ready
+            ? `Selected dataset: ${selectedDatasetNames[0]}. ${overlapMessage} Ready to run.`
+            : `Selected dataset: ${selectedDatasetNames[0]}. ${overlapMessage} This molecular tool requires at least one sample in both cohorts.`;
+          analysisCatalogMolecularStatusEl.textContent = statusMessage;
+          if (analysisComposerSetupStatusEl) {
+            analysisComposerSetupStatusEl.textContent = statusMessage;
+          }
+        } else {
+          analysisCatalogMolecularStatusEl.textContent = setupState.message;
+          if (analysisComposerSetupStatusEl) {
+            analysisComposerSetupStatusEl.textContent = setupState.message;
+          }
+        }
+      } else if (selectedDatasetNames.length > 1) {
+        analysisCatalogMolecularStatusEl.textContent = setupState.message;
+        if (analysisComposerSetupStatusEl) {
+          analysisComposerSetupStatusEl.textContent = setupState.message;
+        }
+      } else {
+        analysisCatalogMolecularStatusEl.textContent = setupState.message;
+        if (analysisComposerSetupStatusEl) {
+          analysisComposerSetupStatusEl.textContent = setupState.message;
+        }
+      }
+      return;
+    }
+    analysisCatalogMolecularStatusEl.textContent = setupState.message;
+    if (analysisComposerSetupStatusEl) {
+      analysisComposerSetupStatusEl.textContent = setupState.message;
     }
   }
 
   function analysisCatalogUiAvailability(item) {
-    let available = Boolean(item && item.available);
-    let unavailableReason = String(item && item.unavailable_reason ? item.unavailable_reason : "").trim();
-    if (available && item && item.default_compare_mode) {
+    return {
+      available: Boolean(item && item.available),
+      unavailableReason: String(item && item.unavailable_reason ? item.unavailable_reason : "").trim(),
+    };
+  }
+
+  function selectedAnalysisSetupState(item) {
+    const availability = analysisCatalogUiAvailability(item);
+    if (!item) {
+      return { ready: false, message: "", availability };
+    }
+    if (!availability.available) {
+      return {
+        ready: false,
+        message: availability.unavailableReason || "This analysis is unavailable in the current workspace.",
+        availability,
+      };
+    }
+    if (item.default_compare_mode) {
       if (!(analysisCompareModeEl && analysisCompareModeEl.checked)) {
-        available = false;
-        unavailableReason = "Enable compare mode and select Cohort A and Cohort B.";
-      } else if (!(state.analysisSelectedSavedCohortId && state.analysisCompareSavedCohortId)) {
-        available = false;
-        unavailableReason = "Select saved Cohort A and saved Cohort B for this comparison analysis.";
+        return {
+          ready: false,
+          message: "Enable compare mode for this analysis.",
+          availability,
+        };
+      }
+      if (!(state.analysisSelectedSavedCohortId && state.analysisCompareSavedCohortId)) {
+        return {
+          ready: false,
+          message: "Select saved Cohort A and saved Cohort B for this analysis.",
+          availability,
+        };
       }
     }
-    return { available, unavailableReason };
+    const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
+    if (item.requires_molecular) {
+      if (requiresSingleSelectedMolecularDataset(item)) {
+        if (selectedDatasetNames.length !== 1) {
+          return {
+            ready: false,
+            message: selectedDatasetNames.length
+              ? "Choose exactly one molecular dataset for this analysis."
+              : "Choose one molecular dataset for this analysis.",
+            availability,
+          };
+        }
+        const overlap = typeof molecularDatasetOverlap === "function"
+          ? molecularDatasetOverlap(selectedDatasetNames[0])
+          : null;
+        if (overlap && item.default_compare_mode && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
+          return {
+            ready: false,
+            message: `Selected dataset "${selectedDatasetNames[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}.`,
+            availability,
+          };
+        }
+        return {
+          ready: true,
+          message: overlap && item.default_compare_mode
+            ? `Ready to run with ${selectedDatasetNames[0]}. Cohort A overlap: ${overlap.overlapA} · Cohort B overlap: ${overlap.overlapB}.`
+            : `Ready to run with ${selectedDatasetNames[0]}.`,
+          availability,
+        };
+      }
+      if (!selectedDatasetNames.length) {
+        return {
+          ready: false,
+          message: "Choose at least one molecular dataset for this analysis.",
+          availability,
+        };
+      }
+      return {
+        ready: true,
+        message: `Ready to run with ${selectedDatasetNames.length} molecular dataset${selectedDatasetNames.length === 1 ? "" : "s"}.`,
+        availability,
+      };
+    }
+    return {
+      ready: true,
+      message: item.default_compare_mode
+        ? "Ready to run with the selected Cohort A and Cohort B."
+        : "Ready to run with the current Analysis scope.",
+      availability,
+    };
   }
 
   function renderAnalysisCatalogCard(item, options = {}) {
@@ -521,7 +673,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (Array.isArray(item.tags) && item.tags.includes("legacy")) {
       metaBadges.push('<span class="query-chip badge">Legacy</span>');
     }
-    if (item && item.debug_only && analysisCatalogDebugEnabled()) {
+    if (item && item.debug_only) {
       metaBadges.push('<span class="query-chip badge">Debug</span>');
     }
     if (item.runner_type && item.runner_type !== "builtin") {
@@ -570,6 +722,20 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
   }
 
+  function renderAnalysisCatalogDisclosureSummary() {
+    const item = currentAnalysisCatalogItem();
+    if (analysisCatalogDisclosureTitleEl) {
+      analysisCatalogDisclosureTitleEl.textContent = item && item.name
+        ? item.name
+        : "Analysis Catalog";
+    }
+    if (analysisCatalogDisclosureNoteEl) {
+      analysisCatalogDisclosureNoteEl.textContent = item
+        ? "Selected analysis. Open to change it."
+        : "Curated analyses and structured runs.";
+    }
+  }
+
   function renderAnalysisCatalog() {
     if (!analysisCatalogListEl) {
       return;
@@ -583,12 +749,12 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = "No curated analyses available.";
       }
+      renderAnalysisCatalogDisclosureSummary();
       renderAnalysisCatalogMolecularPanel();
       return;
     }
     const visibleItems = filteredAnalysisCatalogItems();
-    const catalogUniverse = (Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [])
-      .filter((item) => !(item && item.debug_only) || analysisCatalogDebugEnabled());
+    const catalogUniverse = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
     const unavailableCount = visibleItems.filter((item) => !item.available).length;
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
     const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
@@ -606,11 +772,12 @@ export function createAnalysisCatalogUi(ctx) {
       if (state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_molecular_datasets) {
         summaryBits.push(`${state.analysisCatalogWorkspace.molecular_dataset_count} molecular dataset${state.analysisCatalogWorkspace.molecular_dataset_count === 1 ? "" : "s"}`);
       }
-      if (analysisCatalogDebugEnabled()) {
+      if (catalogUniverse.some((item) => item && item.debug_only)) {
         summaryBits.push("debug tools visible");
       }
       analysisCatalogStatusEl.textContent = summaryBits.join(" · ");
     }
+    renderAnalysisCatalogDisclosureSummary();
     if (!visibleItems.length) {
       const message = query || filter !== "all"
         ? "No analyses match the current search and filters."
@@ -667,6 +834,7 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = "Workspace unavailable.";
       }
+      renderAnalysisCatalogDisclosureSummary();
       return;
     }
     if (analysisCatalogBrowseBtnEl) {
@@ -688,6 +856,7 @@ export function createAnalysisCatalogUi(ctx) {
         analysisCatalogBrowseBtnEl.title = "Analysis Catalog requires Detailed workspace access.";
       }
       setAnalysisCatalogDrawerOpen(false);
+      renderAnalysisCatalogDisclosureSummary();
       renderAnalysisCatalogMolecularPanel();
       return;
     }
@@ -717,6 +886,7 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = error && error.message ? error.message : "Unable to load curated analyses.";
       }
+      renderAnalysisCatalogDisclosureSummary();
       renderAnalysisCatalogMolecularPanel();
     }
   }
@@ -753,7 +923,11 @@ export function createAnalysisCatalogUi(ctx) {
         ? `${item.name} selected. ${item.guidance}`
         : `${item.name} selected. Review the prompt and run the analysis.`;
     }
+    if (analysisCatalogDisclosureEl) {
+      analysisCatalogDisclosureEl.open = false;
+    }
     setAnalysisCatalogDrawerOpen(false);
+    renderAnalysisCatalogDisclosureSummary();
     analysisPromptEl && analysisPromptEl.focus();
   }
 
@@ -776,6 +950,7 @@ export function createAnalysisCatalogUi(ctx) {
     renderAnalysisCatalogCard,
     setAnalysisCatalogDrawerOpen,
     renderAnalysisCatalog,
+    renderAnalysisCatalogDisclosureSummary,
     setAnalysisCatalogSearch,
     setAnalysisCatalogFilter,
     loadAnalysisCatalog,

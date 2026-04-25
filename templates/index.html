@@ -806,10 +806,10 @@
                     </div>
                   </div>
                   <div class="analysis-catalog-shell">
-                    <details class="analysis-catalog-block analysis-catalog-disclosure">
+                    <details id="analysisCatalogDisclosure" class="analysis-catalog-block analysis-catalog-disclosure">
                       <summary class="analysis-catalog-disclosure-summary">
-                        <strong>Analysis Catalog</strong>
-                        <span class="section-note">Curated analyses and structured runs.</span>
+                        <strong id="analysisCatalogDisclosureTitle">Analysis Catalog</strong>
+                        <span id="analysisCatalogDisclosureNote" class="section-note">Curated analyses and structured runs.</span>
                       </summary>
                       <div class="analysis-catalog-disclosure-body">
                         <div class="analysis-catalog-block-header">
@@ -833,13 +833,15 @@
                             <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
                           </div>
                         </div>
-                        <div id="analysisCatalogMolecularParking">
+                          <div id="analysisCatalogMolecularParking">
                           <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
                             <div class="analysis-molecular-panel-header">
-                              <strong id="analysisCatalogMolecularTitle">Molecular dataset</strong>
-                              <span id="analysisCatalogMolecularNote" class="section-note">Choose the transcriptomics dataset used by this analysis.</span>
+                              <div class="analysis-molecular-panel-heading">Selected analysis</div>
+                              <strong id="analysisCatalogMolecularTitle">Analysis setup</strong>
                             </div>
-                            <div id="analysisCatalogMolecularStatus" class="section-note">Checking molecular datasets...</div>
+                            <div id="analysisCatalogMolecularNote" class="analysis-molecular-panel-note">Select an analysis to see its required inputs.</div>
+                            <div id="analysisCatalogSetupBadges" class="analysis-catalog-tags"></div>
+                            <div id="analysisCatalogMolecularStatus" class="analysis-setup-status">Checking molecular datasets...</div>
                             <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
                               <div class="empty">No molecular dataset loaded</div>
                             </div>
@@ -955,6 +957,12 @@
               <div class="analysis-composer-header">
                 <strong>Continue Analysis</strong>
                 <button id="analysisComposerExamplesBtn" type="button" class="query-chip">Catalog & prompts</button>
+              </div>
+              <div id="analysisComposerSetup" class="analysis-composer-setup is-hidden">
+                <div class="analysis-composer-setup-heading">Selected analysis</div>
+                <div id="analysisComposerSetupTitle" class="analysis-composer-setup-title">Analysis setup</div>
+                <div id="analysisComposerSetupNote" class="analysis-composer-setup-note">Select an analysis from the catalog to configure this run.</div>
+                <div id="analysisComposerSetupStatus" class="analysis-composer-setup-status">Ready to run with the current Analysis scope.</div>
               </div>
               <div class="query-row">
                 <textarea id="analysisPrompt">Summarize the main clinical patterns in this workspace and tell me what stands out.</textarea>

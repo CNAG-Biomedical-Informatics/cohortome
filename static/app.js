@@ -343,6 +343,7 @@ dashboardUi = createDashboardUi({
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     isMultiDatasetWorkspace,
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
+    renderAnalysisCatalogMolecularPanel: () => analysisCatalogUi.renderAnalysisCatalogMolecularPanel(),
   },
   state,
   constants: {
@@ -375,6 +376,7 @@ analysisCatalogUi = createAnalysisCatalogUi({
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
+    molecularDatasetOverlap: (datasetName) => dashboardUi.molecularDatasetOverlap(datasetName),
   },
 });
 
@@ -447,6 +449,7 @@ analysisUi = createAnalysisUi({
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
+    molecularDatasetOverlap: (datasetName) => dashboardUi.molecularDatasetOverlap(datasetName),
   },
   state,
 });
@@ -581,6 +584,7 @@ datasetsUi = createDatasetsUi({
   },
   callbacks: {
     canManageDataset: () => authUi.canManageDataset(),
+    isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     prepareAnalysisSessionForDataDir: (value) => analysisSessionsUi.prepareAnalysisSessionForDataDir(value),
     resetQueryWorkspace: () => queryUi.resetQueryWorkspace(),
@@ -594,6 +598,7 @@ datasetsUi = createDatasetsUi({
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderQueryExecutionMode: () => analysisCatalogUi.renderQueryExecutionMode(),
     loadAuthUsers: () => usersAdminUi.loadAuthUsers(),
+    updateLoadButtonAvailability: () => authUi.updateLoadButtonAvailability(),
   },
 });
 
@@ -630,6 +635,8 @@ function bindEvents() {
     datasetsUi.renderDatasetPicker();
     datasetsUi.renderDatasetAdminList();
     datasetsUi.renderDatasetScopeSummary();
+    datasetsUi.renderLoadButtonState();
+    authUi.updateLoadButtonAvailability();
   });
 
   refs.datasetPickerEl && refs.datasetPickerEl.addEventListener("change", (event) => {
