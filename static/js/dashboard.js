@@ -23,7 +23,13 @@ export function createDashboardUi(ctx) {
     analysisCompareSavedCohortSelectionEl,
   } = refs;
   const { escapeHtml, formatNumber } = helpers;
-  const { renderGlobalContext, syncCurrentAnalysisSessionFromUi, isMultiDatasetWorkspace, renderAnalysisCatalog } = callbacks;
+  const {
+    renderGlobalContext,
+    syncCurrentAnalysisSessionFromUi,
+    isMultiDatasetWorkspace,
+    renderAnalysisCatalog,
+    renderAnalysisCatalogMolecularPanel,
+  } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
 
@@ -573,10 +579,19 @@ export function createDashboardUi(ctx) {
     analysisMolecularResultEl.innerHTML = payloads.map((item) => {
       const sections = [renderMolecularScopeCard(item.scope_a)];
       if (item.scope_b) sections.push(renderMolecularScopeCard(item.scope_b));
+      const geneTooltip = [
+        String(item.gene_id || "").trim(),
+        String(item.gene_symbol || "").trim(),
+        String(item.gene_name || "").trim(),
+      ].filter(Boolean).join(" • ");
+      const geneMarkup = item.ensembl_url
+        ? `<a class="molecular-result-gene-link" href="${escapeHtml(item.ensembl_url)}" target="_blank" rel="noopener" title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</a>`
+        : `<span title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</span>`;
       return `
         <div class="molecular-expression-card">
           <div class="molecular-result-header">
-            <strong>${escapeHtml(item.gene_id)}</strong>
+            <strong>${geneMarkup}</strong>
+            ${item.gene_symbol && item.gene_symbol !== item.gene_id ? `<span class="query-chip badge">${escapeHtml(item.gene_symbol)}</span>` : ""}
             <span class="query-chip badge">${escapeHtml(item.dataset_name)}</span>
           </div>
           <div class="molecular-result-grid">${sections.join("")}</div>
@@ -695,6 +710,22 @@ export function createDashboardUi(ctx) {
     renderMolecularDatasetSelector();
   }
 
+  function clearMolecularWorkspaceSelection() {
+    state.selectedMolecularDatasets = [];
+    if (analysisMolecularGeneEl) {
+      analysisMolecularGeneEl.value = "";
+    }
+    renderMolecularExpressionResult(null);
+  }
+
+  function molecularDatasetOverlap(datasetName) {
+    const normalizedName = String(datasetName || "").trim();
+    if (!normalizedName) return null;
+    const dataset = state.molecularDatasetsState.find((item) => String(item && item.dataset_name ? item.dataset_name : "").trim() === normalizedName);
+    if (!dataset) return null;
+    return currentMolecularScopeOverlap(dataset.patient_ids);
+  }
+
   function currentMolecularScopeOverlap(patientIds) {
     const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map((item) => String(item)));
     const selectedCohortA = Array.isArray(state.savedCohorts)
@@ -761,7 +792,18 @@ export function createDashboardUi(ctx) {
       const overlap = currentMolecularScopeOverlap(item.patient_ids);
       const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
       const topGenesMarkup = topGenes.length
-        ? topGenes.map((gene) => `<span class="molecular-gene-pill" title="Total raw count: ${escapeHtml(String(gene.total_raw_count))}">${escapeHtml(gene.gene_id)}</span>`).join("")
+        ? topGenes.map((gene) => {
+          const title = [
+            String(gene.gene_id || "").trim(),
+            String(gene.gene_symbol || "").trim(),
+            String(gene.gene_name || "").trim(),
+            `Total raw count: ${String(gene.total_raw_count || 0)}`,
+          ].filter(Boolean).join(" • ");
+          if (gene.ensembl_url) {
+            return `<a class="molecular-gene-pill molecular-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
+          }
+          return `<span class="molecular-gene-pill" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</span>`;
+        }).join("")
         : '<span class="section-note">No top-gene summary available.</span>';
       const overlapMarkup = overlap.scopeASize || overlap.scopeBSize
         ? `
@@ -827,7 +869,18 @@ export function createDashboardUi(ctx) {
         return response.json();
       }));
       const genes = Array.from(new Set(payloads.flatMap((payload) => Array.isArray(payload.genes) ? payload.genes : []))).sort();
-      analysisMolecularGenesEl.innerHTML = genes.map((geneId) => `<option value="${escapeHtml(geneId)}"></option>`).join("");
+      const annotations = payloads.reduce((acc, payload) => {
+        const current = payload && payload.annotations && typeof payload.annotations === "object" ? payload.annotations : {};
+        return { ...acc, ...current };
+      }, {});
+      analysisMolecularGenesEl.innerHTML = genes.map((geneId) => {
+        const annotation = annotations[geneId] && typeof annotations[geneId] === "object" ? annotations[geneId] : {};
+        const geneSymbol = String(annotation.gene_symbol || "").trim();
+        const geneName = String(annotation.gene_name || "").trim();
+        const title = [geneId, geneSymbol, geneName].filter(Boolean).join(" • ");
+        const label = geneSymbol ? `${geneSymbol} · ${geneId}` : geneId;
+        return `<option value="${escapeHtml(geneId)}" label="${escapeHtml(label)}" title="${escapeHtml(title || geneId)}"></option>`;
+      }).join("");
     } catch (_error) {
       analysisMolecularGenesEl.innerHTML = "";
     }
@@ -836,6 +889,12 @@ export function createDashboardUi(ctx) {
   async function loadMolecularDatasets(options = {}) {
     if (!analysisMolecularStatusEl || !molecularDashboardStatusEl) return;
     const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
+    const previousScopeId = String(state.molecularDatasetsScopeId || "").trim();
+    const scopeChanged = previousScopeId !== scopeId;
+    state.molecularDatasetsScopeId = scopeId;
+    if (scopeChanged) {
+      clearMolecularWorkspaceSelection();
+    }
     const dataDir = encodeURIComponent(scopeId);
     analysisMolecularStatusEl.className = "query-status loading";
     analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
@@ -856,6 +915,12 @@ export function createDashboardUi(ctx) {
       state.molecularDatasetsState = datasets;
       syncSelectedMolecularDatasets();
       renderMolecularDashboardCards(state.molecularDatasetsState);
+      if (typeof renderAnalysisCatalogMolecularPanel === "function") {
+        renderAnalysisCatalogMolecularPanel();
+      }
+      if (typeof renderAnalysisCatalog === "function") {
+        renderAnalysisCatalog();
+      }
       if (!datasets.length) {
         analysisMolecularStatusEl.className = "query-status";
         analysisMolecularStatusEl.textContent = "No molecular datasets are currently available for quick expression checks.";
@@ -886,10 +951,15 @@ export function createDashboardUi(ctx) {
       molecularDashboardStatusEl.className = "query-status";
       molecularDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
       state.molecularDatasetsState = [];
-      state.selectedMolecularDatasets = [];
+      clearMolecularWorkspaceSelection();
       renderMolecularDatasetSelector();
       renderMolecularDashboardCards(state.molecularDatasetsState);
-      renderMolecularExpressionResult(null);
+      if (typeof renderAnalysisCatalogMolecularPanel === "function") {
+        renderAnalysisCatalogMolecularPanel();
+      }
+      if (typeof renderAnalysisCatalog === "function") {
+        renderAnalysisCatalog();
+      }
     }
   }
 
@@ -975,5 +1045,6 @@ export function createDashboardUi(ctx) {
     runMolecularExpressionAnalysis,
     handleMolecularDatasetSelectionChange,
     handleMolecularGeneInput,
+    molecularDatasetOverlap,
   };
 }

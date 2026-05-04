@@ -214,6 +214,18 @@ def normalize_pheno_metric(value: str) -> str:
     return normalized if normalized in {"hamming", "jaccard"} else ""
 
 
+def optional_pheno_graph_weight(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Graph edge cutoff values must be numeric.")
+
+
 def available_patient_ids(data_dir: str, limit: int = 200) -> List[str]:
     ids: List[str] = []
     for record in load_pheno_ranker_records(data_dir):
@@ -484,14 +496,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
 
     render_heatmap = "mds only" not in lowered and ("heatmap" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
     render_mds = "heatmap only" not in lowered and ("mds" in lowered or "both" in lowered or "plot" in lowered or action == "compare")
-    render_graph = mode == "cohort" and action == "compare" and any(
-        phrase in lowered
-        for phrase in (
-            "graph",
-            "network",
-            "cytoscape",
-        )
-    )
+    render_graph = mode == "cohort" and action == "compare" and "no graph" not in lowered and "without graph" not in lowered
     align_requested = any(
         phrase in lowered
         for phrase in (
@@ -1241,6 +1246,8 @@ def serialize_pheno_result(
     similarity_metric_cohort: str = "",
     pre_commands: List[str] | None = None,
     scope_expansion_note: str = "",
+    graph_min_weight: float | None = None,
+    graph_max_weight: float | None = None,
 ) -> Dict:
     files = []
     for path in sorted(job_dir.iterdir()):
@@ -1265,6 +1272,8 @@ def serialize_pheno_result(
         "files": files,
         "similarity_metric_cohort": similarity_metric_cohort,
         "scope_expansion_note": scope_expansion_note,
+        "graph_min_weight": graph_min_weight,
+        "graph_max_weight": graph_max_weight,
     }
 
 
@@ -1587,12 +1596,21 @@ def run_pheno_ranker(request: Any) -> Dict:
     if action == "compare" and mode == "patient" and request.align:
         command.extend(["--align", str(job_dir / "alignment")])
     if mode == "cohort" and bool(getattr(request, "render_graph", False)):
+        graph_min_weight = optional_pheno_graph_weight(getattr(request, "graph_min_weight", None))
+        graph_max_weight = optional_pheno_graph_weight(getattr(request, "graph_max_weight", None))
+        if graph_min_weight is not None and graph_max_weight is not None and graph_min_weight > graph_max_weight:
+            raise HTTPException(status_code=400, detail="Graph minimum edge weight cannot be greater than maximum edge weight.")
         command.extend([
             "-cytoscape-json",
             str(job_dir / "graph.json"),
-            "-graph-stats",
-            str(job_dir / "graph_stats.txt"),
         ])
+        if graph_min_weight is not None:
+            command.extend(["-graph-min-weight", f"{graph_min_weight:g}"])
+        if graph_max_weight is not None:
+            command.extend(["-graph-max-weight", f"{graph_max_weight:g}"])
+    else:
+        graph_min_weight = None
+        graph_max_weight = None
 
     proc = subprocess.run(command, cwd=job_dir, capture_output=True, text=True, check=False)
     write_step_logs(job_dir, "pheno_ranker_main", command, proc)
@@ -1634,6 +1652,8 @@ def run_pheno_ranker(request: Any) -> Dict:
             similarity_metric_cohort=effective_similarity_metric,
             pre_commands=pre_commands,
             scope_expansion_note=scope_expansion_note,
+            graph_min_weight=graph_min_weight,
+            graph_max_weight=graph_max_weight,
         ),
         intent="pheno_run",
         ai_provider_access=str(getattr(request, "ai_provider_access", "detailed_allowed") or "detailed_allowed"),

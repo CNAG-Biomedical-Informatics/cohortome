@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.config import DEFAULT_DATA_DIR
 from app.pheno import normalize_pheno_terms
@@ -94,7 +94,9 @@ class PhenoRankerRequest(BaseModel):
     align: bool = Field(default=True, description="Whether to compute term alignment details.")
     render_heatmap: bool = Field(default=True, description="Whether to generate the interactive heatmap artifact.")
     render_mds: bool = Field(default=True, description="Whether to generate the interactive MDS artifact.")
-    render_graph: bool = Field(default=False, description="Whether to generate the interactive Cytoscape graph artifact.")
+    render_graph: bool = Field(default=True, description="Whether to generate the interactive Cytoscape graph artifact.")
+    graph_min_weight: float | None = Field(default=None, description="Optional minimum edge weight for Pheno-Ranker graph export.")
+    graph_max_weight: float | None = Field(default=None, description="Optional maximum edge weight for Pheno-Ranker graph export.")
     granularity_ceiling: str = Field(default="detailed", description="Internal workspace ceiling used to guard Pheno-Ranker access.")
     ai_provider_access: str = Field(default="detailed_allowed", description="Effective AI provider policy used for Pheno-Ranker planner/explanation paths.")
 
@@ -108,6 +110,19 @@ class PhenoRankerRequest(BaseModel):
         if isinstance(value, str):
             return normalize_pheno_terms(value)
         return list(value)
+
+    @field_validator("graph_min_weight", "graph_max_weight", mode="before")
+    @classmethod
+    def _coerce_optional_graph_weight(cls, value):
+        if value is None or value == "":
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def _validate_graph_weight_range(self):
+        if self.graph_min_weight is not None and self.graph_max_weight is not None and self.graph_min_weight > self.graph_max_weight:
+            raise ValueError("Graph minimum edge weight cannot be greater than maximum edge weight.")
+        return self
 
 
 class PhenoRankerPlanRequest(BaseModel):

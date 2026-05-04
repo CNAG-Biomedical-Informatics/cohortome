@@ -1004,6 +1004,62 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
     assert payload["pre_commands"] == []
 
 
+def test_pheno_cohort_graph_cutoffs_are_passed_to_runner(tmp_path, monkeypatch):
+    reference_path = tmp_path / "reference.json"
+    reference_path.write_text("[]", encoding="utf-8")
+    fake_bin = tmp_path / "pheno-ranker"
+    fake_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_bin.chmod(0o755)
+    job_dir = tmp_path / "runs" / "job"
+    job_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(pheno_module, "PHENO_RANKER_BIN", fake_bin)
+    monkeypatch.setattr(pheno_module, "pheno_ranker_job_dir", lambda: job_dir)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_reference_paths", lambda data_dir: [reference_path])
+
+    executed_commands = []
+
+    def _fake_run(command, capture_output, text, check, **kwargs):
+        executed_commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(pheno_module.subprocess, "run", _fake_run)
+
+    payload = pheno_module.run_pheno_ranker(
+        SimpleNamespace(
+            action="compare",
+            mode="cohort",
+            data_dir=str(tmp_path),
+            patient_id="",
+            selected_patient_ids="",
+            selected_saved_cohort_ids=[],
+            disease_filter="",
+            include_terms=[],
+            exclude_terms=[],
+            similarity_metric_cohort="jaccard",
+            sort_by="",
+            max_out=10,
+            align=False,
+            render_heatmap=False,
+            render_mds=False,
+            render_graph=True,
+            graph_min_weight=0.25,
+            graph_max_weight=0.95,
+        )
+    )
+
+    assert executed_commands
+    command = executed_commands[0]
+    assert "-cytoscape-json" in command
+    assert "-graph-stats" not in command
+    assert "-graph-min-weight" in command
+    assert command[command.index("-graph-min-weight") + 1] == "0.25"
+    assert "-graph-max-weight" in command
+    assert command[command.index("-graph-max-weight") + 1] == "0.95"
+    assert payload["graph_min_weight"] == 0.25
+    assert payload["graph_max_weight"] == 0.95
+
+
 def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
     monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
@@ -1346,6 +1402,33 @@ def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
     demote_response = client.patch("/auth/users/mrueda", json={"role": "user"})
     assert demote_response.status_code == 400
     assert "cannot remove your own admin access" in demote_response.json()["detail"].lower()
+
+
+def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_path):
+    dataset_root = tmp_path / "dataset-large"
+    clinical_root = dataset_root / "clinical"
+    molecular_root = dataset_root / "molecular"
+    clinical_root.mkdir(parents=True)
+    molecular_root.mkdir(parents=True)
+    write_json(
+        clinical_root,
+        "records.json",
+        [
+            {"id": "P1:baseline", "patient_id": "P1"},
+            {"id": "P1:week_4", "patient_id": "P1"},
+            {"id": "P2:baseline", "patient_id": "P2"},
+        ],
+    )
+    (molecular_root / "counts_a.csv").write_text("gene_id,P1:baseline\nENSG00000141510,10\n", encoding="utf-8")
+    (molecular_root / "counts_b.csv").write_text("gene_id,P2:baseline\nENSG00000171862,11\n", encoding="utf-8")
+
+    metadata = datasets_module.dataset_content_metadata(str(dataset_root))
+
+    assert metadata["patient_count"] == 2
+    assert metadata["timepoint_count"] == 3
+    assert metadata["molecular_file_count"] == 2
+    assert metadata["content_tags"] == ["2 patients", "3 timepoints", "2 matrices", "large transcriptome"]
+    assert metadata["content_summary"] == ""
 
 
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
@@ -3296,6 +3379,7 @@ def test_run_pheno_ranker_route_queues_large_cohort_background_run(tmp_path, mon
     monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
     monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
     monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(routes_module, "ensure_query_store", lambda data_dir: None)
     monkeypatch.setattr(routes_module, "active_feature_job", lambda user_id, feature: None)
     monkeypatch.setattr(
         routes_module,
@@ -6490,7 +6574,7 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
-                "ENSG00000111111;10;20;30",
+                "ENSG00000141510;10;20;30",
                 "ENSG00000122222;7;8;9",
             ]
         ),
@@ -6499,21 +6583,25 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
     query_store_module.MOLECULAR_DATA_DIR = molecular_dir
     try:
         inventory = store_molecular_dataset_inventory(str(tmp_path))
-        genes = store_molecular_gene_inventory(str(tmp_path), "synthetic_transcriptome_raw_counts", search="111")
+        genes = store_molecular_gene_inventory(str(tmp_path), "synthetic_transcriptome_raw_counts", search="tp53")
         payload = store_molecular_expression_summary(
             str(tmp_path),
             "synthetic_transcriptome_raw_counts",
-            "ENSG00000111111",
+            "ENSG00000141510",
             selected_patient_ids="SYN001,SYN002",
             compare_selected_patient_ids="SYN003",
         )
     finally:
         query_store_module.MOLECULAR_DATA_DIR = original_dir
 
-    assert genes == ["ENSG00000111111"]
+    assert genes == ["ENSG00000141510"]
     assert inventory[0]["clinical_overlap_patient_count"] == 3
     assert inventory[0]["mean_total_counts_per_sample"] == 28
     assert inventory[0]["mean_detected_genes_per_sample"] == 2
+    assert inventory[0]["top_genes"][0]["gene_symbol"] == "TP53"
+    assert inventory[0]["top_genes"][0]["ensembl_url"].endswith("ENSG00000141510")
+    assert payload["gene_symbol"] == "TP53"
+    assert payload["ensembl_url"].endswith("ENSG00000141510")
     assert payload["scope_a"]["sample_count"] == 2
     assert payload["scope_a"]["mean"] == 15
     assert payload["scope_b"]["sample_count"] == 1
@@ -7096,6 +7184,7 @@ def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
     assert patient_plan["plan"]["mode"] == "patient"
     assert patient_plan["plan"]["patient_id"] == "SYN001"
     assert patient_plan["plan"]["align"] is True
+    assert patient_plan["plan"]["render_graph"] is False
     assert patient_plan["plan"]["include_terms"] == ["diseases", "phenotypicFeatures"]
 
     extract_plan = pheno_module.plan_pheno_ranker_deterministic(
@@ -7111,10 +7200,15 @@ def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
     assert extract_plan["plan"]["render_graph"] is False
 
     graph_plan = pheno_module.plan_pheno_ranker_deterministic(
-        "Compare all patients and render a cytoscape graph network",
+        "Compare all patients by disease",
         str(tmp_path),
     )
     assert graph_plan["plan"]["render_graph"] is True
+    no_graph_plan = pheno_module.plan_pheno_ranker_deterministic(
+        "Compare all patients by disease without graph",
+        str(tmp_path),
+    )
+    assert no_graph_plan["plan"]["render_graph"] is False
 
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()

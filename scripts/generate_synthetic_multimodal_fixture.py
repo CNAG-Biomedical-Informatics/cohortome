@@ -342,13 +342,16 @@ MODULE_PANEL_WEIGHTS = {
     for module_name, gene_ids in LEGACY_GENE_MODULES.items()
 }
 
+MAX_SYNTHETIC_COUNT = 2_000_000_000
+
 
 def _baseline_for_gene(module_name: str, index: int) -> float:
+    scaled_index = math.log2(index + 1) if index > 0 else 0.0
     if module_name == "housekeeping":
-        return 7.8 + 0.02 * index
+        return 7.8 + 0.12 * scaled_index
     if module_name in {"inflammatory", "interferon", "b_cell", "stromal"}:
-        return 5.6 + 0.04 * index
-    return 4.9 + 0.035 * index
+        return 5.6 + 0.18 * scaled_index
+    return 4.9 + 0.16 * scaled_index
 
 
 def compile_gene_panel(gene_modules: dict[str, list[str]]) -> tuple[list[str], dict[str, str], dict[str, float]]:
@@ -642,7 +645,7 @@ def gene_count_for_sample(
     noise = rng.gauss(0.0, 0.08)
     log2_cpm = baseline_log2 + disease_effect + time_effect + patient_effect + library_shift + noise
     counts = max(5.0, (2 ** log2_cpm) * 18.0)
-    return int(round(counts))
+    return min(MAX_SYNTHETIC_COUNT, int(round(counts)))
 
 
 def build_matrix_for_samples(
@@ -696,7 +699,7 @@ def build_hc_matrix_for_samples(
             module_offset = -0.55 if module in {"inflammatory", "interferon", "b_cell", "stromal", "airway", "eosinophil"} else 0.0
             log2_cpm = baseline_log2 + module_offset + patient_effect + library_shift + noise
             counts = max(5.0, (2 ** log2_cpm) * 18.0)
-            row.append(str(int(round(counts))))
+            row.append(str(min(MAX_SYNTHETIC_COUNT, int(round(counts)))))
         rows.append(row)
     return rows
 
@@ -874,6 +877,8 @@ def build_large_dataset(
     gene_count: int,
     *,
     dataset_root: Path = DEFAULT_LARGE_DATASET_ROOT,
+    clinical_records: Optional[list[dict]] = None,
+    hc_clinical_records: Optional[list[dict]] = None,
 ) -> None:
     gene_ids, gene_module_by_id, gene_baselines = extended_gene_panel(gene_count)
     if dataset_root.exists():
@@ -882,10 +887,10 @@ def build_large_dataset(
     molecular_dir = dataset_root / "molecular"
     clinical_dir.mkdir(parents=True, exist_ok=True)
     molecular_dir.mkdir(parents=True, exist_ok=True)
-    clinical_records = json.loads(CLINICAL_PATH.read_text(encoding="utf-8"))
-    hc_clinical_records = json.loads(HC_CLINICAL_PATH.read_text(encoding="utf-8"))
-    (clinical_dir / "synthetic_longitudinal.json").write_text(json.dumps(clinical_records, indent=2), encoding="utf-8")
-    (clinical_dir / "synthetic_hc_baseline.json").write_text(json.dumps(hc_clinical_records, indent=2), encoding="utf-8")
+    active_clinical_records = clinical_records if clinical_records is not None else json.loads(CLINICAL_PATH.read_text(encoding="utf-8"))
+    active_hc_clinical_records = hc_clinical_records if hc_clinical_records is not None else json.loads(HC_CLINICAL_PATH.read_text(encoding="utf-8"))
+    (clinical_dir / "synthetic_longitudinal.json").write_text(json.dumps(active_clinical_records, indent=2), encoding="utf-8")
+    (clinical_dir / "synthetic_hc_baseline.json").write_text(json.dumps(active_hc_clinical_records, indent=2), encoding="utf-8")
     build_molecular_matrices(
         gene_ids,
         gene_module_by_id,
@@ -937,19 +942,24 @@ def main() -> None:
     args = parse_args()
     clinical_records = build_clinical_records()
     hc_clinical_records = build_hc_clinical_records()
-    write_clinical_json(clinical_records)
-    write_hc_clinical_json(hc_clinical_records)
     if not args.skip_legacy:
+        write_clinical_json(clinical_records)
+        write_hc_clinical_json(hc_clinical_records)
         build_molecular_matrices(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
         build_hc_molecular_matrix(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
-    write_molecular_readme(MOLECULAR_DIR)
+        write_molecular_readme(MOLECULAR_DIR)
     if args.large_gene_count is not None:
-        build_large_dataset(args.large_gene_count, dataset_root=Path(args.large_dataset_root).resolve())
-    print(f"Wrote {len(clinical_records)} clinical records to {CLINICAL_PATH}")
-    print(f"Wrote {len(hc_clinical_records)} HC clinical records to {HC_CLINICAL_PATH}")
-    legacy_gene_count = len(LEGACY_GENE_IDS)
-    print(f"Wrote molecular fixtures to {MOLECULAR_DIR}")
+        build_large_dataset(
+            args.large_gene_count,
+            dataset_root=Path(args.large_dataset_root).resolve(),
+            clinical_records=clinical_records,
+            hc_clinical_records=hc_clinical_records,
+        )
     if not args.skip_legacy:
+        print(f"Wrote {len(clinical_records)} clinical records to {CLINICAL_PATH}")
+        print(f"Wrote {len(hc_clinical_records)} HC clinical records to {HC_CLINICAL_PATH}")
+        legacy_gene_count = len(LEGACY_GENE_IDS)
+        print(f"Wrote molecular fixtures to {MOLECULAR_DIR}")
         print(f"- Legacy panel: {legacy_gene_count} genes")
     if args.large_gene_count is not None:
         print(f"- Large dataset root: {Path(args.large_dataset_root).resolve()}")

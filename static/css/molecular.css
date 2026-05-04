@@ -263,6 +263,17 @@
         font-size: 0.86rem;
         font-weight: 600;
       }
+      .molecular-gene-pill-link,
+      .molecular-result-gene-link {
+        color: inherit;
+        text-decoration: none;
+      }
+      .molecular-gene-pill-link:hover,
+      .molecular-gene-pill-link:focus-visible,
+      .molecular-result-gene-link:hover,
+      .molecular-result-gene-link:focus-visible {
+        text-decoration: underline;
+      }
       .molecular-result {
         display: grid;
         gap: 12px;

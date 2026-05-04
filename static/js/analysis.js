@@ -19,6 +19,7 @@ export function createAnalysisUi(ctx) {
     handleAnalysisJobSubmission,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
+    molecularDatasetOverlap,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
@@ -155,7 +156,10 @@ export function createAnalysisUi(ctx) {
       const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
       const dePlotArtifact = findArtifact("workflow/01-deseq2/volcano_plot.png");
       const deHeatmapArtifact = findArtifact("workflow/01-deseq2/top_genes_heatmap.png");
+      const deHeatmapTableArtifact = findArtifact("workflow/01-deseq2/top_genes_heatmap.tsv");
+      const deHeatmapClusteringArtifact = findArtifact("workflow/01-deseq2/top_genes_heatmap_clustering.json");
       const deResultsArtifact = findArtifact("workflow/01-deseq2/de_results.tsv");
+      const deVolcanoArtifact = findArtifact("workflow/01-deseq2/volcano_points.tsv");
       const deSummaryArtifact = findArtifact("workflow/01-deseq2/summary.json");
       const pathwayPlotArtifact = findArtifact("workflow/02-hallmark/pathway_plot.png");
       const pathwayResultsArtifact = findArtifact("workflow/02-hallmark/pathway_results.tsv");
@@ -166,6 +170,9 @@ export function createAnalysisUi(ctx) {
         workflowManifestArtifact,
         dePlotArtifact,
         deHeatmapArtifact,
+        deVolcanoArtifact,
+        deHeatmapTableArtifact,
+        deHeatmapClusteringArtifact,
         deResultsArtifact,
         deSummaryArtifact,
         pathwayPlotArtifact,
@@ -198,15 +205,33 @@ export function createAnalysisUi(ctx) {
         </div>
         <div class="viz-card" style="grid-column: 1 / -1;">
           <h3>Step 1: DESeq2 Differential Expression</h3>
-          ${dePlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(dePlotArtifact.url || ""))}" alt="Workflow DESeq2 volcano plot"></div>` : '<div class="empty">DESeq2 volcano plot preview unavailable.</div>'}
-          ${deHeatmapArtifact ? `<div class="analysis-artifact-image-frame" style="margin-top:12px;"><img class="analysis-artifact-image" src="${escapeHtml(String(deHeatmapArtifact.url || ""))}" alt="Workflow DESeq2 heatmap"></div>` : ""}
+          <div class="analysis-view-tabs" role="tablist" aria-label="Workflow DESeq2 volcano plot views">
+            <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
+            <button type="button" class="analysis-view-tab${deVolcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(deVolcanoArtifact && deVolcanoArtifact.url ? deVolcanoArtifact.url : ""))}" role="tab" aria-selected="false"${deVolcanoArtifact ? "" : " disabled"}>Interactive plot</button>
+          </div>
+          <div class="analysis-view-panel is-active" data-de-view-panel="png" data-turn-index="${turnIndex}">
+            ${dePlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(dePlotArtifact.url || ""))}" alt="Workflow DESeq2 volcano plot"></div>` : '<div class="empty">DESeq2 volcano plot preview unavailable.</div>'}
+          </div>
+          <div class="analysis-view-panel" data-de-view-panel="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(deVolcanoArtifact && deVolcanoArtifact.url ? deVolcanoArtifact.url : ""))}">
+            ${deVolcanoArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-de-volcano`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/01-deseq2/volcano_points.tsv</code>. The canonical artifact remains <code>workflow/01-deseq2/volcano_plot.png</code>.</p>` : '<div class="empty">Interactive volcano plot unavailable.</div>'}
+          </div>
+          ${deHeatmapArtifact ? `<div style="margin-top:12px;"><div class="analysis-view-tabs" role="tablist" aria-label="Workflow DESeq2 heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${deHeatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(deHeatmapTableArtifact && deHeatmapTableArtifact.url ? deHeatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(deHeatmapClusteringArtifact && deHeatmapClusteringArtifact.url ? deHeatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${deHeatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(deHeatmapArtifact.url || ""))}" alt="Workflow DESeq2 heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(deHeatmapTableArtifact && deHeatmapTableArtifact.url ? deHeatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(deHeatmapClusteringArtifact && deHeatmapClusteringArtifact.url ? deHeatmapClusteringArtifact.url : ""))}">${deHeatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/01-deseq2/top_genes_heatmap.tsv</code>. The canonical artifact remains <code>workflow/01-deseq2/top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div></div>` : ""}
         </div>
         ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-de-summary`, "DESeq2 Summary", deSummaryItems, "label", "value")}
         <div class="viz-card" style="grid-column: 1 / -1;">
           <h3>Step 2: Hallmark Pathway Enrichment</h3>
           <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
           <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
-          ${pathwayPlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(pathwayPlotArtifact.url || ""))}" alt="Workflow Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
+          <div class="analysis-view-tabs" role="tablist" aria-label="Workflow Hallmark pathway views">
+            <button type="button" class="analysis-view-tab is-active" data-pathway-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
+            <button type="button" class="analysis-view-tab${pathwayResultsArtifact ? "" : " is-disabled"}" data-pathway-view-btn="interactive" data-turn-index="${turnIndex}" data-pathway-url="${escapeHtml(String(pathwayResultsArtifact && pathwayResultsArtifact.url ? pathwayResultsArtifact.url : ""))}" role="tab" aria-selected="false"${pathwayResultsArtifact ? "" : " disabled"}>Interactive plot</button>
+          </div>
+          <div class="analysis-view-panel is-active" data-pathway-view-panel="png" data-turn-index="${turnIndex}">
+            ${pathwayPlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(pathwayPlotArtifact.url || ""))}" alt="Workflow Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
+          </div>
+          <div class="analysis-view-panel" data-pathway-view-panel="interactive" data-turn-index="${turnIndex}" data-pathway-url="${escapeHtml(String(pathwayResultsArtifact && pathwayResultsArtifact.url ? pathwayResultsArtifact.url : ""))}">
+            ${pathwayResultsArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-workflow-pathway`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/02-hallmark/pathway_results.tsv</code>. The canonical artifact remains <code>workflow/02-hallmark/pathway_plot.png</code>.</p>` : '<div class="empty">Interactive pathway plot unavailable.</div>'}
+          </div>
         </div>
         ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-pathway-summary`, "Hallmark Summary", pathwaySummaryItems, "label", "value")}
       `;
@@ -715,6 +740,41 @@ export function createAnalysisUi(ctx) {
     };
   }
 
+  function buildHallmarkPathwayPlot(rows, datasetName) {
+    const rankedRows = (Array.isArray(rows) ? rows : [])
+      .filter((item) => item && item.pathway !== undefined)
+      .map((item) => ({
+        pathway: String(item.display_label || item.pathway || ""),
+        nes: Number(item.NES || 0),
+        padj: Number(item.padj || 1),
+      }))
+      .filter((item) => item.pathway);
+    const plotRows = rankedRows.slice(0, 20).reverse();
+    const colors = plotRows.map((item) => (item.nes >= 0 ? "#2563eb" : "#d9485f"));
+    return {
+      traces: [{
+        type: "bar",
+        orientation: "h",
+        y: plotRows.map((item) => item.pathway),
+        x: plotRows.map((item) => item.nes),
+        marker: { color: colors },
+        customdata: plotRows.map((item) => [item.padj]),
+        hovertemplate: "Pathway: %{y}<br>NES: %{x:.3f}<br>adj p: %{customdata[0]:.3g}<extra></extra>",
+      }],
+      layout: basePlotLayout({
+        margin: { t: 28, r: 24, b: 56, l: 220 },
+        title: datasetName ? { text: datasetName, font: { color: "#61758c", size: 12 } } : undefined,
+        xaxis: {
+          ...basePlotLayout().xaxis,
+          title: { text: "Normalized enrichment score (NES)", font: { color: "#61758c", size: 12 } },
+          zeroline: true,
+          zerolinecolor: "#475569",
+          zerolinewidth: 1,
+        },
+      }),
+    };
+  }
+
   function euclideanDistance(valuesA, valuesB) {
     let total = 0;
     for (let index = 0; index < valuesA.length; index += 1) {
@@ -939,6 +999,35 @@ export function createAnalysisUi(ctx) {
       panelEl.dataset.loaded = "true";
     } catch (_error) {
       plotEl.innerHTML = '<div class="empty">Unable to render the interactive heatmap.</div>';
+    } finally {
+      panelEl.dataset.loading = "false";
+    }
+  }
+
+  async function mountHallmarkInteractivePlot(turnIndex, payload) {
+    const panelEl = document.querySelector(`[data-pathway-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
+    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
+      return;
+    }
+    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-workflow-pathway`);
+    if (!plotEl) return;
+    const artifactUrl = String(panelEl.dataset.pathwayUrl || "").trim();
+    if (!artifactUrl) {
+      plotEl.innerHTML = '<div class="empty">Interactive pathway plot unavailable.</div>';
+      panelEl.dataset.loaded = "true";
+      return;
+    }
+    panelEl.dataset.loading = "true";
+    plotEl.innerHTML = '<div class="empty">Loading interactive pathway plot...</div>';
+    try {
+      const rows = await loadTabularArtifactRows(artifactUrl);
+      const context = payload && payload.data ? payload.data.context : null;
+      const hallmarkContext = context && context.hallmark && typeof context.hallmark === "object" ? context.hallmark : null;
+      const pathway = buildHallmarkPathwayPlot(rows, hallmarkContext && hallmarkContext.dataset_name ? hallmarkContext.dataset_name : "");
+      mountPlot(`analysis-plot-${turnIndex}-workflow-pathway`, pathway.traces, pathway.layout);
+      panelEl.dataset.loaded = "true";
+    } catch (_error) {
+      plotEl.innerHTML = '<div class="empty">Unable to render the interactive pathway plot.</div>';
     } finally {
       panelEl.dataset.loading = "false";
     }
@@ -1247,6 +1336,12 @@ export function createAnalysisUi(ctx) {
       .filter(Boolean);
   }
 
+  function overlappingAnalysisScopeIds(scopeAIds, scopeBIds) {
+    const left = Array.isArray(scopeAIds) ? scopeAIds.map((item) => String(item).trim()).filter(Boolean) : [];
+    const rightSet = new Set((Array.isArray(scopeBIds) ? scopeBIds : []).map((item) => String(item).trim()).filter(Boolean));
+    return Array.from(new Set(left.filter((item) => rightSet.has(item))));
+  }
+
   function analysisPromptRequestsPlots(prompt) {
     const lowered = String(prompt || "").toLowerCase();
     return ["trajectory", "response to", "kaplan", "survival", "plot", "plots", "chart", "charts", "graph", "graphs", "visualize", "visualise", "distribution", "distributions", "histogram", "bar plot", "line plot", "trend", "trends", "over time"].some((token) => lowered.includes(token));
@@ -1418,6 +1513,17 @@ export function createAnalysisUi(ctx) {
       state.analysisExecutionMode = "auto";
       return;
     }
+    if (compareMode) {
+      const overlappingIds = overlappingAnalysisScopeIds(currentScopeIds, compareScopeIds);
+      if (overlappingIds.length) {
+        const preview = overlappingIds.slice(0, 6).join(", ");
+        const suffix = overlappingIds.length > 6 ? ` (+${overlappingIds.length - 6} more)` : "";
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Cohort A and Cohort B must be disjoint. Remove the overlapping IDs: ${preview}${suffix}.`;
+        state.analysisExecutionMode = "auto";
+        return;
+      }
+    }
     if (requiresSingleSelectedMolecularDataset(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length !== 1) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = selectedMolecularDatasets.length
@@ -1425,6 +1531,15 @@ export function createAnalysisUi(ctx) {
         : "Select one molecular dataset before running this molecular tool.";
       state.analysisExecutionMode = "auto";
       return;
+    }
+    if (compareMode && requiresSingleSelectedMolecularDataset(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length === 1 && typeof molecularDatasetOverlap === "function") {
+      const overlap = molecularDatasetOverlap(selectedMolecularDatasets[0]);
+      if (overlap && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
+        analysisStatusEl.className = "query-status";
+        analysisStatusEl.textContent = `Selected molecular dataset "${selectedMolecularDatasets[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}. Choose a dataset with at least one sample in both cohorts.`;
+        state.analysisExecutionMode = "auto";
+        return;
+      }
     }
     state.analysisInFlight = true;
     analysisRunBtnEl.disabled = true;
@@ -1518,7 +1633,8 @@ export function createAnalysisUi(ctx) {
     handleAnalysisPlotViewClick(event) {
       const button = event.target.closest("[data-de-view-btn]");
       const heatmapButton = !button ? event.target.closest("[data-de-heatmap-view-btn]") : null;
-      const targetButton = button || heatmapButton;
+      const pathwayButton = !button && !heatmapButton ? event.target.closest("[data-pathway-view-btn]") : null;
+      const targetButton = button || heatmapButton || pathwayButton;
       if (!targetButton || !analysisThreadEl.contains(targetButton) || targetButton.disabled) return;
       const turnIndex = String(targetButton.dataset.turnIndex || "").trim();
       if (!turnIndex) return;
@@ -1560,6 +1676,28 @@ export function createAnalysisUi(ctx) {
         const turn = Number.isInteger(index) ? state.analysisTurns[index] : null;
         if (turn && turn.payload) {
           void mountDifferentialExpressionInteractiveHeatmap(index, turn.payload);
+        }
+      }
+      if (!pathwayButton) {
+        return;
+      }
+      const pathwayView = String(pathwayButton.dataset.pathwayViewBtn || "").trim();
+      if (!pathwayView) return;
+      const allPathwayButtons = analysisThreadEl.querySelectorAll(`[data-pathway-view-btn][data-turn-index="${turnIndex}"]`);
+      const allPathwayPanels = analysisThreadEl.querySelectorAll(`[data-pathway-view-panel][data-turn-index="${turnIndex}"]`);
+      allPathwayButtons.forEach((item) => {
+        const active = item === pathwayButton;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      allPathwayPanels.forEach((panel) => {
+        panel.classList.toggle("is-active", String(panel.dataset.pathwayViewPanel || "") === pathwayView);
+      });
+      if (pathwayView === "interactive") {
+        const index = Number(turnIndex);
+        const turn = Number.isInteger(index) ? state.analysisTurns[index] : null;
+        if (turn && turn.payload) {
+          void mountHallmarkInteractivePlot(index, turn.payload);
         }
       }
     },

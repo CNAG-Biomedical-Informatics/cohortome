@@ -3,6 +3,7 @@ export function createAppState() {
     selectedPatientId: null,
     currentPatients: [],
     molecularDatasetsState: [],
+    molecularDatasetsScopeId: "",
     selectedMolecularDatasets: [],
     queryInFlight: false,
     queryHistory: [],

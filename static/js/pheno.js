@@ -15,7 +15,6 @@ export function createPhenoUi(ctx) {
     phenoPlanRunBtnEl,
     phenoPlanStatusEl,
     phenoPlanMetaEl,
-    phenoManualOverrideNoteEl,
     phenoPlanDetailsEl,
     phenoPlanEl,
     phenoPlanReasoningEl,
@@ -36,6 +35,9 @@ export function createPhenoUi(ctx) {
     phenoRenderHeatmapEl,
     phenoRenderMdsEl,
     phenoRenderGraphEl,
+    phenoGraphOptionsEl,
+    phenoGraphMinWeightEl,
+    phenoGraphMaxWeightEl,
     phenoPlotChecksEl,
     phenoRunBtnEl,
     phenoExplainBtnEl,
@@ -206,9 +208,55 @@ export function createPhenoUi(ctx) {
     phenoMaxOutFieldEl.classList.toggle("is-hidden", !patientMode || extractMode);
     phenoAlignChecksEl.classList.toggle("is-hidden", !patientMode || extractMode);
     phenoPlotChecksEl.classList.toggle("is-hidden", patientMode || extractMode);
+    updatePhenoGraphOptions();
     if (cohortMode && phenoRenderMdsEl) {
       phenoRenderMdsEl.checked = true;
     }
+  }
+
+  function updatePhenoGraphOptions() {
+    if (!phenoGraphOptionsEl) {
+      return;
+    }
+    const show = Boolean(phenoModeEl.value === "cohort" && phenoActionEl.value !== "extract" && phenoRenderGraphEl && phenoRenderGraphEl.checked);
+    phenoGraphOptionsEl.classList.toggle("is-hidden", !show);
+    const metric = normalizePhenoMetricValue(phenoSimilarityMetricEl && phenoSimilarityMetricEl.value ? phenoSimilarityMetricEl.value : "");
+    if (phenoGraphMinWeightEl) {
+      phenoGraphMinWeightEl.placeholder = metric === "jaccard" ? "e.g. 0.25" : "optional";
+      phenoGraphMinWeightEl.title = metric === "jaccard"
+        ? "For Jaccard graphs, minimum weight keeps edges at or above this similarity."
+        : "Optional lower bound passed to Pheno-Ranker.";
+    }
+    if (phenoGraphMaxWeightEl) {
+      phenoGraphMaxWeightEl.placeholder = metric === "hamming" ? "e.g. 2" : "optional";
+      phenoGraphMaxWeightEl.title = metric === "hamming"
+        ? "For Hamming graphs, maximum weight keeps edges at or below this distance."
+        : "Optional upper bound passed to Pheno-Ranker.";
+    }
+  }
+
+  function normalizePhenoMetricValue(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return ["hamming", "jaccard"].includes(normalized) ? normalized : "";
+  }
+
+  function parseOptionalNumberInput(inputEl) {
+    if (!inputEl) {
+      return null;
+    }
+    const value = String(inputEl.value || "").trim();
+    if (!value) {
+      return null;
+    }
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  function hasPhenoGraphCutoffInput() {
+    return Boolean(
+      (phenoGraphMinWeightEl && String(phenoGraphMinWeightEl.value || "").trim())
+      || (phenoGraphMaxWeightEl && String(phenoGraphMaxWeightEl.value || "").trim())
+    );
   }
 
   function renderPhenoPlanReasoning(items, plan = null) {
@@ -375,11 +423,111 @@ export function createPhenoUi(ctx) {
     }
   }
 
-  function renderPhenoManualOverrideNote() {
-    if (!phenoManualOverrideNoteEl) {
+  function currentPhenoSettingsPlan() {
+    const selectedSavedCohortIds = typeof getSelectedSavedCohortIds === "function" ? getSelectedSavedCohortIds() : [];
+    const graphMinWeight = parseOptionalNumberInput(phenoGraphMinWeightEl);
+    const graphMaxWeight = parseOptionalNumberInput(phenoGraphMaxWeightEl);
+    const plan = {
+      action: phenoActionEl ? phenoActionEl.value : "compare",
+      mode: phenoModeEl ? phenoModeEl.value : "cohort",
+      patient_id: phenoPatientIdEl ? phenoPatientIdEl.value.trim() : "",
+      selected_patient_ids: selectedSavedCohortIds.length ? "" : (phenoSelectedPatientIdsEl ? phenoSelectedPatientIdsEl.value.trim() : ""),
+      selected_saved_cohort_ids: selectedSavedCohortIds,
+      include_terms: parsePhenoTermsInput(phenoIncludeTermsEl ? phenoIncludeTermsEl.value : ""),
+      exclude_terms: parsePhenoTermsInput(phenoExcludeTermsEl ? phenoExcludeTermsEl.value : ""),
+      similarity_metric_cohort: phenoSimilarityMetricEl ? phenoSimilarityMetricEl.value : "",
+      sort_by: phenoSortByEl ? phenoSortByEl.value : "",
+      max_out: Number(phenoMaxOutEl && phenoMaxOutEl.value ? phenoMaxOutEl.value : 10),
+      align: Boolean(phenoAlignEl && phenoAlignEl.checked),
+      render_heatmap: Boolean(phenoRenderHeatmapEl && phenoRenderHeatmapEl.checked),
+      render_mds: Boolean(phenoRenderMdsEl && phenoRenderMdsEl.checked),
+      render_graph: Boolean(phenoRenderGraphEl && phenoRenderGraphEl.checked),
+    };
+    if (graphMinWeight !== null) {
+      plan.graph_min_weight = graphMinWeight;
+    }
+    if (graphMaxWeight !== null) {
+      plan.graph_max_weight = graphMaxWeight;
+    }
+    return plan;
+  }
+
+  function describePhenoPlanAsPrompt(plan) {
+    const normalized = plan && typeof plan === "object" ? plan : {};
+    const action = String(normalized.action || "compare");
+    const mode = String(normalized.mode || "cohort");
+    const parts = [];
+    if (action === "extract") {
+      const scope = String(normalized.selected_patient_ids || "").trim();
+      parts.push(scope ? `Extract Pheno-Ranker records for ${scope}.` : "Extract the selected Pheno-Ranker records.");
+    } else if (mode === "patient") {
+      const target = String(normalized.patient_id || "").trim();
+      parts.push(target ? `Compare patient ${target} to the active workspace.` : "Compare one patient to the active workspace.");
+    } else {
+      parts.push("Compare the active Pheno-Ranker cohort.");
+    }
+    const includeTerms = Array.isArray(normalized.include_terms) ? normalized.include_terms.filter(Boolean) : [];
+    const excludeTerms = Array.isArray(normalized.exclude_terms) ? normalized.exclude_terms.filter(Boolean) : [];
+    if (includeTerms.length) {
+      parts.push(`Include ${includeTerms.join(", ")}.`);
+    }
+    if (excludeTerms.length) {
+      parts.push(`Exclude ${excludeTerms.join(", ")}.`);
+    }
+    const metric = String(normalized.similarity_metric_cohort || "").trim();
+    if (mode === "cohort" && metric) {
+      parts.push(`Use ${metric} cohort similarity.`);
+    }
+    const outputs = [];
+    if (normalized.render_heatmap) outputs.push("heatmap");
+    if (normalized.render_mds) outputs.push("MDS");
+    if (normalized.render_graph) outputs.push("graph");
+    if (outputs.length) {
+      parts.push(`Render ${outputs.join(", ")}.`);
+    }
+    if (normalized.graph_min_weight !== undefined) {
+      parts.push(`Graph min edge weight ${normalized.graph_min_weight}.`);
+    }
+    if (normalized.graph_max_weight !== undefined) {
+      parts.push(`Graph max edge weight ${normalized.graph_max_weight}.`);
+    }
+    return parts.join(" ");
+  }
+
+  function syncPromptToCurrentPhenoPlan(plan) {
+    if (!phenoPromptEl) {
       return;
     }
-    phenoManualOverrideNoteEl.classList.toggle("is-hidden", !state.manualOverrides);
+    const description = describePhenoPlanAsPrompt(plan);
+    if (description) {
+      phenoPromptEl.value = description;
+      updatePhenoRunAvailability();
+    }
+  }
+
+  function renderPhenoManualSettingsPreview(statusText = "") {
+    if (!phenoPlanEl || !phenoPlanReasoningEl || !phenoPlanStatusEl) {
+      return null;
+    }
+    const plan = currentPhenoSettingsPlan();
+    syncPromptToCurrentPhenoPlan(plan);
+    phenoPlanEl.classList.remove("is-blocking");
+    phenoPlanReasoningEl.classList.remove("is-blocking");
+    phenoPlanEl.textContent = JSON.stringify(compactPhenoPlan(plan), null, 2);
+    renderPhenoPlanReasoning(
+      ["These settings were edited after the last preview. Run Pheno-Ranker will use this current form state."],
+      plan,
+    );
+    if (phenoPlanStatusEl.dataset.backgroundBlocked !== "true") {
+      phenoPlanStatusEl.className = "pheno-status warning";
+      phenoPlanStatusEl.textContent = statusText || "Settings changed after preview. The panel now shows the current form settings.";
+    }
+    renderPhenoPlanMeta("");
+    return {
+      source: "manual",
+      reasoning: ["Using current form settings."],
+      plan,
+    };
   }
 
   function markPhenoManualOverride() {
@@ -387,12 +535,29 @@ export function createPhenoUi(ctx) {
       return;
     }
     state.manualOverrides = true;
-    renderPhenoManualOverrideNote();
+    renderPhenoManualSettingsPreview();
   }
 
   function setPhenoManualOverrides(nextValue) {
     state.manualOverrides = Boolean(nextValue);
-    renderPhenoManualOverrideNote();
+  }
+
+  function handlePhenoPromptEdited() {
+    state.manualOverrides = false;
+    if (phenoPlanEl) {
+      phenoPlanEl.classList.remove("is-blocking");
+      phenoPlanEl.textContent = "Prompt changed. Preview plan to see the interpreted settings.";
+    }
+    if (phenoPlanReasoningEl) {
+      phenoPlanReasoningEl.classList.remove("is-blocking");
+      renderPhenoPlanReasoning(["The prompt was edited after the last preview. The next preview or run will re-interpret this prompt."], null);
+    }
+    if (phenoPlanStatusEl && phenoPlanStatusEl.dataset.backgroundBlocked !== "true") {
+      phenoPlanStatusEl.className = "pheno-status";
+      phenoPlanStatusEl.textContent = "Prompt changed. Preview plan or run Pheno-Ranker to interpret the new prompt.";
+    }
+    renderPhenoPlanMeta("");
+    updatePhenoRunAvailability();
   }
 
   function getPhenoTopMatchRecordIds(limit = 10) {
@@ -619,10 +784,15 @@ export function createPhenoUi(ctx) {
     if (phenoRenderGraphEl) {
       phenoRenderGraphEl.checked = Boolean(normalized.render_graph);
     }
+    if (phenoGraphMinWeightEl && Object.prototype.hasOwnProperty.call(normalized, "graph_min_weight")) {
+      phenoGraphMinWeightEl.value = normalized.graph_min_weight === undefined || normalized.graph_min_weight === null ? "" : String(normalized.graph_min_weight);
+    }
+    if (phenoGraphMaxWeightEl && Object.prototype.hasOwnProperty.call(normalized, "graph_max_weight")) {
+      phenoGraphMaxWeightEl.value = normalized.graph_max_weight === undefined || normalized.graph_max_weight === null ? "" : String(normalized.graph_max_weight);
+    }
     updatePhenoMode();
     state.isApplyingPlan = false;
     state.manualOverrides = false;
-    renderPhenoManualOverrideNote();
   }
 
   async function requestPhenoPlan(revealPlan = true) {
@@ -633,6 +803,14 @@ export function createPhenoUi(ctx) {
     if (!text) {
       phenoPlanStatusEl.textContent = "Describe a Pheno-Ranker request first.";
       return null;
+    }
+
+    if (state.manualOverrides) {
+      if (revealPlan && phenoPlanDetailsEl) {
+        phenoPlanDetailsEl.open = true;
+        phenoPlanDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return renderPhenoManualSettingsPreview("Previewing current form settings. Run Pheno-Ranker will use these values.");
     }
 
     state.planInFlight = true;
@@ -1300,7 +1478,7 @@ export function createPhenoUi(ctx) {
     }
   }
 
-  async function renderPhenoPreviews(files) {
+  async function renderPhenoPreviews(files, runOptions = {}) {
     const items = Array.isArray(files) ? files : [];
     const mdsPointsFile = items.find((file) => file.name === "mds_points.tsv");
     const matrixFile = items.find((file) => file.name === "matrix.txt");
@@ -1329,7 +1507,7 @@ export function createPhenoUi(ctx) {
       void renderInteractivePhenoHeatmap(matrixFile);
     }
     if (graphFile) {
-      void renderInteractivePhenoGraph(graphFile);
+      void renderInteractivePhenoGraph(graphFile, runOptions);
     }
   }
 
@@ -1543,7 +1721,7 @@ export function createPhenoUi(ctx) {
     }
   }
 
-  async function renderInteractivePhenoGraph(file) {
+  async function renderInteractivePhenoGraph(file, runOptions = {}) {
     const plotEl = document.getElementById("phenoGraphPlot");
     const noteEl = document.getElementById("phenoGraphSelectionNote");
     const thresholdEl = document.getElementById("phenoGraphThreshold");
@@ -1599,6 +1777,10 @@ export function createPhenoUi(ctx) {
           },
         };
       });
+      const graphMinWeight = Number(runOptions && runOptions.graph_min_weight !== undefined && runOptions.graph_min_weight !== null ? runOptions.graph_min_weight : NaN);
+      const graphMaxWeight = Number(runOptions && runOptions.graph_max_weight !== undefined && runOptions.graph_max_weight !== null ? runOptions.graph_max_weight : NaN);
+      const hasGraphMinWeight = Number.isFinite(graphMinWeight);
+      const hasGraphMaxWeight = Number.isFinite(graphMaxWeight);
       const normalizedEdges = rawEdges.map((edge) => {
         const source = String(edge && edge.data && edge.data.source ? edge.data.source : "").trim();
         const target = String(edge && edge.data && edge.data.target ? edge.data.target : "").trim();
@@ -1612,6 +1794,18 @@ export function createPhenoUi(ctx) {
             weight,
           },
         };
+      }).filter((edge) => {
+        const weight = Number(edge && edge.data ? edge.data.weight : NaN);
+        if (!Number.isFinite(weight)) {
+          return false;
+        }
+        if (hasGraphMinWeight && weight < graphMinWeight) {
+          return false;
+        }
+        if (hasGraphMaxWeight && weight > graphMaxWeight) {
+          return false;
+        }
+        return true;
       });
       const edgeLookup = new Map();
       normalizedEdges.forEach((edge) => {
@@ -1759,6 +1953,16 @@ export function createPhenoUi(ctx) {
         } else {
           thresholdLabelEl.textContent = "Maximum dissimilarity";
           thresholdMetaEl.textContent = `${edgeCount} of ${normalizedEdges.length} edges shown at dissimilarity <= ${formatted}.`;
+        }
+        const bounds = [];
+        if (hasGraphMinWeight) {
+          bounds.push(`min ${graphMinWeight.toFixed(3)}`);
+        }
+        if (hasGraphMaxWeight) {
+          bounds.push(`max ${graphMaxWeight.toFixed(3)}`);
+        }
+        if (bounds.length) {
+          thresholdMetaEl.textContent += ` Export cutoff: ${bounds.join(", ")}.`;
         }
       };
 
@@ -2043,6 +2247,12 @@ export function createPhenoUi(ctx) {
     if (phenoRenderGraphEl) {
       phenoRenderGraphEl.checked = Boolean(payload.render_graph);
     }
+    if (phenoGraphMinWeightEl) {
+      phenoGraphMinWeightEl.value = payload.graph_min_weight === undefined || payload.graph_min_weight === null ? "" : String(payload.graph_min_weight);
+    }
+    if (phenoGraphMaxWeightEl) {
+      phenoGraphMaxWeightEl.value = payload.graph_max_weight === undefined || payload.graph_max_weight === null ? "" : String(payload.graph_max_weight);
+    }
     if (typeof setSelectedSavedCohortIds === "function") {
       setSelectedSavedCohortIds(Array.isArray(payload.selected_saved_cohort_ids) ? payload.selected_saved_cohort_ids : []);
     }
@@ -2075,7 +2285,7 @@ export function createPhenoUi(ctx) {
     phenoLogsEl.textContent = [source.stderr || "", ...(source.plots || []).map((item) => `${item.script}\nstdout:\n${item.stdout}\nstderr:\n${item.stderr}`)].filter(Boolean).join("\n\n") || "No diagnostic logs.";
     setPhenoResultWorkspaceVisible(true);
     await renderPhenoOutputPreview(source.files);
-    await renderPhenoPreviews(source.files);
+    await renderPhenoPreviews(source.files, source);
     if (source.mode === "patient" && state.runState.alignmentAvailable) {
       renderPhenoAlignmentPlaceholder("Click one row in rank.txt to inspect matched variables for that pair.");
     } else {
@@ -2105,7 +2315,7 @@ export function createPhenoUi(ctx) {
   }
 
   async function runPhenoRanker(usePromptPlanner = true) {
-    if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides) {
+    if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides && !hasPhenoGraphCutoffInput()) {
       const payload = await requestPhenoPlan(false);
       if (!payload || !payload.plan) {
         return;
@@ -2192,6 +2402,8 @@ export function createPhenoUi(ctx) {
           render_heatmap: phenoRenderHeatmapEl.checked,
           render_mds: phenoRenderMdsEl.checked,
           render_graph: Boolean(phenoRenderGraphEl && phenoRenderGraphEl.checked),
+          graph_min_weight: parseOptionalNumberInput(phenoGraphMinWeightEl),
+          graph_max_weight: parseOptionalNumberInput(phenoGraphMaxWeightEl),
         }),
       });
 
@@ -2331,6 +2543,7 @@ export function createPhenoUi(ctx) {
 
   return {
     updatePhenoMode,
+    updatePhenoGraphOptions,
     renderSelectedPatientIdsSummary,
     loadPhenoRankerPatientIds,
     updatePhenoExplainActions,
@@ -2348,6 +2561,7 @@ export function createPhenoUi(ctx) {
     loadPhenoAlignment,
     markPhenoManualOverride,
     setPhenoManualOverrides,
+    handlePhenoPromptEdited,
     handleOutputPreviewClick,
     handlePreviewsClick,
     renderPhenoAlignmentPlaceholder,

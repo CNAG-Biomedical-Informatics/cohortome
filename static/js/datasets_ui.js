@@ -438,6 +438,7 @@ export function createDatasetsUi(ctx) {
       const active = activeIds.has(datasetId);
       const visibility = String(dataset.visibility || "all_authenticated");
       const description = String(dataset.description || "").trim();
+      const contentTags = Array.isArray(dataset.content_tags) ? dataset.content_tags.map((item) => String(item || "").trim()).filter(Boolean) : [];
       const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
       const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
       const storeStatus = normalizedDatasetStoreStatus(dataset);
@@ -465,6 +466,7 @@ export function createDatasetsUi(ctx) {
             <div class="dataset-picker-meta">
               <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
               <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+              ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
               ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
               ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
             </div>
@@ -492,6 +494,7 @@ export function createDatasetsUi(ctx) {
       const visibility = String(dataset.visibility || "all_authenticated");
       const providerDetailedAllowed = visibility === "all_authenticated";
       const description = String(dataset.description || "").trim();
+      const contentTags = Array.isArray(dataset.content_tags) ? dataset.content_tags.map((item) => String(item || "").trim()).filter(Boolean) : [];
       const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
       const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
       const effectiveUsers = effectiveDatasetUserLabels(dataset);
@@ -521,6 +524,7 @@ export function createDatasetsUi(ctx) {
             <div class="dataset-picker-meta">
               <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
               <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+              ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
               ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
               ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
             </div>

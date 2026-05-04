@@ -763,9 +763,10 @@ def test_pheno_run_button_requires_prompt(page) -> None:
 def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(page) -> None:
     _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
+    expect = playwright.expect
+    expect(page.locator("#phenoRenderGraph")).to_be_checked()
     _mock_pheno_plan(page, expected_mode="cohort", selected_ids="SYN001:week_0,SYN002:week_0,SYN003:week_0")
     _mock_cohort_run(page)
-    expect = playwright.expect
 
     page.locator("#phenoPrompt").fill("Cluster these three records by disease")
     page.locator("#phenoRunBtn").click()
@@ -1243,12 +1244,19 @@ def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> No
     page.locator("#phenoTab summary").filter(has_text="Advanced options").click()
     page.locator("#phenoSimilarityMetric").select_option("jaccard")
 
-    expect(page.locator("#phenoManualOverrideNote")).to_be_visible()
+    expect(page.locator("#phenoPlanStatus")).to_contain_text("Settings changed after preview")
+    expect(page.locator("#phenoPlan")).to_contain_text('"similarity_metric_cohort": "jaccard"')
+    expect(page.locator("#phenoPrompt")).to_have_value(re.compile("Use jaccard cohort similarity"))
+    page.locator("#phenoPlanBtn").click()
+    expect(page.locator("#phenoPlanStatus")).to_contain_text("Previewing current form settings")
+    expect(page.locator("#phenoSimilarityMetric")).to_have_value("jaccard")
+    expect(page.locator("#phenoPlan")).to_contain_text('"similarity_metric_cohort": "jaccard"')
     page.locator("#phenoRunBtn").click()
 
     expect(page.locator("#phenoStatus")).to_contain_text("Completed cohort run")
     assert plan_calls["count"] == 0
     assert request_capture["body"]["similarity_metric_cohort"] == "jaccard"
+    assert "Use jaccard cohort similarity" in request_capture["body"]["prompt"]
 
 
 def test_pheno_mds_cohort_chips_render_for_prefixed_ids(page) -> None:

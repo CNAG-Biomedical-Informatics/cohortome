@@ -46,6 +46,7 @@ from app.datasets import (
     authorized_datasets_for_user,
     current_dataset_id,
     current_dataset_ids,
+    dataset_content_metadata,
     dataset_scope_id,
     effective_ai_provider_access,
     effective_query_granularity_ceiling,
@@ -79,7 +80,7 @@ from app.pheno import (
     plan_pheno_ranker,
     run_pheno_ranker,
 )
-from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_inventory
+from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_annotations, molecular_gene_inventory
 from app.query_store import QueryStoreNotReadyError, dataset_query_store_status, ensure_query_store, prepare_dataset_query_store
 from app.schemas import (
     AnalysisRequest,
@@ -285,6 +286,10 @@ def get_datasets(request: Request) -> Dict:
     for item in authorized_datasets_for_user(user):
         payload = dict(item)
         payload["query_store_status"] = dataset_query_store_status(str(item.get("dataset_id") or ""))
+        try:
+            payload.update(dataset_content_metadata(str(item.get("root_path") or "")))
+        except FileNotFoundError:
+            payload.update({"content_tags": [], "content_summary": "Dataset files are not available."})
         datasets.append(payload)
     selected_ids = resolve_dataset_ids(request)
     return {
@@ -785,9 +790,11 @@ def get_molecular_datasets(request: Request, dataset_id: str = "", data_dir: str
 def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
     require_authenticated(request)
     try:
+        genes = molecular_gene_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), dataset_name, search=q, limit=limit)
         return {
             "dataset_name": dataset_name,
-            "genes": molecular_gene_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), dataset_name, search=q, limit=limit),
+            "genes": genes,
+            "annotations": molecular_gene_annotations(genes),
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -960,6 +967,8 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
                     "render_heatmap": payload.render_heatmap,
                     "render_mds": payload.render_mds,
                     "render_graph": payload.render_graph,
+                    "graph_min_weight": payload.graph_min_weight,
+                    "graph_max_weight": payload.graph_max_weight,
                     "granularity_ceiling": payload.granularity_ceiling,
                     "ai_provider_access": payload.ai_provider_access,
                     "resolved_sample_count": pheno_background["resolved_sample_count"],

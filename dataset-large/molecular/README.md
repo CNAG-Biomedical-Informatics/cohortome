@@ -31,8 +31,8 @@ Current development fixture:
 
 Large transcriptome fixtures can also be regenerated with the fixture script:
 
-- `python3 scripts/generate_synthetic_multimodal_fixture.py --large-gene-count 1000`
-  - Rebuilds `dataset-large` with one active molecular panel of `1000` HGNC-backed genes using Ensembl row identifiers.
+- `python3 scripts/generate_synthetic_multimodal_fixture.py --large-gene-count 10000`
+  - Rebuilds `dataset-large` with one active molecular panel of `10000` HGNC-backed genes using Ensembl row identifiers.
 
 Notes:
 - All sample IDs match the merged longitudinal IDs in `default_dataset/clinical/synthetic_longitudinal.json`.

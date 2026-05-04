@@ -527,7 +527,24 @@
                 <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
               </details>
               <details class="query-section pheno-advanced-options">
-                <summary>Advanced options</summary>
+                <summary class="pheno-advanced-summary">
+                  <span class="section-heading-inline">
+                    <span class="section-heading-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 21v-7"></path>
+                        <path d="M4 10V3"></path>
+                        <path d="M12 21v-9"></path>
+                        <path d="M12 8V3"></path>
+                        <path d="M20 21v-5"></path>
+                        <path d="M20 12V3"></path>
+                        <path d="M2 14h4"></path>
+                        <path d="M10 8h4"></path>
+                        <path d="M18 16h4"></path>
+                      </svg>
+                    </span>
+                    <span>Advanced options</span>
+                  </span>
+                </summary>
                 <div class="pheno-advanced-grid">
                   <div class="pheno-grid">
                     <div>
@@ -583,7 +600,17 @@
                   <div class="pheno-checks" id="phenoPlotChecks">
                     <label><input id="phenoRenderHeatmap" type="checkbox" checked> Render heatmap</label>
                     <label><input id="phenoRenderMds" type="checkbox" checked> Render MDS</label>
-                    <label><input id="phenoRenderGraph" type="checkbox"> Render graph</label>
+                    <label><input id="phenoRenderGraph" type="checkbox" checked> Render graph</label>
+                  </div>
+                  <div class="pheno-advanced-grid is-hidden" id="phenoGraphOptions">
+                    <div>
+                      <label for="phenoGraphMinWeight">Graph min edge weight</label>
+                      <input id="phenoGraphMinWeight" type="number" step="0.001" placeholder="optional">
+                    </div>
+                    <div>
+                      <label for="phenoGraphMaxWeight">Graph max edge weight</label>
+                      <input id="phenoGraphMaxWeight" type="number" step="0.001" placeholder="optional">
+                    </div>
                   </div>
                 </div>
               </details>
@@ -602,7 +629,6 @@
                   <span>Preview plan</span>
                 </button>
               </div>
-              <div id="phenoManualOverrideNote" class="pheno-manual-override-note is-hidden">Manual form changes are active. Run Pheno-Ranker will use the edited form values, not the last interpreted plan.</div>
               <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
               <div class="pheno-result-card pheno-setup-plan-card">
                 <details id="phenoPlanDetails">

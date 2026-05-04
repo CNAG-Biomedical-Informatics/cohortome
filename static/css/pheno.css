@@ -78,6 +78,27 @@
       .pheno-advanced-options {
         margin-top: 0;
       }
+      .pheno-advanced-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+        list-style: none;
+      }
+      .pheno-advanced-summary::-webkit-details-marker {
+        display: none;
+      }
+      .pheno-advanced-summary::after {
+        content: "▸";
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1;
+        margin-left: auto;
+      }
+      .pheno-advanced-options[open] > .pheno-advanced-summary::after {
+        content: "▾";
+      }
       .pheno-advanced-grid {
         display: grid;
         gap: 12px;
@@ -94,15 +115,6 @@
       }
       .pheno-status.warning {
         color: #b91c1c;
-      }
-      .pheno-manual-override-note {
-        padding: 10px 12px;
-        border-radius: 14px;
-        border: 1px solid rgba(180, 83, 9, 0.18);
-        background: rgba(254, 243, 199, 0.78);
-        color: #92400e;
-        font-size: 0.9rem;
-        font-weight: 600;
       }
       .pheno-actions {
         display: flex;

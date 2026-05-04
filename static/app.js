@@ -800,8 +800,16 @@ function bindEvents() {
     refs.phenoSimilarityMetricEl,
     refs.phenoSortByEl,
     refs.phenoMaxOutEl,
+    refs.phenoGraphMinWeightEl,
+    refs.phenoGraphMaxWeightEl,
   ].forEach((element) => {
     element && element.addEventListener("input", () => phenoUi.markPhenoManualOverride());
+  });
+  refs.phenoSimilarityMetricEl && refs.phenoSimilarityMetricEl.addEventListener("input", () => {
+    phenoUi.updatePhenoGraphOptions();
+  });
+  refs.phenoSimilarityMetricEl && refs.phenoSimilarityMetricEl.addEventListener("change", () => {
+    phenoUi.updatePhenoGraphOptions();
   });
   [
     refs.phenoAlignEl,
@@ -809,7 +817,10 @@ function bindEvents() {
     refs.phenoRenderMdsEl,
     refs.phenoRenderGraphEl,
   ].forEach((element) => {
-    element && element.addEventListener("change", () => phenoUi.markPhenoManualOverride());
+    element && element.addEventListener("change", () => {
+      phenoUi.markPhenoManualOverride();
+      phenoUi.updatePhenoGraphOptions();
+    });
   });
 
   refs.analysisSelectedPatientIdsEl && refs.analysisSelectedPatientIdsEl.addEventListener("input", () => {
@@ -987,13 +998,11 @@ function bindEvents() {
       return;
     }
     refs.phenoPromptEl.value = button.dataset.phenoPrompt || "";
-    phenoUi.setPhenoManualOverrides(false);
-    phenoUi.updatePhenoRunAvailability();
+    phenoUi.handlePhenoPromptEdited();
     refs.phenoPromptEl.focus();
   });
   refs.phenoPromptEl && refs.phenoPromptEl.addEventListener("input", () => {
-    phenoUi.setPhenoManualOverrides(false);
-    phenoUi.updatePhenoRunAvailability();
+    phenoUi.handlePhenoPromptEdited();
   });
   refs.phenoPreviewsEl && refs.phenoPreviewsEl.addEventListener("click", (event) => {
     phenoUi.handlePreviewsClick(event);

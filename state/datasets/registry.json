@@ -2,7 +2,7 @@
   {
     "dataset_id": "default",
     "name": "Default dataset",
-    "description": "Primary shared development dataset.",
+    "description": "Compact clinical and transcriptome fixture for regular app testing.",
     "root_path": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
     "enabled": true,
     "visibility": "all_authenticated",
@@ -17,7 +17,7 @@
   {
     "dataset_id": "private-dataset",
     "name": "Private dataset",
-    "description": "Minimal private test dataset.",
+    "description": "Restricted minimal fixture for access-control and safe-summary testing.",
     "root_path": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/private_dataset",
     "enabled": true,
     "visibility": "restricted",
@@ -34,7 +34,7 @@
   {
     "dataset_id": "dataset-large",
     "name": "Dataset large",
-    "description": "Large HGNC transcriptome fixture.",
+    "description": "Large transcriptome timing fixture.",
     "root_path": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/dataset-large",
     "enabled": true,
     "visibility": "all_authenticated",

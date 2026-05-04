@@ -86,10 +86,16 @@ The tab provides:
 
 - interactive heatmap
 - interactive MDS
+- interactive graph, when graph rendering is enabled
 - deterministic explanation
 - LLM explanation
 
-Selections from heatmap or MDS can be copied or opened in Analysis.
+Selections from MDS or graph views can be copied, saved as cohorts, or opened in Analysis.
+
+For graph runs, optional edge-weight cutoffs can be set in the advanced setup:
+
+- Jaccard graphs usually use a minimum edge weight, because higher values mean stronger similarity
+- Hamming graphs usually use a maximum edge weight, because lower values mean stronger similarity
 
 ## Limitation: raw measures are weak phenotypic tokens
 

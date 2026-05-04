@@ -11,7 +11,7 @@ from typing import Any, Dict, List
 from fastapi import HTTPException, Request
 
 from app.auth import auth_enabled, require_authenticated, session_user
-from app.bff import resolve_project_data_dir
+from app.bff import extract_patient_id, resolve_project_data_dir
 from app.config import DEFAULT_DATA_DIR, STATE_ROOT_DIR
 from app.user_state import normalize_user_id, user_state_file
 
@@ -50,6 +50,62 @@ def _workspace_clinical_dir(data_dir: str) -> Path:
     root = resolve_project_data_dir(data_dir)
     clinical_dir = root / "clinical"
     return clinical_dir if clinical_dir.is_dir() else root
+
+
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    label = singular if count == 1 else (plural or f"{singular}s")
+    return f"{count} {label}"
+
+
+def _clinical_records(path: Path) -> List[Dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        individuals = payload.get("individuals")
+        if isinstance(individuals, list):
+            return [item for item in individuals if isinstance(item, dict)]
+        return [payload]
+    return []
+
+
+def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
+    root = resolve_project_data_dir(root_path)
+    clinical_dir = root / "clinical"
+    molecular_dir = root / "molecular"
+    clinical_files = sorted(path for path in (clinical_dir if clinical_dir.is_dir() else root).glob("*.json") if path.is_file())
+    molecular_files = sorted(path for path in molecular_dir.glob("*.csv") if path.is_file()) if molecular_dir.is_dir() else []
+    patient_ids = set()
+    timepoint_count = 0
+    for clinical_file in clinical_files:
+        for record in _clinical_records(clinical_file):
+            timepoint_count += 1
+            patient_id = extract_patient_id(record)
+            if patient_id:
+                patient_ids.add(patient_id)
+    patient_count = len(patient_ids)
+    tags: List[str] = []
+    if patient_count:
+        tags.append(_plural(patient_count, "patient"))
+    if timepoint_count:
+        tags.append(_plural(timepoint_count, "timepoint"))
+    if molecular_files:
+        tags.append(_plural(len(molecular_files), "matrix", "matrices"))
+    large_hint = "large" in root.name.lower() or any(path.stat().st_size > 1_000_000 for path in molecular_files)
+    if large_hint:
+        tags.append("large transcriptome")
+    elif molecular_files:
+        tags.append("compact transcriptome")
+    if "private" in root.name.lower():
+        tags.append("private fixture")
+    return {
+        "content_tags": tags,
+        "content_summary": "",
+        "clinical_file_count": len(clinical_files),
+        "molecular_file_count": len(molecular_files),
+        "patient_count": patient_count,
+        "timepoint_count": timepoint_count,
+    }
 
 
 def workspace_fingerprint_for_data_dir(

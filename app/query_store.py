@@ -4,8 +4,10 @@ import csv
 import hashlib
 import json
 import math
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from app.bff import (
     build_visit_context,
@@ -26,6 +28,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
+GENE_ANNOTATION_PATH = BASE_DIR / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 MOLECULAR_DATA_DIR: Path | None = None
 QUERY_STORE_SCHEMA_VERSION = 2
 
@@ -146,6 +149,52 @@ def _resolve_molecular_data_dir(data_dir: str) -> Path | None:
     if candidate.exists() and candidate.is_dir():
         return candidate.resolve()
     return None
+
+
+@lru_cache(maxsize=1)
+def _gene_annotation_index() -> Dict[str, Dict[str, str]]:
+    annotations: Dict[str, Dict[str, str]] = {}
+    if not GENE_ANNOTATION_PATH.exists():
+        return annotations
+    with GENE_ANNOTATION_PATH.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            gene_id = str(row.get("ensembl_gene_id") or "").strip()
+            if not gene_id:
+                continue
+            annotations[gene_id] = {
+                "gene_symbol": str(row.get("symbol") or "").strip(),
+                "gene_name": str(row.get("name") or "").strip(),
+            }
+    return annotations
+
+
+def _ensembl_gene_url(gene_id: str) -> str:
+    normalized = str(gene_id or "").strip()
+    if not normalized.startswith("ENSG"):
+        return ""
+    return f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={quote(normalized)}"
+
+
+def _gene_annotation(gene_id: str) -> Dict[str, str]:
+    normalized = str(gene_id or "").strip()
+    annotation = dict(_gene_annotation_index().get(normalized) or {})
+    annotation["gene_symbol"] = str(annotation.get("gene_symbol") or "").strip()
+    annotation["gene_name"] = str(annotation.get("gene_name") or "").strip()
+    annotation["ensembl_url"] = _ensembl_gene_url(normalized)
+    return annotation
+
+
+def molecular_gene_annotations(gene_ids: List[str]) -> Dict[str, Dict[str, str]]:
+    payload: Dict[str, Dict[str, str]] = {}
+    for raw_gene_id in gene_ids:
+        gene_id = str(raw_gene_id or "").strip()
+        if not gene_id:
+            continue
+        annotation = _gene_annotation(gene_id)
+        if any(annotation.values()):
+            payload[gene_id] = annotation
+    return payload
 
 
 def _molecular_matrix_files(data_dir: str) -> List[Path]:
@@ -1012,7 +1061,11 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
                 [dataset_name],
             ).fetchall()
             top_genes_map[dataset_name] = [
-                {"gene_id": str(gene_id), "total_raw_count": int(total_raw_count)}
+                {
+                    "gene_id": str(gene_id),
+                    "total_raw_count": int(total_raw_count),
+                    **_gene_annotation(str(gene_id)),
+                }
                 for gene_id, total_raw_count in top_rows
             ]
     finally:
@@ -1048,31 +1101,34 @@ def molecular_gene_inventory(data_dir: str, dataset_name: str, search: str = "",
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
-        if search.strip():
-            rows = con.execute(
-                """
-                SELECT DISTINCT gene_id
-                FROM transcript_counts
-                WHERE dataset_name = ? AND lower(gene_id) LIKE ?
-                ORDER BY gene_id
-                LIMIT ?
-                """,
-                [dataset_name, f"%{search.strip().lower()}%", int(limit)],
-            ).fetchall()
-        else:
-            rows = con.execute(
-                """
-                SELECT DISTINCT gene_id
-                FROM transcript_counts
-                WHERE dataset_name = ?
-                ORDER BY gene_id
-                LIMIT ?
-                """,
-                [dataset_name, int(limit)],
-            ).fetchall()
+        rows = con.execute(
+            """
+            SELECT DISTINCT gene_id
+            FROM transcript_counts
+            WHERE dataset_name = ?
+            ORDER BY gene_id
+            """,
+            [dataset_name],
+        ).fetchall()
     finally:
         con.close()
-    return [str(row[0]) for row in rows]
+    gene_ids = [str(row[0]) for row in rows]
+    needle = str(search or "").strip().lower()
+    if not needle:
+        return gene_ids[: int(limit)]
+    matches: List[str] = []
+    for gene_id in gene_ids:
+        annotation = _gene_annotation(gene_id)
+        haystacks = [
+            gene_id.lower(),
+            str(annotation.get("gene_symbol") or "").lower(),
+            str(annotation.get("gene_name") or "").lower(),
+        ]
+        if any(needle in value for value in haystacks if value):
+            matches.append(gene_id)
+        if len(matches) >= int(limit):
+            break
+    return matches
 
 
 def _parse_patient_scope(scope: str) -> List[str]:
@@ -1161,6 +1217,7 @@ def molecular_expression_summary(
     payload = {
         "dataset_name": dataset_name,
         "gene_id": gene_id,
+        **_gene_annotation(gene_id),
         "scope_a": _summarize_expression_rows(cohort_a_rows, "Cohort A" if cohort_b_ids else "Selected scope"),
     }
     if cohort_b_ids:
