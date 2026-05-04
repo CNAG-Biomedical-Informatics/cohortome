@@ -1497,7 +1497,7 @@ export function createPhenoUi(ctx) {
       ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Heatmap</strong></summary><div class="pheno-preview-body"><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div></details>`
       : "";
     const graphCard = graphFile
-      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Graph</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="graph">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="graph">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="graph">Copy selected IDs</button></div></div><div class="pheno-graph-controls"><label class="pheno-graph-threshold-label" for="phenoGraphThreshold"><span id="phenoGraphThresholdLabel">Displayed edges</span><input id="phenoGraphThreshold" type="range" min="0" max="0" step="1" value="0"></label><label class="pheno-graph-select-label" for="phenoGraphTopK"><span>Neighbors per node</span><select id="phenoGraphTopK"><option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="9999">All</option></select></label><label class="pheno-graph-checkbox"><input id="phenoGraphLargestComponent" type="checkbox" checked> Largest component only</label><div id="phenoGraphThresholdMeta" class="section-note-inline">Loading graph filter…</div></div><div id="phenoGraphCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoGraphPlot" class="pheno-mds-plot pheno-graph-plot"></div><div class="section-note" id="phenoGraphSelectionNote">Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.</div></div></details>`
+      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Graph</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="graph">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="graph">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="graph">Copy selected IDs</button></div></div><div class="pheno-graph-controls"><label class="pheno-graph-threshold-label" for="phenoGraphThreshold"><span id="phenoGraphThresholdLabel">Displayed edges</span><input id="phenoGraphThreshold" type="range" min="0" max="0" step="1" value="0"></label><label class="pheno-graph-select-label" for="phenoGraphTopK"><span>Neighbors per node</span><select id="phenoGraphTopK"><option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="9999">All</option></select></label><label class="pheno-graph-select-label" for="phenoGraphEdgeLabels"><span>Edge values</span><select id="phenoGraphEdgeLabels"><option value="off">Off</option><option value="selected" selected>Selected</option><option value="visible">Visible</option></select></label><label class="pheno-graph-checkbox"><input id="phenoGraphLargestComponent" type="checkbox" checked> Largest component only</label><div id="phenoGraphThresholdMeta" class="section-note-inline">Loading graph filter…</div></div><div id="phenoGraphCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoGraphPlot" class="pheno-mds-plot pheno-graph-plot"></div><div class="section-note" id="phenoGraphSelectionNote">Line width and opacity encode edge value. Click an edge to inspect it or switch Edge values to Visible.</div></div></details>`
       : "";
     phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard + graphCard;
     if (mdsPointsFile) {
@@ -1728,6 +1728,7 @@ export function createPhenoUi(ctx) {
     const thresholdLabelEl = document.getElementById("phenoGraphThresholdLabel");
     const thresholdMetaEl = document.getElementById("phenoGraphThresholdMeta");
     const topKEl = document.getElementById("phenoGraphTopK");
+    const edgeLabelsEl = document.getElementById("phenoGraphEdgeLabels");
     const largestComponentEl = document.getElementById("phenoGraphLargestComponent");
     if (!plotEl) {
       return;
@@ -1904,13 +1905,51 @@ export function createPhenoUi(ctx) {
 
       const buildEdgeVisual = (weight) => {
         const numericWeight = Number(weight);
-        const normalizedStrength = strongerIsHigher
-          ? Math.max(0, Math.min(1, numericWeight))
-          : Math.max(0, Math.min(1, 1 - numericWeight));
+        const finiteWeights = uniqueSortedWeights.filter((value) => Number.isFinite(Number(value))).map((value) => Number(value));
+        const minWeight = finiteWeights.length ? Math.min(...finiteWeights) : numericWeight;
+        const maxWeight = finiteWeights.length ? Math.max(...finiteWeights) : numericWeight;
+        let normalizedStrength = 0.7;
+        if (Number.isFinite(numericWeight) && Number.isFinite(minWeight) && Number.isFinite(maxWeight) && maxWeight !== minWeight) {
+          normalizedStrength = strongerIsHigher
+            ? (numericWeight - minWeight) / (maxWeight - minWeight)
+            : (maxWeight - numericWeight) / (maxWeight - minWeight);
+        }
+        normalizedStrength = Math.max(0, Math.min(1, normalizedStrength));
+        const perfectMatch = strongerIsHigher
+          ? Math.abs(numericWeight - 1) < 0.000001
+          : Math.abs(numericWeight) < 0.000001;
         return {
-          width: 1.5 + (normalizedStrength * 5),
-          opacity: 0.16 + (normalizedStrength * 0.56),
+          width: 1 + (normalizedStrength * 8),
+          opacity: 0.22 + (normalizedStrength * 0.72),
+          color: perfectMatch ? "#020617" : "#94a3b8",
         };
+      };
+      const formatGraphWeight = (weight) => {
+        const numericWeight = Number(weight);
+        if (!Number.isFinite(numericWeight)) {
+          return "n/a";
+        }
+        return strongerIsHigher ? numericWeight.toFixed(3) : String(Math.round(numericWeight));
+      };
+      const describeGraphEdge = (edge) => {
+        const source = String(edge && edge.data ? edge.data("source") || "" : "").trim();
+        const target = String(edge && edge.data ? edge.data("target") || "" : "").trim();
+        const weight = Number(edge && edge.data ? edge.data("weight") : NaN);
+        if (!source || !target || !Number.isFinite(weight)) {
+          return "Selected edge has no available weight.";
+        }
+        return `Selected edge ${source} to ${target}. ${metricLabel} = ${formatGraphWeight(weight)}.`;
+      };
+      const currentEdgeLabelMode = () => {
+        const mode = String(edgeLabelsEl && edgeLabelsEl.value ? edgeLabelsEl.value : "selected").trim().toLowerCase();
+        return ["off", "selected", "visible"].includes(mode) ? mode : "selected";
+      };
+      const syncEdgeLabels = (cy) => {
+        const mode = currentEdgeLabelMode();
+        cy.edges().forEach((edge) => {
+          const shouldShow = mode === "visible" || (mode === "selected" && edge.selected());
+          edge.data("value_label", shouldShow ? formatGraphWeight(edge.data("weight")) : "");
+        });
       };
 
       const syncSelectedNodes = (cy) => {
@@ -1932,7 +1971,7 @@ export function createPhenoUi(ctx) {
           } else if (rawSelectedNodeIds.length) {
             noteEl.textContent = `Selected ${rawSelectedNodeIds.length} graph nodes.`;
           } else {
-            noteEl.textContent = "Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.";
+            noteEl.textContent = "Click an edge to inspect its value. Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.";
           }
         }
       };
@@ -2009,6 +2048,8 @@ export function createPhenoUi(ctx) {
                 ...edge.data,
                 width: visual.width,
                 opacity: visual.opacity,
+                color: visual.color,
+                value_label: "",
               },
             };
           });
@@ -2066,9 +2107,26 @@ export function createPhenoUi(ctx) {
               selector: "edge",
               style: {
                 width: "data(width)",
-                "line-color": "#94a3b8",
+                "line-color": "data(color)",
                 opacity: "data(opacity)",
                 "curve-style": "bezier",
+                label: "data(value_label)",
+                color: "#0f172a",
+                "font-size": 9,
+                "text-background-color": "#ffffff",
+                "text-background-opacity": 0.86,
+                "text-background-padding": 2,
+                "text-rotation": "autorotate",
+                "text-margin-y": -4,
+              },
+            },
+            {
+              selector: "edge:selected",
+              style: {
+                "line-color": "#0f766e",
+                opacity: 0.92,
+                "overlay-color": "#99f6e4",
+                "overlay-opacity": 0.18,
               },
             },
             {
@@ -2085,7 +2143,19 @@ export function createPhenoUi(ctx) {
         thresholdState.cy = cy;
         plotEl._cy = cy;
         cy.on("select unselect", "node", () => syncSelectedNodes(cy));
+        cy.on("tap", "edge", (event) => {
+          const edge = event && event.target ? event.target : null;
+          if (edge && typeof edge.select === "function") {
+            cy.$("edge:selected").unselect();
+            edge.select();
+            syncEdgeLabels(cy);
+          }
+          if (noteEl) {
+            noteEl.textContent = describeGraphEdge(edge);
+          }
+        });
         syncSelectedNodes(cy);
+        syncEdgeLabels(cy);
         renderThresholdMeta(filteredEdges.length, thresholdValue);
         if (thresholdMetaEl) {
           const parts = [thresholdMetaEl.textContent];
@@ -2114,6 +2184,14 @@ export function createPhenoUi(ctx) {
         topKEl.value = String(defaultTopKNeighbors);
         topKEl.addEventListener("change", () => {
           drawGraph(thresholdState.thresholdValue);
+        });
+      }
+      if (edgeLabelsEl) {
+        edgeLabelsEl.value = "selected";
+        edgeLabelsEl.addEventListener("change", () => {
+          if (thresholdState.cy) {
+            syncEdgeLabels(thresholdState.cy);
+          }
         });
       }
       if (largestComponentEl) {

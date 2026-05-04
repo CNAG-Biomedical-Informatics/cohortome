@@ -1575,13 +1575,18 @@ def run_pheno_ranker(request: Any) -> Dict:
         normalized = normalize_pheno_term(term)
         if normalized and normalized not in include_terms:
             include_terms.append(normalized)
-    if include_terms:
-        command.extend(["-include-terms", *include_terms])
     exclude_terms = []
     for term in request.exclude_terms:
         normalized = normalize_pheno_term(term)
         if normalized and normalized not in exclude_terms:
             exclude_terms.append(normalized)
+    if include_terms and exclude_terms:
+        raise HTTPException(
+            status_code=400,
+            detail="Pheno-Ranker cannot combine include and exclude filters in the same run. Clear one of those fields and run again.",
+        )
+    if include_terms:
+        command.extend(["-include-terms", *include_terms])
     if exclude_terms:
         command.extend(["-exclude-terms", *exclude_terms])
     sort_by = normalize_pheno_metric(request.sort_by)

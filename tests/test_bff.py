@@ -1060,6 +1060,51 @@ def test_pheno_cohort_graph_cutoffs_are_passed_to_runner(tmp_path, monkeypatch):
     assert payload["graph_max_weight"] == 0.95
 
 
+def test_pheno_runner_rejects_combined_include_and_exclude_terms(tmp_path, monkeypatch):
+    reference_path = tmp_path / "reference.json"
+    reference_path.write_text("[]", encoding="utf-8")
+    fake_bin = tmp_path / "pheno-ranker"
+    fake_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_bin.chmod(0o755)
+
+    monkeypatch.setattr(pheno_module, "PHENO_RANKER_BIN", fake_bin)
+    monkeypatch.setattr(pheno_module, "resolve_pheno_ranker_reference_paths", lambda data_dir: [reference_path])
+
+    executed_commands = []
+
+    def _fake_run(command, capture_output, text, check, **kwargs):
+        executed_commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(pheno_module.subprocess, "run", _fake_run)
+
+    with pytest.raises(HTTPException) as exc_info:
+        pheno_module.run_pheno_ranker(
+            SimpleNamespace(
+                action="compare",
+                mode="cohort",
+                data_dir=str(tmp_path),
+                patient_id="",
+                selected_patient_ids="",
+                selected_saved_cohort_ids=[],
+                disease_filter="",
+                include_terms=["diseases"],
+                exclude_terms=["id"],
+                similarity_metric_cohort="",
+                sort_by="",
+                max_out=10,
+                align=False,
+                render_heatmap=False,
+                render_mds=False,
+                render_graph=False,
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "cannot combine include and exclude" in str(exc_info.value.detail)
+    assert executed_commands == []
+
+
 def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
     monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
@@ -7204,6 +7249,12 @@ def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
         str(tmp_path),
     )
     assert graph_plan["plan"]["render_graph"] is True
+    phenotype_disease_plan = pheno_module.plan_pheno_ranker_deterministic(
+        "Compare all patients by phenotypicFeatures and diseases",
+        str(tmp_path),
+    )
+    assert phenotype_disease_plan["plan"]["include_terms"] == ["phenotypicFeatures", "diseases"]
+    assert phenotype_disease_plan["plan"]["exclude_terms"] == []
     no_graph_plan = pheno_module.plan_pheno_ranker_deterministic(
         "Compare all patients by disease without graph",
         str(tmp_path),
