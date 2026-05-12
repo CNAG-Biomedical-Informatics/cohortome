@@ -30,6 +30,9 @@
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
         align-items: stretch;
       }
+      body.user-setting-dataset-compact #datasetPicker.dataset-picker-list {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+      }
       .dataset-picker-card {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
@@ -165,6 +168,21 @@
         overflow-wrap: anywhere;
         word-break: break-word;
         hyphens: auto;
+      }
+      body.user-setting-dataset-compact #datasetPicker .dataset-picker-card {
+        padding: 10px 12px;
+        gap: 10px;
+      }
+      body.user-setting-dataset-compact #datasetPicker .dataset-picker-description {
+        font-size: 0.82rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      body.user-setting-dataset-compact #datasetPicker .dataset-picker-tag {
+        font-size: 0.74rem;
+        padding: 3px 7px;
       }
       .dataset-picker-access {
         display: grid;

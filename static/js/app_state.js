@@ -61,6 +61,16 @@ export function createAppState() {
       authenticated: true,
       user: { username: "local", role: "admin", display_name: "Local user" },
     },
+    userSettings: {
+      version: 1,
+      landing_tab: "dashboard",
+      query_disclosure_default: "detailed",
+      analysis_auto_open_jobs: true,
+      pheno_default_metric: "",
+      pheno_advanced_open: false,
+      dashboard_molecular_open: false,
+      dataset_compact_view: false,
+    },
     currentDashboardSubtab: "clinical",
   };
 }

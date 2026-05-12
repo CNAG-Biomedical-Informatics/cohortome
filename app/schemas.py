@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -27,6 +27,27 @@ class QueryRequest(BaseModel):
     scoped_patient_ids: List[str] = Field(default_factory=list, description="Optional prior subset patient IDs carried as app-level conversational scope for follow-up queries.")
     scoped_record_ids: List[str] = Field(default_factory=list, description="Optional prior subset sample or record IDs carried as app-level conversational scope.")
     scoped_id_type: str = Field(default="patient", description="The primary ID level used by the carried scoped context.")
+
+
+class UserSettingsResponse(BaseModel):
+    version: int = 1
+    landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] = "dashboard"
+    query_disclosure_default: Literal["summary", "detailed"] = "detailed"
+    analysis_auto_open_jobs: bool = True
+    pheno_default_metric: Literal["", "hamming", "jaccard"] = ""
+    pheno_advanced_open: bool = False
+    dashboard_molecular_open: bool = False
+    dataset_compact_view: bool = False
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None
+    query_disclosure_default: Literal["summary", "detailed"] | None = None
+    analysis_auto_open_jobs: bool | None = None
+    pheno_default_metric: Literal["", "hamming", "jaccard"] | None = None
+    pheno_advanced_open: bool | None = None
+    dashboard_molecular_open: bool | None = None
+    dataset_compact_view: bool | None = None
 
 
 class AnalysisRequest(BaseModel):

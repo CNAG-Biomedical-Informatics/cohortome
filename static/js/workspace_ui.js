@@ -44,6 +44,7 @@ export function createWorkspaceUi(ctx) {
     renderDashboard,
     isWorkspaceAccessible,
     updateLoadButtonAvailability,
+    applyUserSettings,
   } = callbacks;
 
   function nextFrame() {
@@ -326,6 +327,9 @@ export function createWorkspaceUi(ctx) {
       prepareAnalysisSessionForDataDir(targetScopeId);
       resetQueryWorkspace();
       syncQueryGranularityWithWorkspacePolicy();
+      if (typeof applyUserSettings === "function") {
+        applyUserSettings({ applyNavigation: false });
+      }
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
         loadStatusEl.textContent = "Refreshing catalog, cohorts, and query helpers...";

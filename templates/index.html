@@ -81,6 +81,15 @@
             <span>Jobs</span>
             <span id="jobsDrawerCount" class="jobs-drawer-count is-hidden">0</span>
           </button>
+          <button id="userSettingsBtn" type="button" class="query-chip" title="Open user settings.">
+            <span class="button-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path>
+                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.04.04a2 2 0 0 1-2.83 2.83l-.04-.04a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08A1.7 1.7 0 0 0 8.96 19.36a1.7 1.7 0 0 0-1.87.34l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.04-.04a2 2 0 1 1 2.83-2.83l.04.04A1.7 1.7 0 0 0 8.96 4.64 1.7 1.7 0 0 0 10 3.08V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.04-.04a2 2 0 0 1 2.83 2.83l-.04.04A1.7 1.7 0 0 0 19.4 9 1.7 1.7 0 0 0 21 10h.08a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"></path>
+              </svg>
+            </span>
+            <span>Settings</span>
+          </button>
           <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
             <span class="button-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -91,6 +100,53 @@
             </span>
             <span>Sign out</span>
           </button>
+          <div id="userSettingsPanel" class="user-settings-panel is-hidden" role="dialog" aria-label="User settings">
+            <div class="user-settings-header">
+              <strong>Settings</strong>
+              <button id="userSettingsCloseBtn" type="button" class="icon-button" aria-label="Close settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6 6 18"></path>
+                  <path d="m6 6 12 12"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="user-settings-grid">
+              <div>
+                <label for="settingsLandingTab">Start tab</label>
+                <select id="settingsLandingTab">
+                  <option value="dashboard">Dashboard</option>
+                  <option value="datasets">Datasets</option>
+                  <option value="query">Query</option>
+                  <option value="analysis">Analysis</option>
+                  <option value="pheno">Pheno-Ranker</option>
+                </select>
+              </div>
+              <div>
+                <label for="settingsQueryDisclosure">Query disclosure</label>
+                <select id="settingsQueryDisclosure">
+                  <option value="detailed">Detailed when allowed</option>
+                  <option value="summary">Summary</option>
+                </select>
+              </div>
+              <div>
+                <label for="settingsPhenoDefaultMetric">Pheno metric</label>
+                <select id="settingsPhenoDefaultMetric">
+                  <option value="">Default</option>
+                  <option value="hamming">Hamming</option>
+                  <option value="jaccard">Jaccard</option>
+                </select>
+              </div>
+              <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Jobs after background runs</label>
+              <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
+              <label class="user-settings-check"><input id="settingsDashboardMolecularOpen" type="checkbox"> Open Dashboard on molecular view</label>
+              <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
+            </div>
+            <div id="userSettingsStatus" class="section-note">Preferences are saved per signed-in user.</div>
+            <div class="user-settings-actions">
+              <button id="userSettingsResetBtn" type="button" class="secondary-btn">Reset</button>
+              <button id="userSettingsSaveBtn" type="button">Save</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -526,7 +582,7 @@
                 <div id="phenoSavedCohortsSelection" class="section-note">No saved cohorts attached as separate references.</div>
                 <div id="phenoSavedCohorts" class="empty">No saved cohorts yet.</div>
               </details>
-              <details class="query-section pheno-advanced-options">
+              <details id="phenoAdvancedOptions" class="query-section pheno-advanced-options">
                 <summary class="pheno-advanced-summary">
                   <span class="section-heading-inline">
                     <span class="section-heading-icon" aria-hidden="true">

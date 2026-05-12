@@ -24,6 +24,7 @@ import app.query_policy as query_policy_module
 import app.query_scope as query_scope_module
 import app.query_store as query_store_module
 import app.routes as routes_module
+import app.user_settings as user_settings_module
 import app.user_state as user_state_module
 from app.bff import (
     build_patient_navigator,
@@ -65,6 +66,10 @@ def write_json(tmp_path, name, payload):
 
 def isolate_auth_store(monkeypatch, tmp_path):
     monkeypatch.setattr(auth_module, "AUTH_USERS_PATH", tmp_path / "state" / "auth" / "users.json")
+
+
+def isolate_user_state(monkeypatch, tmp_path):
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
 
 
 def isolate_query_store(monkeypatch, tmp_path):
@@ -1211,6 +1216,77 @@ def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
     logout = client.post("/auth/logout")
     assert logout.status_code == 200
     assert logout.json()["authenticated"] is False
+
+
+def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.delenv("PN_AUTH_MODE", raising=False)
+    client = TestClient(app)
+
+    defaults = client.get("/user-settings")
+    assert defaults.status_code == 200
+    assert defaults.json()["landing_tab"] == "dashboard"
+    assert defaults.json()["analysis_auto_open_jobs"] is True
+
+    updated = client.patch(
+        "/user-settings",
+        json={
+            "landing_tab": "analysis",
+            "query_disclosure_default": "summary",
+            "analysis_auto_open_jobs": False,
+            "pheno_default_metric": "jaccard",
+            "pheno_advanced_open": True,
+            "dataset_compact_view": True,
+        },
+    )
+    assert updated.status_code == 200
+    payload = updated.json()
+    assert payload["landing_tab"] == "analysis"
+    assert payload["query_disclosure_default"] == "summary"
+    assert payload["analysis_auto_open_jobs"] is False
+    assert payload["pheno_default_metric"] == "jaccard"
+    assert payload["pheno_advanced_open"] is True
+    assert payload["dataset_compact_view"] is True
+    assert user_settings_module.load_user_settings("local")["landing_tab"] == "analysis"
+
+
+def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"},
+                {"username": "bob", "password": "secret", "role": "user", "display_name": "Bob"},
+            ]
+        ),
+    )
+    alice = TestClient(app)
+    bob = TestClient(app)
+
+    assert alice.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+    assert bob.post("/auth/login", json={"username": "bob", "password": "secret"}).status_code == 200
+
+    updated = alice.patch("/user-settings", json={"landing_tab": "pheno", "dashboard_molecular_open": True})
+    assert updated.status_code == 200
+    assert updated.json()["landing_tab"] == "pheno"
+
+    assert alice.get("/user-settings").json()["landing_tab"] == "pheno"
+    bob_settings = bob.get("/user-settings").json()
+    assert bob_settings["landing_tab"] == "dashboard"
+    assert bob_settings["dashboard_molecular_open"] is False
+
+
+def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.delenv("PN_AUTH_MODE", raising=False)
+    client = TestClient(app)
+
+    response = client.patch("/user-settings", json={"landing_tab": "admin"})
+
+    assert response.status_code == 422
 
 
 def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):

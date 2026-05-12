@@ -15,6 +15,7 @@ import { createSavedCohortsUi } from "/static/js/saved_cohorts.js";
 import { createPhenoUi } from "/static/js/pheno.js";
 import { createQueryUi } from "/static/js/query.js";
 import { createAnalysisUi } from "/static/js/analysis.js";
+import { createUserSettingsUi } from "/static/js/user_settings.js";
 
 const refs = createAppRefs(document);
 const state = createAppState();
@@ -71,6 +72,7 @@ let savedCohortsUi;
 let phenoUi;
 let queryUi;
 let analysisUi;
+let userSettingsUi;
 
 function isMultiDatasetWorkspace() {
   return state.currentDatasetIds.length > 1;
@@ -438,8 +440,12 @@ analysisUi = createAnalysisUi({
     startAnalysisProgressUpdates,
     stopAnalysisProgressUpdates,
     handleAnalysisJobSubmission: (payload) => {
-      jobsUi.setJobsDrawerOpen(true);
-      void jobsUi.loadRecentJobs();
+      if (state.userSettings.analysis_auto_open_jobs) {
+        jobsUi.setJobsDrawerOpen(true);
+        void jobsUi.loadRecentJobs();
+      } else {
+        void jobsUi.loadRecentJobs({ silent: true });
+      }
       if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
         refs.analysisStatusEl.className = "query-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
@@ -501,8 +507,12 @@ phenoUi = createPhenoUi({
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
     handlePhenoJobSubmission: (payload) => {
-      jobsUi.setJobsDrawerOpen(true);
-      void jobsUi.loadRecentJobs();
+      if (state.userSettings.analysis_auto_open_jobs) {
+        jobsUi.setJobsDrawerOpen(true);
+        void jobsUi.loadRecentJobs();
+      } else {
+        void jobsUi.loadRecentJobs({ silent: true });
+      }
       if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
         refs.phenoStatusEl.className = "pheno-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
@@ -573,6 +583,7 @@ workspaceUi = createWorkspaceUi({
     renderDashboard: (summary) => dashboardUi.renderDashboard(summary),
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     updateLoadButtonAvailability: () => authUi.updateLoadButtonAvailability(),
+    applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
   },
 });
 
@@ -626,6 +637,20 @@ authUi = createAuthUi({
     prepareStartupWorkspaceSelection: () => datasetsUi.prepareStartupWorkspaceSelection(),
     startupDefaultDatasetIds: () => datasetsUi.startupDefaultDatasetIds(),
     loadPatients: (options) => workspaceUi.loadPatients(options),
+    loadUserSettings: (options) => userSettingsUi.loadUserSettings(options),
+    applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
+  },
+});
+
+userSettingsUi = createUserSettingsUi({
+  refs,
+  state,
+  callbacks: {
+    effectiveQueryGranularityCeiling: () => datasetsUi.effectiveQueryGranularityCeiling(),
+    renderQueryExecutionMode: () => analysisCatalogUi.renderQueryExecutionMode(),
+    setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
+    setDashboardSubtab: (subtabName) => navigationUi.setDashboardSubtab(subtabName),
+    updatePhenoGraphOptions: () => phenoUi.updatePhenoGraphOptions(),
   },
 });
 
@@ -673,6 +698,29 @@ function bindEvents() {
   });
   refs.heroLogoutBtnEl && refs.heroLogoutBtnEl.addEventListener("click", () => {
     void authUi.logoutLocal();
+  });
+  refs.userSettingsBtnEl && refs.userSettingsBtnEl.addEventListener("click", () => {
+    userSettingsUi.setPanelOpen(true);
+    userSettingsUi.renderUserSettingsForm();
+  });
+  refs.userSettingsCloseBtnEl && refs.userSettingsCloseBtnEl.addEventListener("click", () => {
+    userSettingsUi.setPanelOpen(false);
+  });
+  refs.userSettingsSaveBtnEl && refs.userSettingsSaveBtnEl.addEventListener("click", () => {
+    void userSettingsUi.saveUserSettings().catch((error) => {
+      if (refs.userSettingsStatusEl) {
+        refs.userSettingsStatusEl.className = "section-note is-warning";
+        refs.userSettingsStatusEl.textContent = error && error.message ? error.message : "Unable to save user settings.";
+      }
+    });
+  });
+  refs.userSettingsResetBtnEl && refs.userSettingsResetBtnEl.addEventListener("click", () => {
+    void userSettingsUi.resetUserSettings().catch((error) => {
+      if (refs.userSettingsStatusEl) {
+        refs.userSettingsStatusEl.className = "section-note is-warning";
+        refs.userSettingsStatusEl.textContent = error && error.message ? error.message : "Unable to reset user settings.";
+      }
+    });
   });
   refs.authPasswordEl && refs.authPasswordEl.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1126,10 +1174,12 @@ async function bootstrap() {
     authUi.clearLoadedWorkspaceForSignedOutState();
     return;
   }
+  await userSettingsUi.loadUserSettings({ applyNavigation: false });
   await datasetsUi.loadDatasets();
   datasetsUi.prepareStartupWorkspaceSelection();
   await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: datasetsUi.startupDefaultDatasetIds() });
   await authUi.refreshUserWorkspaceState();
+  userSettingsUi.applyUserSettings({ applyNavigation: true });
 }
 
 void bootstrap();
