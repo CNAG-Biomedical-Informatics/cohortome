@@ -79,6 +79,11 @@ app = FastAPI(
 )
 app.add_middleware(SessionMiddleware, secret_key=_session_secret())
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.mount(
+    "/app-next/assets",
+    StaticFiles(directory=BASE_DIR / "frontend" / "dist" / "assets", check_dir=False),
+    name="react-assets",
+)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 register_routes(app, templates)

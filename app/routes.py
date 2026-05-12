@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.auth import (
@@ -40,7 +40,7 @@ from app.bff import (
     medication_cohort,
     medication_counts,
 )
-from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings
+from app.config import BASE_DIR, DEFAULT_DATA_DIR, branding_logo_path, branding_settings
 from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort
 from app.datasets import (
     authorized_datasets_for_user,
@@ -220,6 +220,33 @@ def index(request: Request) -> HTMLResponse:
             "current_dataset_id": str(selected.get("dataset_id") or ""),
             "branding": branding_settings(),
             "auth_enabled": auth_enabled(),
+        },
+    )
+
+
+def react_app(request: Request, path: str = "") -> Response:
+    if os.getenv("PN_REACT_DEV", "").strip().lower() in {"1", "true", "yes"}:
+        if templates is None:
+            raise RuntimeError("Templates have not been initialized.")
+        return templates.TemplateResponse(
+            request,
+            "react_index_dev.html",
+            {
+                "vite_dev_server": os.getenv("PN_REACT_DEV_SERVER", "http://127.0.0.1:5173").rstrip("/"),
+                "branding": branding_settings(),
+            },
+        )
+    dist_index = BASE_DIR / "frontend" / "dist" / "index.html"
+    if dist_index.exists():
+        return FileResponse(dist_index)
+    if templates is None:
+        raise RuntimeError("Templates have not been initialized.")
+    return templates.TemplateResponse(
+        request,
+        "react_index_dev.html",
+        {
+            "vite_dev_server": os.getenv("PN_REACT_DEV_SERVER", "http://127.0.0.1:5173").rstrip("/"),
+            "branding": branding_settings(),
         },
     )
 
@@ -1070,6 +1097,8 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     init_routes_templates(template_engine)
 
     app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Patient Navigator HTML shell with the current branding and authenticated user context.")
+    app.add_api_route("/app-next", react_app, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the React application shell", description="Serves the parallel React frontend while the legacy UI remains available at /.")
+    app.add_api_route("/app-next/{path:path}", react_app, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the React application shell", description="Serves React client-side routes from the parallel frontend.")
     app.add_api_route("/patients", get_patients, methods=["GET"], tags=["patients"], summary="List patient summaries", description="Returns patient-level summaries for the active dataset or workspace scope.", response_model=List[PatientSummaryResponse])
     app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"], tags=["patients"], summary="Get a patient context", description="Returns the normalized clinical context for a single patient identifier.")
     app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"], tags=["patients"], summary="Get a patient navigator view", description="Returns the timeline-oriented patient navigator payload used by the patient detail view.")

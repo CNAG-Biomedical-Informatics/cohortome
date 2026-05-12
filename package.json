@@ -1,3 +1,21 @@
 {
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "frontend:dev": "vite --config frontend/vite.config.ts --host 127.0.0.1 --port 5173",
+    "frontend:build": "vite build --config frontend/vite.config.ts",
+    "frontend:preview": "vite preview --config frontend/vite.config.ts --host 127.0.0.1 --port 5173"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.75.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
 }
