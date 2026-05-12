@@ -777,9 +777,7 @@ export function createDashboardUi(ctx) {
     molecularDashboardCardsEl.innerHTML = `
       <section class="molecular-workspace-summary">
         <div class="molecular-workspace-summary-copy">
-          <div class="molecular-card-eyebrow">Workspace overview</div>
-          <strong class="molecular-workspace-summary-title">Loaded molecular workspace</strong>
-          <div class="section-note">A quick summary of the active transcriptomics footprint before drilling into individual datasets.</div>
+          <strong class="molecular-workspace-summary-title">Molecular workspace</strong>
         </div>
         <div class="molecular-workspace-kpis">
           <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Datasets</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>

@@ -187,6 +187,7 @@
       <div class="app-workbench">
         <aside class="app-sidebar" aria-label="Primary navigation">
           <nav class="tab-bar app-sidebar-nav" aria-label="Application sections">
+        <div class="app-nav-group">
         <button id="dashboardTabBtn" class="tab-btn active" type="button" aria-current="page">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -198,6 +199,31 @@
           </span>
           <span>Dashboard</span>
         </button>
+        <div class="dashboard-subtabs app-sidebar-subnav">
+          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">
+            <span class="dashboard-subtab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 3h6"></path>
+                <path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path>
+                <path d="M9 10h6"></path>
+                <path d="M9 14h6"></path>
+              </svg>
+            </span>
+            <span>Clinical</span>
+          </button>
+          <button id="dashboardMolecularBtn" type="button" class="dashboard-subtab">
+            <span class="dashboard-subtab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path>
+                <path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path>
+                <path d="M8 6h8"></path>
+                <path d="M8 18h8"></path>
+              </svg>
+            </span>
+            <span>Molecular</span>
+          </button>
+        </div>
+        </div>
         <button id="datasetsTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -283,22 +309,13 @@
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
-        <div class="dashboard-subtabs">
-          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">Clinical</button>
-          <button id="dashboardMolecularBtn" type="button" class="dashboard-subtab">Molecular</button>
-        </div>
         <section id="dashboardClinicalPanel" class="dashboard-subpanel active">
           <div class="controls dashboard-panel-frame">
-            <section class="dashboard-hero dashboard-hero-clinical">
-              <h2>Clinical</h2>
-              <div class="section-note">Overview of the loaded clinical workspace, patient roster, and focused patient workspace.</div>
-              <div class="dashboard-hero-note">Use this view to understand what is loaded before building subsets in Query or interpreting them in Analysis.</div>
-            </section>
             <div class="dashboard-clinical-stack">
               <section class="dashboard-section-card">
                 <div class="dashboard-section-header">
                   <div>
-                    <h3>Clinical overview</h3>
+                    <h3>Overview</h3>
                   </div>
                 </div>
                 <div id="dashboard" class="empty">Load dataset to build the dashboard.</div>
@@ -331,11 +348,6 @@
         </section>
         <section id="dashboardMolecularPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <section class="molecular-hero">
-              <h2>Molecular</h2>
-              <div class="section-note">Overview of all loaded molecular datasets, their coverage, and basic transcriptomics-oriented summary statistics.</div>
-              <div class="molecular-hero-note">This tab is for orientation. Deeper clinical+molecular interpretation will stay in Analysis.</div>
-            </section>
             <div id="molecularDashboardStatus" class="query-status molecular-status-strip">Checking molecular datasets...</div>
             <div id="molecularDashboardCards" class="molecular-dashboard-grid">
               <div class="empty">No molecular datasets loaded.</div>

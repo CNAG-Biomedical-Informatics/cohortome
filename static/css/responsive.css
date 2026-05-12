@@ -48,8 +48,18 @@
           display: flex;
           width: 100%;
         }
+        .app-sidebar-nav .app-sidebar-subnav {
+          display: none;
+          width: auto;
+        }
+        .app-sidebar-nav .app-nav-group:has(#dashboardTabBtn.active) .app-sidebar-subnav {
+          display: grid;
+        }
         .dashboard-subtab {
           flex: 1 1 0;
+        }
+        .app-sidebar-nav .app-sidebar-subnav .dashboard-subtab {
+          flex: initial;
         }
         .hero {
           flex-direction: column;

@@ -10,10 +10,20 @@
       }
       .dataset-loader-row {
         align-items: start;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .dataset-loader-row > button {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+        width: auto;
+        white-space: nowrap;
       }
       .dataset-picker-shell {
         display: grid;
         gap: 10px;
+        grid-column: 1 / -1;
+        grid-row: 2;
       }
       .dataset-picker-shell.is-loading {
         opacity: 0.72;
