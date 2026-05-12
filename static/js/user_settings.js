@@ -90,14 +90,6 @@ export function createUserSettingsUi(ctx) {
 
   function setPanelOpen(open) {
     if (!userSettingsPanelEl) return;
-    if (open && userSettingsBtnEl) {
-      const rect = userSettingsBtnEl.getBoundingClientRect();
-      const panelWidth = Math.min(560, Math.max(300, window.innerWidth - 32));
-      const left = Math.min(Math.max(16, rect.right - panelWidth), window.innerWidth - panelWidth - 16);
-      userSettingsPanelEl.style.setProperty("--settings-panel-top", `${Math.round(rect.bottom + 10)}px`);
-      userSettingsPanelEl.style.setProperty("--settings-panel-left", `${Math.round(left)}px`);
-      userSettingsPanelEl.style.setProperty("--settings-panel-width", `${Math.round(panelWidth)}px`);
-    }
     userSettingsPanelEl.classList.toggle("is-hidden", !open);
   }
 

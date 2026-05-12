@@ -617,23 +617,16 @@ export function createAnalysisCatalogUi(ctx) {
       : resultsLabel === "Generated" || resultsLabel === "Job queued" || resultsLabel === "Error"
         ? "results"
         : runBlocked
-          ? "requirements"
-          : hasPrompt
-            ? "run"
-            : "prompt";
+          ? "catalog"
+          : "prompt";
     const steps = {
       scope: { value: analysisFlowScopeLabel(), state: "is-ready" },
-      analysis: { value: hasItem ? String(item.name || "Selected") : "Free prompt", state: hasItem ? "is-ready" : "is-neutral" },
+      catalog: {
+        value: hasItem ? (requirementsReady ? String(item.name || "Selected") : "Needs setup") : "Optional",
+        state: hasItem ? (requirementsReady ? "is-ready" : "is-blocked") : "is-neutral",
+      },
       prompt: {
-        value: hasPrompt ? "Ready" : "Needs text",
-        state: hasPrompt ? "is-ready" : "is-blocked",
-      },
-      requirements: {
-        value: hasItem ? (requirementsReady ? "Ready" : "Needs setup") : "Ready",
-        state: requirementsReady ? "is-ready" : "is-blocked",
-      },
-      run: {
-        value: state.analysisInFlight ? "Running" : (runBlocked || !hasPrompt ? "Blocked" : "Ready"),
+        value: state.analysisInFlight ? "Running" : (runBlocked ? "Blocked" : (hasPrompt ? "Ready" : "Needs text")),
         state: state.analysisInFlight ? "is-running" : (runBlocked || !hasPrompt ? "is-blocked" : "is-ready"),
       },
       results: {

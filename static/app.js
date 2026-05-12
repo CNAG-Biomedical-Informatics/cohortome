@@ -180,9 +180,9 @@ function shouldAutoOpenJobsAfterSubmission() {
 }
 
 function setAnalysisSidebarCollapsed(collapsed, options = {}) {
-  if (!refs.analysisShellEl) return;
+  if (!refs.analysisSidebarEl) return;
   const isCollapsed = Boolean(collapsed);
-  refs.analysisShellEl.classList.toggle("analysis-sidebar-collapsed", isCollapsed);
+  refs.analysisSidebarEl.classList.toggle("analysis-sidebar-collapsed", isCollapsed);
   if (refs.analysisSidebarToggleBtnEl) {
     refs.analysisSidebarToggleBtnEl.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
     refs.analysisSidebarToggleBtnEl.setAttribute("aria-label", isCollapsed ? "Expand Analysis Chats" : "Collapse Analysis Chats");
@@ -198,13 +198,13 @@ function setAnalysisSidebarCollapsed(collapsed, options = {}) {
 }
 
 function initializeAnalysisSidebarCollapsed() {
-  let collapsed = false;
-  try {
-    collapsed = window.localStorage.getItem(ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY) === "1";
-  } catch (_error) {
-    collapsed = false;
-  }
-  setAnalysisSidebarCollapsed(collapsed, { persist: false });
+  setAnalysisSidebarCollapsed(false, { persist: false });
+}
+
+function setAnalysisChatsDrawerOpen(open) {
+  if (!refs.analysisChatsDrawerEl) return;
+  refs.analysisChatsDrawerEl.classList.toggle("is-hidden", !open);
+  refs.analysisChatsDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
 }
 
 function stopQueryProgressUpdates() {
@@ -751,8 +751,20 @@ function bindEvents() {
   });
 
   refs.analysisSidebarToggleBtnEl && refs.analysisSidebarToggleBtnEl.addEventListener("click", () => {
-    const collapsed = Boolean(refs.analysisShellEl && refs.analysisShellEl.classList.contains("analysis-sidebar-collapsed"));
+    const collapsed = Boolean(refs.analysisSidebarEl && refs.analysisSidebarEl.classList.contains("analysis-sidebar-collapsed"));
     setAnalysisSidebarCollapsed(!collapsed);
+  });
+  refs.analysisChatsDrawerBtnEl && refs.analysisChatsDrawerBtnEl.addEventListener("click", () => {
+    setAnalysisChatsDrawerOpen(true);
+  });
+  refs.analysisChatsDrawerCloseBtnEl && refs.analysisChatsDrawerCloseBtnEl.addEventListener("click", () => {
+    setAnalysisChatsDrawerOpen(false);
+  });
+  refs.analysisChatsDrawerEl && refs.analysisChatsDrawerEl.addEventListener("click", (event) => {
+    const closeTrigger = event.target.closest("[data-analysis-chats-close='true']");
+    if (closeTrigger && refs.analysisChatsDrawerEl.contains(closeTrigger)) {
+      setAnalysisChatsDrawerOpen(false);
+    }
   });
 
   refs.authLoginBtnEl && refs.authLoginBtnEl.addEventListener("click", () => {
@@ -845,7 +857,7 @@ function bindEvents() {
         setup.open = true;
         setup.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    } else if (target === "analysis" || target === "choose") {
+    } else if (target === "analysis" || target === "choose" || target === "setup" || target === "catalog") {
       analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
     } else if (target === "prompt") {
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
@@ -871,6 +883,10 @@ function bindEvents() {
     }
   });
   refs.analysisNewSessionBtnEl && refs.analysisNewSessionBtnEl.addEventListener("click", () => {
+    analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
+    setAnalysisChatsDrawerOpen(false);
+  });
+  refs.analysisNewSessionTopBtnEl && refs.analysisNewSessionTopBtnEl.addEventListener("click", () => {
     analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
   });
 

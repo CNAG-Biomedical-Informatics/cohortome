@@ -16,6 +16,8 @@ export function createAnalysisSessionsUi(ctx) {
     analysisSessionDeleteStatusEl,
     analysisSessionDeleteOnlyBtnEl,
     analysisSessionDeleteAllBtnEl,
+    analysisCurrentChatTitleEl,
+    analysisCurrentChatMetaEl,
     dataDirEl,
   } = refs;
   const { escapeHtml, shortTimestamp, nowIso } = helpers;
@@ -249,6 +251,7 @@ export function createAnalysisSessionsUi(ctx) {
 
   function renderAnalysisSessionList() {
     if (!analysisSessionListEl) return;
+    renderCurrentAnalysisChatBar();
     if (!state.analysisSessions.length) {
       analysisSessionListEl.innerHTML = '<div class="empty">No analysis sessions yet.</div>';
       return;
@@ -278,6 +281,21 @@ export function createAnalysisSessionsUi(ctx) {
         </div>
       `;
     }).join("");
+  }
+
+  function renderCurrentAnalysisChatBar() {
+    const session = currentAnalysisSession();
+    if (analysisCurrentChatTitleEl) {
+      analysisCurrentChatTitleEl.textContent = session ? analysisSessionTitle(session) : "New analysis";
+    }
+    if (analysisCurrentChatMetaEl) {
+      if (!session) {
+        analysisCurrentChatMetaEl.textContent = "No turns yet.";
+        return;
+      }
+      const turnCount = Array.isArray(session.turns) ? session.turns.length : 0;
+      analysisCurrentChatMetaEl.textContent = `${analysisSessionScopeSummary(session)} · ${turnCount} turns · ${shortTimestamp(session.updatedAt)}`;
+    }
   }
 
   function syncCurrentAnalysisSessionFromUi(options) {
@@ -490,6 +508,7 @@ export function createAnalysisSessionsUi(ctx) {
     persistAnalysisSessions,
     loadAnalysisSessionsFromBackend,
     renderAnalysisSessionList,
+    renderCurrentAnalysisChatBar,
     syncCurrentAnalysisSessionFromUi,
     applyAnalysisSession,
     selectAnalysisSession,

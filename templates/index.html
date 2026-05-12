@@ -81,15 +81,6 @@
             <span>Jobs</span>
             <span id="jobsDrawerCount" class="jobs-drawer-count is-hidden">0</span>
           </button>
-          <button id="userSettingsBtn" type="button" class="query-chip" title="Open user settings.">
-            <span class="button-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path>
-                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.04.04a2 2 0 0 1-2.83 2.83l-.04-.04a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08A1.7 1.7 0 0 0 8.96 19.36a1.7 1.7 0 0 0-1.87.34l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.04-.04a2 2 0 1 1 2.83-2.83l.04.04A1.7 1.7 0 0 0 8.96 4.64 1.7 1.7 0 0 0 10 3.08V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.04-.04a2 2 0 0 1 2.83 2.83l-.04.04A1.7 1.7 0 0 0 19.4 9 1.7 1.7 0 0 0 21 10h.08a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"></path>
-              </svg>
-            </span>
-            <span>Settings</span>
-          </button>
           <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
             <span class="button-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -100,83 +91,103 @@
             </span>
             <span>Sign out</span>
           </button>
-          <div id="userSettingsPanel" class="user-settings-panel is-hidden" role="dialog" aria-label="User settings">
-            <div class="user-settings-header">
-              <strong>Settings</strong>
-              <button id="userSettingsCloseBtn" type="button" class="icon-button" aria-label="Close settings">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 6 6 18"></path>
-                  <path d="m6 6 12 12"></path>
-                </svg>
-              </button>
-            </div>
-            <div class="user-settings-grid">
-              <div>
-                <label for="settingsLandingTabMode">Start behavior</label>
-                <select id="settingsLandingTabMode">
-                  <option value="fixed">Fixed start tab</option>
-                  <option value="last">Remember last tab</option>
-                </select>
-              </div>
-              <div>
-                <label for="settingsLandingTab">Start tab</label>
-                <select id="settingsLandingTab">
-                  <option value="dashboard">Dashboard</option>
-                  <option value="datasets">Datasets</option>
-                  <option value="query">Query</option>
-                  <option value="analysis">Analysis</option>
-                  <option value="pheno">Pheno-Ranker</option>
-                </select>
-              </div>
-              <div>
-                <label for="settingsQueryDisclosure">Query disclosure</label>
-                <select id="settingsQueryDisclosure">
-                  <option value="detailed">Detailed when allowed</option>
-                  <option value="summary">Summary</option>
-                </select>
-              </div>
-              <div>
-                <label for="settingsQueryDefaultMode">Query mode</label>
-                <select id="settingsQueryDefaultMode">
-                  <option value="auto">Auto</option>
-                  <option value="planner_only">Planner first</option>
-                </select>
-              </div>
-              <div>
-                <label for="settingsPhenoDefaultMetric">Pheno metric</label>
-                <select id="settingsPhenoDefaultMetric">
-                  <option value="">Default</option>
-                  <option value="hamming">Hamming</option>
-                  <option value="jaccard">Jaccard</option>
-                </select>
-              </div>
-              <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Jobs after background runs</label>
-              <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
-              <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
-              <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
-              <label class="user-settings-check"><input id="settingsPhenoRenderGraph" type="checkbox"> Render Pheno graph</label>
-              <label class="user-settings-check"><input id="settingsDashboardMolecularOpen" type="checkbox"> Open Dashboard on molecular view</label>
-              <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
-            </div>
-            <div class="user-settings-danger">
-              <strong>Danger zone</strong>
-              <div class="user-settings-danger-actions">
-                <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
-                <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete completed jobs</button>
-                <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
-              </div>
-            </div>
-            <div id="userSettingsStatus" class="section-note">Preferences are saved per signed-in user.</div>
-            <div class="user-settings-actions">
-              <button id="userSettingsResetBtn" type="button" class="secondary-btn">Reset</button>
-              <button id="userSettingsSaveBtn" type="button">Save</button>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div class="tab-bar">
-        <button id="dashboardTabBtn" class="tab-btn active" type="button">
+      <div id="userSettingsPanel" class="user-settings-panel is-hidden" role="dialog" aria-label="User settings">
+        <div class="user-settings-header">
+          <strong>Settings</strong>
+          <button id="userSettingsCloseBtn" type="button" class="icon-button" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="user-settings-grid">
+          <div>
+            <label for="settingsLandingTabMode">Start behavior</label>
+            <select id="settingsLandingTabMode">
+              <option value="fixed">Fixed start tab</option>
+              <option value="last">Remember last tab</option>
+            </select>
+          </div>
+          <div>
+            <label for="settingsLandingTab">Start tab</label>
+            <select id="settingsLandingTab">
+              <option value="dashboard">Dashboard</option>
+              <option value="datasets">Datasets</option>
+              <option value="query">Query</option>
+              <option value="analysis">Analysis</option>
+              <option value="pheno">Pheno-Ranker</option>
+            </select>
+          </div>
+          <div>
+            <label for="settingsQueryDisclosure">Query disclosure</label>
+            <select id="settingsQueryDisclosure">
+              <option value="detailed">Detailed when allowed</option>
+              <option value="summary">Summary</option>
+            </select>
+          </div>
+          <div>
+            <label for="settingsQueryDefaultMode">Query mode</label>
+            <select id="settingsQueryDefaultMode">
+              <option value="auto">Auto</option>
+              <option value="planner_only">Planner first</option>
+            </select>
+          </div>
+          <div>
+            <label for="settingsPhenoDefaultMetric">Pheno metric</label>
+            <select id="settingsPhenoDefaultMetric">
+              <option value="">Default</option>
+              <option value="hamming">Hamming</option>
+              <option value="jaccard">Jaccard</option>
+            </select>
+          </div>
+          <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Jobs after background runs</label>
+          <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
+          <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
+          <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
+          <label class="user-settings-check"><input id="settingsPhenoRenderGraph" type="checkbox"> Render Pheno graph</label>
+          <label class="user-settings-check"><input id="settingsDashboardMolecularOpen" type="checkbox"> Open Dashboard on molecular view</label>
+          <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
+        </div>
+        <div class="user-settings-danger">
+          <strong>Danger zone</strong>
+          <div class="user-settings-danger-actions">
+            <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
+            <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete completed jobs</button>
+            <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
+          </div>
+        </div>
+        <div id="userSettingsStatus" class="section-note">Preferences are saved per signed-in user.</div>
+        <div class="user-settings-actions">
+          <button id="userSettingsResetBtn" type="button" class="secondary-btn">Reset</button>
+          <button id="userSettingsSaveBtn" type="button">Save</button>
+        </div>
+      </div>
+
+      <div id="analysisChatsDrawer" class="analysis-chats-drawer is-hidden" aria-hidden="true">
+        <div class="analysis-chats-drawer-backdrop" data-analysis-chats-close="true"></div>
+        <aside class="analysis-sidebar analysis-chats-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="analysisChatsDrawerTitle">
+          <div class="analysis-sidebar-header">
+            <div class="analysis-sidebar-copy">
+              <strong id="analysisChatsDrawerTitle">Analysis Chats</strong>
+              <div class="section-note" style="margin:6px 0 0;">One thread per analytical path, scope, or dataset.</div>
+            </div>
+            <button id="analysisChatsDrawerCloseBtn" type="button" class="query-chip">Close</button>
+            <button id="analysisNewSessionBtn" type="button" class="query-chip action">New analysis</button>
+          </div>
+          <div id="analysisSessionList" class="analysis-session-list">
+            <div class="empty">No analysis sessions yet.</div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="app-workbench">
+        <aside class="app-sidebar" aria-label="Primary navigation">
+          <nav class="tab-bar app-sidebar-nav" aria-label="Application sections">
+        <button id="dashboardTabBtn" class="tab-btn active" type="button" aria-current="page">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -248,7 +259,21 @@
           </span>
           <span>Pheno-Ranker</span>
         </button>
-      </div>
+          </nav>
+          <div class="app-sidebar-utility">
+            <button id="userSettingsBtn" type="button" class="app-sidebar-settings" title="Open user settings.">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path>
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.04.04a2 2 0 0 1-2.83 2.83l-.04-.04a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.08A1.7 1.7 0 0 0 8.96 19.36a1.7 1.7 0 0 0-1.87.34l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3a2 2 0 0 1 0-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.04-.04a2 2 0 1 1 2.83-2.83l.04.04A1.7 1.7 0 0 0 8.96 4.64 1.7 1.7 0 0 0 10 3.08V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.04-.04a2 2 0 0 1 2.83 2.83l-.04.04A1.7 1.7 0 0 0 19.4 9 1.7 1.7 0 0 0 21 10h.08a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"></path>
+                </svg>
+              </span>
+              <span>Settings</span>
+            </button>
+          </div>
+        </aside>
+
+        <div class="app-content">
 
       <div class="context-bar" id="globalContextBar">
         <div class="context-pill"><span>Datasets</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>
@@ -877,31 +902,44 @@
 
       <section id="analysisTab" class="tab-panel">
         <div id="analysisShell" class="analysis-shell">
-          <aside class="analysis-sidebar">
-            <div class="analysis-sidebar-header">
-              <button id="analysisSidebarToggleBtn" type="button" class="analysis-sidebar-toggle" aria-label="Collapse Analysis Chats" aria-expanded="true" title="Collapse Analysis Chats">
+          <div class="controls analysis-main">
+            <div class="analysis-chat-bar">
+              <div class="analysis-chat-current">
+                <span>Current chat</span>
+                <strong id="analysisCurrentChatTitle">New analysis</strong>
+                <small id="analysisCurrentChatMeta">No turns yet.</small>
+              </div>
+              <button id="analysisChatsDrawerBtn" type="button" class="query-chip">
                 <span class="button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="4" y="5" width="16" height="14" rx="2"></rect>
-                    <path d="M9 5v14"></path>
-                    <path d="m15 9-3 3 3 3"></path>
+                    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
                   </svg>
                 </span>
+                <span>Chats</span>
               </button>
-              <div class="analysis-sidebar-copy">
-                <strong>Analysis Chats</strong>
-                <div class="section-note" style="margin:6px 0 0;">One thread per analytical path, scope, or dataset.</div>
-              </div>
-              <button id="analysisNewSessionBtn" type="button" class="query-chip action">New analysis</button>
+              <button id="analysisNewSessionTopBtn" type="button" class="query-chip action">New chat</button>
             </div>
-            <div id="analysisSessionList" class="analysis-session-list">
-              <div class="empty">No analysis sessions yet.</div>
-            </div>
-          </aside>
-          <div class="controls analysis-main">
             <div class="analysis-workspace-bar">
               <div id="analysisStatus" class="analysis-workspace-status"></div>
               <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>
+            </div>
+            <div id="analysisFlowBar" class="analysis-flow-bar" aria-label="Analysis workflow">
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="scope">
+                <span class="analysis-flow-step-index">1</span>
+                <span class="analysis-flow-step-copy"><span>Scope</span><strong>Full workspace</strong></span>
+              </button>
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="catalog">
+                <span class="analysis-flow-step-index">2</span>
+                <span class="analysis-flow-step-copy"><span>Catalog</span><strong>Optional</strong></span>
+              </button>
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="prompt">
+                <span class="analysis-flow-step-index">3</span>
+                <span class="analysis-flow-step-copy"><span>Prompt</span><strong>Ready</strong></span>
+              </button>
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="results">
+                <span class="analysis-flow-step-index">4</span>
+                <span class="analysis-flow-step-copy"><span>Results</span><strong>Empty</strong></span>
+              </button>
             </div>
             <div id="analysisDatasetScope" class="section-note">Workspace dataset: current selection.</div>
             <details class="analysis-setup-card">
@@ -1037,32 +1075,6 @@
                 </div>
               </div>
             </div>
-            <div id="analysisFlowBar" class="analysis-flow-bar" aria-label="Analysis workflow">
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="scope">
-                <span class="analysis-flow-step-index">1</span>
-                <span class="analysis-flow-step-copy"><span>Scope</span><strong>Full workspace</strong></span>
-              </button>
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="analysis">
-                <span class="analysis-flow-step-index">2</span>
-                <span class="analysis-flow-step-copy"><span>Analysis</span><strong>Free prompt</strong></span>
-              </button>
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="prompt">
-                <span class="analysis-flow-step-index">3</span>
-                <span class="analysis-flow-step-copy"><span>Prompt</span><strong>Ready</strong></span>
-              </button>
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="requirements">
-                <span class="analysis-flow-step-index">4</span>
-                <span class="analysis-flow-step-copy"><span>Requirements</span><strong>Ready</strong></span>
-              </button>
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="run">
-                <span class="analysis-flow-step-index">5</span>
-                <span class="analysis-flow-step-copy"><span>Run</span><strong>Ready</strong></span>
-              </button>
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="results">
-                <span class="analysis-flow-step-index">6</span>
-                <span class="analysis-flow-step-copy"><span>Results</span><strong>Empty</strong></span>
-              </button>
-            </div>
             <div class="analysis-composer">
               <div class="analysis-composer-header">
                 <strong>Run Analysis</strong>
@@ -1120,6 +1132,8 @@
           </div>
         </div>
       </section>
+        </div>
+      </div>
       </div>
     </main>
 

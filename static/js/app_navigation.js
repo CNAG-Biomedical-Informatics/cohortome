@@ -77,6 +77,13 @@ export function createNavigationUi(ctx) {
     queryTabBtnEl && queryTabBtnEl.classList.toggle("active", showQuery);
     analysisTabBtnEl && analysisTabBtnEl.classList.toggle("active", showAnalysis);
     phenoTabBtnEl && phenoTabBtnEl.classList.toggle("active", showPheno);
+    dashboardTabBtnEl && dashboardTabBtnEl.setAttribute("aria-current", showDashboard ? "page" : "false");
+    datasetsTabBtnEl && datasetsTabBtnEl.setAttribute("aria-current", showDatasets ? "page" : "false");
+    dataTabBtnEl && dataTabBtnEl.setAttribute("aria-current", showData ? "page" : "false");
+    usersTabBtnEl && usersTabBtnEl.setAttribute("aria-current", showUsers ? "page" : "false");
+    queryTabBtnEl && queryTabBtnEl.setAttribute("aria-current", showQuery ? "page" : "false");
+    analysisTabBtnEl && analysisTabBtnEl.setAttribute("aria-current", showAnalysis ? "page" : "false");
+    phenoTabBtnEl && phenoTabBtnEl.setAttribute("aria-current", showPheno ? "page" : "false");
     dashboardTabEl && dashboardTabEl.classList.toggle("active", showDashboard);
     datasetsTabEl && datasetsTabEl.classList.toggle("active", showDatasets);
     dataTabEl && dataTabEl.classList.toggle("active", showData);

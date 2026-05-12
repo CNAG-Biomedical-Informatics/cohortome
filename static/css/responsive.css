@@ -1,4 +1,25 @@
       @media (max-width: 900px) {
+        main { padding: 18px 12px 42px; }
+        .app-workbench { grid-template-columns: 1fr; }
+        .app-sidebar {
+          position: static;
+          min-height: 0;
+          padding: 10px;
+          border-radius: 18px;
+        }
+        .app-sidebar-header { display: none; }
+        .app-sidebar-nav {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: max-content;
+          overflow-x: auto;
+          padding-bottom: 2px;
+        }
+        .app-sidebar-nav .tab-btn {
+          width: auto;
+          min-width: 132px;
+          justify-content: center;
+        }
         .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-shell, .viz-grid, .metrics-grid, .workspace-grid { grid-template-columns: 1fr; }
         .molecular-grid, .molecular-result-grid, .molecular-dashboard-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
@@ -6,12 +27,21 @@
         .molecular-kpi-grid, .molecular-summary-grid, .molecular-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-loader-row { grid-template-columns: 1fr; align-items: stretch; }
         .analysis-shell { grid-template-columns: 1fr; }
-        .analysis-sidebar { position: static; }
+        .analysis-chats-drawer-panel {
+          position: absolute;
+          inset: 12px;
+          width: auto;
+        }
         .analysis-session-list { max-height: none; }
         .analysis-setup-summary { grid-template-columns: 1fr; }
         #queryClearBtn { margin-left: 0; }
       }
       @media (max-width: 640px) {
+        .app-sidebar-nav .tab-btn {
+          min-width: 116px;
+          padding-left: 10px;
+          padding-right: 10px;
+        }
         .context-bar { grid-template-columns: 1fr; }
         .molecular-kpi-grid, .molecular-summary-grid, .molecular-workspace-kpis, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
         .dashboard-subtabs {
