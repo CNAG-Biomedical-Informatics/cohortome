@@ -924,7 +924,7 @@ export function createAnalysisCatalogUi(ctx) {
         : `${item.name} selected. Review the prompt and run the analysis.`;
     }
     if (analysisCatalogDisclosureEl) {
-      analysisCatalogDisclosureEl.open = false;
+      analysisCatalogDisclosureEl.open = Boolean(item.requires_molecular);
     }
     setAnalysisCatalogDrawerOpen(false);
     renderAnalysisCatalogDisclosureSummary();

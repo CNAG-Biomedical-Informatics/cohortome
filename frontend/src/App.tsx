@@ -13,6 +13,8 @@ import { DataAdminTab, UsersAdminTab } from "./features/admin/AdminTabs";
 const tabs = [
   { id: "dashboard", label: "Dashboard", legacy: true },
   { id: "datasets", label: "Datasets", legacy: false },
+  { id: "data", label: "Data Admin", legacy: false, admin: true },
+  { id: "users", label: "Users", legacy: false, admin: true },
   { id: "analysis", label: "Analysis", legacy: true },
   { id: "pheno", label: "Pheno-Ranker", legacy: false },
   { id: "query", label: "Query", legacy: true },
@@ -73,6 +75,10 @@ export function App() {
     const ids = new Set(selectedDatasetIds);
     return all.filter((dataset) => ids.has(dataset.dataset_id));
   }, [datasetsQuery.data?.datasets, selectedDatasetIds]);
+  const visibleTabs = useMemo(() => {
+    const role = authQuery.data?.user?.role || "user";
+    return tabs.filter((tab) => !tab.admin || role === "admin");
+  }, [authQuery.data?.user?.role]);
 
   if (authQuery.isLoading) {
     return <CenteredStatus title="Loading React workspace" detail="Checking authentication state." />;
@@ -92,7 +98,7 @@ export function App() {
         <div>
           <div className="react-hero-label">Parallel React frontend</div>
           <h1>Patient Navigator</h1>
-          <p>Pheno-Ranker is live here first. The legacy application remains available at <a href="/">/</a>.</p>
+          <p>React migration preview for the core workspace. The legacy application remains available at <a href="/">/</a>.</p>
         </div>
         <div className="react-user-card">
           <strong>{authQuery.data.user?.display_name || authQuery.data.user?.username || "User"}</strong>
@@ -107,7 +113,7 @@ export function App() {
       </header>
 
       <nav className="tab-bar react-tab-bar" aria-label="React workspace sections">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
