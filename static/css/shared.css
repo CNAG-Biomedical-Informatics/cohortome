@@ -47,7 +47,7 @@
       }
       .context-bar {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
         margin: 18px 0 14px;
         padding: 14px;
@@ -79,6 +79,23 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+      .context-pill.is-ready {
+        border-color: rgba(22, 163, 74, 0.28);
+        background: rgba(240, 253, 244, 0.92);
+      }
+      .context-pill.is-ready strong {
+        color: #166534;
+      }
+      .context-pill.is-warning {
+        border-color: rgba(217, 119, 6, 0.28);
+        background: rgba(255, 251, 235, 0.94);
+      }
+      .context-pill.is-warning strong {
+        color: #92400e;
+      }
+      .context-pill.is-muted {
+        opacity: 0.78;
       }
       .tab-btn {
         display: inline-flex;
@@ -284,7 +301,7 @@
         position: fixed;
         top: var(--settings-panel-top, 88px);
         left: var(--settings-panel-left, 16px);
-        width: var(--settings-panel-width, min(420px, calc(100vw - 32px)));
+        width: var(--settings-panel-width, min(560px, calc(100vw - 32px)));
         z-index: 10000;
         display: grid;
         gap: 14px;
@@ -293,6 +310,8 @@
         border-radius: 18px;
         background: rgba(255, 255, 255, 0.98);
         box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
+        max-height: calc(100vh - var(--settings-panel-top, 88px) - 16px);
+        overflow: auto;
       }
       .user-settings-header {
         display: flex;
@@ -320,7 +339,11 @@
       }
       .user-settings-grid {
         display: grid;
-        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .user-settings-grid .user-settings-check {
+        grid-column: span 2;
       }
       .user-settings-check {
         display: flex;
@@ -338,12 +361,42 @@
         accent-color: var(--accent);
       }
       .user-settings-actions {
+        position: sticky;
+        bottom: -16px;
         display: flex;
         justify-content: flex-end;
         gap: 10px;
+        margin: 0 -16px -16px;
+        padding: 12px 16px 16px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.98);
       }
       .user-settings-actions button {
         width: auto;
+      }
+      .user-settings-danger {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        border-radius: 14px;
+        background: rgba(254, 242, 242, 0.72);
+      }
+      .user-settings-danger strong {
+        color: #991b1b;
+      }
+      .user-settings-danger-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .danger-btn {
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid rgba(185, 28, 28, 0.22);
+        background: rgba(255, 255, 255, 0.86);
+        color: #991b1b;
+        box-shadow: none;
       }
       .secondary-btn {
         background: rgba(255, 255, 255, 0.86);
@@ -353,6 +406,17 @@
       }
       .section-note.is-warning {
         color: #92400e;
+      }
+      @media (max-width: 700px) {
+        .user-settings-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .user-settings-grid .user-settings-check {
+          grid-column: auto;
+        }
+        .user-settings-danger-actions {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
       .auth-gate {
         margin: 10px 0 22px;

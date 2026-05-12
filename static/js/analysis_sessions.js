@@ -30,6 +30,7 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisStarterPrompts,
     renderAnalysisThread,
     renderAnalysisMeta,
+    renderAnalysisFlowBar,
   } = callbacks;
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
   let pendingDeleteSessionId = "";
@@ -318,6 +319,7 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisCompareScopeSummary();
     renderAnalysisStarterPrompts();
     renderAnalysisThread();
+    if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
     const latestAssistantTurn = state.analysisTurns.slice().reverse().find((turn) => turn.role === "assistant" && turn.payload && !turn.pending);
     if (latestAssistantTurn && latestAssistantTurn.payload) {
       renderAnalysisMeta(latestAssistantTurn.payload);
@@ -371,6 +373,18 @@ export function createAnalysisSessionsUi(ctx) {
       state.currentAnalysisSessionId = state.analysisSessions[0].id;
     }
     applyAnalysisSession(currentAnalysisSession());
+  }
+
+  function resetAnalysisSessionsAfterBulkDelete() {
+    try {
+      window.localStorage.removeItem(analysisSessionsStorageKey());
+    } catch (_error) {
+    }
+    const session = createAnalysisSession({ dataDir: dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "" });
+    state.analysisSessions = [session];
+    state.currentAnalysisSessionId = session.id;
+    applyAnalysisSession(session);
+    persistAnalysisSessions();
   }
 
   function renameAnalysisSession(sessionId) {
@@ -481,6 +495,7 @@ export function createAnalysisSessionsUi(ctx) {
     selectAnalysisSession,
     createAndSelectAnalysisSession,
     ensureAnalysisSessionsLoaded,
+    resetAnalysisSessionsAfterBulkDelete,
     renameAnalysisSession,
     deleteAnalysisSessionById,
     prepareAnalysisSessionForDataDir,

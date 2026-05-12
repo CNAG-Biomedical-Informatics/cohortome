@@ -59,7 +59,7 @@ from app.datasets import (
     update_dataset,
     workspace_fingerprint_for_data_dir,
 )
-from app.lm import lm_studio_base_url, lm_studio_enabled, resolve_lm_studio_model
+from app.lm import lm_studio_health
 from app.jobs import (
     active_feature_job,
     delete_job,
@@ -476,14 +476,7 @@ def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DE
 
 
 def get_lm_status() -> Dict:
-    enabled = lm_studio_enabled()
-    model = resolve_lm_studio_model() if enabled else None
-    base_url = lm_studio_base_url()
-    return {
-        "enabled": enabled,
-        "base_url": base_url,
-        "model": model,
-    }
+    return lm_studio_health()
 
 
 def get_branding_logo() -> FileResponse:
@@ -695,6 +688,60 @@ def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
     if not deleted:
         raise HTTPException(status_code=404, detail="Saved cohort not found.")
     return {"deleted": True, "id": cohort_id}
+
+
+def delete_user_analysis_sessions(request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    sessions = list_analysis_sessions(user_id=user_id)
+    deleted_count = 0
+    for item in sessions:
+        session_id = str(item.get("id") or "").strip()
+        if session_id and delete_analysis_session(session_id, user_id=user_id):
+            deleted_count += 1
+    return {"deleted": True, "deleted_count": deleted_count}
+
+
+def delete_user_completed_jobs(request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    deleted_count = 0
+    skipped_active_count = 0
+    for item in list_job_records(user_id):
+        job_id = str(item.get("job_id") or "").strip()
+        status = str(item.get("status") or "").strip().lower()
+        if status in {"queued", "running"}:
+            skipped_active_count += 1
+            continue
+        if job_id and delete_job(job_id, user_id):
+            deleted_count += 1
+    return {"deleted": True, "deleted_count": deleted_count, "skipped_active_count": skipped_active_count}
+
+
+def delete_user_saved_cohorts(request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    cohorts = list_saved_cohorts(user_id=user_id)
+    referenced = [
+        item
+        for item in cohorts
+        if list_sessions_referencing_saved_cohort(str(item.get("id") or "").strip(), user_id=user_id)
+    ]
+    if referenced:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(referenced)} saved cohort"
+                f"{'' if len(referenced) == 1 else 's'} still referenced by analysis chats. "
+                "Delete analysis chats first or remove those cohort references."
+            ),
+        )
+    deleted_count = 0
+    for item in cohorts:
+        cohort_id = str(item.get("id") or "").strip()
+        if cohort_id and delete_saved_cohort(cohort_id, user_id=user_id):
+            deleted_count += 1
+    return {"deleted": True, "deleted_count": deleted_count}
 
 
 def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
@@ -1111,6 +1158,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"], tags=["cohorts"], summary="List saved cohorts", description="Returns saved cohorts for the current user within the active dataset workspace.", response_model=SavedCohortsResponse)
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"], tags=["cohorts"], summary="Create a saved cohort", description="Persists a saved cohort containing canonical sample IDs and derived patient IDs.", response_model=SavedCohortResponse)
     app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"], tags=["cohorts"], summary="Delete a saved cohort", description="Deletes a saved cohort owned by the current user.", response_model=DeleteResponse)
+    app.add_api_route("/user-data/analysis-sessions", delete_user_analysis_sessions, methods=["DELETE"], tags=["auth"], summary="Delete current user's analysis chats", description="Deletes all saved analysis chats owned by the current user.")
+    app.add_api_route("/user-data/jobs", delete_user_completed_jobs, methods=["DELETE"], tags=["auth"], summary="Delete current user's completed jobs", description="Deletes terminal background jobs and generated artifacts owned by the current user. Active jobs are skipped.")
+    app.add_api_route("/user-data/saved-cohorts", delete_user_saved_cohorts, methods=["DELETE"], tags=["auth"], summary="Delete current user's saved cohorts", description="Deletes saved cohorts owned by the current user when they are not referenced by saved analysis chats.")
     app.add_api_route("/query", query_app_post, methods=["POST"], tags=["query"], summary="Run a workspace query", description="Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.")
     app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or molecular analysis over the active workspace or selected saved cohorts.")

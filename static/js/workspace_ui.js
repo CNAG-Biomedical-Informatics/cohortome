@@ -39,6 +39,7 @@ export function createWorkspaceUi(ctx) {
     loadQueryDiseaseOptions,
     loadMolecularDatasets,
     loadPhenoRankerPatientIds,
+    renderAnalysisCatalog,
     renderPatientList,
     renderDetail,
     renderDashboard,
@@ -168,31 +169,51 @@ export function createWorkspaceUi(ctx) {
     if (!lmStatusEl || !phenoLmStatusEl || !analysisLmStatusEl) {
       return;
     }
+    const setContextLmStatus = (label, statusClass, title) => {
+      if (!contextLmModelEl) return;
+      const pill = contextLmModelEl.closest(".context-pill");
+      if (pill) {
+        pill.classList.remove("is-ready", "is-warning", "is-muted");
+        if (statusClass) pill.classList.add(statusClass);
+      }
+      contextLmModelEl.textContent = label;
+      contextLmModelEl.title = title || label;
+    };
     try {
       const response = await fetch("/lm-status");
       if (!response.ok) {
         throw new Error("Unable to load LM status.");
       }
       const payload = await response.json();
-      const text = payload.enabled
-        ? (payload.model ? `LLM model: ${payload.model}` : "LLM: enabled, but no model is loaded")
-        : "LLM: disabled";
+      state.lmStatus = payload;
+      const text = !payload.enabled
+        ? "LLM: disabled"
+        : (payload.available
+          ? `LLM ready: ${payload.model || "model loaded"}`
+          : (payload.status === "no_model" ? "LLM: no model loaded" : "LLM: unavailable"));
       lmStatusEl.textContent = text;
       phenoLmStatusEl.textContent = text;
       analysisLmStatusEl.textContent = text;
-      if (contextLmModelEl) {
-        contextLmModelEl.textContent = payload.enabled
-          ? (payload.model || "Enabled, no model loaded")
-          : "Disabled";
+      const title = payload.detail || payload.base_url || text;
+      if (!payload.enabled) {
+        setContextLmStatus("Disabled", "is-muted", title);
+      } else if (payload.available) {
+        setContextLmStatus(`Ready: ${payload.model || "model"}`, "is-ready", title);
+      } else if (payload.status === "no_model") {
+        setContextLmStatus("No model loaded", "is-warning", title);
+      } else {
+        setContextLmStatus("Unavailable", "is-warning", title);
       }
     } catch (_error) {
       const text = "LLM model: unavailable";
+      state.lmStatus = { enabled: true, available: false, status: "unavailable", detail: "Unable to load LM status." };
       lmStatusEl.textContent = text;
       phenoLmStatusEl.textContent = text;
       analysisLmStatusEl.textContent = text;
-      if (contextLmModelEl) {
-        contextLmModelEl.textContent = "Unavailable";
-      }
+      setContextLmStatus("Unavailable", "is-warning", "Unable to load LM status.");
+    }
+    if (typeof renderAnalysisCatalog === "function") {
+      renderAnalysisCatalog();
     }
     renderGlobalContext();
   }

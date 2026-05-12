@@ -10,6 +10,7 @@ export function createPhenoUi(ctx) {
     dataDirEl,
     phenoActionEl,
     phenoModeEl,
+    phenoFlowBarEl,
     phenoPromptEl,
     phenoPlanBtnEl,
     phenoPlanRunBtnEl,
@@ -20,6 +21,7 @@ export function createPhenoUi(ctx) {
     phenoPlanReasoningEl,
     phenoReferenceFilesSummaryEl,
     phenoBackgroundJobBannerEl,
+    phenoSetupDetailsEl,
     phenoPatientFieldEl,
     phenoPatientIdEl,
     phenoSelectedPatientIdsEl,
@@ -610,6 +612,65 @@ export function createPhenoUi(ctx) {
     }
   }
 
+  function renderPhenoFlowBar() {
+    if (!phenoFlowBarEl) return;
+    const selectedSavedCohortIds = typeof getSelectedSavedCohortIds === "function" ? getSelectedSavedCohortIds() : [];
+    const manualScopeIds = String(phenoSelectedPatientIdsEl && phenoSelectedPatientIdsEl.value ? phenoSelectedPatientIdsEl.value : "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const hasPrompt = Boolean(phenoPromptEl && phenoPromptEl.value.trim());
+    const planText = String(phenoPlanEl && phenoPlanEl.textContent ? phenoPlanEl.textContent : "").trim();
+    const hasPlan = Boolean(planText && planText !== "No interpreted plan yet.");
+    const hasResults = Boolean(state.runState);
+    const activeBackgroundJob = currentActivePhenoBackgroundJob();
+    const resultsVisible = phenoResultWorkspaceEl && !phenoResultWorkspaceEl.classList.contains("is-hidden");
+    const activeTarget = state.inFlight
+      ? "run"
+      : hasResults || resultsVisible
+        ? "results"
+        : state.planInFlight
+          ? "plan"
+          : hasPrompt
+            ? "run"
+            : "scope";
+    const actionLabel = phenoActionEl && phenoActionEl.value === "extract" ? "Extract" : "Compare";
+    const modeLabel = phenoModeEl && phenoModeEl.value === "patient" ? "Patient" : "Cohort";
+    const steps = {
+      scope: {
+        value: selectedSavedCohortIds.length
+          ? `${selectedSavedCohortIds.length} saved cohort${selectedSavedCohortIds.length === 1 ? "" : "s"}`
+          : manualScopeIds.length
+            ? `${manualScopeIds.length} selected`
+            : "Full workspace",
+        state: "is-ready",
+      },
+      setup: { value: `${modeLabel} ${actionLabel.toLowerCase()}`, state: "is-ready" },
+      plan: {
+        value: state.planInFlight ? "Previewing" : hasPlan ? "Previewed" : "Not previewed",
+        state: state.planInFlight ? "is-running" : hasPlan ? "is-ready" : "is-neutral",
+      },
+      run: {
+        value: activeBackgroundJob ? "Locked" : state.inFlight ? "Running" : hasPrompt ? "Ready" : "Needs prompt",
+        state: activeBackgroundJob ? "is-blocked" : state.inFlight ? "is-running" : hasPrompt ? "is-ready" : "is-blocked",
+      },
+      results: {
+        value: state.inFlight ? "Pending" : hasResults ? "Generated" : activeBackgroundJob ? "Job queued" : "Empty",
+        state: state.inFlight ? "is-running" : hasResults || activeBackgroundJob ? "is-ready" : "is-neutral",
+      },
+    };
+    Array.from(phenoFlowBarEl.querySelectorAll("[data-pheno-flow-target]")).forEach((button) => {
+      const target = String(button.dataset.phenoFlowTarget || "");
+      const step = steps[target];
+      if (!step) return;
+      const valueEl = button.querySelector("strong");
+      if (valueEl) valueEl.textContent = step.value;
+      button.classList.remove("is-active", "is-ready", "is-blocked", "is-running", "is-neutral");
+      button.classList.add(step.state);
+      button.classList.toggle("is-active", target === activeTarget);
+    });
+  }
+
   function updatePhenoRunAvailability() {
     if (!phenoRunBtnEl || !phenoPromptEl) {
       return;
@@ -644,6 +705,7 @@ export function createPhenoUi(ctx) {
           : "Describe a run in natural language. The run applies to the current scope shown above.";
       }
     }
+    renderPhenoFlowBar();
   }
 
   function getPhenoPlotSelection(kind) {
@@ -814,6 +876,7 @@ export function createPhenoUi(ctx) {
     }
 
     state.planInFlight = true;
+    renderPhenoFlowBar();
     resetPhenoRunWorkspace();
     phenoPlanBtnEl.disabled = true;
     phenoPlanRunBtnEl.disabled = true;
@@ -2392,6 +2455,16 @@ export function createPhenoUi(ctx) {
     await applyPhenoRunPayload(result, { statusPrefix: "Loaded" });
   }
 
+  function scrollPhenoResultIntoView() {
+    const target = phenoResultWorkspaceEl && !phenoResultWorkspaceEl.classList.contains("is-hidden")
+      ? phenoResultWorkspaceEl
+      : phenoStatusEl;
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function runPhenoRanker(usePromptPlanner = true) {
     if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides && !hasPhenoGraphCutoffInput()) {
       const payload = await requestPhenoPlan(false);
@@ -2442,9 +2515,11 @@ export function createPhenoUi(ctx) {
 
     state.inFlight = true;
     updatePhenoRunAvailability();
+    renderPhenoFlowBar();
     phenoStatusEl.className = "pheno-status loading";
     phenoStatusEl.textContent = "Running Pheno-Ranker...";
     setPhenoResultWorkspaceVisible(true);
+    scrollPhenoResultIntoView();
     phenoCommandEl.textContent = "Preparing command...";
     phenoFilesEl.innerHTML = '<div class="empty">Waiting for Pheno-Ranker outputs.</div>';
     state.runState = null;
@@ -2492,6 +2567,7 @@ export function createPhenoUi(ctx) {
         const detail = detailObject ? JSON.stringify(detailObject, null, 2) : String((payload && payload.detail) || "Pheno-Ranker failed.");
         phenoStatusEl.className = "pheno-status";
         phenoStatusEl.textContent = "Pheno-Ranker failed. See Logs for details.";
+        scrollPhenoResultIntoView();
         phenoCommandEl.textContent = detailObject && detailObject.command ? detailObject.command : "Command failed before completion.";
         phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
         phenoLogsEl.textContent = detail;
@@ -2517,10 +2593,13 @@ export function createPhenoUi(ctx) {
           handlePhenoJobSubmission(payload);
         }
         renderPhenoBackgroundJobBanner();
+        scrollPhenoResultIntoView();
         return;
       }
 
       await applyPhenoRunPayload(payload);
+      renderPhenoFlowBar();
+      scrollPhenoResultIntoView();
     } catch (error) {
       stopPhenoRunProgressUpdates();
       phenoStatusEl.className = "pheno-status";
@@ -2529,6 +2608,7 @@ export function createPhenoUi(ctx) {
       phenoFilesEl.innerHTML = '<div class="empty">No output files available.</div>';
       phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plots available for this run.</div>';
       phenoLogsEl.textContent = error && error.message ? error.message : "Unexpected request failure.";
+      scrollPhenoResultIntoView();
     } finally {
       stopPhenoRunProgressUpdates();
       state.inFlight = false;
@@ -2627,6 +2707,7 @@ export function createPhenoUi(ctx) {
     updatePhenoExplainActions,
     updatePhenoResultActions,
     updatePhenoRunAvailability,
+    renderPhenoFlowBar,
     setPhenoResultWorkspaceVisible,
     resetPhenoRunWorkspace,
     planPhenoRanker,

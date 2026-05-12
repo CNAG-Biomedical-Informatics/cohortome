@@ -900,14 +900,53 @@ def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> 
     assert captured["body"]["deterministic_only"] is True
 
 
+def test_analysis_llm_starter_chip_blocks_when_lm_unavailable(page) -> None:
+    expect = playwright.expect
+    page.route(
+        "**/lm-status",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "enabled": True,
+                    "available": False,
+                    "status": "no_model",
+                    "base_url": "http://127.0.0.1:1234/v1",
+                    "model": "",
+                    "detail": "No model loaded.",
+                }
+            ),
+        ),
+    )
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+
+    analysis_called = {"value": False}
+
+    def unexpected_analysis(route):
+        analysis_called["value"] = True
+        route.fulfill(status=500, content_type="application/json", body=json.dumps({"detail": "unexpected"}))
+
+    page.route("**/analysis", unexpected_analysis)
+    if page.locator("#analysisStarterPanel .query-chip-toggle").count():
+        page.locator("#analysisStarterPanel .query-chip-toggle").click()
+    page.locator("[data-analysis-prompt='Interpret the disease and medication profiles in this workspace and summarize the main themes.']").click()
+    expect(page.locator("#analysisStatus")).to_contain_text("LLM unavailable")
+    page.locator("#analysisRunBtn").click()
+    expect(page.locator("#analysisStatus")).to_contain_text("LLM unavailable")
+    expect(page.locator("#analysisThread")).to_contain_text("LLM unavailable")
+    assert analysis_called["value"] is False
+
+
 def test_analysis_catalog_item_prefills_prompt_and_compare_mode(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
 
-    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
-    expect(page.locator("#analysisCatalogList")).to_contain_text("Trajectory analysis")
     page.locator("#analysisCatalogBrowseBtn").click()
     expect(page.locator("#analysisCatalogDrawer")).to_be_visible()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Ready now")
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Needs setup")
     expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Trajectory analysis")
     page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='trajectory-single']").click()
 
@@ -1079,11 +1118,11 @@ def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
     page.locator("#analysisRunBtn").click()
 
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
-    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Catalog & prompts")
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Prompts")
 
     page.locator("#analysisComposerExamplesBtn").click()
     expect(page.locator("#analysisStarterPanel")).to_be_visible()
-    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Catalog & prompts")
+    expect(page.locator("#analysisComposerExamplesBtn")).to_contain_text("Prompts")
 
 
 def test_analysis_saved_cohort_disables_manual_scope_for_cohort_a(page) -> None:
@@ -1133,7 +1172,6 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
 
-    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
     page.locator("#analysisCatalogBrowseBtn").click()
 
     de_button = page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-differential-expression']")
@@ -1153,10 +1191,10 @@ def test_analysis_workflow_filter_shows_molecular_dataset_selector(page) -> None
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
 
-    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
-    page.locator("#analysisCatalogFilters [data-analysis-catalog-filter='workflow']").click()
-    expect(page.locator("#analysisCatalogList")).to_contain_text("Molecular signature workflow")
-    page.locator("#analysisCatalogList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+    page.locator("#analysisCatalogBrowseBtn").click()
+    page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Molecular signature workflow")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-signature-workflow']").click()
 
     expect(page.locator("#analysisCatalogMolecularPanel")).to_be_visible()
     expect(page.locator("#analysisCatalogMolecularDatasetList")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
@@ -1178,9 +1216,9 @@ def test_analysis_workflow_molecular_selector_keeps_one_dataset_selected(page) -
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
 
-    page.locator("#analysisTab .analysis-catalog-disclosure > summary").click()
-    page.locator("#analysisCatalogFilters [data-analysis-catalog-filter='workflow']").click()
-    page.locator("#analysisCatalogList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+    page.locator("#analysisCatalogBrowseBtn").click()
+    page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-signature-workflow']").click()
 
     first_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_infliximab']")
     second_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_ustekinumab']")
@@ -1197,9 +1235,10 @@ def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     _mock_analysis_trajectory_reply(page)
     expect = playwright.expect
 
-    page.locator("#analysisPrompt").fill("Show response to Infliximab using CRP")
+    page.locator("#analysisPrompt").fill("Show response to Infliximab using CRP.")
     page.locator("#analysisRunBtn").click()
 
+    expect(page.locator("#analysisComposerStatus")).to_contain_text("Analysis complete")
     expect(page.locator("#analysisThread")).to_contain_text("CRP declines after Infliximab")
     expect(page.locator("#analysisThread")).to_contain_text("Trajectory analysis")
     expect(page.locator("[id$='-trajectory']")).to_have_attribute("data-plotly-ready", "true")
@@ -1280,7 +1319,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
 
     expect(page_auth.locator("#authGate")).to_be_visible()
     expect(page_auth.locator("#appShell")).to_be_hidden()
-    expect(page_auth.locator("#contextAuth")).to_contain_text("Signed out")
+    expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Signed out")
     expect(page_auth.locator("#datasetsTabBtn")).to_be_hidden()
     expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
     expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
@@ -1296,7 +1335,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#datasetsTabBtn")).to_be_visible()
     expect(page_auth.locator("#dataTabBtn")).to_be_visible()
     expect(page_auth.locator("#usersTabBtn")).to_be_visible()
-    expect(page_auth.locator("#contextAuth")).to_contain_text("Admin User (admin)")
+    expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User (admin)")
 
     page_auth.locator("#datasetsTabBtn").click()
     expect(page_auth.locator("#loadBtn")).to_be_visible()

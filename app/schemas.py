@@ -31,21 +31,31 @@ class QueryRequest(BaseModel):
 
 class UserSettingsResponse(BaseModel):
     version: int = 1
+    landing_tab_mode: Literal["fixed", "last"] = "fixed"
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] = "dashboard"
     query_disclosure_default: Literal["summary", "detailed"] = "detailed"
+    query_default_mode: Literal["auto", "planner_only"] = "auto"
     analysis_auto_open_jobs: bool = True
     pheno_default_metric: Literal["", "hamming", "jaccard"] = ""
     pheno_advanced_open: bool = False
+    pheno_render_heatmap: bool = True
+    pheno_render_mds: bool = True
+    pheno_render_graph: bool = True
     dashboard_molecular_open: bool = False
     dataset_compact_view: bool = False
 
 
 class UserSettingsUpdateRequest(BaseModel):
+    landing_tab_mode: Literal["fixed", "last"] | None = None
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None
     query_disclosure_default: Literal["summary", "detailed"] | None = None
+    query_default_mode: Literal["auto", "planner_only"] | None = None
     analysis_auto_open_jobs: bool | None = None
     pheno_default_metric: Literal["", "hamming", "jaccard"] | None = None
     pheno_advanced_open: bool | None = None
+    pheno_render_heatmap: bool | None = None
+    pheno_render_mds: bool | None = None
+    pheno_render_graph: bool | None = None
     dashboard_molecular_open: bool | None = None
     dataset_compact_view: bool | None = None
 
@@ -321,8 +331,11 @@ class PatientSummaryResponse(FlexibleModel):
 
 class LmStatusResponse(BaseModel):
     enabled: bool
+    available: bool = False
+    status: str = "disabled"
     base_url: str
     model: str | None = None
+    detail: str = ""
 
 
 class MolecularDatasetResponse(FlexibleModel):

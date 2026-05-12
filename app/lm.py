@@ -175,3 +175,59 @@ def resolve_lm_studio_model(*, log_kind: str = "generic_models") -> str | None:
         return None
     model_id = first.get("id")
     return model_id if isinstance(model_id, str) and model_id.strip() else None
+
+
+def lm_studio_health(*, timeout: float = 2.0) -> Dict[str, Any]:
+    enabled = lm_studio_enabled()
+    configured_model = os.getenv("LM_STUDIO_MODEL", "").strip()
+    base_url = lm_studio_base_url()
+    if not enabled:
+        return {
+            "enabled": False,
+            "available": False,
+            "status": "disabled",
+            "base_url": base_url,
+            "model": configured_model or None,
+            "detail": "LM Studio is disabled.",
+        }
+    req = request.Request(
+        f"{base_url}/models",
+        headers={"Accept": "application/json", "Authorization": f"Bearer {lm_studio_api_key()}"},
+        method="GET",
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        return {
+            "enabled": True,
+            "available": False,
+            "status": "unreachable",
+            "base_url": base_url,
+            "model": configured_model or None,
+            "detail": f"LM Studio is enabled but unavailable: {exc}",
+        }
+    data = payload.get("data")
+    loaded_models = [
+        str(item.get("id") or "").strip()
+        for item in (data if isinstance(data, list) else [])
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    model = configured_model or (loaded_models[0] if loaded_models else None)
+    if not model:
+        return {
+            "enabled": True,
+            "available": False,
+            "status": "no_model",
+            "base_url": base_url,
+            "model": None,
+            "detail": "LM Studio is reachable, but no model is loaded.",
+        }
+    return {
+        "enabled": True,
+        "available": True,
+        "status": "ready",
+        "base_url": base_url,
+        "model": model,
+        "detail": "LM Studio is reachable.",
+    }

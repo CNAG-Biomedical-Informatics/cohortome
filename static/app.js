@@ -25,6 +25,7 @@ const MAX_VISIBLE_EXAMPLES = 8;
 const ACTIVE_TAB_STORAGE_KEY = "patient-navigator.active-tab";
 const DASHBOARD_SUBTAB_STORAGE_KEY = "patient-navigator.dashboard-subtab";
 const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
+const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "patient-navigator.analysis-sidebar-collapsed";
 const TAB_HELPER_TEXT = {
   dashboard: "Browse the loaded clinical and molecular data",
   datasets: "Choose the authorized datasets that define your active workspace scope",
@@ -172,6 +173,38 @@ function sendPromptToAnalysis(prompt, options) {
     ? `Analysis prompt prepared for the ${state.latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
     : "Analysis prompt prepared. Select a scope or use the full workspace.";
   refs.analysisPromptEl.focus();
+}
+
+function shouldAutoOpenJobsAfterSubmission() {
+  return !state.userSettings || state.userSettings.analysis_auto_open_jobs !== false;
+}
+
+function setAnalysisSidebarCollapsed(collapsed, options = {}) {
+  if (!refs.analysisShellEl) return;
+  const isCollapsed = Boolean(collapsed);
+  refs.analysisShellEl.classList.toggle("analysis-sidebar-collapsed", isCollapsed);
+  if (refs.analysisSidebarToggleBtnEl) {
+    refs.analysisSidebarToggleBtnEl.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    refs.analysisSidebarToggleBtnEl.setAttribute("aria-label", isCollapsed ? "Expand Analysis Chats" : "Collapse Analysis Chats");
+    refs.analysisSidebarToggleBtnEl.title = isCollapsed ? "Expand Analysis Chats" : "Collapse Analysis Chats";
+  }
+  if (options.persist !== false) {
+    try {
+      window.localStorage.setItem(ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY, isCollapsed ? "1" : "0");
+    } catch (_error) {
+      // Ignore storage failures; the visual state still updates.
+    }
+  }
+}
+
+function initializeAnalysisSidebarCollapsed() {
+  let collapsed = false;
+  try {
+    collapsed = window.localStorage.getItem(ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY) === "1";
+  } catch (_error) {
+    collapsed = false;
+  }
+  setAnalysisSidebarCollapsed(collapsed, { persist: false });
 }
 
 function stopQueryProgressUpdates() {
@@ -440,7 +473,8 @@ analysisUi = createAnalysisUi({
     startAnalysisProgressUpdates,
     stopAnalysisProgressUpdates,
     handleAnalysisJobSubmission: (payload) => {
-      if (state.userSettings.analysis_auto_open_jobs) {
+      const autoOpenJobs = shouldAutoOpenJobsAfterSubmission();
+      if (autoOpenJobs) {
         jobsUi.setJobsDrawerOpen(true);
         void jobsUi.loadRecentJobs();
       } else {
@@ -449,9 +483,12 @@ analysisUi = createAnalysisUi({
       if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
         refs.analysisStatusEl.className = "query-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
-        refs.analysisStatusEl.textContent = `Background job ${label} submitted. Open Jobs to monitor progress.`;
+        refs.analysisStatusEl.textContent = autoOpenJobs
+          ? `Background job ${label} submitted. Jobs opened.`
+          : `Background job ${label} submitted. Open Jobs to monitor progress.`;
       }
     },
+    renderAnalysisFlowBar: () => analysisCatalogUi.renderAnalysisFlowBar(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
@@ -477,6 +514,7 @@ analysisSessionsUi = createAnalysisSessionsUi({
     renderAnalysisStarterPrompts: () => analysisCatalogUi.renderAnalysisStarterPrompts(),
     renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
     renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
+    renderAnalysisFlowBar: () => analysisCatalogUi.renderAnalysisFlowBar(),
   },
   state,
   constants: {
@@ -507,7 +545,8 @@ phenoUi = createPhenoUi({
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
     handlePhenoJobSubmission: (payload) => {
-      if (state.userSettings.analysis_auto_open_jobs) {
+      const autoOpenJobs = shouldAutoOpenJobsAfterSubmission();
+      if (autoOpenJobs) {
         jobsUi.setJobsDrawerOpen(true);
         void jobsUi.loadRecentJobs();
       } else {
@@ -516,7 +555,9 @@ phenoUi = createPhenoUi({
       if (payload && payload.data && (payload.data.job_code || payload.data.job_id)) {
         refs.phenoStatusEl.className = "pheno-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
-        refs.phenoStatusEl.textContent = `Background Pheno-Ranker run ${label} submitted. Open Jobs to monitor progress.`;
+        refs.phenoStatusEl.textContent = autoOpenJobs
+          ? `Background Pheno-Ranker run ${label} submitted. Jobs opened.`
+          : `Background Pheno-Ranker run ${label} submitted. Open Jobs to monitor progress.`;
       }
     },
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
@@ -578,6 +619,7 @@ workspaceUi = createWorkspaceUi({
     loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
     loadMolecularDatasets: () => dashboardUi.loadMolecularDatasets(),
     loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
+    renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderPatientList: (items) => dashboardUi.renderPatientList(items),
     renderDetail: (patient) => dashboardUi.renderDetail(patient),
     renderDashboard: (summary) => dashboardUi.renderDashboard(summary),
@@ -651,6 +693,21 @@ userSettingsUi = createUserSettingsUi({
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     setDashboardSubtab: (subtabName) => navigationUi.setDashboardSubtab(subtabName),
     updatePhenoGraphOptions: () => phenoUi.updatePhenoGraphOptions(),
+    refreshUserDataAfterDelete: async (kind) => {
+      if (kind === "chats") {
+        analysisSessionsUi.resetAnalysisSessionsAfterBulkDelete();
+        analysisUi.renderAnalysisThread();
+        analysisCatalogUi.renderAnalysisCatalog();
+      } else if (kind === "jobs") {
+        await jobsUi.loadRecentJobs({ silent: true });
+      } else if (kind === "cohorts") {
+        await savedCohortsUi.loadSavedCohorts();
+        dashboardUi.renderAnalysisScopeSummary();
+        dashboardUi.renderAnalysisCompareScopeSummary();
+        savedCohortsUi.renderPhenoSavedCohortsSelection();
+        analysisCatalogUi.renderAnalysisCatalog();
+      }
+    },
   },
 });
 
@@ -693,6 +750,11 @@ function bindEvents() {
     void workspaceUi.loadPatients({ respectAdminGate: true });
   });
 
+  refs.analysisSidebarToggleBtnEl && refs.analysisSidebarToggleBtnEl.addEventListener("click", () => {
+    const collapsed = Boolean(refs.analysisShellEl && refs.analysisShellEl.classList.contains("analysis-sidebar-collapsed"));
+    setAnalysisSidebarCollapsed(!collapsed);
+  });
+
   refs.authLoginBtnEl && refs.authLoginBtnEl.addEventListener("click", () => {
     void authUi.loginLocal();
   });
@@ -721,6 +783,15 @@ function bindEvents() {
         refs.userSettingsStatusEl.textContent = error && error.message ? error.message : "Unable to reset user settings.";
       }
     });
+  });
+  refs.userDeleteChatsBtnEl && refs.userDeleteChatsBtnEl.addEventListener("click", () => {
+    void userSettingsUi.deleteUserData("chats");
+  });
+  refs.userDeleteJobsBtnEl && refs.userDeleteJobsBtnEl.addEventListener("click", () => {
+    void userSettingsUi.deleteUserData("jobs");
+  });
+  refs.userDeleteCohortsBtnEl && refs.userDeleteCohortsBtnEl.addEventListener("click", () => {
+    void userSettingsUi.deleteUserData("cohorts");
   });
   refs.authPasswordEl && refs.authPasswordEl.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -761,6 +832,36 @@ function bindEvents() {
 
   refs.analysisRunBtnEl && refs.analysisRunBtnEl.addEventListener("click", () => {
     void analysisUi.runAnalysis();
+  });
+  refs.analysisFlowBarEl && refs.analysisFlowBarEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-flow-target]");
+    if (!button || !refs.analysisFlowBarEl.contains(button)) {
+      return;
+    }
+    const target = String(button.dataset.analysisFlowTarget || "");
+    if (target === "scope") {
+      const setup = document.querySelector("#analysisTab .analysis-setup-card");
+      if (setup) {
+        setup.open = true;
+        setup.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } else if (target === "analysis" || target === "choose") {
+      analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
+    } else if (target === "prompt") {
+      refs.analysisPromptEl && refs.analysisPromptEl.focus();
+      refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (target === "requirements") {
+      if (refs.analysisCatalogMolecularPanelEl && !refs.analysisCatalogMolecularPanelEl.classList.contains("is-hidden")) {
+        refs.analysisCatalogMolecularPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
+      }
+    } else if (target === "run") {
+      refs.analysisPromptEl && refs.analysisPromptEl.focus();
+      refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (target === "results") {
+      refs.analysisThreadEl && refs.analysisThreadEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   });
   refs.analysisComposerExamplesBtnEl && refs.analysisComposerExamplesBtnEl.addEventListener("click", () => {
     state.analysisExamplesPinnedOpen = true;
@@ -817,6 +918,33 @@ function bindEvents() {
   refs.phenoRunBtnEl && refs.phenoRunBtnEl.addEventListener("click", () => {
     void phenoUi.runPhenoRanker();
   });
+  refs.phenoFlowBarEl && refs.phenoFlowBarEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-pheno-flow-target]");
+    if (!button || !refs.phenoFlowBarEl.contains(button)) {
+      return;
+    }
+    const target = String(button.dataset.phenoFlowTarget || "");
+    if (target === "scope" || target === "setup") {
+      if (refs.phenoSetupDetailsEl) {
+        refs.phenoSetupDetailsEl.open = true;
+        refs.phenoSetupDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } else if (target === "plan") {
+      if (refs.phenoSetupDetailsEl) refs.phenoSetupDetailsEl.open = true;
+      if (refs.phenoPlanDetailsEl) {
+        refs.phenoPlanDetailsEl.open = true;
+        refs.phenoPlanDetailsEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } else if (target === "run") {
+      refs.phenoRunPanelEl && refs.phenoRunPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      refs.phenoPromptEl && refs.phenoPromptEl.focus();
+    } else if (target === "results") {
+      const resultTarget = refs.phenoResultWorkspaceEl && !refs.phenoResultWorkspaceEl.classList.contains("is-hidden")
+        ? refs.phenoResultWorkspaceEl
+        : refs.phenoResultEmptyStateEl;
+      resultTarget && resultTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
   refs.phenoAnalysisBtnEl && refs.phenoAnalysisBtnEl.addEventListener("click", () => {
     phenoUi.sendPhenoMatchesToAnalysis();
   });
@@ -832,14 +960,17 @@ function bindEvents() {
   refs.phenoModeEl && refs.phenoModeEl.addEventListener("change", () => {
     phenoUi.markPhenoManualOverride();
     phenoUi.updatePhenoMode();
+    phenoUi.renderPhenoFlowBar();
   });
   refs.phenoActionEl && refs.phenoActionEl.addEventListener("change", () => {
     phenoUi.markPhenoManualOverride();
     phenoUi.updatePhenoMode();
+    phenoUi.renderPhenoFlowBar();
   });
   refs.phenoSelectedPatientIdsEl && refs.phenoSelectedPatientIdsEl.addEventListener("input", () => {
     phenoUi.markPhenoManualOverride();
     phenoUi.renderSelectedPatientIdsSummary();
+    phenoUi.renderPhenoFlowBar();
   });
   [
     refs.phenoPatientIdEl,
@@ -937,12 +1068,18 @@ function bindEvents() {
     refs.analysisPromptEl.value = button.dataset.analysisPrompt || "";
     state.analysisExecutionMode = button.dataset.analysisLlmOnly === "true"
       ? "llm_only"
-      : (button.dataset.analysisDeterministic === "true" ? "deterministic" : "auto");
+      : (button.dataset.analysisDeterministic === "true" ? "deterministic" : "planner_only");
     state.analysisSelectedCatalogItemId = "";
     analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
     state.analysisExamplesPinnedOpen = false;
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
     analysisCatalogUi.renderAnalysisStarterPrompts();
+    if ((state.analysisExecutionMode === "planner_only" || state.analysisExecutionMode === "llm_only") && (!state.lmStatus || state.lmStatus.available !== true)) {
+      refs.analysisStatusEl.className = "query-status";
+      refs.analysisStatusEl.textContent = state.analysisExecutionMode === "planner_only"
+        ? "LLM planner unavailable. Start an LLM model or choose a deterministic analysis."
+        : "LLM unavailable. Start an LLM model or choose a deterministic analysis.";
+    }
     refs.analysisPromptEl.focus();
   });
   refs.analysisCatalogListEl && refs.analysisCatalogListEl.addEventListener("click", (event) => {
@@ -1019,6 +1156,7 @@ function bindEvents() {
   });
 
   refs.analysisThreadEl && refs.analysisThreadEl.addEventListener("click", (event) => {
+    analysisUi.handleAnalysisResultBoardClick(event);
     analysisUi.handleAnalysisPlotViewClick(event);
     analysisUi.handleAnalysisFollowUpsClick(event);
   });
@@ -1144,11 +1282,13 @@ function initializeUiShell() {
   analysisCatalogUi.initializeExampleToggle(refs.analysisExamplesEl);
   analysisCatalogUi.renderQueryStarterPrompts();
   analysisCatalogUi.renderAnalysisStarterPrompts();
+  initializeAnalysisSidebarCollapsed();
   navigationUi.setDashboardSubtab(state.currentDashboardSubtab);
   applyStoredTabPreferences();
   phenoUi.updatePhenoExplainActions();
   phenoUi.updatePhenoResultActions();
   phenoUi.updatePhenoRunAvailability();
+  phenoUi.renderPhenoFlowBar();
   phenoUi.updatePhenoMode();
   phenoUi.renderSelectedPatientIdsSummary();
   analysisCatalogUi.renderQueryExecutionMode();

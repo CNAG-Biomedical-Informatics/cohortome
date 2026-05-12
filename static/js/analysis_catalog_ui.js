@@ -26,6 +26,7 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogSetupBadgesEl,
     analysisCatalogMolecularTitleEl,
     analysisCatalogMolecularNoteEl,
+    analysisFlowBarEl,
     analysisComposerSetupEl,
     analysisComposerSetupTitleEl,
     analysisComposerSetupNoteEl,
@@ -193,7 +194,7 @@ export function createAnalysisCatalogUi(ctx) {
       siblingToggle.classList.remove("is-hidden");
     }
     analysisComposerExamplesBtnEl.hidden = !(Array.isArray(state.analysisTurns) && state.analysisTurns.length > 0);
-    analysisComposerExamplesBtnEl.textContent = "Catalog & prompts";
+    analysisComposerExamplesBtnEl.textContent = "Prompts";
   }
 
   ensureAnalysisStarterPanelPlacement();
@@ -202,7 +203,7 @@ export function createAnalysisCatalogUi(ctx) {
     const normalized = String(value || "").trim().toLowerCase();
     if (normalized === "deterministic") return "deterministic";
     if (normalized === "llm_only") return "llm_only";
-    return "auto";
+    return "planner_only";
   }
 
   function analysisCatalogModeBadge(item) {
@@ -211,7 +212,13 @@ export function createAnalysisCatalogUi(ctx) {
       return { css: "query-chip-deterministic", label: "Deterministic" };
     }
     if (mode === "llm_only") {
+      if (!state.lmStatus || state.lmStatus.available !== true) {
+        return { css: "query-chip-llm", label: "LLM unavailable" };
+      }
       return { css: "query-chip-llm", label: "LLM answer" };
+    }
+    if (!state.lmStatus || state.lmStatus.available !== true) {
+      return { css: "query-chip-planner", label: "LLM planner unavailable" };
     }
     return { css: "query-chip-planner", label: "LLM-planned" };
   }
@@ -464,6 +471,7 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisRunBtnEl && !state.analysisInFlight) {
         analysisRunBtnEl.disabled = false;
       }
+      renderAnalysisFlowBar();
       return;
     }
     renderMolecularDatasetSelector();
@@ -523,6 +531,7 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisComposerSetupStatusEl) {
         analysisComposerSetupStatusEl.textContent = setupState.message;
       }
+      renderAnalysisFlowBar();
       return;
     }
     if (requiresSingleSelectedMolecularDataset(item)) {
@@ -556,12 +565,92 @@ export function createAnalysisCatalogUi(ctx) {
           analysisComposerSetupStatusEl.textContent = setupState.message;
         }
       }
+      renderAnalysisFlowBar();
       return;
     }
     analysisCatalogMolecularStatusEl.textContent = setupState.message;
     if (analysisComposerSetupStatusEl) {
       analysisComposerSetupStatusEl.textContent = setupState.message;
     }
+    renderAnalysisFlowBar();
+  }
+
+  function analysisFlowScopeLabel() {
+    if (analysisCompareModeEl && analysisCompareModeEl.checked) {
+      if (state.analysisSelectedSavedCohortId && state.analysisCompareSavedCohortId) {
+        return "Cohort A + B";
+      }
+      return "Needs cohorts";
+    }
+    if (state.analysisSelectedSavedCohortId) {
+      return "Saved cohort";
+    }
+    if (refs.analysisSelectedPatientIdsEl && refs.analysisSelectedPatientIdsEl.value.trim()) {
+      const count = refs.analysisSelectedPatientIdsEl.value.split(",").map((item) => item.trim()).filter(Boolean).length;
+      return count ? `${count} selected` : "Manual scope";
+    }
+    return "Full workspace";
+  }
+
+  function analysisFlowResultsLabel() {
+    const turns = Array.isArray(state.analysisTurns) ? state.analysisTurns : [];
+    if (!turns.length) return "Empty";
+    const last = turns[turns.length - 1] || {};
+    if (last.pending) return "Pending";
+    const payload = last.payload || {};
+    if (payload && payload.data && payload.data.execution === "queued") return "Job queued";
+    if (String(payload.intent || "") === "analysis_error") return "Error";
+    return "Generated";
+  }
+
+  function renderAnalysisFlowBar() {
+    if (!analysisFlowBarEl) return;
+    const item = currentAnalysisCatalogItem();
+    const setupState = selectedAnalysisSetupState(item);
+    const hasItem = Boolean(item);
+    const requirementsReady = hasItem ? setupState.ready : true;
+    const runBlocked = hasItem && !requirementsReady;
+    const resultsLabel = analysisFlowResultsLabel();
+    const hasPrompt = Boolean(analysisPromptEl && analysisPromptEl.value.trim());
+    const activeTarget = state.analysisInFlight
+      ? "run"
+      : resultsLabel === "Generated" || resultsLabel === "Job queued" || resultsLabel === "Error"
+        ? "results"
+        : runBlocked
+          ? "requirements"
+          : hasPrompt
+            ? "run"
+            : "prompt";
+    const steps = {
+      scope: { value: analysisFlowScopeLabel(), state: "is-ready" },
+      analysis: { value: hasItem ? String(item.name || "Selected") : "Free prompt", state: hasItem ? "is-ready" : "is-neutral" },
+      prompt: {
+        value: hasPrompt ? "Ready" : "Needs text",
+        state: hasPrompt ? "is-ready" : "is-blocked",
+      },
+      requirements: {
+        value: hasItem ? (requirementsReady ? "Ready" : "Needs setup") : "Ready",
+        state: requirementsReady ? "is-ready" : "is-blocked",
+      },
+      run: {
+        value: state.analysisInFlight ? "Running" : (runBlocked || !hasPrompt ? "Blocked" : "Ready"),
+        state: state.analysisInFlight ? "is-running" : (runBlocked || !hasPrompt ? "is-blocked" : "is-ready"),
+      },
+      results: {
+        value: resultsLabel,
+        state: resultsLabel === "Error" ? "is-blocked" : resultsLabel === "Empty" ? "is-neutral" : resultsLabel === "Pending" ? "is-running" : "is-ready",
+      },
+    };
+    Array.from(analysisFlowBarEl.querySelectorAll("[data-analysis-flow-target]")).forEach((button) => {
+      const target = String(button.dataset.analysisFlowTarget || "");
+      const step = steps[target];
+      if (!step) return;
+      const valueEl = button.querySelector("strong");
+      if (valueEl) valueEl.textContent = step.value;
+      button.classList.remove("is-active", "is-ready", "is-blocked", "is-running", "is-neutral");
+      button.classList.add(step.state);
+      button.classList.toggle("is-active", target === activeTarget);
+    });
   }
 
   function analysisCatalogUiAvailability(item) {
@@ -571,7 +660,8 @@ export function createAnalysisCatalogUi(ctx) {
     };
   }
 
-  function selectedAnalysisSetupState(item) {
+  function selectedAnalysisSetupState(item, options = {}) {
+    const assumeCatalogSelection = Boolean(options.assumeCatalogSelection);
     const availability = analysisCatalogUiAvailability(item);
     if (!item) {
       return { ready: false, message: "", availability };
@@ -583,8 +673,23 @@ export function createAnalysisCatalogUi(ctx) {
         availability,
       };
     }
+    if (String(item.execution_mode || "auto").trim().toLowerCase() === "llm_only" && (!state.lmStatus || state.lmStatus.available !== true)) {
+      return {
+        ready: false,
+        message: "LLM is unavailable for this analysis.",
+        availability,
+      };
+    }
+    if (String(item.execution_mode || "auto").trim().toLowerCase() === "auto" && (!state.lmStatus || state.lmStatus.available !== true)) {
+      return {
+        ready: false,
+        message: "LLM planner is unavailable for this analysis.",
+        availability,
+      };
+    }
     if (item.default_compare_mode) {
-      if (!(analysisCompareModeEl && analysisCompareModeEl.checked)) {
+      const compareModeWillBeEnabled = assumeCatalogSelection || (analysisCompareModeEl && analysisCompareModeEl.checked);
+      if (!compareModeWillBeEnabled) {
         return {
           ready: false,
           message: "Enable compare mode for this analysis.",
@@ -655,6 +760,7 @@ export function createAnalysisCatalogUi(ctx) {
     const compact = Boolean(options.compact);
     const drawer = Boolean(options.drawer);
     const availability = analysisCatalogUiAvailability(item);
+    const setupState = selectedAnalysisSetupState(item, { assumeCatalogSelection: true });
     const modeBadge = analysisCatalogModeBadge(item);
     const iconKind = analysisCatalogIconKind(item);
     const selected = String(item && item.id ? item.id : "") === String(state.analysisSelectedCatalogItemId || "");
@@ -695,8 +801,15 @@ export function createAnalysisCatalogUi(ctx) {
     const availabilityHtml = availability.available
       ? ""
       : `<div class="analysis-catalog-unavailable">${escapeHtml(availability.unavailableReason || "Unavailable in this workspace.")}</div>`;
+    const readinessLabel = availability.available
+      ? (setupState.ready ? "Ready now" : "Needs setup")
+      : "Unavailable";
+    const readinessHtml = `<div class="analysis-catalog-readiness ${setupState.ready ? "is-ready" : "is-blocked"}"><strong>${escapeHtml(readinessLabel)}</strong>${setupState.message ? ` <span>${escapeHtml(setupState.message)}</span>` : ""}</div>`;
+    const actionLabel = availability.available
+      ? (setupState.ready ? "Use analysis" : "Set up")
+      : "Unavailable";
     return `
-      <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${availability.available ? "" : " is-disabled"}${selected ? " is-selected" : ""}">
+      <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${availability.available ? "" : " is-disabled"}${setupState.ready ? " is-ready" : " is-needs-setup"}${selected ? " is-selected" : ""}">
         <div class="analysis-catalog-head">
           <div class="analysis-catalog-icon" aria-hidden="true">${analysisCatalogIconSvg(iconKind)}</div>
           <div>
@@ -709,8 +822,9 @@ export function createAnalysisCatalogUi(ctx) {
         ${guidanceHtml}
         ${tagsHtml}
         ${availabilityHtml}
+        ${readinessHtml}
         <div class="analysis-catalog-actions">
-          <button type="button" class="query-chip action" data-analysis-catalog-id="${escapeHtml(String(item.id || ""))}" ${availability.available ? "" : "disabled"}>Use analysis</button>
+          <button type="button" class="query-chip action" data-analysis-catalog-id="${escapeHtml(String(item.id || ""))}" ${availability.available ? "" : "disabled"}>${escapeHtml(actionLabel)}</button>
         </div>
       </article>
     `;
@@ -755,11 +869,15 @@ export function createAnalysisCatalogUi(ctx) {
     }
     const visibleItems = filteredAnalysisCatalogItems();
     const catalogUniverse = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
+    const readyItems = visibleItems.filter((item) => selectedAnalysisSetupState(item, { assumeCatalogSelection: true }).ready);
+    const setupItems = visibleItems.filter((item) => !selectedAnalysisSetupState(item, { assumeCatalogSelection: true }).ready);
     const unavailableCount = visibleItems.filter((item) => !item.available).length;
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
     const query = normalizeAnalysisCatalogQuery(state.analysisCatalogQuery);
     if (analysisCatalogStatusEl) {
       const summaryBits = [`${visibleItems.length} of ${catalogUniverse.length} tools`];
+      summaryBits.push(`${readyItems.length} ready now`);
+      summaryBits.push(`${setupItems.length} need setup`);
       if (filter !== "all") {
         summaryBits.push(analysisCatalogFilterLabel(filter));
       }
@@ -789,23 +907,44 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisCatalogMolecularPanel();
       return;
     }
-    const grouped = visibleItems.reduce((acc, item) => {
-      const key = String(item.category || "General");
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(item);
-      return acc;
-    }, {});
+    const renderReadinessSection = (label, items, renderOptions = {}) => {
+      const sectionClass = label === "Ready now" ? "is-ready" : "is-needs-setup";
+      const note = label === "Ready now"
+        ? "Can run with the current scope and inputs."
+        : "Needs one or more inputs before it can run.";
+      const headerHtml = `
+        <div class="analysis-catalog-group-header">
+          <div>
+            <div class="analysis-catalog-group-label">${escapeHtml(label)}</div>
+            <div class="analysis-catalog-group-note">${escapeHtml(note)}</div>
+          </div>
+          <span class="analysis-catalog-group-count">${items.length}</span>
+        </div>
+      `;
+      if (!items.length) {
+        const emptyMessage = label === "Ready now"
+          ? "No analyses are ready with the current selection."
+          : "No analyses need setup in this view.";
+        return `
+          <section class="analysis-catalog-group analysis-catalog-group-empty ${sectionClass}">
+            ${headerHtml}
+            <div class="empty">${escapeHtml(emptyMessage)}</div>
+          </section>
+        `;
+      }
+      const gridClass = renderOptions.compact ? "analysis-catalog-grid analysis-catalog-grid-compact" : "analysis-catalog-grid";
+      const cards = items.map((item) => renderAnalysisCatalogCard(item, renderOptions)).join("");
+      return `<section class="analysis-catalog-group ${sectionClass}">${headerHtml}<div class="${gridClass}">${cards}</div></section>`;
+    };
     analysisCatalogListEl.innerHTML = [
-      ...Object.entries(grouped).map(([category, items]) => {
-      const cards = items.map((item) => renderAnalysisCatalogCard(item, { compact: true })).join("");
-      return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid analysis-catalog-grid-compact">${cards}</div></section>`;
-      }),
+      renderReadinessSection("Ready now", readyItems, { compact: true }),
+      renderReadinessSection("Needs setup", setupItems, { compact: true }),
     ].filter(Boolean).join("");
     if (analysisCatalogDrawerListEl) {
-      analysisCatalogDrawerListEl.innerHTML = Object.entries(grouped).map(([category, items]) => {
-        const cards = items.map((item) => renderAnalysisCatalogCard(item, { drawer: true })).join("");
-        return `<section class="analysis-catalog-group"><div class="analysis-catalog-group-label">${escapeHtml(category)}</div><div class="analysis-catalog-grid">${cards}</div></section>`;
-      }).join("");
+      analysisCatalogDrawerListEl.innerHTML = [
+        renderReadinessSection("Ready now", readyItems, { drawer: true }),
+        renderReadinessSection("Needs setup", setupItems, { drawer: true }),
+      ].filter(Boolean).join("");
     }
     renderAnalysisCatalogMolecularPanel();
   }
@@ -903,6 +1042,10 @@ export function createAnalysisCatalogUi(ctx) {
       }
       return;
     }
+    if (analysisCompareModeEl) {
+      analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
+      renderAnalysisCompareMode();
+    }
     if (analysisPromptEl) {
       analysisPromptEl.value = String(item.default_prompt || "").trim();
     }
@@ -911,20 +1054,17 @@ export function createAnalysisCatalogUi(ctx) {
     recordAnalysisCatalogUsage(state.analysisSelectedCatalogItemId);
     renderAnalysisCatalog();
     renderAnalysisCatalogMolecularPanel();
-    if (analysisCompareModeEl) {
-      analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
-      renderAnalysisCompareMode();
-    }
+    const setupState = selectedAnalysisSetupState(item);
     state.analysisExamplesPinnedOpen = false;
     syncCurrentAnalysisSessionFromUi({ render: true });
     if (analysisStatusEl) {
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = item.guidance
-        ? `${item.name} selected. ${item.guidance}`
-        : `${item.name} selected. Review the prompt and run the analysis.`;
+      analysisStatusEl.textContent = setupState.ready
+        ? (item.guidance ? `${item.name} selected. ${item.guidance}` : `${item.name} selected. Review the prompt and run the analysis.`)
+        : `${item.name} selected. ${setupState.message}`;
     }
     if (analysisCatalogDisclosureEl) {
-      analysisCatalogDisclosureEl.open = Boolean(item.requires_molecular);
+      analysisCatalogDisclosureEl.open = Boolean(item.requires_molecular || !setupState.ready);
     }
     setAnalysisCatalogDrawerOpen(false);
     renderAnalysisCatalogDisclosureSummary();
@@ -946,6 +1086,7 @@ export function createAnalysisCatalogUi(ctx) {
     selectedAnalysisMolecularDatasetNames,
     currentAnalysisCatalogItem,
     renderAnalysisCatalogMolecularPanel,
+    renderAnalysisFlowBar,
     analysisCatalogUiAvailability,
     renderAnalysisCatalogCard,
     setAnalysisCatalogDrawerOpen,

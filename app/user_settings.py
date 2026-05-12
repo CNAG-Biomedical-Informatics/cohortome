@@ -10,23 +10,33 @@ USER_SETTINGS_FILENAME = "settings.json"
 
 DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "version": 1,
+    "landing_tab_mode": "fixed",
     "landing_tab": "dashboard",
     "query_disclosure_default": "detailed",
+    "query_default_mode": "auto",
     "analysis_auto_open_jobs": True,
     "pheno_default_metric": "",
     "pheno_advanced_open": False,
+    "pheno_render_heatmap": True,
+    "pheno_render_mds": True,
+    "pheno_render_graph": True,
     "dashboard_molecular_open": False,
     "dataset_compact_view": False,
 }
 
 _ALLOWED_VALUES = {
+    "landing_tab_mode": {"fixed", "last"},
     "landing_tab": {"dashboard", "datasets", "query", "analysis", "pheno"},
     "query_disclosure_default": {"summary", "detailed"},
+    "query_default_mode": {"auto", "planner_only"},
     "pheno_default_metric": {"", "hamming", "jaccard"},
 }
 _BOOLEAN_FIELDS = {
     "analysis_auto_open_jobs",
     "pheno_advanced_open",
+    "pheno_render_heatmap",
+    "pheno_render_mds",
+    "pheno_render_graph",
     "dashboard_molecular_open",
     "dataset_compact_view",
 }

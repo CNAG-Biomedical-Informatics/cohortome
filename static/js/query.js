@@ -88,6 +88,10 @@ export function createQueryUi(ctx) {
     questionEl.focus();
   }
 
+  function defaultQueryExecutionMode() {
+    return state.userSettings && state.userSettings.query_default_mode === "planner_only" ? "planner_only" : "auto";
+  }
+
   function renderInlineCode(value) {
     const parts = String(value).split("`");
     return parts.map((part, index) => {
@@ -414,7 +418,7 @@ export function createQueryUi(ctx) {
   function resetQueryWorkspace() {
     state.queryHistory = [];
     state.queryTurns = [];
-    state.queryExecutionMode = "auto";
+    state.queryExecutionMode = defaultQueryExecutionMode();
     state.queryFollowMemoryEnabled = false;
     renderTopDiseaseChips();
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
@@ -450,13 +454,13 @@ export function createQueryUi(ctx) {
     })();
     queryThreadEl.innerHTML = state.queryTurns.map((turn, index) => {
       if (turn.role === "user") {
-        return `<article class="analysis-turn query-thread-turn query-thread-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt || "")}</p></div></article>`;
+        return `<article class="analysis-turn query-thread-turn query-thread-turn-user" data-query-turn-index="${index}"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt || "")}</p></div></article>`;
       }
       const payload = turn.payload || {};
       const data = payload.data || {};
       const toneClass = turn.pending ? "query-thread-turn-pending" : data.source === "error" ? "query-thread-turn-error" : "query-thread-turn-assistant";
       return `
-        <article class="analysis-turn query-thread-turn ${toneClass}">
+        <article class="analysis-turn query-thread-turn ${toneClass}" data-query-turn-index="${index}">
           <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
           ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
@@ -467,6 +471,18 @@ export function createQueryUi(ctx) {
         </article>
       `;
     }).join("");
+  }
+
+  function scrollQueryTurnIntoView(turnIndex) {
+    if (!queryThreadEl) return;
+    const index = Number(turnIndex);
+    const target = Number.isInteger(index)
+      ? queryThreadEl.querySelector(`[data-query-turn-index="${index}"]`)
+      : queryThreadEl.lastElementChild;
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function renderQueryMeta(payload) {
@@ -617,6 +633,12 @@ export function createQueryUi(ctx) {
       queryStatusEl.textContent = "Enter a question first.";
       return;
     }
+    if (queryMode === "planner_only" && (!state.lmStatus || state.lmStatus.available !== true)) {
+      queryStatusEl.className = "query-status";
+      queryStatusEl.textContent = "LLM planner unavailable. Start an LLM model or switch Query mode back to Auto.";
+      renderQueryExecutionMode();
+      return;
+    }
     state.queryInFlight = true;
     askBtnEl.disabled = true;
     queryStatusEl.className = "query-status loading";
@@ -635,6 +657,7 @@ export function createQueryUi(ctx) {
       payload: { reply: "Running query..." },
     });
     renderQueryThread();
+    scrollQueryTurnIntoView(state.queryTurns.length - 1);
     startQueryProgressUpdates();
     await nextFrame();
     try {
@@ -668,9 +691,10 @@ export function createQueryUi(ctx) {
         state.queryTurns[state.queryTurns.length - 1] = {
           role: "assistant",
           payload: { intent: "query_error", reply: String(error.detail || "Query failed."), data: { source: "error", provider: "deterministic" } },
-        };
-        renderQueryThread();
-        queryStatusEl.className = "query-status";
+      };
+      renderQueryThread();
+      scrollQueryTurnIntoView(state.queryTurns.length - 1);
+      queryStatusEl.className = "query-status";
         queryStatusEl.textContent = "Query failed.";
         return;
       }
@@ -678,6 +702,7 @@ export function createQueryUi(ctx) {
       stopQueryProgressUpdates();
       state.queryTurns[state.queryTurns.length - 1] = { role: "assistant", payload };
       renderQueryThread();
+      scrollQueryTurnIntoView(state.queryTurns.length - 1);
       queryReplyEl.innerHTML = renderQueryReply(payload);
       renderQueryMeta(payload);
       renderQueryReason(payload);
@@ -688,7 +713,7 @@ export function createQueryUi(ctx) {
       state.queryHistory.push({ role: "user", content: question });
       state.queryHistory.push({ role: "assistant", content: payload.reply || "" });
       state.queryHistory = state.queryHistory.slice(-8);
-      state.queryExecutionMode = "auto";
+      state.queryExecutionMode = defaultQueryExecutionMode();
       renderQueryExecutionMode();
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Done.";
@@ -705,7 +730,8 @@ export function createQueryUi(ctx) {
         payload: { intent: "query_error", reply: error && error.message ? error.message : "Request failed.", data: { source: "error", provider: "deterministic" } },
       };
       renderQueryThread();
-      state.queryExecutionMode = "auto";
+      scrollQueryTurnIntoView(state.queryTurns.length - 1);
+      state.queryExecutionMode = defaultQueryExecutionMode();
       renderQueryExecutionMode();
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Network error.";
@@ -735,7 +761,7 @@ export function createQueryUi(ctx) {
     const button = event.target.closest("[data-prompt]");
     if (!button || !queryExamplesEl.contains(button)) return;
     questionEl.value = button.dataset.prompt;
-    state.queryExecutionMode = "auto";
+    state.queryExecutionMode = defaultQueryExecutionMode();
     renderQueryExecutionMode();
     questionEl.focus();
   }
@@ -744,7 +770,7 @@ export function createQueryUi(ctx) {
     const button = event.target.closest("[data-prompt]");
     if (!button || !queryFollowupsEl.contains(button)) return;
     questionEl.value = button.dataset.prompt;
-    state.queryExecutionMode = "auto";
+    state.queryExecutionMode = defaultQueryExecutionMode();
     renderQueryExecutionMode();
     questionEl.focus();
   }
@@ -786,7 +812,7 @@ export function createQueryUi(ctx) {
     const queryPromptButton = event.target.closest("[data-prompt]");
     if (queryPromptButton && queryThreadEl && queryThreadEl.contains(queryPromptButton)) {
       questionEl.value = queryPromptButton.dataset.prompt;
-      state.queryExecutionMode = "auto";
+      state.queryExecutionMode = defaultQueryExecutionMode();
       renderQueryExecutionMode();
       questionEl.focus();
     }

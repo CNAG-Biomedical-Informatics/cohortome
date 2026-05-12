@@ -17,6 +17,7 @@ import app.auth as auth_module
 import app.cohorts as cohorts_module
 import app.datasets as datasets_module
 import app.jobs as jobs_module
+import app.lm as lm_module
 import app.main as main_module
 import app.pheno as pheno_module
 import app.query as query_module
@@ -97,6 +98,57 @@ def test_session_secret_is_required_when_local_auth_enabled(monkeypatch):
 
     monkeypatch.setenv("PN_SESSION_SECRET", "test-secret")
     assert main_module._session_secret() == "test-secret"
+
+
+def test_lm_studio_health_reports_disabled(monkeypatch):
+    monkeypatch.delenv("LM_STUDIO_ENABLED", raising=False)
+
+    payload = lm_module.lm_studio_health()
+
+    assert payload["enabled"] is False
+    assert payload["available"] is False
+    assert payload["status"] == "disabled"
+
+
+def test_lm_studio_health_checks_reachability_with_configured_model(monkeypatch):
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "1")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "openai/gpt-oss-20b")
+
+    def fail_urlopen(*_args, **_kwargs):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(lm_module.request, "urlopen", fail_urlopen)
+
+    payload = lm_module.lm_studio_health(timeout=0.01)
+
+    assert payload["enabled"] is True
+    assert payload["available"] is False
+    assert payload["status"] == "unreachable"
+    assert payload["model"] == "openai/gpt-oss-20b"
+
+
+def test_lm_studio_health_reports_ready_model(monkeypatch):
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "1")
+    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"data":[{"id":"local-model"}]}'
+
+    monkeypatch.setattr(lm_module.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    payload = lm_module.lm_studio_health(timeout=0.01)
+
+    assert payload["enabled"] is True
+    assert payload["available"] is True
+    assert payload["status"] == "ready"
+    assert payload["model"] == "local-model"
 
 
 def test_ensure_data_dir_accepts_project_root_with_clinical_subdir(tmp_path):
@@ -3946,6 +3998,40 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
     assert "active background jobs" in response.json()["detail"].lower()
     assert job_path.exists()
     assert len(analysis_sessions_module.list_analysis_sessions(user_id="alice")) == 1
+
+
+def test_user_data_analysis_sessions_bulk_delete_is_user_scoped(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(
+        analysis_sessions_module,
+        "LEGACY_ANALYSIS_SESSIONS_PATH",
+        tmp_path / "legacy-analysis-sessions.json",
+    )
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
+                {"username": "bob", "password": "secret", "role": "user", "groups": ["research"]},
+            ]
+        ),
+    )
+
+    analysis_sessions_module.save_analysis_session({"id": "alice-1", "title": "Alice 1", "turns": []}, user_id="alice")
+    analysis_sessions_module.save_analysis_session({"id": "alice-2", "title": "Alice 2", "turns": []}, user_id="alice")
+    analysis_sessions_module.save_analysis_session({"id": "bob-1", "title": "Bob 1", "turns": []}, user_id="bob")
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    response = client.delete("/user-data/analysis-sessions")
+
+    assert response.status_code == 200
+    assert response.json()["deleted_count"] == 2
+    assert analysis_sessions_module.list_analysis_sessions(user_id="alice") == []
+    assert [item["id"] for item in analysis_sessions_module.list_analysis_sessions(user_id="bob")] == ["bob-1"]
 
 
 def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):

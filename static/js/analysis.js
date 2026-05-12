@@ -4,6 +4,7 @@ export function createAnalysisUi(ctx) {
     analysisMetaEl,
     analysisThreadEl,
     analysisStatusEl,
+    analysisComposerStatusEl,
     analysisRunBtnEl,
     analysisPromptEl,
     analysisSelectedPatientIdsEl,
@@ -19,6 +20,7 @@ export function createAnalysisUi(ctx) {
     handleAnalysisJobSubmission,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
+    renderAnalysisFlowBar,
     molecularDatasetOverlap,
   } = callbacks;
 
@@ -1212,6 +1214,7 @@ export function createAnalysisUi(ctx) {
       blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
       unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
       context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7h.01"></path></svg>',
+      plot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m7 16 4-5 3 3 5-7"></path></svg>',
       followup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="m5 12 7 7 7-7"></path></svg>',
       data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>',
     };
@@ -1347,6 +1350,34 @@ export function createAnalysisUi(ctx) {
     return ["trajectory", "response to", "kaplan", "survival", "plot", "plots", "chart", "charts", "graph", "graphs", "visualize", "visualise", "distribution", "distributions", "histogram", "bar plot", "line plot", "trend", "trends", "over time"].some((token) => lowered.includes(token));
   }
 
+  function setAnalysisComposerStatus(message, kind = "") {
+    if (!analysisComposerStatusEl) return;
+    const normalized = String(message || "").trim();
+    analysisComposerStatusEl.textContent = normalized;
+    analysisComposerStatusEl.className = `query-status${kind ? ` ${kind}` : ""}${normalized ? "" : " is-hidden"}`;
+  }
+
+  function setAnalysisBlockedStatus(message) {
+    analysisStatusEl.className = "query-status";
+    analysisStatusEl.textContent = message;
+    setAnalysisComposerStatus(message, "error");
+  }
+
+  function renderAnalysisBlockedTurn(prompt, currentScope, compareScope, message) {
+    state.analysisTurns.push({ role: "user", prompt, scope: currentScope || "", compareScope: compareScope || "" });
+    state.analysisTurns.push({
+      role: "assistant",
+      payload: {
+        intent: "analysis_error",
+        reply: message,
+        data: { source: "error", provider: "lm_status" },
+      },
+    });
+    renderAnalysisThread();
+    syncCurrentAnalysisSessionFromUi({ render: true });
+    scrollAnalysisTurnIntoView(state.analysisTurns.length - 1);
+  }
+
   function analysisPayloadHasPlots(payload) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
@@ -1446,6 +1477,15 @@ export function createAnalysisUi(ctx) {
       analysisThreadEl.innerHTML = '<div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>';
       return;
     }
+    const latestAssistantIndex = (() => {
+      for (let index = state.analysisTurns.length - 1; index >= 0; index -= 1) {
+        const turn = state.analysisTurns[index];
+        if (turn && turn.role === "assistant" && !turn.pending && turn.payload) {
+          return index;
+        }
+      }
+      return -1;
+    })();
     analysisThreadEl.innerHTML = state.analysisTurns.map((turn, turnIndex) => {
       if (turn.role === "user") {
         const compareHtml = turn.compareScope ? `<div class="analysis-turn-scope"><strong>Cohort B:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.compareScope || ""))}</div>` : "";
@@ -1473,7 +1513,23 @@ export function createAnalysisUi(ctx) {
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
       const turnLabel = isErrorTurn ? "Analysis Error" : "Analysis";
-      return `<article class="${turnClass}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${contextParts.length ? `<div class="analysis-turn-context"><p class="analysis-section-label"><strong>${renderAnalysisIcon("context")}<span>Context</span></strong><span>${escapeHtml(contextParts.join(" | "))}</span></p></div>` : ""}${turn.showPlots ? `<div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(turn.payload, turnIndex)}</div>` : ""}${followUpsHtml}<details class="query-section"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details></article>`;
+      const contextHtml = contextParts.length
+        ? `<div class="analysis-turn-context"><p>${escapeHtml(contextParts.join(" | "))}</p></div>`
+        : "";
+      const visualHtml = turn.showPlots
+        ? `<div class="analysis-result-visuals"><div class="analysis-plot-grid">${renderAnalysisPlotsMarkup(turn.payload, turnIndex)}</div></div>`
+        : "";
+      const followupHtml = followUpsHtml
+        ? `<div class="analysis-result-followups">${followUpsHtml}</div>`
+        : "";
+      const dataHtml = `<details class="query-section analysis-result-data"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details>`;
+      const resultHtml = `<div class="analysis-result-content"><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${visualHtml}${contextHtml}${followupHtml}${dataHtml}</div>`;
+      const intentInfo = analysisIntentPresentation(turn.payload && turn.payload.intent ? turn.payload.intent : "analysis");
+      const summaryText = contextParts.length ? contextParts.slice(0, 2).join(" | ") : String(turn.payload && turn.payload.reply ? turn.payload.reply : "").replace(/\s+/g, " ").slice(0, 140);
+      const compactResultHtml = turnIndex === latestAssistantIndex
+        ? resultHtml
+        : `<details class="analysis-result-collapsible"><summary><span class="analysis-result-collapsible-title">${escapeHtml(intentInfo.label)}</span><span class="analysis-result-collapsible-note">${escapeHtml(summaryText || "Open result")}</span></summary>${resultHtml}</details>`;
+      return `<article class="${turnClass}${turnIndex === latestAssistantIndex ? " is-latest-result" : " is-previous-result"}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div>${compactResultHtml}</article>`;
     }).join("");
     mountAnalysisPlots();
   }
@@ -1494,8 +1550,7 @@ export function createAnalysisUi(ctx) {
     if (state.analysisInFlight) return;
     const prompt = analysisPromptEl.value.trim();
     if (!prompt) {
-      analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = "Enter an analysis prompt first.";
+      setAnalysisBlockedStatus("Enter an analysis prompt first.");
       return;
     }
     const currentScopeIds = resolveAnalysisScopeIds("a");
@@ -1503,10 +1558,19 @@ export function createAnalysisUi(ctx) {
     const currentScope = currentScopeIds.join(",");
     const compareScope = compareScopeIds.join(",");
     const llmOnly = state.analysisExecutionMode === "llm_only";
+    const plannerOnly = state.analysisExecutionMode === "planner_only";
     const deterministicOnly = state.analysisExecutionMode === "deterministic";
     const showPlots = analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     const selectedMolecularDatasets = Array.isArray(state.selectedMolecularDatasets) ? state.selectedMolecularDatasets : [];
+    if ((llmOnly || plannerOnly) && (!state.lmStatus || state.lmStatus.available !== true)) {
+      const message = plannerOnly
+        ? "LLM planner unavailable. Start an LLM model or choose a deterministic analysis."
+        : "LLM unavailable. Start an LLM model or choose a deterministic analysis.";
+      setAnalysisBlockedStatus(message);
+      renderAnalysisBlockedTurn(prompt, currentScope, compareScope, message);
+      return;
+    }
     if (compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "Analysis cohort comparison requires saved Cohort A and Cohort B.";
@@ -1543,13 +1607,16 @@ export function createAnalysisUi(ctx) {
     }
     state.analysisInFlight = true;
     analysisRunBtnEl.disabled = true;
+    if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = "Running analysis...";
+    setAnalysisComposerStatus("Running analysis. Results will appear below.");
     if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     state.analysisExamplesPinnedOpen = false;
     state.analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
     state.analysisTurns.push({ role: "assistant", pending: true, pendingLabel: "Preparing response", pendingDetail: "Building cohort context and waiting for the model reply." });
     renderAnalysisThread();
+    scrollAnalysisTurnIntoView(state.analysisTurns.length - 1);
     syncCurrentAnalysisSessionFromUi({ render: true });
     startAnalysisProgressUpdates(compareMode, showPlots);
     try {
@@ -1587,11 +1654,14 @@ export function createAnalysisUi(ctx) {
       renderAnalysisMeta(payload);
       state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots };
       renderAnalysisThread();
+      if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       syncCurrentAnalysisSessionFromUi({ render: true });
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = payload && payload.data && payload.data.execution === "queued"
         ? "Analysis job submitted."
         : "Analysis complete.";
+      setAnalysisComposerStatus(analysisStatusEl.textContent);
+      scrollAnalysisTurnIntoView(state.analysisTurns.length - 1);
       state.analysisHistory.push({ role: "user", content: prompt });
       state.analysisHistory.push({ role: "assistant", content: payload.reply || "" });
       state.analysisHistory = state.analysisHistory.slice(-8);
@@ -1612,14 +1682,17 @@ export function createAnalysisUi(ctx) {
       };
       stopAnalysisProgressUpdates();
       renderAnalysisThread();
+      if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       syncCurrentAnalysisSessionFromUi({ render: true });
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "Analysis failed.";
+      setAnalysisComposerStatus(error && error.message ? error.message : "Analysis failed.", "error");
       state.analysisExecutionMode = "auto";
     } finally {
       stopAnalysisProgressUpdates();
       state.analysisInFlight = false;
       analysisRunBtnEl.disabled = false;
+      if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
     }
   }
 
@@ -1708,6 +1781,13 @@ export function createAnalysisUi(ctx) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "Analysis follow-up prompt prepared. Press Enter or click Run analysis.";
       analysisPromptEl.focus();
+    },
+    handleAnalysisResultBoardClick(event) {
+      const summary = event.target.closest(".analysis-result-collapsible > summary");
+      if (!summary || !analysisThreadEl.contains(summary)) return;
+      window.setTimeout(() => {
+        mountAnalysisPlots();
+      }, 0);
     },
     runAnalysis,
   };
