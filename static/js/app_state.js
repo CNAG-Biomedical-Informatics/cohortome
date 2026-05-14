@@ -50,6 +50,8 @@ export function createAppState() {
     phenoReferenceFiles: [],
     phenoSelectedSavedCohortIds: [],
     dashboardSummaryState: null,
+    dashboardTimelineDomains: ["diseases", "treatments", "phenotypic_features", "measures", "procedures", "exposures", "molecular"],
+    dashboardTimelineSelectedPatientIds: [],
     savedCohorts: [],
     availableDatasets: [],
     availableAuthUsers: [],

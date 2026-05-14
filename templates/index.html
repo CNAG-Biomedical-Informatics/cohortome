@@ -290,6 +290,19 @@
             </span>
             <span>Molecular</span>
           </button>
+          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab">
+            <span class="dashboard-subtab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19h16"></path>
+                <path d="M6 15V5"></path>
+                <path d="M18 15V5"></path>
+                <path d="M6 9h12"></path>
+                <circle cx="10" cy="9" r="1.5"></circle>
+                <circle cx="15" cy="9" r="1.5"></circle>
+              </svg>
+            </span>
+            <span>Timeline</span>
+          </button>
         </div>
         </div>
         <button id="datasetsTabBtn" class="tab-btn" type="button">
@@ -475,6 +488,11 @@
               <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
               <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
             </details>
+          </div>
+        </section>
+        <section id="dashboardTimelinePanel" class="dashboard-subpanel">
+          <div class="controls dashboard-panel-frame">
+            <div id="dashboardTimeline" class="empty">Load dataset to build the patient timeline.</div>
           </div>
         </section>
       </section>

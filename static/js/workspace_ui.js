@@ -11,6 +11,7 @@ export function createWorkspaceUi(ctx) {
     analysisLmStatusEl,
     patientsEl,
     dashboardEl,
+    dashboardTimelineEl,
     detailEl,
     loadStatusEl,
     patientSearchEl,
@@ -252,6 +253,7 @@ export function createWorkspaceUi(ctx) {
       const targetScopeId = currentDatasetSelectionKey(selectedIds);
       const hadActiveWorkspace = Boolean(state.currentDatasetIds.length);
       let prefetchedMolecularPayload = null;
+      state.dashboardTimelineSelectedPatientIds = [];
 
       if (!selectedIds.length) {
         state.currentDatasetIds = [];
@@ -279,6 +281,9 @@ export function createWorkspaceUi(ctx) {
         if (dashboardEl) {
           dashboardEl.innerHTML = '<div class="empty">Select a workspace to inspect the dashboard.</div>';
         }
+        if (dashboardTimelineEl) {
+          dashboardTimelineEl.innerHTML = '<div class="empty">Select a workspace to inspect the timeline.</div>';
+        }
         if (loadStatusEl) {
           loadStatusEl.className = "load-status";
           loadStatusEl.textContent = "No dataset selected.";
@@ -305,6 +310,9 @@ export function createWorkspaceUi(ctx) {
           }
           if (dashboardEl) {
             dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+          }
+          if (dashboardTimelineEl) {
+            dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
           }
           state.dashboardSummaryState = null;
         }
@@ -383,6 +391,9 @@ export function createWorkspaceUi(ctx) {
         if (dashboardEl) {
           dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
         }
+        if (dashboardTimelineEl) {
+          dashboardTimelineEl.innerHTML = '<div class="empty">No timeline to display.</div>';
+        }
         state.dashboardSummaryState = null;
         if (loadStatusEl) {
           loadStatusEl.className = "load-status";
@@ -406,12 +417,18 @@ export function createWorkspaceUi(ctx) {
       if (dashboardEl) {
         dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
       }
+      if (dashboardTimelineEl) {
+        dashboardTimelineEl.innerHTML = '<div class="empty">Loading timeline...</div>';
+      }
       window.setTimeout(() => {
         fetch(`/dashboard?dataset_id=${encodeURIComponent(targetScopeId)}`)
           .then(async (response) => {
             if (!response.ok) {
               if (dashboardEl) {
                 dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+              }
+              if (dashboardTimelineEl) {
+                dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
               }
               state.dashboardSummaryState = null;
               renderGlobalContext();
@@ -424,6 +441,9 @@ export function createWorkspaceUi(ctx) {
           .catch(() => {
             if (dashboardEl) {
               dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+            }
+            if (dashboardTimelineEl) {
+              dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
             }
             state.dashboardSummaryState = null;
             renderGlobalContext();
@@ -439,6 +459,9 @@ export function createWorkspaceUi(ctx) {
         }
         if (dashboardEl) {
           dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
+        }
+        if (dashboardTimelineEl) {
+          dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
         }
         state.dashboardSummaryState = null;
       }
@@ -468,6 +491,9 @@ export function createWorkspaceUi(ctx) {
     const patient = await response.json();
     renderDetail(patient);
     renderPatientList(filterPatients(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : ""));
+    if (state.dashboardSummaryState) {
+      renderDashboard(state.dashboardSummaryState);
+    }
   }
 
   return {

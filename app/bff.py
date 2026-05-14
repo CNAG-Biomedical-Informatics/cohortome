@@ -748,6 +748,15 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
     timeline_points: List[Dict[str, Any]] = []
     total_visits = 0
 
+    evidence_domains = (
+        ("diseases", "Disease"),
+        ("treatments", "Treatment"),
+        ("phenotypic_features", "Phenotype"),
+        ("measures", "Measure"),
+        ("procedures", "Procedure"),
+        ("exposures", "Exposure"),
+    )
+
     for summary in summaries:
         sex = summary.sex or "Unknown"
         sex_counts[sex] = sex_counts.get(sex, 0) + 1
@@ -757,12 +766,40 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
         bucket = "1" if visits == 1 else "2-4" if visits <= 4 else "5+"
         visit_distribution[bucket] = visit_distribution.get(bucket, 0) + 1
 
+        bundle = bundles.get(summary.patient_id)
+        timeline_events: List[Dict[str, Any]] = []
+        if bundle is not None:
+            for visit in sorted(bundle.context.visits, key=lambda item: (item.event_date or "", item.visit_id)):
+                domains: List[Dict[str, Any]] = []
+                for key, label in evidence_domains:
+                    bucket = getattr(visit.evidence, key)
+                    if bucket.count:
+                        domains.append(
+                            {
+                                "key": key,
+                                "label": label,
+                                "count": bucket.count,
+                                "examples": bucket.examples[:3],
+                            }
+                        )
+                timeline_events.append(
+                    {
+                        "visit_id": visit.visit_id,
+                        "event_date": visit.event_date,
+                        "event_type": visit.event_type,
+                        "diagnosis": visit.diagnosis or visit.disease_label,
+                        "biosample_id": visit.biosample_id,
+                        "domains": domains,
+                    }
+                )
+
         timeline_points.append(
             {
                 "patient_id": summary.patient_id,
                 "visit_count": summary.visit_count,
                 "first_event_date": summary.first_event_date,
                 "last_event_date": summary.last_event_date,
+                "events": timeline_events,
             }
         )
 

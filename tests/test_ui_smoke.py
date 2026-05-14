@@ -422,6 +422,67 @@ def _mock_dashboard_load(page) -> None:
                         "medications": ["Infliximab"],
                         "values": [[1]],
                     },
+                    "timelines": [
+                        {
+                            "patient_id": "SYN001",
+                            "visit_count": 5,
+                            "first_event_date": "2024-01-01",
+                            "last_event_date": "2024-06-01",
+                            "events": [
+                                {
+                                    "visit_id": "week_0",
+                                    "event_date": "2024-01-01",
+                                    "event_type": "baseline",
+                                    "diagnosis": "Crohn Disease",
+                                    "domains": [
+                                        {"key": "diseases", "label": "Disease", "count": 1, "examples": ["Crohn Disease"]},
+                                        {"key": "treatments", "label": "Treatment", "count": 1, "examples": ["Infliximab"]},
+                                    ],
+                                }
+                            ],
+                        },
+                        {
+                            "patient_id": "SYN002",
+                            "visit_count": 4,
+                            "first_event_date": "2024-01-05",
+                            "last_event_date": "2024-05-10",
+                            "events": [
+                                {
+                                    "visit_id": "week_0",
+                                    "event_date": "2024-01-05",
+                                    "event_type": "baseline",
+                                    "diagnosis": "Ulcerative Colitis",
+                                    "domains": [
+                                        {"key": "phenotypic_features", "label": "Phenotype", "count": 1, "examples": ["Abdominal pain"]}
+                                    ],
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ),
+        ),
+    )
+    page.route(
+        "**/patients/*/navigator?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "patient_id": route.request.url.split("/patients/", 1)[1].split("/navigator", 1)[0],
+                    "summary": {"patient_id": route.request.url.split("/patients/", 1)[1].split("/navigator", 1)[0]},
+                    "patient_context": {"sex": "female", "date_of_birth": "", "vital_status": "", "source_files": []},
+                    "evidence": {
+                        "diseases": {"count": 1, "examples": ["Crohn Disease"]},
+                        "phenotypic_features": {"count": 1, "examples": ["Abdominal pain"]},
+                        "measures": {"count": 0, "examples": []},
+                        "treatments": {"count": 1, "examples": ["Infliximab"]},
+                        "procedures": {"count": 0, "examples": []},
+                        "exposures": {"count": 0, "examples": []},
+                    },
+                    "key_fragments": [],
+                    "visits": [],
                 }
             ),
         ),
@@ -441,6 +502,7 @@ def _mock_molecular_datasets(page) -> None:
                             "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
                             "modality": "transcriptomics_raw_counts",
                             "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -821,6 +883,35 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     expect(page.locator("#dashboard-plot-visits")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
+
+
+def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_molecular_datasets(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardTimelineBtn").click()
+
+    expect(page.locator("#dashboard-plot-timeline")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Disease")
+    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Treatment")
+    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Molecular")
+    page.locator("#dashboard-timeline-controls input[value='diseases']").uncheck()
+    expect(page.locator("#dashboard-timeline-controls input[value='diseases']")).not_to_be_checked()
+    page.evaluate(
+        """
+        () => {
+          const plot = document.getElementById("dashboard-plot-timeline");
+          plot._plotlyHandlers.plotly_click({ points: [{ customdata: "SYN002" }] });
+        }
+        """
+    )
+    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("1 patient selected")
+    page.locator("#dashboardTimelineUseAnalysisBtn").click()
+    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN002")
 
 
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:

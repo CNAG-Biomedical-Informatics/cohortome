@@ -3,6 +3,7 @@ export function createDashboardUi(ctx) {
   const {
     patientsEl,
     dashboardEl,
+    dashboardTimelineEl,
     detailEl,
     dataDirEl,
     molecularDashboardStatusEl,
@@ -27,11 +28,22 @@ export function createDashboardUi(ctx) {
     renderGlobalContext,
     syncCurrentAnalysisSessionFromUi,
     isMultiDatasetWorkspace,
+    sendPatientIdsToAnalysis,
+    saveIdsAsCohort,
     renderAnalysisCatalog,
     renderAnalysisCatalogMolecularPanel,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
+  const DASHBOARD_TIMELINE_DOMAINS = [
+    { key: "diseases", label: "Disease", color: "#dc2626", symbol: "circle" },
+    { key: "treatments", label: "Treatment", color: "#2563eb", symbol: "diamond" },
+    { key: "phenotypic_features", label: "Phenotype", color: "#7c3aed", symbol: "square" },
+    { key: "measures", label: "Measure", color: "#059669", symbol: "triangle-up" },
+    { key: "procedures", label: "Procedure", color: "#ea580c", symbol: "cross" },
+    { key: "exposures", label: "Exposure", color: "#64748b", symbol: "x" },
+    { key: "molecular", label: "Molecular", color: "#0891b2", symbol: "star" },
+  ];
 
   function plotlyAvailable() {
     return typeof window !== "undefined" && window.Plotly && typeof window.Plotly.newPlot === "function";
@@ -77,19 +89,127 @@ export function createDashboardUi(ctx) {
     };
   }
 
-  function mountPlot(targetId, traces, layout) {
+  function mountPlot(targetId, traces, layout, afterPlot, configOverrides = {}) {
     const el = document.getElementById(targetId);
     if (!el) return;
     if (!plotlyAvailable()) {
       el.innerHTML = '<div class="empty">Plot rendering unavailable.</div>';
       return;
     }
-    window.Plotly.newPlot(el, traces, layout, dashboardPlotConfig());
+    const plotResult = window.Plotly.newPlot(el, traces, layout, { ...dashboardPlotConfig(), ...configOverrides });
+    if (typeof afterPlot === "function") {
+      Promise.resolve(plotResult).then(() => afterPlot(el)).catch(() => {});
+    }
     window.requestAnimationFrame(() => {
       if (window.Plotly && window.Plotly.Plots && typeof window.Plotly.Plots.resize === "function") {
         window.Plotly.Plots.resize(el);
       }
     });
+  }
+
+  function timelineSelectedPatientIds() {
+    if (!Array.isArray(state.dashboardTimelineSelectedPatientIds)) {
+      state.dashboardTimelineSelectedPatientIds = [];
+    }
+    return state.dashboardTimelineSelectedPatientIds.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+
+  function timelineSelectedPatientSet() {
+    return new Set(timelineSelectedPatientIds());
+  }
+
+  function setTimelineSelectedPatientIds(ids) {
+    state.dashboardTimelineSelectedPatientIds = Array.from(new Set((Array.isArray(ids) ? ids : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean))).sort();
+  }
+
+  function toggleTimelinePatient(patientId, summary) {
+    const normalized = String(patientId || "").trim();
+    if (!normalized) return;
+    const selected = timelineSelectedPatientSet();
+    if (selected.has(normalized)) {
+      selected.delete(normalized);
+    } else {
+      selected.add(normalized);
+    }
+    setTimelineSelectedPatientIds(Array.from(selected));
+    renderDashboardTimeline(summary);
+  }
+
+  function patientIdFromTimelinePoint(point) {
+    if (!point || typeof point !== "object") return "";
+    const direct = point.customdata;
+    if (Array.isArray(direct) && direct.length) {
+      return String(direct[0] || "").trim();
+    }
+    if (direct !== undefined && direct !== null) {
+      return String(direct || "").trim();
+    }
+    const index = Number.isInteger(point.pointNumber)
+      ? point.pointNumber
+      : (Number.isInteger(point.pointIndex) ? point.pointIndex : null);
+    const traceCustomData = point.data && Array.isArray(point.data.customdata) ? point.data.customdata : [];
+    if (index !== null && traceCustomData.length > index) {
+      const value = traceCustomData[index];
+      if (Array.isArray(value) && value.length) {
+        return String(value[0] || "").trim();
+      }
+      if (value !== undefined && value !== null) {
+        return String(value || "").trim();
+      }
+    }
+    const fullTraceCustomData = point.fullData && Array.isArray(point.fullData.customdata) ? point.fullData.customdata : [];
+    if (index !== null && fullTraceCustomData.length > index) {
+      const value = fullTraceCustomData[index];
+      if (Array.isArray(value) && value.length) {
+        return String(value[0] || "").trim();
+      }
+      if (value !== undefined && value !== null) {
+        return String(value || "").trim();
+      }
+    }
+    return String(point.y || point.label || "").trim();
+  }
+
+  function setTimelineSelectionFromPoints(points, summary) {
+    const ids = (Array.isArray(points) ? points : [])
+      .map((point) => patientIdFromTimelinePoint(point))
+      .filter(Boolean);
+    if (!ids.length) return;
+    setTimelineSelectedPatientIds(ids);
+    renderDashboardTimeline(summary);
+  }
+
+  function setTimelineStatus(message) {
+    const statusEl = document.getElementById("dashboard-timeline-selection-status");
+    if (statusEl) {
+      statusEl.textContent = message;
+    }
+  }
+
+  async function saveTimelineSelection() {
+    const selectedIds = timelineSelectedPatientIds();
+    if (!selectedIds.length || typeof saveIdsAsCohort !== "function") {
+      setTimelineStatus("Select one or more patients in the timeline first.");
+      return;
+    }
+    const saved = await saveIdsAsCohort({
+      patientIds: selectedIds,
+      sourceKind: "dashboard_timeline",
+      sourcePrompt: `Dashboard timeline selection (${selectedIds.length} patients)`,
+      statusTarget: "analysis",
+    });
+    setTimelineStatus(saved ? `Saved ${selectedIds.length} selected patient${selectedIds.length === 1 ? "" : "s"} as a cohort.` : "Unable to save selected timeline cohort.");
+  }
+
+  function sendTimelineSelectionToAnalysis() {
+    const selectedIds = timelineSelectedPatientIds();
+    if (!selectedIds.length || typeof sendPatientIdsToAnalysis !== "function") {
+      setTimelineStatus("Select one or more patients in the timeline first.");
+      return;
+    }
+    sendPatientIdsToAnalysis(selectedIds, { sourceLabel: "Dashboard timeline" });
   }
 
   function normalizeRankedItems(items, labelKey) {
@@ -215,6 +335,435 @@ export function createDashboardUi(ctx) {
       );
     }
 
+  }
+
+  function normalizeTimelineItems(summary) {
+    const timelines = Array.isArray(summary && summary.timelines) ? summary.timelines : [];
+    const molecularCoverage = molecularTimelineCoverage();
+    return timelines
+      .map((item) => {
+        const patientId = String(item && item.patient_id ? item.patient_id : "").trim();
+        const firstDate = String(item && item.first_event_date ? item.first_event_date : "").trim();
+        const lastDate = String(item && item.last_event_date ? item.last_event_date : "").trim() || firstDate;
+        const firstTime = Date.parse(firstDate);
+        const lastTime = Date.parse(lastDate);
+        const hasDatedRange = patientId && Number.isFinite(firstTime) && Number.isFinite(lastTime);
+        return {
+          patient_id: patientId,
+          visit_count: Number(item && item.visit_count ? item.visit_count : 0),
+          first_event_date: firstDate,
+          last_event_date: lastDate,
+          first_time: hasDatedRange ? firstTime : null,
+          last_time: hasDatedRange ? Math.max(lastTime, firstTime) : null,
+          has_dated_range: Boolean(hasDatedRange),
+          events: [
+            ...(Array.isArray(item && item.events) ? item.events : []),
+            ...molecularTimelineEvents(patientId, firstDate, lastDate, molecularCoverage.get(patientId)),
+          ].map((event) => {
+            const eventDate = String(event && event.event_date ? event.event_date : "").trim();
+            return {
+              visit_id: String(event && event.visit_id ? event.visit_id : "").trim(),
+              event_date: eventDate,
+              event_time: Number.isFinite(Date.parse(eventDate)) ? Date.parse(eventDate) : null,
+              event_type: String(event && event.event_type ? event.event_type : "").trim(),
+              diagnosis: String(event && event.diagnosis ? event.diagnosis : "").trim(),
+              biosample_id: String(event && event.biosample_id ? event.biosample_id : "").trim(),
+              domains: Array.isArray(event && event.domains) ? event.domains : [],
+            };
+          }),
+        };
+      })
+      .filter((item) => item.patient_id)
+      .sort((a, b) => {
+        if (a.first_time !== null && b.first_time !== null && a.first_time !== b.first_time) {
+          return a.first_time - b.first_time;
+        }
+        if (a.first_time !== null && b.first_time === null) return -1;
+        if (a.first_time === null && b.first_time !== null) return 1;
+        return a.patient_id.localeCompare(b.patient_id);
+      });
+  }
+
+  function molecularTimelineCoverage() {
+    const coverage = new Map();
+    const datasets = Array.isArray(state.molecularDatasetsState) ? state.molecularDatasetsState : [];
+    datasets.forEach((dataset) => {
+      const datasetName = String(dataset && dataset.dataset_name ? dataset.dataset_name : "molecular dataset").trim();
+      const sampleIds = Array.isArray(dataset && dataset.sample_ids) ? dataset.sample_ids : [];
+      const patientIds = Array.isArray(dataset && dataset.patient_ids) ? dataset.patient_ids : [];
+      const addSample = (patientId, sampleId) => {
+        const normalizedPatientId = String(patientId || "").trim();
+        if (!normalizedPatientId) return;
+        const entry = coverage.get(normalizedPatientId) || { sampleIds: new Set(), datasetNames: new Set() };
+        if (sampleId) entry.sampleIds.add(String(sampleId));
+        entry.datasetNames.add(datasetName);
+        coverage.set(normalizedPatientId, entry);
+      };
+      sampleIds.forEach((sampleId) => {
+        const sampleText = String(sampleId || "").trim();
+        const patientId = sampleText.includes(":") ? sampleText.split(":", 1)[0] : "";
+        addSample(patientId, sampleText);
+      });
+      patientIds.forEach((patientId) => addSample(patientId, ""));
+    });
+    return coverage;
+  }
+
+  function molecularTimelineEvents(patientId, firstDate, lastDate, coverage) {
+    if (!patientId || !coverage) return [];
+    const sampleIds = Array.from(coverage.sampleIds || []);
+    const datasetNames = Array.from(coverage.datasetNames || []);
+    const eventDate = firstDate || lastDate || "";
+    return [{
+      visit_id: sampleIds.length ? `molecular:${sampleIds.slice(0, 2).join(",")}` : "molecular",
+      event_date: eventDate,
+      event_type: "molecular sample coverage",
+      diagnosis: "",
+      biosample_id: sampleIds.slice(0, 3).join(", "),
+      domains: [{
+        key: "molecular",
+        label: "Molecular",
+        count: sampleIds.length || datasetNames.length,
+        examples: datasetNames.slice(0, 3),
+      }],
+    }];
+  }
+
+  function timelineDomainKeys(event) {
+    return (Array.isArray(event && event.domains) ? event.domains : [])
+      .map((domain) => String(domain && domain.key ? domain.key : "").trim())
+      .filter(Boolean);
+  }
+
+  function selectedTimelineDomainSet() {
+    if (!Array.isArray(state.dashboardTimelineDomains) || !state.dashboardTimelineDomains.length) {
+      state.dashboardTimelineDomains = DASHBOARD_TIMELINE_DOMAINS.map((item) => item.key);
+    }
+    return new Set(state.dashboardTimelineDomains);
+  }
+
+  function eventPrimarySelectedDomain(event, selectedDomains) {
+    const keys = new Set(timelineDomainKeys(event));
+    return DASHBOARD_TIMELINE_DOMAINS.find((domain) => selectedDomains.has(domain.key) && keys.has(domain.key)) || null;
+  }
+
+  function eventHoverLabel(patientId, event, primaryDomain) {
+    const domainParts = (Array.isArray(event.domains) ? event.domains : []).map((domain) => {
+      const examples = Array.isArray(domain.examples) ? domain.examples.slice(0, 2).join(", ") : "";
+      return `${domain.label || domain.key}${examples ? `: ${examples}` : ""}`;
+    });
+    return [
+      `Patient: ${patientId}`,
+      event.visit_id ? `Visit: ${event.visit_id}` : "",
+      event.event_date ? `Date: ${event.event_date}` : "",
+      primaryDomain && primaryDomain.label ? `Marker: ${primaryDomain.label}` : "",
+      event.event_type ? `Type: ${event.event_type}` : "",
+      event.diagnosis ? `Diagnosis: ${event.diagnosis}` : "",
+      event.biosample_id ? `Biosample: ${event.biosample_id}` : "",
+      domainParts.length ? `BFF terms: ${domainParts.join(" | ")}` : "",
+    ].filter(Boolean).join("<br>");
+  }
+
+  function timelineEventRows(timelineItems, selectedDomains, selectedPatients) {
+    const rows = [];
+    timelineItems.forEach((item) => {
+      item.events.forEach((event) => {
+        const domainKeys = timelineDomainKeys(event);
+        const matchingDomains = (Array.isArray(event.domains) ? event.domains : [])
+          .filter((domain) => selectedDomains.has(String(domain && domain.key ? domain.key : "").trim()));
+        if (!matchingDomains.length) return;
+        rows.push({
+          patient_id: item.patient_id,
+          visit_id: event.visit_id || "",
+          event_date: event.event_date || "",
+          event_type: event.event_type || "",
+          diagnosis: event.diagnosis || "",
+          biosample_id: event.biosample_id || "",
+          domains: matchingDomains,
+          domain_keys: domainKeys,
+          selected: selectedPatients.has(item.patient_id),
+        });
+      });
+    });
+    return rows.sort((a, b) => (
+      String(a.patient_id).localeCompare(String(b.patient_id))
+      || String(a.event_date).localeCompare(String(b.event_date))
+      || String(a.visit_id).localeCompare(String(b.visit_id))
+    ));
+  }
+
+  function renderTimelineEventTable(timelineItems, selectedDomains, selectedPatients, summary) {
+    const tableEl = document.getElementById("dashboard-timeline-event-table");
+    const searchEl = document.getElementById("dashboardTimelineEventSearch");
+    const countEl = document.getElementById("dashboard-timeline-event-count");
+    if (!tableEl) return;
+    const selectedOnly = selectedPatients.size > 0;
+    const query = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+    const allRows = timelineEventRows(timelineItems, selectedDomains, selectedPatients);
+    const scopedRows = allRows.filter((row) => {
+      if (selectedOnly && !selectedPatients.has(row.patient_id)) return false;
+      if (!query) return true;
+      const haystack = [
+        row.patient_id,
+        row.visit_id,
+        row.event_date,
+        row.event_type,
+        row.diagnosis,
+        row.biosample_id,
+        row.domains.map((domain) => `${domain.label || domain.key} ${(domain.examples || []).join(" ")}`).join(" "),
+      ].join(" ").toLowerCase();
+      return haystack.includes(query);
+    });
+    if (countEl) {
+      countEl.textContent = selectedOnly
+        ? `${scopedRows.length} events for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
+        : `${scopedRows.length} visible events`;
+    }
+    if (!scopedRows.length) {
+      tableEl.innerHTML = '<div class="empty">No events match the current timeline filters.</div>';
+      return;
+    }
+    const rows = scopedRows.slice(0, 200);
+    tableEl.innerHTML = `
+      <table class="dashboard-timeline-table">
+        <thead>
+          <tr>
+            <th>Patient</th>
+            <th>Visit</th>
+            <th>Date</th>
+            <th>Domains</th>
+            <th>Context</th>
+            <th>Molecular sample</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => {
+            const domainLabels = row.domains.map((domain) => {
+              const meta = DASHBOARD_TIMELINE_DOMAINS.find((item) => item.key === domain.key) || {};
+              return `<span class="dashboard-timeline-domain-pill" style="--timeline-domain-color:${escapeHtml(meta.color || "#64748b")}">${escapeHtml(domain.label || domain.key)}</span>`;
+            }).join("");
+            const context = [row.diagnosis, row.event_type].filter(Boolean).join(" | ") || "n/a";
+            return `
+              <tr class="${row.selected ? "is-selected" : ""}" data-dashboard-event-patient="${escapeHtml(row.patient_id)}">
+                <td><strong>${escapeHtml(row.patient_id)}</strong></td>
+                <td>${escapeHtml(row.visit_id || "n/a")}</td>
+                <td>${escapeHtml(row.event_date || "undated")}</td>
+                <td><div class="dashboard-timeline-domain-pills">${domainLabels}</div></td>
+                <td>${escapeHtml(context)}</td>
+                <td>${escapeHtml(row.biosample_id || "")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+      ${scopedRows.length > rows.length ? `<div class="section-note">Showing first ${rows.length} of ${scopedRows.length} matching events.</div>` : ""}
+    `;
+    tableEl.querySelectorAll("[data-dashboard-event-patient]").forEach((row) => {
+      row.addEventListener("click", () => {
+        toggleTimelinePatient(row.getAttribute("data-dashboard-event-patient"), summary);
+      });
+    });
+  }
+
+  function renderDashboardTimeline(summary) {
+    const timelineItems = normalizeTimelineItems(summary);
+    const timelinePlotEl = document.getElementById("dashboard-plot-timeline");
+    if (!timelinePlotEl) return;
+    if (!timelineItems.length) {
+      timelinePlotEl.innerHTML = '<div class="empty">No patient timeline data available.</div>';
+      return;
+    }
+
+    const visibleItems = timelineItems.slice(0, 40);
+    const datedItems = visibleItems.filter((item) => item.has_dated_range);
+    const activePatientId = String(state.selectedPatientId || "");
+    const selectedPatientIds = timelineSelectedPatientIds();
+    const selectedPatients = new Set(selectedPatientIds);
+    const selectedDomains = selectedTimelineDomainSet();
+    const presentDomainKeys = new Set();
+    visibleItems.forEach((item) => {
+      item.events.forEach((event) => {
+        timelineDomainKeys(event).forEach((key) => presentDomainKeys.add(key));
+      });
+    });
+    const controlsEl = document.getElementById("dashboard-timeline-controls");
+    if (controlsEl) {
+      controlsEl.innerHTML = DASHBOARD_TIMELINE_DOMAINS.map((domain) => {
+        const disabled = !presentDomainKeys.has(domain.key);
+        return `
+          <label class="dashboard-timeline-domain${disabled ? " is-disabled" : ""}">
+            <input type="checkbox" value="${escapeHtml(domain.key)}"${selectedDomains.has(domain.key) ? " checked" : ""}${disabled ? " disabled" : ""}>
+            <span class="dashboard-timeline-domain-dot" style="--timeline-domain-color:${escapeHtml(domain.color)}"></span>
+            <span>${escapeHtml(domain.label)}</span>
+          </label>
+        `;
+      }).join("");
+      controlsEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.addEventListener("change", () => {
+          const selected = Array.from(controlsEl.querySelectorAll('input[type="checkbox"]:checked'))
+            .map((item) => String(item.value || "").trim())
+            .filter(Boolean);
+          state.dashboardTimelineDomains = selected.length ? selected : DASHBOARD_TIMELINE_DOMAINS.map((item) => item.key);
+          renderDashboardTimeline(summary);
+        });
+      });
+    }
+    const overflowNoteEl = document.getElementById("dashboard-timeline-overflow-note");
+    if (overflowNoteEl) {
+      overflowNoteEl.textContent = timelineItems.length > visibleItems.length
+        ? `Showing first ${visibleItems.length} of ${timelineItems.length} patients. Use the patient roster search to narrow the workspace.`
+        : "";
+    }
+    const statusEl = document.getElementById("dashboard-timeline-selection-status");
+    if (statusEl) {
+      statusEl.textContent = selectedPatientIds.length
+        ? `${selectedPatientIds.length} patient${selectedPatientIds.length === 1 ? "" : "s"} selected from the timeline.`
+        : "Click timeline bars or event markers to build a patient selection.";
+    }
+    const useAnalysisBtn = document.getElementById("dashboardTimelineUseAnalysisBtn");
+    const saveBtn = document.getElementById("dashboardTimelineSaveCohortBtn");
+    const clearBtn = document.getElementById("dashboardTimelineClearSelectionBtn");
+    [useAnalysisBtn, saveBtn, clearBtn].forEach((button) => {
+      if (button) button.disabled = !selectedPatientIds.length;
+    });
+    if (useAnalysisBtn) {
+      useAnalysisBtn.addEventListener("click", sendTimelineSelectionToAnalysis);
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        void saveTimelineSelection();
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        setTimelineSelectedPatientIds([]);
+        renderDashboardTimeline(summary);
+      });
+    }
+    const eventSearchEl = document.getElementById("dashboardTimelineEventSearch");
+    if (eventSearchEl) {
+      eventSearchEl.addEventListener("input", () => {
+        renderTimelineEventTable(visibleItems, selectedDomains, selectedPatients, summary);
+      });
+    }
+
+    if (!datedItems.length) {
+      timelinePlotEl.innerHTML = '<div class="empty">No dated patient ranges available.</div>';
+      renderTimelineEventTable(visibleItems, selectedDomains, selectedPatients, summary);
+      return;
+    }
+    renderTimelineEventTable(visibleItems, selectedDomains, selectedPatients, summary);
+
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const yLabels = datedItems.map((item) => item.patient_id);
+    const durations = datedItems.map((item) => Math.max(((item.last_time || item.first_time) - item.first_time) / oneDayMs, 1));
+    const eventPoints = [];
+    datedItems.forEach((item) => {
+      item.events.forEach((event) => {
+        if (event.event_time === null) return;
+        const primaryDomain = eventPrimarySelectedDomain(event, selectedDomains);
+        if (!primaryDomain) return;
+        eventPoints.push({
+          patient_id: item.patient_id,
+          visit_id: event.visit_id,
+          event_date: event.event_date,
+          domain: primaryDomain,
+          selected: selectedPatients.has(item.patient_id),
+          hover: eventHoverLabel(item.patient_id, event, primaryDomain),
+        });
+      });
+    });
+    const eventTraces = DASHBOARD_TIMELINE_DOMAINS.map((domain) => {
+      const domainPoints = eventPoints.filter((point) => point.domain.key === domain.key);
+      if (!domainPoints.length) return null;
+      return {
+        type: "scatter",
+        mode: "markers",
+        name: domain.label,
+        x: domainPoints.map((point) => point.event_date),
+        y: domainPoints.map((point) => point.patient_id),
+        customdata: domainPoints.map((point) => [point.patient_id, point.visit_id]),
+        text: domainPoints.map((point) => point.hover),
+        marker: {
+          color: domain.color,
+          symbol: domain.symbol,
+          size: domainPoints.map((point) => point.selected ? 14 : 10),
+          line: {
+            color: domainPoints.map((point) => point.selected ? "#0f172a" : "#ffffff"),
+            width: domainPoints.map((point) => point.selected ? 2.5 : 1.5),
+          },
+        },
+        hovertemplate: "%{text}<extra></extra>",
+      };
+    }).filter(Boolean);
+    mountPlot(
+      "dashboard-plot-timeline",
+      [
+        {
+          type: "bar",
+          orientation: "h",
+          name: "Patient span",
+          y: yLabels,
+          x: durations,
+          base: datedItems.map((item) => item.first_event_date),
+          customdata: datedItems.map((item) => item.patient_id),
+          marker: {
+            color: datedItems.map((item) => selectedPatients.has(item.patient_id) ? "#1d4ed8" : (item.patient_id === activePatientId ? "#60a5fa" : "#bae6fd")),
+            line: {
+              color: datedItems.map((item) => selectedPatients.has(item.patient_id) ? "#0f172a" : (item.patient_id === activePatientId ? "#1d4ed8" : "#38bdf8")),
+              width: datedItems.map((item) => selectedPatients.has(item.patient_id) || item.patient_id === activePatientId ? 2 : 1),
+            },
+          },
+          hovertemplate: "Patient: %{customdata}<br>Start: %{base}<br>Duration: %{x:.0f} days<br>Click to select/unselect<extra></extra>",
+        },
+        ...eventTraces,
+      ],
+      dashboardPlotLayout({
+        height: Math.max(260, Math.min(560, datedItems.length * 24 + 80)),
+        margin: { t: 12, r: 20, b: 42, l: 110 },
+        xaxis: {
+          ...dashboardPlotLayout().xaxis,
+          type: "date",
+          title: { text: "Clinical time", font: { color: "#61758c", size: 12 } },
+        },
+        yaxis: {
+          ...dashboardPlotLayout().yaxis,
+          automargin: true,
+          autorange: "reversed",
+        },
+        clickmode: "event+select",
+        dragmode: "lasso",
+        showlegend: Boolean(eventTraces.length),
+        legend: {
+          orientation: "h",
+          yanchor: "bottom",
+          y: 1.02,
+          xanchor: "left",
+          x: 0,
+        },
+      }),
+      (el) => {
+        if (el && typeof el.on === "function") {
+          el.on("plotly_click", (event) => {
+            const point = event && Array.isArray(event.points) ? event.points[0] : null;
+            const patientId = patientIdFromTimelinePoint(point);
+            toggleTimelinePatient(patientId, summary);
+          });
+          el.on("plotly_selected", (event) => {
+            setTimelineSelectionFromPoints(event && event.points, summary);
+          });
+          el.on("plotly_deselect", () => {
+            setTimelineSelectedPatientIds([]);
+            renderDashboardTimeline(summary);
+          });
+        }
+      },
+      {
+        displayModeBar: true,
+        modeBarButtonsToAdd: ["select2d", "lasso2d"],
+        modeBarButtonsToRemove: ["zoom2d", "pan2d", "autoScale2d"],
+      }
+    );
   }
 
   function renderEvidence(evidence) {
@@ -366,18 +915,7 @@ export function createDashboardUi(ctx) {
           </div>
     ` : "";
     const toggleLabel = expanded ? "Show less" : "See more";
-
-    dashboardEl.innerHTML = `
-      <section class="section-card dashboard-hero">
-        <h2>Clinical dashboard</h2>
-        <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
-        <div class="molecular-kpi-grid">
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Timepoints</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Avg visits / patient</span><strong class="molecular-kpi-value">${escapeHtml(String(totals.avg_visits_per_patient || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Source files</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
-        </div>
-      </section>
+    const overviewMarkup = `
       <section class="section-card">
         <div class="section-card-header">
           <div class="section-card-eyebrow">Clinical overview</div>
@@ -407,6 +945,53 @@ export function createDashboardUi(ctx) {
         </div>
       </section>
     `;
+    const timelineMarkup = `
+      <section class="section-card dashboard-timeline-card">
+        <div class="section-card-header">
+          <div class="section-card-eyebrow">Longitudinal coverage</div>
+          <h3>Patient timeline</h3>
+        </div>
+        <div class="section-note">Click timeline bars or event markers to toggle one patient, or drag with the lasso/select tool to select several patients. Event markers are colored by BFF domain, including molecular sample coverage when present.</div>
+        <div id="dashboard-timeline-controls" class="dashboard-timeline-controls"></div>
+        <div class="dashboard-timeline-actions">
+          <div id="dashboard-timeline-selection-status" class="section-note">Click timeline bars or event markers to build a patient selection.</div>
+          <div class="dashboard-timeline-action-buttons">
+            <button id="dashboardTimelineUseAnalysisBtn" type="button" class="query-chip action" disabled>Open in Analysis</button>
+            <button id="dashboardTimelineSaveCohortBtn" type="button" class="query-chip query-chip-deterministic" disabled>Save cohort</button>
+            <button id="dashboardTimelineClearSelectionBtn" type="button" class="query-chip" disabled>Clear</button>
+          </div>
+        </div>
+        <div class="dashboard-plot-frame dashboard-timeline-plot" id="dashboard-plot-timeline"></div>
+        <div id="dashboard-timeline-overflow-note" class="section-note"></div>
+        <div class="dashboard-timeline-event-card">
+          <div class="dashboard-timeline-event-header">
+            <div>
+              <h4>Selection table</h4>
+              <div id="dashboard-timeline-event-count" class="section-note">No events loaded.</div>
+            </div>
+            <input id="dashboardTimelineEventSearch" class="patient-search dashboard-timeline-event-search" placeholder="Search events">
+          </div>
+          <div id="dashboard-timeline-event-table" class="dashboard-timeline-table-wrap"></div>
+        </div>
+      </section>
+    `;
+
+    dashboardEl.innerHTML = `
+      <section class="section-card dashboard-hero">
+        <h2>Clinical dashboard</h2>
+        <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
+        <div class="molecular-kpi-grid">
+          <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
+          <div class="molecular-kpi"><span class="molecular-kpi-label">Timepoints</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
+          <div class="molecular-kpi"><span class="molecular-kpi-label">Avg visits / patient</span><strong class="molecular-kpi-value">${escapeHtml(String(totals.avg_visits_per_patient || 0))}</strong></div>
+          <div class="molecular-kpi"><span class="molecular-kpi-label">Source files</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
+        </div>
+      </section>
+      ${overviewMarkup}
+    `;
+    if (dashboardTimelineEl) {
+      dashboardTimelineEl.innerHTML = timelineMarkup;
+    }
     const toggleBtn = document.getElementById("dashboardClinicalToggleBtn");
     if (toggleBtn) {
       toggleBtn.addEventListener("click", () => {
@@ -415,6 +1000,9 @@ export function createDashboardUi(ctx) {
       });
     }
     renderDashboardCharts(summary);
+    if (state.currentDashboardSubtab === "timeline") {
+      renderDashboardTimeline(summary);
+    }
   }
 
   function renderAnalysisScopeSummary() {

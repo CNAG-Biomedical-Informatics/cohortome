@@ -907,18 +907,21 @@ def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
             {
                 "id": "SYN001:week_0",
                 "patient_id": "SYN001",
+                "event_date": "2024-01-01",
                 "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
                 "treatments": [{"treatmentCode": {"label": "Infliximab"}}],
             },
             {
                 "id": "SYN002:week_0",
                 "patient_id": "SYN002",
+                "event_date": "2024-01-05",
                 "diseases": [{"diseaseCode": {"label": "Ulcerative Colitis"}}],
                 "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
             },
             {
                 "id": "SYN003:week_0",
                 "patient_id": "SYN003",
+                "event_date": "2024-01-09",
                 "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
                 "treatments": [{"treatmentCode": {"label": "Vedolizumab"}}],
             },
@@ -934,6 +937,9 @@ def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
         [1, 1],
         [1, 0],
     ]
+    syn001_timeline = next(item for item in payload["timelines"] if item["patient_id"] == "SYN001")
+    assert syn001_timeline["events"][0]["event_date"] == "2024-01-01"
+    assert {domain["key"] for domain in syn001_timeline["events"][0]["domains"]} == {"diseases", "treatments"}
 
 
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):

@@ -24,6 +24,7 @@ export function createAuthUi(ctx) {
     patientsEl,
     detailEl,
     dashboardEl,
+    dashboardTimelineEl,
     molecularDashboardCardsEl,
     molecularDashboardStatusEl,
     authUsernameEl,
@@ -155,6 +156,9 @@ export function createAuthUi(ctx) {
     }
     if (dashboardEl) {
       dashboardEl.innerHTML = '<div class="empty">Clinical dashboard hidden until you sign in.</div>';
+    }
+    if (dashboardTimelineEl) {
+      dashboardTimelineEl.innerHTML = '<div class="empty">Timeline hidden until you sign in.</div>';
     }
     if (molecularDashboardCardsEl) {
       molecularDashboardCardsEl.innerHTML = '<div class="empty">Molecular dashboard hidden until you sign in.</div>';

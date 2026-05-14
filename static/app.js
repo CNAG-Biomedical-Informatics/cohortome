@@ -158,6 +158,24 @@ function sendPatientIdsToAnalysis() {
     : `Loaded ${state.latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`;
 }
 
+function sendPatientIdsToAnalysisFromSource(patientIds, options = {}) {
+  const ids = Array.isArray(patientIds)
+    ? patientIds.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  if (!ids.length) {
+    return;
+  }
+  const sourceLabel = String(options.sourceLabel || "Dashboard").trim() || "Dashboard";
+  state.analysisSelectedSavedCohortId = "";
+  refs.analysisSelectedPatientIdsEl.value = ids.join(",");
+  dashboardUi.renderAnalysisScopeSummary();
+  navigationUi.setActiveTab("analysis");
+  analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+  refs.analysisStatusEl.className = "query-status";
+  refs.analysisStatusEl.textContent = `Loaded ${ids.length} patient ID${ids.length === 1 ? "" : "s"} from ${sourceLabel} into Analysis. Run the analysis prompt to interpret this workspace.`;
+}
+
+
 function sendPromptToAnalysis(prompt, options) {
   const settings = options || {};
   const normalizedPrompt = String(prompt || "").trim();
@@ -385,6 +403,8 @@ dashboardUi = createDashboardUi({
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     isMultiDatasetWorkspace,
+    sendPatientIdsToAnalysis: (patientIds, options) => sendPatientIdsToAnalysisFromSource(patientIds, options),
+    saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderAnalysisCatalogMolecularPanel: () => analysisCatalogUi.renderAnalysisCatalogMolecularPanel(),
   },
@@ -960,6 +980,12 @@ function bindEvents() {
   refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
   refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
   refs.dashboardMolecularBtnEl && refs.dashboardMolecularBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("molecular"));
+  refs.dashboardTimelineBtnEl && refs.dashboardTimelineBtnEl.addEventListener("click", () => {
+    navigationUi.setDashboardSubtab("timeline");
+    if (state.dashboardSummaryState) {
+      dashboardUi.renderDashboard(state.dashboardSummaryState);
+    }
+  });
 
   refs.userCreateBtnEl && refs.userCreateBtnEl.addEventListener("click", () => {
     void usersAdminUi.createAuthUser();
@@ -1372,7 +1398,7 @@ function applyStoredTabPreferences() {
   try {
     const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
     const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
-    if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
+    if (savedDashboardSubtab && ["clinical", "molecular", "timeline"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
     if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
