@@ -1328,6 +1328,7 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
             "landing_tab": "analysis",
             "query_disclosure_default": "summary",
             "analysis_auto_open_jobs": False,
+            "run_history_retention_days": 90,
             "pheno_default_metric": "jaccard",
             "pheno_advanced_open": True,
             "dataset_compact_view": True,
@@ -1339,6 +1340,7 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
     assert payload["landing_tab"] == "analysis"
     assert payload["query_disclosure_default"] == "summary"
     assert payload["analysis_auto_open_jobs"] is False
+    assert payload["run_history_retention_days"] == 90
     assert payload["pheno_default_metric"] == "jaccard"
     assert payload["pheno_advanced_open"] is True
     assert payload["dataset_compact_view"] is True
@@ -4446,6 +4448,59 @@ def test_run_history_delete_removes_terminal_runs_and_skips_active(tmp_path, mon
     assert payload["deleted_count"] == 1
     assert payload["skipped_active_count"] == 1
     assert not terminal_path.exists()
+    assert active_path.exists()
+
+
+def test_run_history_applies_user_retention_to_terminal_runs(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_user_state(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
+    )
+    user_settings_module.save_user_settings({"run_history_retention_days": 7}, "alice")
+
+    old_timestamp = "2024-01-01T00:00:00+00:00"
+    fresh_timestamp = datetime.now(timezone.utc).isoformat()
+    old_job = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={"feature": "pheno", "name": "Old direct", "dataset_id": "default", "execution_backend": "inline"},
+    )
+    old_path = jobs_module.job_dir(old_job["job_id"], "alice")
+    jobs_module.update_job_record(old_job["job_id"], "alice", status="completed", completed_at=old_timestamp, result_available=True)
+    fresh_job = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={"feature": "pheno", "name": "Fresh direct", "dataset_id": "default", "execution_backend": "inline"},
+    )
+    fresh_path = jobs_module.job_dir(fresh_job["job_id"], "alice")
+    jobs_module.update_job_record(fresh_job["job_id"], "alice", status="completed", completed_at=fresh_timestamp, result_available=True)
+    active_job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={"feature": "analysis", "name": "Old active", "dataset_id": "default", "execution_backend": "job"},
+    )
+    active_path = jobs_module.job_dir(active_job["job_id"], "alice")
+    jobs_module.update_job_record(active_job["job_id"], "alice", status="running", submitted_at=old_timestamp)
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    response = client.get("/run-history")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["expired_deleted_count"] == 1
+    assert payload["retention_days"] == 7
+    run_ids = {item["job_id"] for item in payload["runs"]}
+    assert old_job["job_id"] not in run_ids
+    assert fresh_job["job_id"] in run_ids
+    assert active_job["job_id"] in run_ids
+    assert not old_path.exists()
+    assert fresh_path.exists()
     assert active_path.exists()
 
 

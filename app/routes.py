@@ -76,6 +76,7 @@ from app.jobs import (
     active_feature_job,
     active_job_status,
     create_job_record,
+    delete_expired_terminal_jobs,
     delete_job,
     job_dir,
     list_job_records,
@@ -989,8 +990,15 @@ def get_jobs(request: Request) -> Dict:
 def get_run_history(request: Request) -> Dict:
     require_authenticated(request)
     user_id = request_user_id(request)
+    settings = load_user_settings(user_id)
+    retention_days = int(settings.get("run_history_retention_days") or 0)
+    expired_deleted_count = delete_expired_terminal_jobs(user_id, retention_days)
     items = [public_job_payload(item, user_id=user_id) for item in list_job_records(user_id)]
-    return {"runs": items}
+    return {
+        "runs": items,
+        "expired_deleted_count": expired_deleted_count,
+        "retention_days": retention_days,
+    }
 
 
 def remove_run_history_item(job_id: str, request: Request) -> Dict:

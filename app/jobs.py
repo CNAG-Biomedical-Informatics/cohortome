@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
@@ -341,6 +341,42 @@ def list_job_records(user_id: str) -> List[Dict[str, Any]]:
         reverse=True,
     )
     return items
+
+
+def _job_retention_timestamp(record: Dict[str, Any]) -> datetime | None:
+    for key in ("completed_at", "updated_at", "submitted_at"):
+        text = str(record.get(key) or "").strip()
+        if not text:
+            continue
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    return None
+
+
+def delete_expired_terminal_jobs(user_id: str, retention_days: int) -> int:
+    try:
+        days = int(retention_days)
+    except (TypeError, ValueError):
+        return 0
+    if days <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    deleted_count = 0
+    for item in list_job_records(user_id):
+        if not terminal_job_status(item.get("status")):
+            continue
+        timestamp = _job_retention_timestamp(item)
+        if timestamp is None or timestamp >= cutoff:
+            continue
+        job_id = str(item.get("job_id") or "").strip()
+        if job_id and delete_job(job_id, user_id):
+            deleted_count += 1
+    return deleted_count
 
 
 def list_jobs_for_analysis_session(session_id: str, user_id: str) -> List[Dict[str, Any]]:

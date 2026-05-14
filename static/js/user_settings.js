@@ -5,6 +5,7 @@ const DEFAULT_USER_SETTINGS = {
   query_disclosure_default: "detailed",
   query_default_mode: "auto",
   analysis_auto_open_jobs: true,
+  run_history_retention_days: 30,
   pheno_default_metric: "",
   pheno_advanced_open: false,
   pheno_render_heatmap: true,
@@ -19,11 +20,17 @@ const ALLOWED_LANDING_TAB_MODES = new Set(["fixed", "last"]);
 const ALLOWED_TABS = new Set(["dashboard", "datasets", "query", "analysis", "pheno"]);
 const ALLOWED_DISCLOSURE = new Set(["summary", "detailed"]);
 const ALLOWED_QUERY_MODES = new Set(["auto", "planner_only"]);
+const ALLOWED_RUN_RETENTION_DAYS = new Set([0, 7, 30, 90, 180, 365]);
 const ALLOWED_PHENO_METRICS = new Set(["", "hamming", "jaccard"]);
 
 function normalizeChoice(value, allowed, fallback) {
   const normalized = String(value || "").trim().toLowerCase();
   return allowed.has(normalized) ? normalized : fallback;
+}
+
+function normalizeRetentionDays(value, fallback) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && ALLOWED_RUN_RETENTION_DAYS.has(numeric) ? numeric : fallback;
 }
 
 function normalizeUserSettings(raw) {
@@ -35,6 +42,7 @@ function normalizeUserSettings(raw) {
     query_disclosure_default: normalizeChoice(source.query_disclosure_default, ALLOWED_DISCLOSURE, DEFAULT_USER_SETTINGS.query_disclosure_default),
     query_default_mode: normalizeChoice(source.query_default_mode, ALLOWED_QUERY_MODES, DEFAULT_USER_SETTINGS.query_default_mode),
     analysis_auto_open_jobs: source.analysis_auto_open_jobs !== false,
+    run_history_retention_days: normalizeRetentionDays(source.run_history_retention_days, DEFAULT_USER_SETTINGS.run_history_retention_days),
     pheno_default_metric: normalizeChoice(source.pheno_default_metric, ALLOWED_PHENO_METRICS, DEFAULT_USER_SETTINGS.pheno_default_metric),
     pheno_advanced_open: Boolean(source.pheno_advanced_open),
     pheno_render_heatmap: source.pheno_render_heatmap !== false,
@@ -59,6 +67,7 @@ export function createUserSettingsUi(ctx) {
     settingsLandingTabEl,
     settingsQueryDisclosureEl,
     settingsQueryDefaultModeEl,
+    settingsRunRetentionEl,
     settingsAnalysisAutoOpenJobsEl,
     settingsPhenoDefaultMetricEl,
     settingsLlmProviderEl,
@@ -147,6 +156,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsLandingTabEl) settingsLandingTabEl.value = settings.landing_tab;
     if (settingsQueryDisclosureEl) settingsQueryDisclosureEl.value = settings.query_disclosure_default;
     if (settingsQueryDefaultModeEl) settingsQueryDefaultModeEl.value = settings.query_default_mode;
+    if (settingsRunRetentionEl) settingsRunRetentionEl.value = String(settings.run_history_retention_days);
     if (settingsAnalysisAutoOpenJobsEl) settingsAnalysisAutoOpenJobsEl.checked = settings.analysis_auto_open_jobs;
     if (settingsPhenoDefaultMetricEl) settingsPhenoDefaultMetricEl.value = settings.pheno_default_metric;
     if (settingsLlmProviderEl) settingsLlmProviderEl.value = settings.llm_provider_id;
@@ -182,6 +192,7 @@ export function createUserSettingsUi(ctx) {
       landing_tab: settingsLandingTabEl ? settingsLandingTabEl.value : DEFAULT_USER_SETTINGS.landing_tab,
       query_disclosure_default: settingsQueryDisclosureEl ? settingsQueryDisclosureEl.value : DEFAULT_USER_SETTINGS.query_disclosure_default,
       query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
+      run_history_retention_days: settingsRunRetentionEl ? Number(settingsRunRetentionEl.value) : DEFAULT_USER_SETTINGS.run_history_retention_days,
       analysis_auto_open_jobs: settingsAnalysisAutoOpenJobsEl ? settingsAnalysisAutoOpenJobsEl.checked : DEFAULT_USER_SETTINGS.analysis_auto_open_jobs,
       pheno_default_metric: settingsPhenoDefaultMetricEl ? settingsPhenoDefaultMetricEl.value : DEFAULT_USER_SETTINGS.pheno_default_metric,
       llm_provider_id: settingsLlmProviderEl ? settingsLlmProviderEl.value : DEFAULT_USER_SETTINGS.llm_provider_id,

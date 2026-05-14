@@ -471,6 +471,10 @@ export function createJobsUi(ctx) {
       const payload = await response.json();
       state.runHistory = Array.isArray(payload.runs) ? payload.runs : [];
       renderRunHistoryDrawer();
+      const expiredDeleted = Number(payload.expired_deleted_count || 0);
+      if (expiredDeleted > 0 && runHistoryDrawerStatusEl) {
+        runHistoryDrawerStatusEl.textContent = `Removed ${expiredDeleted} expired generated run${expiredDeleted === 1 ? "" : "s"} based on your retention setting.`;
+      }
     } catch (error) {
       if (!silent && runHistoryDrawerStatusEl) {
         runHistoryDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load run history.";

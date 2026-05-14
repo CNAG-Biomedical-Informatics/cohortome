@@ -21,6 +21,7 @@ export function createAppRefs(doc = document) {
     settingsLandingTabEl: doc.getElementById("settingsLandingTab"),
     settingsQueryDisclosureEl: doc.getElementById("settingsQueryDisclosure"),
     settingsQueryDefaultModeEl: doc.getElementById("settingsQueryDefaultMode"),
+    settingsRunRetentionEl: doc.getElementById("settingsRunRetention"),
     settingsAnalysisAutoOpenJobsEl: doc.getElementById("settingsAnalysisAutoOpenJobs"),
     settingsPhenoDefaultMetricEl: doc.getElementById("settingsPhenoDefaultMetric"),
     settingsLlmProviderEl: doc.getElementById("settingsLlmProvider"),

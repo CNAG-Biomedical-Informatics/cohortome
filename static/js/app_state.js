@@ -74,6 +74,7 @@ export function createAppState() {
       query_disclosure_default: "detailed",
       query_default_mode: "auto",
       analysis_auto_open_jobs: true,
+      run_history_retention_days: 30,
       pheno_default_metric: "",
       pheno_advanced_open: false,
       pheno_render_heatmap: true,
