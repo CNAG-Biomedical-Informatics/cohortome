@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import secrets
+import smtplib
+from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,7 +18,9 @@ from app.config import STATE_ROOT_DIR
 
 
 AUTH_USERS_PATH = STATE_ROOT_DIR / "auth" / "users.json"
+PASSWORD_RESET_TOKENS_PATH = STATE_ROOT_DIR / "auth" / "password-reset-tokens.json"
 PASSWORD_HASH_ITERATIONS = 390_000
+PASSWORD_RESET_TOKEN_BYTES = 32
 
 
 def auth_mode() -> str:
@@ -27,6 +33,54 @@ def auth_enabled() -> bool:
 
 def auth_provider_mode() -> str:
     return "local" if auth_enabled() else "none"
+
+
+def password_reset_ttl_minutes() -> int:
+    raw = os.getenv("PN_PASSWORD_RESET_TTL_MINUTES", "").strip()
+    if not raw:
+        return 60
+    try:
+        return max(5, min(int(raw), 24 * 60))
+    except ValueError:
+        return 60
+
+
+def _smtp_host() -> str:
+    return os.getenv("PN_SMTP_HOST", "").strip()
+
+
+def _smtp_from() -> str:
+    return os.getenv("PN_SMTP_FROM", "").strip()
+
+
+def password_reset_enabled() -> bool:
+    return auth_enabled() and bool(_smtp_host() and _smtp_from())
+
+
+def _normalize_email(value: Any) -> str:
+    email = str(value or "").strip()
+    if not email:
+        return ""
+    if "@" not in email or any(char.isspace() for char in email):
+        return ""
+    return email
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def is_admin_user(user: Optional[Dict[str, Any]]) -> bool:
@@ -122,6 +176,7 @@ def _normalize_stored_user(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "groups": _normalize_groups(item.get("groups") or []),
         "enabled": bool(item.get("enabled", True)),
         "auth_source": _normalize_auth_source(item.get("auth_source")),
+        "email": _normalize_email(item.get("email")),
     }
     if normalized["auth_source"] == "local":
         if str(item.get("password_hash") or "").strip() and str(item.get("password_salt") or "").strip():
@@ -206,6 +261,7 @@ def local_users(include_secrets: bool = False) -> List[Dict[str, Any]]:
                 "groups": list(item.get("groups") or []),
                 "enabled": bool(item.get("enabled", True)),
                 "auth_source": item.get("auth_source") or "local",
+                "email": str(item.get("email") or ""),
             }
         )
     setattr(local_users, "_last_source", source)
@@ -232,6 +288,20 @@ def find_local_user(username: str) -> Optional[Dict[str, Any]]:
         return None
     for item in local_users(include_secrets=True):
         if str(item.get("username") or "") == needle:
+            return item
+    return None
+
+
+def find_local_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
+    needle = str(identifier or "").strip()
+    if not needle:
+        return None
+    needle_lower = needle.lower()
+    for item in local_users(include_secrets=True):
+        if str(item.get("username") or "") == needle:
+            return item
+        email = str(item.get("email") or "").strip().lower()
+        if email and email == needle_lower:
             return item
     return None
 
@@ -272,6 +342,7 @@ def create_local_user(
     username: str,
     password: str,
     display_name: str = "",
+    email: str = "",
     role: str = "user",
     groups: List[str] | None = None,
     enabled: bool = True,
@@ -289,6 +360,7 @@ def create_local_user(
     record = {
         "username": normalized_username,
         "display_name": str(display_name or normalized_username).strip() or normalized_username,
+        "email": _normalize_email(email),
         "role": _normalize_role(role),
         "groups": _normalize_groups(groups or []),
         "enabled": bool(enabled),
@@ -306,6 +378,7 @@ def update_local_user(
     username: str,
     *,
     display_name: str | None = None,
+    email: str | None = None,
     role: str | None = None,
     groups: List[str] | None = None,
     enabled: bool | None = None,
@@ -321,6 +394,8 @@ def update_local_user(
         _ensure_not_last_admin(normalized_username, next_role, next_enabled)
         if display_name is not None:
             item["display_name"] = str(display_name or normalized_username).strip() or normalized_username
+        if email is not None:
+            item["email"] = _normalize_email(email)
         item["role"] = next_role
         if groups is not None:
             item["groups"] = _normalize_groups(groups)
@@ -354,6 +429,186 @@ def reset_local_user_password(username: str, password: str) -> Dict[str, Any]:
     return find_local_user(normalized_username) or updated
 
 
+def _state_password_reset_tokens_path() -> Path:
+    return PASSWORD_RESET_TOKENS_PATH
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def _read_password_reset_tokens() -> List[Dict[str, Any]]:
+    path = _state_password_reset_tokens_path()
+    if not path.exists():
+        return []
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    items = parsed.get("tokens") if isinstance(parsed, dict) else None
+    if not isinstance(items, list):
+        return []
+    now = _now_utc()
+    active: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        expires_at = _parse_iso_datetime(item.get("expires_at"))
+        token_hash = str(item.get("token_hash") or "").strip()
+        username = str(item.get("username") or "").strip()
+        if not username or not token_hash or expires_at is None or expires_at <= now:
+            continue
+        active.append(
+            {
+                "username": username,
+                "token_hash": token_hash,
+                "created_at": str(item.get("created_at") or ""),
+                "expires_at": expires_at.isoformat(),
+            }
+        )
+    if len(active) != len(items):
+        _write_password_reset_tokens(active)
+    return active
+
+
+def _write_password_reset_tokens(tokens: List[Dict[str, Any]]) -> None:
+    path = _state_password_reset_tokens_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"version": 1, "tokens": tokens}
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _password_reset_base_url(request: Request) -> str:
+    configured = os.getenv("PN_PUBLIC_BASE_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+def _password_reset_url(request: Request, token: str) -> str:
+    return f"{_password_reset_base_url(request)}/?password_reset_token={token}"
+
+
+def create_password_reset_token(username: str) -> str:
+    user = find_local_user(username)
+    if not user:
+        raise ValueError("User not found.")
+    if _normalize_auth_source(user.get("auth_source")) != "local":
+        raise ValueError("Password reset is only supported for local users.")
+    if not bool(user.get("enabled", True)):
+        raise ValueError("Password reset is only supported for enabled users.")
+    token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
+    now = _now_utc()
+    expires_at = now + timedelta(minutes=password_reset_ttl_minutes())
+    tokens = [
+        item
+        for item in _read_password_reset_tokens()
+        if str(item.get("username") or "") != str(user.get("username") or "")
+    ]
+    tokens.append(
+        {
+            "username": str(user.get("username") or ""),
+            "token_hash": _hash_reset_token(token),
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+        }
+    )
+    _write_password_reset_tokens(tokens)
+    return token
+
+
+def send_password_reset_email(user: Dict[str, Any], reset_url: str) -> None:
+    recipient = _normalize_email(user.get("email"))
+    if not recipient:
+        raise ValueError("User does not have an email address.")
+    host = _smtp_host()
+    sender = _smtp_from()
+    if not host or not sender:
+        raise ValueError("SMTP password reset is not configured.")
+    port = int(os.getenv("PN_SMTP_PORT", "587") or "587")
+    username = os.getenv("PN_SMTP_USERNAME", "").strip()
+    password = os.getenv("PN_SMTP_PASSWORD", "")
+    use_tls = os.getenv("PN_SMTP_TLS", "true").strip().lower() not in {"0", "false", "no", "off"}
+    message = EmailMessage()
+    message["Subject"] = "Patient Navigator password reset"
+    message["From"] = sender
+    message["To"] = recipient
+    display_name = str(user.get("display_name") or user.get("username") or "user")
+    ttl = password_reset_ttl_minutes()
+    message.set_content(
+        "\n".join(
+            [
+                f"Hello {display_name},",
+                "",
+                "A password reset was requested for your Patient Navigator account.",
+                f"Use this link within {ttl} minutes:",
+                "",
+                reset_url,
+                "",
+                "If you did not request this reset, ignore this message.",
+            ]
+        )
+    )
+    with smtplib.SMTP(host, port, timeout=15) as smtp:
+        if use_tls:
+            smtp.starttls()
+        if username:
+            smtp.login(username, password)
+        smtp.send_message(message)
+
+
+def request_password_reset(identifier: str, request: Request) -> bool:
+    if not password_reset_enabled():
+        return False
+    user = find_local_user_by_identifier(identifier)
+    if not user:
+        return False
+    if _normalize_auth_source(user.get("auth_source")) != "local":
+        return False
+    if not bool(user.get("enabled", True)):
+        return False
+    if not _normalize_email(user.get("email")):
+        return False
+    token = create_password_reset_token(str(user.get("username") or ""))
+    try:
+        send_password_reset_email(user, _password_reset_url(request, token))
+    except Exception:
+        _write_password_reset_tokens(
+            [
+                item
+                for item in _read_password_reset_tokens()
+                if str(item.get("username") or "") != str(user.get("username") or "")
+            ]
+        )
+        raise
+    return True
+
+
+def confirm_password_reset(token: str, password: str) -> Dict[str, Any]:
+    token_hash = _hash_reset_token(token)
+    tokens = _read_password_reset_tokens()
+    matched: Dict[str, Any] | None = None
+    for item in tokens:
+        if hmac.compare_digest(str(item.get("token_hash") or ""), token_hash):
+            matched = item
+            break
+    if matched is None:
+        raise ValueError("Password reset link is invalid or expired.")
+    expires_at = _parse_iso_datetime(matched.get("expires_at"))
+    if expires_at is None or expires_at <= _now_utc():
+        _write_password_reset_tokens([item for item in tokens if item is not matched])
+        raise ValueError("Password reset link is invalid or expired.")
+    user = reset_local_user_password(str(matched.get("username") or ""), password)
+    _write_password_reset_tokens(
+        [
+            item
+            for item in tokens
+            if str(item.get("username") or "") != str(matched.get("username") or "")
+        ]
+    )
+    return user
+
+
 def delete_local_user(username: str) -> None:
     normalized_username = str(username or "").strip()
     current = find_local_user(normalized_username)
@@ -381,6 +636,7 @@ def session_user(request: Request) -> Optional[Dict[str, Any]]:
         "groups": list(session.get("groups") or user.get("groups") or []),
         "enabled": bool(user.get("enabled", True)),
         "auth_source": str(user.get("auth_source") or "local"),
+        "email": str(user.get("email") or ""),
     }
 
 

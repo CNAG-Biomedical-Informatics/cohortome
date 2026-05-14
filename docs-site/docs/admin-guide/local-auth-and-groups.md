@@ -93,6 +93,7 @@ This matters because not every local user needs to belong to an organizational g
 The `Users` tab can now manage local users directly:
 
 - create local users
+- set optional email addresses for self-service password reset
 - edit display name
 - edit role
 - edit groups
@@ -106,6 +107,42 @@ Current protections include:
 - no disabling the currently signed-in user
 - no self-demotion from the current admin session
 - no deleting the last enabled admin
+
+## Password reset
+
+Admin password reset is always available in the `Users` tab for local users.
+
+Self-service password reset is optional. It is enabled only when local auth is
+enabled and SMTP delivery is configured:
+
+```bash
+export PN_AUTH_MODE=local
+export PN_SMTP_HOST=smtp.example.org
+export PN_SMTP_PORT=587
+export PN_SMTP_FROM=noreply@example.org
+export PN_SMTP_USERNAME=...
+export PN_SMTP_PASSWORD=...
+export PN_SMTP_TLS=true
+export PN_PUBLIC_BASE_URL=https://patient-navigator.example.org
+```
+
+Optional:
+
+```bash
+export PN_PASSWORD_RESET_TTL_MINUTES=60
+```
+
+When SMTP reset is configured, the sign-in screen shows `Forgot password?`.
+Users can request a reset by username or email. The response is intentionally
+generic so that the app does not reveal whether an account exists.
+
+Reset links are one-time use and expire after the configured TTL. Tokens are
+stored hashed under:
+
+- `state/auth/password-reset-tokens.json`
+
+Users without an email address, disabled users, and non-local users cannot use
+self-service password reset. They still require an administrator reset.
 
 ## Admin group direction
 
@@ -132,3 +169,7 @@ Patient Navigator should continue to own authorization concepts such as:
 - dataset access
 - in-app disclosure policy
 - AI-provider policy
+
+For production environments with institutional identity management, external
+OIDC/SAML/LDAP remains the preferred long-term authentication model. Local SMTP
+password reset is intended for controlled deployments that still use local auth.

@@ -60,6 +60,7 @@ export function createAppState() {
     authState: {
       enabled: false,
       authenticated: true,
+      passwordResetEnabled: false,
       user: { username: "local", role: "admin", display_name: "Local user" },
     },
     userSettings: {

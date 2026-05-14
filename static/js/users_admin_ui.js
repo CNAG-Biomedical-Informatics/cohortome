@@ -6,6 +6,7 @@ export function createUsersAdminUi(ctx) {
     usersListEl,
     userCreateUsernameEl,
     userCreateDisplayNameEl,
+    userCreateEmailEl,
     userCreatePasswordEl,
     userCreateRoleEl,
     userCreateGroupsEl,
@@ -27,6 +28,7 @@ export function createUsersAdminUi(ctx) {
   function clearUserCreateForm() {
     if (userCreateUsernameEl) userCreateUsernameEl.value = "";
     if (userCreateDisplayNameEl) userCreateDisplayNameEl.value = "";
+    if (userCreateEmailEl) userCreateEmailEl.value = "";
     if (userCreatePasswordEl) userCreatePasswordEl.value = "";
     if (userCreateRoleEl) userCreateRoleEl.value = "user";
     if (userCreateGroupsEl) userCreateGroupsEl.value = "";
@@ -44,6 +46,7 @@ export function createUsersAdminUi(ctx) {
     usersListEl.innerHTML = users.map((user) => {
       const username = String(user.username || "");
       const displayName = String(user.display_name || user.username || "");
+      const email = String(user.email || "");
       const role = String(user.role || "user");
       const enabled = user.enabled !== false;
       const authSource = String(user.auth_source || "local");
@@ -71,6 +74,10 @@ export function createUsersAdminUi(ctx) {
                   <option value="user"${role === "user" ? " selected" : ""}>User</option>
                   <option value="admin"${role === "admin" ? " selected" : ""}>Admin</option>
                 </select>
+              </div>
+              <div class="query-grid-span-2">
+                <label>Email</label>
+                <input type="email" data-auth-user-field="email" data-auth-user="${username.replace(/"/g, "&quot;")}" value="${email.replace(/"/g, "&quot;")}" placeholder="Optional password-reset email">
               </div>
               <div class="query-grid-span-2">
                 <label>Groups</label>
@@ -138,6 +145,7 @@ export function createUsersAdminUi(ctx) {
     const username = userCreateUsernameEl ? userCreateUsernameEl.value.trim() : "";
     const password = userCreatePasswordEl ? userCreatePasswordEl.value : "";
     const displayName = userCreateDisplayNameEl ? userCreateDisplayNameEl.value.trim() : "";
+    const email = userCreateEmailEl ? userCreateEmailEl.value.trim() : "";
     const role = userCreateRoleEl ? userCreateRoleEl.value : "user";
     const groups = parseUserGroupsInput(userCreateGroupsEl ? userCreateGroupsEl.value : "");
     const enabled = userCreateEnabledEl ? userCreateEnabledEl.checked : true;
@@ -151,6 +159,7 @@ export function createUsersAdminUi(ctx) {
           username,
           password,
           display_name: displayName,
+          email,
           role,
           groups,
           enabled,
@@ -176,6 +185,7 @@ export function createUsersAdminUi(ctx) {
       return;
     }
     const displayName = card.querySelector('[data-auth-user-field="display_name"]')?.value?.trim() || "";
+    const email = card.querySelector('[data-auth-user-field="email"]')?.value?.trim() || "";
     const role = card.querySelector('[data-auth-user-field="role"]')?.value || "user";
     const groups = parseUserGroupsInput(card.querySelector('[data-auth-user-field="groups"]')?.value || "");
     const enabled = Boolean(card.querySelector('[data-auth-user-field="enabled"]')?.checked);
@@ -187,6 +197,7 @@ export function createUsersAdminUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           display_name: displayName,
+          email,
           role,
           groups,
           enabled,

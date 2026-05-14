@@ -47,6 +47,30 @@
               <span>Sign in</span>
             </button>
           </div>
+          <div id="authPasswordResetPrompt" class="auth-reset-prompt is-hidden">
+            <button id="authForgotPasswordBtn" type="button" class="secondary-btn">Forgot password?</button>
+          </div>
+          <div id="authPasswordResetUnavailable" class="section-note is-hidden">Forgot password? Contact your administrator.</div>
+          <div id="authPasswordResetPanel" class="auth-reset-panel is-hidden" aria-live="polite">
+            <div id="authPasswordResetRequestForm" class="auth-reset-form">
+              <label for="authPasswordResetIdentifier">Reset password</label>
+              <div class="auth-gate-form">
+                <input id="authPasswordResetIdentifier" type="text" placeholder="Username or email" autocomplete="username">
+                <button id="authPasswordResetRequestBtn" type="button">Send reset link</button>
+                <button id="authPasswordResetCancelBtn" type="button" class="secondary-btn">Cancel</button>
+              </div>
+            </div>
+            <div id="authPasswordResetConfirmForm" class="auth-reset-form is-hidden">
+              <label for="authPasswordResetNewPassword">Choose a new password</label>
+              <div class="auth-gate-form">
+                <input id="authPasswordResetNewPassword" type="password" placeholder="New password" autocomplete="new-password">
+                <input id="authPasswordResetConfirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password">
+                <button id="authPasswordResetConfirmBtn" type="button">Reset password</button>
+              </div>
+              <button id="authPasswordResetConfirmCancelBtn" type="button" class="secondary-btn">Back to sign in</button>
+            </div>
+            <div id="authPasswordResetStatus" class="section-note">Enter your username or email to receive a reset link.</div>
+          </div>
         </div>
       </section>
 
@@ -448,6 +472,10 @@
                 <div>
                   <label for="userCreateDisplayName">Display name</label>
                   <input id="userCreateDisplayName" type="text" placeholder="e.g. Alice Example">
+                </div>
+                <div>
+                  <label for="userCreateEmail">Email</label>
+                  <input id="userCreateEmail" type="email" placeholder="e.g. alice@example.org">
                 </div>
                 <div>
                   <label for="userCreatePassword">Password</label>

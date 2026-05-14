@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi import HTTPException
@@ -67,6 +68,7 @@ def write_json(tmp_path, name, payload):
 
 def isolate_auth_store(monkeypatch, tmp_path):
     monkeypatch.setattr(auth_module, "AUTH_USERS_PATH", tmp_path / "state" / "auth" / "users.json")
+    monkeypatch.setattr(auth_module, "PASSWORD_RESET_TOKENS_PATH", tmp_path / "state" / "auth" / "password-reset-tokens.json")
 
 
 def isolate_user_state(monkeypatch, tmp_path):
@@ -1507,6 +1509,114 @@ def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, 
     listing = client.get("/auth/users")
     assert listing.status_code == 200
     assert [item["username"] for item in listing.json()["users"]] == ["admin"]
+
+
+def test_auth_admin_can_create_and_update_user_email(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
+    )
+    client = TestClient(app)
+
+    assert client.post("/auth/login", json={"username": "admin", "password": "secret"}).status_code == 200
+    created = client.post(
+        "/auth/users",
+        json={
+            "username": "alice",
+            "password": "first-secret",
+            "display_name": "Alice Example",
+            "email": "alice@example.org",
+            "role": "user",
+            "groups": [],
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 200
+    assert created.json()["email"] == "alice@example.org"
+
+    updated = client.patch("/auth/users/alice", json={"email": "alice.updated@example.org"})
+    assert updated.status_code == 200
+    assert updated.json()["email"] == "alice.updated@example.org"
+
+    listing = client.get("/auth/users")
+    assert listing.status_code == 200
+    alice = next(item for item in listing.json()["users"] if item["username"] == "alice")
+    assert alice["email"] == "alice.updated@example.org"
+
+
+def test_password_reset_reports_disabled_without_smtp(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.delenv("PN_SMTP_HOST", raising=False)
+    monkeypatch.delenv("PN_SMTP_FROM", raising=False)
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "user", "email": "alice@example.org"}]),
+    )
+    client = TestClient(app)
+
+    status = client.get("/auth/me")
+    assert status.status_code == 200
+    assert status.json()["password_reset_enabled"] is False
+
+    response = client.post("/auth/password-reset/request", json={"identifier": "alice"})
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+    assert "not configured" in response.json()["message"]
+    assert not auth_module.PASSWORD_RESET_TOKENS_PATH.exists()
+
+
+def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("PN_SMTP_HOST", "smtp.example.org")
+    monkeypatch.setenv("PN_SMTP_FROM", "navigator@example.org")
+    monkeypatch.setenv("PN_PUBLIC_BASE_URL", "https://navigator.example.org")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {
+                    "username": "alice",
+                    "password": "old-secret",
+                    "role": "user",
+                    "display_name": "Alice",
+                    "email": "alice@example.org",
+                }
+            ]
+        ),
+    )
+    sent_messages = []
+
+    def fake_send_password_reset_email(user, reset_url):
+        sent_messages.append({"user": user["username"], "reset_url": reset_url})
+
+    monkeypatch.setattr(auth_module, "send_password_reset_email", fake_send_password_reset_email)
+    client = TestClient(app)
+
+    unknown = client.post("/auth/password-reset/request", json={"identifier": "missing@example.org"})
+    assert unknown.status_code == 200
+    assert unknown.json()["message"] == "If an account exists, reset instructions were sent."
+    assert sent_messages == []
+
+    requested = client.post("/auth/password-reset/request", json={"identifier": "alice@example.org"})
+    assert requested.status_code == 200
+    assert requested.json()["message"] == "If an account exists, reset instructions were sent."
+    assert len(sent_messages) == 1
+    token = parse_qs(urlparse(sent_messages[0]["reset_url"]).query)["password_reset_token"][0]
+    stored = json.loads(auth_module.PASSWORD_RESET_TOKENS_PATH.read_text(encoding="utf-8"))
+    assert stored["tokens"][0]["username"] == "alice"
+    assert stored["tokens"][0]["token_hash"] != token
+
+    confirm = client.post("/auth/password-reset/confirm", json={"token": token, "password": "new-secret"})
+    assert confirm.status_code == 200
+    assert client.post("/auth/login", json={"username": "alice", "password": "old-secret"}).status_code == 401
+    assert client.post("/auth/login", json={"username": "alice", "password": "new-secret"}).status_code == 200
+
+    reused = client.post("/auth/password-reset/confirm", json={"token": token, "password": "third-secret"})
+    assert reused.status_code == 400
 
 
 def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):

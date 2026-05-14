@@ -770,6 +770,22 @@ function bindEvents() {
   refs.authLoginBtnEl && refs.authLoginBtnEl.addEventListener("click", () => {
     void authUi.loginLocal();
   });
+  refs.authForgotPasswordBtnEl && refs.authForgotPasswordBtnEl.addEventListener("click", () => {
+    authUi.setPasswordResetPanelOpen(true, "request");
+  });
+  refs.authPasswordResetRequestBtnEl && refs.authPasswordResetRequestBtnEl.addEventListener("click", () => {
+    void authUi.requestPasswordReset();
+  });
+  refs.authPasswordResetCancelBtnEl && refs.authPasswordResetCancelBtnEl.addEventListener("click", () => {
+    authUi.setPasswordResetPanelOpen(false);
+  });
+  refs.authPasswordResetConfirmBtnEl && refs.authPasswordResetConfirmBtnEl.addEventListener("click", () => {
+    void authUi.confirmPasswordReset();
+  });
+  refs.authPasswordResetConfirmCancelBtnEl && refs.authPasswordResetConfirmCancelBtnEl.addEventListener("click", () => {
+    authUi.clearPasswordResetTokenFromLocation();
+    authUi.setPasswordResetPanelOpen(false);
+  });
   refs.heroLogoutBtnEl && refs.heroLogoutBtnEl.addEventListener("click", () => {
     void authUi.logoutLocal();
   });
@@ -809,6 +825,18 @@ function bindEvents() {
     if (event.key === "Enter") {
       event.preventDefault();
       void authUi.loginLocal();
+    }
+  });
+  refs.authPasswordResetIdentifierEl && refs.authPasswordResetIdentifierEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void authUi.requestPasswordReset();
+    }
+  });
+  refs.authPasswordResetConfirmPasswordEl && refs.authPasswordResetConfirmPasswordEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void authUi.confirmPasswordReset();
     }
   });
 

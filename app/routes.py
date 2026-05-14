@@ -13,9 +13,12 @@ from app.auth import (
     authenticate_local_user,
     auth_provider_mode,
     create_local_user,
+    confirm_password_reset,
     delete_local_user,
     local_auth_diagnostics,
     local_users,
+    password_reset_enabled,
+    request_password_reset,
     require_admin,
     require_authenticated,
     reset_local_user_password,
@@ -88,7 +91,10 @@ from app.schemas import (
     AnalysisSessionRenameRequest,
     AnalysisSessionRequest,
     AuthDiagnosticsResponse,
+    AuthPasswordResetConfirmRequest,
     AuthPasswordResetRequest,
+    AuthPasswordResetResponse,
+    AuthPasswordResetStartRequest,
     AuthStatusResponse,
     AuthUserCreateRequest,
     AuthUserResponse,
@@ -491,17 +497,19 @@ def get_auth_status(request: Request) -> Dict:
     return {
         "enabled": auth_enabled(),
         "authenticated": bool(user) if auth_enabled() else True,
+        "password_reset_enabled": password_reset_enabled(),
         "user": user if auth_enabled() else {
             "username": "local",
             "role": "admin",
             "display_name": "Local user",
+            "email": "",
         },
     }
 
 
 def login_local(request: Request, payload: LoginRequest) -> Dict:
     if not auth_enabled():
-        return {"enabled": False, "authenticated": True}
+        return {"enabled": False, "authenticated": True, "password_reset_enabled": False}
     user = authenticate_local_user(payload.username, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
@@ -512,10 +520,12 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
     return {
         "enabled": True,
         "authenticated": True,
+        "password_reset_enabled": password_reset_enabled(),
         "user": {
             "username": user["username"],
             "role": user["role"],
             "display_name": user["display_name"],
+            "email": str(user.get("email") or ""),
             "groups": list(user.get("groups") or []),
         },
     }
@@ -525,7 +535,32 @@ def logout_local(request: Request) -> Dict:
     session = getattr(request, "session", None)
     if session is not None:
         session.clear()
-    return {"enabled": auth_enabled(), "authenticated": False}
+    return {"enabled": auth_enabled(), "authenticated": False, "password_reset_enabled": password_reset_enabled()}
+
+
+def request_auth_password_reset(payload: AuthPasswordResetStartRequest, request: Request) -> Dict:
+    message = "If an account exists, reset instructions were sent."
+    if not auth_enabled():
+        return {"ok": True, "message": message}
+    if not password_reset_enabled():
+        return {"ok": False, "message": "Password reset is not configured. Contact your administrator."}
+    try:
+        request_password_reset(payload.identifier, request)
+    except Exception:
+        # Keep the public response non-enumerating. Operational SMTP failures
+        # should be handled through deployment logs and admin configuration.
+        pass
+    return {"ok": True, "message": message}
+
+
+def confirm_auth_password_reset(payload: AuthPasswordResetConfirmRequest) -> Dict:
+    if not auth_enabled() or not password_reset_enabled():
+        raise HTTPException(status_code=400, detail="Password reset is not configured. Contact your administrator.")
+    try:
+        confirm_password_reset(payload.token, payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "message": "Password reset. You can sign in with the new password."}
 
 
 def get_auth_diagnostics(request: Request) -> Dict:
@@ -553,6 +588,7 @@ def create_auth_user(request: AuthUserCreateRequest, raw_request: Request) -> Di
             username=request.username,
             password=request.password,
             display_name=request.display_name,
+            email=request.email,
             role=request.role,
             groups=request.groups,
             enabled=request.enabled,
@@ -563,6 +599,7 @@ def create_auth_user(request: AuthUserCreateRequest, raw_request: Request) -> Di
         "username": str(user.get("username") or ""),
         "role": str(user.get("role") or "user"),
         "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "email": str(user.get("email") or ""),
         "groups": list(user.get("groups") or []),
         "enabled": bool(user.get("enabled", True)),
         "auth_source": str(user.get("auth_source") or "local"),
@@ -584,6 +621,7 @@ def update_auth_user(username: str, request: AuthUserUpdateRequest, raw_request:
         user = update_local_user(
             username,
             display_name=request.display_name,
+            email=request.email,
             role=request.role,
             groups=request.groups,
             enabled=request.enabled,
@@ -594,6 +632,7 @@ def update_auth_user(username: str, request: AuthUserUpdateRequest, raw_request:
         "username": str(user.get("username") or ""),
         "role": str(user.get("role") or "user"),
         "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "email": str(user.get("email") or ""),
         "groups": list(user.get("groups") or []),
         "enabled": bool(user.get("enabled", True)),
         "auth_source": str(user.get("auth_source") or "local"),
@@ -611,6 +650,7 @@ def reset_auth_user_password(username: str, request: AuthPasswordResetRequest, r
         "username": str(user.get("username") or ""),
         "role": str(user.get("role") or "user"),
         "display_name": str(user.get("display_name") or user.get("username") or ""),
+        "email": str(user.get("email") or ""),
         "groups": list(user.get("groups") or []),
         "enabled": bool(user.get("enabled", True)),
         "auth_source": str(user.get("auth_source") or "local"),
@@ -1141,6 +1181,8 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/password-reset/request", request_auth_password_reset, methods=["POST"], tags=["auth"], summary="Request a local password reset", description="Sends a password reset email when SMTP-backed local reset is configured. The response does not reveal whether the account exists.", response_model=AuthPasswordResetResponse)
+    app.add_api_route("/auth/password-reset/confirm", confirm_auth_password_reset, methods=["POST"], tags=["auth"], summary="Confirm a local password reset", description="Consumes a password reset token and replaces the local password.", response_model=AuthPasswordResetResponse)
     app.add_api_route("/auth/debug", get_auth_diagnostics, methods=["GET"], tags=["auth"], summary="Inspect auth diagnostics", description="Returns local-auth diagnostics useful during development and deployment troubleshooting.", response_model=AuthDiagnosticsResponse)
     app.add_api_route("/auth/users", get_auth_users, methods=["GET"], tags=["auth"], summary="List visible local users", description="Returns local users and groups. When auth is enabled, this endpoint is admin-only.", response_model=AuthUsersResponse)
     app.add_api_route("/auth/users", create_auth_user, methods=["POST"], tags=["auth"], summary="Create a local user", description="Creates a persisted local user with application role and groups. Admin-only when auth is enabled.", response_model=AuthUserResponse)

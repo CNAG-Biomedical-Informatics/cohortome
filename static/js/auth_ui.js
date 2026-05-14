@@ -23,6 +23,16 @@ export function createAuthUi(ctx) {
     molecularDashboardStatusEl,
     authUsernameEl,
     authPasswordEl,
+    authPasswordResetPromptEl,
+    authForgotPasswordBtnEl,
+    authPasswordResetUnavailableEl,
+    authPasswordResetPanelEl,
+    authPasswordResetRequestFormEl,
+    authPasswordResetConfirmFormEl,
+    authPasswordResetIdentifierEl,
+    authPasswordResetNewPasswordEl,
+    authPasswordResetConfirmPasswordEl,
+    authPasswordResetStatusEl,
   } = refs;
   const {
     renderLoadButtonState,
@@ -63,6 +73,55 @@ export function createAuthUi(ctx) {
 
   function isWorkspaceAccessible() {
     return !state.authState.enabled || Boolean(state.authState.authenticated && state.authState.user);
+  }
+
+  function passwordResetTokenFromLocation() {
+    try {
+      return new URLSearchParams(window.location.search).get("password_reset_token") || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function clearPasswordResetTokenFromLocation() {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("password_reset_token");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch (_error) {
+    }
+  }
+
+  function setPasswordResetPanelOpen(open, mode = "request") {
+    const enabled = Boolean(state.authState && state.authState.passwordResetEnabled);
+    const shouldOpen = Boolean(open && enabled);
+    authPasswordResetPanelEl && authPasswordResetPanelEl.classList.toggle("is-hidden", !shouldOpen);
+    authPasswordResetPromptEl && authPasswordResetPromptEl.classList.toggle("is-hidden", shouldOpen || !enabled);
+    authPasswordResetRequestFormEl && authPasswordResetRequestFormEl.classList.toggle("is-hidden", mode !== "request");
+    authPasswordResetConfirmFormEl && authPasswordResetConfirmFormEl.classList.toggle("is-hidden", mode !== "confirm");
+    if (shouldOpen && authPasswordResetStatusEl) {
+      authPasswordResetStatusEl.className = "section-note";
+      authPasswordResetStatusEl.textContent = mode === "confirm"
+        ? "Enter a new password for this account."
+        : "Enter your username or email to receive a reset link.";
+    }
+  }
+
+  function renderPasswordResetUi() {
+    const enabled = Boolean(state.authState && state.authState.passwordResetEnabled);
+    const authenticated = Boolean(state.authState && state.authState.authenticated && state.authState.user);
+    const token = passwordResetTokenFromLocation();
+    authPasswordResetUnavailableEl && authPasswordResetUnavailableEl.classList.toggle("is-hidden", authenticated || enabled);
+    if (!enabled || authenticated) {
+      setPasswordResetPanelOpen(false);
+      authPasswordResetPromptEl && authPasswordResetPromptEl.classList.add("is-hidden");
+      return;
+    }
+    if (token) {
+      setPasswordResetPanelOpen(true, "confirm");
+      return;
+    }
+    authPasswordResetPromptEl && authPasswordResetPromptEl.classList.remove("is-hidden");
   }
 
   function clearLoadedWorkspaceForSignedOutState() {
@@ -120,6 +179,7 @@ export function createAuthUi(ctx) {
       updateLoadButtonAvailability();
       renderJobsDrawer();
       renderGlobalContext();
+      renderPasswordResetUi();
       return;
     }
     const authenticated = Boolean(state.authState.authenticated && state.authState.user);
@@ -163,6 +223,7 @@ export function createAuthUi(ctx) {
     updateLoadButtonAvailability();
     renderJobsDrawer();
     renderGlobalContext();
+    renderPasswordResetUi();
   }
 
   async function refreshUserWorkspaceState() {
@@ -200,12 +261,14 @@ export function createAuthUi(ctx) {
       state.authState = {
         enabled: Boolean(payload.enabled),
         authenticated: Boolean(payload.authenticated),
+        passwordResetEnabled: Boolean(payload.password_reset_enabled),
         user: payload.user || null,
       };
     } catch (_error) {
       state.authState = {
         enabled: false,
         authenticated: true,
+        passwordResetEnabled: false,
         user: { username: "local", role: "admin", display_name: "Local user" },
       };
     }
@@ -261,6 +324,76 @@ export function createAuthUi(ctx) {
     }
   }
 
+  async function requestPasswordReset() {
+    if (!state.authState.enabled || !state.authState.passwordResetEnabled) return;
+    const identifier = String(authPasswordResetIdentifierEl && authPasswordResetIdentifierEl.value ? authPasswordResetIdentifierEl.value : "").trim();
+    if (authPasswordResetStatusEl) {
+      authPasswordResetStatusEl.className = "section-note";
+      authPasswordResetStatusEl.textContent = "Sending reset instructions...";
+    }
+    try {
+      const response = await fetch("/auth/password-reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || "Unable to request password reset.");
+      }
+      if (authPasswordResetStatusEl) {
+        authPasswordResetStatusEl.className = "section-note";
+        authPasswordResetStatusEl.textContent = payload.message || "If an account exists, reset instructions were sent.";
+      }
+    } catch (error) {
+      if (authPasswordResetStatusEl) {
+        authPasswordResetStatusEl.className = "section-note is-warning";
+        authPasswordResetStatusEl.textContent = error && error.message ? error.message : "Unable to request password reset.";
+      }
+    }
+  }
+
+  async function confirmPasswordReset() {
+    if (!state.authState.enabled || !state.authState.passwordResetEnabled) return;
+    const token = passwordResetTokenFromLocation();
+    const password = String(authPasswordResetNewPasswordEl && authPasswordResetNewPasswordEl.value ? authPasswordResetNewPasswordEl.value : "");
+    const confirmPassword = String(authPasswordResetConfirmPasswordEl && authPasswordResetConfirmPasswordEl.value ? authPasswordResetConfirmPasswordEl.value : "");
+    if (!password || password !== confirmPassword) {
+      if (authPasswordResetStatusEl) {
+        authPasswordResetStatusEl.className = "section-note is-warning";
+        authPasswordResetStatusEl.textContent = "Enter the same new password twice.";
+      }
+      return;
+    }
+    if (authPasswordResetStatusEl) {
+      authPasswordResetStatusEl.className = "section-note";
+      authPasswordResetStatusEl.textContent = "Resetting password...";
+    }
+    try {
+      const response = await fetch("/auth/password-reset/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || "Unable to reset password.");
+      }
+      if (authPasswordResetNewPasswordEl) authPasswordResetNewPasswordEl.value = "";
+      if (authPasswordResetConfirmPasswordEl) authPasswordResetConfirmPasswordEl.value = "";
+      clearPasswordResetTokenFromLocation();
+      setPasswordResetPanelOpen(false);
+      if (authGateStatusEl) {
+        authGateStatusEl.textContent = payload.message || "Password reset. You can sign in with the new password.";
+      }
+    } catch (error) {
+      if (authPasswordResetStatusEl) {
+        authPasswordResetStatusEl.className = "section-note is-warning";
+        authPasswordResetStatusEl.textContent = error && error.message ? error.message : "Unable to reset password.";
+      }
+    }
+  }
+
   async function logoutLocal() {
     try {
       await fetch("/auth/logout", { method: "POST" });
@@ -285,6 +418,10 @@ export function createAuthUi(ctx) {
     refreshUserWorkspaceState,
     fetchAuthStatus,
     loginLocal,
+    setPasswordResetPanelOpen,
+    requestPasswordReset,
+    confirmPasswordReset,
+    clearPasswordResetTokenFromLocation,
     logoutLocal,
   };
 }

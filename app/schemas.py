@@ -184,6 +184,7 @@ class AuthUserCreateRequest(BaseModel):
     username: str = Field(default="", description="Unique local username.")
     password: str = Field(default="", description="Initial local password.")
     display_name: str = Field(default="", description="User-facing display name.")
+    email: str = Field(default="", description="Optional email address used for self-service password reset.")
     role: str = Field(default="user", description="Application role: user or admin.")
     groups: List[str] = Field(default_factory=list, description="Application groups used for dataset authorization.")
     enabled: bool = Field(default=True, description="Whether the user can sign in.")
@@ -191,6 +192,7 @@ class AuthUserCreateRequest(BaseModel):
 
 class AuthUserUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, description="Updated display name.")
+    email: str | None = Field(default=None, description="Updated email address used for self-service password reset.")
     role: str | None = Field(default=None, description="Updated application role.")
     groups: List[str] | None = Field(default=None, description="Replacement application groups.")
     enabled: bool | None = Field(default=None, description="Whether the user can sign in.")
@@ -198,6 +200,20 @@ class AuthUserUpdateRequest(BaseModel):
 
 class AuthPasswordResetRequest(BaseModel):
     password: str = Field(default="", description="Replacement local password.")
+
+
+class AuthPasswordResetStartRequest(BaseModel):
+    identifier: str = Field(default="", description="Username or email address for password reset.")
+
+
+class AuthPasswordResetConfirmRequest(BaseModel):
+    token: str = Field(default="", description="Password reset token from the reset link.")
+    password: str = Field(default="", description="New local password.")
+
+
+class AuthPasswordResetResponse(BaseModel):
+    ok: bool = True
+    message: str
 
 
 class DatasetSelectionRequest(BaseModel):
@@ -233,6 +249,7 @@ class AuthUserResponse(FlexibleModel):
     username: str
     role: str
     display_name: str
+    email: str = ""
     groups: List[str] = Field(default_factory=list)
     enabled: bool = True
     auth_source: str = "local"
@@ -241,6 +258,7 @@ class AuthUserResponse(FlexibleModel):
 class AuthStatusResponse(BaseModel):
     enabled: bool
     authenticated: bool
+    password_reset_enabled: bool = False
     user: AuthUserResponse | None = None
 
 
