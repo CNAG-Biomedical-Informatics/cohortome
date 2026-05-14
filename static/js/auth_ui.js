@@ -5,6 +5,9 @@ export function createAuthUi(ctx) {
     authGateEl,
     authBrandHeroEl,
     authGateStatusEl,
+    authLoginLabelEl,
+    authOidcFormEl,
+    authOidcLoginLabelEl,
     heroAuthUtilityEl,
     heroAuthIdentityEl,
     heroLogoutBtnEl,
@@ -110,7 +113,15 @@ export function createAuthUi(ctx) {
   function renderPasswordResetUi() {
     const enabled = Boolean(state.authState && state.authState.passwordResetEnabled);
     const authenticated = Boolean(state.authState && state.authState.authenticated && state.authState.user);
+    const mode = String(state.authState && state.authState.mode || "none");
+    const localLoginEnabled = Boolean(state.authState && state.authState.localLoginEnabled);
     const token = passwordResetTokenFromLocation();
+    if (mode === "oidc" && !localLoginEnabled) {
+      authPasswordResetUnavailableEl && authPasswordResetUnavailableEl.classList.add("is-hidden");
+      authPasswordResetPromptEl && authPasswordResetPromptEl.classList.add("is-hidden");
+      setPasswordResetPanelOpen(false);
+      return;
+    }
     authPasswordResetUnavailableEl && authPasswordResetUnavailableEl.classList.toggle("is-hidden", authenticated || enabled);
     if (!enabled || authenticated) {
       setPasswordResetPanelOpen(false);
@@ -161,6 +172,20 @@ export function createAuthUi(ctx) {
   }
 
   function renderAuthUi() {
+    const mode = String(state.authState && state.authState.mode || (state.authState.enabled ? "local" : "none"));
+    const provider = String(state.authState && state.authState.provider || mode || "local");
+    const oidcMode = mode === "oidc";
+    const localLoginEnabled = Boolean(state.authState && state.authState.localLoginEnabled);
+    const showLocalLogin = !oidcMode || localLoginEnabled;
+    authOidcFormEl && authOidcFormEl.classList.toggle("is-hidden", !oidcMode);
+    if (authOidcLoginLabelEl) {
+      authOidcLoginLabelEl.textContent = `Sign in with ${provider}`;
+    }
+    authUsernameEl && authUsernameEl.classList.toggle("is-hidden", !showLocalLogin);
+    authPasswordEl && authPasswordEl.classList.toggle("is-hidden", !showLocalLogin);
+    if (authLoginLabelEl) {
+      authLoginLabelEl.textContent = "Sign in with password";
+    }
     if (!state.authState.enabled) {
       authBrandHeroEl && authBrandHeroEl.classList.add("is-hidden");
       authGateEl && authGateEl.classList.add("is-hidden");
@@ -193,7 +218,9 @@ export function createAuthUi(ctx) {
         heroAuthIdentityEl.textContent = `${state.authState.user.display_name || state.authState.user.username} (${state.authState.user.role || "user"})`;
       }
       if (authGateStatusEl) {
-        authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
+        authGateStatusEl.textContent = oidcMode
+          ? (localLoginEnabled ? `Use ${provider} or a local password to open your private workspace.` : `Use ${provider} to open your private workspace.`)
+          : "Enter your credentials to open your private workspace.";
       }
       const admin = canManageDataset();
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
@@ -217,7 +244,9 @@ export function createAuthUi(ctx) {
       datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
       usersCreateCardEl && usersCreateCardEl.classList.add("is-hidden");
       if (authGateStatusEl) {
-        authGateStatusEl.textContent = "Enter your credentials to open your private workspace.";
+        authGateStatusEl.textContent = oidcMode
+          ? (localLoginEnabled ? `Use ${provider} or a local password to open your private workspace.` : `Use ${provider} to open your private workspace.`)
+          : "Enter your credentials to open your private workspace.";
       }
     }
     updateLoadButtonAvailability();
@@ -260,14 +289,20 @@ export function createAuthUi(ctx) {
       const payload = await response.json();
       state.authState = {
         enabled: Boolean(payload.enabled),
+        mode: String(payload.mode || (payload.enabled ? "local" : "none")),
+        provider: String(payload.provider || payload.mode || "local"),
         authenticated: Boolean(payload.authenticated),
+        localLoginEnabled: Boolean(payload.local_login_enabled),
         passwordResetEnabled: Boolean(payload.password_reset_enabled),
         user: payload.user || null,
       };
     } catch (_error) {
       state.authState = {
         enabled: false,
+        mode: "none",
+        provider: "none",
         authenticated: true,
+        localLoginEnabled: false,
         passwordResetEnabled: false,
         user: { username: "local", role: "admin", display_name: "Local user" },
       };
@@ -322,6 +357,10 @@ export function createAuthUi(ctx) {
         authGateStatusEl.textContent = error && error.message ? error.message : "Sign-in failed.";
       }
     }
+  }
+
+  function loginOidc() {
+    window.location.href = "/auth/login";
   }
 
   async function requestPasswordReset() {
@@ -418,6 +457,7 @@ export function createAuthUi(ctx) {
     refreshUserWorkspaceState,
     fetchAuthStatus,
     loginLocal,
+    loginOidc,
     setPasswordResetPanelOpen,
     requestPasswordReset,
     confirmPasswordReset,

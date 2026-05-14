@@ -49,6 +49,7 @@ export function createUserSettingsUi(ctx) {
   const {
     userSettingsBtnEl,
     userSettingsPanelEl,
+    userSettingsAuthSummaryEl,
     userSettingsStatusEl,
     userSettingsSaveBtnEl,
     userSettingsResetBtnEl,
@@ -91,6 +92,44 @@ export function createUserSettingsUi(ctx) {
   function setPanelOpen(open) {
     if (!userSettingsPanelEl) return;
     userSettingsPanelEl.classList.toggle("is-hidden", !open);
+    if (open) {
+      renderAuthSummary();
+    }
+  }
+
+  function authProviderLabel(authState) {
+    const mode = String(authState && authState.mode || (authState && authState.enabled ? "local" : "none"));
+    const provider = String(authState && authState.provider || mode || "none");
+    if (mode === "oidc") return `${provider} / OIDC`;
+    if (mode === "local") return "Local password";
+    return "Development fallback";
+  }
+
+  function renderAuthSummary() {
+    if (!userSettingsAuthSummaryEl) return;
+    const authState = state.authState || {};
+    const user = authState.user || {};
+    const groups = Array.isArray(user.groups) && user.groups.length ? user.groups.join(", ") : "none";
+    const signedIn = authState.authenticated && user.username;
+    const rows = [
+      ["Signed in as", signedIn ? `${user.display_name || user.username} (${user.username})` : "Not signed in"],
+      ["Provider", authProviderLabel(authState)],
+      ["Local password fallback", authState.localLoginEnabled ? "enabled" : "disabled"],
+      ["Password reset", authState.passwordResetEnabled ? "SMTP configured" : "contact administrator"],
+      ["Email", user.email || "not set"],
+      ["Role", user.role || "user"],
+      ["Groups", groups],
+    ];
+    userSettingsAuthSummaryEl.innerHTML = `
+      <strong>Authentication</strong>
+      <div class="user-settings-auth-grid">
+        ${rows.map(([label, value]) => `
+          <div class="user-settings-auth-label">${label}</div>
+          <div class="user-settings-auth-value">${String(value).replace(/</g, "&lt;")}</div>
+        `).join("")}
+      </div>
+      <div class="section-note">Dataset access is managed by Patient Navigator roles and groups.</div>
+    `;
   }
 
   function renderUserSettingsForm() {
@@ -107,6 +146,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsPhenoRenderGraphEl) settingsPhenoRenderGraphEl.checked = settings.pheno_render_graph;
     if (settingsDashboardMolecularOpenEl) settingsDashboardMolecularOpenEl.checked = settings.dashboard_molecular_open;
     if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
+    renderAuthSummary();
   }
 
   function formSettings() {
@@ -269,6 +309,7 @@ export function createUserSettingsUi(ctx) {
   return {
     setPanelOpen,
     renderUserSettingsForm,
+    renderAuthSummary,
     applyUserSettings,
     loadUserSettings,
     saveUserSettings,

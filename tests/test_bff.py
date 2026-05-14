@@ -1619,6 +1619,128 @@ def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch
     assert reused.status_code == 400
 
 
+def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {
+                    "username": "mrueda",
+                    "password": "local-secret",
+                    "role": "admin",
+                    "display_name": "Manuel Rueda",
+                    "email": "manuel.rueda@cnag.eu",
+                    "groups": ["cnag"],
+                }
+            ]
+        ),
+    )
+
+    def fake_oidc_authorization_url(state, nonce):
+        return f"https://dex.example.test/auth?state={state}&nonce={nonce}"
+
+    def fake_oidc_userinfo_from_code(code):
+        assert code == "valid-code"
+        return {
+            "sub": "patient-navigator-dev-mrueda",
+            "email": "manuel.rueda@cnag.eu",
+            "email_verified": True,
+            "name": "Manuel Rueda",
+        }
+
+    monkeypatch.setattr(routes_module, "oidc_authorization_url", fake_oidc_authorization_url)
+    monkeypatch.setattr(routes_module, "oidc_userinfo_from_code", fake_oidc_userinfo_from_code)
+    client = TestClient(app)
+
+    me_before = client.get("/auth/me")
+    assert me_before.status_code == 200
+    assert me_before.json()["mode"] == "oidc"
+    assert me_before.json()["provider"] == "Dex"
+    assert me_before.json()["authenticated"] is False
+
+    start = client.get("/auth/login", follow_redirects=False)
+    assert start.status_code == 303
+    location = start.headers["location"]
+    state = parse_qs(urlparse(location).query)["state"][0]
+
+    callback = client.get(f"/auth/oidc/callback?code=valid-code&state={state}", follow_redirects=False)
+    assert callback.status_code == 303
+    assert callback.headers["location"] == "/"
+
+    me_after = client.get("/auth/me")
+    assert me_after.status_code == 200
+    assert me_after.json()["authenticated"] is True
+    assert me_after.json()["user"]["username"] == "mrueda"
+    assert me_after.json()["user"]["role"] == "admin"
+    assert me_after.json()["user"]["groups"] == ["cnag"]
+
+
+def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
+    )
+    monkeypatch.setattr(
+        routes_module,
+        "oidc_authorization_url",
+        lambda state, nonce: f"https://dex.example.test/auth?state={state}&nonce={nonce}",
+    )
+    monkeypatch.setattr(
+        routes_module,
+        "oidc_userinfo_from_code",
+        lambda code: {"sub": "unknown", "email": "unknown@example.org", "email_verified": True},
+    )
+    client = TestClient(app)
+
+    start = client.get("/auth/login", follow_redirects=False)
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+    callback = client.get(f"/auth/oidc/callback?code=valid-code&state={state}", follow_redirects=False)
+
+    assert callback.status_code == 403
+    assert client.get("/auth/me").json()["authenticated"] is False
+
+
+def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("PN_AUTH_LOCAL_FALLBACK", "true")
+    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
+    )
+    client = TestClient(app)
+
+    status = client.get("/auth/me")
+    assert status.status_code == 200
+    assert status.json()["mode"] == "oidc"
+    assert status.json()["local_login_enabled"] is True
+
+    login = client.post("/auth/login", json={"username": "admin", "password": "secret"})
+    assert login.status_code == 200
+    assert login.json()["authenticated"] is True
+    assert login.json()["local_login_enabled"] is True
+    assert login.json()["user"]["username"] == "admin"
+
+
 def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setenv("PN_AUTH_MODE", "local")

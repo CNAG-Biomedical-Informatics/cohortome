@@ -770,6 +770,9 @@ function bindEvents() {
   refs.authLoginBtnEl && refs.authLoginBtnEl.addEventListener("click", () => {
     void authUi.loginLocal();
   });
+  refs.authOidcLoginBtnEl && refs.authOidcLoginBtnEl.addEventListener("click", () => {
+    authUi.loginOidc();
+  });
   refs.authForgotPasswordBtnEl && refs.authForgotPasswordBtnEl.addEventListener("click", () => {
     authUi.setPasswordResetPanelOpen(true, "request");
   });
@@ -790,8 +793,8 @@ function bindEvents() {
     void authUi.logoutLocal();
   });
   refs.userSettingsBtnEl && refs.userSettingsBtnEl.addEventListener("click", () => {
-    userSettingsUi.setPanelOpen(true);
     userSettingsUi.renderUserSettingsForm();
+    userSettingsUi.setPanelOpen(true);
   });
   refs.userSettingsCloseBtnEl && refs.userSettingsCloseBtnEl.addEventListener("click", () => {
     userSettingsUi.setPanelOpen(false);

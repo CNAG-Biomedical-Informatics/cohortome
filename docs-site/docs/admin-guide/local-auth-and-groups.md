@@ -2,9 +2,10 @@
 sidebar_position: 2
 ---
 
-# Local Auth And Groups
+# Auth And Groups
 
-The current app uses local authentication for development and controlled deployment scenarios.
+The current app supports local authentication and a generic OIDC mode for
+external identity providers such as Dex, Google, or institutional SSO.
 
 ## Source of truth
 
@@ -24,6 +25,39 @@ export PN_LOCAL_USERS_JSON='[
   {"username":"nogroup","password":"nogroup","role":"user","display_name":"No Group User","groups":[]}
 ]'
 ```
+
+## Auth modes
+
+Patient Navigator supports three authentication modes:
+
+- `PN_AUTH_MODE=none`
+  - development fallback with a synthetic local admin user
+- `PN_AUTH_MODE=local`
+  - local username/password users stored in `state/auth/users.json`
+- `PN_AUTH_MODE=oidc`
+  - external OIDC login, with Patient Navigator still owning roles, groups, and
+    dataset access
+
+Optional local fallback:
+
+```bash
+export PN_AUTH_LOCAL_FALLBACK=true
+```
+
+When this is set with `PN_AUTH_MODE=oidc`, the login page shows both the OIDC
+button and the local username/password form. This is useful during development
+or for emergency admin access. Leave it disabled in stricter production
+deployments if all users should authenticate through the external provider.
+
+OIDC authenticates identity only. Authorization remains local:
+
+```text
+OIDC subject/email -> Patient Navigator user -> role/groups -> dataset access
+```
+
+An OIDC user must map to an enabled local Patient Navigator user by
+`external_subject` or email. Automatic user provisioning is intentionally not
+enabled.
 
 ## Roles versus groups
 
@@ -173,3 +207,39 @@ Patient Navigator should continue to own authorization concepts such as:
 For production environments with institutional identity management, external
 OIDC/SAML/LDAP remains the preferred long-term authentication model. Local SMTP
 password reset is intended for controlled deployments that still use local auth.
+
+## Local OIDC development with Dex
+
+Dex is the recommended local OIDC provider for development because it is small
+and can run as a disposable container.
+
+Start Dex from the repository root:
+
+```bash
+docker compose -f scripts/dev/docker-compose.dex.yml up
+```
+
+Start Patient Navigator in OIDC mode:
+
+```bash
+export PN_AUTH_MODE=oidc
+export PN_OIDC_PROVIDER_NAME=Dex
+export PN_OIDC_ISSUER=http://127.0.0.1:5556/dex
+export PN_OIDC_CLIENT_ID=patient-navigator
+export PN_OIDC_CLIENT_SECRET=patient-navigator-secret
+export PN_OIDC_REDIRECT_URI=http://127.0.0.1:8000/auth/oidc/callback
+export PN_AUTH_LOCAL_FALLBACK=true
+export PN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+PYTHONPATH=.deps uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+The development Dex config includes one static user:
+
+- email: `manuel.rueda@cnag.eu`
+- password: `password`
+
+That email must also exist on the local Patient Navigator user record, for
+example `mrueda` in `state/auth/users.json`.
+
+Production Google or institutional OIDC should use the same app-side variables
+with provider-specific issuer, client ID, client secret, and redirect URI.

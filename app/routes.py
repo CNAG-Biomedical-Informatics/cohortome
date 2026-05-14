@@ -1,22 +1,30 @@
 from __future__ import annotations
 
 import os
+import secrets
 from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import (
     auth_enabled,
+    auth_mode,
     authenticate_local_user,
     auth_provider_mode,
     create_local_user,
     confirm_password_reset,
     delete_local_user,
+    find_oidc_user,
+    local_fallback_enabled,
     local_auth_diagnostics,
     local_users,
+    oidc_authorization_url,
+    oidc_configured,
+    oidc_provider_name,
+    oidc_userinfo_from_code,
     password_reset_enabled,
     request_password_reset,
     require_admin,
@@ -496,7 +504,10 @@ def get_auth_status(request: Request) -> Dict:
     user = session_user(request)
     return {
         "enabled": auth_enabled(),
+        "mode": auth_provider_mode(),
+        "provider": oidc_provider_name() if auth_provider_mode() == "oidc" else auth_provider_mode(),
         "authenticated": bool(user) if auth_enabled() else True,
+        "local_login_enabled": local_fallback_enabled(),
         "password_reset_enabled": password_reset_enabled(),
         "user": user if auth_enabled() else {
             "username": "local",
@@ -508,8 +519,18 @@ def get_auth_status(request: Request) -> Dict:
 
 
 def login_local(request: Request, payload: LoginRequest) -> Dict:
-    if not auth_enabled():
-        return {"enabled": False, "authenticated": True, "password_reset_enabled": False}
+    mode = auth_mode()
+    if mode == "none":
+        return {
+            "enabled": False,
+            "mode": "none",
+            "provider": "none",
+            "authenticated": True,
+            "local_login_enabled": False,
+            "password_reset_enabled": False,
+        }
+    if mode != "local" and not local_fallback_enabled():
+        raise HTTPException(status_code=400, detail="Local password login is not enabled.")
     user = authenticate_local_user(payload.username, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
@@ -519,7 +540,10 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
     request.session["groups"] = list(user.get("groups") or [])
     return {
         "enabled": True,
+        "mode": "local",
+        "provider": "local",
         "authenticated": True,
+        "local_login_enabled": local_fallback_enabled(),
         "password_reset_enabled": password_reset_enabled(),
         "user": {
             "username": user["username"],
@@ -535,7 +559,56 @@ def logout_local(request: Request) -> Dict:
     session = getattr(request, "session", None)
     if session is not None:
         session.clear()
-    return {"enabled": auth_enabled(), "authenticated": False, "password_reset_enabled": password_reset_enabled()}
+    return {
+        "enabled": auth_enabled(),
+        "mode": auth_provider_mode(),
+        "provider": oidc_provider_name() if auth_provider_mode() == "oidc" else auth_provider_mode(),
+        "authenticated": False,
+        "local_login_enabled": local_fallback_enabled(),
+        "password_reset_enabled": password_reset_enabled(),
+    }
+
+
+def login_oidc(request: Request) -> RedirectResponse:
+    if auth_mode() != "oidc":
+        return RedirectResponse(url="/", status_code=303)
+    if not oidc_configured():
+        raise HTTPException(status_code=500, detail="OIDC is not fully configured.")
+    state = os.urandom(24).hex()
+    nonce = os.urandom(24).hex()
+    request.session["oidc_state"] = state
+    request.session["oidc_nonce"] = nonce
+    try:
+        url = oidc_authorization_url(state, nonce)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return RedirectResponse(url=url, status_code=303)
+
+
+def oidc_callback(request: Request, code: str = "", state: str = "", error: str = "") -> RedirectResponse:
+    if auth_mode() != "oidc":
+        raise HTTPException(status_code=404, detail="OIDC authentication is not enabled.")
+    if error:
+        raise HTTPException(status_code=400, detail=f"OIDC provider returned an error: {error}")
+    expected_state = str(request.session.get("oidc_state") or "")
+    if not expected_state or not state or not secrets.compare_digest(expected_state, state):
+        raise HTTPException(status_code=400, detail="Invalid OIDC login state.")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing OIDC authorization code.")
+    try:
+        claims = oidc_userinfo_from_code(code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    user = find_oidc_user(claims)
+    if not user or not bool(user.get("enabled", True)):
+        raise HTTPException(status_code=403, detail="OIDC user is not authorized for this Patient Navigator deployment.")
+    request.session.pop("oidc_state", None)
+    request.session.pop("oidc_nonce", None)
+    request.session["username"] = user["username"]
+    request.session["role"] = user["role"]
+    request.session["display_name"] = user["display_name"]
+    request.session["groups"] = list(user.get("groups") or [])
+    return RedirectResponse(url="/", status_code=303)
 
 
 def request_auth_password_reset(payload: AuthPasswordResetStartRequest, request: Request) -> Dict:
@@ -1179,7 +1252,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when PN_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
+    app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local Patient Navigator user.")
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/password-reset/request", request_auth_password_reset, methods=["POST"], tags=["auth"], summary="Request a local password reset", description="Sends a password reset email when SMTP-backed local reset is configured. The response does not reveal whether the account exists.", response_model=AuthPasswordResetResponse)
     app.add_api_route("/auth/password-reset/confirm", confirm_auth_password_reset, methods=["POST"], tags=["auth"], summary="Confirm a local password reset", description="Consumes a password reset token and replaces the local password.", response_model=AuthPasswordResetResponse)

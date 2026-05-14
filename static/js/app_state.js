@@ -59,7 +59,10 @@ export function createAppState() {
     datasetAdminFeedbackTimers: {},
     authState: {
       enabled: false,
+      mode: "none",
+      provider: "none",
       authenticated: true,
+      localLoginEnabled: false,
       passwordResetEnabled: false,
       user: { username: "local", role: "admin", display_name: "Local user" },
     },

@@ -257,7 +257,10 @@ class AuthUserResponse(FlexibleModel):
 
 class AuthStatusResponse(BaseModel):
     enabled: bool
+    mode: str = "none"
+    provider: str = "none"
     authenticated: bool
+    local_login_enabled: bool = False
     password_reset_enabled: bool = False
     user: AuthUserResponse | None = None
 

@@ -33,6 +33,18 @@
             <p>Authentication is required before any clinical, molecular, or analysis workspace is shown.</p>
           </div>
           <div id="authGateStatus" class="section-note">Enter your credentials to open your private workspace.</div>
+          <div id="authOidcForm" class="auth-oidc-form is-hidden">
+            <button id="authOidcLoginBtn" type="button">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <path d="M10 17l5-5-5-5"></path>
+                  <path d="M15 12H3"></path>
+                </svg>
+              </span>
+              <span id="authOidcLoginLabel">Sign in with provider</span>
+            </button>
+          </div>
           <div class="auth-gate-form">
             <input id="authUsername" placeholder="Username" autocomplete="username">
             <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password">
@@ -44,7 +56,7 @@
                   <path d="M15 12H3"></path>
                 </svg>
               </span>
-              <span>Sign in</span>
+              <span id="authLoginLabel">Sign in</span>
             </button>
           </div>
           <div id="authPasswordResetPrompt" class="auth-reset-prompt is-hidden">
@@ -127,6 +139,10 @@
               <path d="m6 6 12 12"></path>
             </svg>
           </button>
+        </div>
+        <div id="userSettingsAuthSummary" class="user-settings-auth-summary">
+          <strong>Authentication</strong>
+          <div class="section-note">Loading authentication details...</div>
         </div>
         <div class="user-settings-grid">
           <div>

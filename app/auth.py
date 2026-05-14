@@ -11,6 +11,9 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib import error as urlerror
+from urllib import parse as urlparse
+from urllib import request as urlrequest
 
 from fastapi import HTTPException, Request
 
@@ -28,11 +31,12 @@ def auth_mode() -> str:
 
 
 def auth_enabled() -> bool:
-    return auth_mode() == "local"
+    return auth_mode() in {"local", "oidc"}
 
 
 def auth_provider_mode() -> str:
-    return "local" if auth_enabled() else "none"
+    mode = auth_mode()
+    return mode if mode in {"local", "oidc"} else "none"
 
 
 def password_reset_ttl_minutes() -> int:
@@ -54,7 +58,43 @@ def _smtp_from() -> str:
 
 
 def password_reset_enabled() -> bool:
-    return auth_enabled() and bool(_smtp_host() and _smtp_from())
+    return auth_mode() == "local" and bool(_smtp_host() and _smtp_from())
+
+
+def oidc_provider_name() -> str:
+    return os.getenv("PN_OIDC_PROVIDER_NAME", "OIDC").strip() or "OIDC"
+
+
+def oidc_issuer() -> str:
+    return os.getenv("PN_OIDC_ISSUER", "").strip().rstrip("/")
+
+
+def oidc_client_id() -> str:
+    return os.getenv("PN_OIDC_CLIENT_ID", "").strip()
+
+
+def oidc_client_secret() -> str:
+    return os.getenv("PN_OIDC_CLIENT_SECRET", "")
+
+
+def oidc_redirect_uri() -> str:
+    return os.getenv("PN_OIDC_REDIRECT_URI", "").strip()
+
+
+def oidc_scopes() -> str:
+    return os.getenv("PN_OIDC_SCOPES", "openid email profile").strip() or "openid email profile"
+
+
+def oidc_configured() -> bool:
+    return bool(oidc_issuer() and oidc_client_id() and oidc_client_secret() and oidc_redirect_uri())
+
+
+def local_fallback_enabled() -> bool:
+    if auth_mode() == "local":
+        return True
+    if auth_mode() != "oidc":
+        return False
+    return os.getenv("PN_AUTH_LOCAL_FALLBACK", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_email(value: Any) -> str:
@@ -152,7 +192,8 @@ def _normalize_role(value: Any) -> str:
 
 
 def _normalize_auth_source(value: Any) -> str:
-    return "google" if str(value or "").strip().lower() == "google" else "local"
+    source = str(value or "").strip().lower()
+    return source if source in {"local", "oidc", "google", "dex"} else "local"
 
 
 def _normalize_groups(value: Any) -> List[str]:
@@ -303,6 +344,25 @@ def find_local_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
         email = str(item.get("email") or "").strip().lower()
         if email and email == needle_lower:
             return item
+    return None
+
+
+def find_oidc_user(claims: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    subject = str(claims.get("sub") or "").strip()
+    email = _normalize_email(claims.get("email"))
+    email_verified = claims.get("email_verified")
+    if email_verified is False:
+        return None
+    for item in local_users(include_secrets=True):
+        external_subject = str(item.get("external_subject") or "").strip()
+        if subject and external_subject and hmac.compare_digest(external_subject, subject):
+            return item
+    if email:
+        email_lower = email.lower()
+        for item in local_users(include_secrets=True):
+            stored_email = _normalize_email(item.get("email")).lower()
+            if stored_email and stored_email == email_lower:
+                return item
     return None
 
 
@@ -487,6 +547,92 @@ def _password_reset_base_url(request: Request) -> str:
 
 def _password_reset_url(request: Request, token: str) -> str:
     return f"{_password_reset_base_url(request)}/?password_reset_token={token}"
+
+
+def _http_json(
+    url: str,
+    *,
+    method: str = "GET",
+    data: Dict[str, str] | None = None,
+    headers: Dict[str, str] | None = None,
+) -> Dict[str, Any]:
+    body = None
+    request_headers = {"Accept": "application/json"}
+    request_headers.update(headers or {})
+    if data is not None:
+        body = urlparse.urlencode(data).encode("utf-8")
+        request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
+    req = urlrequest.Request(url, data=body, headers=request_headers, method=method)
+    try:
+        with urlrequest.urlopen(req, timeout=15) as response:  # noqa: S310
+            payload = response.read().decode("utf-8")
+    except urlerror.URLError as exc:
+        raise ValueError(f"OIDC provider request failed: {exc}") from exc
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ValueError("OIDC provider returned invalid JSON.") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("OIDC provider returned an invalid payload.")
+    return parsed
+
+
+def oidc_discovery_document() -> Dict[str, Any]:
+    issuer = oidc_issuer()
+    if not issuer:
+        raise ValueError("PN_OIDC_ISSUER is required.")
+    return _http_json(f"{issuer}/.well-known/openid-configuration")
+
+
+def oidc_authorization_url(state: str, nonce: str) -> str:
+    if not oidc_configured():
+        raise ValueError("OIDC is not fully configured.")
+    discovery = oidc_discovery_document()
+    authorization_endpoint = str(discovery.get("authorization_endpoint") or "").strip()
+    if not authorization_endpoint:
+        raise ValueError("OIDC discovery document does not contain an authorization endpoint.")
+    params = {
+        "client_id": oidc_client_id(),
+        "redirect_uri": oidc_redirect_uri(),
+        "response_type": "code",
+        "scope": oidc_scopes(),
+        "state": state,
+        "nonce": nonce,
+    }
+    return f"{authorization_endpoint}?{urlparse.urlencode(params)}"
+
+
+def oidc_userinfo_from_code(code: str) -> Dict[str, Any]:
+    if not oidc_configured():
+        raise ValueError("OIDC is not fully configured.")
+    discovery = oidc_discovery_document()
+    token_endpoint = str(discovery.get("token_endpoint") or "").strip()
+    userinfo_endpoint = str(discovery.get("userinfo_endpoint") or "").strip()
+    issuer = str(discovery.get("issuer") or "").strip().rstrip("/")
+    if oidc_issuer() and issuer and issuer != oidc_issuer():
+        raise ValueError("OIDC issuer mismatch.")
+    if not token_endpoint or not userinfo_endpoint:
+        raise ValueError("OIDC discovery document is missing token or userinfo endpoints.")
+    token_payload = _http_json(
+        token_endpoint,
+        method="POST",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": oidc_redirect_uri(),
+        },
+        headers={
+            "Authorization": "Basic "
+            + base64.b64encode(f"{oidc_client_id()}:{oidc_client_secret()}".encode("utf-8")).decode("ascii")
+        },
+    )
+    access_token = str(token_payload.get("access_token") or "").strip()
+    if not access_token:
+        raise ValueError("OIDC token response did not include an access token.")
+    claims = _http_json(userinfo_endpoint, headers={"Authorization": f"Bearer {access_token}"})
+    if not str(claims.get("sub") or "").strip():
+        raise ValueError("OIDC userinfo response did not include a subject.")
+    return claims
 
 
 def create_password_reset_token(username: str) -> str:
