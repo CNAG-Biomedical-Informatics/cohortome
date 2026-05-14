@@ -22,6 +22,7 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "pheno_render_graph": True,
     "dashboard_molecular_open": False,
     "dataset_compact_view": False,
+    "llm_provider_id": "system-default",
 }
 
 _ALLOWED_VALUES = {
@@ -51,6 +52,10 @@ def normalize_user_settings(raw: Dict[str, Any] | None) -> Dict[str, Any]:
             continue
         if key in _BOOLEAN_FIELDS:
             settings[key] = bool(value)
+            continue
+        if key == "llm_provider_id":
+            normalized = str(value or "").strip()
+            settings[key] = normalized or DEFAULT_USER_SETTINGS["llm_provider_id"]
             continue
         allowed = _ALLOWED_VALUES.get(key)
         if allowed is not None:

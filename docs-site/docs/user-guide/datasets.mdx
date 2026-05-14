@@ -4,6 +4,15 @@ sidebar_position: 1
 
 # Datasets
 
+<div className="pnQuickHero">
+  <div className="pnEyebrow">Workspace loading</div>
+  <h2>Select the datasets that define the active clinical and molecular workspace.</h2>
+  <div className="pnHeroText">
+    The default dataset is loaded at application startup. Other authorized
+    datasets remain on demand until the user applies a new workspace.
+  </div>
+</div>
+
 The `Datasets` tab defines the active workspace.
 
 :::note
@@ -36,9 +45,28 @@ The workspace does not change immediately when a checkbox changes. It changes on
 
 - `Apply workspace`
 
+The previous active workspace remains usable until the new workspace is applied.
+This matters when a large dataset is selected: the user can still see the
+current default workspace while the pending selection is only a proposal.
+
 :::warning Pending is not active
 If you check or uncheck datasets but do not click `Apply workspace`, the backend is still operating on the previous active workspace.
 :::
+
+## Default versus on-demand datasets
+
+Current startup behavior is intentionally simple:
+
+- `default-dataset` loads at application launch
+- every other dataset is on demand
+- on-demand datasets are loaded only after the user clicks `Apply workspace`
+
+If `default-dataset` remains checked while another dataset is pending, the
+default workspace stays visible until the new selection is applied.
+
+Large transcriptome fixtures are intended for timing, queue, and workflow tests.
+They should not slow down startup unless the user or admin explicitly selects
+and applies them.
 
 ## Why this matters
 
@@ -61,6 +89,14 @@ At least one dataset must remain selected.
 :::tip
 Use `Dashboard` immediately after applying a workspace if you want to confirm that the expected datasets, patients, and molecular files are really loaded.
 :::
+
+## When Apply workspace can fail
+
+Applying a workspace requires every selected dataset to have a ready admin-built
+DuckDB store. If a store is missing, stale, or failed, the user flow returns a
+clear readiness message instead of rebuilding stores in the background.
+
+Admins prepare or rebuild stores in `Data Administration`.
 
 ## Notes on permissions
 

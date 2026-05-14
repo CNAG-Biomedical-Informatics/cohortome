@@ -12,6 +12,7 @@ const DEFAULT_USER_SETTINGS = {
   pheno_render_graph: true,
   dashboard_molecular_open: false,
   dataset_compact_view: false,
+  llm_provider_id: "system-default",
 };
 
 const ALLOWED_LANDING_TAB_MODES = new Set(["fixed", "last"]);
@@ -41,6 +42,7 @@ function normalizeUserSettings(raw) {
     pheno_render_graph: source.pheno_render_graph !== false,
     dashboard_molecular_open: Boolean(source.dashboard_molecular_open),
     dataset_compact_view: Boolean(source.dataset_compact_view),
+    llm_provider_id: String(source.llm_provider_id || DEFAULT_USER_SETTINGS.llm_provider_id).trim() || DEFAULT_USER_SETTINGS.llm_provider_id,
   };
 }
 
@@ -59,6 +61,7 @@ export function createUserSettingsUi(ctx) {
     settingsQueryDefaultModeEl,
     settingsAnalysisAutoOpenJobsEl,
     settingsPhenoDefaultMetricEl,
+    settingsLlmProviderEl,
     settingsPhenoAdvancedOpenEl,
     settingsPhenoRenderHeatmapEl,
     settingsPhenoRenderMdsEl,
@@ -80,6 +83,7 @@ export function createUserSettingsUi(ctx) {
     setActiveTab,
     setDashboardSubtab,
     updatePhenoGraphOptions,
+    refreshLmStatus,
     refreshUserDataAfterDelete,
   } = callbacks;
 
@@ -100,6 +104,10 @@ export function createUserSettingsUi(ctx) {
   function authProviderLabel(authState) {
     const mode = String(authState && authState.mode || (authState && authState.enabled ? "local" : "none"));
     const provider = String(authState && authState.provider || mode || "none");
+    const user = authState && authState.user ? authState.user : {};
+    const loginMethod = String(user.login_method || "").trim().toLowerCase();
+    if (loginMethod === "local") return mode === "oidc" ? "Local password (fallback)" : "Local password";
+    if (loginMethod === "oidc") return `${provider} / OIDC`;
     if (mode === "oidc") return `${provider} / OIDC`;
     if (mode === "local") return "Local password";
     return "Development fallback";
@@ -134,12 +142,14 @@ export function createUserSettingsUi(ctx) {
 
   function renderUserSettingsForm() {
     const settings = normalizeUserSettings(state.userSettings);
+    renderLlmProviderOptions(settings.llm_provider_id);
     if (settingsLandingTabModeEl) settingsLandingTabModeEl.value = settings.landing_tab_mode;
     if (settingsLandingTabEl) settingsLandingTabEl.value = settings.landing_tab;
     if (settingsQueryDisclosureEl) settingsQueryDisclosureEl.value = settings.query_disclosure_default;
     if (settingsQueryDefaultModeEl) settingsQueryDefaultModeEl.value = settings.query_default_mode;
     if (settingsAnalysisAutoOpenJobsEl) settingsAnalysisAutoOpenJobsEl.checked = settings.analysis_auto_open_jobs;
     if (settingsPhenoDefaultMetricEl) settingsPhenoDefaultMetricEl.value = settings.pheno_default_metric;
+    if (settingsLlmProviderEl) settingsLlmProviderEl.value = settings.llm_provider_id;
     if (settingsPhenoAdvancedOpenEl) settingsPhenoAdvancedOpenEl.checked = settings.pheno_advanced_open;
     if (settingsPhenoRenderHeatmapEl) settingsPhenoRenderHeatmapEl.checked = settings.pheno_render_heatmap;
     if (settingsPhenoRenderMdsEl) settingsPhenoRenderMdsEl.checked = settings.pheno_render_mds;
@@ -147,6 +157,23 @@ export function createUserSettingsUi(ctx) {
     if (settingsDashboardMolecularOpenEl) settingsDashboardMolecularOpenEl.checked = settings.dashboard_molecular_open;
     if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
     renderAuthSummary();
+  }
+
+  function renderLlmProviderOptions(selectedProviderId) {
+    if (!settingsLlmProviderEl) return;
+    const providers = Array.isArray(state.lmStatus && state.lmStatus.providers) ? state.lmStatus.providers : [];
+    const options = providers.length ? providers : [{ id: "system-default", label: "System default", model: "", enabled: true }];
+    settingsLlmProviderEl.innerHTML = options.map((provider) => {
+      const id = String(provider.id || "");
+      const label = String(provider.label || id || "Provider");
+      const model = String(provider.model || "").trim();
+      const enabled = provider.enabled !== false;
+      const text = `${label}${model ? ` - ${model}` : ""}${enabled ? "" : " (disabled)"}`;
+      return `<option value="${id.replace(/"/g, "&quot;")}"${id === selectedProviderId ? " selected" : ""}>${text.replace(/</g, "&lt;")}</option>`;
+    }).join("");
+    if (selectedProviderId && !options.some((provider) => String(provider.id || "") === selectedProviderId)) {
+      settingsLlmProviderEl.insertAdjacentHTML("beforeend", `<option value="${selectedProviderId.replace(/"/g, "&quot;")}" selected>${selectedProviderId} (unavailable)</option>`);
+    }
   }
 
   function formSettings() {
@@ -157,6 +184,7 @@ export function createUserSettingsUi(ctx) {
       query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
       analysis_auto_open_jobs: settingsAnalysisAutoOpenJobsEl ? settingsAnalysisAutoOpenJobsEl.checked : DEFAULT_USER_SETTINGS.analysis_auto_open_jobs,
       pheno_default_metric: settingsPhenoDefaultMetricEl ? settingsPhenoDefaultMetricEl.value : DEFAULT_USER_SETTINGS.pheno_default_metric,
+      llm_provider_id: settingsLlmProviderEl ? settingsLlmProviderEl.value : DEFAULT_USER_SETTINGS.llm_provider_id,
       pheno_advanced_open: settingsPhenoAdvancedOpenEl ? settingsPhenoAdvancedOpenEl.checked : DEFAULT_USER_SETTINGS.pheno_advanced_open,
       pheno_render_heatmap: settingsPhenoRenderHeatmapEl ? settingsPhenoRenderHeatmapEl.checked : DEFAULT_USER_SETTINGS.pheno_render_heatmap,
       pheno_render_mds: settingsPhenoRenderMdsEl ? settingsPhenoRenderMdsEl.checked : DEFAULT_USER_SETTINGS.pheno_render_mds,
@@ -232,6 +260,9 @@ export function createUserSettingsUi(ctx) {
       }
       state.userSettings = normalizeUserSettings(await response.json());
       applyUserSettings();
+      if (typeof refreshLmStatus === "function") {
+        await refreshLmStatus();
+      }
       setStatus("Preferences saved.");
       if (userSettingsSaveBtnEl) {
         userSettingsSaveBtnEl.textContent = "Saved";

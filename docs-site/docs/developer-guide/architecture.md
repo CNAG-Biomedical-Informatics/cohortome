@@ -18,6 +18,8 @@ This page describes how the current app is structured at a high level.
 - curated external analysis runners
 - shared background jobs via `RQ + Redis`
 - Pheno-Ranker integration
+- local/OIDC authentication with local authorization
+- admin-configured OpenAI-compatible LLM provider registry
 
 ## Backend
 
@@ -43,6 +45,8 @@ The backend is also responsible for:
 - analysis catalog loading and validation
 - dispatching curated analysis runners
 - submitting and resolving queued analysis jobs
+- resolving the active LLM provider for each authenticated user
+- enforcing dataset AI-provider policy before provider calls
 
 ## Frontend
 
@@ -52,6 +56,7 @@ The frontend is a browser-based app organized around top-level tabs:
 - `Datasets`
 - `Data Administration`
 - `Users`
+- `Models`
 - `Query`
 - `Analysis`
 - `Pheno-Ranker`
@@ -162,6 +167,11 @@ Current examples include:
   - runs Hallmark pathway enrichment second
   - stores one user-facing job with step directories under `workflow/`
 
+LLM-assisted Analysis routes resolve the current user's selected provider before
+they plan or interpret a request. Provider failures are surfaced as provider
+availability or policy messages for LLM-only routes; they should not silently
+turn into deterministic clinical interpretation.
+
 ### Pheno-Ranker
 
 Consumes workspace files and sample-level scope.
@@ -173,6 +183,25 @@ Current operational guardrails:
 - cohort runs above `1500` resolved samples are submitted as background jobs
 - cohort runs above `2500` resolved samples are rejected at route admission time
 - the hard cap exists because the current downstream post-processing path for large `matrix.txt` outputs is not robust enough to support larger cohorts safely
+
+Pheno-Ranker can also call the selected LLM provider for narrative explanation,
+subject to the active workspace AI-provider policy.
+
+### Model providers
+
+Model providers are admin-defined OpenAI-compatible endpoints.
+
+Current model:
+
+- `system-default` comes from the existing `LM_STUDIO_*` environment variables
+- additional providers come from `PN_LLM_PROVIDERS_JSON` or `PN_LLM_PROVIDERS_FILE`
+- users select a provider in persisted Settings
+- admins inspect provider health in the `Models` tab
+- dataset policy still controls what, if anything, can be sent to a provider
+
+The provider registry accepts both `providers` and `llm_providers` as the JSON
+list key so future model/tool configuration can stay explicit without breaking
+current deployments.
 
 ## Provenance
 

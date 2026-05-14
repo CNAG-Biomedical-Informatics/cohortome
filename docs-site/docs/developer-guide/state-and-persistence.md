@@ -124,6 +124,39 @@ When local auth is enabled, persisted users live in:
 
 If this file already exists, it overrides bootstrap seed users from env or built-in defaults.
 
+## User settings
+
+Per-user UI preferences live under:
+
+- `state/users/<user>/settings.json`
+
+Current settings include:
+
+- start tab behavior
+- Query disclosure preference
+- Query execution preference
+- Analysis job drawer behavior
+- Pheno-Ranker default metric and rendering toggles
+- Dashboard molecular view preference
+- compact dataset card preference
+- selected LLM provider ID
+
+Settings are user-owned preferences. They do not override dataset policy,
+authentication, authorization, or provider availability.
+
+## Model provider configuration
+
+The approved model-provider registry is configuration, not user state.
+
+Current sources:
+
+- `LM_STUDIO_*` environment variables for `system-default`
+- `PN_LLM_PROVIDERS_JSON`
+- `PN_LLM_PROVIDERS_FILE`
+
+The selected provider ID is stored per user, but provider endpoints and secrets
+remain deployment/admin configuration.
+
 ## Why this split exists
 
 The app needs several levels of state because it is doing several different jobs:

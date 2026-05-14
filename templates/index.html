@@ -184,6 +184,12 @@
               <option value="jaccard">Jaccard</option>
             </select>
           </div>
+          <div class="query-grid-span-2">
+            <label for="settingsLlmProvider">AI provider</label>
+            <select id="settingsLlmProvider">
+              <option value="system-default">System default</option>
+            </select>
+          </div>
           <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Jobs after background runs</label>
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
@@ -295,6 +301,20 @@
           </span>
           <span>Users</span>
         </button>
+        <button id="modelsTabBtn" class="tab-btn is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v4"></path>
+              <path d="M12 17v4"></path>
+              <path d="M3 12h4"></path>
+              <path d="M17 12h4"></path>
+              <circle cx="12" cy="12" r="5"></circle>
+              <path d="M8.5 8.5 6 6"></path>
+              <path d="m18 18-2.5-2.5"></path>
+            </svg>
+          </span>
+          <span>Models</span>
+        </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -327,6 +347,17 @@
         </button>
           </nav>
           <div class="app-sidebar-utility">
+            <a class="app-sidebar-settings app-sidebar-help" href="{{ branding.help_url }}" target="_blank" rel="noopener noreferrer" title="Open Patient Navigator documentation.">
+              <span class="button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H21"></path>
+                  <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H21v20H6.5A2.5 2.5 0 0 1 4 19.5z"></path>
+                  <path d="M8 6h8"></path>
+                  <path d="M8 10h8"></path>
+                </svg>
+              </span>
+              <span>Help</span>
+            </a>
             <button id="userSettingsBtn" type="button" class="app-sidebar-settings" title="Open user settings.">
               <span class="button-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -521,6 +552,17 @@
           <div id="usersStatus" class="query-status">Loading users...</div>
           <div id="usersList" class="analysis-session-list">
             <div class="empty">No users available.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="modelsTab" class="tab-panel">
+        <div class="controls">
+          <label>Model Administration</label>
+          <div class="section-note">Approved OpenAI-compatible LLM endpoints. Users can select one of these providers in Settings; dataset policy still controls whether LLM context is allowed.</div>
+          <div id="modelsStatus" class="query-status">Loading model providers...</div>
+          <div id="modelsList" class="dataset-picker-list">
+            <div class="empty">No model providers configured.</div>
           </div>
         </div>
       </section>

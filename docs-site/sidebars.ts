@@ -30,6 +30,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'admin-guide/datasets-and-access',
         'admin-guide/local-auth-and-groups',
+        'admin-guide/model-providers',
       ],
     },
     {

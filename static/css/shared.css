@@ -83,6 +83,13 @@
         background: rgba(239, 246, 255, 0.72);
         color: var(--accent-deep);
       }
+      .app-sidebar-help {
+        text-decoration: none;
+      }
+      .app-sidebar-help:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, 0.22);
+        outline-offset: 2px;
+      }
       .app-sidebar-settings .button-icon {
         width: 20px;
         height: 20px;

@@ -170,6 +170,18 @@
         color: #166534;
         border: 1px solid rgba(22, 101, 52, 0.14);
       }
+      .dataset-picker-tag-ready {
+        background: rgba(220, 252, 231, 0.88);
+        color: #166534;
+      }
+      .dataset-picker-tag-warning {
+        background: rgba(254, 243, 199, 0.9);
+        color: #92400e;
+      }
+      .dataset-picker-tag-danger {
+        background: rgba(254, 226, 226, 0.9);
+        color: #991b1b;
+      }
       .dataset-picker-description {
         margin-top: 6px;
         color: var(--muted);

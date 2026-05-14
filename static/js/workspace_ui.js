@@ -186,11 +186,13 @@ export function createWorkspaceUi(ctx) {
       }
       const payload = await response.json();
       state.lmStatus = payload;
+      const provider = payload.provider && typeof payload.provider === "object" ? payload.provider : {};
+      const providerLabel = String(provider.label || "LLM").trim();
       const text = !payload.enabled
-        ? "LLM: disabled"
+        ? `${providerLabel}: disabled`
         : (payload.available
-          ? `LLM ready: ${payload.model || "model loaded"}`
-          : (payload.status === "no_model" ? "LLM: no model loaded" : "LLM: unavailable"));
+          ? `${providerLabel}: ${payload.model || "model loaded"}`
+          : (payload.status === "no_model" ? `${providerLabel}: no model loaded` : `${providerLabel}: unavailable`));
       lmStatusEl.textContent = text;
       phenoLmStatusEl.textContent = text;
       analysisLmStatusEl.textContent = text;
@@ -198,7 +200,7 @@ export function createWorkspaceUi(ctx) {
       if (!payload.enabled) {
         setContextLmStatus("Disabled", "is-muted", title);
       } else if (payload.available) {
-        setContextLmStatus(`Ready: ${payload.model || "model"}`, "is-ready", title);
+        setContextLmStatus(`${providerLabel}: ${payload.model || "model"}`, "is-ready", title);
       } else if (payload.status === "no_model") {
         setContextLmStatus("No model loaded", "is-warning", title);
       } else {

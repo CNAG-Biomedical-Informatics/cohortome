@@ -70,7 +70,7 @@ from app.datasets import (
     update_dataset,
     workspace_fingerprint_for_data_dir,
 )
-from app.lm import lm_studio_health
+from app.lm import DEFAULT_LLM_PROVIDER_ID, llm_provider_registry_status, lm_provider_context, lm_studio_health
 from app.jobs import (
     active_feature_job,
     delete_job,
@@ -482,15 +482,34 @@ def search_medication_cohort(medication: str, request: Request = None, dataset_i
 def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
+        with lm_provider_context(selected_lm_provider_id(request)):
+            return answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def get_lm_status() -> Dict:
-    return lm_studio_health()
+def selected_lm_provider_id(request: Request | None) -> str:
+    if request is None:
+        return DEFAULT_LLM_PROVIDER_ID
+    try:
+        user_id = request_user_id(request)
+    except Exception:
+        return DEFAULT_LLM_PROVIDER_ID
+    return str(load_user_settings(user_id).get("llm_provider_id") or DEFAULT_LLM_PROVIDER_ID)
+
+
+def get_lm_status(request: Request) -> Dict:
+    if auth_enabled():
+        require_authenticated(request)
+    return lm_studio_health(provider_id=selected_lm_provider_id(request))
+
+
+def get_lm_providers(request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    return llm_provider_registry_status()
 
 
 def get_branding_logo() -> FileResponse:
@@ -538,6 +557,7 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
     request.session["role"] = user["role"]
     request.session["display_name"] = user["display_name"]
     request.session["groups"] = list(user.get("groups") or [])
+    request.session["login_method"] = "local"
     return {
         "enabled": True,
         "mode": "local",
@@ -550,6 +570,7 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
             "role": user["role"],
             "display_name": user["display_name"],
             "email": str(user.get("email") or ""),
+            "login_method": "local",
             "groups": list(user.get("groups") or []),
         },
     }
@@ -608,6 +629,7 @@ def oidc_callback(request: Request, code: str = "", state: str = "", error: str 
     request.session["role"] = user["role"]
     request.session["display_name"] = user["display_name"]
     request.session["groups"] = list(user.get("groups") or [])
+    request.session["login_method"] = "oidc"
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -862,16 +884,17 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
-        return answer_query(
-            resolved_dir,
-            request.q,
-            query_mode=request.query_mode,
-            history=[turn.model_dump() for turn in request.history],
-            scoped_patient_ids=request.scoped_patient_ids,
-            granularity_mode=request.granularity_mode,
-            granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
-            ai_provider_access=effective_ai_provider_access(selected_ids),
-        )
+        with lm_provider_context(selected_lm_provider_id(raw_request)):
+            return answer_query(
+                resolved_dir,
+                request.q,
+                query_mode=request.query_mode,
+                history=[turn.model_dump() for turn in request.history],
+                scoped_patient_ids=request.scoped_patient_ids,
+                granularity_mode=request.granularity_mode,
+                granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+                ai_provider_access=effective_ai_provider_access(selected_ids),
+            )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -889,23 +912,24 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
             if workspace_status["state"] in {"stale", "unavailable"}:
                 raise HTTPException(status_code=409, detail=workspace_status["message"] or "This analysis session is no longer aligned with the current workspace.")
     try:
-        return analysis_llm_reply(
-            request.prompt,
-            resolved_dir,
-            catalog_item_id=request.catalog_item_id,
-            dataset_id=request.dataset_id or "",
-            molecular_dataset_name=request.molecular_dataset_name,
-            analysis_session_id=request.analysis_session_id,
-            user_id=request_user_id(raw_request),
-            selected_patient_ids=request.selected_patient_ids,
-            compare_mode=request.compare_mode,
-            compare_selected_patient_ids=request.compare_selected_patient_ids,
-            llm_only=request.llm_only,
-            deterministic_only=request.deterministic_only,
-            history=[turn.model_dump() for turn in request.history],
-            granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
-            ai_provider_access=effective_ai_provider_access(selected_ids),
-        )
+        with lm_provider_context(selected_lm_provider_id(raw_request)):
+            return analysis_llm_reply(
+                request.prompt,
+                resolved_dir,
+                catalog_item_id=request.catalog_item_id,
+                dataset_id=request.dataset_id or "",
+                molecular_dataset_name=request.molecular_dataset_name,
+                analysis_session_id=request.analysis_session_id,
+                user_id=request_user_id(raw_request),
+                selected_patient_ids=request.selected_patient_ids,
+                compare_mode=request.compare_mode,
+                compare_selected_patient_ids=request.compare_selected_patient_ids,
+                llm_only=request.llm_only,
+                deterministic_only=request.deterministic_only,
+                history=[turn.model_dump() for turn in request.history],
+                granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+                ai_provider_access=effective_ai_provider_access(selected_ids),
+            )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -1181,12 +1205,13 @@ def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Reques
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         ensure_query_store(resolved_dir)
-        return plan_pheno_ranker(
-            request.text,
-            resolved_dir,
-            selected_patient_ids=request.selected_patient_ids,
-            ai_provider_access=effective_ai_provider_access(selected_ids),
-        )
+        with lm_provider_context(selected_lm_provider_id(raw_request)):
+            return plan_pheno_ranker(
+                request.text,
+                resolved_dir,
+                selected_patient_ids=request.selected_patient_ids,
+                ai_provider_access=effective_ai_provider_access(selected_ids),
+            )
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -1224,7 +1249,8 @@ def explain_pheno_ranker_results(job_id: str, request: Request, top_n: int = 3) 
 def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, "")
-    return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
+    with lm_provider_context(selected_lm_provider_id(request)):
+        return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
 
 
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -1251,6 +1277,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
     app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
+    app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.")
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when PN_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)

@@ -11,6 +11,7 @@ DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATE_ROOT_DIR = BASE_DIR / "state"
 DEFAULT_LOCAL_USER_ID = "local"
+DEFAULT_HELP_URL = "https://mrueda.github.io/patient-navigator/"
 
 
 def branding_logo_path() -> Path | None:
@@ -39,4 +40,5 @@ def branding_settings() -> Dict[str, Any]:
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
         "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "Patient Navigator logo").strip() or "Patient Navigator logo",
+        "help_url": os.getenv("PN_HELP_URL", DEFAULT_HELP_URL).strip() or DEFAULT_HELP_URL,
     }

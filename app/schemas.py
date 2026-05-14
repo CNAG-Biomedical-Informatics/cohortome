@@ -43,6 +43,7 @@ class UserSettingsResponse(BaseModel):
     pheno_render_graph: bool = True
     dashboard_molecular_open: bool = False
     dataset_compact_view: bool = False
+    llm_provider_id: str = "system-default"
 
 
 class UserSettingsUpdateRequest(BaseModel):
@@ -58,6 +59,7 @@ class UserSettingsUpdateRequest(BaseModel):
     pheno_render_graph: bool | None = None
     dashboard_molecular_open: bool | None = None
     dataset_compact_view: bool | None = None
+    llm_provider_id: str | None = None
 
 
 class AnalysisRequest(BaseModel):
@@ -253,6 +255,7 @@ class AuthUserResponse(FlexibleModel):
     groups: List[str] = Field(default_factory=list)
     enabled: bool = True
     auth_source: str = "local"
+    login_method: str = "local"
 
 
 class AuthStatusResponse(BaseModel):
@@ -357,6 +360,9 @@ class LmStatusResponse(BaseModel):
     base_url: str
     model: str | None = None
     detail: str = ""
+    selected_provider_id: str = "system-default"
+    provider: Dict[str, Any] = Field(default_factory=dict)
+    providers: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class MolecularDatasetResponse(FlexibleModel):

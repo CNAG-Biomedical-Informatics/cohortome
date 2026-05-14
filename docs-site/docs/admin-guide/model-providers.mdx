@@ -1,0 +1,146 @@
+---
+sidebar_position: 3
+---
+
+# Model Providers
+
+<div className="pnQuickHero">
+  <div className="pnEyebrow">AI administration</div>
+  <h2>Register approved OpenAI-compatible LLM endpoints and expose them safely to users.</h2>
+  <div className="pnHeroText">
+    Model providers are configured by administrators. Users can select from the
+    approved list in Settings, while dataset policy still controls whether AI
+    context is allowed at all.
+  </div>
+</div>
+
+## Current model
+
+Patient Navigator treats LLM endpoints as approved providers, not arbitrary
+user-supplied URLs.
+
+The current supported protocol is OpenAI-compatible chat completions. This fits
+local deployments such as LM Studio while leaving room for institutional model
+gateways later.
+
+## Configuration
+
+The environment-level default still works:
+
+```bash
+export LM_STUDIO_ENABLED=true
+export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+export LM_STUDIO_MODEL=gpt-oss-120b
+export LM_STUDIO_API_KEY=lm-studio
+```
+
+Additional providers can be supplied by JSON:
+
+```bash
+export PN_LLM_PROVIDERS_JSON='{
+  "llm_providers": [
+    {
+      "id": "cnag-gpu-a",
+      "label": "CNAG GPU A",
+      "base_url": "http://10.0.0.10:1234/v1",
+      "model": "gpt-oss-120b",
+      "api_key_env": "CNAG_GPU_A_API_KEY",
+      "timeout_seconds": 45,
+      "enabled": true
+    },
+    {
+      "id": "cnag-gpu-b",
+      "label": "CNAG GPU B",
+      "base_url": "http://10.0.0.11:1234/v1",
+      "model": "gpt-oss-20b",
+      "api_key": "lm-studio",
+      "enabled": true
+    }
+  ]
+}'
+```
+
+The same JSON can also live in a file:
+
+```bash
+export PN_LLM_PROVIDERS_FILE=config/llm-providers.json
+```
+
+Relative paths are resolved from the repository root.
+
+:::tip
+Use `api_key_env` for production-like deployments. It keeps secrets out of the
+provider registry file.
+:::
+
+## User selection
+
+Users choose their preferred provider in `Settings`.
+
+That preference is stored per user and affects:
+
+- Query planner calls
+- LLM-only Query-to-Analysis handoffs
+- Analysis LLM interpretation
+- Pheno-Ranker LLM explanations
+
+If the selected provider is disabled or unavailable, LLM-only routes should
+return an explicit provider-unavailable message rather than silently falling
+back to a deterministic answer.
+
+## Admin visibility
+
+Admins can open the `Models` tab to inspect:
+
+- configured providers
+- label and provider ID
+- base URL
+- model name
+- enabled state
+- current health check result
+
+The UI does not expose API keys.
+
+## Dataset policy still wins
+
+Provider selection does not bypass dataset policy.
+
+The effective AI-provider policy is still derived from the selected workspace:
+
+- `Detailed allowed`
+- `Safe summary`
+- `Blocked`
+
+For multi-dataset workspaces, the strictest selected dataset wins. A user can
+select an available model and still be blocked from sending clinical context if
+the dataset policy does not allow it.
+
+## Future MCP direction
+
+The provider registry intentionally uses structured JSON so it can grow without
+changing the user-facing settings model.
+
+A future MCP-capable shape can extend the provider entry with fields such as:
+
+```json
+{
+  "id": "cnag-agent-gateway",
+  "label": "CNAG Agent Gateway",
+  "base_url": "http://10.0.0.20:1234/v1",
+  "model": "gpt-oss-120b",
+  "mcp": {
+    "enabled": true,
+    "servers": [
+      {
+        "id": "clinical-tools",
+        "transport": "http",
+        "url": "https://mcp.example.org/clinical"
+      }
+    ]
+  }
+}
+```
+
+The app does not call MCP servers yet. The important current decision is that
+model and future tool-provider configuration should stay admin-owned and
+auditable.

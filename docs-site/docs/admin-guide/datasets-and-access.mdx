@@ -7,6 +7,15 @@ import TabItem from '@theme/TabItem';
 
 # Datasets And Access
 
+<div className="pnQuickHero">
+  <div className="pnEyebrow">Data administration</div>
+  <h2>Control who can load each dataset and whether its store is ready for interactive use.</h2>
+  <div className="pnHeroText">
+    Dataset access, in-app disclosure, AI-provider policy, and DuckDB store
+    readiness are admin-owned controls.
+  </div>
+</div>
+
 Datasets are first-class resources in the app.
 
 :::tip Recommended policy
@@ -176,6 +185,10 @@ Current options are:
 - `Blocked`
 
 `AI providers` is a dataset-level setting, not a per-user setting.
+
+The user's selected model provider is configured separately in `Settings`.
+Admins manage the provider registry in [Model Providers](./model-providers).
+Dataset policy still decides whether that provider can receive context.
 
 For multi-dataset workspaces, the strictest selected dataset wins:
 

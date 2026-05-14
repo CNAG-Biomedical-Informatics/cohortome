@@ -4,6 +4,15 @@ sidebar_position: 2
 
 # Auth And Groups
 
+<div className="pnQuickHero">
+  <div className="pnEyebrow">Authentication</div>
+  <h2>Authenticate with local users or OIDC, then authorize through Patient Navigator roles and groups.</h2>
+  <div className="pnHeroText">
+    External identity providers prove who a user is. Patient Navigator still
+    owns local role, group, dataset access, and per-user settings.
+  </div>
+</div>
+
 The current app supports local authentication and a generic OIDC mode for
 external identity providers such as Dex, Google, or institutional SSO.
 
@@ -134,6 +143,19 @@ The `Users` tab can now manage local users directly:
 - enable or disable accounts
 - reset passwords
 - delete local users
+
+The `Settings` panel shows the current user's authentication summary:
+
+- signed-in identity
+- actual login method for the current session
+- configured provider
+- local fallback state
+- password-reset availability
+- email, role, and groups
+
+When `PN_AUTH_MODE=oidc` and `PN_AUTH_LOCAL_FALLBACK=true`, a user who signs in
+with the local form is shown as local fallback for that session. This avoids the
+misleading impression that an OIDC login happened when it did not.
 
 Current protections include:
 

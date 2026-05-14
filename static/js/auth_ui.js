@@ -14,6 +14,7 @@ export function createAuthUi(ctx) {
     datasetsTabBtnEl,
     dataTabBtnEl,
     usersTabBtnEl,
+    modelsTabBtnEl,
     jobsDrawerBtnEl,
     datasetAdminControlsEl,
     usersCreateCardEl,
@@ -60,6 +61,7 @@ export function createAuthUi(ctx) {
     loadPatients,
     loadUserSettings,
     applyUserSettings,
+    loadLmStatus,
   } = callbacks;
 
   function canManageDataset() {
@@ -200,6 +202,7 @@ export function createAuthUi(ctx) {
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
       dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
+      modelsTabBtnEl && modelsTabBtnEl.classList.remove("is-hidden");
       usersCreateCardEl && usersCreateCardEl.classList.remove("is-hidden");
       updateLoadButtonAvailability();
       renderJobsDrawer();
@@ -226,9 +229,10 @@ export function createAuthUi(ctx) {
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
       dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
       usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
+      modelsTabBtnEl && modelsTabBtnEl.classList.toggle("is-hidden", !admin);
       datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
       usersCreateCardEl && usersCreateCardEl.classList.toggle("is-hidden", !admin);
-      if (!admin && (currentTabName() === "data" || currentTabName() === "users")) {
+      if (!admin && (currentTabName() === "data" || currentTabName() === "users" || currentTabName() === "models")) {
         setActiveTab("datasets");
       }
       if (admin) {
@@ -241,6 +245,7 @@ export function createAuthUi(ctx) {
       datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
       dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
+      modelsTabBtnEl && modelsTabBtnEl.classList.add("is-hidden");
       datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");
       usersCreateCardEl && usersCreateCardEl.classList.add("is-hidden");
       if (authGateStatusEl) {
@@ -344,6 +349,9 @@ export function createAuthUi(ctx) {
       await fetchAuthStatus();
       if (typeof loadUserSettings === "function") {
         await loadUserSettings({ applyNavigation: false });
+      }
+      if (typeof loadLmStatus === "function") {
+        await loadLmStatus();
       }
       await loadDatasets();
       prepareStartupWorkspaceSelection();

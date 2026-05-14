@@ -153,6 +153,46 @@ def test_lm_studio_health_reports_ready_model(monkeypatch):
     assert payload["model"] == "local-model"
 
 
+def test_lm_provider_registry_selects_approved_endpoint(monkeypatch):
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
+    monkeypatch.setenv(
+        "PN_LLM_PROVIDERS_JSON",
+        json.dumps(
+            [
+                {
+                    "id": "cnag-120b",
+                    "label": "CNAG 120B",
+                    "base_url": "http://cnag-gpu-02:1234/v1",
+                    "model": "openai/gpt-oss-120b",
+                    "api_key": "test-key",
+                    "enabled": True,
+                }
+            ]
+        ),
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"data":[{"id":"openai/gpt-oss-120b"}]}'
+
+    monkeypatch.setattr(lm_module.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    payload = lm_module.lm_studio_health(provider_id="cnag-120b", timeout=0.01)
+
+    assert payload["enabled"] is True
+    assert payload["available"] is True
+    assert payload["provider"]["id"] == "cnag-120b"
+    assert payload["provider"]["label"] == "CNAG 120B"
+    assert payload["model"] == "openai/gpt-oss-120b"
+    assert [item["id"] for item in payload["providers"]] == ["system-default", "cnag-120b"]
+
+
 def test_ensure_data_dir_accepts_project_root_with_clinical_subdir(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -1291,6 +1331,7 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
             "pheno_default_metric": "jaccard",
             "pheno_advanced_open": True,
             "dataset_compact_view": True,
+            "llm_provider_id": "cnag-120b",
         },
     )
     assert updated.status_code == 200
@@ -1301,7 +1342,10 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
     assert payload["pheno_default_metric"] == "jaccard"
     assert payload["pheno_advanced_open"] is True
     assert payload["dataset_compact_view"] is True
-    assert user_settings_module.load_user_settings("local")["landing_tab"] == "analysis"
+    assert payload["llm_provider_id"] == "cnag-120b"
+    persisted = user_settings_module.load_user_settings("local")
+    assert persisted["landing_tab"] == "analysis"
+    assert persisted["llm_provider_id"] == "cnag-120b"
 
 
 def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
@@ -1341,6 +1385,149 @@ def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
     response = client.patch("/user-settings", json={"landing_tab": "admin"})
 
     assert response.status_code == 422
+
+
+def test_lm_status_uses_authenticated_user_provider_setting(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
+    )
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
+    monkeypatch.setenv(
+        "PN_LLM_PROVIDERS_JSON",
+        json.dumps(
+            [
+                {
+                    "id": "cnag-20b",
+                    "label": "CNAG 20B",
+                    "base_url": "http://cnag-gpu-01:1234/v1",
+                    "model": "openai/gpt-oss-20b",
+                    "enabled": True,
+                }
+            ]
+        ),
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"data":[{"id":"openai/gpt-oss-20b"}]}'
+
+    monkeypatch.setattr(lm_module.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+    client = TestClient(app)
+
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+    updated = client.patch("/user-settings", json={"llm_provider_id": "cnag-20b"})
+    assert updated.status_code == 200
+
+    payload = client.get("/lm-status")
+    assert payload.status_code == 200
+    data = payload.json()
+    assert data["selected_provider_id"] == "cnag-20b"
+    assert data["provider"]["label"] == "CNAG 20B"
+    assert data["model"] == "openai/gpt-oss-20b"
+
+
+def test_lm_provider_registry_accepts_future_llm_providers_key(monkeypatch):
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
+    monkeypatch.setenv(
+        "PN_LLM_PROVIDERS_JSON",
+        json.dumps(
+            {
+                "llm_providers": [
+                    {
+                        "id": "cnag-future",
+                        "label": "CNAG Future",
+                        "base_url": "http://cnag-future:1234/v1",
+                        "model": "future-model",
+                    }
+                ]
+            }
+        ),
+    )
+
+    providers = lm_module.llm_providers()
+
+    assert any(provider["id"] == "cnag-future" for provider in providers)
+    assert lm_module.resolve_lm_provider("cnag-future")["model"] == "future-model"
+
+
+def test_lm_providers_route_is_admin_only_when_auth_enabled(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps(
+            [
+                {"username": "admin", "password": "secret", "role": "admin"},
+                {"username": "alice", "password": "secret", "role": "user"},
+            ]
+        ),
+    )
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
+    client = TestClient(app)
+
+    assert client.get("/lm-providers").status_code == 403
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+    assert client.get("/lm-providers").status_code == 403
+    client.post("/auth/logout")
+    assert client.post("/auth/login", json={"username": "admin", "password": "secret"}).status_code == 200
+    response = client.get("/lm-providers")
+    assert response.status_code == 200
+    assert response.json()["providers"][0]["id"] == "system-default"
+
+
+def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, tmp_path):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
+    )
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
+    monkeypatch.setenv(
+        "PN_LLM_PROVIDERS_JSON",
+        json.dumps(
+            [
+                {
+                    "id": "cnag-route",
+                    "label": "CNAG Route",
+                    "base_url": "http://cnag-route:1234/v1",
+                    "model": "route-model",
+                    "enabled": True,
+                }
+            ]
+        ),
+    )
+    observed = {}
+
+    def fake_answer_query(*_args, **_kwargs):
+        observed["base_url"] = lm_module.lm_studio_base_url()
+        observed["model"] = lm_module.resolve_lm_studio_model()
+        return {"intent": "test", "reply": "ok", "data": {}}
+
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda *_args, **_kwargs: ["default"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda *_args, **_kwargs: "default_dataset")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda *_args, **_kwargs: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda *_args, **_kwargs: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "answer_query", fake_answer_query)
+    client = TestClient(app)
+
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+    assert client.patch("/user-settings", json={"llm_provider_id": "cnag-route"}).status_code == 200
+    response = client.post("/query", json={"q": "Use an LLM", "dataset_id": "default"})
+
+    assert response.status_code == 200
+    assert observed == {"base_url": "http://cnag-route:1234/v1", "model": "route-model"}
 
 
 def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
@@ -1680,6 +1867,7 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     assert me_after.json()["user"]["username"] == "mrueda"
     assert me_after.json()["user"]["role"] == "admin"
     assert me_after.json()["user"]["groups"] == ["cnag"]
+    assert me_after.json()["user"]["login_method"] == "oidc"
 
 
 def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
@@ -1739,6 +1927,8 @@ def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
     assert login.json()["authenticated"] is True
     assert login.json()["local_login_enabled"] is True
     assert login.json()["user"]["username"] == "admin"
+    assert login.json()["user"]["login_method"] == "local"
+    assert client.get("/auth/me").json()["user"]["login_method"] == "local"
 
 
 def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):

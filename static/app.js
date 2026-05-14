@@ -6,6 +6,7 @@ import { createNavigationUi } from "/static/js/app_navigation.js";
 import { createWorkspaceUi } from "/static/js/workspace_ui.js";
 import { createAuthUi } from "/static/js/auth_ui.js";
 import { createUsersAdminUi } from "/static/js/users_admin_ui.js";
+import { createModelsAdminUi } from "/static/js/models_admin_ui.js";
 import { createDatasetsUi } from "/static/js/datasets_ui.js";
 import { createAnalysisCatalogUi } from "/static/js/analysis_catalog_ui.js";
 import { createJobsUi } from "/static/js/jobs_ui.js";
@@ -31,6 +32,7 @@ const TAB_HELPER_TEXT = {
   datasets: "Choose the authorized datasets that define your active workspace scope",
   data: "Admin-only dataset visibility and access policy management",
   users: "Admin-only read-only user visibility",
+  models: "Admin-only approved LLM endpoint registry and health",
   query: "Build and refine cohorts (LLM-assisted, deterministic results)",
   analysis: "Interpret and compare cohorts (LLM-assisted insights)",
   pheno: "Compare patients or cohorts and inspect similarity results",
@@ -64,6 +66,7 @@ let navigationUi;
 let workspaceUi;
 let authUi;
 let usersAdminUi;
+let modelsAdminUi;
 let datasetsUi;
 let analysisCatalogUi;
 let jobsUi;
@@ -395,6 +398,10 @@ usersAdminUi = createUsersAdminUi({
   },
 });
 
+modelsAdminUi = createModelsAdminUi({
+  refs,
+});
+
 analysisCatalogUi = createAnalysisCatalogUi({
   refs,
   state,
@@ -681,6 +688,7 @@ authUi = createAuthUi({
     loadPatients: (options) => workspaceUi.loadPatients(options),
     loadUserSettings: (options) => userSettingsUi.loadUserSettings(options),
     applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
+    loadLmStatus: () => workspaceUi.loadLmStatus(),
   },
 });
 
@@ -693,6 +701,7 @@ userSettingsUi = createUserSettingsUi({
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     setDashboardSubtab: (subtabName) => navigationUi.setDashboardSubtab(subtabName),
     updatePhenoGraphOptions: () => phenoUi.updatePhenoGraphOptions(),
+    refreshLmStatus: () => workspaceUi.loadLmStatus(),
     refreshUserDataAfterDelete: async (kind) => {
       if (kind === "chats") {
         analysisSessionsUi.resetAnalysisSessionsAfterBulkDelete();
@@ -927,6 +936,10 @@ function bindEvents() {
   refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("users");
     void usersAdminUi.loadAuthUsers();
+  });
+  refs.modelsTabBtnEl && refs.modelsTabBtnEl.addEventListener("click", () => {
+    navigationUi.setActiveTab("models");
+    void modelsAdminUi.loadModels();
   });
   refs.queryTabBtnEl && refs.queryTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("query"));
   refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
@@ -1306,17 +1319,20 @@ function applyStoredTabPreferences() {
     if (savedDashboardSubtab && ["clinical", "molecular"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
-    if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "query", "analysis", "pheno"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
       if (savedTab === "cohort") {
         navigationUi.setDashboardSubtab("clinical");
         navigationUi.setActiveTab("dashboard");
       } else if (savedTab === "molecular") {
         navigationUi.setDashboardSubtab("molecular");
         navigationUi.setActiveTab("dashboard");
-      } else if ((savedTab === "data" || savedTab === "users") && state.authState.enabled && !authUi.canManageDataset()) {
+      } else if ((savedTab === "data" || savedTab === "users" || savedTab === "models") && state.authState.enabled && !authUi.canManageDataset()) {
         navigationUi.setActiveTab("datasets");
       } else {
         navigationUi.setActiveTab(savedTab);
+        if (savedTab === "models") {
+          void modelsAdminUi.loadModels();
+        }
       }
     }
   } catch (_error) {
@@ -1362,6 +1378,7 @@ async function bootstrap() {
     return;
   }
   await userSettingsUi.loadUserSettings({ applyNavigation: false });
+  await workspaceUi.loadLmStatus();
   await datasetsUi.loadDatasets();
   datasetsUi.prepareStartupWorkspaceSelection();
   await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: datasetsUi.startupDefaultDatasetIds() });

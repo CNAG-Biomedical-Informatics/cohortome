@@ -782,6 +782,7 @@ def session_user(request: Request) -> Optional[Dict[str, Any]]:
         "groups": list(session.get("groups") or user.get("groups") or []),
         "enabled": bool(user.get("enabled", True)),
         "auth_source": str(user.get("auth_source") or "local"),
+        "login_method": str(session.get("login_method") or user.get("auth_source") or "local"),
         "email": str(user.get("email") or ""),
     }
 

@@ -6,7 +6,7 @@ import type * as Redocusaurus from 'redocusaurus';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Patient Navigator Docs',
+  title: 'Patient Navigator',
   tagline: 'Documentation for workspace navigation, analysis, and administration',
   favicon: 'img/patient-navigator-logo.png',
   markdown: {
@@ -20,14 +20,14 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://example.com',
+  url: 'https://mrueda.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/',
+  baseUrl: '/patient-navigator/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'cnag',
+  organizationName: 'mrueda',
   projectName: 'patient-navigator',
 
   onBrokenLinks: 'throw',
@@ -47,7 +47,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/your-org/patient-navigator/tree/main/docs-site/',
+            'https://github.com/mrueda/patient-navigator/tree/main/docs-site/',
         },
         blog: false,
         theme: {
@@ -78,9 +78,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Patient Navigator Docs',
+      title: 'Patient Navigator',
       logo: {
-        alt: 'Patient Navigator Docs',
+        alt: 'Patient Navigator',
         src: 'img/patient-navigator-logo.png',
       },
       items: [
@@ -96,7 +96,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/your-org/patient-navigator',
+          href: 'https://github.com/mrueda/patient-navigator',
           label: 'GitHub',
           position: 'right',
         },
@@ -119,7 +119,7 @@ const config: Config = {
           items: [
             {
               label: 'Repository',
-              href: 'https://github.com/your-org/patient-navigator',
+              href: 'https://github.com/mrueda/patient-navigator',
             },
           ],
         },
