@@ -336,7 +336,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (normalized === "clinical") return "Clinical";
     if (normalized === "molecular") return "Molecular";
     if (normalized === "workflow") return "Workflow";
-    if (normalized === "background") return "Background jobs";
+    if (normalized === "background") return "Background";
     if (normalized === "external") return "External";
     return "All";
   }
@@ -779,7 +779,7 @@ export function createAnalysisCatalogUi(ctx) {
       metaBadges.push(`<span class="query-chip badge">${escapeHtml(analysisCatalogRunnerTypeLabel(item.runner_type))}</span>`);
     }
     if (String(item.execution_backend || "").toLowerCase() === "job") {
-      metaBadges.push(`<span class="query-chip badge">${analysisCatalogQueueIcon()}<span>Background job</span></span>`);
+      metaBadges.push(`<span class="query-chip badge">${analysisCatalogQueueIcon()}<span>Background</span></span>`);
     }
     const requirements = Array.isArray(item.workspace_requirements) ? item.workspace_requirements : [];
     const requirementsHtml = !compact && requirements.length

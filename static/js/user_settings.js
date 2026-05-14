@@ -293,18 +293,18 @@ export function createUserSettingsUi(ctx) {
     const config = {
       chats: {
         url: "/user-data/analysis-sessions",
-        confirmText: "Delete all saved analysis chats? Generated job artifacts are not deleted by this action.",
+        confirmText: "Delete all saved analysis chats without linked generated runs? Chats with generated runs must be deleted from Analysis.",
         runningText: "Deleting analysis chats...",
         doneText: (payload) => `Deleted ${payload.deleted_count || 0} saved analysis chat${payload.deleted_count === 1 ? "" : "s"} and cleared the local chat list.`,
         button: userDeleteChatsBtnEl,
       },
       jobs: {
-        url: "/user-data/jobs",
-        confirmText: "Delete all completed, failed, and cancelled jobs plus generated artifacts? Running jobs will be kept.",
-        runningText: "Deleting completed jobs...",
+        url: "/run-history",
+        confirmText: "Delete all completed, failed, and cancelled generated runs plus artifacts? Active runs will be kept.",
+        runningText: "Deleting generated runs...",
         doneText: (payload) => {
-          const skipped = payload.skipped_active_count ? ` ${payload.skipped_active_count} active job${payload.skipped_active_count === 1 ? "" : "s"} kept.` : "";
-          return `Deleted ${payload.deleted_count || 0} completed job${payload.deleted_count === 1 ? "" : "s"}.${skipped}`;
+          const skipped = payload.skipped_active_count ? ` ${payload.skipped_active_count} active run${payload.skipped_active_count === 1 ? "" : "s"} kept.` : "";
+          return `Deleted ${payload.deleted_count || 0} generated run${payload.deleted_count === 1 ? "" : "s"}.${skipped}`;
         },
         button: userDeleteJobsBtnEl,
       },

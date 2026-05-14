@@ -40,6 +40,7 @@ export function createAppState() {
     analysisCatalogFilter: "all",
     lmStatus: null,
     recentJobs: [],
+    runHistory: [],
     jobsPollTimer: null,
     analysisSessions: [],
     currentAnalysisSessionId: "",

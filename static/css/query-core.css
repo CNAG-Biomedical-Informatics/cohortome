@@ -160,6 +160,7 @@
       }
       #analysisMolecularRunBtn,
       #phenoPlanBtn,
+      #queryComposerExamplesBtn,
       #queryPlannerBtn,
       #analysisComposerExamplesBtn,
       #phenoExplainBtn,
@@ -201,7 +202,8 @@
         color: var(--warning);
         border: 1px solid rgba(180, 83, 9, 0.16);
       }
-      #analysisComposerExamplesBtn {
+      #analysisComposerExamplesBtn,
+      #queryComposerExamplesBtn {
         background: rgba(237, 233, 254, 0.82);
         color: #6d28d9;
         border: 1px solid rgba(109, 40, 217, 0.16);

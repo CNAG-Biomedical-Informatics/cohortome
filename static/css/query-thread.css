@@ -82,6 +82,23 @@
         background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
         box-shadow: var(--shadow);
       }
+      .query-starter-host {
+        display: grid;
+        gap: 10px;
+      }
+      .query-starter-host.is-hidden {
+        display: none;
+      }
+      .query-starter-panel.query-starter-panel-compact {
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(248, 250, 252, 0.88);
+        box-shadow: none;
+      }
+      .query-starter-panel.query-starter-panel-compact .query-starter-header,
+      .query-starter-panel.query-starter-panel-compact > .section-note {
+        display: none;
+      }
       .query-starter-header {
         display: flex;
         align-items: start;
@@ -234,6 +251,10 @@
       #queryDiseaseBuilderBtn.is-active {
         box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
         background: rgba(219, 234, 254, 0.98);
+      }
+      #queryComposerExamplesBtn.is-active {
+        background: rgba(237, 233, 254, 0.98);
+        box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.18);
       }
       #queryReason {
         color: var(--muted);

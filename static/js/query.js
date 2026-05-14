@@ -14,12 +14,15 @@ export function createQueryUi(ctx) {
     askBtnEl,
     queryTabEl,
     queryExamplesEl,
+    queryStarterPanelEl,
+    queryStarterTopHostEl,
+    queryStarterHostEl,
+    queryComposerExamplesBtnEl,
     queryDiseaseTopChipsEl,
     queryDiseaseStatusEl,
   } = refs;
   const { escapeHtml, renderActivityCard, fallbackCopyText } = helpers;
   const {
-    renderQueryStarterPrompts,
     renderQueryExecutionMode,
     startQueryProgressUpdates,
     stopQueryProgressUpdates,
@@ -35,6 +38,52 @@ export function createQueryUi(ctx) {
     setLatestScopedContext,
   } = callbacks;
   let diseaseOptions = [];
+  let queryPromptLibraryOpen = false;
+
+  function hasQueryTurns() {
+    return Array.isArray(state.queryTurns) && state.queryTurns.length > 0;
+  }
+
+  function renderQueryStarterPrompts() {
+    if (!queryStarterPanelEl) {
+      return;
+    }
+    const hasTurns = hasQueryTurns();
+    const targetHost = hasTurns ? queryStarterHostEl : queryStarterTopHostEl;
+    if (targetHost && queryStarterPanelEl.parentElement !== targetHost) {
+      targetHost.appendChild(queryStarterPanelEl);
+    }
+
+    const visible = !hasTurns || queryPromptLibraryOpen;
+    queryStarterPanelEl.hidden = !visible;
+    queryStarterPanelEl.classList.toggle("is-hidden", !visible);
+    queryStarterPanelEl.classList.toggle("query-starter-panel-compact", hasTurns);
+
+    if (queryStarterHostEl) {
+      queryStarterHostEl.hidden = !hasTurns || !queryPromptLibraryOpen;
+      queryStarterHostEl.classList.toggle("is-hidden", !hasTurns || !queryPromptLibraryOpen);
+    }
+
+    if (queryComposerExamplesBtnEl) {
+      queryComposerExamplesBtnEl.hidden = !hasTurns;
+      queryComposerExamplesBtnEl.classList.toggle("is-active", hasTurns && queryPromptLibraryOpen);
+      queryComposerExamplesBtnEl.setAttribute("aria-expanded", hasTurns && queryPromptLibraryOpen ? "true" : "false");
+      const labelEl = queryComposerExamplesBtnEl.querySelector("span:last-child");
+      if (labelEl) {
+        labelEl.textContent = queryPromptLibraryOpen ? "Hide prompts" : "Prompts";
+      } else {
+        queryComposerExamplesBtnEl.textContent = queryPromptLibraryOpen ? "Hide prompts" : "Prompts";
+      }
+    }
+  }
+
+  function setQueryPromptLibraryOpen(open, options = {}) {
+    queryPromptLibraryOpen = Boolean(open);
+    renderQueryStarterPrompts();
+    if (options.scroll && queryPromptLibraryOpen && queryStarterPanelEl && !queryStarterPanelEl.hidden) {
+      queryStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   function renderTopDiseaseChips() {
     if (!queryDiseaseTopChipsEl) return;
@@ -418,6 +467,7 @@ export function createQueryUi(ctx) {
   function resetQueryWorkspace() {
     state.queryHistory = [];
     state.queryTurns = [];
+    queryPromptLibraryOpen = false;
     state.queryExecutionMode = defaultQueryExecutionMode();
     state.queryFollowMemoryEnabled = false;
     renderTopDiseaseChips();
@@ -756,6 +806,9 @@ export function createQueryUi(ctx) {
       sendPromptToAnalysis(analysisButton.dataset.analysisPrompt, {
         llmOnly: analysisButton.dataset.analysisLlmOnly === "true",
       });
+      if (hasQueryTurns()) {
+        setQueryPromptLibraryOpen(false);
+      }
       return;
     }
     const button = event.target.closest("[data-prompt]");
@@ -763,6 +816,9 @@ export function createQueryUi(ctx) {
     questionEl.value = button.dataset.prompt;
     state.queryExecutionMode = defaultQueryExecutionMode();
     renderQueryExecutionMode();
+    if (hasQueryTurns()) {
+      setQueryPromptLibraryOpen(false);
+    }
     questionEl.focus();
   }
 
@@ -824,6 +880,7 @@ export function createQueryUi(ctx) {
     renderQueryReason,
     renderQueryActions,
     renderQueryExecutionMode,
+    renderQueryStarterPrompts,
     resetQueryWorkspace,
     renderQueryThread,
     askQuery,
@@ -832,6 +889,9 @@ export function createQueryUi(ctx) {
     handleQueryExamplesClick,
     handleQueryFollowupsClick,
     handleDocumentClick,
+    togglePromptLibrary() {
+      setQueryPromptLibraryOpen(!queryPromptLibraryOpen, { scroll: true });
+    },
     setExecutionMode(value) {
       state.queryExecutionMode = value;
     },

@@ -109,7 +109,14 @@ export function createAnalysisSessionsUi(ctx) {
     resetDeleteDialogStatus();
     setDeleteDialogBusy(false);
     if (analysisSessionDeleteSummaryEl) {
-      analysisSessionDeleteSummaryEl.textContent = `Delete analysis session "${analysisSessionTitle(session)}"?`;
+      const linkedJobs = Array.isArray(state.recentJobs)
+        ? state.recentJobs.filter((item) => String(item && item.analysis_session_id ? item.analysis_session_id : "").trim() === sessionId)
+        : [];
+      const activeJobs = linkedJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "").trim()));
+      const linkedText = linkedJobs.length
+        ? ` This chat has ${linkedJobs.length} linked generated run${linkedJobs.length === 1 ? "" : "s"}${activeJobs.length ? `, including ${activeJobs.length} active` : ""}.`
+        : "";
+      analysisSessionDeleteSummaryEl.textContent = `Delete analysis session "${analysisSessionTitle(session)}"?${linkedText}`;
     }
     setDeleteDialogOpen(true);
   }
@@ -173,9 +180,14 @@ export function createAnalysisSessionsUi(ctx) {
   async function deleteAnalysisSessionFromBackend(sessionId, options) {
     const settings = options || {};
     const deleteGeneratedData = Boolean(settings.deleteGeneratedData);
+    const keepGeneratedJobs = Boolean(settings.keepGeneratedJobs);
     try {
+      const query = new URLSearchParams({
+        delete_generated_data: deleteGeneratedData ? "true" : "false",
+        keep_generated_jobs: keepGeneratedJobs ? "true" : "false",
+      });
       const response = await fetch(
-        `/analysis-sessions/${encodeURIComponent(sessionId)}?delete_generated_data=${deleteGeneratedData ? "true" : "false"}`,
+        `/analysis-sessions/${encodeURIComponent(sessionId)}?${query.toString()}`,
         { method: "DELETE" }
       );
       if (!response.ok) {
@@ -433,8 +445,12 @@ export function createAnalysisSessionsUi(ctx) {
     setDeleteDialogBusy(true);
     resetDeleteDialogStatus();
     let missingOnBackend = false;
+    let deletePayload = null;
     try {
-      await deleteAnalysisSessionFromBackend(sessionId, { deleteGeneratedData });
+      deletePayload = await deleteAnalysisSessionFromBackend(sessionId, {
+        deleteGeneratedData,
+        keepGeneratedJobs: !deleteGeneratedData,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete analysis session.";
       if (message === "Analysis session not found.") {
@@ -447,6 +463,9 @@ export function createAnalysisSessionsUi(ctx) {
         setDeleteDialogBusy(false);
         return;
       }
+    }
+    if (deleteGeneratedData && deletePayload && Number(deletePayload.deleted_job_count || 0) > 0 && Array.isArray(state.recentJobs)) {
+      state.recentJobs = state.recentJobs.filter((item) => String(item && item.analysis_session_id ? item.analysis_session_id : "").trim() !== sessionId);
     }
     state.analysisSessions = state.analysisSessions.filter((item) => item.id !== sessionId);
     if (!state.analysisSessions.length) {

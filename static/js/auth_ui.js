@@ -16,6 +16,7 @@ export function createAuthUi(ctx) {
     usersTabBtnEl,
     modelsTabBtnEl,
     jobsDrawerBtnEl,
+    runHistoryDrawerBtnEl,
     datasetAdminControlsEl,
     usersCreateCardEl,
     loadStatusEl,
@@ -41,11 +42,13 @@ export function createAuthUi(ctx) {
   const {
     renderLoadButtonState,
     renderJobsDrawer,
+    renderRunHistoryDrawer,
     renderGlobalContext,
     currentTabName,
     setActiveTab,
     loadAuthUsers,
     loadRecentJobs,
+    loadRunHistory,
     loadSavedCohorts,
     loadAnalysisCatalog,
     renderAnalysisSessionList,
@@ -195,6 +198,7 @@ export function createAuthUi(ctx) {
       heroAuthUtilityEl && heroAuthUtilityEl.classList.remove("is-hidden");
       heroLogoutBtnEl && heroLogoutBtnEl.classList.add("is-hidden");
       jobsDrawerBtnEl && jobsDrawerBtnEl.classList.remove("is-hidden");
+      runHistoryDrawerBtnEl && runHistoryDrawerBtnEl.classList.remove("is-hidden");
       if (heroAuthIdentityEl) {
         heroAuthIdentityEl.textContent = "Local user";
       }
@@ -215,7 +219,9 @@ export function createAuthUi(ctx) {
     authGateEl && authGateEl.classList.toggle("is-hidden", authenticated);
     appShellEl && appShellEl.classList.toggle("is-hidden", !authenticated);
     heroAuthUtilityEl && heroAuthUtilityEl.classList.toggle("is-hidden", !authenticated);
-    heroLogoutBtnEl && heroLogoutBtnEl.classList.toggle("is-hidden", !authenticated);
+      heroLogoutBtnEl && heroLogoutBtnEl.classList.toggle("is-hidden", !authenticated);
+      jobsDrawerBtnEl && jobsDrawerBtnEl.classList.toggle("is-hidden", !authenticated);
+      runHistoryDrawerBtnEl && runHistoryDrawerBtnEl.classList.toggle("is-hidden", !authenticated);
     if (authenticated) {
       if (heroAuthIdentityEl) {
         heroAuthIdentityEl.textContent = `${state.authState.user.display_name || state.authState.user.username} (${state.authState.user.role || "user"})`;
@@ -256,6 +262,9 @@ export function createAuthUi(ctx) {
     }
     updateLoadButtonAvailability();
     renderJobsDrawer();
+    if (typeof renderRunHistoryDrawer === "function") {
+      renderRunHistoryDrawer();
+    }
     renderGlobalContext();
     renderPasswordResetUi();
   }
@@ -315,9 +324,16 @@ export function createAuthUi(ctx) {
     renderAuthUi();
     if (!state.authState.enabled || state.authState.authenticated) {
       void loadRecentJobs({ silent: true });
+      if (typeof loadRunHistory === "function") {
+        void loadRunHistory({ silent: true });
+      }
     } else {
       state.recentJobs = [];
+      state.runHistory = [];
       renderJobsDrawer();
+      if (typeof renderRunHistoryDrawer === "function") {
+        renderRunHistoryDrawer();
+      }
     }
   }
 

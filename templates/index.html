@@ -103,7 +103,7 @@
             <span class="hero-auth-label">Workspace access</span>
             <strong id="heroAuthIdentity">Signed out</strong>
           </div>
-          <button id="jobsDrawerBtn" type="button" class="query-chip is-hidden" title="Open recent background jobs.">
+          <button id="jobsDrawerBtn" type="button" class="query-chip is-hidden" title="Open the background execution queue.">
             <span class="button-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M8 6h13"></path>
@@ -114,8 +114,19 @@
                 <path d="M3 18h.01"></path>
               </svg>
             </span>
-            <span>Jobs</span>
+            <span>Queue</span>
             <span id="jobsDrawerCount" class="jobs-drawer-count is-hidden">0</span>
+          </button>
+          <button id="runHistoryDrawerBtn" type="button" class="query-chip is-hidden" title="Open generated run history.">
+            <span class="button-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 8v5l3 2"></path>
+                <path d="M3.05 11a9 9 0 1 1 2.64 6.36"></path>
+                <path d="M3 17v-6h6"></path>
+              </svg>
+            </span>
+            <span>Run History</span>
+            <span id="runHistoryDrawerCount" class="jobs-drawer-count is-hidden">0</span>
           </button>
           <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
             <span class="button-icon" aria-hidden="true">
@@ -190,7 +201,7 @@
               <option value="system-default">System default</option>
             </select>
           </div>
-          <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Jobs after background runs</label>
+          <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
@@ -202,7 +213,7 @@
           <strong>Danger zone</strong>
           <div class="user-settings-danger-actions">
             <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
-            <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete completed jobs</button>
+            <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete generated runs</button>
             <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
           </div>
         </div>
@@ -569,48 +580,79 @@
 
       <section id="queryTab" class="tab-panel">
         <div class="controls">
-          <div id="queryStatus" class="query-status">Press Enter or click Ask.</div>
-          <div id="queryMeta" class="query-meta"></div>
           <div id="lmStatus" class="section-note">LM Studio model: checking...</div>
-          <div id="queryStarterPanel" class="query-starter-panel">
-            <div class="query-starter-header">
-              <div>
-                <label for="question">Ask a question</label>
-                <div class="section-note">Use Query to find workspace subsets, counts, and patient lists. Use Analysis to interpret a selected scope or saved cohort.</div>
+          <div id="queryStarterTopHost">
+            <div id="queryStarterPanel" class="query-starter-panel">
+              <div class="query-starter-header">
+                <div>
+                  <label for="question">Ask a question</label>
+                  <div class="section-note">Use Query to find workspace subsets, counts, and patient lists. Use Analysis to interpret a selected scope or saved cohort.</div>
+                </div>
+              </div>
+              <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
+              <div class="query-examples" id="queryExamples">
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients in the workspace">List all patients in the workspace</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients do not have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
+                <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics?">How many patients take biologics?</button>
+                <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients take biologics?">Which patients take biologics?</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Interpret this workspace like a clinician and summarize the main patterns.">Interpret this workspace in Analysis</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What are the main clinical themes in this dataset? Summarize them in a table.">Main clinical themes in Analysis</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this workspace">List medications in this workspace</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this workspace">List diseases in this workspace</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient SYN007">Show patient SYN007</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints are in this workspace?">How many timepoints are in this workspace?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="What happened to this workspace over time?">What happened to this workspace over time?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have more than 1 timepoint?">Which patients have more than 1 timepoint?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Ocrelizumab?">How many timepoints mention Ocrelizumab?</button>
+                <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient SYN007">Show the timeline for patient SYN007</button>
+                <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take anti-TNF treatments?">How many patients take anti-TNF treatments?</button>
+                <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients take anti-TNF treatments?">Which patients take anti-TNF treatments?</button>
+                <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics but do not take steroids?">How many patients take biologics but do not take steroids?</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this workspace and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
+                <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main workspace summary?">Evidence-supported summary in Analysis</button>
               </div>
             </div>
-            <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-planner badge">LLM-planned</span> <span class="query-chip query-chip-llm badge">LLM interpretation</span></div>
-            <div class="query-examples" id="queryExamples">
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Tell me the list of patients in the workspace">List all patients in the workspace</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients have Crohn Disease?">How many patients have Crohn Disease?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have Infliximab?">Which patients have Infliximab?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients do not have Crohn Disease but take Infliximab?">Patients without Crohn but with Infliximab</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics?">How many patients take biologics?</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients take biologics?">Which patients take biologics?</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Interpret this workspace like a clinician and summarize the main patterns.">Interpret this workspace in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What are the main clinical themes in this dataset? Summarize them in a table.">Main clinical themes in Analysis</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients take more than 1 medication?">Which patients take more than 1 medication?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many patients take exactly 1 medication?">How many patients take exactly 1 medication?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have no medications?">Which patients have no medications?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List medications in this workspace">List medications in this workspace</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="List diseases in this workspace">List diseases in this workspace</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show patient SYN007">Show patient SYN007</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints are in this workspace?">How many timepoints are in this workspace?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="What happened to this workspace over time?">What happened to this workspace over time?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Which patients have more than 1 timepoint?">Which patients have more than 1 timepoint?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="How many timepoints mention Ocrelizumab?">How many timepoints mention Ocrelizumab?</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-prompt="Show the timeline for patient SYN007">Show the timeline for patient SYN007</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take anti-TNF treatments?">How many patients take anti-TNF treatments?</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="Which patients take anti-TNF treatments?">Which patients take anti-TNF treatments?</button>
-              <button type="button" class="query-chip query-chip-planner" data-prompt="How many patients take biologics but do not take steroids?">How many patients take biologics but do not take steroids?</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="Summarize the main treatment patterns in this workspace and explain what stands out clinically.">Summarize treatment patterns in Analysis</button>
-              <button type="button" class="query-chip query-chip-llm" data-analysis-handoff="true" data-analysis-llm-only="true" data-analysis-prompt="What evidence supports the main workspace summary?">Evidence-supported summary in Analysis</button>
+          </div>
+          <div class="analysis-history-header">
+            <div class="query-thread-header-copy">
+              <span>Query Thread</span>
             </div>
+            <div class="query-thread-mode" aria-label="Query thread mode">
+              <span class="query-thread-mode-label">Workspace mode</span>
+              <span id="queryGranularityModeValue" class="query-thread-mode-value">Detailed</span>
+              <button id="queryPolicyInfoBtn" type="button" class="query-policy-info is-hidden" aria-label="Workspace policy details" title="Workspace policy details">
+                <span class="button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 10v6"></path>
+                    <path d="M12 7h.01"></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div id="queryThread" class="analysis-thread">
+            <div class="empty">Ask a query to start a conversational thread. Recent text history is kept, but previous-result memory is opt-in.</div>
           </div>
           <div class="query-composer">
             <div class="query-composer-header">
               <strong>Continue Query</strong>
               <div class="query-composer-actions">
+                <button id="queryComposerExamplesBtn" type="button" class="query-chip" hidden aria-expanded="false">
+                  <span class="button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 18h6"></path>
+                      <path d="M10 22h4"></path>
+                      <path d="M12 2a7 7 0 0 0-4 12.74V16h8v-1.26A7 7 0 0 0 12 2Z"></path>
+                    </svg>
+                  </span>
+                  <span>Prompts</span>
+                </button>
                 <button id="queryPlannerBtn" type="button" class="query-chip query-chip-planner" title="Skip deterministic matching for the next query and use the LLM planner first.">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -652,6 +694,7 @@
                 </button>
               </div>
             </div>
+            <div id="queryStarterHost" class="query-starter-host is-hidden" hidden></div>
             <div id="queryDiseasePanel" class="is-hidden">
               <div id="queryDiseaseTopChips" class="query-composer-disease-chips"></div>
               <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic workspace query.</div>
@@ -668,27 +711,8 @@
                 <span>Ask</span>
               </button>
             </div>
-          </div>
-          <div class="analysis-history-header">
-            <div class="query-thread-header-copy">
-              <span>Query Thread</span>
-            </div>
-            <div class="query-thread-mode" aria-label="Query thread mode">
-              <span class="query-thread-mode-label">Workspace mode</span>
-              <span id="queryGranularityModeValue" class="query-thread-mode-value">Detailed</span>
-              <button id="queryPolicyInfoBtn" type="button" class="query-policy-info is-hidden" aria-label="Workspace policy details" title="Workspace policy details">
-                <span class="button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="9"></circle>
-                    <path d="M12 10v6"></path>
-                    <path d="M12 7h.01"></path>
-                  </svg>
-                </span>
-              </button>
-            </div>
-          </div>
-          <div id="queryThread" class="analysis-thread">
-            <div class="empty">Ask a query to start a conversational thread. Recent text history is kept, but previous-result memory is opt-in.</div>
+            <div id="queryStatus" class="query-status">Press Enter or click Ask.</div>
+            <div id="queryMeta" class="query-meta"></div>
           </div>
           <details class="query-section">
             <summary>Latest query details</summary>
@@ -1128,28 +1152,12 @@
                     <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="workflow" aria-pressed="false">Workflow</button>
-                    <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background jobs</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
                   </div>
                 </div>
                 <div id="analysisCatalogDrawerList" class="analysis-catalog-list">
                   <div class="empty">Loading curated analyses...</div>
-                </div>
-              </div>
-            </div>
-            <div id="jobsDrawer" class="jobs-drawer is-hidden" aria-hidden="true">
-              <div class="jobs-drawer-backdrop" data-jobs-drawer-close="true"></div>
-              <div class="jobs-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="jobsDrawerTitle">
-                <div class="jobs-drawer-header">
-                  <div>
-                    <strong id="jobsDrawerTitle">Jobs</strong>
-                    <div class="section-note">Recent background jobs submitted from Analysis and future queued tools.</div>
-                  </div>
-                  <button id="jobsDrawerCloseBtn" type="button" class="query-chip">Close</button>
-                </div>
-                <div id="jobsDrawerStatus" class="query-status">Loading recent jobs...</div>
-                <div id="jobsDrawerList" class="jobs-drawer-list">
-                  <div class="empty">Loading recent jobs...</div>
                 </div>
               </div>
             </div>
@@ -1159,7 +1167,7 @@
                 <div class="analysis-session-delete-dialog-header">
                   <div>
                     <strong id="analysisSessionDeleteTitle">Delete analysis session</strong>
-                    <div class="section-note">Choose whether to remove only the chat or also its generated job results, logs, and artifacts.</div>
+                    <div class="section-note">Choose whether to remove only the chat while keeping generated runs, or delete the generated results, logs, and artifacts too.</div>
                   </div>
                   <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip">Cancel</button>
                 </div>
@@ -1168,7 +1176,7 @@
                   <div id="analysisSessionDeleteStatus" class="query-status is-hidden"></div>
                 </div>
                 <div class="analysis-session-delete-dialog-actions">
-                  <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip">Delete chat only</button>
+                  <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip">Delete chat, keep runs</button>
                   <button id="analysisSessionDeleteAllBtn" type="button" class="query-chip action">Delete chat and generated data</button>
                 </div>
               </div>
@@ -1234,6 +1242,59 @@
       </div>
       </div>
     </main>
+      <div id="jobsDrawer" class="jobs-drawer is-hidden" aria-hidden="true">
+        <div class="jobs-drawer-backdrop" data-jobs-drawer-close="true"></div>
+        <div class="jobs-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="jobsDrawerTitle">
+          <div class="jobs-drawer-header">
+            <div>
+              <strong id="jobsDrawerTitle">Queue</strong>
+              <div class="section-note">Background runs that are waiting, running, or recently finished.</div>
+            </div>
+            <button id="jobsDrawerCloseBtn" type="button" class="job-card-action-icon" title="Close queue" aria-label="Close queue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <div id="jobsDrawerStatus" class="query-status">Loading queue...</div>
+          <div id="jobsDrawerList" class="jobs-drawer-list">
+            <div class="empty">Loading queue...</div>
+          </div>
+        </div>
+      </div>
+      <div id="runHistoryDrawer" class="jobs-drawer is-hidden" aria-hidden="true">
+        <div class="jobs-drawer-backdrop" data-run-history-drawer-close="true"></div>
+        <div class="jobs-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="runHistoryDrawerTitle">
+          <div class="jobs-drawer-header">
+            <div>
+              <strong id="runHistoryDrawerTitle">Run History</strong>
+              <div class="section-note">Generated results from Analysis, Pheno-Ranker, and workflow tools.</div>
+            </div>
+            <div class="job-card-actions">
+              <button id="runHistoryDeleteAllBtn" type="button" class="job-card-action-icon danger" title="Delete completed runs" aria-label="Delete completed runs">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M19 6l-1 14H6L5 6"></path>
+                  <path d="M10 11v5"></path>
+                  <path d="M14 11v5"></path>
+                </svg>
+              </button>
+              <button id="runHistoryDrawerCloseBtn" type="button" class="job-card-action-icon" title="Close run history" aria-label="Close run history">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M18 6 6 18"></path>
+                  <path d="m6 6 12 12"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="runHistoryDrawerStatus" class="query-status">Loading run history...</div>
+          <div id="runHistoryDrawerList" class="jobs-drawer-list">
+            <div class="empty">Loading run history...</div>
+          </div>
+        </div>
+      </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.33.1/cytoscape.min.js"></script>
         <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>

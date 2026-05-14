@@ -344,9 +344,13 @@ class SavedCohortsResponse(BaseModel):
 
 class DeleteResponse(BaseModel):
     deleted: bool
-    id: str
+    id: str = ""
+    deleted_count: int = 0
     deleted_generated_data: bool = False
+    related_job_count: int = 0
     deleted_job_count: int = 0
+    kept_job_count: int = 0
+    skipped_active_count: int = 0
 
 
 class PatientSummaryResponse(FlexibleModel):

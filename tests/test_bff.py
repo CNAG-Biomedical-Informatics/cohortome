@@ -4099,6 +4099,69 @@ def test_run_pheno_ranker_route_rejects_runs_above_hard_cap(tmp_path, monkeypatc
     assert "5158" in str(exc.value.detail)
 
 
+def test_run_pheno_ranker_route_persists_inline_run_as_managed_job(tmp_path, monkeypatch):
+    isolate_jobs_store(monkeypatch, tmp_path)
+    request = make_request({"username": "alice"})
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "alice"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "alice")
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id: ["default"])
+    monkeypatch.setattr(routes_module, "dataset_scope_id", lambda dataset_ids: "default")
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, dataset_id: str(tmp_path))
+    monkeypatch.setattr(routes_module, "ensure_query_store", lambda data_dir: None)
+    monkeypatch.setattr(routes_module, "active_feature_job", lambda user_id, feature: None)
+    monkeypatch.setattr(
+        routes_module,
+        "pheno_run_requires_background_job",
+        lambda payload, user_id="": {"resolved_sample_count": 2, "threshold": 1500, "requires_background_job": False},
+    )
+
+    def fake_run_pheno_ranker(payload):
+        job_path = Path(payload.job_dir_override)
+        (job_path / "matrix.txt").write_text("\tP1\tP2\nP1\t0\t1\nP2\t1\t0\n", encoding="utf-8")
+        return {
+            "intent": "pheno_run",
+            "reply": "Completed inline cohort run.",
+            "job_id": job_path.name,
+            "mode": "cohort",
+            "command": "pheno-ranker -r ref.json",
+            "files": [
+                {
+                    "name": "matrix.txt",
+                    "url": f"/pheno-ranker/results/{job_path.name}/matrix.txt",
+                    "size": 16,
+                }
+            ],
+            "plots": [],
+            "data": {"source": "deterministic"},
+        }
+
+    monkeypatch.setattr(routes_module, "run_pheno_ranker", fake_run_pheno_ranker)
+
+    payload = routes_module.run_pheno_ranker_route(
+        routes_module.PhenoRankerRequest(
+            prompt="Compare the current cohort",
+            action="compare",
+            mode="cohort",
+            dataset_id="default",
+        ),
+        request,
+    )
+
+    job_id = payload["job_id"]
+    assert payload["data"]["job_id"] == job_id
+    assert payload["data"]["job_status"] == "completed"
+    record = jobs_module.load_job_record(job_id, "alice")
+    assert record["status"] == "completed"
+    assert record["feature"] == "pheno"
+    assert record["execution_backend"] == "inline"
+    assert record["result_available"] is True
+    assert (jobs_module.job_dir(job_id, "alice") / "matrix.txt").exists()
+    assert pheno_module.pheno_ranker_result_file_path(job_id, "matrix.txt", user_id="alice").read_text(encoding="utf-8").startswith("\tP1")
+
+
 def test_run_pheno_job_persists_result_in_shared_job_dir(tmp_path, monkeypatch):
     isolate_jobs_store(monkeypatch, tmp_path)
     record = jobs_module.create_job_record(
@@ -4262,7 +4325,7 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     alice_job = jobs_module.create_job_record(
         job_type="analysis",
         user_id="alice",
-        data={"feature": "analysis", "name": "Alice job", "catalog_item_id": "external-r-clinical-profile"},
+        data={"feature": "analysis", "name": "Alice job", "catalog_item_id": "external-r-clinical-profile", "execution_backend": "job"},
     )
     alice_dir = jobs_module.job_dir(alice_job["job_id"], "alice")
     (alice_dir / "stdout.txt").write_text("hello", encoding="utf-8")
@@ -4285,7 +4348,7 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     bob_job = jobs_module.create_job_record(
         job_type="analysis",
         user_id="bob",
-        data={"feature": "analysis", "name": "Bob job", "catalog_item_id": "other"},
+        data={"feature": "analysis", "name": "Bob job", "catalog_item_id": "other", "execution_backend": "job"},
     )
 
     client = TestClient(app)
@@ -4311,6 +4374,79 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
 
     hidden = client.get(f"/jobs/{bob_job['job_id']}")
     assert hidden.status_code == 404
+
+
+def test_run_history_lists_inline_runs_without_polluting_jobs_drawer(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
+    )
+
+    inline_job = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={"feature": "pheno", "name": "Inline Pheno", "dataset_id": "default", "execution_backend": "inline"},
+    )
+    jobs_module.save_job_result(inline_job["job_id"], "alice", {"reply": "Inline finished"})
+    jobs_module.update_job_record(inline_job["job_id"], "alice", status="completed", result_available=True)
+    background_job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={"feature": "analysis", "name": "Queued workflow", "dataset_id": "default", "execution_backend": "job"},
+    )
+    jobs_module.update_job_record(background_job["job_id"], "alice", status="running")
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    jobs_payload = client.get("/jobs").json()
+    assert [item["job_id"] for item in jobs_payload["jobs"]] == [background_job["job_id"]]
+
+    history_payload = client.get("/run-history").json()
+    history_ids = {item["job_id"] for item in history_payload["runs"]}
+    assert inline_job["job_id"] in history_ids
+    assert background_job["job_id"] in history_ids
+
+
+def test_run_history_delete_removes_terminal_runs_and_skips_active(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_jobs_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "PN_LOCAL_USERS_JSON",
+        json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
+    )
+
+    terminal_job = jobs_module.create_job_record(
+        job_type="pheno",
+        user_id="alice",
+        data={"feature": "pheno", "name": "Completed inline", "dataset_id": "default", "execution_backend": "inline"},
+    )
+    terminal_path = jobs_module.job_dir(terminal_job["job_id"], "alice")
+    (terminal_path / "matrix.txt").write_text("ok\n", encoding="utf-8")
+    jobs_module.update_job_record(terminal_job["job_id"], "alice", status="completed", result_available=True)
+    active_job = jobs_module.create_job_record(
+        job_type="analysis",
+        user_id="alice",
+        data={"feature": "analysis", "name": "Running queued", "dataset_id": "default", "execution_backend": "job"},
+    )
+    active_path = jobs_module.job_dir(active_job["job_id"], "alice")
+    jobs_module.update_job_record(active_job["job_id"], "alice", status="running")
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
+
+    response = client.delete("/run-history")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["deleted_count"] == 1
+    assert payload["skipped_active_count"] == 1
+    assert not terminal_path.exists()
+    assert active_path.exists()
 
 
 def test_analysis_session_delete_can_cascade_terminal_job_data(tmp_path, monkeypatch):

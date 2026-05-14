@@ -394,6 +394,14 @@ def delete_job(job_id: str, user_id: str) -> bool:
     return True
 
 
+def terminal_job_status(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"completed", "failed", "cancelled"}
+
+
+def active_job_status(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"queued", "running"}
+
+
 def job_result_path(job_id: str, user_id: str) -> Path:
     return job_dir(job_id, user_id) / JOB_RESULT_FILENAME
 

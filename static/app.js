@@ -367,6 +367,11 @@ navigationUi = createNavigationUi({
   callbacks: {
     effectiveQueryGranularityCeiling: (datasetIds) => datasetsUi.effectiveQueryGranularityCeiling(datasetIds),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
+    closeJobSurfaces: () => {
+      if (jobsUi) {
+        jobsUi.closeJobSurfaces();
+      }
+    },
   },
 });
 
@@ -491,8 +496,8 @@ analysisUi = createAnalysisUi({
         refs.analysisStatusEl.className = "query-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
         refs.analysisStatusEl.textContent = autoOpenJobs
-          ? `Background job ${label} submitted. Jobs opened.`
-          : `Background job ${label} submitted. Open Jobs to monitor progress.`;
+          ? `Background run ${label} submitted. Queue opened.`
+          : `Background run ${label} submitted. Open Queue to monitor progress.`;
       }
     },
     renderAnalysisFlowBar: () => analysisCatalogUi.renderAnalysisFlowBar(),
@@ -563,9 +568,12 @@ phenoUi = createPhenoUi({
         refs.phenoStatusEl.className = "pheno-status";
         const label = String(payload.data.job_code || payload.data.job_id || "").trim();
         refs.phenoStatusEl.textContent = autoOpenJobs
-          ? `Background Pheno-Ranker run ${label} submitted. Jobs opened.`
-          : `Background Pheno-Ranker run ${label} submitted. Open Jobs to monitor progress.`;
+          ? `Background Pheno-Ranker run ${label} submitted. Queue opened.`
+          : `Background Pheno-Ranker run ${label} submitted. Open Queue to monitor progress.`;
       }
+    },
+    handlePhenoJobCompletion: () => {
+      void jobsUi.loadRunHistory({ silent: true });
     },
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
     getSelectedSavedCohortIds: () => state.phenoSelectedSavedCohortIds.slice(),
@@ -668,11 +676,13 @@ authUi = createAuthUi({
   callbacks: {
     renderLoadButtonState: () => datasetsUi.renderLoadButtonState(),
     renderJobsDrawer: () => jobsUi.renderJobsDrawer(),
+    renderRunHistoryDrawer: () => jobsUi.renderRunHistoryDrawer(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     currentTabName: () => navigationUi.currentTabName(),
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     loadAuthUsers: () => usersAdminUi.loadAuthUsers(),
     loadRecentJobs: (options) => jobsUi.loadRecentJobs(options),
+    loadRunHistory: (options) => jobsUi.loadRunHistory(options),
     loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
     loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
     renderAnalysisSessionList: () => analysisSessionsUi.renderAnalysisSessionList(),
@@ -709,6 +719,7 @@ userSettingsUi = createUserSettingsUi({
         analysisCatalogUi.renderAnalysisCatalog();
       } else if (kind === "jobs") {
         await jobsUi.loadRecentJobs({ silent: true });
+        await jobsUi.loadRunHistory({ silent: true });
       } else if (kind === "cohorts") {
         await savedCohortsUi.loadSavedCohorts();
         dashboardUi.renderAnalysisScopeSummary();
@@ -854,6 +865,9 @@ function bindEvents() {
 
   refs.askBtnEl && refs.askBtnEl.addEventListener("click", () => {
     void queryUi.askQuery();
+  });
+  refs.queryComposerExamplesBtnEl && refs.queryComposerExamplesBtnEl.addEventListener("click", () => {
+    queryUi.togglePromptLibrary();
   });
   refs.queryPlannerBtnEl && refs.queryPlannerBtnEl.addEventListener("click", () => {
     queryUi.setExecutionMode(state.queryExecutionMode === "planner_only" ? "auto" : "planner_only");
@@ -1203,6 +1217,13 @@ function bindEvents() {
       jobsUi.setJobsDrawerOpen(false);
       return;
     }
+    const deleteButton = event.target.closest("[data-job-delete]");
+    if (deleteButton && refs.jobsDrawerEl.contains(deleteButton)) {
+      void jobsUi.deleteJob(deleteButton.dataset.jobDelete || "").catch((error) => {
+        refs.jobsDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to delete job.";
+      });
+      return;
+    }
     const openButton = event.target.closest("[data-job-open-result], [data-job-open-pheno]");
     if (!openButton || !refs.jobsDrawerEl.contains(openButton)) {
       return;
@@ -1212,6 +1233,41 @@ function bindEvents() {
       const statusEl = isPheno ? refs.phenoStatusEl : refs.analysisStatusEl;
       statusEl.className = "query-status";
       statusEl.textContent = error && error.message ? error.message : "Unable to load job result.";
+    });
+  });
+
+  refs.runHistoryDrawerBtnEl && refs.runHistoryDrawerBtnEl.addEventListener("click", () => {
+    jobsUi.setRunHistoryDrawerOpen(true);
+    void jobsUi.loadRunHistory();
+  });
+  refs.runHistoryDrawerCloseBtnEl && refs.runHistoryDrawerCloseBtnEl.addEventListener("click", () => {
+    jobsUi.setRunHistoryDrawerOpen(false);
+  });
+  refs.runHistoryDeleteAllBtnEl && refs.runHistoryDeleteAllBtnEl.addEventListener("click", () => {
+    void jobsUi.deleteRunHistory();
+  });
+  refs.runHistoryDrawerEl && refs.runHistoryDrawerEl.addEventListener("click", (event) => {
+    const closeTrigger = event.target.closest("[data-run-history-drawer-close='true']");
+    if (closeTrigger && refs.runHistoryDrawerEl.contains(closeTrigger)) {
+      jobsUi.setRunHistoryDrawerOpen(false);
+      return;
+    }
+    const deleteButton = event.target.closest("[data-run-history-delete]");
+    if (deleteButton && refs.runHistoryDrawerEl.contains(deleteButton)) {
+      void jobsUi.deleteJob(deleteButton.dataset.runHistoryDelete || "", { surface: "run-history" }).catch((error) => {
+        refs.runHistoryDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to delete generated run.";
+      });
+      return;
+    }
+    const openButton = event.target.closest("[data-job-open-result], [data-job-open-pheno]");
+    if (!openButton || !refs.runHistoryDrawerEl.contains(openButton)) {
+      return;
+    }
+    void jobsUi.openJobResult(openButton.dataset.jobOpenResult || openButton.dataset.jobOpenPheno || "").catch((error) => {
+      const isPheno = Boolean(openButton.dataset.jobOpenPheno);
+      const statusEl = isPheno ? refs.phenoStatusEl : refs.analysisStatusEl;
+      statusEl.className = "query-status";
+      statusEl.textContent = error && error.message ? error.message : "Unable to load generated run.";
     });
   });
 
@@ -1343,7 +1399,7 @@ function initializeUiShell() {
   analysisCatalogUi.initializeExampleToggle(refs.queryExamplesEl);
   analysisCatalogUi.initializeExampleToggle(refs.phenoExamplesEl);
   analysisCatalogUi.initializeExampleToggle(refs.analysisExamplesEl);
-  analysisCatalogUi.renderQueryStarterPrompts();
+  queryUi.renderQueryStarterPrompts();
   analysisCatalogUi.renderAnalysisStarterPrompts();
   initializeAnalysisSidebarCollapsed();
   navigationUi.setDashboardSubtab(state.currentDashboardSubtab);

@@ -6,6 +6,12 @@ export function createJobsUi(ctx) {
     jobsDrawerEl,
     jobsDrawerStatusEl,
     jobsDrawerListEl,
+    runHistoryDrawerBtnEl,
+    runHistoryDrawerCountEl,
+    runHistoryDrawerEl,
+    runHistoryDrawerStatusEl,
+    runHistoryDrawerListEl,
+    runHistoryDeleteAllBtnEl,
     analysisStatusEl,
     dataDirEl,
   } = refs;
@@ -27,13 +33,42 @@ export function createJobsUi(ctx) {
 
   function setJobsDrawerOpen(open) {
     if (!jobsDrawerEl) return;
+    if (open) {
+      setRunHistoryDrawerOpen(false);
+    }
     jobsDrawerEl.classList.toggle("is-hidden", !open);
     jobsDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function setRunHistoryDrawerOpen(open) {
+    if (!runHistoryDrawerEl) return;
+    if (open) {
+      setJobsDrawerOpen(false);
+    }
+    runHistoryDrawerEl.classList.toggle("is-hidden", !open);
+    runHistoryDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function closeJobSurfaces() {
+    if (jobsDrawerEl) {
+      jobsDrawerEl.classList.add("is-hidden");
+      jobsDrawerEl.setAttribute("aria-hidden", "true");
+    }
+    if (runHistoryDrawerEl) {
+      runHistoryDrawerEl.classList.add("is-hidden");
+      runHistoryDrawerEl.setAttribute("aria-hidden", "true");
+    }
   }
 
   function runningJobCount() {
     return Array.isArray(state.recentJobs)
       ? state.recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : ""))).length
+      : 0;
+  }
+
+  function terminalRunCount() {
+    return Array.isArray(state.runHistory)
+      ? state.runHistory.filter((item) => ["completed", "failed", "cancelled"].includes(String(item && item.status ? item.status : ""))).length
       : 0;
   }
 
@@ -53,6 +88,21 @@ export function createJobsUi(ctx) {
     jobsDrawerCountEl.classList.toggle("is-hidden", running === 0);
   }
 
+  function renderRunHistoryButton() {
+    if (!runHistoryDrawerBtnEl || !runHistoryDrawerCountEl) {
+      return;
+    }
+    if (!state.authState || !state.authState.authenticated) {
+      runHistoryDrawerBtnEl.classList.add("is-hidden");
+      runHistoryDrawerCountEl.textContent = "";
+      return;
+    }
+    const count = Array.isArray(state.runHistory) ? state.runHistory.length : 0;
+    runHistoryDrawerBtnEl.classList.remove("is-hidden");
+    runHistoryDrawerCountEl.textContent = count ? String(count) : "";
+    runHistoryDrawerCountEl.classList.toggle("is-hidden", count === 0);
+  }
+
   function renderJobStatusChip(item) {
     const status = String(item && item.status ? item.status : "queued").trim();
     const css = ["queued", "running", "completed", "failed", "cancelled"].includes(status)
@@ -61,9 +111,61 @@ export function createJobsUi(ctx) {
     return `<span class="job-status-chip ${css}">${escapeHtml(status)}</span>`;
   }
 
-  function renderJobGroup(title, items) {
+  function renderExecutionChip(item, surface) {
+    if (String(surface || "") !== "run-history") {
+      return "";
+    }
+    const backend = String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase();
+    const hasQueueId = Boolean(String(item && item.rq_job_id ? item.rq_job_id : "").trim());
+    const isBackground = backend === "job" || hasQueueId;
+    const label = isBackground ? "Background" : "Direct";
+    const css = isBackground ? "is-background" : "is-direct";
+    return `<span class="job-execution-chip ${css}">${label}</span>`;
+  }
+
+  function renderJobGroup(title, items, options = {}) {
     if (!Array.isArray(items) || !items.length) return "";
-    return `<section class="job-group"><div class="job-group-title">${escapeHtml(title)}</div><div class="job-group-list">${items.map(renderJobCard).join("")}</div></section>`;
+    return `<section class="job-group"><div class="job-group-title">${escapeHtml(title)}</div><div class="job-group-list">${items.map((item) => renderJobCard(item, options)).join("")}</div></section>`;
+  }
+
+  function actionIcon(name) {
+    if (name === "open") {
+      return `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 3h7v7"></path>
+          <path d="M10 14 21 3"></path>
+          <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path>
+        </svg>
+      `;
+    }
+    if (name === "pheno") {
+      return `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M7 7h10v10H7z"></path>
+          <path d="M4 12h3"></path>
+          <path d="M17 12h3"></path>
+          <path d="M12 4v3"></path>
+          <path d="M12 17v3"></path>
+          <path d="M9 10h6"></path>
+          <path d="M9 14h6"></path>
+        </svg>
+      `;
+    }
+    return `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 6h18"></path>
+        <path d="M8 6V4h8v2"></path>
+        <path d="M19 6l-1 14H6L5 6"></path>
+        <path d="M10 11v5"></path>
+        <path d="M14 11v5"></path>
+      </svg>
+    `;
+  }
+
+  function renderIconAction({ attribute, value, label, icon, tone = "" }) {
+    const classes = ["job-card-action-icon"];
+    if (tone) classes.push(tone);
+    return `<button type="button" class="${classes.join(" ")}" ${attribute}="${escapeHtml(value || "")}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${actionIcon(icon)}</button>`;
   }
 
   function formatJobDuration(item) {
@@ -92,7 +194,8 @@ export function createJobsUi(ctx) {
     return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
   }
 
-  function renderJobCard(item) {
+  function renderJobCard(item, options = {}) {
+    const surface = String(options.surface || "jobs").trim();
     const submitted = String(item && item.submitted_at ? item.submitted_at : "").trim();
     const duration = formatJobDuration(item);
     const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
@@ -109,9 +212,13 @@ export function createJobsUi(ctx) {
     const feature = String(item && item.feature ? item.feature : "").trim();
     const workspaceMatches = String(currentDatasetScopeId ? currentDatasetScopeId() : "").trim() === String(item && item.dataset_id ? item.dataset_id : "").trim();
     if (item && item.result_available && feature === "analysis") {
-      actions.push(`<button type="button" class="query-chip action" data-job-open-result="${escapeHtml(item.job_id || "")}">Open result</button>`);
+      actions.push(renderIconAction({ attribute: "data-job-open-result", value: item.job_id || "", label: "Open result", icon: "open", tone: "action" }));
     } else if (item && item.result_available && feature === "pheno" && workspaceMatches) {
-      actions.push(`<button type="button" class="query-chip action" data-job-open-pheno="${escapeHtml(item.job_id || "")}">Open in Pheno</button>`);
+      actions.push(renderIconAction({ attribute: "data-job-open-pheno", value: item.job_id || "", label: "Open in Pheno-Ranker", icon: "pheno", tone: "action" }));
+    }
+    if (item && ["completed", "failed", "cancelled"].includes(String(item.status || "").trim())) {
+      const attribute = surface === "run-history" ? "data-run-history-delete" : "data-job-delete";
+      actions.push(renderIconAction({ attribute, value: item.job_id || "", label: "Delete generated run", icon: "delete", tone: "danger" }));
     }
     const artifactLinks = artifacts.map((artifact) => {
       const url = String(artifact && artifact.url ? artifact.url : "").trim();
@@ -130,12 +237,15 @@ export function createJobsUi(ctx) {
     return `
       <article class="job-card">
         <div class="job-card-topline">
-          ${renderJobStatusChip(item)}
+          <div class="job-card-badges">
+            ${renderJobStatusChip(item)}
+            ${renderExecutionChip(item, surface)}
+          </div>
           <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}${duration ? ` · ${escapeHtml(duration)}` : ""}</span>
         </div>
         <div class="job-card-header">
           <div class="job-card-title">
-            <strong>${escapeHtml(String(item && item.name ? item.name : "Background job"))}</strong>
+            <strong>${escapeHtml(String(item && item.name ? item.name : "Generated run"))}</strong>
             <div class="job-card-subtitle">${escapeHtml(metaBits.join(" · "))}</div>
           </div>
         </div>
@@ -159,26 +269,57 @@ export function createJobsUi(ctx) {
       return;
     }
     if (!state.authState || !state.authState.authenticated) {
-      jobsDrawerListEl.innerHTML = '<div class="empty">Sign in to view background jobs.</div>';
-      if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "Jobs unavailable.";
+      jobsDrawerListEl.innerHTML = '<div class="empty">Sign in to view the queue.</div>';
+      if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "Queue unavailable.";
       return;
     }
     if (!Array.isArray(state.recentJobs) || !state.recentJobs.length) {
-      jobsDrawerListEl.innerHTML = '<div class="empty">No background jobs yet.</div>';
-      if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "No background jobs yet.";
+      jobsDrawerListEl.innerHTML = '<div class="empty">No queued or background runs.</div>';
+      if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "No queued or background runs.";
       return;
     }
     const running = runningJobCount();
     if (jobsDrawerStatusEl) {
       jobsDrawerStatusEl.textContent = running
-        ? `${running} job${running === 1 ? "" : "s"} still running.`
-        : `${state.recentJobs.length} recent job${state.recentJobs.length === 1 ? "" : "s"}.`;
+        ? `${running} run${running === 1 ? "" : "s"} still running.`
+        : `${state.recentJobs.length} background run${state.recentJobs.length === 1 ? "" : "s"}.`;
     }
     const activeItems = state.recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "")));
     const doneItems = state.recentJobs.filter((item) => !["queued", "running"].includes(String(item && item.status ? item.status : "")));
     jobsDrawerListEl.innerHTML = [
-      renderJobGroup("Active", activeItems),
-      renderJobGroup("Recent", doneItems),
+      renderJobGroup("Active", activeItems, { surface: "jobs" }),
+      renderJobGroup("Recent", doneItems, { surface: "jobs" }),
+    ].filter(Boolean).join("");
+  }
+
+  function renderRunHistoryDrawer() {
+    renderRunHistoryButton();
+    if (!runHistoryDrawerListEl) {
+      return;
+    }
+    if (!state.authState || !state.authState.authenticated) {
+      runHistoryDrawerListEl.innerHTML = '<div class="empty">Sign in to view run history.</div>';
+      if (runHistoryDrawerStatusEl) runHistoryDrawerStatusEl.textContent = "Run history unavailable.";
+      if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = true;
+      return;
+    }
+    const items = Array.isArray(state.runHistory) ? state.runHistory : [];
+    const terminal = terminalRunCount();
+    if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = terminal === 0;
+    if (!items.length) {
+      runHistoryDrawerListEl.innerHTML = '<div class="empty">No generated runs yet.</div>';
+      if (runHistoryDrawerStatusEl) runHistoryDrawerStatusEl.textContent = "No generated runs yet.";
+      return;
+    }
+    const activeItems = items.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "")));
+    const doneItems = items.filter((item) => !["queued", "running"].includes(String(item && item.status ? item.status : "")));
+    if (runHistoryDrawerStatusEl) {
+      const activeCopy = activeItems.length ? ` ${activeItems.length} active run${activeItems.length === 1 ? "" : "s"} kept until finished.` : "";
+      runHistoryDrawerStatusEl.textContent = `${items.length} generated run${items.length === 1 ? "" : "s"}.${activeCopy}`;
+    }
+    runHistoryDrawerListEl.innerHTML = [
+      renderJobGroup("Active", activeItems, { surface: "run-history" }),
+      renderJobGroup("Completed", doneItems, { surface: "run-history" }),
     ].filter(Boolean).join("");
   }
 
@@ -270,7 +411,7 @@ export function createJobsUi(ctx) {
         syncCurrentAnalysisSessionFromUi({ render: true });
         if (analysisStatusEl) {
           analysisStatusEl.className = "query-status";
-          analysisStatusEl.textContent = `Background job ${String(payload.job_code || jobId).trim()} completed.`;
+          analysisStatusEl.textContent = `Background run ${String(payload.job_code || jobId).trim()} completed.`;
         }
       } catch (_error) {
       }
@@ -282,21 +423,23 @@ export function createJobsUi(ctx) {
     if (!state.authState || !state.authState.authenticated) {
       state.recentJobs = [];
       renderJobsDrawer();
+      renderRunHistoryDrawer();
       if (typeof renderPhenoBackgroundJobBanner === "function") {
         renderPhenoBackgroundJobBanner();
       }
       return;
     }
     if (!silent && jobsDrawerStatusEl) {
-      jobsDrawerStatusEl.textContent = "Loading recent jobs...";
+      jobsDrawerStatusEl.textContent = "Loading queue...";
     }
     try {
       const response = await fetch("/jobs");
       if (!response.ok) {
-        throw new Error("Unable to load jobs.");
+        throw new Error("Unable to load queue.");
       }
       const payload = await response.json();
       state.recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+      void loadRunHistory({ silent: true });
       void hydrateCompletedAnalysisJobsForCurrentSession();
       renderJobsDrawer();
       if (typeof renderPhenoBackgroundJobBanner === "function") {
@@ -305,7 +448,32 @@ export function createJobsUi(ctx) {
       scheduleJobsPolling();
     } catch (error) {
       if (!silent && jobsDrawerStatusEl) {
-        jobsDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load jobs.";
+        jobsDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load queue.";
+      }
+    }
+  }
+
+  async function loadRunHistory(options = {}) {
+    const silent = Boolean(options.silent);
+    if (!state.authState || !state.authState.authenticated) {
+      state.runHistory = [];
+      renderRunHistoryDrawer();
+      return;
+    }
+    if (!silent && runHistoryDrawerStatusEl) {
+      runHistoryDrawerStatusEl.textContent = "Loading run history...";
+    }
+    try {
+      const response = await fetch("/run-history");
+      if (!response.ok) {
+        throw new Error("Unable to load run history.");
+      }
+      const payload = await response.json();
+      state.runHistory = Array.isArray(payload.runs) ? payload.runs : [];
+      renderRunHistoryDrawer();
+    } catch (error) {
+      if (!silent && runHistoryDrawerStatusEl) {
+        runHistoryDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load run history.";
       }
     }
   }
@@ -315,11 +483,11 @@ export function createJobsUi(ctx) {
     if (!normalized) return;
     const response = await fetch(`/jobs/${encodeURIComponent(normalized)}`);
     if (!response.ok) {
-      throw new Error("Unable to load job result.");
+      throw new Error("Unable to load run result.");
     }
     const payload = await response.json();
     if (!payload || !payload.result_payload) {
-      throw new Error("This job does not have a completed result yet.");
+      throw new Error("This run does not have a completed result yet.");
     }
     const feature = String(payload.feature || "").trim();
     if (feature === "pheno") {
@@ -329,11 +497,13 @@ export function createJobsUi(ctx) {
         throw new Error("Load the original workspace to reopen this Pheno-Ranker run.");
       }
       setJobsDrawerOpen(false);
+      setRunHistoryDrawerOpen(false);
       setActiveTab("pheno");
       await loadCompletedPhenoJob(payload, payload.result_payload);
       return;
     }
     setJobsDrawerOpen(false);
+    setRunHistoryDrawerOpen(false);
     setActiveTab("analysis");
     const sessionId = String(payload.analysis_session_id || "").trim();
     const existingSession = sessionId
@@ -386,23 +556,94 @@ export function createJobsUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ render: true });
     if (analysisStatusEl) {
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = "Loaded completed job result into Analysis.";
+      analysisStatusEl.textContent = "Loaded completed run result into Analysis.";
+    }
+  }
+
+  async function deleteJob(jobId, options = {}) {
+    const normalized = String(jobId || "").trim();
+    if (!normalized) return;
+    const surface = String(options.surface || "jobs").trim();
+    const endpoint = surface === "run-history" ? "/run-history" : "/jobs";
+    if (!window.confirm("Delete this generated run and its artifacts?")) {
+      return;
+    }
+    const response = await fetch(`${endpoint}/${encodeURIComponent(normalized)}`, { method: "DELETE" });
+    if (!response.ok) {
+      let detail = "Unable to delete run.";
+      try {
+        const payload = await response.json();
+        if (payload && typeof payload.detail === "string" && payload.detail.trim()) {
+          detail = payload.detail.trim();
+        }
+      } catch (_error) {
+      }
+      throw new Error(detail);
+    }
+    state.recentJobs = (Array.isArray(state.recentJobs) ? state.recentJobs : [])
+      .filter((item) => String(item && item.job_id ? item.job_id : "").trim() !== normalized);
+    state.runHistory = (Array.isArray(state.runHistory) ? state.runHistory : [])
+      .filter((item) => String(item && item.job_id ? item.job_id : "").trim() !== normalized);
+    renderJobsDrawer();
+    renderRunHistoryDrawer();
+    if (typeof renderPhenoBackgroundJobBanner === "function") {
+      renderPhenoBackgroundJobBanner();
+    }
+    if (surface === "run-history" && runHistoryDrawerStatusEl) {
+      runHistoryDrawerStatusEl.textContent = "Generated run deleted.";
+    } else if (jobsDrawerStatusEl) {
+      jobsDrawerStatusEl.textContent = "Background run deleted.";
+    }
+  }
+
+  async function deleteRunHistory() {
+    if (!window.confirm("Delete all completed, failed, and cancelled generated runs plus artifacts? Active runs will be kept.")) {
+      return;
+    }
+    if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = true;
+    if (runHistoryDrawerStatusEl) runHistoryDrawerStatusEl.textContent = "Deleting generated runs...";
+    try {
+      const response = await fetch("/run-history", { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.detail || "Unable to delete generated runs.");
+      }
+      await loadRecentJobs({ silent: true });
+      await loadRunHistory({ silent: true });
+      const skipped = payload.skipped_active_count ? ` ${payload.skipped_active_count} active run${payload.skipped_active_count === 1 ? "" : "s"} kept.` : "";
+      if (runHistoryDrawerStatusEl) {
+        runHistoryDrawerStatusEl.textContent = `Deleted ${payload.deleted_count || 0} generated run${payload.deleted_count === 1 ? "" : "s"}.${skipped}`;
+      }
+    } catch (error) {
+      if (runHistoryDrawerStatusEl) {
+        runHistoryDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to delete generated runs.";
+      }
+    } finally {
+      if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = terminalRunCount() === 0;
     }
   }
 
   return {
     setJobsDrawerOpen,
+    setRunHistoryDrawerOpen,
+    closeJobSurfaces,
     runningJobCount,
+    terminalRunCount,
     renderJobsButton,
+    renderRunHistoryButton,
     renderJobStatusChip,
     renderJobGroup,
     renderJobCard,
     renderJobsDrawer,
+    renderRunHistoryDrawer,
     scheduleJobsPolling,
     withArtifactVersion,
     versionedJobArtifacts,
     hydrateCompletedAnalysisJobsForCurrentSession,
     loadRecentJobs,
+    loadRunHistory,
     openJobResult,
+    deleteJob,
+    deleteRunHistory,
   };
 }

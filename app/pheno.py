@@ -27,10 +27,40 @@ from app.lm import (
 from pathlib import Path
 import numpy as np
 
-PHENO_RANKER_DIR = Path("/media/mrueda/2TBS/CNAG/Project_PhenoRanker/pheno-ranker")
-PHENO_RANKER_BIN = PHENO_RANKER_DIR / "bin" / "pheno-ranker"
 PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
 JQ_BIN = shutil.which("jq") or "jq"
+
+
+def _pheno_ranker_candidate_bins() -> List[Path]:
+    configured_bin = os.getenv("PN_PHENO_RANKER_BIN", "").strip()
+    if configured_bin:
+        return [Path(configured_bin).expanduser()]
+
+    configured_dir = os.getenv("PN_PHENO_RANKER_DIR", "").strip()
+    if configured_dir:
+        return [Path(configured_dir).expanduser() / "bin" / "pheno-ranker"]
+
+    candidates = [
+        Path("/opt/pheno-ranker/bin/pheno-ranker"),
+        BASE_DIR.parent.parent / "Project_PhenoRanker" / "pheno-ranker" / "bin" / "pheno-ranker",
+        BASE_DIR.parent / "pheno-ranker" / "bin" / "pheno-ranker",
+    ]
+    path_bin = shutil.which("pheno-ranker")
+    if path_bin:
+        candidates.append(Path(path_bin))
+    return candidates
+
+
+def resolve_pheno_ranker_bin() -> Path:
+    candidates = _pheno_ranker_candidate_bins()
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded
+    return candidates[0].expanduser()
+
+
+PHENO_RANKER_BIN = resolve_pheno_ranker_bin()
 
 
 def pheno_background_sample_threshold() -> int:

@@ -76,6 +76,7 @@ export function createPhenoUi(ctx) {
     startPhenoRunProgressUpdates,
     stopPhenoRunProgressUpdates,
     handlePhenoJobSubmission,
+    handlePhenoJobCompletion,
     saveIdsAsCohort,
     getSelectedSavedCohortIds,
     setSelectedSavedCohortIds,
@@ -1741,6 +1742,10 @@ export function createPhenoUi(ctx) {
       const xLabels = header.slice(1);
       const body = rows.slice(1);
       const yLabels = body.map((row) => row[0]);
+      const noteEl = document.getElementById("phenoHeatmapSelectionNote");
+      if (noteEl) {
+        noteEl.textContent = `Rendering ${yLabels.length} x ${xLabels.length} sample matrix. Plotly thins axis labels at this density; zoom or hover to inspect individual timepoints.`;
+      }
       const zValues = body.map((row) => row.slice(1).map((value) => {
         const numeric = Number(value);
         return Number.isFinite(numeric) ? numeric : null;
@@ -2582,7 +2587,7 @@ export function createPhenoUi(ctx) {
         updatePhenoExplainActions();
         setPhenoResultWorkspaceVisible(false);
         phenoCommandEl.textContent = "Queued as a background Pheno-Ranker run.";
-        phenoOutputPreviewEl.innerHTML = '<div class="empty">Background run submitted. Open Jobs to monitor progress and load the completed result.</div>';
+        phenoOutputPreviewEl.innerHTML = '<div class="empty">Background run submitted. Open Queue to monitor progress and load the completed result.</div>';
         phenoLogsEl.textContent = "Waiting for background run logs...";
         phenoFilesEl.innerHTML = '<div class="empty">No output files available until the background run completes.</div>';
         phenoPreviewsEl.innerHTML = '<div class="empty">Interactive plots will appear after the background run completes.</div>';
@@ -2598,6 +2603,9 @@ export function createPhenoUi(ctx) {
       }
 
       await applyPhenoRunPayload(payload);
+      if (typeof handlePhenoJobCompletion === "function") {
+        handlePhenoJobCompletion(payload);
+      }
       renderPhenoFlowBar();
       scrollPhenoResultIntoView();
     } catch (error) {

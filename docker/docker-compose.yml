@@ -1,0 +1,60 @@
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: patient-navigator:pilot
+    env_file:
+      - path: env.example
+        required: true
+      - path: .env
+        required: false
+    environment:
+      PN_JOBS_REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../state:/app/state
+      - ../.cache:/app/.cache
+      - ../runs:/app/runs
+      - ../default_dataset:/app/default_dataset:ro
+      - ../private_dataset:/app/private_dataset:ro
+      - ../dataset-large:/app/dataset-large:ro
+    depends_on:
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    image: patient-navigator:pilot
+    env_file:
+      - path: env.example
+        required: true
+      - path: .env
+        required: false
+    environment:
+      PN_JOBS_REDIS_URL: redis://redis:6379/0
+    command: ["rq", "worker", "analysis", "--url", "redis://redis:6379/0"]
+    volumes:
+      - ../state:/app/state
+      - ../.cache:/app/.cache
+      - ../runs:/app/runs
+      - ../default_dataset:/app/default_dataset:ro
+      - ../private_dataset:/app/private_dataset:ro
+      - ../dataset-large:/app/dataset-large:ro
+    depends_on:
+      redis:
+        condition: service_started
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

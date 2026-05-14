@@ -25,7 +25,7 @@ export function createNavigationUi(ctx) {
     loadStatusEl,
   } = refs;
   const { ACTIVE_TAB_STORAGE_KEY, DASHBOARD_SUBTAB_STORAGE_KEY, TAB_HELPER_TEXT } = constants;
-  const { effectiveQueryGranularityCeiling, renderGlobalContext } = callbacks;
+  const { effectiveQueryGranularityCeiling, renderGlobalContext, closeJobSurfaces } = callbacks;
 
   function renderTabHelperText(tabName) {
     if (!tabHelperTextEl) {
@@ -100,6 +100,9 @@ export function createNavigationUi(ctx) {
     try {
       window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
     } catch (_error) {
+    }
+    if (typeof closeJobSurfaces === "function") {
+      closeJobSurfaces();
     }
     renderTabHelperText(tabName);
     renderGlobalContext();

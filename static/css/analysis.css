@@ -846,6 +846,12 @@
         justify-content: space-between;
         gap: 12px;
       }
+      .job-card-badges {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
       .job-card-header {
         display: flex;
         align-items: flex-start;
@@ -893,6 +899,31 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+      .job-card-action-icon {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(248, 250, 252, 0.94);
+        color: var(--ink);
+        box-shadow: none;
+      }
+      .job-card-action-icon svg {
+        width: 18px;
+        height: 18px;
+      }
+      .job-card-action-icon.action {
+        color: #075985;
+        border-color: rgba(14, 165, 233, 0.32);
+        background: rgba(240, 249, 255, 0.95);
+      }
+      .job-card-action-icon.danger {
+        color: #991b1b;
+        border-color: rgba(239, 68, 68, 0.28);
+        background: rgba(254, 242, 242, 0.95);
       }
       .job-card-artifacts summary {
         cursor: pointer;
@@ -946,6 +977,24 @@
       .job-status-chip.is-cancelled {
         background: rgba(254, 226, 226, 0.92);
         color: #b91c1c;
+      }
+      .job-execution-chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.28rem 0.58rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+      }
+      .job-execution-chip.is-background {
+        background: rgba(238, 242, 255, 0.9);
+        color: #3730a3;
+      }
+      .job-execution-chip.is-direct {
+        background: rgba(240, 253, 244, 0.92);
+        color: #15803d;
       }
       .analysis-thread {
         display: grid;

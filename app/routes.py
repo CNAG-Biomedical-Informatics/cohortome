@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import secrets
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -73,13 +74,19 @@ from app.datasets import (
 from app.lm import DEFAULT_LLM_PROVIDER_ID, llm_provider_registry_status, lm_provider_context, lm_studio_health
 from app.jobs import (
     active_feature_job,
+    active_job_status,
+    create_job_record,
     delete_job,
+    job_dir,
     list_job_records,
     list_jobs_for_analysis_session,
     load_job_record,
     public_job_payload,
     resolve_job_artifact_path,
+    save_job_result,
     submit_pheno_job,
+    terminal_job_status,
+    update_job_record,
 )
 from app.pheno import (
     pheno_ranker_alignment_details,
@@ -829,6 +836,25 @@ def delete_user_analysis_sessions(request: Request) -> Dict:
     require_authenticated(request)
     user_id = request_user_id(request)
     sessions = list_analysis_sessions(user_id=user_id)
+    linked_job_session_ids = {
+        str(item.get("analysis_session_id") or "").strip()
+        for item in list_job_records(user_id)
+        if str(item.get("analysis_session_id") or "").strip()
+    }
+    blocked_sessions = [
+        item
+        for item in sessions
+        if str(item.get("id") or "").strip() in linked_job_session_ids
+    ]
+    if blocked_sessions:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(blocked_sessions)} analysis chat"
+                f"{'' if len(blocked_sessions) == 1 else 's'} have linked generated runs. "
+                "Delete those chats from Analysis and choose whether to keep or delete generated data."
+            ),
+        )
     deleted_count = 0
     for item in sessions:
         session_id = str(item.get("id") or "").strip()
@@ -844,13 +870,22 @@ def delete_user_completed_jobs(request: Request) -> Dict:
     skipped_active_count = 0
     for item in list_job_records(user_id):
         job_id = str(item.get("job_id") or "").strip()
-        status = str(item.get("status") or "").strip().lower()
-        if status in {"queued", "running"}:
+        if active_job_status(item.get("status")):
             skipped_active_count += 1
+            continue
+        if not terminal_job_status(item.get("status")):
             continue
         if job_id and delete_job(job_id, user_id):
             deleted_count += 1
     return {"deleted": True, "deleted_count": deleted_count, "skipped_active_count": skipped_active_count}
+
+
+def remove_job(job_id: str, request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    if delete_job(job_id, user_id):
+        return {"deleted": True, "id": Path(job_id).name}
+    raise HTTPException(status_code=404, detail="Job not found.")
 
 
 def delete_user_saved_cohorts(request: Request) -> Dict:
@@ -941,8 +976,29 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
 def get_jobs(request: Request) -> Dict:
     require_authenticated(request)
     user_id = request_user_id(request)
-    items = [public_job_payload(item, user_id=user_id) for item in list_job_records(user_id)]
+    items = [
+        public_job_payload(item, user_id=user_id)
+        for item in list_job_records(user_id)
+        if str(item.get("execution_backend") or "").strip().lower() == "job"
+        or str(item.get("rq_job_id") or "").strip()
+        or active_job_status(item.get("status"))
+    ]
     return {"jobs": items}
+
+
+def get_run_history(request: Request) -> Dict:
+    require_authenticated(request)
+    user_id = request_user_id(request)
+    items = [public_job_payload(item, user_id=user_id) for item in list_job_records(user_id)]
+    return {"runs": items}
+
+
+def remove_run_history_item(job_id: str, request: Request) -> Dict:
+    return remove_job(job_id, request)
+
+
+def delete_run_history(request: Request) -> Dict:
+    return delete_user_completed_jobs(request)
 
 
 def get_job(job_id: str, request: Request) -> Dict:
@@ -1064,8 +1120,11 @@ def remove_analysis_session(
     session_id: str,
     request: Request,
     delete_generated_data: bool = Query(default=False),
+    keep_generated_jobs: bool = Query(default=False),
 ) -> Dict:
     require_authenticated(request)
+    if delete_generated_data and keep_generated_jobs:
+        raise HTTPException(status_code=400, detail="Choose either delete_generated_data or keep_generated_jobs, not both.")
     user_id = request_user_id(request)
     session_exists = any(
         str(item.get("id") or "").strip() == session_id
@@ -1073,22 +1132,35 @@ def remove_analysis_session(
     )
     if not session_exists:
         raise HTTPException(status_code=404, detail="Analysis session not found.")
+    related_jobs = list_jobs_for_analysis_session(session_id, user_id)
+    related_job_count = len(related_jobs)
+    if related_job_count and not delete_generated_data and not keep_generated_jobs:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This analysis chat has {related_job_count} linked generated run"
+                f"{'' if related_job_count == 1 else 's'}. "
+                "Choose whether to keep generated runs or delete generated data."
+            ),
+        )
     deleted_job_count = 0
+    skipped_active_count = 0
     if delete_generated_data:
-        related_jobs = list_jobs_for_analysis_session(session_id, user_id)
         active = [
             item
             for item in related_jobs
-            if str(item.get("status") or "").strip().lower() in {"queued", "running"}
+            if active_job_status(item.get("status"))
         ]
         if active:
             raise HTTPException(
                 status_code=409,
-                detail="This analysis session has active background jobs. Wait for them to finish before deleting generated data.",
+                detail="This analysis session has active background runs. Wait for them to finish before deleting generated data.",
             )
         for item in related_jobs:
             if delete_job(str(item.get("job_id") or "").strip(), user_id):
                 deleted_job_count += 1
+    else:
+        skipped_active_count = sum(1 for item in related_jobs if active_job_status(item.get("status")))
     deleted = delete_analysis_session(session_id, user_id=user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Analysis session not found.")
@@ -1096,8 +1168,71 @@ def remove_analysis_session(
         "deleted": True,
         "id": session_id,
         "deleted_generated_data": bool(delete_generated_data),
+        "related_job_count": related_job_count,
         "deleted_job_count": deleted_job_count,
+        "kept_job_count": related_job_count - deleted_job_count,
+        "skipped_active_count": skipped_active_count,
     }
+
+
+def run_inline_pheno_ranker_job(payload: PhenoRankerRequest, user_id: str) -> Dict:
+    record = create_job_record(
+        job_type="pheno",
+        user_id=user_id,
+        data={
+            "feature": "pheno",
+            "name": "Pheno-Ranker run",
+            "prompt": str(payload.prompt or "").strip(),
+            "dataset_id": str(payload.dataset_id or "").strip(),
+            "data_dir": str(payload.data_dir or "").strip(),
+            "action": str(payload.action or "").strip(),
+            "mode": str(payload.mode or "").strip(),
+            "patient_id": str(payload.patient_id or "").strip(),
+            "selected_patient_ids": str(payload.selected_patient_ids or "").strip(),
+            "selected_saved_cohort_ids": list(payload.selected_saved_cohort_ids or []),
+            "disease_filter": str(payload.disease_filter or "").strip(),
+            "include_terms": list(payload.include_terms or []),
+            "exclude_terms": list(payload.exclude_terms or []),
+            "similarity_metric_cohort": str(payload.similarity_metric_cohort or "").strip(),
+            "sort_by": str(payload.sort_by or "").strip(),
+            "max_out": int(payload.max_out or 0),
+            "align": bool(payload.align),
+            "render_heatmap": bool(payload.render_heatmap),
+            "render_mds": bool(payload.render_mds),
+            "render_graph": bool(payload.render_graph),
+            "graph_min_weight": payload.graph_min_weight,
+            "graph_max_weight": payload.graph_max_weight,
+            "granularity_ceiling": str(payload.granularity_ceiling or "").strip(),
+            "ai_provider_access": str(payload.ai_provider_access or "").strip(),
+            "execution_backend": "inline",
+        },
+    )
+    job_id = str(record.get("job_id") or "").strip()
+    update_job_record(job_id, user_id, status="running", error="")
+    try:
+        request_payload = SimpleNamespace(**payload.model_dump(), job_dir_override=str(job_dir(job_id, user_id, create=True)))
+        result = run_pheno_ranker(request_payload)
+        result.setdefault("data", {})
+        result["data"]["job_id"] = job_id
+        result["data"]["job_status"] = "completed"
+        result["data"]["execution_backend"] = "inline"
+        result["job_id"] = job_id
+        save_job_result(job_id, user_id, result)
+        update_job_record(
+            job_id,
+            user_id,
+            status="completed",
+            result_available=True,
+            reply_preview=str(result.get("reply") or f"Completed {str(payload.mode or 'pheno')} Pheno-Ranker run.")[:280],
+            error="",
+        )
+        return result
+    except HTTPException as exc:
+        update_job_record(job_id, user_id, status="failed", error=str(exc.detail))
+        raise
+    except Exception as exc:
+        update_job_record(job_id, user_id, status="failed", error=str(exc))
+        raise
 
 
 def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) -> Dict:
@@ -1196,7 +1331,7 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
                 "feature": "pheno",
             },
         }
-    return run_pheno_ranker(payload)
+    return run_inline_pheno_ranker_job(payload, user_id)
 
 
 def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Request) -> Dict:
@@ -1310,7 +1445,11 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or molecular analysis over the active workspace or selected saved cohorts.")
     app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")
     app.add_api_route("/jobs/{job_id}", get_job, methods=["GET"], tags=["jobs"], summary="Get one background job", description="Returns detailed status plus the completed payload for one background job visible to the current user.")
+    app.add_api_route("/jobs/{job_id}", remove_job, methods=["DELETE"], tags=["jobs"], summary="Delete one terminal job", description="Deletes one completed, failed, or cancelled job and its generated artifacts for the current user.", response_model=DeleteResponse)
     app.add_api_route("/jobs/{job_id}/artifacts/{filename:path}", get_job_artifact, methods=["GET"], tags=["jobs"], summary="Download one background job artifact", description="Returns one persisted artifact for a background job visible to the current user.")
+    app.add_api_route("/run-history", get_run_history, methods=["GET"], tags=["jobs"], summary="List generated run history", description="Returns all generated analysis and Pheno-Ranker runs visible to the current user.")
+    app.add_api_route("/run-history", delete_run_history, methods=["DELETE"], tags=["jobs"], summary="Delete terminal generated runs", description="Deletes completed, failed, or cancelled generated runs and artifacts owned by the current user. Active runs are skipped.", response_model=DeleteResponse)
+    app.add_api_route("/run-history/{job_id}", remove_run_history_item, methods=["DELETE"], tags=["jobs"], summary="Delete one generated run", description="Deletes one completed, failed, or cancelled generated run and its artifacts for the current user.", response_model=DeleteResponse)
     app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"], tags=["molecular"], summary="List molecular datasets in scope", description="Returns transcriptomic datasets visible in the current workspace.", response_model=MolecularDatasetsResponse)
     app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"], tags=["molecular"], summary="Search genes in a molecular dataset", description="Returns gene identifiers for a selected molecular dataset with optional search and limit filtering.")
     app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"], tags=["molecular"], summary="Summarize gene expression", description="Returns scoped gene expression summaries for one molecular dataset, optionally comparing cohort A and cohort B.")
