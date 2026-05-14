@@ -628,15 +628,19 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        border: 1px solid var(--line);
+        border: 1px solid color-mix(in srgb, var(--timeline-domain-color, #64748b) 36%, white);
         border-radius: 999px;
         padding: 6px 10px;
-        background: rgba(255, 255, 255, 0.88);
-        color: var(--ink);
+        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 10%, white);
+        color: var(--timeline-domain-color, var(--ink));
         font-size: 0.82rem;
         font-weight: 700;
         cursor: pointer;
         user-select: none;
+      }
+      .dashboard-timeline-domain:has(input:checked) {
+        border-color: color-mix(in srgb, var(--timeline-domain-color, #64748b) 52%, white);
+        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 16%, white);
       }
       .dashboard-timeline-domain input {
         margin: 0;

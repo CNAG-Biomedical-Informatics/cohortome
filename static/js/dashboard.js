@@ -37,12 +37,12 @@ export function createDashboardUi(ctx) {
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
   const DASHBOARD_TIMELINE_DOMAINS = [
-    { key: "diseases", label: "Disease", color: "#dc2626", symbol: "circle" },
-    { key: "treatments", label: "Treatment", color: "#2563eb", symbol: "diamond" },
-    { key: "phenotypic_features", label: "Phenotype", color: "#7c3aed", symbol: "square" },
-    { key: "measures", label: "Measure", color: "#059669", symbol: "triangle-up" },
-    { key: "procedures", label: "Procedure", color: "#ea580c", symbol: "cross" },
-    { key: "exposures", label: "Exposure", color: "#64748b", symbol: "x" },
+    { key: "diseases", label: "Disease", color: "#1d4ed8", symbol: "circle" },
+    { key: "treatments", label: "Treatment", color: "#92400e", symbol: "diamond" },
+    { key: "phenotypic_features", label: "Phenotype", color: "#166534", symbol: "square" },
+    { key: "measures", label: "Measure", color: "#0f766e", symbol: "triangle-up" },
+    { key: "procedures", label: "Procedure", color: "#b91c1c", symbol: "cross" },
+    { key: "exposures", label: "Exposure", color: "#6d28d9", symbol: "x" },
     { key: "molecular", label: "Molecular", color: "#0891b2", symbol: "star" },
   ];
 
@@ -673,9 +673,9 @@ export function createDashboardUi(ctx) {
       controlsEl.innerHTML = DASHBOARD_TIMELINE_DOMAINS.map((domain) => {
         const disabled = !presentDomainKeys.has(domain.key);
         return `
-          <label class="dashboard-timeline-domain${disabled ? " is-disabled" : ""}">
+          <label class="dashboard-timeline-domain${disabled ? " is-disabled" : ""}" style="--timeline-domain-color:${escapeHtml(domain.color)}">
             <input type="checkbox" value="${escapeHtml(domain.key)}"${selectedDomains.has(domain.key) ? " checked" : ""}${disabled ? " disabled" : ""}>
-            <span class="dashboard-timeline-domain-dot" style="--timeline-domain-color:${escapeHtml(domain.color)}"></span>
+            <span class="dashboard-timeline-domain-dot"></span>
             <span>${escapeHtml(domain.label)}</span>
           </label>
         `;
