@@ -1,7 +1,7 @@
 import { escapeHtml, fallbackCopyText, renderActivityCard } from "/static/js/shared.js";
 import { createAppRefs } from "/static/js/app_refs.js";
 import { createAppState } from "/static/js/app_state.js";
-import { nowIso, shortTimestamp, currentStorageNamespace, createAnalysisSession, formatNumber } from "/static/js/app_helpers.js";
+import { nowIso, shortTimestamp, currentStorageNamespace, createAnalysisSession, createSelectionMetadata, formatNumber } from "/static/js/app_helpers.js";
 import { createNavigationUi } from "/static/js/app_navigation.js";
 import { createWorkspaceUi } from "/static/js/workspace_ui.js";
 import { createAuthUi } from "/static/js/auth_ui.js";
@@ -29,6 +29,9 @@ const ANALYSIS_SESSIONS_STORAGE_KEY = "patient-navigator.analysis-sessions";
 const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "patient-navigator.analysis-sidebar-collapsed";
 const TAB_HELPER_TEXT = {
   dashboard: "Browse the loaded clinical and molecular data",
+  timeline: "Review longitudinal patient events and select patients for downstream analysis",
+  clinical: "Review the clinical workspace overview",
+  molecular: "Inspect loaded molecular datasets and expression coverage",
   datasets: "Choose the authorized datasets that define your active workspace scope",
   data: "Admin-only dataset visibility and access policy management",
   users: "Admin-only read-only user visibility",
@@ -118,6 +121,41 @@ function setLatestScopedContext(patch) {
   };
 }
 
+function currentAnalysisDatasetMetadata() {
+  const datasetIds = Array.isArray(state.currentDatasetIds) ? state.currentDatasetIds.slice() : [];
+  const datasetId = typeof datasetsUi !== "undefined" && datasetsUi && typeof datasetsUi.currentDatasetSelectionKey === "function"
+    ? String(datasetsUi.currentDatasetSelectionKey() || "").trim()
+    : "";
+  return {
+    datasetId,
+    datasetIds,
+    dataDir: refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : "",
+  };
+}
+
+function setAnalysisScopeMetadataFromSelection(options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const dataset = currentAnalysisDatasetMetadata();
+  const metadata = createSelectionMetadata({
+    ...dataset,
+    ...source,
+  });
+  if (source.side === "b") {
+    state.analysisCompareScopeMetadata = metadata;
+  } else {
+    state.analysisScopeMetadata = metadata;
+  }
+  return metadata;
+}
+
+function clearAnalysisScopeMetadata(side = "a") {
+  if (side === "b") {
+    state.analysisCompareScopeMetadata = {};
+  } else {
+    state.analysisScopeMetadata = {};
+  }
+}
+
 function renderQueryReply(payloadOrValue) {
   return queryUi.renderQueryReply(payloadOrValue);
 }
@@ -146,6 +184,13 @@ function sendPatientIdsToAnalysis() {
   }
   state.analysisSelectedSavedCohortId = "";
   refs.analysisSelectedPatientIdsEl.value = scopeIds.join(",");
+  setAnalysisScopeMetadataFromSelection({
+    sampleIds: state.latestQueryRecordIds,
+    patientIds: state.latestQueryPatientIds,
+    idType: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,
+    sourceKind: "query",
+    sourcePrompt: state.latestQueryPrompt,
+  });
   if (state.latestQueryAnalysisPrompt && !refs.analysisPromptEl.value.trim()) {
     refs.analysisPromptEl.value = state.latestQueryAnalysisPrompt;
   }
@@ -168,6 +213,13 @@ function sendPatientIdsToAnalysisFromSource(patientIds, options = {}) {
   const sourceLabel = String(options.sourceLabel || "Dashboard").trim() || "Dashboard";
   state.analysisSelectedSavedCohortId = "";
   refs.analysisSelectedPatientIdsEl.value = ids.join(",");
+  setAnalysisScopeMetadataFromSelection({
+    sampleIds: Array.isArray(options.sampleIds) ? options.sampleIds : [],
+    patientIds: ids,
+    idType: Array.isArray(options.sampleIds) && options.sampleIds.length ? "sample" : "patient",
+    sourceKind: String(options.sourceKind || sourceLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_")).trim(),
+    sourcePrompt: String(options.sourcePrompt || `${sourceLabel} selection (${ids.length} patients)`).trim(),
+  });
   dashboardUi.renderAnalysisScopeSummary();
   navigationUi.setActiveTab("analysis");
   analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
@@ -463,6 +515,8 @@ savedCohortsUi = createSavedCohortsUi({
     currentDatasetIds: () => state.currentDatasetIds.slice(),
     currentTabName: () => navigationUi.currentTabName(),
     queryStatusEl: () => refs.queryStatusEl,
+    setAnalysisScopeMetadataFromSelection,
+    clearAnalysisScopeMetadata,
   },
   state,
 });
@@ -596,6 +650,7 @@ phenoUi = createPhenoUi({
       void jobsUi.loadRunHistory({ silent: true });
     },
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
+    setAnalysisScopeMetadataFromSelection,
     getSelectedSavedCohortIds: () => state.phenoSelectedSavedCohortIds.slice(),
     setSelectedSavedCohortIds: (ids) => {
       state.phenoSelectedSavedCohortIds = Array.isArray(ids) ? ids.slice() : [];
@@ -1103,6 +1158,15 @@ function bindEvents() {
   });
 
   refs.analysisSelectedPatientIdsEl && refs.analysisSelectedPatientIdsEl.addEventListener("input", () => {
+    const ids = refs.analysisSelectedPatientIdsEl.value.split(",").map((item) => item.trim()).filter(Boolean);
+    const hasSampleIds = ids.some((item) => item.includes(":"));
+    setAnalysisScopeMetadataFromSelection({
+      sampleIds: hasSampleIds ? ids : [],
+      patientIds: hasSampleIds ? [] : ids,
+      idType: hasSampleIds ? "sample" : "patient",
+      sourceKind: "manual",
+      sourcePrompt: "Manual Analysis scope",
+    });
     dashboardUi.renderAnalysisScopeSummary();
     analysisCatalogUi.renderAnalysisCatalog();
   });
@@ -1111,6 +1175,16 @@ function bindEvents() {
     analysisCatalogUi.renderAnalysisCatalog();
   });
   refs.analysisCompareSelectedPatientIdsEl && refs.analysisCompareSelectedPatientIdsEl.addEventListener("input", () => {
+    const ids = refs.analysisCompareSelectedPatientIdsEl.value.split(",").map((item) => item.trim()).filter(Boolean);
+    const hasSampleIds = ids.some((item) => item.includes(":"));
+    setAnalysisScopeMetadataFromSelection({
+      side: "b",
+      sampleIds: hasSampleIds ? ids : [],
+      patientIds: hasSampleIds ? [] : ids,
+      idType: hasSampleIds ? "sample" : "patient",
+      sourceKind: "manual",
+      sourcePrompt: "Manual Analysis Cohort B scope",
+    });
     dashboardUi.renderAnalysisCompareScopeSummary();
     analysisCatalogUi.renderAnalysisCatalog();
   });
@@ -1142,6 +1216,10 @@ function bindEvents() {
   refs.patientsEl && refs.patientsEl.addEventListener("click", (event) => {
     const card = event.target.closest(".patient-card");
     if (!card || !refs.patientsEl.contains(card)) {
+      return;
+    }
+    if (state.currentDashboardSubtab === "timeline") {
+      dashboardUi.toggleTimelinePatientSelection(card.dataset.patientId);
       return;
     }
     void workspaceUi.loadPatient(card.dataset.patientId);

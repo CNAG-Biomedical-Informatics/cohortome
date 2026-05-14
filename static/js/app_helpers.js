@@ -44,14 +44,76 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
     catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
     promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
     scope: typeof session.scope === "string" ? session.scope : "",
+    scopeMetadata: normalizeSelectionMetadata(session.scopeMetadata || session.scope_metadata || {}),
     compareMode: Boolean(session.compareMode),
     compareScope: typeof session.compareScope === "string" ? session.compareScope : "",
+    compareScopeMetadata: normalizeSelectionMetadata(session.compareScopeMetadata || session.compare_scope_metadata || {}),
     savedCohortIdA: typeof session.savedCohortIdA === "string" ? session.savedCohortIdA : "",
     savedCohortIdB: typeof session.savedCohortIdB === "string" ? session.savedCohortIdB : "",
     history: Array.isArray(session.history) ? session.history : [],
     turns: Array.isArray(session.turns) ? session.turns : [],
     updatedAt: typeof session.updatedAt === "string" ? session.updatedAt : nowIso(),
   };
+}
+
+export function normalizeSelectionMetadata(source = {}) {
+  const item = source && typeof source === "object" ? source : {};
+  const sampleIds = normalizeIdList(item.sample_ids || item.sampleIds || []);
+  const patientIds = normalizeIdList(item.patient_ids || item.patientIds || []);
+  if (!sampleIds.length && !patientIds.length) {
+    return {};
+  }
+  const derivedPatientIds = patientIds.length
+    ? patientIds
+    : Array.from(new Set(sampleIds.map((value) => value.split(":", 1)[0].trim()).filter(Boolean)));
+  const normalizedSampleIds = sampleIds.length ? sampleIds : (derivedPatientIds.length ? derivedPatientIds.slice() : []);
+  const datasetIds = normalizeIdList(item.dataset_ids || item.datasetIds || []);
+  const sourceInfo = item.source && typeof item.source === "object" ? item.source : {};
+  return {
+    id: typeof item.id === "string" ? item.id : "",
+    name: typeof item.name === "string" ? item.name : "",
+    dataset_id: typeof item.dataset_id === "string" ? item.dataset_id : (typeof item.datasetId === "string" ? item.datasetId : ""),
+    dataset_ids: datasetIds,
+    data_dir: typeof item.data_dir === "string" ? item.data_dir : (typeof item.dataDir === "string" ? item.dataDir : ""),
+    id_type: typeof item.id_type === "string" ? item.id_type : (typeof item.idType === "string" ? item.idType : (sampleIds.length ? "sample" : "patient")),
+    sample_ids: normalizedSampleIds,
+    patient_ids: derivedPatientIds,
+    sample_count: normalizedSampleIds.length,
+    patient_count: derivedPatientIds.length,
+    is_full_dataset: Boolean(item.is_full_dataset || item.isFullDataset),
+    source: {
+      kind: typeof sourceInfo.kind === "string" ? sourceInfo.kind : (typeof item.source_kind === "string" ? item.source_kind : (typeof item.sourceKind === "string" ? item.sourceKind : "")),
+      prompt: typeof sourceInfo.prompt === "string" ? sourceInfo.prompt : (typeof item.source_prompt === "string" ? item.source_prompt : (typeof item.sourcePrompt === "string" ? item.sourcePrompt : "")),
+    },
+  };
+}
+
+export function createSelectionMetadata(options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  return normalizeSelectionMetadata({
+    id: source.id || "",
+    name: source.name || "",
+    dataset_id: source.datasetId || source.dataset_id || "",
+    dataset_ids: source.datasetIds || source.dataset_ids || [],
+    data_dir: source.dataDir || source.data_dir || "",
+    id_type: source.idType || source.id_type || "",
+    sample_ids: source.sampleIds || source.sample_ids || [],
+    patient_ids: source.patientIds || source.patient_ids || [],
+    source: {
+      kind: source.sourceKind || source.source_kind || "",
+      prompt: source.sourcePrompt || source.source_prompt || "",
+    },
+  });
+}
+
+function normalizeIdList(items) {
+  const values = Array.isArray(items) ? items : String(items || "").split(",");
+  const seen = new Set();
+  return values.map((item) => String(item || "").trim()).filter((value) => {
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
 }
 
 export function analysisSessionTitle(session) {

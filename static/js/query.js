@@ -801,7 +801,7 @@ export function createQueryUi(ctx) {
     const analysisButton = event.target.closest("[data-analysis-prompt]");
     if (analysisButton && queryExamplesEl.contains(analysisButton)) {
       if (state.latestQueryPatientIds.length) {
-        refs.analysisSelectedPatientIdsEl.value = state.latestQueryPatientIds.join(",");
+        sendPatientIdsToAnalysis();
       }
       sendPromptToAnalysis(analysisButton.dataset.analysisPrompt, {
         llmOnly: analysisButton.dataset.analysisLlmOnly === "true",

@@ -268,7 +268,20 @@
           <span>Dashboard</span>
         </button>
         <div class="dashboard-subtabs app-sidebar-subnav">
-          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">
+          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab active">
+            <span class="dashboard-subtab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19h16"></path>
+                <path d="M6 15V5"></path>
+                <path d="M18 15V5"></path>
+                <path d="M6 9h12"></path>
+                <circle cx="10" cy="9" r="1.5"></circle>
+                <circle cx="15" cy="9" r="1.5"></circle>
+              </svg>
+            </span>
+            <span>Timeline</span>
+          </button>
+          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 3h6"></path>
@@ -289,19 +302,6 @@
               </svg>
             </span>
             <span>Molecular</span>
-          </button>
-          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab">
-            <span class="dashboard-subtab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19h16"></path>
-                <path d="M6 15V5"></path>
-                <path d="M18 15V5"></path>
-                <path d="M6 9h12"></path>
-                <circle cx="10" cy="9" r="1.5"></circle>
-                <circle cx="15" cy="9" r="1.5"></circle>
-              </svg>
-            </span>
-            <span>Timeline</span>
           </button>
         </div>
         </div>
@@ -415,7 +415,26 @@
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
-        <section id="dashboardClinicalPanel" class="dashboard-subpanel active">
+        <section id="dashboardTimelinePanel" class="dashboard-subpanel active">
+          <div class="controls dashboard-panel-frame dashboard-timeline-panel-frame">
+            <div class="dashboard-timeline-main">
+              <div id="dashboardTimeline" class="empty">Load dataset to build the patient timeline.</div>
+              <div class="dashboard-timeline-lower">
+                <div class="detail-shell dashboard-section-card">
+                  <div class="dashboard-section-header">
+                    <div>
+                      <div class="dashboard-card-eyebrow">Timeline inspector</div>
+                      <h3>Inspection</h3>
+                    </div>
+                  </div>
+                  <div class="section-note">Use the table inspect icon to review one timepoint.</div>
+                  <div id="detail" class="empty">Inspect a timeline event to review its evidence.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="dashboardClinicalPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
             <div class="dashboard-clinical-stack">
               <section class="dashboard-section-card">
@@ -426,29 +445,6 @@
                 </div>
                 <div id="dashboard" class="empty">Load dataset to build the dashboard.</div>
               </section>
-            </div>
-            <div class="dashboard-shell dashboard-shell-clinical">
-              <section class="dashboard-section-card">
-                <div class="dashboard-section-header">
-                  <div>
-                    <div class="dashboard-card-eyebrow">Patient roster</div>
-                    <h3>Clinical patients</h3>
-                  </div>
-                </div>
-                <div class="section-note">Search and filter the patient list. The panel stays usable when the workspace grows.</div>
-                <input id="patientSearch" class="patient-search" placeholder="Search patient ID">
-                <div id="patients" class="patient-list empty">No patients loaded.</div>
-              </section>
-              <div class="detail-shell dashboard-section-card">
-                <div class="dashboard-section-header">
-                  <div>
-                    <div class="dashboard-card-eyebrow">Focused review</div>
-                    <h3>Patient workspace</h3>
-                  </div>
-                </div>
-                <div class="section-note">Focused patient brief with evidence highlights and key fragments, instead of a full timeline dump.</div>
-                <div id="detail" class="empty">Select a patient to inspect the patient workspace.</div>
-              </div>
             </div>
           </div>
         </section>
@@ -488,11 +484,6 @@
               <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
               <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
             </details>
-          </div>
-        </section>
-        <section id="dashboardTimelinePanel" class="dashboard-subpanel">
-          <div class="controls dashboard-panel-frame">
-            <div id="dashboardTimeline" class="empty">Load dataset to build the patient timeline.</div>
           </div>
         </section>
       </section>

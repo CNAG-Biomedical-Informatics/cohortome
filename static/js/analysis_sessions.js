@@ -153,9 +153,11 @@ export function createAnalysisSessionsUi(ctx) {
           catalog_item_id: session.catalogItemId || "",
           prompt_draft: session.promptDraft || "",
           scope: session.scope || "",
+          scope_metadata: session.scopeMetadata || {},
           saved_cohort_id_a: session.savedCohortIdA || "",
           compare_mode: Boolean(session.compareMode),
           compare_scope: session.compareScope || "",
+          compare_scope_metadata: session.compareScopeMetadata || {},
           saved_cohort_id_b: session.savedCohortIdB || "",
           history: Array.isArray(session.history) ? session.history : [],
           turns: Array.isArray(session.turns) ? session.turns : [],
@@ -222,9 +224,11 @@ export function createAnalysisSessionsUi(ctx) {
         catalogItemId: item.catalog_item_id,
         promptDraft: item.prompt_draft,
         scope: item.scope,
+        scopeMetadata: item.scope_metadata,
         savedCohortIdA: item.saved_cohort_id_a,
         compareMode: item.compare_mode,
         compareScope: item.compare_scope,
+        compareScopeMetadata: item.compare_scope_metadata,
         savedCohortIdB: item.saved_cohort_id_b,
         history: item.history,
         turns: item.turns,
@@ -320,8 +324,10 @@ export function createAnalysisSessionsUi(ctx) {
       : (session.datasetId || "");
     session.catalogItemId = state.analysisSelectedCatalogItemId || "";
     session.scope = analysisSelectedPatientIdsEl.value.trim();
+    session.scopeMetadata = state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {};
     session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     session.compareScope = analysisCompareSelectedPatientIdsEl ? analysisCompareSelectedPatientIdsEl.value.trim() : "";
+    session.compareScopeMetadata = state.analysisCompareScopeMetadata && typeof state.analysisCompareScopeMetadata === "object" ? state.analysisCompareScopeMetadata : {};
     session.savedCohortIdA = state.analysisSelectedSavedCohortId || "";
     session.savedCohortIdB = state.analysisCompareSavedCohortId || "";
     session.dataDir = dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : session.dataDir;
@@ -338,8 +344,10 @@ export function createAnalysisSessionsUi(ctx) {
     analysisPromptEl.value = session.promptDraft || "";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
     analysisSelectedPatientIdsEl.value = session.scope || "";
+    state.analysisScopeMetadata = session.scopeMetadata && typeof session.scopeMetadata === "object" ? session.scopeMetadata : {};
     if (analysisCompareModeEl) analysisCompareModeEl.checked = Boolean(session.compareMode);
     if (analysisCompareSelectedPatientIdsEl) analysisCompareSelectedPatientIdsEl.value = session.compareScope || "";
+    state.analysisCompareScopeMetadata = session.compareScopeMetadata && typeof session.compareScopeMetadata === "object" ? session.compareScopeMetadata : {};
     state.analysisSelectedSavedCohortId = String(session.savedCohortIdA || "").trim();
     state.analysisCompareSavedCohortId = String(session.savedCohortIdB || "").trim();
     state.analysisHistory = Array.isArray(session.history) ? session.history : [];

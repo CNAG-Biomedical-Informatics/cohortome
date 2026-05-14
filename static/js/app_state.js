@@ -44,6 +44,8 @@ export function createAppState() {
     jobsPollTimer: null,
     analysisSessions: [],
     currentAnalysisSessionId: "",
+    analysisScopeMetadata: {},
+    analysisCompareScopeMetadata: {},
     analysisSelectedSavedCohortId: "",
     analysisCompareSavedCohortId: "",
     phenoRankerPatientIds: [],
@@ -52,6 +54,7 @@ export function createAppState() {
     dashboardSummaryState: null,
     dashboardTimelineDomains: ["diseases", "treatments", "phenotypic_features", "measures", "procedures", "exposures", "molecular"],
     dashboardTimelineSelectedPatientIds: [],
+    dashboardTimelineInspectedEventKey: "",
     savedCohorts: [],
     availableDatasets: [],
     availableAuthUsers: [],
@@ -85,6 +88,6 @@ export function createAppState() {
       dashboard_molecular_open: false,
       dataset_compact_view: false,
     },
-    currentDashboardSubtab: "clinical",
+    currentDashboardSubtab: "timeline",
   };
 }

@@ -230,7 +230,7 @@ export function createUserSettingsUi(ctx) {
     renderQueryExecutionMode();
 
     if (options.applyNavigation !== false && settings.landing_tab_mode === "fixed") {
-      setDashboardSubtab(settings.dashboard_molecular_open ? "molecular" : "clinical");
+      setDashboardSubtab(settings.dashboard_molecular_open ? "molecular" : "timeline");
       setActiveTab(settings.landing_tab);
     }
     renderUserSettingsForm();

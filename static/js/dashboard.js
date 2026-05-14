@@ -2,6 +2,7 @@ export function createDashboardUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
   const {
     patientsEl,
+    patientSearchEl,
     dashboardEl,
     dashboardTimelineEl,
     detailEl,
@@ -124,6 +125,13 @@ export function createDashboardUi(ctx) {
       .filter(Boolean))).sort();
   }
 
+  function currentRosterPatients() {
+    const query = String(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : "").trim().toLowerCase();
+    const patients = Array.isArray(state.currentPatients) ? state.currentPatients : [];
+    if (!query) return patients;
+    return patients.filter((patient) => String(patient && patient.patient_id ? patient.patient_id : "").toLowerCase().includes(query));
+  }
+
   function toggleTimelinePatient(patientId, summary) {
     const normalized = String(patientId || "").trim();
     if (!normalized) return;
@@ -134,7 +142,12 @@ export function createDashboardUi(ctx) {
       selected.add(normalized);
     }
     setTimelineSelectedPatientIds(Array.from(selected));
+    renderPatientList(currentRosterPatients());
     renderDashboardTimeline(summary);
+  }
+
+  function toggleTimelinePatientSelection(patientId) {
+    toggleTimelinePatient(patientId, state.dashboardSummaryState || state.dashboardSummary || {});
   }
 
   function patientIdFromTimelinePoint(point) {
@@ -492,13 +505,62 @@ export function createDashboardUi(ctx) {
     ));
   }
 
+  function timelineEventKey(row) {
+    if (!row || typeof row !== "object") return "";
+    return [
+      row.patient_id,
+      row.visit_id,
+      row.event_date,
+      row.event_type,
+      row.biosample_id,
+      (Array.isArray(row.domains) ? row.domains.map((domain) => domain.key || domain.label || "").join("+") : ""),
+    ].map((item) => String(item || "").trim()).join("|");
+  }
+
+  function renderTimelineInspector(row) {
+    if (!detailEl || !row) return;
+    state.dashboardTimelineInspectedEventKey = timelineEventKey(row);
+    const selected = timelineSelectedPatientSet().has(String(row.patient_id || ""));
+    const domainCards = (Array.isArray(row.domains) ? row.domains : []).map((domain) => {
+      const examples = Array.isArray(domain.examples) && domain.examples.length
+        ? domain.examples.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(String(item))}</span>`).join("")
+        : '<span class="section-note">No examples captured for this domain.</span>';
+      return `
+        <div class="evidence-card">
+          <strong>${escapeHtml(domain.label || domain.key || "Domain")}</strong>
+          <div>${escapeHtml(String(domain.count || 0))} item${Number(domain.count || 0) === 1 ? "" : "s"}</div>
+          <div>${examples}</div>
+        </div>
+      `;
+    }).join("");
+    detailEl.innerHTML = `
+      <div class="workspace-card">
+        <div class="dashboard-section-header">
+          <div>
+            <div class="dashboard-card-eyebrow">Timeline inspector</div>
+            <h3>${escapeHtml(row.patient_id || "Patient")} ${row.visit_id ? `· ${escapeHtml(row.visit_id)}` : ""}</h3>
+          </div>
+          <span class="query-chip badge">${selected ? "Selected" : "Not selected"}</span>
+        </div>
+        <div class="molecular-stats">
+          <span class="query-chip badge">Date: ${escapeHtml(row.event_date || "undated")}</span>
+          ${row.event_type ? `<span class="query-chip badge">Type: ${escapeHtml(row.event_type)}</span>` : ""}
+          ${row.diagnosis ? `<span class="query-chip badge">Diagnosis: ${escapeHtml(row.diagnosis)}</span>` : ""}
+          ${row.biosample_id ? `<span class="query-chip badge">Sample: ${escapeHtml(row.biosample_id)}</span>` : ""}
+        </div>
+        <h3>Evidence at this timepoint</h3>
+        <div class="evidence-grid">${domainCards || '<div class="empty">No domain evidence captured for this event.</div>'}</div>
+      </div>
+    `;
+  }
+
   function renderTimelineEventTable(timelineItems, selectedDomains, selectedPatients, summary) {
     const tableEl = document.getElementById("dashboard-timeline-event-table");
     const searchEl = document.getElementById("dashboardTimelineEventSearch");
     const countEl = document.getElementById("dashboard-timeline-event-count");
     if (!tableEl) return;
-    const selectedOnly = selectedPatients.size > 0;
     const query = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+    const selectedOnly = selectedPatients.size > 0 && !query;
     const allRows = timelineEventRows(timelineItems, selectedDomains, selectedPatients);
     const scopedRows = allRows.filter((row) => {
       if (selectedOnly && !selectedPatients.has(row.patient_id)) return false;
@@ -515,7 +577,9 @@ export function createDashboardUi(ctx) {
       return haystack.includes(query);
     });
     if (countEl) {
-      countEl.textContent = selectedOnly
+      countEl.textContent = query
+        ? `${scopedRows.length} matching events across the timeline`
+        : selectedOnly
         ? `${scopedRows.length} events for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
         : `${scopedRows.length} visible events`;
     }
@@ -528,6 +592,7 @@ export function createDashboardUi(ctx) {
       <table class="dashboard-timeline-table">
         <thead>
           <tr>
+            <th>Inspect</th>
             <th>Patient</th>
             <th>Visit</th>
             <th>Date</th>
@@ -537,14 +602,20 @@ export function createDashboardUi(ctx) {
           </tr>
         </thead>
         <tbody>
-          ${rows.map((row) => {
+          ${rows.map((row, index) => {
             const domainLabels = row.domains.map((domain) => {
               const meta = DASHBOARD_TIMELINE_DOMAINS.find((item) => item.key === domain.key) || {};
               return `<span class="dashboard-timeline-domain-pill" style="--timeline-domain-color:${escapeHtml(meta.color || "#64748b")}">${escapeHtml(domain.label || domain.key)}</span>`;
             }).join("");
             const context = [row.diagnosis, row.event_type].filter(Boolean).join(" | ") || "n/a";
+            const isInspected = timelineEventKey(row) === String(state.dashboardTimelineInspectedEventKey || "");
             return `
-              <tr class="${row.selected ? "is-selected" : ""}" data-dashboard-event-patient="${escapeHtml(row.patient_id)}">
+              <tr class="${row.selected ? "is-selected" : ""}${isInspected ? " is-inspected" : ""}" data-dashboard-event-patient="${escapeHtml(row.patient_id)}">
+                <td><button type="button" class="dashboard-timeline-inspect-btn${isInspected ? " is-active" : ""}" data-dashboard-event-inspect="${escapeHtml(String(index))}" title="Inspect this timepoint" aria-label="Inspect ${escapeHtml(row.patient_id)} ${escapeHtml(row.visit_id || "timepoint")}" aria-pressed="${isInspected ? "true" : "false"}">
+                  ${isInspected
+                    ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"></path></svg>'
+                    : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5 0 9 5 9 7s-4 7-9 7-9-5-9-7 4-7 9-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'}
+                </button></td>
                 <td><strong>${escapeHtml(row.patient_id)}</strong></td>
                 <td>${escapeHtml(row.visit_id || "n/a")}</td>
                 <td>${escapeHtml(row.event_date || "undated")}</td>
@@ -563,18 +634,29 @@ export function createDashboardUi(ctx) {
         toggleTimelinePatient(row.getAttribute("data-dashboard-event-patient"), summary);
       });
     });
+    tableEl.querySelectorAll("[data-dashboard-event-inspect]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const index = Number.parseInt(button.getAttribute("data-dashboard-event-inspect") || "-1", 10);
+        if (Number.isInteger(index) && rows[index]) {
+          renderTimelineInspector(rows[index]);
+          renderTimelineEventTable(timelineItems, selectedDomains, selectedPatients, summary);
+        }
+      });
+    });
   }
 
   function renderDashboardTimeline(summary) {
     const timelineItems = normalizeTimelineItems(summary);
     const timelinePlotEl = document.getElementById("dashboard-plot-timeline");
     if (!timelinePlotEl) return;
-    if (!timelineItems.length) {
+    const scopedTimelineItems = timelineItems;
+    if (!scopedTimelineItems.length) {
       timelinePlotEl.innerHTML = '<div class="empty">No patient timeline data available.</div>';
       return;
     }
 
-    const visibleItems = timelineItems.slice(0, 40);
+    const visibleItems = scopedTimelineItems.slice(0, 40);
     const datedItems = visibleItems.filter((item) => item.has_dated_range);
     const activePatientId = String(state.selectedPatientId || "");
     const selectedPatientIds = timelineSelectedPatientIds();
@@ -610,8 +692,8 @@ export function createDashboardUi(ctx) {
     }
     const overflowNoteEl = document.getElementById("dashboard-timeline-overflow-note");
     if (overflowNoteEl) {
-      overflowNoteEl.textContent = timelineItems.length > visibleItems.length
-        ? `Showing first ${visibleItems.length} of ${timelineItems.length} patients. Use the patient roster search to narrow the workspace.`
+      overflowNoteEl.textContent = scopedTimelineItems.length > visibleItems.length
+        ? `Showing first ${visibleItems.length} of ${scopedTimelineItems.length} patients. Use the patient roster search to narrow the workspace.`
         : "";
     }
     const statusEl = document.getElementById("dashboard-timeline-selection-status");
@@ -794,15 +876,34 @@ export function createDashboardUi(ctx) {
   }
 
   function summaryCard(patient) {
-    const activeClass = state.selectedPatientId === patient.patient_id ? "active" : "";
+    const timelineSelected = state.currentDashboardSubtab === "timeline" && timelineSelectedPatientSet().has(String(patient.patient_id || ""));
+    const activeClass = state.selectedPatientId === patient.patient_id || timelineSelected ? "active" : "";
     const datasetNames = Array.isArray(patient.dataset_names) ? patient.dataset_names : [];
     const datasetBadge = isMultiDatasetWorkspace() && datasetNames.length
       ? `<span class="pill">${escapeHtml(datasetNames.join(", "))}</span>`
       : "";
+    const selectionBadge = timelineSelected ? '<span class="pill">selected</span>' : "";
+    const compactTimeline = state.currentDashboardSubtab === "timeline";
+    if (compactTimeline) {
+      return `
+        <div class="patient-card patient-card-compact ${activeClass}" data-patient-id="${patient.patient_id}">
+          <div class="patient-card-compact-main">
+            <strong>${patient.patient_id}</strong>
+            ${selectionBadge}
+          </div>
+          <div class="patient-card-compact-meta">
+            <span>${escapeHtml(String(patient.visit_count || 0))} visits</span>
+            <span>${escapeHtml(patient.sex || "sex n/a")}</span>
+            <span>${escapeHtml(String(patient.evidence.diseases.count || 0))} dx</span>
+          </div>
+        </div>
+      `;
+    }
     return `
       <div class="patient-card ${activeClass}" data-patient-id="${patient.patient_id}">
         <strong>${patient.patient_id}</strong>
         <div>
+          ${selectionBadge}
           ${datasetBadge}
           <span class="pill">${patient.visit_count} visits</span>
           <span class="pill">${patient.sex || "sex: n/a"}</span>
@@ -814,6 +915,7 @@ export function createDashboardUi(ctx) {
   }
 
   function renderPatientList(items) {
+    if (!patientsEl) return;
     if (!items.length) {
       patientsEl.innerHTML = '<div class="empty">No patients match the current filter.</div>';
       return;
@@ -967,9 +1069,9 @@ export function createDashboardUi(ctx) {
           <div class="dashboard-timeline-event-header">
             <div>
               <h4>Selection table</h4>
-              <div id="dashboard-timeline-event-count" class="section-note">No events loaded.</div>
+              <div id="dashboard-timeline-event-count" class="section-note">Filter by patient, visit, domain, diagnosis, event type, or sample.</div>
             </div>
-            <input id="dashboardTimelineEventSearch" class="patient-search dashboard-timeline-event-search" placeholder="Search events">
+            <input id="dashboardTimelineEventSearch" class="patient-search dashboard-timeline-event-search" aria-label="Search all timeline fields" placeholder="Search all fields">
           </div>
           <div id="dashboard-timeline-event-table" class="dashboard-timeline-table-wrap"></div>
         </div>
@@ -1009,6 +1111,9 @@ export function createDashboardUi(ctx) {
     const selectedCohort = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
       : null;
+    const metadata = !selectedCohort && state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object"
+      ? state.analysisScopeMetadata
+      : {};
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort);
     const selectedCohortUsesSampleIds = Boolean(
@@ -1026,15 +1131,22 @@ export function createDashboardUi(ctx) {
         .filter(Boolean);
     const countLabel = selectedCohort
       ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      : metadata && (metadata.patient_count || metadata.sample_count)
+        ? `${metadata.patient_count || 0} patients / ${metadata.sample_count || ids.length} samples`
       : `${ids.length} ${ids.length === 1 ? "ID" : "IDs"}`;
+    const metadataSource = metadata && metadata.source && metadata.source.kind
+      ? String(metadata.source.kind).replace(/_/g, " ")
+      : "";
     analysisSelectedPatientIdsSummaryEl.textContent = compareMode
       ? (selectedCohort
         ? `Cohort A: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
+        : ids.length
+          ? `Cohort A: ${countLabel} in scope${metadataSource ? ` from ${metadataSource}` : ""}.`
         : "Cohort A: select a saved cohort from Saved Cohorts to compare.")
       : (selectedCohort
         ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
         : ids.length
-          ? `Scope: ${ids.length} IDs in scope.`
+          ? `Scope: ${countLabel} in scope${metadataSource ? ` from ${metadataSource}` : ""}.`
           : "Scope: full workspace.");
     if (analysisSelectedSavedCohortSelectionEl) {
       if (selectedCohort) {
@@ -1077,6 +1189,9 @@ export function createDashboardUi(ctx) {
     const selectedCohort = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
       : null;
+    const metadata = !selectedCohort && state.analysisCompareScopeMetadata && typeof state.analysisCompareScopeMetadata === "object"
+      ? state.analysisCompareScopeMetadata
+      : {};
     if (analysisCompareSelectedPatientIdsEl) {
       analysisCompareSelectedPatientIdsEl.disabled = true;
     }
@@ -1095,9 +1210,16 @@ export function createDashboardUi(ctx) {
         .filter(Boolean);
     const countLabel = selectedCohort
       ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      : metadata && (metadata.patient_count || metadata.sample_count)
+        ? `${metadata.patient_count || 0} patients / ${metadata.sample_count || ids.length} samples`
       : `${ids.length} IDs`;
+    const metadataSource = metadata && metadata.source && metadata.source.kind
+      ? String(metadata.source.kind).replace(/_/g, " ")
+      : "";
     analysisCompareSelectedPatientIdsSummaryEl.textContent = selectedCohort
       ? `Cohort B: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
+      : ids.length
+        ? `Cohort B: ${countLabel} in scope${metadataSource ? ` from ${metadataSource}` : ""}.`
       : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
     if (analysisCompareSavedCohortSelectionEl) {
       if (selectedCohort) {
@@ -1632,5 +1754,6 @@ export function createDashboardUi(ctx) {
     handleMolecularDatasetSelectionChange,
     handleMolecularGeneInput,
     molecularDatasetOverlap,
+    toggleTimelinePatientSelection,
   };
 }

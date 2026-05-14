@@ -25,6 +25,8 @@ export function createSavedCohortsUi(ctx) {
     renderGlobalContext,
     datasetLabelsForIds,
     currentDatasetIds,
+    setAnalysisScopeMetadataFromSelection,
+    clearAnalysisScopeMetadata,
   } = callbacks;
   let analysisNotice = "";
   let phenoNotice = "";
@@ -290,6 +292,14 @@ export function createSavedCohortsUi(ctx) {
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     clearNoticeForMode("analysis");
     state.analysisSelectedSavedCohortId = cohortId;
+    if (typeof setAnalysisScopeMetadataFromSelection === "function") {
+      setAnalysisScopeMetadataFromSelection({
+        ...item,
+        side: "a",
+        sourceKind: item.source && item.source.kind ? item.source.kind : "saved_cohort",
+        sourcePrompt: item.source && item.source.prompt ? item.source.prompt : `Saved cohort: ${item.name || cohortId}`,
+      });
+    }
     analysisSelectedPatientIdsEl.value = "";
     renderAnalysisScopeSummary();
     renderSavedCohorts();
@@ -305,6 +315,14 @@ export function createSavedCohortsUi(ctx) {
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     clearNoticeForMode("analysis");
     state.analysisCompareSavedCohortId = cohortId;
+    if (typeof setAnalysisScopeMetadataFromSelection === "function") {
+      setAnalysisScopeMetadataFromSelection({
+        ...item,
+        side: "b",
+        sourceKind: item.source && item.source.kind ? item.source.kind : "saved_cohort",
+        sourcePrompt: item.source && item.source.prompt ? item.source.prompt : `Saved cohort: ${item.name || cohortId}`,
+      });
+    }
     if (analysisCompareModeEl) analysisCompareModeEl.checked = true;
     renderAnalysisCompareMode();
     analysisCompareSelectedPatientIdsEl.value = "";
@@ -342,6 +360,7 @@ export function createSavedCohortsUi(ctx) {
     if (side === "b") {
       clearNoticeForMode("analysis");
       state.analysisCompareSavedCohortId = "";
+      if (typeof clearAnalysisScopeMetadata === "function") clearAnalysisScopeMetadata("b");
       renderAnalysisCompareScopeSummary();
       renderSavedCohorts();
       analysisStatusEl.className = "query-status";
@@ -352,6 +371,7 @@ export function createSavedCohortsUi(ctx) {
     }
     clearNoticeForMode("analysis");
     state.analysisSelectedSavedCohortId = "";
+    if (typeof clearAnalysisScopeMetadata === "function") clearAnalysisScopeMetadata("a");
     renderAnalysisScopeSummary();
     renderSavedCohorts();
     analysisStatusEl.className = "query-status";

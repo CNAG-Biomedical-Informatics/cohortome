@@ -66,9 +66,11 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
         "catalog_item_id": str(item.get("catalog_item_id") or "").strip(),
         "prompt_draft": str(item.get("prompt_draft") or "").strip(),
         "scope": str(item.get("scope") or "").strip(),
+        "scope_metadata": _normalize_scope_metadata(item.get("scope_metadata")),
         "saved_cohort_id_a": str(item.get("saved_cohort_id_a") or "").strip(),
         "compare_mode": bool(item.get("compare_mode")),
         "compare_scope": str(item.get("compare_scope") or "").strip(),
+        "compare_scope_metadata": _normalize_scope_metadata(item.get("compare_scope_metadata")),
         "saved_cohort_id_b": str(item.get("saved_cohort_id_b") or "").strip(),
         "history": item.get("history") if isinstance(item.get("history"), list) else [],
         "turns": item.get("turns") if isinstance(item.get("turns"), list) else [],
@@ -86,6 +88,50 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
     if not replaced:
         items.append(normalized)
     _write_sessions(items, user_id)
+    return normalized
+
+
+def _normalize_scope_metadata(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    sample_ids = _normalize_id_list(value.get("sample_ids"))
+    patient_ids = _normalize_id_list(value.get("patient_ids"))
+    if not sample_ids and not patient_ids:
+        return {}
+    if not patient_ids and sample_ids:
+        patient_ids = sorted({item.split(":", 1)[0].strip() for item in sample_ids if item.split(":", 1)[0].strip()})
+    if not sample_ids and patient_ids:
+        sample_ids = list(patient_ids)
+    source = value.get("source") if isinstance(value.get("source"), dict) else {}
+    return {
+        "id": str(value.get("id") or "").strip(),
+        "name": str(value.get("name") or "").strip(),
+        "dataset_id": str(value.get("dataset_id") or "").strip(),
+        "dataset_ids": _normalize_id_list(value.get("dataset_ids")),
+        "data_dir": str(value.get("data_dir") or "").strip(),
+        "id_type": str(value.get("id_type") or ("sample" if sample_ids and any(":" in item for item in sample_ids) else "patient")).strip(),
+        "sample_ids": sample_ids,
+        "patient_ids": patient_ids,
+        "sample_count": len(sample_ids),
+        "patient_count": len(patient_ids),
+        "is_full_dataset": bool(value.get("is_full_dataset")),
+        "source": {
+            "kind": str(source.get("kind") or value.get("source_kind") or "").strip(),
+            "prompt": str(source.get("prompt") or value.get("source_prompt") or "").strip(),
+        },
+    }
+
+
+def _normalize_id_list(value: Any) -> List[str]:
+    raw_items = value if isinstance(value, list) else str(value or "").split(",")
+    normalized: List[str] = []
+    seen = set()
+    for item in raw_items:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
     return normalized
 
 

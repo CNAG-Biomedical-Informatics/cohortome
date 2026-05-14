@@ -78,6 +78,7 @@ export function createPhenoUi(ctx) {
     handlePhenoJobSubmission,
     handlePhenoJobCompletion,
     saveIdsAsCohort,
+    setAnalysisScopeMetadataFromSelection,
     getSelectedSavedCohortIds,
     setSelectedSavedCohortIds,
     getCurrentScopeIds,
@@ -1483,6 +1484,15 @@ export function createPhenoUi(ctx) {
       return;
     }
     analysisSelectedPatientIdsEl.value = patientIds.join(",");
+    if (typeof setAnalysisScopeMetadataFromSelection === "function") {
+      setAnalysisScopeMetadataFromSelection({
+        sampleIds: recordIds,
+        patientIds,
+        idType: "sample",
+        sourceKind: "pheno_ranker",
+        sourcePrompt: "Top Pheno-Ranker matches",
+      });
+    }
     if (!analysisPromptEl.value.trim()) {
       analysisPromptEl.value = "Summarize the main clinical patterns in the top Pheno-Ranker matches and tell me what stands out.";
     }
@@ -2332,6 +2342,15 @@ export function createPhenoUi(ctx) {
       return;
     }
     analysisSelectedPatientIdsEl.value = selectedIds.join(",");
+    if (typeof setAnalysisScopeMetadataFromSelection === "function") {
+      setAnalysisScopeMetadataFromSelection({
+        sampleIds: selectedIds,
+        patientIds: collapsePhenoRecordIdsToPatientIds(selectedIds),
+        idType: "sample",
+        sourceKind: `pheno_ranker_${kind}`,
+        sourcePrompt: `Pheno-Ranker ${kind} selection (${selectedIds.length} samples)`,
+      });
+    }
     if (!analysisPromptEl.value.trim()) {
       analysisPromptEl.value = kind === "heatmap"
         ? "Summarize the main clinical patterns in the selected heatmap subgroup and tell me what stands out."

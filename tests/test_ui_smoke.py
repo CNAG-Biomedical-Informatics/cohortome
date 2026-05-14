@@ -910,8 +910,16 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
         """
     )
     expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("1 patient selected")
+    page.locator("[data-dashboard-event-inspect]").first.click()
+    expect(page.locator("#detail")).to_contain_text("Timeline inspector")
+    expect(page.locator(".dashboard-timeline-table tbody tr.is-inspected")).to_have_count(1)
+    expect(page.locator("[data-dashboard-event-inspect][aria-pressed='true']")).to_have_count(1)
+    page.locator("#dashboardTimelineEventSearch").fill("SYN001")
+    expect(page.locator("#dashboard-timeline-event-count")).to_contain_text("matching events")
+    page.locator("[data-dashboard-event-patient='SYN001']").first.click()
+    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("2 patients selected")
     page.locator("#dashboardTimelineUseAnalysisBtn").click()
-    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN002")
+    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
 
 
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:

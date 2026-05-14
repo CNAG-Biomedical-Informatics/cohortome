@@ -22,6 +22,7 @@
         }
         .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-shell, .viz-grid, .metrics-grid, .workspace-grid { grid-template-columns: 1fr; }
+        .dashboard-timeline-lower { grid-template-columns: 1fr; }
         .molecular-grid, .molecular-result-grid, .molecular-dashboard-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
         .molecular-workspace-summary { grid-template-columns: 1fr; }
         .molecular-kpi-grid, .molecular-summary-grid, .molecular-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

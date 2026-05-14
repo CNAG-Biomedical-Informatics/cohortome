@@ -1013,6 +1013,29 @@ def test_saved_cohort_delete_is_blocked_when_referenced_by_analysis_session(tmp_
     assert cohorts_module.list_saved_cohorts("/data/a")
 
 
+def test_analysis_session_persists_scope_metadata(tmp_path, monkeypatch):
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+    monkeypatch.setattr(analysis_sessions_module, "LEGACY_ANALYSIS_SESSIONS_PATH", tmp_path / "legacy-analysis-sessions.json")
+
+    saved = analysis_sessions_module.save_analysis_session({
+        "id": "session-metadata",
+        "data_dir": "/data/a",
+        "scope": "SYN001:week_0,SYN002:week_0",
+        "scope_metadata": {
+            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+            "patient_ids": ["SYN001", "SYN002"],
+            "id_type": "sample",
+            "source": {"kind": "dashboard_timeline", "prompt": "Timeline selection"},
+        },
+        "compare_mode": False,
+    })
+
+    assert saved["scope_metadata"]["sample_count"] == 2
+    assert saved["scope_metadata"]["patient_count"] == 2
+    assert saved["scope_metadata"]["source"]["kind"] == "dashboard_timeline"
+    assert analysis_sessions_module.get_analysis_session("session-metadata")["scope_metadata"]["sample_ids"] == ["SYN001:week_0", "SYN002:week_0"]
+
+
 def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path, monkeypatch):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
