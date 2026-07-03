@@ -8,10 +8,11 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR
+from app.env import app_env
 from app.routes import (
     get_medication_counts,
     get_patient,
-    get_patient_navigator,
+    get_patient_workspace,
     get_patients,
     register_routes,
     search_medication_cohort,
@@ -59,11 +60,11 @@ OPENAPI_TAGS = [
 
 
 def _session_secret() -> str:
-    configured = os.getenv("PN_SESSION_SECRET", "").strip()
+    configured = app_env("BRN_SESSION_SECRET", "").strip()
     if configured:
         return configured
-    if os.getenv("PN_AUTH_MODE", "none").strip().lower() == "local":
-        raise RuntimeError("PN_SESSION_SECRET must be set when PN_AUTH_MODE=local.")
+    if app_env("BRN_AUTH_MODE", "none").strip().lower() == "local":
+        raise RuntimeError("BRN_SESSION_SECRET must be set when BRN_AUTH_MODE=local.")
     return "biomedical-research-navigator-dev-session"
 
 

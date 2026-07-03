@@ -85,9 +85,9 @@ def live_server_auth() -> str:
         auth_path.unlink()
     process, base_url = _spawn_live_server(
         {
-            "PN_AUTH_MODE": "local",
-            "PN_SESSION_SECRET": "ui-smoke-test-session-secret",
-            "PN_LOCAL_USERS_JSON": json.dumps(
+            "BRN_AUTH_MODE": "local",
+            "BRN_SESSION_SECRET": "ui-smoke-test-session-secret",
+            "BRN_LOCAL_USERS_JSON": json.dumps(
                 [
                     {
                         "username": "admin",
@@ -464,14 +464,14 @@ def _mock_dashboard_load(page) -> None:
         ),
     )
     page.route(
-        "**/patients/*/navigator?*",
+        "**/patients/*/workspace?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
             body=json.dumps(
                 {
-                    "patient_id": route.request.url.split("/patients/", 1)[1].split("/navigator", 1)[0],
-                    "summary": {"patient_id": route.request.url.split("/patients/", 1)[1].split("/navigator", 1)[0]},
+                    "patient_id": route.request.url.split("/patients/", 1)[1].split("/workspace", 1)[0],
+                    "summary": {"patient_id": route.request.url.split("/patients/", 1)[1].split("/workspace", 1)[0]},
                     "patient_context": {"sex": "female", "date_of_birth": "", "vital_status": "", "source_files": []},
                     "evidence": {
                         "diseases": {"count": 1, "examples": ["Crohn Disease"]},

@@ -9,7 +9,7 @@ from app.models import (
     EvidenceInventory,
     NavigatorVisit,
     PatientContext,
-    PatientNavigator,
+    PatientWorkspace,
     PatientSummary,
     RecordProvenance,
     VisitContext,
@@ -603,7 +603,7 @@ def get_patient_context(data_dir: str, patient_id: str) -> Optional[PatientConte
     return bundle.context
 
 
-def build_patient_navigator(data_dir: str, patient_id: str) -> Optional[PatientNavigator]:
+def build_patient_workspace(data_dir: str, patient_id: str) -> Optional[PatientWorkspace]:
     patient = get_patient_context(data_dir, patient_id)
     if patient is None:
         return None
@@ -640,7 +640,7 @@ def build_patient_navigator(data_dir: str, patient_id: str) -> Optional[PatientN
         "source_files": patient.source_files,
     }
 
-    return PatientNavigator(
+    return PatientWorkspace(
         patient_id=patient.patient_id,
         summary=summary,
         patient_context=patient_context,

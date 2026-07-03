@@ -4,7 +4,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     R_LIBS_USER=/usr/local/lib/R/site-library \
-    PN_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker
+    BRN_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker
 
 ARG PHENO_RANKER_SPEC=Pheno::Ranker
 

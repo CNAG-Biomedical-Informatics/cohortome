@@ -10,7 +10,7 @@ services:
       - path: .env
         required: false
     environment:
-      PN_JOBS_REDIS_URL: redis://redis:6379/0
+      BRN_JOBS_REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -33,7 +33,7 @@ services:
       - path: .env
         required: false
     environment:
-      PN_JOBS_REDIS_URL: redis://redis:6379/0
+      BRN_JOBS_REDIS_URL: redis://redis:6379/0
     command: ["rq", "worker", "analysis", "--url", "redis://redis:6379/0"]
     volumes:
       - ../state:/app/state

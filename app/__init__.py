@@ -1,1 +1,1 @@
-"""Patient navigator BFF MVP."""
+"""Biomedical Research Navigator app."""

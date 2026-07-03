@@ -27,8 +27,8 @@ Environment configuration is still used as bootstrap seed data when no local use
 Typical setup:
 
 ```bash
-export PN_AUTH_MODE=local
-export PN_LOCAL_USERS_JSON='[
+export BRN_AUTH_MODE=local
+export BRN_LOCAL_USERS_JSON='[
   {"username":"admin","password":"admin","role":"admin","display_name":"Administrator","groups":["admin"]},
   {"username":"mrueda","password":"mrueda","role":"user","display_name":"mrueda","groups":["cnag"]},
   {"username":"nogroup","password":"nogroup","role":"user","display_name":"No Group User","groups":[]}
@@ -39,21 +39,21 @@ export PN_LOCAL_USERS_JSON='[
 
 Biomedical Research Navigator supports three authentication modes:
 
-- `PN_AUTH_MODE=none`
+- `BRN_AUTH_MODE=none`
   - development fallback with a synthetic local admin user
-- `PN_AUTH_MODE=local`
+- `BRN_AUTH_MODE=local`
   - local username/password users stored in `state/auth/users.json`
-- `PN_AUTH_MODE=oidc`
+- `BRN_AUTH_MODE=oidc`
   - external OIDC login, with Biomedical Research Navigator still owning roles, groups, and
     dataset access
 
 Optional local fallback:
 
 ```bash
-export PN_AUTH_LOCAL_FALLBACK=true
+export BRN_AUTH_LOCAL_FALLBACK=true
 ```
 
-When this is set with `PN_AUTH_MODE=oidc`, the login page shows both the OIDC
+When this is set with `BRN_AUTH_MODE=oidc`, the login page shows both the OIDC
 button and the local username/password form. This is useful during development
 or for emergency admin access. Leave it disabled in stricter production
 deployments if all users should authenticate through the external provider.
@@ -153,7 +153,7 @@ The `Settings` panel shows the current user's authentication summary:
 - password-reset availability
 - email, role, and groups
 
-When `PN_AUTH_MODE=oidc` and `PN_AUTH_LOCAL_FALLBACK=true`, a user who signs in
+When `BRN_AUTH_MODE=oidc` and `BRN_AUTH_LOCAL_FALLBACK=true`, a user who signs in
 with the local form is shown as local fallback for that session. This avoids the
 misleading impression that an OIDC login happened when it did not.
 
@@ -172,20 +172,20 @@ Self-service password reset is optional. It is enabled only when local auth is
 enabled and SMTP delivery is configured:
 
 ```bash
-export PN_AUTH_MODE=local
-export PN_SMTP_HOST=smtp.example.org
-export PN_SMTP_PORT=587
-export PN_SMTP_FROM=noreply@example.org
-export PN_SMTP_USERNAME=...
-export PN_SMTP_PASSWORD=...
-export PN_SMTP_TLS=true
-export PN_PUBLIC_BASE_URL=https://biomedical-research-navigator.example.org
+export BRN_AUTH_MODE=local
+export BRN_SMTP_HOST=smtp.example.org
+export BRN_SMTP_PORT=587
+export BRN_SMTP_FROM=noreply@example.org
+export BRN_SMTP_USERNAME=...
+export BRN_SMTP_PASSWORD=...
+export BRN_SMTP_TLS=true
+export BRN_PUBLIC_BASE_URL=https://biomedical-research-navigator.example.org
 ```
 
 Optional:
 
 ```bash
-export PN_PASSWORD_RESET_TTL_MINUTES=60
+export BRN_PASSWORD_RESET_TTL_MINUTES=60
 ```
 
 When SMTP reset is configured, the sign-in screen shows `Forgot password?`.
@@ -244,14 +244,14 @@ docker compose -f scripts/dev/docker-compose.dex.yml up
 Start Biomedical Research Navigator in OIDC mode:
 
 ```bash
-export PN_AUTH_MODE=oidc
-export PN_OIDC_PROVIDER_NAME=Dex
-export PN_OIDC_ISSUER=http://127.0.0.1:5556/dex
-export PN_OIDC_CLIENT_ID=biomedical-research-navigator
-export PN_OIDC_CLIENT_SECRET=biomedical-research-navigator-secret
-export PN_OIDC_REDIRECT_URI=http://127.0.0.1:8000/auth/oidc/callback
-export PN_AUTH_LOCAL_FALLBACK=true
-export PN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export BRN_AUTH_MODE=oidc
+export BRN_OIDC_PROVIDER_NAME=Dex
+export BRN_OIDC_ISSUER=http://127.0.0.1:5556/dex
+export BRN_OIDC_CLIENT_ID=biomedical-research-navigator
+export BRN_OIDC_CLIENT_SECRET=biomedical-research-navigator-secret
+export BRN_OIDC_REDIRECT_URI=http://127.0.0.1:8000/auth/oidc/callback
+export BRN_AUTH_LOCAL_FALLBACK=true
+export BRN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 PYTHONPATH=.deps uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 

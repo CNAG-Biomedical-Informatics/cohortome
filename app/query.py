@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib import error
 
 from app.bff import (
-    build_patient_navigator,
+    build_patient_workspace,
     dashboard_summary,
     ensure_data_dir,
     extract_event_date,
@@ -1085,8 +1085,8 @@ def _lm_studio_max_history_turns() -> int:
         return 4
 
 
-def _lm_studio_include_patient_navigator() -> bool:
-    value = os.getenv("LM_STUDIO_INCLUDE_PATIENT_NAVIGATOR", "").strip().lower()
+def _lm_studio_include_patient_workspace() -> bool:
+    value = os.getenv("LM_STUDIO_INCLUDE_PATIENT_WORKSPACE", "").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
@@ -1252,10 +1252,10 @@ def _lm_studio_context(
     history_context = _lm_history_context(history, granularity_mode)
     if history_context:
         context["conversation_history"] = history_context
-    if granularity_mode != "summary" and patient_id is not None and _lm_studio_include_patient_navigator():
-        navigator = build_patient_navigator(data_dir, patient_id)
+    if granularity_mode != "summary" and patient_id is not None and _lm_studio_include_patient_workspace():
+        navigator = build_patient_workspace(data_dir, patient_id)
         if navigator is not None:
-            context["patient_navigator"] = {
+            context["patient_workspace"] = {
                 "summary": navigator.summary.model_dump(),
                 "patient_context": navigator.patient_context.model_dump(),
                 "visits": [
@@ -2568,7 +2568,7 @@ def _answer_query_impl(
 
     patient_id = _extract_patient_id(text)
     if patient_id is not None:
-        navigator = build_patient_navigator(data_dir, patient_id)
+        navigator = build_patient_workspace(data_dir, patient_id)
         if navigator is None:
             return {
                 "query": query,

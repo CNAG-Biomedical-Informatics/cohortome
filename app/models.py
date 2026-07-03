@@ -84,7 +84,7 @@ class PatientContext(BaseModel):
     visits: List[VisitContext] = Field(default_factory=list)
 
 
-class PatientNavigator(BaseModel):
+class PatientWorkspace(BaseModel):
     patient_id: str
     summary: PatientSummary
     patient_context: Dict[str, Any] = Field(default_factory=dict)

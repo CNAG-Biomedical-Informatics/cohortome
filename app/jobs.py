@@ -14,6 +14,7 @@ from fastapi import HTTPException
 
 from app.analysis_sessions import get_analysis_session
 from app.user_state import normalize_user_id, user_state_dir
+from app.env import app_env
 
 
 JOB_RECORD_FILENAME = "job.json"
@@ -41,15 +42,15 @@ def jobs_enabled() -> bool:
 
 
 def jobs_queue_name() -> str:
-    return str(os.getenv("PN_JOBS_QUEUE_NAME", "analysis")).strip() or "analysis"
+    return str(app_env("BRN_JOBS_QUEUE_NAME", "analysis")).strip() or "analysis"
 
 
 def jobs_redis_url() -> str:
-    return str(os.getenv("PN_JOBS_REDIS_URL", "redis://127.0.0.1:6379/0")).strip() or "redis://127.0.0.1:6379/0"
+    return str(app_env("BRN_JOBS_REDIS_URL", "redis://127.0.0.1:6379/0")).strip() or "redis://127.0.0.1:6379/0"
 
 
 def jobs_default_timeout_seconds() -> int:
-    raw = str(os.getenv("PN_JOBS_DEFAULT_TIMEOUT_SECONDS", "1800")).strip()
+    raw = str(app_env("BRN_JOBS_DEFAULT_TIMEOUT_SECONDS", "1800")).strip()
     try:
         return max(30, int(raw))
     except ValueError:

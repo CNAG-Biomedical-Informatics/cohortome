@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+from app.env import app_env
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_ROOT_DIR = BASE_DIR / "default_dataset"
@@ -15,7 +17,7 @@ DEFAULT_HELP_URL = "https://mrueda.github.io/biomedical-research-navigator/"
 
 
 def branding_logo_path() -> Path | None:
-    configured = os.getenv("PN_BRAND_LOGO_PATH", "").strip()
+    configured = app_env("BRN_BRAND_LOGO_PATH", "").strip()
     if configured:
         candidate = Path(configured)
         if not candidate.is_absolute():
@@ -33,12 +35,12 @@ def branding_logo_path() -> Path | None:
 def branding_settings() -> Dict[str, Any]:
     logo_path = branding_logo_path()
     return {
-        "name": os.getenv("PN_BRAND_NAME", "Biomedical Research Navigator").strip() or "Biomedical Research Navigator",
-        "subtitle": os.getenv(
-            "PN_BRAND_SUBTITLE",
+        "name": app_env("BRN_BRAND_NAME", "Biomedical Research Navigator").strip() or "Biomedical Research Navigator",
+        "subtitle": app_env(
+            "BRN_BRAND_SUBTITLE",
             "Clinical and molecular workspace exploration.",
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
-        "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "Biomedical Research Navigator logo").strip() or "Biomedical Research Navigator logo",
-        "help_url": os.getenv("PN_HELP_URL", DEFAULT_HELP_URL).strip() or DEFAULT_HELP_URL,
+        "logo_alt": app_env("BRN_BRAND_LOGO_ALT", "Biomedical Research Navigator logo").strip() or "Biomedical Research Navigator logo",
+        "help_url": app_env("BRN_HELP_URL", DEFAULT_HELP_URL).strip() or DEFAULT_HELP_URL,
     }

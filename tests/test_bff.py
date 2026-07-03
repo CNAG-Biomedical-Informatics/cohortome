@@ -29,7 +29,7 @@ import app.routes as routes_module
 import app.user_settings as user_settings_module
 import app.user_state as user_state_module
 from app.bff import (
-    build_patient_navigator,
+    build_patient_workspace,
     dashboard_summary,
     ensure_data_dir,
     get_patient_context,
@@ -42,7 +42,7 @@ from app.main import (
     app,
     get_medication_counts,
     get_patient,
-    get_patient_navigator,
+    get_patient_workspace,
     get_patients,
     search_medication_cohort,
 )
@@ -92,13 +92,13 @@ def make_request(session=None):
 
 
 def test_session_secret_is_required_when_local_auth_enabled(monkeypatch):
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
-    monkeypatch.delenv("PN_SESSION_SECRET", raising=False)
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.delenv("BRN_SESSION_SECRET", raising=False)
 
-    with pytest.raises(RuntimeError, match="PN_SESSION_SECRET"):
+    with pytest.raises(RuntimeError, match="BRN_SESSION_SECRET"):
         main_module._session_secret()
 
-    monkeypatch.setenv("PN_SESSION_SECRET", "test-secret")
+    monkeypatch.setenv("BRN_SESSION_SECRET", "test-secret")
     assert main_module._session_secret() == "test-secret"
 
 
@@ -156,7 +156,7 @@ def test_lm_studio_health_reports_ready_model(monkeypatch):
 def test_lm_provider_registry_selects_approved_endpoint(monkeypatch):
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "PN_LLM_PROVIDERS_JSON",
+        "BRN_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1315,9 +1315,9 @@ def test_analysis_sessions_are_user_scoped(tmp_path, monkeypatch):
 
 def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "display_name": "Alice"}]),
     )
     client = TestClient(app)
@@ -1343,7 +1343,7 @@ def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
 
 def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.delenv("PN_AUTH_MODE", raising=False)
+    monkeypatch.delenv("BRN_AUTH_MODE", raising=False)
     client = TestClient(app)
 
     defaults = client.get("/user-settings")
@@ -1382,9 +1382,9 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
 def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"},
@@ -1410,7 +1410,7 @@ def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
 
 def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.delenv("PN_AUTH_MODE", raising=False)
+    monkeypatch.delenv("BRN_AUTH_MODE", raising=False)
     client = TestClient(app)
 
     response = client.patch("/user-settings", json={"landing_tab": "admin"})
@@ -1421,14 +1421,14 @@ def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
 def test_lm_status_uses_authenticated_user_provider_setting(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
     )
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "PN_LLM_PROVIDERS_JSON",
+        "BRN_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1470,7 +1470,7 @@ def test_lm_status_uses_authenticated_user_provider_setting(monkeypatch, tmp_pat
 def test_lm_provider_registry_accepts_future_llm_providers_key(monkeypatch):
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "PN_LLM_PROVIDERS_JSON",
+        "BRN_LLM_PROVIDERS_JSON",
         json.dumps(
             {
                 "llm_providers": [
@@ -1493,9 +1493,9 @@ def test_lm_provider_registry_accepts_future_llm_providers_key(monkeypatch):
 
 def test_lm_providers_route_is_admin_only_when_auth_enabled(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin"},
@@ -1519,14 +1519,14 @@ def test_lm_providers_route_is_admin_only_when_auth_enabled(monkeypatch, tmp_pat
 def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
     )
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "PN_LLM_PROVIDERS_JSON",
+        "BRN_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1563,9 +1563,9 @@ def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, t
 
 def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1592,9 +1592,9 @@ def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
 
 def test_auth_users_requires_admin(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1630,9 +1630,9 @@ def test_auth_users_requires_admin(monkeypatch, tmp_path):
 
 def test_auth_debug_requires_admin_when_auth_enabled(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
@@ -1658,9 +1658,9 @@ def test_auth_debug_requires_admin_when_auth_enabled(monkeypatch, tmp_path):
 
 def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
     )
     client = TestClient(app)
@@ -1718,12 +1718,15 @@ def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, 
     client.post("/auth/login", json={"username": "admin", "password": "secret"})
     deleted = client.delete("/auth/users/alice")
     assert deleted.status_code == 200
-    assert deleted.json() == {
-        "deleted": True,
-        "id": "alice",
-        "deleted_generated_data": False,
-        "deleted_job_count": 0,
-    }
+    deleted_payload = deleted.json()
+    assert deleted_payload["deleted"] is True
+    assert deleted_payload["id"] == "alice"
+    assert deleted_payload["deleted_generated_data"] is False
+    assert deleted_payload["deleted_job_count"] == 0
+    assert deleted_payload["related_job_count"] == 0
+    assert deleted_payload["deleted_count"] == 0
+    assert deleted_payload["skipped_active_count"] == 0
+    assert deleted_payload["kept_job_count"] == 0
     listing = client.get("/auth/users")
     assert listing.status_code == 200
     assert [item["username"] for item in listing.json()["users"]] == ["admin"]
@@ -1731,9 +1734,9 @@ def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, 
 
 def test_auth_admin_can_create_and_update_user_email(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
     )
     client = TestClient(app)
@@ -1766,11 +1769,11 @@ def test_auth_admin_can_create_and_update_user_email(monkeypatch, tmp_path):
 
 def test_password_reset_reports_disabled_without_smtp(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
-    monkeypatch.delenv("PN_SMTP_HOST", raising=False)
-    monkeypatch.delenv("PN_SMTP_FROM", raising=False)
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.delenv("BRN_SMTP_HOST", raising=False)
+    monkeypatch.delenv("BRN_SMTP_FROM", raising=False)
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "email": "alice@example.org"}]),
     )
     client = TestClient(app)
@@ -1788,12 +1791,12 @@ def test_password_reset_reports_disabled_without_smtp(monkeypatch, tmp_path):
 
 def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
-    monkeypatch.setenv("PN_SMTP_HOST", "smtp.example.org")
-    monkeypatch.setenv("PN_SMTP_FROM", "navigator@example.org")
-    monkeypatch.setenv("PN_PUBLIC_BASE_URL", "https://navigator.example.org")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_SMTP_HOST", "smtp.example.org")
+    monkeypatch.setenv("BRN_SMTP_FROM", "navigator@example.org")
+    monkeypatch.setenv("BRN_PUBLIC_BASE_URL", "https://navigator.example.org")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1839,14 +1842,14 @@ def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch
 
 def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
+    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1903,14 +1906,14 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
 
 def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
+    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
     )
     monkeypatch.setattr(
@@ -1935,15 +1938,15 @@ def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
 
 def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("PN_AUTH_LOCAL_FALLBACK", "true")
-    monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
+    monkeypatch.setenv("BRN_AUTH_LOCAL_FALLBACK", "true")
+    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
+    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
     )
     client = TestClient(app)
@@ -1964,9 +1967,9 @@ def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
 
 def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
@@ -1986,9 +1989,9 @@ def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
 
 def test_auth_admin_group_member_can_access_admin_endpoints(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "mrueda", "password": "secret", "role": "user", "display_name": "mrueda", "groups": ["admin"]},
@@ -2007,9 +2010,9 @@ def test_auth_admin_group_member_can_access_admin_endpoints(monkeypatch, tmp_pat
 
 def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "mrueda", "password": "secret", "role": "admin", "display_name": "mrueda"}]),
     )
     client = TestClient(app)
@@ -2060,9 +2063,9 @@ def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_p
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2136,9 +2139,9 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2198,9 +2201,9 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
 def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"}]),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
@@ -2253,9 +2256,9 @@ def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
 def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"}]),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
@@ -2432,9 +2435,9 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
 
 def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2507,9 +2510,9 @@ def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkey
 
 def test_query_route_respects_dataset_ai_provider_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2863,7 +2866,7 @@ items:
         encoding="utf-8",
     )
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.delenv("PN_ANALYSIS_CATALOG_DEBUG", raising=False)
+    monkeypatch.delenv("BRN_ANALYSIS_CATALOG_DEBUG", raising=False)
 
     payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
 
@@ -2888,7 +2891,7 @@ items:
         encoding="utf-8",
     )
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.setenv("PN_ANALYSIS_CATALOG_DEBUG", "true")
+    monkeypatch.setenv("BRN_ANALYSIS_CATALOG_DEBUG", "true")
 
     payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
 
@@ -2981,7 +2984,7 @@ def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_pa
 
 def test_analysis_debug_catalog_item_is_rejected_without_server_flag(tmp_path, monkeypatch):
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.delenv("PN_ANALYSIS_CATALOG_DEBUG", raising=False)
+    monkeypatch.delenv("BRN_ANALYSIS_CATALOG_DEBUG", raising=False)
 
     with pytest.raises(RuntimeError, match="not available"):
         analysis_module.analysis_llm_reply(
@@ -3072,7 +3075,7 @@ def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
 def test_analysis_external_rscript_runner_executes_curated_catalog_item(tmp_path, monkeypatch):
     if shutil.which("Rscript") is None:
         pytest.skip("Rscript is not available")
-    monkeypatch.setenv("PN_ANALYSIS_CATALOG_DEBUG", "true")
+    monkeypatch.setenv("BRN_ANALYSIS_CATALOG_DEBUG", "true")
 
     write_json(
         tmp_path,
@@ -3831,9 +3834,9 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
         "LEGACY_ANALYSIS_SESSIONS_PATH",
         tmp_path / "legacy-analysis-sessions.json",
     )
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -3904,9 +3907,9 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
 def test_analysis_job_submission_requires_live_worker(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4342,9 +4345,9 @@ def test_load_job_record_reconciles_finished_rq_job_with_result_to_completed(tmp
 def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4410,9 +4413,9 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
 def test_run_history_lists_inline_runs_without_polluting_jobs_drawer(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
 
@@ -4445,9 +4448,9 @@ def test_run_history_lists_inline_runs_without_polluting_jobs_drawer(tmp_path, m
 def test_run_history_delete_removes_terminal_runs_and_skips_active(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
 
@@ -4484,9 +4487,9 @@ def test_run_history_applies_user_retention_to_terminal_runs(tmp_path, monkeypat
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
     user_settings_module.save_user_settings({"run_history_retention_days": 7}, "alice")
@@ -4542,9 +4545,9 @@ def test_analysis_session_delete_can_cascade_terminal_job_data(tmp_path, monkeyp
         "LEGACY_ANALYSIS_SESSIONS_PATH",
         tmp_path / "legacy-analysis-sessions.json",
     )
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4599,9 +4602,9 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
         "LEGACY_ANALYSIS_SESSIONS_PATH",
         tmp_path / "legacy-analysis-sessions.json",
     )
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4650,9 +4653,9 @@ def test_user_data_analysis_sessions_bulk_delete_is_user_scoped(tmp_path, monkey
         "LEGACY_ANALYSIS_SESSIONS_PATH",
         tmp_path / "legacy-analysis-sessions.json",
     )
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -5590,9 +5593,9 @@ def test_pheno_explain_llm_ai_provider_restricted_returns_deterministic_metadata
 
 def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -5653,9 +5656,9 @@ def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatc
 
 def test_pheno_patient_ids_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PN_AUTH_MODE", "local")
+    monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "PN_LOCAL_USERS_JSON",
+        "BRN_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -5800,7 +5803,7 @@ def test_beacon_like_records_group_by_top_level_id_prefix_and_ignore_info(tmp_pa
     assert patient.visits[0].provenance.raw_bff["info"]["study_id"] == "WRONG-ID"
 
 
-def test_patient_navigator_precomputes_fragment_pointers(tmp_path):
+def test_patient_workspace_precomputes_fragment_pointers(tmp_path):
     write_json(
         tmp_path,
         "individuals.json",
@@ -5830,7 +5833,7 @@ def test_patient_navigator_precomputes_fragment_pointers(tmp_path):
         ],
     )
 
-    navigator = build_patient_navigator(str(tmp_path), "900")
+    navigator = build_patient_workspace(str(tmp_path), "900")
     assert navigator is not None
     assert navigator.summary.patient_id == "900"
     assert navigator.evidence.diseases.count == 1
@@ -5839,7 +5842,7 @@ def test_patient_navigator_precomputes_fragment_pointers(tmp_path):
     assert navigator.visits[0].key_fragments[1].path == "measures[0]"
     assert navigator.key_fragments[2].label == "Infliximab"
 
-    navigator_payload = get_patient_navigator("900", data_dir=str(tmp_path))
+    navigator_payload = get_patient_workspace("900", data_dir=str(tmp_path))
     assert navigator_payload["patient_id"] == "900"
     assert navigator_payload["visits"][0]["key_fragments"][0]["category"] == "disease"
 
@@ -6085,7 +6088,7 @@ def test_query_summary_omits_history_and_patient_ids_from_lm_studio_context(tmp_
         return {"choices": [{"message": {"content": "Summary-safe answer"}}]}
 
     monkeypatch.setattr(query_module, "_http_json", fake_http_json)
-    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_NAVIGATOR", "true")
+    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_WORKSPACE", "true")
 
     payload = answer_query(
         str(tmp_path),
@@ -6101,7 +6104,7 @@ def test_query_summary_omits_history_and_patient_ids_from_lm_studio_context(tmp_
     user_message = captured["payload"]["messages"][1]["content"]
     assert "conversation_history" not in user_message
     assert '"patient_id"' not in user_message
-    assert '"patient_navigator"' not in user_message
+    assert '"patient_workspace"' not in user_message
     assert "Show patient 107" not in user_message
 
 
@@ -6117,7 +6120,7 @@ def test_query_ai_provider_restricted_clamps_detailed_lm_studio_context(tmp_path
 
     monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
     monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
-    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_NAVIGATOR", "true")
+    monkeypatch.setenv("LM_STUDIO_INCLUDE_PATIENT_WORKSPACE", "true")
 
     captured = {}
 
@@ -6146,7 +6149,7 @@ def test_query_ai_provider_restricted_clamps_detailed_lm_studio_context(tmp_path
     user_message = captured["payload"]["messages"][1]["content"]
     assert "conversation_history" not in user_message
     assert '"patient_id"' not in user_message
-    assert '"patient_navigator"' not in user_message
+    assert '"patient_workspace"' not in user_message
     assert "Show patient 107" not in user_message
     assert '"patients":' not in user_message
     assert "Crohn Disease" not in user_message
@@ -7827,10 +7830,13 @@ def test_dataset_admin_routes_map_value_errors_to_http_400(monkeypatch):
 
 def test_auth_and_saved_cohort_route_wrappers_cover_common_error_paths(monkeypatch):
     monkeypatch.setattr(routes_module, "auth_enabled", lambda: False)
-    assert routes_module.login_local(make_request(), routes_module.LoginRequest(username="u", password="p")) == {
-        "enabled": False,
-        "authenticated": True,
-    }
+    login_payload = routes_module.login_local(make_request(), routes_module.LoginRequest(username="u", password="p"))
+    assert login_payload["enabled"] is False
+    assert login_payload["authenticated"] is True
+    assert login_payload["mode"] == "none"
+    assert login_payload["provider"] == "none"
+    assert login_payload["local_login_enabled"] is False
+    assert login_payload["password_reset_enabled"] is False
 
     monkeypatch.setattr(routes_module, "branding_logo_path", lambda: None)
     with pytest.raises(HTTPException) as logo_exc:

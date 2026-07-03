@@ -41,8 +41,8 @@ def _spawn_server() -> tuple[subprocess.Popen, str]:
     port = _free_port()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
-    env["PN_AUTH_MODE"] = "local"
-    env["PN_LOCAL_USERS_JSON"] = json.dumps(
+    env["BRN_AUTH_MODE"] = "local"
+    env["BRN_LOCAL_USERS_JSON"] = json.dumps(
         [
             {
                 "username": "admin",

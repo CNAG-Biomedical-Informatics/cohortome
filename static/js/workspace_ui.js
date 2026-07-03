@@ -480,7 +480,7 @@ export function createWorkspaceUi(ctx) {
   async function loadPatient(patientId) {
     state.selectedPatientId = patientId;
     const datasetId = encodeURIComponent(currentDatasetSelectionKey());
-    const response = await fetch(`/patients/${encodeURIComponent(patientId)}/navigator?dataset_id=${datasetId}`);
+    const response = await fetch(`/patients/${encodeURIComponent(patientId)}/workspace?dataset_id=${datasetId}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       if (detailEl) {

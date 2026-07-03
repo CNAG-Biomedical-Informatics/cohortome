@@ -151,8 +151,8 @@ The approved model-provider registry is configuration, not user state.
 Current sources:
 
 - `LM_STUDIO_*` environment variables for `system-default`
-- `PN_LLM_PROVIDERS_JSON`
-- `PN_LLM_PROVIDERS_FILE`
+- `BRN_LLM_PROVIDERS_JSON`
+- `BRN_LLM_PROVIDERS_FILE`
 
 The selected provider ID is stored per user, but provider endpoints and secrets
 remain deployment/admin configuration.

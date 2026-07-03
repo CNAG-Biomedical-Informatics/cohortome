@@ -45,7 +45,7 @@ from app.analysis_sessions import (
     save_analysis_session,
 )
 from app.bff import (
-    build_patient_navigator,
+    build_patient_workspace,
     dashboard_summary,
     get_patient_context,
     list_patient_summaries,
@@ -99,6 +99,7 @@ from app.pheno import (
     plan_pheno_ranker,
     run_pheno_ranker,
 )
+from app.env import app_env
 from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_annotations, molecular_gene_inventory
 from app.query_store import QueryStoreNotReadyError, dataset_query_store_status, ensure_query_store, prepare_dataset_query_store
 from app.user_settings import load_user_settings, update_user_settings as patch_user_settings
@@ -433,13 +434,13 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
     return payload
 
 
-def get_patient_navigator(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     if request is not None:
         require_authenticated(request)
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
-        navigator = build_patient_navigator(resolved_dir, patient_id)
+        navigator = build_patient_workspace(resolved_dir, patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -669,7 +670,7 @@ def confirm_auth_password_reset(payload: AuthPasswordResetConfirmRequest) -> Dic
 def get_auth_diagnostics(request: Request) -> Dict:
     if auth_enabled():
         require_admin(request)
-    elif os.getenv("PN_AUTH_DEBUG_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    elif app_env("BRN_AUTH_DEBUG_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
         raise HTTPException(status_code=404, detail="Auth diagnostics are disabled.")
     return local_auth_diagnostics()
 
@@ -1414,7 +1415,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Biomedical Research Navigator HTML shell with the current branding and authenticated user context.")
     app.add_api_route("/patients", get_patients, methods=["GET"], tags=["patients"], summary="List patient summaries", description="Returns patient-level summaries for the active dataset or workspace scope.", response_model=List[PatientSummaryResponse])
     app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"], tags=["patients"], summary="Get a patient context", description="Returns the normalized clinical context for a single patient identifier.")
-    app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"], tags=["patients"], summary="Get a patient workspace view", description="Returns the timeline-oriented patient workspace payload used by the patient detail view.")
+    app.add_api_route("/patients/{patient_id}/workspace", get_patient_workspace, methods=["GET"], tags=["patients"], summary="Get a patient workspace view", description="Returns the timeline-oriented patient workspace payload used by the patient detail view.")
     app.add_api_route("/cohorts/medications", get_medication_counts, methods=["GET"], tags=["patients"], summary="Count medications in the workspace", description="Returns medication counts derived from the active workspace.")
     app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"], tags=["patients"], summary="Count diseases in the workspace", description="Returns disease counts derived from the active workspace.")
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
@@ -1422,7 +1423,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.")
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
-    app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when PN_AUTH_MODE=oidc.")
+    app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when BRN_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local Biomedical Research Navigator user.")
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)

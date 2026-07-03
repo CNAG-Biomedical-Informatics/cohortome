@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 import yaml
 
 from app.query_store import molecular_dataset_inventory
+from app.env import app_env
 
 
 ANALYSIS_CATALOG_PATH = Path(__file__).resolve().parent.parent / "state" / "analysis" / "catalog.yaml"
@@ -17,7 +18,7 @@ VALID_EXECUTION_BACKENDS = {"sync", "job"}
 
 
 def analysis_catalog_debug_enabled() -> bool:
-    return os.getenv("PN_ANALYSIS_CATALOG_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    return app_env("BRN_ANALYSIS_CATALOG_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _configured_runtime_available(env_var: str, default_name: str) -> bool:

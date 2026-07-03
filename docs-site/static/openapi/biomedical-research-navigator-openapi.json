@@ -54,7 +54,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -121,7 +121,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -151,14 +151,14 @@
         }
       }
     },
-    "/patients/{patient_id}/navigator": {
+    "/patients/{patient_id}/workspace": {
       "get": {
         "tags": [
           "patients"
         ],
         "summary": "Get a patient workspace view",
         "description": "Returns the timeline-oriented patient workspace payload used by the patient detail view.",
-        "operationId": "get_patient_navigator_patients__patient_id__navigator_get",
+        "operationId": "get_patient_workspace_patients__patient_id__workspace_get",
         "parameters": [
           {
             "name": "patient_id",
@@ -185,7 +185,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -240,7 +240,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -298,7 +298,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -365,7 +365,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -429,7 +429,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -854,7 +854,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1034,7 +1034,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1097,7 +1097,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           },
@@ -1460,7 +1460,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1736,7 +1736,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1789,7 +1789,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -1870,7 +1870,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "prompt_draft": {
             "type": "string",
@@ -2503,7 +2503,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -2554,7 +2554,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -2593,7 +2593,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "patient_id": {
             "type": "string",
@@ -2694,7 +2694,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "query_mode": {
             "type": "string",
@@ -2759,7 +2759,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
           "sample_ids": {
             "items": {

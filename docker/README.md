@@ -26,9 +26,9 @@ cp docker/env.example docker/.env
 
 Edit `docker/.env` before starting:
 
-- replace `PN_SESSION_SECRET`
+- replace `BRN_SESSION_SECRET`
 - decide whether to keep the bootstrap users
-- configure `LM_STUDIO_*` or `PN_LLM_PROVIDERS_JSON` if an LLM endpoint is available
+- configure `LM_STUDIO_*` or `BRN_LLM_PROVIDERS_JSON` if an LLM endpoint is available
 
 Start the stack:
 
@@ -104,7 +104,7 @@ container expects:
 /usr/local/bin/pheno-ranker
 ```
 
-Override `PN_PHENO_RANKER_BIN` only if you build a custom image or mount a
+Override `BRN_PHENO_RANKER_BIN` only if you build a custom image or mount a
 different binary for development.
 
 ## LLM Providers
@@ -117,13 +117,13 @@ LM_STUDIO_BASE_URL=http://host.docker.internal:1234/v1
 LM_STUDIO_MODEL=openai/gpt-oss-120b
 ```
 
-For several approved endpoints, use `PN_LLM_PROVIDERS_JSON` or
-`PN_LLM_PROVIDERS_FILE`. Users can then choose an approved provider in Settings.
+For several approved endpoints, use `BRN_LLM_PROVIDERS_JSON` or
+`BRN_LLM_PROVIDERS_FILE`. Users can then choose an approved provider in Settings.
 Dataset policy still controls whether clinical context can be sent to a model.
 
 ## Local Auth
 
-The first boot can seed users from `PN_LOCAL_USERS_JSON`.
+The first boot can seed users from `BRN_LOCAL_USERS_JSON`.
 
 After `state/auth/users.json` exists, that file is the source of truth. Manage
 users in the `Users` admin tab.

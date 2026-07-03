@@ -194,7 +194,7 @@ Model providers are admin-defined OpenAI-compatible endpoints.
 Current model:
 
 - `system-default` comes from the existing `LM_STUDIO_*` environment variables
-- additional providers come from `PN_LLM_PROVIDERS_JSON` or `PN_LLM_PROVIDERS_FILE`
+- additional providers come from `BRN_LLM_PROVIDERS_JSON` or `BRN_LLM_PROVIDERS_FILE`
 - users select a provider in persisted Settings
 - admins inspect provider health in the `Models` tab
 - dataset policy still controls what, if anything, can be sent to a provider

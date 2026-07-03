@@ -11,10 +11,11 @@ from urllib import error, request
 from uuid import uuid4
 
 from app.config import BASE_DIR
+from app.env import app_env
 
 LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
 DEFAULT_LLM_PROVIDER_ID = "system-default"
-_CURRENT_PROVIDER_ID: ContextVar[str] = ContextVar("patient_navigator_lm_provider_id", default=DEFAULT_LLM_PROVIDER_ID)
+_CURRENT_PROVIDER_ID: ContextVar[str] = ContextVar("patient_workspace_lm_provider_id", default=DEFAULT_LLM_PROVIDER_ID)
 
 
 def _truthy(value: str) -> bool:
@@ -63,9 +64,9 @@ def _normalize_provider(raw: Dict[str, Any]) -> Dict[str, Any] | None:
 
 
 def _configured_registry_providers() -> list[Dict[str, Any]]:
-    raw = os.getenv("PN_LLM_PROVIDERS_JSON", "").strip()
+    raw = app_env("BRN_LLM_PROVIDERS_JSON", "").strip()
     if not raw:
-        registry_path = os.getenv("PN_LLM_PROVIDERS_FILE", "").strip()
+        registry_path = app_env("BRN_LLM_PROVIDERS_FILE", "").strip()
         if registry_path:
             try:
                 raw = BASE_DIR.joinpath(registry_path).read_text(encoding="utf-8") if not os.path.isabs(registry_path) else open(registry_path, encoding="utf-8").read()
