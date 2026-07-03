@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Patient Navigator API",
+    "title": "Biomedical Research Navigator API",
     "summary": "Workspace-oriented clinical and molecular exploration API.",
-    "description": "Patient Navigator exposes a browser-facing API for multi-dataset workspace selection, clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data.",
+    "description": "Biomedical Research Navigator exposes a browser-facing API for multi-dataset workspace selection, clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data.",
     "version": "0.1.0"
   },
   "paths": {
@@ -13,7 +13,7 @@
           "ui"
         ],
         "summary": "Render the main application shell",
-        "description": "Serves the Patient Navigator HTML shell with the current branding and authenticated user context.",
+        "description": "Serves the Biomedical Research Navigator HTML shell with the current branding and authenticated user context.",
         "operationId": "index__get",
         "responses": {
           "200": {
@@ -54,7 +54,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -121,7 +121,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -156,8 +156,8 @@
         "tags": [
           "patients"
         ],
-        "summary": "Get a patient navigator view",
-        "description": "Returns the timeline-oriented patient navigator payload used by the patient detail view.",
+        "summary": "Get a patient workspace view",
+        "description": "Returns the timeline-oriented patient workspace payload used by the patient detail view.",
         "operationId": "get_patient_navigator_patients__patient_id__navigator_get",
         "parameters": [
           {
@@ -185,7 +185,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -197,7 +197,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Get Patient Navigator Patients  Patient Id  Navigator Get"
+                  "title": "Response Get Patient Workspace Patients  Patient Id  Navigator Get"
                 }
               }
             }
@@ -240,7 +240,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -298,7 +298,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -365,7 +365,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -429,7 +429,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -854,7 +854,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1034,7 +1034,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1097,7 +1097,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           },
@@ -1460,7 +1460,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1736,7 +1736,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset",
+              "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1789,7 +1789,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -1870,7 +1870,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "prompt_draft": {
             "type": "string",
@@ -2503,7 +2503,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -2554,7 +2554,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -2593,7 +2593,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "patient_id": {
             "type": "string",
@@ -2694,7 +2694,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "query_mode": {
             "type": "string",
@@ -2759,7 +2759,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Legacy dataset directory fallback. Prefer dataset_id.",
-            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/patient-navigator/default_dataset"
+            "default": "/media/mrueda/2TBS/CNAG/Project_PatientNavigator/biomedical-research-navigator/default_dataset"
           },
           "sample_ids": {
             "items": {

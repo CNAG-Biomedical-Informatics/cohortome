@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # State And Persistence
 
-Patient Navigator mixes:
+Biomedical Research Navigator mixes:
 
 - backend persisted state
 - browser-local UI state

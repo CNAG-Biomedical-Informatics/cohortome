@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: patient-navigator:pilot
+    image: biomedical-research-navigator:pilot
     env_file:
       - path: env.example
         required: true
@@ -26,7 +26,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: patient-navigator:pilot
+    image: biomedical-research-navigator:pilot
     env_file:
       - path: env.example
         required: true

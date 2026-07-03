@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Design Decisions
 
-This page captures stable architectural decisions that shape how Patient Navigator behaves today.
+This page captures stable architectural decisions that shape how Biomedical Research Navigator behaves today.
 
 It is not a changelog. It records decisions that are important for future implementation and maintenance.
 

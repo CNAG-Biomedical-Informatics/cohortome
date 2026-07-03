@@ -5,12 +5,12 @@ sidebar_position: 2
 
 # API Reference
 
-Patient Navigator exposes a FastAPI-generated OpenAPI contract.
+Biomedical Research Navigator exposes a FastAPI-generated OpenAPI contract.
 
 This gives you three useful entry points:
 
 - A checked-in OpenAPI snapshot for documentation and tooling:
-  [`patient-navigator-openapi.json`](/openapi/patient-navigator-openapi.json)
+  [`biomedical-research-navigator-openapi.json`](/openapi/biomedical-research-navigator-openapi.json)
 - The live OpenAPI schema from the running app:
   `/openapi.json`
 - The live interactive API UIs from the running app:
@@ -53,7 +53,7 @@ from app.main import app
 
 path = Path("docs-site/static/openapi")
 path.mkdir(parents=True, exist_ok=True)
-(path / "patient-navigator-openapi.json").write_text(
+(path / "biomedical-research-navigator-openapi.json").write_text(
     json.dumps(app.openapi(), indent=2, ensure_ascii=False),
     encoding="utf-8",
 )

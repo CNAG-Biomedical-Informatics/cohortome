@@ -11,7 +11,7 @@ DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATE_ROOT_DIR = BASE_DIR / "state"
 DEFAULT_LOCAL_USER_ID = "local"
-DEFAULT_HELP_URL = "https://mrueda.github.io/patient-navigator/"
+DEFAULT_HELP_URL = "https://mrueda.github.io/biomedical-research-navigator/"
 
 
 def branding_logo_path() -> Path | None:
@@ -22,7 +22,7 @@ def branding_logo_path() -> Path | None:
             candidate = (BASE_DIR / configured).resolve()
         if candidate.exists() and candidate.is_file():
             return candidate
-    docs_logo = BASE_DIR / "docs-site" / "static" / "img" / "patient-navigator-logo.png"
+    docs_logo = BASE_DIR / "docs-site" / "static" / "img" / "biomedical-research-navigator-logo.png"
     if docs_logo.exists() and docs_logo.is_file():
         return docs_logo
     default_logo = TEMPLATES_DIR / "img" / "logo-3tr.png"
@@ -33,12 +33,12 @@ def branding_logo_path() -> Path | None:
 def branding_settings() -> Dict[str, Any]:
     logo_path = branding_logo_path()
     return {
-        "name": os.getenv("PN_BRAND_NAME", "Patient Navigator").strip() or "Patient Navigator",
+        "name": os.getenv("PN_BRAND_NAME", "Biomedical Research Navigator").strip() or "Biomedical Research Navigator",
         "subtitle": os.getenv(
             "PN_BRAND_SUBTITLE",
             "Clinical and molecular workspace exploration.",
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
-        "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "Patient Navigator logo").strip() or "Patient Navigator logo",
+        "logo_alt": os.getenv("PN_BRAND_LOGO_ALT", "Biomedical Research Navigator logo").strip() or "Biomedical Research Navigator logo",
         "help_url": os.getenv("PN_HELP_URL", DEFAULT_HELP_URL).strip() or DEFAULT_HELP_URL,
     }

@@ -532,7 +532,7 @@ export function createDatasetsUi(ctx) {
             <div class="dataset-picker-access">
               <div class="dataset-policy-section">
                 <div class="dataset-policy-heading">Internal</div>
-                <div class="section-note">Controls who can use this dataset inside Patient Navigator and how much Query detail is allowed in-app.</div>
+                <div class="section-note">Controls who can use this dataset inside Biomedical Research Navigator and how much Query detail is allowed in-app.</div>
                 <div class="dataset-picker-access-row">
                   <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
                   <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
@@ -567,7 +567,7 @@ export function createDatasetsUi(ctx) {
               </div>
               <div class="dataset-policy-section dataset-policy-section-muted">
                 <div class="dataset-policy-heading">AI Providers</div>
-                <div class="section-note">Controls what Patient Navigator may send to the currently configured AI provider. LM Studio is the active provider today.</div>
+                <div class="section-note">Controls what Biomedical Research Navigator may send to the currently configured AI provider. LM Studio is the active provider today.</div>
                 <div class="dataset-picker-access-row">
                   <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">LM Studio</label>
                   <select id="dataset-ai-provider-access-${escapeHtml(datasetId)}" data-dataset-ai-provider-access="${escapeHtml(datasetId)}">

@@ -7,20 +7,20 @@ import styles from './index.module.css';
 
 export default function Home() {
   const {siteConfig} = useDocusaurusContext();
-  const logoUrl = useBaseUrl('/img/patient-navigator-logo.png');
+  const logoUrl = useBaseUrl('/img/biomedical-research-navigator-logo.png');
 
   return (
     <Layout
       title={siteConfig.title}
-      description="Documentation for Patient Navigator workspace, analysis, and administration.">
+      description="Documentation for Biomedical Research Navigator workspace, analysis, and administration.">
       <main className={styles.page}>
         <section className={styles.hero}>
           <div className={styles.heroGrid}>
             <div className={styles.copy}>
-              <p className={styles.kicker}>Patient Navigator</p>
+              <p className={styles.kicker}>Biomedical Research Navigator</p>
               <h1>Clinical research workbench.</h1>
               <p className={styles.lede}>
-                Patient Navigator combines dataset governance, cohort discovery,
+                Biomedical Research Navigator combines dataset governance, cohort discovery,
                 analysis workflows, phenotypic similarity, and controlled AI
                 provider access in one local-first clinical workbench.
               </p>
@@ -37,10 +37,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div className={styles.flowCard} aria-label="Patient Navigator workspace flow">
+            <div className={styles.flowCard} aria-label="Biomedical Research Navigator workspace flow">
               <Link className={styles.identity} to="/docs/overview">
-                <img className={styles.heroLogo} src={logoUrl} alt="Patient Navigator logo" />
-                <span>Patient Navigator</span>
+                <img className={styles.heroLogo} src={logoUrl} alt="Biomedical Research Navigator logo" />
+                <span>Biomedical Research Navigator</span>
               </Link>
               <div className={styles.flow}>
                 <div>

@@ -1,6 +1,6 @@
-# Patient Navigator Docker Deployment
+# Biomedical Research Navigator Docker Deployment
 
-This directory contains the pilot Docker deployment path for Patient Navigator.
+This directory contains the pilot Docker deployment path for Biomedical Research Navigator.
 
 It is intended for a single VM with synthetic data and a small group of test
 users. It runs:

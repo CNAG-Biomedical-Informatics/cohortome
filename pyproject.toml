@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "patient-navigator-bff"
+name = "biomedical-research-navigator"
 version = "0.1.0"
 description = "Local FastAPI MVP for Beacon Friendly Format JSON"
 requires-python = ">=3.8"

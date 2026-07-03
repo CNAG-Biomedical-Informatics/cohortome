@@ -676,7 +676,7 @@ def send_password_reset_email(user: Dict[str, Any], reset_url: str) -> None:
     password = os.getenv("PN_SMTP_PASSWORD", "")
     use_tls = os.getenv("PN_SMTP_TLS", "true").strip().lower() not in {"0", "false", "no", "off"}
     message = EmailMessage()
-    message["Subject"] = "Patient Navigator password reset"
+    message["Subject"] = "Biomedical Research Navigator password reset"
     message["From"] = sender
     message["To"] = recipient
     display_name = str(user.get("display_name") or user.get("username") or "user")
@@ -686,7 +686,7 @@ def send_password_reset_email(user: Dict[str, Any], reset_url: str) -> None:
             [
                 f"Hello {display_name},",
                 "",
-                "A password reset was requested for your Patient Navigator account.",
+                "A password reset was requested for your Biomedical Research Navigator account.",
                 f"Use this link within {ttl} minutes:",
                 "",
                 reset_url,

@@ -1842,8 +1842,8 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     monkeypatch.setenv("PN_AUTH_MODE", "oidc")
     monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
     monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
     monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -1867,7 +1867,7 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     def fake_oidc_userinfo_from_code(code):
         assert code == "valid-code"
         return {
-            "sub": "patient-navigator-dev-mrueda",
+            "sub": "biomedical-research-navigator-dev-mrueda",
             "email": "manuel.rueda@cnag.eu",
             "email_verified": True,
             "name": "Manuel Rueda",
@@ -1906,8 +1906,8 @@ def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
     monkeypatch.setenv("PN_AUTH_MODE", "oidc")
     monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
     monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
     monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",
@@ -1939,8 +1939,8 @@ def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
     monkeypatch.setenv("PN_AUTH_LOCAL_FALLBACK", "true")
     monkeypatch.setenv("PN_OIDC_PROVIDER_NAME", "Dex")
     monkeypatch.setenv("PN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "patient-navigator")
-    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "patient-navigator-secret")
+    monkeypatch.setenv("PN_OIDC_CLIENT_ID", "biomedical-research-navigator")
+    monkeypatch.setenv("PN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
     monkeypatch.setenv("PN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
         "PN_LOCAL_USERS_JSON",

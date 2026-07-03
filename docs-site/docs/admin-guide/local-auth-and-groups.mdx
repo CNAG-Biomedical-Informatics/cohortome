@@ -6,9 +6,9 @@ sidebar_position: 2
 
 <div className="pnQuickHero">
   <div className="pnEyebrow">Authentication</div>
-  <h2>Authenticate with local users or OIDC, then authorize through Patient Navigator roles and groups.</h2>
+  <h2>Authenticate with local users or OIDC, then authorize through Biomedical Research Navigator roles and groups.</h2>
   <div className="pnHeroText">
-    External identity providers prove who a user is. Patient Navigator still
+    External identity providers prove who a user is. Biomedical Research Navigator still
     owns local role, group, dataset access, and per-user settings.
   </div>
 </div>
@@ -37,14 +37,14 @@ export PN_LOCAL_USERS_JSON='[
 
 ## Auth modes
 
-Patient Navigator supports three authentication modes:
+Biomedical Research Navigator supports three authentication modes:
 
 - `PN_AUTH_MODE=none`
   - development fallback with a synthetic local admin user
 - `PN_AUTH_MODE=local`
   - local username/password users stored in `state/auth/users.json`
 - `PN_AUTH_MODE=oidc`
-  - external OIDC login, with Patient Navigator still owning roles, groups, and
+  - external OIDC login, with Biomedical Research Navigator still owning roles, groups, and
     dataset access
 
 Optional local fallback:
@@ -61,10 +61,10 @@ deployments if all users should authenticate through the external provider.
 OIDC authenticates identity only. Authorization remains local:
 
 ```text
-OIDC subject/email -> Patient Navigator user -> role/groups -> dataset access
+OIDC subject/email -> Biomedical Research Navigator user -> role/groups -> dataset access
 ```
 
-An OIDC user must map to an enabled local Patient Navigator user by
+An OIDC user must map to an enabled local Biomedical Research Navigator user by
 `external_subject` or email. Automatic user provisioning is intentionally not
 enabled.
 
@@ -179,7 +179,7 @@ export PN_SMTP_FROM=noreply@example.org
 export PN_SMTP_USERNAME=...
 export PN_SMTP_PASSWORD=...
 export PN_SMTP_TLS=true
-export PN_PUBLIC_BASE_URL=https://patient-navigator.example.org
+export PN_PUBLIC_BASE_URL=https://biomedical-research-navigator.example.org
 ```
 
 Optional:
@@ -218,7 +218,7 @@ The local auth model is now provider-ready:
 - current provider: `local`
 - future provider: external identity such as Google OIDC
 
-Patient Navigator should continue to own authorization concepts such as:
+Biomedical Research Navigator should continue to own authorization concepts such as:
 
 - roles
 - groups
@@ -241,14 +241,14 @@ Start Dex from the repository root:
 docker compose -f scripts/dev/docker-compose.dex.yml up
 ```
 
-Start Patient Navigator in OIDC mode:
+Start Biomedical Research Navigator in OIDC mode:
 
 ```bash
 export PN_AUTH_MODE=oidc
 export PN_OIDC_PROVIDER_NAME=Dex
 export PN_OIDC_ISSUER=http://127.0.0.1:5556/dex
-export PN_OIDC_CLIENT_ID=patient-navigator
-export PN_OIDC_CLIENT_SECRET=patient-navigator-secret
+export PN_OIDC_CLIENT_ID=biomedical-research-navigator
+export PN_OIDC_CLIENT_SECRET=biomedical-research-navigator-secret
 export PN_OIDC_REDIRECT_URI=http://127.0.0.1:8000/auth/oidc/callback
 export PN_AUTH_LOCAL_FALLBACK=true
 export PN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -260,7 +260,7 @@ The development Dex config includes one static user:
 - email: `manuel.rueda@cnag.eu`
 - password: `password`
 
-That email must also exist on the local Patient Navigator user record, for
+That email must also exist on the local Biomedical Research Navigator user record, for
 example `mrueda` in `state/auth/users.json`.
 
 Production Google or institutional OIDC should use the same app-side variables

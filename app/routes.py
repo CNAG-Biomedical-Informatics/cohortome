@@ -630,7 +630,7 @@ def oidc_callback(request: Request, code: str = "", state: str = "", error: str 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     user = find_oidc_user(claims)
     if not user or not bool(user.get("enabled", True)):
-        raise HTTPException(status_code=403, detail="OIDC user is not authorized for this Patient Navigator deployment.")
+        raise HTTPException(status_code=403, detail="OIDC user is not authorized for this Biomedical Research Navigator deployment.")
     request.session.pop("oidc_state", None)
     request.session.pop("oidc_nonce", None)
     request.session["username"] = user["username"]
@@ -1411,10 +1411,10 @@ def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAUL
 def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     init_routes_templates(template_engine)
 
-    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Patient Navigator HTML shell with the current branding and authenticated user context.")
+    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Biomedical Research Navigator HTML shell with the current branding and authenticated user context.")
     app.add_api_route("/patients", get_patients, methods=["GET"], tags=["patients"], summary="List patient summaries", description="Returns patient-level summaries for the active dataset or workspace scope.", response_model=List[PatientSummaryResponse])
     app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"], tags=["patients"], summary="Get a patient context", description="Returns the normalized clinical context for a single patient identifier.")
-    app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"], tags=["patients"], summary="Get a patient navigator view", description="Returns the timeline-oriented patient navigator payload used by the patient detail view.")
+    app.add_api_route("/patients/{patient_id}/navigator", get_patient_navigator, methods=["GET"], tags=["patients"], summary="Get a patient workspace view", description="Returns the timeline-oriented patient workspace payload used by the patient detail view.")
     app.add_api_route("/cohorts/medications", get_medication_counts, methods=["GET"], tags=["patients"], summary="Count medications in the workspace", description="Returns medication counts derived from the active workspace.")
     app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"], tags=["patients"], summary="Count diseases in the workspace", description="Returns disease counts derived from the active workspace.")
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
@@ -1424,7 +1424,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when PN_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
-    app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local Patient Navigator user.")
+    app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local Biomedical Research Navigator user.")
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/password-reset/request", request_auth_password_reset, methods=["POST"], tags=["auth"], summary="Request a local password reset", description="Sends a password reset email when SMTP-backed local reset is configured. The response does not reveal whether the account exists.", response_model=AuthPasswordResetResponse)
     app.add_api_route("/auth/password-reset/confirm", confirm_auth_password_reset, methods=["POST"], tags=["auth"], summary="Confirm a local password reset", description="Consumes a password reset token and replaces the local password.", response_model=AuthPasswordResetResponse)

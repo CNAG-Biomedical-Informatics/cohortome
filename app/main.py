@@ -64,14 +64,14 @@ def _session_secret() -> str:
         return configured
     if os.getenv("PN_AUTH_MODE", "none").strip().lower() == "local":
         raise RuntimeError("PN_SESSION_SECRET must be set when PN_AUTH_MODE=local.")
-    return "patient-navigator-dev-session"
+    return "biomedical-research-navigator-dev-session"
 
 
 app = FastAPI(
-    title="Patient Navigator API",
+    title="Biomedical Research Navigator API",
     summary="Workspace-oriented clinical and molecular exploration API.",
     description=(
-        "Patient Navigator exposes a browser-facing API for multi-dataset workspace selection, "
+        "Biomedical Research Navigator exposes a browser-facing API for multi-dataset workspace selection, "
         "clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data."
     ),
     version="0.1.0",
