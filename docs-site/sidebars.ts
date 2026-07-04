@@ -32,6 +32,7 @@ const sidebars: SidebarsConfig = {
         'admin-guide/datasets-and-access',
         'admin-guide/local-auth-and-groups',
         'admin-guide/model-providers',
+        'admin-guide/dicom-viewing',
       ],
     },
     {
