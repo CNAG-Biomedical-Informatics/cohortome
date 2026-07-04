@@ -11,6 +11,9 @@ export function createDashboardUi(ctx) {
     assayDashboardOverviewEl,
     assayModalityTabsEl,
     assayDashboardCardsEl,
+    multimodalReadinessPanelEl,
+    multimodalReadinessStatusEl,
+    multimodalReadinessContentEl,
     dicomDashboardPanelEl,
     dicomDashboardHealthEl,
     dicomDashboardStatusEl,
@@ -1786,6 +1789,124 @@ export function createDashboardUi(ctx) {
     transcriptomicsQuickExpressionPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
   }
 
+  function renderMultimodalReadinessVisibility() {
+    if (!multimodalReadinessPanelEl) return;
+    const visible = selectedAssayModalityFilter() === "all";
+    multimodalReadinessPanelEl.classList.toggle("is-hidden", !visible);
+    multimodalReadinessPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
+  }
+
+  function renderReadinessKpis(workspace) {
+    const source = workspace && typeof workspace === "object" ? workspace : {};
+    return `
+      <div class="assay-kpi-grid multimodal-kpi-grid">
+        <div class="assay-kpi"><span class="assay-kpi-label">Clinical patients</span><strong class="assay-kpi-value">${escapeHtml(String(source.patient_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Modalities</span><strong class="assay-kpi-value">${escapeHtml(String(source.modality_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Multimodal patients</span><strong class="assay-kpi-value">${escapeHtml(String(source.multimodal_patient_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Exact sample overlap</span><strong class="assay-kpi-value">${escapeHtml(String(source.exact_sample_overlap_count || 0))}</strong></div>
+      </div>
+    `;
+  }
+
+  function renderReadinessCoverageTable(modalities) {
+    const rows = (Array.isArray(modalities) ? modalities : []).map((item) => `
+      <tr>
+        <td><strong>${escapeHtml(String(item.label || item.key || "Modality"))}</strong></td>
+        <td>${escapeHtml(String(Number(item.dataset_count || 0) + Number(item.study_count || 0)))}</td>
+        <td>${escapeHtml(String(item.patient_count || 0))}</td>
+        <td>${escapeHtml(String(item.sample_count || 0))}</td>
+        <td>${escapeHtml(String(item.feature_count || 0))}</td>
+        <td>${escapeHtml(String(item.clinical_overlap_count || 0))}</td>
+      </tr>
+    `).join("");
+    return `
+      <div class="assay-card-section">
+        <strong>Coverage</strong>
+        <div class="assay-table-wrap">
+          <table class="assay-table multimodal-readiness-table">
+            <thead><tr><th>Modality</th><th>Resources</th><th>Patients</th><th>Samples</th><th>Features</th><th>Clinical overlap</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6">No modalities found.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderReadinessOverlaps(overlaps) {
+    const useful = (Array.isArray(overlaps) ? overlaps : [])
+      .filter((item) => item && item.left !== "clinical" && item.right !== "clinical")
+      .sort((left, right) => Number(right.patient_overlap_count || 0) - Number(left.patient_overlap_count || 0))
+      .slice(0, 6);
+    const content = useful.length
+      ? useful.map((item) => `
+        <div class="multimodal-overlap-row">
+          <span>${escapeHtml(String(item.left_label || item.left))} + ${escapeHtml(String(item.right_label || item.right))}</span>
+          <strong>${escapeHtml(String(item.patient_overlap_count || 0))} patients</strong>
+          <small>${escapeHtml(String(item.sample_overlap_count || 0))} exact samples</small>
+        </div>
+      `).join("")
+      : '<div class="empty">No cross-modal overlap is currently available.</div>';
+    return `<div class="assay-card-section"><strong>Cross-modal overlap</strong><div class="multimodal-overlap-list">${content}</div></div>`;
+  }
+
+  function renderReadinessIssues(issues) {
+    const items = Array.isArray(issues) ? issues : [];
+    if (!items.length) {
+      return '<div class="assay-card-section"><strong>Linkage checks</strong><div class="query-status">No multimodal linkage issues detected.</div></div>';
+    }
+    return `
+      <div class="assay-card-section">
+        <strong>Linkage checks</strong>
+        <div class="multimodal-issue-list">
+          ${items.slice(0, 5).map((item) => `<div class="query-status ${String(item.severity || "") === "error" ? "error" : ""}">${escapeHtml(String(item.message || "Readiness issue detected."))}</div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderReadinessSuggestions(suggestions) {
+    const items = Array.isArray(suggestions) ? suggestions : [];
+    const content = items.length
+      ? items.map((item) => `
+        <article class="multimodal-suggestion${item.enabled ? "" : " disabled"}">
+          <strong>${escapeHtml(String(item.label || "Suggested analysis"))}</strong>
+          <span class="query-chip badge">${escapeHtml(item.enabled ? "Ready" : "Not ready")}</span>
+          <small>${escapeHtml(String(item.reason || ""))}</small>
+        </article>
+      `).join("")
+      : '<div class="empty">No suggestions available.</div>';
+    return `<div class="assay-card-section"><strong>Suggested next steps</strong><div class="multimodal-suggestion-grid">${content}</div></div>`;
+  }
+
+  function renderMultimodalReadiness(payload) {
+    if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
+    const source = payload && typeof payload === "object" ? payload : {};
+    const modalities = Array.isArray(source.modalities) ? source.modalities : [];
+    const issues = Array.isArray(source.issues) ? source.issues : [];
+    state.multimodalReadinessState = source;
+    multimodalReadinessStatusEl.className = issues.some((item) => item && item.severity === "error") ? "query-status error" : "query-status";
+    multimodalReadinessStatusEl.textContent = modalities.length
+      ? `Readiness checked across ${modalities.length} modality layer${modalities.length === 1 ? "" : "s"}.`
+      : "No multimodal readiness data available.";
+    multimodalReadinessContentEl.innerHTML = `
+      ${renderReadinessKpis(source.workspace || {})}
+      ${renderReadinessCoverageTable(modalities)}
+      ${renderReadinessOverlaps(source.pairwise_overlaps || [])}
+      ${renderReadinessIssues(issues)}
+      ${renderReadinessSuggestions(source.suggestions || [])}
+    `;
+    renderMultimodalReadinessVisibility();
+  }
+
+  function renderMultimodalReadinessError(message) {
+    if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
+    state.multimodalReadinessState = null;
+    multimodalReadinessStatusEl.className = "query-status";
+    multimodalReadinessStatusEl.textContent = message || "Unable to load multimodal readiness.";
+    multimodalReadinessContentEl.innerHTML = '<div class="empty">Multimodal readiness is unavailable for this workspace.</div>';
+    renderMultimodalReadinessVisibility();
+  }
+
   function renderAssayOverlapSection(item) {
     const overlap = currentAssayScopeOverlap(item.patient_ids);
     if (!(overlap.scopeASize || overlap.scopeBSize)) return "";
@@ -1891,6 +2012,7 @@ export function createDashboardUi(ctx) {
     renderAssayModalityTabs(items);
     renderDicomPanelVisibility();
     renderTranscriptomicsQuickExpressionVisibility();
+    renderMultimodalReadinessVisibility();
     if (!items.length) {
       assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
       return;
@@ -1917,6 +2039,22 @@ export function createDashboardUi(ctx) {
   function handleAssayModalityFilter(value) {
     state.assayDashboardModalityFilter = String(value || "all").trim() || "all";
     renderAssayDashboardCards(state.assayDatasetsState || []);
+  }
+
+  async function loadMultimodalReadiness(options = {}) {
+    if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
+    const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
+    const dataDir = encodeURIComponent(scopeId);
+    multimodalReadinessStatusEl.className = "query-status loading";
+    multimodalReadinessStatusEl.textContent = "Checking multimodal readiness...";
+    multimodalReadinessContentEl.innerHTML = '<div class="empty">Checking modality overlap and linkage...</div>';
+    try {
+      const response = await fetch(`/assays/readiness?data_dir=${dataDir}`);
+      if (!response.ok) throw new Error("Unable to load multimodal readiness.");
+      renderMultimodalReadiness(await response.json());
+    } catch (error) {
+      renderMultimodalReadinessError(error && error.message ? error.message : "Unable to load multimodal readiness.");
+    }
   }
 
   async function loadAssayFeatureSuggestions() {
@@ -1964,6 +2102,7 @@ export function createDashboardUi(ctx) {
     }
     const dataDir = encodeURIComponent(scopeId);
     void loadDicomStudies({ scopeId });
+    void loadMultimodalReadiness({ scopeId });
     analysisAssayStatusEl.className = "query-status loading";
     analysisAssayStatusEl.textContent = "Checking transcriptomics assays...";
     if (analysisCatalogAssayStatusEl) {

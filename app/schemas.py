@@ -382,6 +382,15 @@ class AssayDatasetResponse(FlexibleModel):
 class AssayDatasetsResponse(BaseModel):
     datasets: List[AssayDatasetResponse] = Field(default_factory=list)
 
+
+class AssayReadinessResponse(FlexibleModel):
+    workspace: Dict[str, Any] = Field(default_factory=dict)
+    modalities: List[Dict[str, Any]] = Field(default_factory=list)
+    pairwise_overlaps: List[Dict[str, Any]] = Field(default_factory=list)
+    issues: List[Dict[str, Any]] = Field(default_factory=list)
+    suggestions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class DicomStudyResponse(FlexibleModel):
     study_instance_uid: str = ""
 

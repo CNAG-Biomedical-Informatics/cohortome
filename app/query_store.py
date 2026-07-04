@@ -967,6 +967,55 @@ def patient_inventory(data_dir: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        patient_rows = con.execute("SELECT patient_id FROM patients ORDER BY patient_id").fetchall()
+        timepoint_rows = con.execute(
+            """
+            SELECT patient_id, original_id, visit_id, event_date
+            FROM timepoints
+            ORDER BY patient_id, event_date, visit_id, original_id
+            """
+        ).fetchall()
+        disease_rows = con.execute(
+            """
+            SELECT patient_id, disease
+            FROM patient_diseases
+            ORDER BY patient_id, disease
+            """
+        ).fetchall()
+    finally:
+        con.close()
+
+    diseases_by_patient: Dict[str, List[str]] = {}
+    for patient_id, disease in disease_rows:
+        patient_key = str(patient_id or "").strip()
+        disease_label = str(disease or "").strip()
+        if patient_key and disease_label:
+            diseases_by_patient.setdefault(patient_key, []).append(disease_label)
+
+    samples = []
+    for patient_id, original_id, visit_id, event_date in timepoint_rows:
+        sample_id = str(original_id or "").strip()
+        samples.append(
+            {
+                "patient_id": str(patient_id or "").strip(),
+                "sample_id": sample_id,
+                "visit_id": str(visit_id or "").strip(),
+                "event_date": str(event_date or "").strip(),
+            }
+        )
+
+    return {
+        "patient_ids": [str(row[0] or "").strip() for row in patient_rows if str(row[0] or "").strip()],
+        "samples": samples,
+        "sample_ids": sorted({item["sample_id"] for item in samples if item["sample_id"]}),
+        "diseases_by_patient": diseases_by_patient,
+    }
+
+
 
 def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
     modality_text = str(modality or "").strip() or "assay"

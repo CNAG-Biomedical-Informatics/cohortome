@@ -2243,10 +2243,117 @@ def test_checked_in_openapi_snapshot_includes_dicom_routes():
     payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
     paths = payload.get("paths", {})
 
+    assert "/assays/readiness" in paths
+    assert paths["/assays/readiness"]["get"]["tags"] == ["assays"]
     assert "/dicom/studies" in paths
     assert "/dicom/status" in paths
     assert paths["/dicom/studies"]["get"]["tags"] == ["dicom"]
     assert paths["/dicom/status"]["get"]["tags"] == ["dicom"]
+
+
+def test_multimodal_readiness_reports_overlap_and_linkage_issues(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda _request, _dataset_id, data_dir: data_dir)
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN011:week_0",
+                "patient_id": "SYN011",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "info": {"event_date": "2024-01-01"},
+            },
+            {
+                "id": "SYN012:week_0",
+                "patient_id": "SYN012",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+                "info": {"event_date": "2024-01-01"},
+            },
+            {
+                "id": "SYN013:week_0",
+                "patient_id": "SYN013",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "info": {"event_date": "2024-01-01"},
+            },
+        ],
+    )
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(["gene_id;SYN011:week_0;SYN012:week_0", "ENSG00000111111;10;20"]),
+        encoding="utf-8",
+    )
+    imaging_dir = tmp_path / "assays" / "imaging"
+    imaging_dir.mkdir(parents=True)
+    (imaging_dir / "synthetic_imaging_derived_features.csv").write_text(
+        "\n".join(["feature_id;SYN011:week_0;SYN013:week_0", "lesion_volume_ml;1.2;0.4"]),
+        encoding="utf-8",
+    )
+    (imaging_dir / "dicom_studies.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "studies": [
+                    {
+                        "study_id": "ms-syn011",
+                        "label": "Synthetic MS brain MRI SYN011",
+                        "patient_id": "SYN011",
+                        "sample_id": "SYN011:week_0",
+                        "study_instance_uid": "1.2.826.0.1.3680043.10.54321.100.1",
+                        "series": [],
+                    },
+                    {
+                        "study_id": "bad-ms-syn012",
+                        "label": "Synthetic MS brain MRI SYN012",
+                        "patient_id": "SYN012",
+                        "sample_id": "SYN012:missing",
+                        "study_instance_uid": "1.2.826.0.1.3680043.10.54321.100.2",
+                        "series": [],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_imaging_derived_features",
+                        "label": "synthetic imaging derived features",
+                        "modality": "imaging",
+                        "data_type": "dicom_derived_measurements",
+                        "file": "assays/imaging/synthetic_imaging_derived_features.csv",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = routes_module.get_assay_readiness(make_request({"user": {"username": "maria"}}), data_dir=str(tmp_path))
+
+    modalities = {item["key"]: item for item in payload["modalities"]}
+    assert payload["workspace"]["patient_count"] == 3
+    assert modalities["transcriptomics"]["patient_count"] == 2
+    assert modalities["imaging"]["patient_count"] == 2
+    assert modalities["dicom"]["study_count"] == 2
+    assert any(
+        item["left"] == "imaging" and item["right"] == "transcriptomics" and item["patient_overlap_count"] == 1
+        for item in payload["pairwise_overlaps"]
+    )
+    issue_kinds = {item["kind"] for item in payload["issues"]}
+    assert "dicom_sample_without_clinical_timepoint" in issue_kinds
+    assert "ms_dicom_without_ms_diagnosis" in issue_kinds
+    suggestions = {item["key"]: item for item in payload["suggestions"]}
+    assert suggestions["dicom_review"]["enabled"] is True
+    assert suggestions["patient_level_cross_modal"]["enabled"] is True
 
 
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):

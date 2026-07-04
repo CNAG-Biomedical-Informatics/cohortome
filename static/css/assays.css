@@ -391,6 +391,68 @@
         border-bottom: 1px solid var(--line);
       }
 
+      .multimodal-readiness-panel {
+        display: grid;
+        gap: 12px;
+        padding: 2px 0 0;
+      }
+      .multimodal-readiness-content {
+        display: grid;
+        gap: 14px;
+      }
+      .multimodal-kpi-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .multimodal-readiness-table th,
+      .multimodal-readiness-table td {
+        white-space: nowrap;
+      }
+      .multimodal-overlap-list,
+      .multimodal-issue-list {
+        display: grid;
+        gap: 8px;
+      }
+      .multimodal-overlap-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(37, 99, 235, 0.12);
+        background: rgba(239, 246, 255, 0.72);
+      }
+      .multimodal-overlap-row span,
+      .multimodal-overlap-row small {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .multimodal-overlap-row small {
+        color: var(--muted);
+      }
+      .multimodal-suggestion-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .multimodal-suggestion {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 118, 110, 0.16);
+        background: rgba(240, 253, 250, 0.76);
+      }
+      .multimodal-suggestion.disabled {
+        border-color: var(--line);
+        background: rgba(248, 250, 252, 0.84);
+      }
+      .multimodal-suggestion small {
+        color: var(--muted);
+        line-height: 1.35;
+      }
+
       .dicom-dashboard-panel {
         display: grid;
         gap: 12px;

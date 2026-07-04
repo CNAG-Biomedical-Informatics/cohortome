@@ -5,6 +5,7 @@ export function createAppState() {
     assayDatasetsState: [],
     assayDatasetsScopeId: "",
     assayDashboardModalityFilter: "all",
+    multimodalReadinessState: null,
     dicomStudiesState: [],
     dicomStatus: null,
     selectedAssayDatasets: [],

@@ -1910,6 +1910,60 @@
         }
       }
     },
+    "/assays/readiness": {
+      "get": {
+        "tags": [
+          "assays"
+        ],
+        "summary": "Get multimodal analysis readiness",
+        "description": "Returns workspace-level multimodal coverage, overlap, linkage issues, and deterministic next-step suggestions.",
+        "operationId": "get_assay_readiness_assays_readiness_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssayReadinessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/assays/features": {
       "get": {
         "tags": [
@@ -3033,6 +3087,45 @@
           "gene_id"
         ],
         "title": "AssayExpressionRequest"
+      },
+      "AssayReadinessResponse": {
+        "properties": {
+          "workspace": {
+            "type": "object",
+            "title": "Workspace"
+          },
+          "modalities": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Modalities"
+          },
+          "pairwise_overlaps": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Pairwise Overlaps"
+          },
+          "issues": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "suggestions": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AssayReadinessResponse"
       },
       "AuthDiagnosticsResponse": {
         "properties": {

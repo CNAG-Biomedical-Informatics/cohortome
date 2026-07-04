@@ -58,6 +58,21 @@ For real MS cohorts, the expected pattern is:
 - Derived imaging features, such as lesion count or lesion volume, are stored in an imaging assay matrix.
 - OHIF is used for visual review of the corresponding study.
 
+## Multimodal readiness
+
+Before BRN runs cross-modal analyses, the Dashboard checks whether the workspace
+is actually ready for them. The readiness report compares clinical records,
+assay matrices, imaging-derived features, and DICOM study metadata at two
+levels:
+
+- patient overlap, where modalities belong to the same patient;
+- exact sample/timepoint overlap, where modalities share the same sample ID.
+
+This distinction matters because patient-level overlap can support exploratory
+association questions, while exact sample/timepoint overlap is needed for
+visit-matched analyses. Raw DICOM studies contribute viewer/readiness metadata;
+only derived imaging matrices contribute analyzable imaging features.
+
 ## Analysis requirements
 
 Curated Analysis tools declare their assay capabilities explicitly. For example, transcriptomics differential expression requires:
