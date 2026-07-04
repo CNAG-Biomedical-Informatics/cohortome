@@ -6,7 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "biomedical-research-navigator"
 version = "0.1.0"
 description = "Local FastAPI MVP for Beacon Friendly Format JSON"
+authors = [{ name = "Manuel Rueda - CNAG" }]
+license = { file = "LICENSE" }
 requires-python = ">=3.8"
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+]
 dependencies = [
   "fastapi>=0.115,<0.116",
   "itsdangerous>=2.2,<3",

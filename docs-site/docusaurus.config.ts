@@ -124,7 +124,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Biomedical Research Navigator. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Manuel Rueda - CNAG. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,
