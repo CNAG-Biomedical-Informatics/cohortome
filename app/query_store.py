@@ -967,6 +967,52 @@ def patient_inventory(data_dir: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+
+def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
+    modality_text = str(modality or "").strip() or "assay"
+    data_type_text = str(data_type or "").strip() or "feature_matrix"
+    if modality_text == "transcriptomics":
+        feature_id_type = "ensembl_gene_id"
+        feature_label = "genes"
+        value_kind = "integer_counts" if data_type_text == "raw_counts" else "expression_values"
+        supports_expression_summary = True
+        supports_differential_expression = data_type_text == "raw_counts"
+    elif modality_text in {"olink", "proteomics"}:
+        feature_id_type = "protein_id"
+        feature_label = "proteins"
+        value_kind = "abundance"
+        supports_expression_summary = False
+        supports_differential_expression = False
+    elif modality_text == "genotyping":
+        feature_id_type = "variant_id"
+        feature_label = "variants"
+        value_kind = "genotype_calls"
+        supports_expression_summary = False
+        supports_differential_expression = False
+    elif modality_text == "imaging":
+        feature_id_type = "dicom_standard_tag"
+        feature_label = "DICOM attributes"
+        value_kind = "dicom_derived_measurements"
+        supports_expression_summary = False
+        supports_differential_expression = False
+    else:
+        feature_id_type = "feature_id"
+        feature_label = "features"
+        value_kind = "feature_values"
+        supports_expression_summary = False
+        supports_differential_expression = False
+    return {
+        "feature_id_type": feature_id_type,
+        "feature_label": feature_label,
+        "value_kind": value_kind,
+        "sample_id_level": "sample",
+        "patient_linkage": "sample_id_prefix",
+        "analysis_level": "sample",
+        "supports_expression_summary": supports_expression_summary,
+        "supports_differential_expression": supports_differential_expression,
+        "compatible_analysis_levels": ["sample", "patient"],
+    }
+
 def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
@@ -1090,6 +1136,8 @@ def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             "sample_ids": list(sample_ids_map.get(dataset_name) or []),
             "patient_ids": list(patient_ids_map.get(dataset_name) or []),
             "top_genes": list(top_genes_map.get(dataset_name) or []),
+            "feature_count": int(gene_count),
+            **_assay_inventory_metadata(modality, data_type),
         }
         for (
             dataset_name,

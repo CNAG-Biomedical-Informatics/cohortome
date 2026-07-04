@@ -714,7 +714,7 @@ def write_matrix(
 ) -> None:
     rows = build_matrix_for_samples(sample_ids, sample_meta, gene_ids, gene_module_by_id, gene_baselines)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle, delimiter=";")
+        writer = csv.writer(handle, delimiter=";", lineterminator="\n")
         writer.writerow(["gene_id", *sample_ids])
         writer.writerows(rows)
 
@@ -729,7 +729,7 @@ def write_hc_matrix(
 ) -> None:
     rows = build_hc_matrix_for_samples(sample_ids, sample_meta, gene_ids, gene_module_by_id, gene_baselines)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle, delimiter=";")
+        writer = csv.writer(handle, delimiter=";", lineterminator="\n")
         writer.writerow(["gene_id", *sample_ids])
         writer.writerows(rows)
 
@@ -880,6 +880,13 @@ PLACEHOLDER_ASSAYS = {
             ("IL6", [12.4, 11.8, 14.2, 10.9, 16.5, 9.7, 13.1, 15.0]),
             ("TNF", [5.1, 4.9, 6.2, 4.4, 7.0, 4.1, 5.8, 6.5]),
             ("CXCL10", [22.0, 20.5, 25.4, 19.2, 30.1, 18.8, 24.6, 28.9]),
+            ("IL17A", [3.2, 3.0, 4.4, 2.7, 5.2, 2.4, 3.8, 4.9]),
+            ("IFNG", [7.6, 7.1, 8.9, 6.8, 10.3, 6.2, 8.4, 9.7]),
+            ("IL10", [4.5, 4.2, 4.8, 4.0, 5.1, 3.8, 4.6, 5.0]),
+            ("CCL2", [18.3, 17.6, 20.2, 16.5, 23.1, 15.9, 19.4, 21.7]),
+            ("CXCL8", [31.5, 29.8, 35.4, 27.6, 40.2, 26.9, 33.7, 38.8]),
+            ("IL1B", [2.8, 2.6, 3.4, 2.3, 4.1, 2.1, 3.0, 3.8]),
+            ("VEGFA", [9.9, 9.3, 11.0, 8.7, 12.4, 8.1, 10.5, 11.8]),
         ],
         "data_type": "relative_abundance",
         "feature_namespace": "protein_symbol",
@@ -890,6 +897,13 @@ PLACEHOLDER_ASSAYS = {
             ("P01375_TNF", [110.2, 108.5, 124.7, 103.4, 140.6, 99.8, 119.3, 132.0]),
             ("P05231_IL6", [88.1, 84.0, 92.5, 80.7, 101.2, 78.4, 90.6, 96.1]),
             ("P10145_CXCL8", [230.0, 225.6, 240.1, 218.3, 260.4, 210.2, 235.7, 248.9]),
+            ("P01579_IFNG", [64.2, 61.7, 70.5, 58.8, 78.4, 55.9, 67.3, 74.6]),
+            ("P60568_IL2", [38.4, 37.0, 42.2, 35.6, 47.1, 34.9, 40.8, 44.5]),
+            ("P22301_IL10", [51.7, 50.2, 54.8, 48.9, 58.3, 47.5, 53.1, 56.7]),
+            ("P13500_CCL2", [175.4, 169.8, 188.2, 160.5, 205.6, 154.3, 181.7, 196.9]),
+            ("P15692_VEGFA", [92.8, 89.1, 98.7, 84.0, 110.2, 81.6, 95.5, 104.8]),
+            ("P02778_CXCL10", [145.3, 138.6, 160.1, 130.4, 179.8, 126.7, 152.5, 170.2]),
+            ("P01584_IL1B", [28.6, 27.1, 31.8, 25.4, 36.0, 24.8, 30.0, 34.2]),
         ],
         "data_type": "protein_abundance",
         "feature_namespace": "uniprot_accession_symbol",
@@ -900,6 +914,11 @@ PLACEHOLDER_ASSAYS = {
             ("rs2476601", [0, 0, 1, 0, 1, 0, 0, 1]),
             ("rs7574865", [1, 1, 1, 0, 2, 0, 1, 2]),
             ("rs1801274", [0, 1, 0, 0, 1, 0, 1, 1]),
+            ("rs3761847", [2, 1, 1, 0, 2, 1, 0, 1]),
+            ("rs6897932", [1, 0, 1, 1, 2, 0, 1, 1]),
+            ("rs9271366", [0, 1, 2, 1, 1, 0, 2, 1]),
+            ("rs11209026", [0, 0, 0, 1, 0, 0, 1, 0]),
+            ("rs1800629", [1, 1, 0, 0, 1, 0, 1, 2]),
         ],
         "data_type": "allele_dosage",
         "feature_namespace": "dbsnp_rsid",
@@ -907,12 +926,17 @@ PLACEHOLDER_ASSAYS = {
     "imaging": {
         "filename": "synthetic_imaging_derived_features.csv",
         "features": [
-            ("synovitis_score", [2.1, 1.8, 3.0, 1.2, 3.5, 0.9, 2.4, 3.1]),
-            ("erosion_volume_mm3", [18.0, 14.5, 22.1, 9.8, 30.4, 7.6, 19.3, 25.2]),
-            ("lesion_count", [4, 3, 6, 2, 8, 1, 5, 7]),
+            ("DICOM:0018,0087_MagneticFieldStrength", [3.0, 3.0, 1.5, 3.0, 1.5, 3.0, 3.0, 1.5]),
+            ("DICOM:0018,0050_SliceThickness", [1.0, 1.0, 1.5, 1.0, 1.5, 0.8, 1.0, 1.5]),
+            ("DICOM:0028,0030_PixelSpacingRow", [0.62, 0.60, 0.74, 0.58, 0.76, 0.55, 0.64, 0.72]),
+            ("DICOM:0028,0030_PixelSpacingColumn", [0.62, 0.60, 0.74, 0.58, 0.76, 0.55, 0.64, 0.72]),
+            ("DICOM:0028,1053_RescaleSlope", [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
+            ("DICOM:0028,1052_RescaleIntercept", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            ("DICOM:0028,1050_WindowCenter", [450, 430, 520, 410, 560, 395, 470, 545]),
+            ("DICOM:0028,1051_WindowWidth", [1600, 1520, 1780, 1480, 1850, 1420, 1660, 1810]),
         ],
-        "data_type": "derived_imaging_features",
-        "feature_namespace": "imaging_feature",
+        "data_type": "dicom_derived_measurements",
+        "feature_namespace": "dicom_standard_tag",
     },
 }
 
@@ -920,8 +944,16 @@ PLACEHOLDER_ASSAYS = {
 def _baseline_sample_ids(records: list[dict], limit: int = 8) -> list[str]:
     sample_ids: list[str] = []
     for record in records:
-        patient_id = str(record.get("subject", {}).get("id") or record.get("id") or "").strip()
+        record_id = str(record.get("id") or "").strip()
+        patient_id = str(
+            record.get("subject", {}).get("id")
+            or record.get("patient_id")
+            or (record_id.split(":", 1)[0] if ":" in record_id else record_id)
+            or ""
+        ).strip()
         visit_id = str(record.get("visit", {}).get("id") or "").strip()
+        if not visit_id and ":" in record_id:
+            visit_id = record_id.split(":", 1)[1]
         if patient_id and visit_id == "week_0":
             sample_ids.append(f"{patient_id}:week_0")
         if len(sample_ids) >= limit:
@@ -940,7 +972,7 @@ def write_placeholder_assay_matrices(dataset_root: Path, clinical_records: list[
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / str(spec["filename"])
         with out_path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.writer(handle, delimiter=";")
+            writer = csv.writer(handle, delimiter=";", lineterminator="\n")
             writer.writerow(header)
             for feature_id, values in spec["features"]:
                 row_values = list(values)[: len(sample_ids)]

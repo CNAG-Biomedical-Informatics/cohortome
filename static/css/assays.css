@@ -324,3 +324,31 @@
         text-align: left;
         border-bottom: 1px solid var(--line);
       }
+
+      .assay-modality-section {
+        display: grid;
+        gap: 12px;
+      }
+      .assay-modality-section-header,
+      .assay-modality-group-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--text);
+      }
+      .assay-modality-section-header {
+        padding: 2px 2px 0;
+      }
+      .assay-modality-section-header strong,
+      .assay-modality-group-title {
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+      .assay-modality-group {
+        display: grid;
+        gap: 8px;
+      }

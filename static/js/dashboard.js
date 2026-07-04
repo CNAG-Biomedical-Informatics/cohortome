@@ -1331,6 +1331,57 @@ export function createDashboardUi(ctx) {
       || itemId === "transcriptomics-signature-workflow";
   }
 
+  function formatAssayModality(value) {
+    const text = String(value || "assay").trim();
+    if (!text) return "Assays";
+    const labels = {
+      transcriptomics: "Transcriptomics",
+      olink: "OLINK",
+      proteomics: "Proteomics",
+      genotyping: "Genotyping",
+      imaging: "Imaging",
+    };
+    return labels[text] || text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function formatAssayDataType(value) {
+    const text = String(value || "feature_matrix").trim();
+    if (!text) return "Feature matrix";
+    const labels = {
+      raw_counts: "Raw counts",
+      relative_abundance: "Relative abundance",
+      protein_abundance: "Protein abundance",
+      allele_dosage: "Allele dosage",
+      dicom_derived_measurements: "DICOM-derived measurements",
+    };
+    return labels[text] || text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function assayMatchesCatalogRequirement(dataset, item) {
+    if (!item || !item.requires_assays) return true;
+    const requiredModalities = Array.isArray(item.required_modalities)
+      ? item.required_modalities.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const requiredDataTypes = Array.isArray(item.required_data_types)
+      ? item.required_data_types.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const modality = String(dataset && dataset.modality ? dataset.modality : "").trim();
+    const dataType = String(dataset && dataset.data_type ? dataset.data_type : "").trim();
+    if (requiredModalities.length && !requiredModalities.includes(modality)) return false;
+    if (requiredDataTypes.length && !requiredDataTypes.includes(dataType)) return false;
+    return true;
+  }
+
+  function groupAssaysByModality(datasets) {
+    const groups = new Map();
+    (Array.isArray(datasets) ? datasets : []).forEach((dataset) => {
+      const key = String(dataset && dataset.modality ? dataset.modality : "assay").trim() || "assay";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(dataset);
+    });
+    return Array.from(groups.entries()).sort((left, right) => formatAssayModality(left[0]).localeCompare(formatAssayModality(right[0])));
+  }
+
   function contextualAssayDatasets() {
     const item = currentAnalysisCatalogItem();
     if (!item || !item.requires_assays) {
@@ -1338,6 +1389,9 @@ export function createDashboardUi(ctx) {
     }
     const compareRequired = Boolean(item.default_compare_mode);
     const compatibleDatasets = state.assayDatasetsState.filter((dataset) => {
+      if (!assayMatchesCatalogRequirement(dataset, item)) {
+        return false;
+      }
       const patientIds = Array.isArray(dataset && dataset.patient_ids) ? dataset.patient_ids : [];
       if (!patientIds.length) {
         return true;
@@ -1383,9 +1437,12 @@ export function createDashboardUi(ctx) {
     const selected = new Set(state.selectedAssayDatasets);
     const renderOption = (dataset, options = {}) => {
       const overlap = currentAssayScopeOverlap(dataset.patient_ids);
+      const featureLabel = String(dataset.feature_label || "features").trim() || "features";
+      const featureCount = Number(dataset.feature_count || dataset.gene_count || 0);
+      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(dataset.data_type))}`;
       const small = options.includeOverlap
-        ? `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
-        : `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes`;
+        ? `${baseMeta} • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
+        : baseMeta;
       return `
       <label class="assay-dataset-option">
         <input type="checkbox" value="${escapeHtml(dataset.dataset_name)}"${selected.has(dataset.dataset_name) ? " checked" : ""}>
@@ -1397,7 +1454,12 @@ export function createDashboardUi(ctx) {
     `;
     };
     if (mainListEl) {
-      mainListEl.innerHTML = state.assayDatasetsState.map((dataset) => renderOption(dataset)).join("");
+      mainListEl.innerHTML = groupAssaysByModality(state.assayDatasetsState).map(([modality, datasets]) => `
+        <div class="assay-modality-group">
+          <div class="assay-modality-group-title">${escapeHtml(formatAssayModality(modality))}</div>
+          ${datasets.map((dataset) => renderOption(dataset)).join("")}
+        </div>
+      `).join("");
     }
     if (contextualListEl) {
       if (!contextRequiresAssay) {
@@ -1409,7 +1471,12 @@ export function createDashboardUi(ctx) {
         contextualListEl.innerHTML = '<div class="empty">No transcriptomics assays are available in this workspace.</div>';
         return;
       }
-      contextualListEl.innerHTML = availableDatasets.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("");
+      contextualListEl.innerHTML = groupAssaysByModality(availableDatasets).map(([modality, datasets]) => `
+        <div class="assay-modality-group">
+          <div class="assay-modality-group-title">${escapeHtml(formatAssayModality(modality))}</div>
+          ${datasets.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("")}
+        </div>
+      `).join("");
     }
   }
 
@@ -1466,22 +1533,17 @@ export function createDashboardUi(ctx) {
       assayDashboardCardsEl.innerHTML = '<div class="empty">No transcriptomics assays loaded.</div>';
       return;
     }
-    const formatAssayModality = (value) => {
-      const text = String(value || "assay").trim();
-      if (!text) return "Assays";
-      return text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-    };
     const workspaceSummary = datasets.reduce((summary, item) => {
       summary.datasetCount += 1;
       summary.sampleCount += Number(item.sample_count || 0);
       summary.patientCount += Number(item.patient_count || 0);
-      summary.geneCount = Math.max(summary.geneCount, Number(item.gene_count || 0));
+      summary.featureCount = Math.max(summary.featureCount, Number(item.feature_count || item.gene_count || 0));
       return summary;
     }, {
       datasetCount: 0,
       sampleCount: 0,
       patientCount: 0,
-      geneCount: 0,
+      featureCount: 0,
     });
     assayDashboardCardsEl.innerHTML = `
       <section class="assay-workspace-summary">
@@ -1492,10 +1554,17 @@ export function createDashboardUi(ctx) {
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Datasets</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.sampleCount))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.patientCount))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Max genes / dataset</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.geneCount))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Max features / assay</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.featureCount))}</strong></div>
         </div>
       </section>
-      ${datasets.map((item) => {
+      ${groupAssaysByModality(datasets).map(([modality, groupItems]) => `
+        <section class="assay-modality-section">
+          <div class="assay-modality-section-header">
+            <strong>${escapeHtml(formatAssayModality(modality))}</strong>
+            <span class="query-chip badge">${escapeHtml(String(groupItems.length))} assay${groupItems.length === 1 ? "" : "s"}</span>
+          </div>
+          <div class="assay-dashboard-grid">
+            ${groupItems.map((item) => {
       const overlap = currentAssayScopeOverlap(item.patient_ids);
       const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
       const topGenesMarkup = topGenes.length
@@ -1539,24 +1608,27 @@ export function createDashboardUi(ctx) {
           <div class="assay-kpi-grid">
             <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
             <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
-            <div class="assay-kpi"><span class="assay-kpi-label">Genes</span><strong class="assay-kpi-value">${escapeHtml(String(item.gene_count || 0))}</strong></div>
+            <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count || item.gene_count || 0))}</strong></div>
             <div class="assay-kpi"><span class="assay-kpi-label">Clinical overlap</span><strong class="assay-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
           </div>
           <div class="assay-card-section">
             <strong>Sample-level summary</strong>
             <div class="assay-summary-grid">
               <div class="assay-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
-              <div class="assay-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
+              <div class="assay-summary-item"><span>Detected features / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
             </div>
           </div>
           ${overlapMarkup}
           <div class="assay-card-section">
-            <strong>Top abundant genes</strong>
+            <strong>Top abundant ${escapeHtml(String(item.feature_label || "features"))}</strong>
             <div class="assay-gene-list">${topGenesMarkup}</div>
           </div>
         </article>
       `;
-    }).join("")}`;
+            }).join("")}
+          </div>
+        </section>
+      `).join("")}`;
   }
 
   async function loadAssayFeatureSuggestions() {

@@ -75,6 +75,8 @@ items:
     default_prompt: Show expression of ENSG00002700028 in the current Analysis scope.
     execution_mode: deterministic
     requires_assays: true
+    required_modalities: [transcriptomics]
+    analysis_level: sample
     tags: [transcriptomics, expression, deterministic]
 
   - id: transcriptomics-medication-compare
@@ -88,6 +90,8 @@ items:
     default_prompt: Explain differences in gene expression according to medication.
     execution_mode: deterministic
     requires_assays: true
+    required_modalities: [transcriptomics]
+    analysis_level: sample
     tags: [transcriptomics, volcano, medication, deterministic]
 
   - id: transcriptomics-deseq2-differential-expression
@@ -107,6 +111,9 @@ items:
     supports_compare_mode: true
     requires_detailed_access: true
     requires_assays: true
+    required_modalities: [transcriptomics]
+    required_data_types: [raw_counts]
+    analysis_level: sample
     tags: [transcriptomics, differential-expression, deseq2, background, rscript]
 
   - id: transcriptomics-hallmark-pathway-enrichment
@@ -126,6 +133,9 @@ items:
     supports_compare_mode: true
     requires_detailed_access: true
     requires_assays: true
+    required_modalities: [transcriptomics]
+    required_data_types: [raw_counts]
+    analysis_level: sample
     tags: [transcriptomics, pathway-enrichment, hallmark, fgsea, background, rscript]
 
   - id: transcriptomics-signature-workflow
@@ -145,6 +155,9 @@ items:
     supports_compare_mode: true
     requires_detailed_access: true
     requires_assays: true
+    required_modalities: [transcriptomics]
+    required_data_types: [raw_counts]
+    analysis_level: sample
     steps:
       - transcriptomics-deseq2-differential-expression
       - transcriptomics-hallmark-pathway-enrichment

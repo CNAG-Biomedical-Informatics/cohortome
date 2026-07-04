@@ -267,6 +267,50 @@ export function createAnalysisCatalogUi(ctx) {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
+  function formatAssayRequirementLabel(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return "";
+    const labels = {
+      transcriptomics: "Transcriptomics",
+      olink: "OLINK",
+      proteomics: "Proteomics",
+      genotyping: "Genotyping",
+      imaging: "Imaging",
+      raw_counts: "Raw counts",
+      relative_abundance: "Relative abundance",
+      protein_abundance: "Protein abundance",
+      allele_dosage: "Allele dosage",
+      dicom_derived_measurements: "DICOM-derived measurements",
+    };
+    if (labels[normalized]) {
+      return labels[normalized];
+    }
+    return normalized
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  function analysisCatalogCapabilityBadges(item) {
+    const badges = [];
+    const analysisLevel = String(item && item.analysis_level ? item.analysis_level : "").trim().toLowerCase();
+    if (analysisLevel) {
+      badges.push(`${formatAssayRequirementLabel(analysisLevel)} level`);
+    }
+    const modalities = Array.isArray(item && item.required_modalities) ? item.required_modalities : [];
+    modalities.forEach((modality) => {
+      const label = formatAssayRequirementLabel(modality);
+      if (label) badges.push(`Requires ${label}`);
+    });
+    const dataTypes = Array.isArray(item && item.required_data_types) ? item.required_data_types : [];
+    dataTypes.forEach((dataType) => {
+      const label = formatAssayRequirementLabel(dataType);
+      if (label) badges.push(`Requires ${label}`);
+    });
+    return badges;
+  }
+
   function selectedAnalysisAssayDatasetNames() {
     return Array.isArray(state.selectedAssayDatasets)
       ? state.selectedAssayDatasets.map((item) => String(item || "").trim()).filter(Boolean)
@@ -503,6 +547,9 @@ export function createAnalysisCatalogUi(ctx) {
     if (analysisCatalogSetupBadgesEl) {
       const badges = [];
       badges.push(`<span class="query-chip badge">${requiresAssay ? "Needs assay" : "No assay required"}</span>`);
+      analysisCatalogCapabilityBadges(item).forEach((badge) => {
+        badges.push(`<span class="query-chip badge">${escapeHtml(badge)}</span>`);
+      });
       badges.push(`<span class="query-chip badge">${compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"}</span>`);
       if (compareRequired) {
         badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Cohort A ready" : "Choose Cohort A"}</span>`);
@@ -765,6 +812,9 @@ export function createAnalysisCatalogUi(ctx) {
     if (item.requires_assays) {
       metaBadges.push('<span class="query-chip badge">Assays</span>');
     }
+    analysisCatalogCapabilityBadges(item).forEach((badge) => {
+      metaBadges.push(`<span class="query-chip badge">${escapeHtml(badge)}</span>`);
+    });
     if (item.requires_detailed_access) {
       metaBadges.push('<span class="query-chip badge">Detailed required</span>');
     }

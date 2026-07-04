@@ -1,4 +1,9 @@
 feature_id;PRIV001:week_0
-synovitis_score;2.8
-erosion_volume_mm3;21.4
-lesion_count;5
+DICOM:0018,0087_MagneticFieldStrength;3.0
+DICOM:0018,0050_SliceThickness;1.0
+DICOM:0028,0030_PixelSpacingRow;0.62
+DICOM:0028,0030_PixelSpacingColumn;0.62
+DICOM:0028,1053_RescaleSlope;1.0
+DICOM:0028,1052_RescaleIntercept;0.0
+DICOM:0028,1050_WindowCenter;450
+DICOM:0028,1051_WindowWidth;1600

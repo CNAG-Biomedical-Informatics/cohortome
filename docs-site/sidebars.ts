@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'concepts/workspace-and-cohorts',
         'concepts/patient-vs-sample',
+        'concepts/assays-and-modalities',
       ],
     },
     {
