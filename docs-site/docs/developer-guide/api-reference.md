@@ -51,10 +51,22 @@ import json
 from pathlib import Path
 from app.main import app
 
+placeholder = "/path/to/biomedical-research-navigator/default_dataset"
+absolute_default = str((Path.cwd() / "default_dataset").resolve())
+
+def clean(value):
+    if isinstance(value, dict):
+        return {key: clean(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [clean(item) for item in value]
+    if isinstance(value, str):
+        return value.replace(absolute_default, placeholder)
+    return value
+
 path = Path("docs-site/static/openapi")
 path.mkdir(parents=True, exist_ok=True)
 (path / "biomedical-research-navigator-openapi.json").write_text(
-    json.dumps(app.openapi(), indent=2, ensure_ascii=False),
+    json.dumps(clean(app.openapi()), indent=2, ensure_ascii=False),
     encoding="utf-8",
 )
 PY

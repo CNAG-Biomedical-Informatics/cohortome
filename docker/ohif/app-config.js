@@ -2,6 +2,10 @@ window.config = {
   routerBasename: "/",
   showStudyList: true,
   maxNumberOfWebWorkers: 3,
+  extensions: [],
+  modes: [
+    "@ohif/mode-longitudinal",
+  ],
   dataSources: [
     {
       namespace: "@ohif/extension-default.dataSourcesModule.dicomweb",
@@ -9,9 +13,9 @@ window.config = {
       configuration: {
         friendlyName: "BRN Orthanc",
         name: "orthanc",
-        qidoRoot: "http://127.0.0.1:8042/dicom-web",
-        wadoRoot: "http://127.0.0.1:8042/dicom-web",
-        wadoUriRoot: "http://127.0.0.1:8042/wado",
+        qidoRoot: "/dicom-web",
+        wadoRoot: "/dicom-web",
+        wadoUriRoot: "/wado",
         qidoSupportsIncludeField: true,
         supportsReject: false,
         imageRendering: "wadors",

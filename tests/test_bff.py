@@ -2189,6 +2189,66 @@ def test_dicom_studies_route_enforces_dataset_access(tmp_path, monkeypatch):
     assert exc.value.status_code == 403
 
 
+def test_synthetic_dicom_fixtures_use_visible_mr_pixel_data():
+    import hashlib
+
+    pydicom = pytest.importorskip("pydicom")
+    from pydicom.uid import MRImageStorage
+
+    manifest_path = Path("default_dataset/assays/imaging/dicom_studies.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    studies = manifest.get("studies", [])
+    study_profiles = {study["study_id"]: study.get("synthetic_profile") for study in studies}
+    study_patients = {study["study_id"]: study.get("patient_id") for study in studies}
+    assert study_profiles["synthetic-mri-syn001-week0"] == "smoke_test"
+    assert sum(1 for profile in study_profiles.values() if str(profile).startswith("ms_brain")) >= 2
+
+    clinical_records = json.loads(Path("default_dataset/clinical/synthetic_longitudinal.json").read_text(encoding="utf-8"))
+    patient_diseases: dict[str, set[str]] = {}
+    for record in clinical_records:
+        patient_id = str(record.get("patient_id") or "")
+        for disease in record.get("diseases") or []:
+            code = disease.get("diseaseCode") if isinstance(disease, dict) else {}
+            patient_diseases.setdefault(patient_id, set()).add(str(code.get("label") or ""))
+    for study_id, profile in study_profiles.items():
+        if str(profile).startswith("ms_brain"):
+            assert "Multiple Sclerosis" in patient_diseases.get(str(study_patients.get(study_id) or ""), set())
+
+    paths = sorted(Path("default_dataset/assays/imaging/dicom").glob("*.dcm"))
+    assert paths
+    pixel_hashes = set()
+    for path in paths:
+        ds = pydicom.dcmread(str(path))
+        pixels = ds.pixel_array
+        study_id = path.name.split("__", 1)[0]
+
+        assert str(ds.SOPClassUID) == MRImageStorage
+        assert str(ds.PhotometricInterpretation) == "MONOCHROME2"
+        assert int(ds.BitsAllocated) == 16
+        assert int(ds.BitsStored) == 16
+        assert float(ds.WindowCenter) > 0
+        assert float(ds.WindowWidth) > 0
+        assert int(pixels.max()) - int(pixels.min()) > 1000
+        assert float(pixels.std()) > 100
+        assert "pydicom MR_small.dcm" in str(ds.DerivationDescription)
+        if str(study_profiles.get(study_id, "")).startswith("ms_brain"):
+            assert str(ds.BodyPartExamined) == "BRAIN"
+            assert "profile=ms_brain" in str(ds.DerivationDescription)
+        pixel_hashes.add(hashlib.sha256(ds.PixelData).hexdigest())
+    assert len(pixel_hashes) >= 2
+
+
+def test_checked_in_openapi_snapshot_includes_dicom_routes():
+    snapshot_path = Path("docs-site/static/openapi/biomedical-research-navigator-openapi.json")
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    paths = payload.get("paths", {})
+
+    assert "/dicom/studies" in paths
+    assert "/dicom/status" in paths
+    assert paths["/dicom/studies"]["get"]["tags"] == ["dicom"]
+    assert paths["/dicom/status"]["get"]["tags"] == ["dicom"]
+
+
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)

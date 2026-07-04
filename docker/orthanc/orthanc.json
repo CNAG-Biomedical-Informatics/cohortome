@@ -2,6 +2,7 @@
   "Name": "BRN Orthanc",
   "RemoteAccessAllowed": true,
   "AuthenticationEnabled": false,
+  "HttpCorsEnabled": true,
   "DicomWeb": {
     "Enable": true,
     "Root": "/dicom-web/",

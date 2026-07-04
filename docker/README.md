@@ -116,6 +116,7 @@ DICOM viewing is optional. Enable it in `docker/.env`:
 
 ```bash
 BRN_DICOM_ENABLED=true
+BRN_OHIF_HOST_PORT=3000
 BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3000
 BRN_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
 BRN_ORTHANC_INTERNAL_URL=http://orthanc:8042
@@ -138,6 +139,81 @@ Dataset roots expose studies to BRN through
 `assays/imaging/dicom_studies.json`. The file stores Study/Series/SOP Instance
 UIDs and sample linkage only; DICOM pixels stay in Orthanc or another DICOMweb
 service.
+
+The OHIF container proxies `/dicom-web/` and `/wado` to the Orthanc service
+inside Docker. OHIF therefore loads pixels through its own origin, avoiding
+browser CORS problems during local development.
+
+### Source app with Docker DICOM services
+
+During source development, run only the DICOM services in Docker and run BRN
+with `uvicorn` on the host:
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file docker/.env --profile dicom up -d orthanc ohif
+```
+
+Generate and import the bundled synthetic DICOM files:
+
+```bash
+PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
+python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+```
+
+Start BRN from source. Because BRN is running on the host, use
+`127.0.0.1` for Orthanc instead of the Docker service name `orthanc`:
+
+```bash
+export BRN_AUTH_MODE=local
+export BRN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+export BRN_DICOM_ENABLED=true
+export BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3000
+export BRN_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
+export BRN_ORTHANC_INTERNAL_URL=http://127.0.0.1:8042
+
+PYTHONPATH=.deps uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Open `http://127.0.0.1:8000`, then go to `Dashboard -> Assays -> DICOM imaging`.
+
+To verify that OHIF is rendering pixels instead of a black/blank viewport:
+
+```bash
+PYTHONPATH=.deps python3 scripts/dicom/check_ohif_render.py \
+  "http://127.0.0.1:3001/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1"
+```
+
+### OHIF port already in use
+
+If Docker reports:
+
+```text
+failed to bind host port for 0.0.0.0:3000: address already in use
+```
+
+another process is already using host port `3000`. Use another host port for
+OHIF, for example `3001`.
+
+Edit `docker/.env`:
+
+```bash
+BRN_OHIF_HOST_PORT=3001
+BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3001
+```
+
+Restart OHIF:
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file docker/.env --profile dicom up -d ohif
+```
+
+If BRN is running from source, export the matching OHIF URL before starting
+`uvicorn`:
+
+```bash
+export BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3001
+```
 
 ## LLM Providers
 

@@ -557,6 +557,31 @@ def _mock_dicom_studies(page) -> None:
     )
 
 
+def _mock_dicom_status(page) -> None:
+    page.route(
+        "**/dicom/status?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "enabled": True,
+                    "ohif_public_url": "http://ohif.example",
+                    "dicomweb_public_url": "http://orthanc.example/dicom-web",
+                    "manifest_found": True,
+                    "manifest_count": 1,
+                    "study_count": 1,
+                    "orthanc": {
+                        "checked": True,
+                        "reachable": True,
+                        "message": "Orthanc is reachable.",
+                    },
+                }
+            ),
+        ),
+    )
+
+
 def _mock_multimodal_assay_datasets(page) -> None:
     page.route(
         "**/assays?*",
@@ -968,6 +993,7 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
     _mock_dicom_studies(page)
+    _mock_dicom_status(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -976,6 +1002,9 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
     page.locator("#dashboardAssaysBtn").click()
 
     expect(page.locator("#dicomDashboardStatus")).to_contain_text("Loaded 1 DICOM study")
+    expect(page.locator("#dicomDashboardHealth")).to_contain_text("Orthanc")
+    expect(page.locator("#dicomDashboardHealth")).to_contain_text("Reachable")
+    expect(page.locator("#dicomDashboardHealth")).to_contain_text("http://ohif.example")
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
     expect(page.locator("#dicomDashboardStudies a", has_text="Open in OHIF")).to_have_attribute(
         "href",
@@ -987,6 +1016,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     _mock_dashboard_load(page)
     _mock_multimodal_assay_datasets(page)
     _mock_dicom_studies(page)
+    _mock_dicom_status(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -999,12 +1029,24 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
+    expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
+
+    page.locator("[data-assay-modality-filter='transcriptomics']").click()
+
+    expect(page.locator("[data-assay-modality-filter='transcriptomics']")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#dicomDashboardPanel")).not_to_be_visible()
+    expect(page.locator("#transcriptomicsQuickExpressionPanel")).to_be_visible()
 
     page.locator("[data-assay-modality-filter='imaging']").click()
 
     expect(page.locator("[data-assay-modality-filter='imaging']")).to_have_attribute("aria-pressed", "true")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
     expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
+    expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
 
 

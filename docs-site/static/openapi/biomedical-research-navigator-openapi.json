@@ -197,7 +197,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Get Patient Workspace Patients  Patient Id  Navigator Get"
+                  "title": "Response Get Patient Workspace Patients  Patient Id  Workspace Get"
                 }
               }
             }
@@ -522,6 +522,29 @@
         }
       }
     },
+    "/lm-providers": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Inspect approved LLM providers",
+        "description": "Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.",
+        "operationId": "get_lm_providers_lm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Lm Providers Lm Providers Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/me": {
       "get": {
         "tags": [
@@ -545,6 +568,24 @@
       }
     },
     "/auth/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start external OIDC login",
+        "description": "Redirects to the configured OIDC provider when BRN_AUTH_MODE=oidc.",
+        "operationId": "login_oidc_auth_login_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "auth"
@@ -586,6 +627,68 @@
         }
       }
     },
+    "/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Complete external OIDC login",
+        "description": "Handles the OIDC authorization-code callback and maps the external identity to a local Biomedical Research Navigator user.",
+        "operationId": "oidc_callback_auth_oidc_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "tags": [
@@ -601,6 +704,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password-reset/request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request a local password reset",
+        "description": "Sends a password reset email when SMTP-backed local reset is configured. The response does not reveal whether the account exists.",
+        "operationId": "request_auth_password_reset_auth_password_reset_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthPasswordResetStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthPasswordResetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password-reset/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Confirm a local password reset",
+        "description": "Consumes a password reset token and replaces the local password.",
+        "operationId": "confirm_auth_password_reset_auth_password_reset_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthPasswordResetConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthPasswordResetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -645,6 +832,255 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthUsersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create a local user",
+        "description": "Creates a persisted local user with application role and groups. Admin-only when auth is enabled.",
+        "operationId": "create_auth_user_auth_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthUserCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/users/{username}": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update a local user",
+        "description": "Updates display name, role, groups, or enabled state for a local user. Admin-only when auth is enabled.",
+        "operationId": "update_auth_user_auth_users__username__patch",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthUserUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete a local user",
+        "description": "Deletes a persisted local user. Admin-only when auth is enabled.",
+        "operationId": "delete_auth_user_auth_users__username__delete",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/users/{username}/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset a local user password",
+        "description": "Replaces the password for a local user. Admin-only when auth is enabled.",
+        "operationId": "reset_auth_user_password_auth_users__username__password_post",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthPasswordResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user-settings": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get user UI settings",
+        "description": "Returns persisted UI preferences for the current user.",
+        "operationId": "get_user_settings_user_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update user UI settings",
+        "description": "Persists UI preferences for the current user.",
+        "operationId": "update_user_settings_user_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserSettingsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -785,6 +1221,49 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetRecordResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{dataset_id}/prepare-store": {
+      "post": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Prepare dataset DuckDB store",
+        "description": "Builds or rebuilds the admin-managed DuckDB store for one dataset. Admin-only.",
+        "operationId": "prepare_dataset_route_datasets__dataset_id__prepare_store_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -966,6 +1445,130 @@
         }
       }
     },
+    "/user-data/analysis-sessions": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete current user's analysis chats",
+        "description": "Deletes all saved analysis chats owned by the current user.",
+        "operationId": "delete_user_analysis_sessions_user_data_analysis_sessions_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete User Analysis Sessions User Data Analysis Sessions Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user-data/jobs": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete current user's completed jobs",
+        "description": "Deletes terminal background jobs and generated artifacts owned by the current user. Active jobs are skipped.",
+        "operationId": "delete_user_completed_jobs_user_data_jobs_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete User Completed Jobs User Data Jobs Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user-data/saved-cohorts": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete current user's saved cohorts",
+        "description": "Deletes saved cohorts owned by the current user when they are not referenced by saved analysis chats.",
+        "operationId": "delete_user_saved_cohorts_user_data_saved_cohorts_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete User Saved Cohorts User Data Saved Cohorts Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analysis/catalog": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List curated analysis catalog entries",
+        "description": "Returns curated analysis definitions plus computed availability for the current workspace.",
+        "operationId": "get_analysis_catalog_analysis_catalog_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Analysis Catalog Analysis Catalog Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/analysis": {
       "post": {
         "tags": [
@@ -1009,14 +1612,258 @@
         }
       }
     },
+    "/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List recent background jobs",
+        "description": "Returns recent background jobs visible to the current user across supported product surfaces.",
+        "operationId": "get_jobs_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Jobs Jobs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get one background job",
+        "description": "Returns detailed status plus the completed payload for one background job visible to the current user.",
+        "operationId": "get_job_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Job Jobs  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Delete one terminal job",
+        "description": "Deletes one completed, failed, or cancelled job and its generated artifacts for the current user.",
+        "operationId": "remove_job_jobs__job_id__delete",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/artifacts/{filename}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Download one background job artifact",
+        "description": "Returns one persisted artifact for a background job visible to the current user.",
+        "operationId": "get_job_artifact_jobs__job_id__artifacts__filename__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/run-history": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List generated run history",
+        "description": "Returns all generated analysis and Pheno-Ranker runs visible to the current user.",
+        "operationId": "get_run_history_run_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Run History Run History Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Delete terminal generated runs",
+        "description": "Deletes completed, failed, or cancelled generated runs and artifacts owned by the current user. Active runs are skipped.",
+        "operationId": "delete_run_history_run_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/run-history/{job_id}": {
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Delete one generated run",
+        "description": "Deletes one completed, failed, or cancelled generated run and its artifacts for the current user.",
+        "operationId": "remove_run_history_item_run_history__job_id__delete",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/assays": {
       "get": {
         "tags": [
           "assays"
         ],
-        "summary": "List assay datasets in scope",
-        "description": "Returns transcriptomic datasets visible in the current workspace.",
-        "operationId": "get_assay_datasets_assay_datasets_get",
+        "summary": "List assays in scope",
+        "description": "Returns assay datasets visible in the current workspace.",
+        "operationId": "get_assay_datasets_assays_get",
         "parameters": [
           {
             "name": "dataset_id",
@@ -1068,17 +1915,17 @@
         "tags": [
           "assays"
         ],
-        "summary": "Search genes in a assay dataset",
-        "description": "Returns gene identifiers for a selected assay dataset with optional search and limit filtering.",
-        "operationId": "get_assay_genes_assay_genes_get",
+        "summary": "Search features in an assay",
+        "description": "Returns gene identifiers for a selected assay with optional search and limit filtering.",
+        "operationId": "get_assay_features_assays_features_get",
         "parameters": [
           {
-            "name": "dataset_name",
+            "name": "assay_id",
             "in": "query",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Dataset Name"
+              "title": "Assay Id"
             }
           },
           {
@@ -1129,7 +1976,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Get Assay Genes Assay Genes Get"
+                  "title": "Response Get Assay Features Assays Features Get"
                 }
               }
             }
@@ -1152,9 +1999,9 @@
         "tags": [
           "assays"
         ],
-        "summary": "Summarize gene expression",
-        "description": "Returns scoped gene expression summaries for one assay dataset, optionally comparing cohort A and cohort B.",
-        "operationId": "get_transcriptomics_expression_transcriptomics_expression_post",
+        "summary": "Summarize assay expression",
+        "description": "Returns scoped gene expression summaries for one assay, optionally comparing cohort A and cohort B.",
+        "operationId": "get_assay_expression_assays_expression_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1172,7 +2019,115 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Get Assay Expression Assay Expression Post"
+                  "title": "Response Get Assay Expression Assays Expression Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dicom/studies": {
+      "get": {
+        "tags": [
+          "dicom"
+        ],
+        "summary": "List DICOM studies in scope",
+        "description": "Returns DICOM studies configured for the current workspace with OHIF launch URLs.",
+        "operationId": "get_dicom_studies_dicom_studies_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DicomStudiesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dicom/status": {
+      "get": {
+        "tags": [
+          "dicom"
+        ],
+        "summary": "Get DICOM integration status",
+        "description": "Returns DICOM/OHIF/Orthanc configuration status for the current workspace.",
+        "operationId": "get_dicom_status_dicom_status_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DicomStatusResponse"
                 }
               }
             }
@@ -1322,6 +2277,26 @@
             "schema": {
               "type": "string",
               "title": "Session Id"
+            }
+          },
+          {
+            "name": "delete_generated_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Delete Generated Data"
+            }
+          },
+          {
+            "name": "keep_generated_jobs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Keep Generated Jobs"
             }
           }
         ],
@@ -1779,10 +2754,28 @@
               "Summarize the main workspace patterns and tell me what stands out."
             ]
           },
+          "catalog_item_id": {
+            "type": "string",
+            "title": "Catalog Item Id",
+            "description": "Optional Analysis Catalog item identifier used for structured curated analyses.",
+            "default": ""
+          },
+          "analysis_session_id": {
+            "type": "string",
+            "title": "Analysis Session Id",
+            "description": "Current Analysis session identifier used to associate queued jobs back to the active session.",
+            "default": ""
+          },
           "dataset_id": {
             "type": "string",
             "title": "Dataset Id",
             "description": "Dataset ID or multi-dataset scope ID for the analysis workspace.",
+            "default": ""
+          },
+          "assay_id": {
+            "type": "string",
+            "title": "Assay Id",
+            "description": "Selected assay identifier for curated analyses that require one explicit transcriptomics source.",
             "default": ""
           },
           "data_dir": {
@@ -1797,6 +2790,11 @@
             "description": "Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.",
             "default": ""
           },
+          "scope_metadata": {
+            "type": "object",
+            "title": "Scope Metadata",
+            "description": "Saved-cohort-shaped metadata for the Cohort A selection, including sample IDs, patient IDs, and source."
+          },
           "compare_mode": {
             "type": "boolean",
             "title": "Compare Mode",
@@ -1808,6 +2806,11 @@
             "title": "Compare Selected Patient Ids",
             "description": "Comma-separated scope IDs for cohort B when compare_mode is enabled.",
             "default": ""
+          },
+          "compare_scope_metadata": {
+            "type": "object",
+            "title": "Compare Scope Metadata",
+            "description": "Saved-cohort-shaped metadata for the Cohort B selection."
           },
           "llm_only": {
             "type": "boolean",
@@ -1872,6 +2875,17 @@
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
             "default": "/path/to/biomedical-research-navigator/default_dataset"
           },
+          "workspace_fingerprint": {
+            "type": "object",
+            "title": "Workspace Fingerprint",
+            "description": "Workspace fingerprint snapshot captured when the session was first bound."
+          },
+          "catalog_item_id": {
+            "type": "string",
+            "title": "Catalog Item Id",
+            "description": "Selected Analysis Catalog item for this session, if any.",
+            "default": ""
+          },
           "prompt_draft": {
             "type": "string",
             "title": "Prompt Draft",
@@ -1883,6 +2897,11 @@
             "title": "Scope",
             "description": "Comma-separated scope IDs for cohort A.",
             "default": ""
+          },
+          "scope_metadata": {
+            "type": "object",
+            "title": "Scope Metadata",
+            "description": "Saved-cohort-shaped metadata for Cohort A."
           },
           "saved_cohort_id_a": {
             "type": "string",
@@ -1901,6 +2920,11 @@
             "title": "Compare Scope",
             "description": "Comma-separated scope IDs for cohort B.",
             "default": ""
+          },
+          "compare_scope_metadata": {
+            "type": "object",
+            "title": "Compare Scope Metadata",
+            "description": "Saved-cohort-shaped metadata for Cohort B."
           },
           "saved_cohort_id_b": {
             "type": "string",
@@ -1941,6 +2965,75 @@
         ],
         "title": "AnalysisSessionRequest"
       },
+      "AssayDatasetResponse": {
+        "properties": {
+          "assay_id": {
+            "type": "string",
+            "title": "Assay Id",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AssayDatasetResponse"
+      },
+      "AssayDatasetsResponse": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/AssayDatasetResponse"
+            },
+            "type": "array",
+            "title": "Datasets"
+          }
+        },
+        "type": "object",
+        "title": "AssayDatasetsResponse"
+      },
+      "AssayExpressionRequest": {
+        "properties": {
+          "assay_id": {
+            "type": "string",
+            "title": "Assay Id",
+            "description": "Assay identifier to inspect."
+          },
+          "gene_id": {
+            "type": "string",
+            "title": "Gene Id",
+            "description": "Gene identifier or symbol to summarize."
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id",
+            "description": "Dataset ID or multi-dataset scope ID for assay lookups.",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "description": "Manual dataset directory fallback. Prefer dataset_id.",
+            "default": "/path/to/biomedical-research-navigator/default_dataset"
+          },
+          "selected_patient_ids": {
+            "type": "string",
+            "title": "Selected Patient Ids",
+            "description": "Optional comma-separated scope IDs for cohort A filtering.",
+            "default": ""
+          },
+          "compare_selected_patient_ids": {
+            "type": "string",
+            "title": "Compare Selected Patient Ids",
+            "description": "Optional comma-separated scope IDs for cohort B filtering.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "assay_id",
+          "gene_id"
+        ],
+        "title": "AssayExpressionRequest"
+      },
       "AuthDiagnosticsResponse": {
         "properties": {
           "enabled": {
@@ -1950,6 +3043,11 @@
           "mode": {
             "type": "string",
             "title": "Mode"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "none"
           },
           "user_count": {
             "type": "integer",
@@ -1993,15 +3091,95 @@
         ],
         "title": "AuthDiagnosticsResponse"
       },
+      "AuthPasswordResetConfirmRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Password reset token from the reset link.",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "New local password.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AuthPasswordResetConfirmRequest"
+      },
+      "AuthPasswordResetRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Replacement local password.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AuthPasswordResetRequest"
+      },
+      "AuthPasswordResetResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "AuthPasswordResetResponse"
+      },
+      "AuthPasswordResetStartRequest": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "description": "Username or email address for password reset.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AuthPasswordResetStartRequest"
+      },
       "AuthStatusResponse": {
         "properties": {
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
           },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "none"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "none"
+          },
           "authenticated": {
             "type": "boolean",
             "title": "Authenticated"
+          },
+          "local_login_enabled": {
+            "type": "boolean",
+            "title": "Local Login Enabled",
+            "default": false
+          },
+          "password_reset_enabled": {
+            "type": "boolean",
+            "title": "Password Reset Enabled",
+            "default": false
           },
           "user": {
             "anyOf": [
@@ -2021,6 +3199,56 @@
         ],
         "title": "AuthStatusResponse"
       },
+      "AuthUserCreateRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "description": "Unique local username.",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Initial local password.",
+            "default": ""
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "description": "User-facing display name.",
+            "default": ""
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "description": "Optional email address used for self-service password reset.",
+            "default": ""
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Application role: user or admin.",
+            "default": "user"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "Application groups used for dataset authorization."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether the user can sign in.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "AuthUserCreateRequest"
+      },
       "AuthUserResponse": {
         "properties": {
           "username": {
@@ -2035,12 +3263,32 @@
             "type": "string",
             "title": "Display Name"
           },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "default": ""
+          },
           "groups": {
             "items": {
               "type": "string"
             },
             "type": "array",
             "title": "Groups"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "auth_source": {
+            "type": "string",
+            "title": "Auth Source",
+            "default": "local"
+          },
+          "login_method": {
+            "type": "string",
+            "title": "Login Method",
+            "default": "local"
           }
         },
         "additionalProperties": true,
@@ -2051,6 +3299,75 @@
           "display_name"
         ],
         "title": "AuthUserResponse"
+      },
+      "AuthUserUpdateRequest": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "Updated display name."
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Updated email address used for self-service password reset."
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "Updated application role."
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups",
+            "description": "Replacement application groups."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "Whether the user can sign in."
+          }
+        },
+        "type": "object",
+        "title": "AuthUserUpdateRequest"
       },
       "AuthUsersResponse": {
         "properties": {
@@ -2113,6 +3430,16 @@
             "type": "array",
             "title": "Allowed Groups"
           },
+          "query_granularity_ceiling": {
+            "type": "string",
+            "title": "Query Granularity Ceiling",
+            "default": "summary"
+          },
+          "ai_provider_access": {
+            "type": "string",
+            "title": "Ai Provider Access",
+            "default": "detailed_allowed"
+          },
           "created_by": {
             "type": "string",
             "title": "Created By",
@@ -2127,6 +3454,10 @@
             "type": "string",
             "title": "Updated At",
             "default": ""
+          },
+          "query_store_status": {
+            "type": "object",
+            "title": "Query Store Status"
           }
         },
         "additionalProperties": true,
@@ -2181,6 +3512,18 @@
             "type": "array",
             "title": "Allowed Groups",
             "description": "Groups with access when visibility is restricted."
+          },
+          "query_granularity_ceiling": {
+            "type": "string",
+            "title": "Query Granularity Ceiling",
+            "description": "Maximum Query thread mode allowed for this dataset: summary or detailed.",
+            "default": "summary"
+          },
+          "ai_provider_access": {
+            "type": "string",
+            "title": "Ai Provider Access",
+            "description": "Maximum AI provider disclosure allowed for this dataset.",
+            "default": "detailed_allowed"
           },
           "enabled": {
             "type": "boolean",
@@ -2322,6 +3665,30 @@
             "title": "Allowed Groups",
             "description": "Replacement allowed-group list."
           },
+          "query_granularity_ceiling": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Granularity Ceiling",
+            "description": "Updated maximum Query thread mode for this dataset."
+          },
+          "ai_provider_access": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Provider Access",
+            "description": "Updated AI provider access mode for this dataset."
+          },
           "enabled": {
             "anyOf": [
               {
@@ -2386,15 +3753,92 @@
           },
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "default": ""
+          },
+          "deleted_count": {
+            "type": "integer",
+            "title": "Deleted Count",
+            "default": 0
+          },
+          "deleted_generated_data": {
+            "type": "boolean",
+            "title": "Deleted Generated Data",
+            "default": false
+          },
+          "related_job_count": {
+            "type": "integer",
+            "title": "Related Job Count",
+            "default": 0
+          },
+          "deleted_job_count": {
+            "type": "integer",
+            "title": "Deleted Job Count",
+            "default": 0
+          },
+          "kept_job_count": {
+            "type": "integer",
+            "title": "Kept Job Count",
+            "default": 0
+          },
+          "skipped_active_count": {
+            "type": "integer",
+            "title": "Skipped Active Count",
+            "default": 0
           }
         },
         "type": "object",
         "required": [
-          "deleted",
-          "id"
+          "deleted"
         ],
         "title": "DeleteResponse"
+      },
+      "DicomStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "study_count": {
+            "type": "integer",
+            "title": "Study Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "DicomStatusResponse"
+      },
+      "DicomStudiesResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/DicomStudyResponse"
+            },
+            "type": "array",
+            "title": "Studies"
+          }
+        },
+        "type": "object",
+        "title": "DicomStudiesResponse"
+      },
+      "DicomStudyResponse": {
+        "properties": {
+          "study_instance_uid": {
+            "type": "string",
+            "title": "Study Instance Uid",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "DicomStudyResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2415,6 +3859,16 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "default": false
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "disabled"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -2429,6 +3883,27 @@
               }
             ],
             "title": "Model"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          },
+          "selected_provider_id": {
+            "type": "string",
+            "title": "Selected Provider Id",
+            "default": "system-default"
+          },
+          "provider": {
+            "type": "object",
+            "title": "Provider"
+          },
+          "providers": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Providers"
           }
         },
         "type": "object",
@@ -2455,75 +3930,6 @@
         },
         "type": "object",
         "title": "LoginRequest"
-      },
-      "AssayDatasetResponse": {
-        "properties": {
-          "dataset_name": {
-            "type": "string",
-            "title": "Dataset Name",
-            "default": ""
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "AssayDatasetResponse"
-      },
-      "AssayDatasetsResponse": {
-        "properties": {
-          "datasets": {
-            "items": {
-              "$ref": "#/components/schemas/AssayDatasetResponse"
-            },
-            "type": "array",
-            "title": "Datasets"
-          }
-        },
-        "type": "object",
-        "title": "AssayDatasetsResponse"
-      },
-      "AssayExpressionRequest": {
-        "properties": {
-          "dataset_name": {
-            "type": "string",
-            "title": "Dataset Name",
-            "description": "Name of the assay dataset to inspect."
-          },
-          "gene_id": {
-            "type": "string",
-            "title": "Gene Id",
-            "description": "Gene identifier or symbol to summarize."
-          },
-          "dataset_id": {
-            "type": "string",
-            "title": "Dataset Id",
-            "description": "Dataset ID or multi-dataset scope ID for assay lookups.",
-            "default": ""
-          },
-          "data_dir": {
-            "type": "string",
-            "title": "Data Dir",
-            "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
-          },
-          "selected_patient_ids": {
-            "type": "string",
-            "title": "Selected Patient Ids",
-            "description": "Optional comma-separated scope IDs for cohort A filtering.",
-            "default": ""
-          },
-          "compare_selected_patient_ids": {
-            "type": "string",
-            "title": "Compare Selected Patient Ids",
-            "description": "Optional comma-separated scope IDs for cohort B filtering.",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "dataset_name",
-          "gene_id"
-        ],
-        "title": "AssayExpressionRequest"
       },
       "PatientSummaryResponse": {
         "properties": {
@@ -2571,6 +3977,12 @@
       },
       "PhenoRankerRequest": {
         "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "Current Pheno-Ranker prompt used for run metadata and queued job labels.",
+            "default": ""
+          },
           "action": {
             "type": "string",
             "title": "Action",
@@ -2669,6 +4081,48 @@
             "title": "Render Mds",
             "description": "Whether to generate the interactive MDS artifact.",
             "default": true
+          },
+          "render_graph": {
+            "type": "boolean",
+            "title": "Render Graph",
+            "description": "Whether to generate the interactive Cytoscape graph artifact.",
+            "default": true
+          },
+          "graph_min_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Min Weight",
+            "description": "Optional minimum edge weight for Pheno-Ranker graph export."
+          },
+          "graph_max_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Max Weight",
+            "description": "Optional maximum edge weight for Pheno-Ranker graph export."
+          },
+          "granularity_ceiling": {
+            "type": "string",
+            "title": "Granularity Ceiling",
+            "description": "Internal workspace ceiling used to guard Pheno-Ranker access.",
+            "default": "detailed"
+          },
+          "ai_provider_access": {
+            "type": "string",
+            "title": "Ai Provider Access",
+            "description": "Effective AI provider policy used for Pheno-Ranker planner/explanation paths.",
+            "default": "detailed_allowed"
           }
         },
         "type": "object",
@@ -2702,12 +4156,40 @@
             "description": "Query execution mode. Supported values include auto and planner_only.",
             "default": "auto"
           },
+          "granularity_mode": {
+            "type": "string",
+            "title": "Granularity Mode",
+            "description": "Disclosure mode requested by the Query UI. Supported values currently include summary and detailed.",
+            "default": "detailed"
+          },
           "history": {
             "items": {
               "$ref": "#/components/schemas/QueryTurn"
             },
             "type": "array",
             "title": "History"
+          },
+          "scoped_patient_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scoped Patient Ids",
+            "description": "Optional prior subset patient IDs carried as app-level conversational scope for follow-up queries."
+          },
+          "scoped_record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scoped Record Ids",
+            "description": "Optional prior subset sample or record IDs carried as app-level conversational scope."
+          },
+          "scoped_id_type": {
+            "type": "string",
+            "title": "Scoped Id Type",
+            "description": "The primary ID level used by the carried scoped context.",
+            "default": "patient"
           }
         },
         "type": "object",
@@ -2911,6 +4393,311 @@
         "type": "object",
         "title": "SavedCohortsResponse"
       },
+      "UserSettingsResponse": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "landing_tab_mode": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "last"
+            ],
+            "title": "Landing Tab Mode",
+            "default": "fixed"
+          },
+          "landing_tab": {
+            "type": "string",
+            "enum": [
+              "dashboard",
+              "datasets",
+              "query",
+              "analysis",
+              "pheno"
+            ],
+            "title": "Landing Tab",
+            "default": "dashboard"
+          },
+          "query_disclosure_default": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "detailed"
+            ],
+            "title": "Query Disclosure Default",
+            "default": "detailed"
+          },
+          "query_default_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "planner_only"
+            ],
+            "title": "Query Default Mode",
+            "default": "auto"
+          },
+          "analysis_auto_open_jobs": {
+            "type": "boolean",
+            "title": "Analysis Auto Open Jobs",
+            "default": true
+          },
+          "run_history_retention_days": {
+            "type": "integer",
+            "enum": [
+              0,
+              7,
+              30,
+              90,
+              180,
+              365
+            ],
+            "title": "Run History Retention Days",
+            "default": 30
+          },
+          "pheno_default_metric": {
+            "type": "string",
+            "enum": [
+              "",
+              "hamming",
+              "jaccard"
+            ],
+            "title": "Pheno Default Metric",
+            "default": ""
+          },
+          "pheno_advanced_open": {
+            "type": "boolean",
+            "title": "Pheno Advanced Open",
+            "default": false
+          },
+          "pheno_render_heatmap": {
+            "type": "boolean",
+            "title": "Pheno Render Heatmap",
+            "default": true
+          },
+          "pheno_render_mds": {
+            "type": "boolean",
+            "title": "Pheno Render Mds",
+            "default": true
+          },
+          "pheno_render_graph": {
+            "type": "boolean",
+            "title": "Pheno Render Graph",
+            "default": true
+          },
+          "dashboard_assays_open": {
+            "type": "boolean",
+            "title": "Dashboard Assays Open",
+            "default": false
+          },
+          "dataset_compact_view": {
+            "type": "boolean",
+            "title": "Dataset Compact View",
+            "default": false
+          },
+          "llm_provider_id": {
+            "type": "string",
+            "title": "Llm Provider Id",
+            "default": "system-default"
+          }
+        },
+        "type": "object",
+        "title": "UserSettingsResponse"
+      },
+      "UserSettingsUpdateRequest": {
+        "properties": {
+          "landing_tab_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fixed",
+                  "last"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landing Tab Mode"
+          },
+          "landing_tab": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "dashboard",
+                  "datasets",
+                  "query",
+                  "analysis",
+                  "pheno"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landing Tab"
+          },
+          "query_disclosure_default": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "summary",
+                  "detailed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Disclosure Default"
+          },
+          "query_default_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "planner_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Default Mode"
+          },
+          "analysis_auto_open_jobs": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Auto Open Jobs"
+          },
+          "run_history_retention_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  0,
+                  7,
+                  30,
+                  90,
+                  180,
+                  365
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run History Retention Days"
+          },
+          "pheno_default_metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "",
+                  "hamming",
+                  "jaccard"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pheno Default Metric"
+          },
+          "pheno_advanced_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pheno Advanced Open"
+          },
+          "pheno_render_heatmap": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pheno Render Heatmap"
+          },
+          "pheno_render_mds": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pheno Render Mds"
+          },
+          "pheno_render_graph": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pheno Render Graph"
+          },
+          "dashboard_assays_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard Assays Open"
+          },
+          "dataset_compact_view": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Compact View"
+          },
+          "llm_provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Provider Id"
+          }
+        },
+        "type": "object",
+        "title": "UserSettingsUpdateRequest"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2969,7 +4756,7 @@
     },
     {
       "name": "analysis",
-      "description": "Clinical and assay workspace analysis plus saved analysis sessions."
+      "description": "Clinical and transcriptomics assay workspace analysis plus saved analysis sessions."
     },
     {
       "name": "cohorts",
@@ -2977,7 +4764,11 @@
     },
     {
       "name": "assays",
-      "description": "Assay dataset inventory and per-gene expression summaries."
+      "description": "Assay inventory and per-gene expression summaries."
+    },
+    {
+      "name": "dicom",
+      "description": "DICOM study discovery and OHIF launch integration."
     },
     {
       "name": "pheno-ranker",

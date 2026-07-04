@@ -11,8 +11,11 @@ export function createDashboardUi(ctx) {
     assayDashboardOverviewEl,
     assayModalityTabsEl,
     assayDashboardCardsEl,
+    dicomDashboardPanelEl,
+    dicomDashboardHealthEl,
     dicomDashboardStatusEl,
     dicomDashboardStudiesEl,
+    transcriptomicsQuickExpressionPanelEl,
     analysisAssayDatasetListEl,
     analysisCatalogAssayDatasetListEl,
     analysisAssayGeneEl,
@@ -1549,12 +1552,58 @@ export function createDashboardUi(ctx) {
     return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
   }
 
+  function renderDicomHealth(payload) {
+    if (!dicomDashboardHealthEl) return;
+    const source = payload && typeof payload === "object" ? payload : {};
+    state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
+    const enabled = Boolean(source.enabled);
+    const manifestFound = Boolean(source.manifest_found);
+    const studyCount = Number(source.study_count || 0);
+    const ohifUrl = String(source.ohif_public_url || "").trim();
+    const dicomwebUrl = String(source.dicomweb_public_url || "").trim();
+    const orthanc = source.orthanc && typeof source.orthanc === "object" ? source.orthanc : {};
+    const orthancChecked = Boolean(orthanc.checked);
+    const orthancReachable = Boolean(orthanc.reachable);
+    const orthancLabel = orthancChecked ? (orthancReachable ? "Reachable" : "Unreachable") : "Not checked";
+    const orthancMessage = String(orthanc.message || "").trim();
+    dicomDashboardHealthEl.innerHTML = `
+      <div class="dicom-health-grid">
+        <div class="dicom-health-card">
+          <span class="assay-kpi-label">Viewer</span>
+          <strong>${enabled ? "Enabled" : "Disabled"}</strong>
+          <small>${escapeHtml(ohifUrl || "No OHIF URL configured")}</small>
+        </div>
+        <div class="dicom-health-card">
+          <span class="assay-kpi-label">Study manifest</span>
+          <strong>${manifestFound ? "Found" : "Missing"}</strong>
+          <small>${escapeHtml(String(studyCount))} configured stud${studyCount === 1 ? "y" : "ies"}</small>
+        </div>
+        <div class="dicom-health-card">
+          <span class="assay-kpi-label">Orthanc</span>
+          <strong>${escapeHtml(orthancLabel)}</strong>
+          <small>${escapeHtml(orthancMessage || "Pixel store health is not checked")}</small>
+        </div>
+        <div class="dicom-health-card">
+          <span class="assay-kpi-label">DICOMweb</span>
+          <strong>${dicomwebUrl ? "Configured" : "Missing"}</strong>
+          <small>${escapeHtml(dicomwebUrl || "No DICOMweb URL configured")}</small>
+        </div>
+      </div>
+    `;
+    renderAssayDashboardOverview(state.assayDatasetsState || []);
+  }
+
+  function renderDicomHealthError(message) {
+    if (!dicomDashboardHealthEl) return;
+    dicomDashboardHealthEl.innerHTML = `<div class="empty">${escapeHtml(message || "Unable to load DICOM viewer status.")}</div>`;
+  }
+
   function renderDicomStudies(payload) {
     if (!dicomDashboardStatusEl || !dicomDashboardStudiesEl) return;
     const source = payload && typeof payload === "object" ? payload : {};
     const enabled = Boolean(source.enabled);
     const studies = Array.isArray(source.studies) ? source.studies : [];
-    state.dicomStatus = source;
+    state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
     state.dicomStudiesState = studies;
     dicomDashboardStatusEl.className = "query-status";
     if (!studies.length) {
@@ -1610,16 +1659,27 @@ export function createDashboardUi(ctx) {
     const dataDir = encodeURIComponent(scopeId);
     dicomDashboardStatusEl.className = "query-status loading";
     dicomDashboardStatusEl.textContent = "Checking DICOM studies...";
-    try {
-      const response = await fetch(`/dicom/studies?data_dir=${dataDir}`);
-      if (!response.ok) throw new Error("Unable to load DICOM studies.");
-      renderDicomStudies(await response.json());
-    } catch (error) {
+    if (dicomDashboardHealthEl) {
+      dicomDashboardHealthEl.innerHTML = '<div class="empty">Checking DICOM viewer status...</div>';
+    }
+    const [studiesResult, statusResult] = await Promise.allSettled([
+      fetch(`/dicom/studies?data_dir=${dataDir}`),
+      fetch(`/dicom/status?data_dir=${dataDir}`),
+    ]);
+    if (studiesResult.status === "fulfilled" && studiesResult.value.ok) {
+      renderDicomStudies(await studiesResult.value.json());
+    } else {
+      const error = studiesResult.status === "rejected" ? studiesResult.reason : null;
       state.dicomStudiesState = [];
-      state.dicomStatus = null;
       dicomDashboardStatusEl.className = "query-status";
       dicomDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load DICOM studies.";
       dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
+    }
+    if (statusResult.status === "fulfilled" && statusResult.value.ok) {
+      renderDicomHealth(await statusResult.value.json());
+    } else {
+      const error = statusResult.status === "rejected" ? statusResult.reason : null;
+      renderDicomHealthError(error && error.message ? error.message : "Unable to load DICOM viewer status.");
     }
   }
 
@@ -1709,6 +1769,21 @@ export function createDashboardUi(ctx) {
         <strong>${escapeHtml(String(tab.count))}</strong>
       </button>
     `).join("");
+  }
+
+  function renderDicomPanelVisibility() {
+    if (!dicomDashboardPanelEl) return;
+    const selected = selectedAssayModalityFilter();
+    const visible = selected === "all" || selected === "imaging";
+    dicomDashboardPanelEl.classList.toggle("is-hidden", !visible);
+    dicomDashboardPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
+  }
+
+  function renderTranscriptomicsQuickExpressionVisibility() {
+    if (!transcriptomicsQuickExpressionPanelEl) return;
+    const visible = selectedAssayModalityFilter() === "transcriptomics";
+    transcriptomicsQuickExpressionPanelEl.classList.toggle("is-hidden", !visible);
+    transcriptomicsQuickExpressionPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
   }
 
   function renderAssayOverlapSection(item) {
@@ -1814,6 +1889,8 @@ export function createDashboardUi(ctx) {
     const items = Array.isArray(datasets) ? datasets : [];
     renderAssayDashboardOverview(items);
     renderAssayModalityTabs(items);
+    renderDicomPanelVisibility();
+    renderTranscriptomicsQuickExpressionVisibility();
     if (!items.length) {
       assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
       return;

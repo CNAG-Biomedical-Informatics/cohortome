@@ -396,6 +396,34 @@
         gap: 12px;
         padding: 2px 0 0;
       }
+      .dicom-health-panel {
+        display: grid;
+        gap: 10px;
+      }
+      .dicom-health-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .dicom-health-card {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 118, 110, 0.14);
+        background: rgba(240, 253, 250, 0.72);
+      }
+      .dicom-health-card strong {
+        color: var(--accent-deep);
+        font-size: 0.98rem;
+      }
+      .dicom-health-card small {
+        color: var(--muted);
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
       .dicom-study-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,2 +1,4 @@
 Biomedical Research Navigator
 Copyright 2026 Manuel Rueda - CNAG
+
+Synthetic DICOM fixture pixel data are generated from pydicom MR_small.dcm test data.

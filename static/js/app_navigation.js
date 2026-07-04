@@ -36,7 +36,7 @@ export function createNavigationUi(ctx) {
     if (tabName === "dashboard") {
       const helperText = {
         clinical: "Browse patients and orient yourself in the loaded clinical dataset",
-        assays: "Inspect loaded transcriptomics assays and quick transcriptomics summaries",
+        assays: "Inspect assay modalities, DICOM viewer status, and transcriptomics quick summaries",
         timeline: "Review longitudinal timepoints, BFF event domains, and assay coverage",
       };
       tabHelperTextEl.textContent = helperText[state.currentDashboardSubtab] || helperText.clinical;
