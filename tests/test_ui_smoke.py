@@ -557,6 +557,64 @@ def _mock_dicom_studies(page) -> None:
     )
 
 
+def _mock_multimodal_assay_datasets(page) -> None:
+    page.route(
+        "**/assays?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
+                            "modality": "transcriptomics",
+                            "data_type": "raw_counts",
+                            "feature_label": "genes",
+                            "feature_id_type": "ensembl_gene_id",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "sample_count": 25,
+                            "patient_count": 5,
+                            "gene_count": 12,
+                            "clinical_overlap_patient_count": 5,
+                            "mean_total_counts_per_sample": 1024.0,
+                            "mean_detected_genes_per_sample": 10.4,
+                            "top_genes": [],
+                        },
+                        {
+                            "dataset_name": "synthetic_olink_inflammation_panel",
+                            "modality": "proteomics",
+                            "data_type": "npX",
+                            "feature_label": "proteins",
+                            "feature_id_type": "uniprot_accession",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "sample_count": 12,
+                            "patient_count": 2,
+                            "feature_count": 92,
+                            "clinical_overlap_patient_count": 2,
+                        },
+                        {
+                            "dataset_name": "synthetic_mri_derived_measurements",
+                            "modality": "imaging",
+                            "data_type": "derived_measurements",
+                            "feature_label": "radiology measurements",
+                            "feature_id_type": "dicom_tag",
+                            "patient_ids": ["SYN001"],
+                            "sample_ids": ["SYN001:week_0"],
+                            "sample_count": 1,
+                            "patient_count": 1,
+                            "feature_count": 6,
+                            "clinical_overlap_patient_count": 1,
+                        },
+                    ]
+                }
+            ),
+        ),
+    )
+
+
 def _mock_assay_datasets_with_nonmatching_dataset(page) -> None:
     page.route(
         "**/assays?*",
@@ -923,6 +981,31 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
         "href",
         "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
     )
+
+
+def test_dashboard_assays_panel_filters_modalities(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_multimodal_assay_datasets(page)
+    _mock_dicom_studies(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardAssaysBtn").click()
+
+    expect(page.locator("#assayDashboardOverview")).to_contain_text("Datasets")
+    expect(page.locator("#assayModalityTabs")).to_contain_text("Transcriptomics")
+    expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+
+    page.locator("[data-assay-modality-filter='imaging']").click()
+
+    expect(page.locator("[data-assay-modality-filter='imaging']")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
 
 
 def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:

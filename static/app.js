@@ -1206,6 +1206,13 @@ function bindEvents() {
   };
   refs.analysisAssayDatasetListEl && refs.analysisAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
   refs.analysisCatalogAssayDatasetListEl && refs.analysisCatalogAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
+  refs.assayModalityTabsEl && refs.assayModalityTabsEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-assay-modality-filter]");
+    if (!button || !refs.assayModalityTabsEl.contains(button)) {
+      return;
+    }
+    dashboardUi.handleAssayModalityFilter(button.dataset.assayModalityFilter || "all");
+  });
   refs.analysisAssayGeneEl && refs.analysisAssayGeneEl.addEventListener("input", () => {
     dashboardUi.handleAssayFeatureInput();
   });

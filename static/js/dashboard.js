@@ -8,6 +8,8 @@ export function createDashboardUi(ctx) {
     detailEl,
     dataDirEl,
     assayDashboardStatusEl,
+    assayDashboardOverviewEl,
+    assayModalityTabsEl,
     assayDashboardCardsEl,
     dicomDashboardStatusEl,
     dicomDashboardStudiesEl,
@@ -1313,7 +1315,12 @@ export function createDashboardUi(ctx) {
   }
 
   function selectedAssayDatasetNames() {
-    return state.selectedAssayDatasets.slice();
+    const transcriptomicsNames = new Set(
+      state.assayDatasetsState
+        .filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics")
+        .map((dataset) => dataset.dataset_name)
+    );
+    return state.selectedAssayDatasets.filter((datasetName) => transcriptomicsNames.has(datasetName));
   }
 
   function assayDatasetListElements() {
@@ -1359,16 +1366,26 @@ export function createDashboardUi(ctx) {
     return labels[text] || text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
+  function normalizedAssayDataType(dataset) {
+    const explicit = String(dataset && dataset.data_type ? dataset.data_type : "").trim();
+    if (explicit) return explicit;
+    const modality = String(dataset && dataset.modality ? dataset.modality : "").trim();
+    if (modality.endsWith("_raw_counts")) return "raw_counts";
+    if (modality.endsWith("_relative_abundance")) return "relative_abundance";
+    if (modality.endsWith("_protein_abundance")) return "protein_abundance";
+    return "";
+  }
+
   function assayMatchesCatalogRequirement(dataset, item) {
     if (!item || !item.requires_assays) return true;
     const requiredModalities = Array.isArray(item.required_modalities)
-      ? item.required_modalities.map((value) => String(value || "").trim()).filter(Boolean)
+      ? item.required_modalities.map((value) => normalizedAssayModality(value)).filter(Boolean)
       : [];
     const requiredDataTypes = Array.isArray(item.required_data_types)
       ? item.required_data_types.map((value) => String(value || "").trim()).filter(Boolean)
       : [];
-    const modality = String(dataset && dataset.modality ? dataset.modality : "").trim();
-    const dataType = String(dataset && dataset.data_type ? dataset.data_type : "").trim();
+    const modality = normalizedAssayModality(dataset && dataset.modality);
+    const dataType = normalizedAssayDataType(dataset);
     if (requiredModalities.length && !requiredModalities.includes(modality)) return false;
     if (requiredDataTypes.length && !requiredDataTypes.includes(dataType)) return false;
     return true;
@@ -1377,7 +1394,7 @@ export function createDashboardUi(ctx) {
   function groupAssaysByModality(datasets) {
     const groups = new Map();
     (Array.isArray(datasets) ? datasets : []).forEach((dataset) => {
-      const key = String(dataset && dataset.modality ? dataset.modality : "assay").trim() || "assay";
+      const key = normalizedAssayModality(dataset && dataset.modality);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(dataset);
     });
@@ -1441,7 +1458,7 @@ export function createDashboardUi(ctx) {
       const overlap = currentAssayScopeOverlap(dataset.patient_ids);
       const featureLabel = String(dataset.feature_label || "features").trim() || "features";
       const featureCount = Number(dataset.feature_count || dataset.gene_count || 0);
-      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(dataset.data_type))}`;
+      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(normalizedAssayDataType(dataset) || dataset.data_type))}`;
       const small = options.includeOverlap
         ? `${baseMeta} • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
         : baseMeta;
@@ -1456,12 +1473,15 @@ export function createDashboardUi(ctx) {
     `;
     };
     if (mainListEl) {
-      mainListEl.innerHTML = groupAssaysByModality(state.assayDatasetsState).map(([modality, datasets]) => `
+      const transcriptomicsDatasets = state.assayDatasetsState.filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics");
+      mainListEl.innerHTML = transcriptomicsDatasets.length
+        ? groupAssaysByModality(transcriptomicsDatasets).map(([modality, datasets]) => `
         <div class="assay-modality-group">
           <div class="assay-modality-group-title">${escapeHtml(formatAssayModality(modality))}</div>
           ${datasets.map((dataset) => renderOption(dataset)).join("")}
         </div>
-      `).join("");
+      `).join("")
+        : '<div class="empty">No transcriptomics assays available</div>';
     }
     if (contextualListEl) {
       if (!contextRequiresAssay) {
@@ -1542,6 +1562,7 @@ export function createDashboardUi(ctx) {
         ? "No DICOM studies are configured for this workspace."
         : "DICOM visualization is disabled. No DICOM studies are configured for this workspace.";
       dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
+      renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
     dicomDashboardStatusEl.textContent = enabled
@@ -1580,6 +1601,7 @@ export function createDashboardUi(ctx) {
         </article>
       `;
     }).join("");
+    renderAssayDashboardOverview(state.assayDatasetsState || []);
   }
 
   async function loadDicomStudies(options = {}) {
@@ -1601,108 +1623,223 @@ export function createDashboardUi(ctx) {
     }
   }
 
+  function normalizedAssayModality(value) {
+    const normalized = String(value || "assay").trim() || "assay";
+    if (normalized.startsWith("transcriptomics")) return "transcriptomics";
+    if (normalized.startsWith("proteomics")) return "proteomics";
+    if (normalized.startsWith("olink")) return "olink";
+    if (normalized.startsWith("genotyping") || normalized.startsWith("variant")) return "genotyping";
+    if (normalized.startsWith("imaging") || normalized === "dicom") return "imaging";
+    return normalized;
+  }
+
+  function assayModalityCounts(datasets) {
+    const counts = new Map();
+    (Array.isArray(datasets) ? datasets : []).forEach((dataset) => {
+      const modality = normalizedAssayModality(dataset && dataset.modality);
+      counts.set(modality, (counts.get(modality) || 0) + 1);
+    });
+    return counts;
+  }
+
+  function assayModalityTabs(datasets) {
+    const counts = assayModalityCounts(datasets);
+    return [
+      { key: "all", label: "All", count: Array.isArray(datasets) ? datasets.length : 0 },
+      ...Array.from(counts.entries())
+        .sort((left, right) => formatAssayModality(left[0]).localeCompare(formatAssayModality(right[0])))
+        .map(([key, count]) => ({ key, label: formatAssayModality(key), count })),
+    ];
+  }
+
+  function selectedAssayModalityFilter() {
+    const value = String(state.assayDashboardModalityFilter || "all").trim() || "all";
+    const tabs = assayModalityTabs(state.assayDatasetsState || []);
+    return tabs.some((tab) => tab.key === value) ? value : "all";
+  }
+
+  function renderAssayDashboardOverview(datasets) {
+    if (!assayDashboardOverviewEl) return;
+    const items = Array.isArray(datasets) ? datasets : [];
+    if (!items.length) {
+      assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assay datasets to review modality coverage.</div>';
+      return;
+    }
+    const patientIds = new Set();
+    const sampleIds = new Set();
+    let featureTotal = 0;
+    let clinicalOverlap = 0;
+    items.forEach((item) => {
+      (Array.isArray(item.patient_ids) ? item.patient_ids : []).forEach((id) => patientIds.add(String(id || "").trim()));
+      (Array.isArray(item.sample_ids) ? item.sample_ids : []).forEach((id) => sampleIds.add(String(id || "").trim()));
+      featureTotal += Number(item.feature_count || item.gene_count || 0);
+      clinicalOverlap += Number(item.clinical_overlap_patient_count || 0);
+    });
+    const modalities = Array.from(assayModalityCounts(items).keys()).sort((left, right) => formatAssayModality(left).localeCompare(formatAssayModality(right)));
+    const dicomStudyCount = Array.isArray(state.dicomStudiesState) ? state.dicomStudiesState.length : 0;
+    const dicomEnabled = Boolean(state.dicomStatus && state.dicomStatus.enabled);
+    assayDashboardOverviewEl.innerHTML = `
+      <section class="assay-overview-summary">
+        <div class="assay-overview-copy">
+          <strong class="assay-workspace-summary-title">Assay overview</strong>
+          <div class="section-note">${escapeHtml(modalities.map((item) => formatAssayModality(item)).join(" · "))}</div>
+        </div>
+        <div class="assay-workspace-kpis">
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Datasets</span><strong class="assay-kpi-value">${escapeHtml(String(items.length))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(sampleIds.size))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(patientIds.size))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(featureTotal))}</strong></div>
+        </div>
+        <div class="assay-overview-tags">
+          ${modalities.map((modality) => `<span class="query-chip badge">${escapeHtml(formatAssayModality(modality))}</span>`).join("")}
+          <span class="query-chip badge">Clinical overlap ${escapeHtml(String(clinicalOverlap))}</span>
+          <span class="query-chip badge">DICOM ${dicomEnabled ? "enabled" : "disabled"}${dicomStudyCount ? ` · ${escapeHtml(String(dicomStudyCount))} studies` : ""}</span>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderAssayModalityTabs(datasets) {
+    if (!assayModalityTabsEl) return;
+    const tabs = assayModalityTabs(datasets);
+    const selected = selectedAssayModalityFilter();
+    assayModalityTabsEl.innerHTML = tabs.map((tab) => `
+      <button type="button" class="assay-modality-tab${tab.key === selected ? " active" : ""}" data-assay-modality-filter="${escapeHtml(tab.key)}" aria-pressed="${tab.key === selected ? "true" : "false"}">
+        <span>${escapeHtml(tab.label)}</span>
+        <strong>${escapeHtml(String(tab.count))}</strong>
+      </button>
+    `).join("");
+  }
+
+  function renderAssayOverlapSection(item) {
+    const overlap = currentAssayScopeOverlap(item.patient_ids);
+    if (!(overlap.scopeASize || overlap.scopeBSize)) return "";
+    return `
+      <div class="assay-card-section">
+        <strong>Current Analysis scope</strong>
+        <div class="assay-stats">
+          <span class="query-chip badge">A overlap: ${escapeHtml(String(overlap.overlapA))} / ${escapeHtml(String(overlap.scopeASize || item.clinical_overlap_patient_count || 0))}</span>
+          ${analysisCompareModeEl && analysisCompareModeEl.checked ? `<span class="query-chip badge">B overlap: ${escapeHtml(String(overlap.overlapB))} / ${escapeHtml(String(overlap.scopeBSize || item.clinical_overlap_patient_count || 0))}</span>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTranscriptomicsHighlights(item) {
+    const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
+    const topGenesMarkup = topGenes.length
+      ? topGenes.map((gene) => {
+        const title = [
+          String(gene.gene_id || "").trim(),
+          String(gene.gene_symbol || "").trim(),
+          String(gene.gene_name || "").trim(),
+          `Total raw count: ${String(gene.total_raw_count || 0)}`,
+        ].filter(Boolean).join(" • ");
+        if (gene.ensembl_url) {
+          return `<a class="assay-gene-pill assay-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
+        }
+        return `<span class="assay-gene-pill" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</span>`;
+      }).join("")
+      : '<span class="section-note">No top-gene summary available.</span>';
+    return `
+      <div class="assay-card-section">
+        <strong>Transcriptomics coverage</strong>
+        <div class="assay-summary-grid">
+          <div class="assay-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
+          <div class="assay-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
+        </div>
+      </div>
+      <div class="assay-card-section">
+        <strong>Top abundant genes</strong>
+        <div class="assay-gene-list">${topGenesMarkup}</div>
+      </div>
+    `;
+  }
+
+  function renderGenericAssayHighlights(item) {
+    const modality = normalizedAssayModality(item.modality);
+    const featureLabel = String(item.feature_label || "features").trim();
+    const namespace = String(item.feature_id_type || item.feature_namespace || "feature_id").trim();
+    const valueKind = String(item.value_kind || normalizedAssayDataType(item) || item.data_type || "feature_matrix").trim();
+    const title = modality === "imaging" ? "Derived DICOM measurements" : `${formatAssayModality(modality)} matrix`;
+    return `
+      <div class="assay-card-section">
+        <strong>${escapeHtml(title)}</strong>
+        <div class="assay-summary-grid">
+          <div class="assay-summary-item"><span>Feature type</span><strong>${escapeHtml(featureLabel)}</strong></div>
+          <div class="assay-summary-item"><span>Namespace</span><strong>${escapeHtml(namespace.replace(/_/g, " "))}</strong></div>
+          <div class="assay-summary-item"><span>Value kind</span><strong>${escapeHtml(formatAssayDataType(valueKind))}</strong></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAssayDashboardCard(item) {
+    const modality = normalizedAssayModality(item.modality);
+    const isTranscriptomics = modality === "transcriptomics";
+    return `
+      <article class="assay-dashboard-card assay-dashboard-card-${escapeHtml(modality)}">
+        <div class="assay-card-header">
+          <div>
+            <div class="assay-card-eyebrow">${escapeHtml(isTranscriptomics ? "Expression assay" : `${formatAssayModality(modality)} assay`)}</div>
+            <strong class="assay-card-title">${escapeHtml(item.label || item.dataset_name)}</strong>
+          </div>
+          <span class="query-chip badge assay-modality-badge">${escapeHtml(formatAssayModality(modality))}</span>
+        </div>
+        <div class="assay-card-meta">
+          <span class="dataset-picker-tag">${escapeHtml(item.dataset_name)}</span>
+          <span class="dataset-picker-tag">${escapeHtml(formatAssayDataType(normalizedAssayDataType(item) || item.data_type))}</span>
+        </div>
+        <div class="assay-kpi-grid">
+          <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count || item.gene_count || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Clinical overlap</span><strong class="assay-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
+        </div>
+        ${isTranscriptomics ? renderTranscriptomicsHighlights(item) : renderGenericAssayHighlights(item)}
+        ${renderAssayOverlapSection(item)}
+      </article>
+    `;
+  }
+
+  function filteredAssayDatasets(datasets) {
+    const selected = selectedAssayModalityFilter();
+    const items = Array.isArray(datasets) ? datasets : [];
+    if (selected === "all") return items;
+    return items.filter((item) => normalizedAssayModality(item && item.modality) === selected);
+  }
+
   function renderAssayDashboardCards(datasets) {
     if (!assayDashboardCardsEl) return;
-    if (!Array.isArray(datasets) || !datasets.length) {
+    const items = Array.isArray(datasets) ? datasets : [];
+    renderAssayDashboardOverview(items);
+    renderAssayModalityTabs(items);
+    if (!items.length) {
       assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
       return;
     }
-    const workspaceSummary = datasets.reduce((summary, item) => {
-      summary.datasetCount += 1;
-      summary.sampleCount += Number(item.sample_count || 0);
-      summary.patientCount += Number(item.patient_count || 0);
-      summary.featureCount = Math.max(summary.featureCount, Number(item.feature_count || item.gene_count || 0));
-      return summary;
-    }, {
-      datasetCount: 0,
-      sampleCount: 0,
-      patientCount: 0,
-      featureCount: 0,
-    });
+    const selected = selectedAssayModalityFilter();
+    const visibleItems = filteredAssayDatasets(items);
+    if (!visibleItems.length) {
+      assayDashboardCardsEl.innerHTML = '<div class="empty">No assays match the selected modality.</div>';
+      return;
+    }
     assayDashboardCardsEl.innerHTML = `
-      <section class="assay-workspace-summary">
-        <div class="assay-workspace-summary-copy">
-          <strong class="assay-workspace-summary-title">Assay workspace</strong>
+      <section class="assay-modality-section">
+        <div class="assay-modality-section-header">
+          <strong>${escapeHtml(selected === "all" ? "All assay datasets" : formatAssayModality(selected))}</strong>
+          <span class="query-chip badge">${escapeHtml(String(visibleItems.length))} assay${visibleItems.length === 1 ? "" : "s"}</span>
         </div>
-        <div class="assay-workspace-kpis">
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Datasets</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.sampleCount))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.patientCount))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Max features / assay</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.featureCount))}</strong></div>
+        <div class="assay-dashboard-grid">
+          ${visibleItems.map((item) => renderAssayDashboardCard(item)).join("")}
         </div>
       </section>
-      ${groupAssaysByModality(datasets).map(([modality, groupItems]) => `
-        <section class="assay-modality-section">
-          <div class="assay-modality-section-header">
-            <strong>${escapeHtml(formatAssayModality(modality))}</strong>
-            <span class="query-chip badge">${escapeHtml(String(groupItems.length))} assay${groupItems.length === 1 ? "" : "s"}</span>
-          </div>
-          <div class="assay-dashboard-grid">
-            ${groupItems.map((item) => {
-      const overlap = currentAssayScopeOverlap(item.patient_ids);
-      const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
-      const topGenesMarkup = topGenes.length
-        ? topGenes.map((gene) => {
-          const title = [
-            String(gene.gene_id || "").trim(),
-            String(gene.gene_symbol || "").trim(),
-            String(gene.gene_name || "").trim(),
-            `Total raw count: ${String(gene.total_raw_count || 0)}`,
-          ].filter(Boolean).join(" • ");
-          if (gene.ensembl_url) {
-            return `<a class="assay-gene-pill assay-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
-          }
-          return `<span class="assay-gene-pill" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</span>`;
-        }).join("")
-        : '<span class="section-note">No top-gene summary available.</span>';
-      const overlapMarkup = overlap.scopeASize || overlap.scopeBSize
-        ? `
-          <div class="assay-card-section">
-            <strong>Current Analysis scope</strong>
-            <div class="assay-stats">
-              <span class="query-chip badge">A overlap: ${escapeHtml(String(overlap.overlapA))} / ${escapeHtml(String(overlap.scopeASize || item.clinical_overlap_patient_count || 0))}</span>
-              ${analysisCompareModeEl && analysisCompareModeEl.checked ? `<span class="query-chip badge">B overlap: ${escapeHtml(String(overlap.overlapB))} / ${escapeHtml(String(overlap.scopeBSize || item.clinical_overlap_patient_count || 0))}</span>` : ""}
-            </div>
-          </div>
-        `
-        : "";
-      return `
-        <article class="assay-dashboard-card">
-          <div class="assay-card-header">
-            <div>
-              <div class="assay-card-eyebrow">Loaded assay</div>
-              <strong class="assay-card-title">${escapeHtml(item.dataset_name)}</strong>
-            </div>
-            <span class="query-chip badge assay-modality-badge">${escapeHtml(formatAssayModality(item.modality))}</span>
-          </div>
-          <div class="assay-card-meta">
-            <span class="dataset-picker-tag">${escapeHtml(item.dataset_name)}</span>
-            <span class="dataset-picker-tag">${escapeHtml(formatAssayModality(item.modality))}</span>
-          </div>
-          <div class="assay-kpi-grid">
-            <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
-            <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
-            <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count || item.gene_count || 0))}</strong></div>
-            <div class="assay-kpi"><span class="assay-kpi-label">Clinical overlap</span><strong class="assay-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
-          </div>
-          <div class="assay-card-section">
-            <strong>Sample-level summary</strong>
-            <div class="assay-summary-grid">
-              <div class="assay-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
-              <div class="assay-summary-item"><span>Detected features / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
-            </div>
-          </div>
-          ${overlapMarkup}
-          <div class="assay-card-section">
-            <strong>Top abundant ${escapeHtml(String(item.feature_label || "features"))}</strong>
-            <div class="assay-gene-list">${topGenesMarkup}</div>
-          </div>
-        </article>
-      `;
-            }).join("")}
-          </div>
-        </section>
-      `).join("")}`;
+    `;
+  }
+
+  function handleAssayModalityFilter(value) {
+    state.assayDashboardModalityFilter = String(value || "all").trim() || "all";
+    renderAssayDashboardCards(state.assayDatasetsState || []);
   }
 
   async function loadAssayFeatureSuggestions() {
@@ -1787,7 +1924,7 @@ export function createDashboardUi(ctx) {
         return;
       }
       analysisAssayStatusEl.className = "query-status";
-      const transcriptomicsCount = datasets.filter((dataset) => String(dataset && dataset.modality ? dataset.modality : "").trim() === "transcriptomics").length;
+      const transcriptomicsCount = datasets.filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics").length;
       analysisAssayStatusEl.textContent = transcriptomicsCount
         ? `Loaded ${transcriptomicsCount} transcriptomics assay${transcriptomicsCount === 1 ? "" : "s"} for quick expression checks.`
         : "No transcriptomics assays are currently available for quick expression checks.";
@@ -1898,6 +2035,7 @@ export function createDashboardUi(ctx) {
     renderAssayDatasetSelector,
     renderAssayExpressionResult,
     renderAssayDashboardCards,
+    handleAssayModalityFilter,
     renderDicomStudies,
     loadDicomStudies,
     loadAssayDatasets,

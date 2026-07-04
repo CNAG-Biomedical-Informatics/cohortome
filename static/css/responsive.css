@@ -24,7 +24,7 @@
         .dashboard-shell, .viz-grid, .metrics-grid, .workspace-grid { grid-template-columns: 1fr; }
         .dashboard-timeline-lower { grid-template-columns: 1fr; }
         .assay-grid, .assay-result-grid, .assay-dashboard-grid, .dicom-study-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
-        .assay-workspace-summary { grid-template-columns: 1fr; }
+        .assay-overview-summary, .assay-workspace-summary { grid-template-columns: 1fr; }
         .assay-kpi-grid, .assay-summary-grid, .assay-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-loader-row { grid-template-columns: 1fr; align-items: stretch; }
         .analysis-shell { grid-template-columns: 1fr; }

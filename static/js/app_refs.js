@@ -136,6 +136,8 @@ export function createAppRefs(doc = document) {
     runHistoryDrawerListEl: doc.getElementById("runHistoryDrawerList"),
     runHistoryDeleteAllBtnEl: doc.getElementById("runHistoryDeleteAllBtn"),
     assayDashboardStatusEl: doc.getElementById("assayDashboardStatus"),
+    assayDashboardOverviewEl: doc.getElementById("assayDashboardOverview"),
+    assayModalityTabsEl: doc.getElementById("assayModalityTabs"),
     assayDashboardCardsEl: doc.getElementById("assayDashboardCards"),
     dicomDashboardStatusEl: doc.getElementById("dicomDashboardStatus"),
     dicomDashboardStudiesEl: doc.getElementById("dicomDashboardStudies"),
