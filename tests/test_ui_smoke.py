@@ -521,6 +521,42 @@ def _mock_assay_datasets(page) -> None:
     )
 
 
+def _mock_dicom_studies(page) -> None:
+    page.route(
+        "**/dicom/studies?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "enabled": True,
+                    "ohif_public_url": "http://ohif.example",
+                    "dicomweb_public_url": "http://orthanc.example/dicom-web",
+                    "studies": [
+                        {
+                            "study_id": "syn001-mri",
+                            "label": "Synthetic MRI baseline SYN001",
+                            "patient_id": "SYN001",
+                            "sample_id": "SYN001:week_0",
+                            "timepoint": "week_0",
+                            "modality": "MR",
+                            "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1",
+                            "ohif_url": "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
+                            "series": [
+                                {
+                                    "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1.1",
+                                    "series_description": "Synthetic axial T1",
+                                    "instance_count": 1,
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+        ),
+    )
+
+
 def _mock_assay_datasets_with_nonmatching_dataset(page) -> None:
     page.route(
         "**/assays?*",
@@ -868,6 +904,25 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     expect(page.locator("#patients")).to_contain_text("SYN001")
     expect(page.locator("#patients")).to_contain_text("SYN002")
+
+
+def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_dicom_studies(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardAssaysBtn").click()
+
+    expect(page.locator("#dicomDashboardStatus")).to_contain_text("Loaded 1 DICOM study")
+    expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
+    expect(page.locator("#dicomDashboardStudies a", has_text="Open in OHIF")).to_have_attribute(
+        "href",
+        "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
+    )
 
 
 def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:

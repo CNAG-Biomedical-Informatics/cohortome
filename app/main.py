@@ -53,6 +53,10 @@ OPENAPI_TAGS = [
         "description": "Assay inventory and per-gene expression summaries.",
     },
     {
+        "name": "dicom",
+        "description": "DICOM study discovery and OHIF launch integration.",
+    },
+    {
         "name": "pheno-ranker",
         "description": "Pheno-Ranker planning, execution, result download, and explanation endpoints.",
     },

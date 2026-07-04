@@ -71,6 +71,7 @@ from app.datasets import (
     update_dataset,
     workspace_fingerprint_for_data_dir,
 )
+from app.dicom import dicom_status, dicom_studies
 from app.lm import DEFAULT_LLM_PROVIDER_ID, llm_provider_registry_status, lm_provider_context, lm_studio_health
 from app.jobs import (
     active_feature_job,
@@ -126,6 +127,8 @@ from app.schemas import (
     DeleteResponse,
     AssayExpressionRequest,
     AssayDatasetsResponse,
+    DicomStatusResponse,
+    DicomStudiesResponse,
     LmStatusResponse,
     PatientSummaryResponse,
     PhenoRankerPlanRequest,
@@ -1089,6 +1092,29 @@ def get_assay_expression(request: AssayExpressionRequest, raw_request: Request) 
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+def get_dicom_studies(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+    require_authenticated(request)
+    try:
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        status = dicom_status(resolved_dir)
+        return {
+            "enabled": bool(status.get("enabled")),
+            "ohif_public_url": str(status.get("ohif_public_url") or ""),
+            "dicomweb_public_url": str(status.get("dicomweb_public_url") or ""),
+            "studies": dicom_studies(resolved_dir),
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_dicom_status(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+    require_authenticated(request)
+    try:
+        return dicom_status(_resolve_route_dataset_dir(request, dataset_id, data_dir))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 def get_analysis_sessions(request: Request) -> Dict:
     require_authenticated(request)
     sessions = []
@@ -1469,9 +1495,11 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/run-history", get_run_history, methods=["GET"], tags=["jobs"], summary="List generated run history", description="Returns all generated analysis and Pheno-Ranker runs visible to the current user.")
     app.add_api_route("/run-history", delete_run_history, methods=["DELETE"], tags=["jobs"], summary="Delete terminal generated runs", description="Deletes completed, failed, or cancelled generated runs and artifacts owned by the current user. Active runs are skipped.", response_model=DeleteResponse)
     app.add_api_route("/run-history/{job_id}", remove_run_history_item, methods=["DELETE"], tags=["jobs"], summary="Delete one generated run", description="Deletes one completed, failed, or cancelled generated run and its artifacts for the current user.", response_model=DeleteResponse)
-    app.add_api_route("/assays", get_assay_datasets, methods=["GET"], tags=["assays"], summary="List assays in scope", description="Returns transcriptomics assays visible in the current workspace.", response_model=AssayDatasetsResponse)
+    app.add_api_route("/assays", get_assay_datasets, methods=["GET"], tags=["assays"], summary="List assays in scope", description="Returns assay datasets visible in the current workspace.", response_model=AssayDatasetsResponse)
     app.add_api_route("/assays/features", get_assay_features, methods=["GET"], tags=["assays"], summary="Search features in an assay", description="Returns gene identifiers for a selected assay with optional search and limit filtering.")
     app.add_api_route("/assays/expression", get_assay_expression, methods=["POST"], tags=["assays"], summary="Summarize assay expression", description="Returns scoped gene expression summaries for one assay, optionally comparing cohort A and cohort B.")
+    app.add_api_route("/dicom/studies", get_dicom_studies, methods=["GET"], tags=["dicom"], summary="List DICOM studies in scope", description="Returns DICOM studies configured for the current workspace with OHIF launch URLs.", response_model=DicomStudiesResponse)
+    app.add_api_route("/dicom/status", get_dicom_status, methods=["GET"], tags=["dicom"], summary="Get DICOM integration status", description="Returns DICOM/OHIF/Orthanc configuration status for the current workspace.", response_model=DicomStatusResponse)
     app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"], tags=["analysis"], summary="List saved analysis sessions", description="Returns persisted analysis sessions for the current user.")
     app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"], tags=["analysis"], summary="Create or update an analysis session", description="Persists analysis session state, including prompt draft, scopes, and prior turns.")
     app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"], tags=["analysis"], summary="Rename an analysis session", description="Updates the title of a saved analysis session.")

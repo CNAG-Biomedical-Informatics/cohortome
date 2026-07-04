@@ -450,10 +450,20 @@
         </section>
         <section id="dashboardAssaysPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <div id="assayDashboardStatus" class="query-status assay-status-strip">Checking transcriptomics assays...</div>
+            <div id="assayDashboardStatus" class="query-status assay-status-strip">Checking assay datasets...</div>
             <div id="assayDashboardCards" class="assay-dashboard-grid">
-              <div class="empty">No transcriptomics assays loaded.</div>
+              <div class="empty">No assays loaded.</div>
             </div>
+            <section class="dicom-dashboard-panel">
+              <div class="assay-modality-section-header">
+                <strong>DICOM imaging</strong>
+                <span class="query-chip badge">OHIF launch</span>
+              </div>
+              <div id="dicomDashboardStatus" class="query-status assay-status-strip">Checking DICOM studies...</div>
+              <div id="dicomDashboardStudies" class="dicom-study-grid">
+                <div class="empty">No DICOM studies configured.</div>
+              </div>
+            </section>
             <details class="query-section">
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Quick expression check</span></span></summary>
               <div class="section-note">A small deterministic lookup tool using the current Analysis scope. Real multimodal interpretation will stay in Analysis.</div>

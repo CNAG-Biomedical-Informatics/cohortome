@@ -381,3 +381,16 @@ class AssayDatasetResponse(FlexibleModel):
 
 class AssayDatasetsResponse(BaseModel):
     datasets: List[AssayDatasetResponse] = Field(default_factory=list)
+
+class DicomStudyResponse(FlexibleModel):
+    study_instance_uid: str = ""
+
+
+class DicomStudiesResponse(BaseModel):
+    enabled: bool = False
+    studies: List[DicomStudyResponse] = Field(default_factory=list)
+
+
+class DicomStatusResponse(FlexibleModel):
+    enabled: bool = False
+    study_count: int = 0

@@ -8,6 +8,7 @@ users. It runs:
 - FastAPI web app
 - one RQ analysis worker
 - Redis for background jobs
+- optional Orthanc and OHIF services for DICOM viewing
 
 ## Files
 
@@ -15,6 +16,8 @@ users. It runs:
   the molecular workflows.
 - `docker-compose.yml` runs `web`, `worker`, and `redis`.
 - `env.example` documents the runtime configuration.
+- `orthanc/orthanc.json` and `ohif/app-config.js` configure optional DICOM
+  services when the `dicom` Compose profile is enabled.
 
 ## First Run
 
@@ -106,6 +109,35 @@ container expects:
 
 Override `BRN_PHENO_RANKER_BIN` only if you build a custom image or mount a
 different binary for development.
+
+## DICOM Viewing
+
+DICOM viewing is optional. Enable it in `docker/.env`:
+
+```bash
+BRN_DICOM_ENABLED=true
+BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3000
+BRN_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
+BRN_ORTHANC_INTERNAL_URL=http://orthanc:8042
+```
+
+Start the DICOM services with the Compose profile:
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file docker/.env --profile dicom up -d --build
+```
+
+Import local DICOM files into Orthanc:
+
+```bash
+PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
+python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+```
+
+Dataset roots expose studies to BRN through
+`assays/imaging/dicom_studies.json`. The file stores Study/Series/SOP Instance
+UIDs and sample linkage only; DICOM pixels stay in Orthanc or another DICOMweb
+service.
 
 ## LLM Providers
 

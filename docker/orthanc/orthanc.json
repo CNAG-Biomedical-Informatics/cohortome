@@ -1,0 +1,18 @@
+{
+  "Name": "BRN Orthanc",
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "WadoRoot": "/wado",
+    "Ssl": false,
+    "StudiesMetadata": "Full"
+  },
+  "HttpHeaders": {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Origin"
+  }
+}

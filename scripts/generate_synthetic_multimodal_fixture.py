@@ -1007,6 +1007,42 @@ def write_assay_manifest(dataset_root: Path) -> None:
     (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
+def write_dicom_studies_manifest(dataset_root: Path, clinical_records: list[dict], *, private: bool = False) -> None:
+    sample_ids = _baseline_sample_ids(clinical_records, limit=1 if private else 2)
+    if not sample_ids:
+        return
+    imaging_dir = dataset_root / "assays" / "imaging"
+    imaging_dir.mkdir(parents=True, exist_ok=True)
+    uid_prefix = "2" if private else "1"
+    studies = []
+    for index, sample_id in enumerate(sample_ids, start=1):
+        patient_id, _, timepoint = sample_id.partition(":")
+        study_uid = f"1.2.826.0.1.3680043.10.54321.{uid_prefix}.{index}"
+        series_uid = f"{study_uid}.1"
+        studies.append(
+            {
+                "study_id": f"{'private-' if private else ''}synthetic-mri-{patient_id.lower()}-{timepoint or 'week_0'}",
+                "label": f"{'Private ' if private else ''}Synthetic MRI baseline {patient_id}",
+                "patient_id": patient_id,
+                "sample_id": sample_id,
+                "timepoint": timepoint or "week_0",
+                "modality": "MR",
+                "study_instance_uid": study_uid,
+                "study_description": f"{'Private ' if private else ''}Synthetic baseline MRI",
+                "series": [
+                    {
+                        "series_instance_uid": series_uid,
+                        "series_description": "Synthetic axial T1",
+                        "instance_count": 1,
+                        "sop_instance_uids": [f"{series_uid}.1"],
+                    }
+                ],
+            }
+        )
+    payload = {"version": 1, "source": "synthetic-private" if private else "synthetic", "studies": studies}
+    (imaging_dir / "dicom_studies.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def build_large_dataset(
     gene_count: int,
     *,
@@ -1043,6 +1079,7 @@ def build_large_dataset(
         large_dataset_root=dataset_root,
     )
     write_placeholder_assay_matrices(dataset_root, active_clinical_records)
+    write_dicom_studies_manifest(dataset_root, active_clinical_records)
     write_assay_manifest(dataset_root)
 
 
@@ -1085,6 +1122,7 @@ def main() -> None:
         build_hc_transcriptomics_matrix(DEFAULT_GENE_IDS, DEFAULT_GENE_MODULE_BY_ID, DEFAULT_GENE_BASELINES)
         write_transcriptomics_readme(TRANSCRIPTOMICS_DIR)
         write_placeholder_assay_matrices(DEFAULT_DATASET_ROOT, clinical_records)
+        write_dicom_studies_manifest(DEFAULT_DATASET_ROOT, clinical_records)
         write_assay_manifest(DEFAULT_DATASET_ROOT)
     if args.large_gene_count is not None:
         build_large_dataset(

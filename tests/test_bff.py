@@ -17,6 +17,7 @@ import app.analysis_sessions as analysis_sessions_module
 import app.auth as auth_module
 import app.cohorts as cohorts_module
 import app.datasets as datasets_module
+import app.dicom as dicom_module
 import app.jobs as jobs_module
 import app.lm as lm_module
 import app.main as main_module
@@ -2122,6 +2123,70 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     patients = client.get("/patients")
     assert patients.status_code == 200
     assert patients.json()[0]["patient_id"] == "M1"
+
+
+def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeypatch):
+    monkeypatch.setenv("BRN_DICOM_ENABLED", "true")
+    monkeypatch.setenv("BRN_OHIF_PUBLIC_URL", "http://ohif.example")
+    monkeypatch.setattr(dicom_module, "orthanc_health", lambda: {"checked": False, "reachable": False, "message": "mocked"})
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda request: {"username": "maria"})
+
+    dataset_root = tmp_path / "dicom-dataset"
+    (dataset_root / "clinical").mkdir(parents=True)
+    write_json(dataset_root / "clinical", "records.json", [{"id": "M1:week_0", "patient_id": "M1"}])
+    imaging_dir = dataset_root / "assays" / "imaging"
+    imaging_dir.mkdir(parents=True)
+    (imaging_dir / "dicom_studies.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "studies": [
+                    {
+                        "study_id": "m1-mri",
+                        "label": "M1 MRI",
+                        "patient_id": "M1",
+                        "sample_id": "M1:week_0",
+                        "timepoint": "week_0",
+                        "modality": "MR",
+                        "study_instance_uid": "1.2.826.0.1.1",
+                        "series": [{"series_instance_uid": "1.2.826.0.1.1.1", "instance_count": 2}],
+                    },
+                    {"study_instance_uid": "../invalid"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda request, dataset_id, data_dir: str(dataset_root))
+
+    payload = routes_module.get_dicom_studies(make_request({"user": {"username": "maria"}}), dataset_id="dicom-dataset")
+
+    assert payload["enabled"] is True
+    assert payload["ohif_public_url"] == "http://ohif.example"
+    assert len(payload["studies"]) == 1
+    study = payload["studies"][0]
+    assert study["study_instance_uid"] == "1.2.826.0.1.1"
+    assert study["ohif_url"] == "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.1"
+    assert study["series"][0]["instance_count"] == 2
+    status = routes_module.get_dicom_status(make_request({"user": {"username": "maria"}}), dataset_id="dicom-dataset")
+    assert status["manifest_found"] is True
+    assert status["manifest_count"] == 1
+    assert "manifest_paths" not in status
+    assert "BRN_ORTHANC_PASSWORD" not in json.dumps(status)
+
+
+def test_dicom_studies_route_enforces_dataset_access(tmp_path, monkeypatch):
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda request: {"username": "maria"})
+
+    def deny_dataset(_request, _dataset_id, _data_dir):
+        raise HTTPException(status_code=403, detail="Dataset access denied.")
+
+    monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", deny_dataset)
+
+    with pytest.raises(HTTPException) as exc:
+        routes_module.get_dicom_studies(make_request({"user": {"username": "maria"}}), dataset_id="admin-only")
+
+    assert exc.value.status_code == 403
 
 
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
@@ -7237,14 +7302,50 @@ def test_query_store_ingests_assay_count_matrices(tmp_path):
         ),
         encoding="utf-8",
     )
+    imaging_dir = tmp_path / "assays" / "imaging"
+    imaging_dir.mkdir(parents=True)
+    (imaging_dir / "synthetic_imaging_derived_features.csv").write_text(
+        "\n".join(
+            [
+                "feature_id;SYN001;SYN002",
+                "DICOM:0018,0087_MagneticFieldStrength;3.0;1.5",
+                "DICOM:0028,1050_WindowCenter;450;520",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_transcriptome_raw_counts",
+                        "label": "synthetic transcriptome raw counts",
+                        "modality": "transcriptomics",
+                        "data_type": "raw_counts",
+                        "file": "assays/transcriptomics/synthetic_transcriptome_raw_counts.csv",
+                    },
+                    {
+                        "assay_id": "synthetic_imaging_derived_features",
+                        "label": "synthetic imaging derived features",
+                        "modality": "imaging",
+                        "data_type": "dicom_derived_measurements",
+                        "file": "assays/imaging/synthetic_imaging_derived_features.csv",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         inventory = store_assay_dataset_inventory(str(tmp_path))
     finally:
         query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert len(inventory) == 1
-    item = inventory[0]
+    assert len(inventory) == 2
+    item = next(item for item in inventory if item["dataset_name"] == "synthetic_transcriptome_raw_counts")
     assert item["dataset_name"] == "synthetic_transcriptome_raw_counts"
     assert item["modality"] == "transcriptomics"
     assert item["data_type"] == "raw_counts"
@@ -7255,6 +7356,13 @@ def test_query_store_ingests_assay_count_matrices(tmp_path):
     assert item["sample_ids"] == ["SYN001", "SYN002"]
     assert item["patient_ids"] == ["SYN001", "SYN002"]
     assert len(item["top_genes"]) == 2
+    imaging = next(item for item in inventory if item["dataset_name"] == "synthetic_imaging_derived_features")
+    assert imaging["modality"] == "imaging"
+    assert imaging["data_type"] == "dicom_derived_measurements"
+    assert imaging["feature_id_type"] == "dicom_standard_tag"
+    assert imaging["feature_count"] == 2
+    assert imaging["sample_count"] == 2
+    assert imaging["clinical_overlap_patient_count"] == 2
 
 
 def test_query_store_summarizes_transcriptomics_expression_by_scope(tmp_path):

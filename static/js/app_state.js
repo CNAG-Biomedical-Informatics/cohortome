@@ -4,6 +4,8 @@ export function createAppState() {
     currentPatients: [],
     assayDatasetsState: [],
     assayDatasetsScopeId: "",
+    dicomStudiesState: [],
+    dicomStatus: null,
     selectedAssayDatasets: [],
     queryInFlight: false,
     queryHistory: [],

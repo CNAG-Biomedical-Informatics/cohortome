@@ -9,6 +9,8 @@ export function createDashboardUi(ctx) {
     dataDirEl,
     assayDashboardStatusEl,
     assayDashboardCardsEl,
+    dicomDashboardStatusEl,
+    dicomDashboardStudiesEl,
     analysisAssayDatasetListEl,
     analysisCatalogAssayDatasetListEl,
     analysisAssayGeneEl,
@@ -1468,7 +1470,7 @@ export function createDashboardUi(ctx) {
       }
       const availableDatasets = contextualAssayDatasets();
       if (!availableDatasets.length) {
-        contextualListEl.innerHTML = '<div class="empty">No transcriptomics assays are available in this workspace.</div>';
+      contextualListEl.innerHTML = '<div class="empty">No compatible assays are available in this workspace.</div>';
         return;
       }
       contextualListEl.innerHTML = groupAssaysByModality(availableDatasets).map(([modality, datasets]) => `
@@ -1527,10 +1529,82 @@ export function createDashboardUi(ctx) {
     return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
   }
 
+  function renderDicomStudies(payload) {
+    if (!dicomDashboardStatusEl || !dicomDashboardStudiesEl) return;
+    const source = payload && typeof payload === "object" ? payload : {};
+    const enabled = Boolean(source.enabled);
+    const studies = Array.isArray(source.studies) ? source.studies : [];
+    state.dicomStatus = source;
+    state.dicomStudiesState = studies;
+    dicomDashboardStatusEl.className = "query-status";
+    if (!studies.length) {
+      dicomDashboardStatusEl.textContent = enabled
+        ? "No DICOM studies are configured for this workspace."
+        : "DICOM visualization is disabled. No DICOM studies are configured for this workspace.";
+      dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
+      return;
+    }
+    dicomDashboardStatusEl.textContent = enabled
+      ? `Loaded ${studies.length} DICOM stud${studies.length === 1 ? "y" : "ies"} for OHIF viewing.`
+      : `DICOM visualization is disabled. ${studies.length} configured stud${studies.length === 1 ? "y" : "ies"} found.`;
+    dicomDashboardStudiesEl.innerHTML = studies.map((study) => {
+      const series = Array.isArray(study.series) ? study.series : [];
+      const instanceCount = series.reduce((total, item) => total + Number(item && item.instance_count ? item.instance_count : 0), 0);
+      const ohifUrl = String(study.ohif_url || "").trim();
+      const canOpen = enabled && ohifUrl;
+      const title = String(study.label || study.study_description || study.study_instance_uid || "DICOM study").trim();
+      const subtitle = [study.patient_id, study.sample_id, study.timepoint].map((item) => String(item || "").trim()).filter(Boolean).join(" • ");
+      return `
+        <article class="dicom-study-card">
+          <div class="assay-card-header">
+            <div>
+              <div class="assay-card-eyebrow">DICOM study</div>
+              <strong class="assay-card-title">${escapeHtml(title)}</strong>
+            </div>
+            <span class="query-chip badge assay-modality-badge">${escapeHtml(String(study.modality || "DICOM"))}</span>
+          </div>
+          ${subtitle ? `<div class="section-note">${escapeHtml(subtitle)}</div>` : ""}
+          <div class="assay-kpi-grid">
+            <div class="assay-kpi"><span class="assay-kpi-label">Series</span><strong class="assay-kpi-value">${escapeHtml(String(series.length))}</strong></div>
+            <div class="assay-kpi"><span class="assay-kpi-label">Instances</span><strong class="assay-kpi-value">${escapeHtml(String(instanceCount))}</strong></div>
+          </div>
+          <div class="assay-card-section">
+            <strong>StudyInstanceUID</strong>
+            <code class="dicom-uid">${escapeHtml(String(study.study_instance_uid || ""))}</code>
+          </div>
+          <div class="query-row dicom-card-actions">
+            ${canOpen
+        ? `<a class="button-like" href="${escapeHtml(ohifUrl)}" target="_blank" rel="noopener">Open in OHIF</a>`
+        : '<button type="button" disabled>Open in OHIF</button>'}
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  async function loadDicomStudies(options = {}) {
+    if (!dicomDashboardStatusEl || !dicomDashboardStudiesEl) return;
+    const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
+    const dataDir = encodeURIComponent(scopeId);
+    dicomDashboardStatusEl.className = "query-status loading";
+    dicomDashboardStatusEl.textContent = "Checking DICOM studies...";
+    try {
+      const response = await fetch(`/dicom/studies?data_dir=${dataDir}`);
+      if (!response.ok) throw new Error("Unable to load DICOM studies.");
+      renderDicomStudies(await response.json());
+    } catch (error) {
+      state.dicomStudiesState = [];
+      state.dicomStatus = null;
+      dicomDashboardStatusEl.className = "query-status";
+      dicomDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load DICOM studies.";
+      dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
+    }
+  }
+
   function renderAssayDashboardCards(datasets) {
     if (!assayDashboardCardsEl) return;
     if (!Array.isArray(datasets) || !datasets.length) {
-      assayDashboardCardsEl.innerHTML = '<div class="empty">No transcriptomics assays loaded.</div>';
+      assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
       return;
     }
     const workspaceSummary = datasets.reduce((summary, item) => {
@@ -1675,19 +1749,20 @@ export function createDashboardUi(ctx) {
       clearAssayWorkspaceSelection();
     }
     const dataDir = encodeURIComponent(scopeId);
+    void loadDicomStudies({ scopeId });
     analysisAssayStatusEl.className = "query-status loading";
     analysisAssayStatusEl.textContent = "Checking transcriptomics assays...";
     if (analysisCatalogAssayStatusEl) {
-      analysisCatalogAssayStatusEl.textContent = "Checking transcriptomics assays...";
+      analysisCatalogAssayStatusEl.textContent = "Checking assay datasets...";
     }
     assayDashboardStatusEl.className = "query-status loading";
-    assayDashboardStatusEl.textContent = "Checking transcriptomics assays...";
+    assayDashboardStatusEl.textContent = "Checking assay datasets...";
     try {
       const payload = options.prefetched && typeof options.prefetched === "object"
         ? options.prefetched
         : await (async () => {
           const response = await fetch(`/assays?data_dir=${dataDir}`);
-          if (!response.ok) throw new Error("Unable to load transcriptomics assays.");
+          if (!response.ok) throw new Error("Unable to load assay datasets.");
           return response.json();
         })();
       const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
@@ -1704,31 +1779,34 @@ export function createDashboardUi(ctx) {
         analysisAssayStatusEl.className = "query-status";
         analysisAssayStatusEl.textContent = "No transcriptomics assays are currently available for quick expression checks.";
         if (analysisCatalogAssayStatusEl) {
-          analysisCatalogAssayStatusEl.textContent = "No transcriptomics assays are currently available in this workspace.";
+          analysisCatalogAssayStatusEl.textContent = "No compatible assay datasets are currently available in this workspace.";
         }
         assayDashboardStatusEl.className = "query-status";
-        assayDashboardStatusEl.textContent = "No transcriptomics assays are currently available.";
+        assayDashboardStatusEl.textContent = "No assay datasets are currently available.";
         renderAssayExpressionResult(null);
         return;
       }
       analysisAssayStatusEl.className = "query-status";
-      analysisAssayStatusEl.textContent = `Loaded ${datasets.length} transcriptomics assay${datasets.length === 1 ? "" : "s"} for quick expression checks.`;
+      const transcriptomicsCount = datasets.filter((dataset) => String(dataset && dataset.modality ? dataset.modality : "").trim() === "transcriptomics").length;
+      analysisAssayStatusEl.textContent = transcriptomicsCount
+        ? `Loaded ${transcriptomicsCount} transcriptomics assay${transcriptomicsCount === 1 ? "" : "s"} for quick expression checks.`
+        : "No transcriptomics assays are currently available for quick expression checks.";
       if (analysisCatalogAssayStatusEl) {
         analysisCatalogAssayStatusEl.textContent = datasets.length === 1
-          ? `1 transcriptomics assay available for Analysis.`
-          : `${datasets.length} transcriptomics assays available. Some assay tools require exactly one selected assay.`;
+          ? `1 assay dataset available for Analysis.`
+          : `${datasets.length} assay datasets available. Some assay tools require exactly one selected assay.`;
       }
       assayDashboardStatusEl.className = "query-status";
-      assayDashboardStatusEl.textContent = `Loaded ${datasets.length} transcriptomics assay${datasets.length === 1 ? "" : "s"}.`;
+      assayDashboardStatusEl.textContent = `Loaded ${datasets.length} assay dataset${datasets.length === 1 ? "" : "s"}.`;
       await loadAssayFeatureSuggestions();
     } catch (error) {
       analysisAssayStatusEl.className = "query-status";
       analysisAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
       if (analysisCatalogAssayStatusEl) {
-        analysisCatalogAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
+        analysisCatalogAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load assay datasets.";
       }
       assayDashboardStatusEl.className = "query-status";
-      assayDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
+      assayDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load assay datasets.";
       state.assayDatasetsState = [];
       clearAssayWorkspaceSelection();
       renderAssayDatasetSelector();
@@ -1820,6 +1898,8 @@ export function createDashboardUi(ctx) {
     renderAssayDatasetSelector,
     renderAssayExpressionResult,
     renderAssayDashboardCards,
+    renderDicomStudies,
+    loadDicomStudies,
     loadAssayDatasets,
     runAssayExpressionAnalysis,
     handleAssayDatasetSelectionChange,

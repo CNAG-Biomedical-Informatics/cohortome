@@ -26,7 +26,9 @@ Assay columns use sample IDs. In the synthetic fixtures, sample IDs follow the `
 
 Imaging assays must use the DICOM standard. The current fixture represents imaging as DICOM-derived measurement matrices keyed by DICOM tag identifiers such as `DICOM:0018,0087_MagneticFieldStrength` and `DICOM:0028,0030_PixelSpacingRow`.
 
-Raw DICOM object storage, DICOMweb retrieval, and pixel-data processing are not implemented in this refactor. Those should be added as DICOM-native resources rather than as generic image files.
+Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to BRN patient and sample IDs. When `BRN_DICOM_ENABLED=true`, the Assays dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
+
+BRN does not copy OHIF, Cornerstone, or Orthanc source code into the app. OHIF and Orthanc run as separate services; BRN only stores study metadata and creates viewer links for studies that belong to the authorized workspace.
 
 ## Analysis requirements
 

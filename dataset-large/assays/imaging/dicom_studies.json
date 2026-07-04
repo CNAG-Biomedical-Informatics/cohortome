@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "source": "synthetic",
+  "studies": [
+    {
+      "study_id": "synthetic-mri-syn001-week0",
+      "label": "Synthetic MRI baseline SYN001",
+      "patient_id": "SYN001",
+      "sample_id": "SYN001:week_0",
+      "timepoint": "week_0",
+      "modality": "MR",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1",
+      "study_description": "Synthetic baseline MRI",
+      "series": [
+        {
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1.1",
+          "series_description": "Synthetic axial T1",
+          "instance_count": 1,
+          "sop_instance_uids": [
+            "1.2.826.0.1.3680043.10.54321.1.1.1.1"
+          ]
+        }
+      ]
+    },
+    {
+      "study_id": "synthetic-mri-syn002-week0",
+      "label": "Synthetic MRI baseline SYN002",
+      "patient_id": "SYN002",
+      "sample_id": "SYN002:week_0",
+      "timepoint": "week_0",
+      "modality": "MR",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.2",
+      "study_description": "Synthetic baseline MRI",
+      "series": [
+        {
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.2.1",
+          "series_description": "Synthetic axial T1",
+          "instance_count": 1,
+          "sop_instance_uids": [
+            "1.2.826.0.1.3680043.10.54321.1.2.1.1"
+          ]
+        }
+      ]
+    }
+  ]
+}

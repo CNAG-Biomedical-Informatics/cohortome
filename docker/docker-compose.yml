@@ -56,5 +56,29 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
+  orthanc:
+    image: orthancteam/orthanc:latest
+    profiles: ["dicom"]
+    ports:
+      - "8042:8042"
+      - "4242:4242"
+    volumes:
+      - orthanc-data:/var/lib/orthanc/db
+      - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
+    restart: unless-stopped
+
+  ohif:
+    image: ohif/app:latest
+    profiles: ["dicom"]
+    ports:
+      - "3000:80"
+    volumes:
+      - ./ohif/app-config.js:/usr/share/nginx/html/app-config.js:ro
+    depends_on:
+      orthanc:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   redis-data:
+  orthanc-data:

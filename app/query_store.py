@@ -1013,6 +1013,108 @@ def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
         "compatible_analysis_levels": ["sample", "patient"],
     }
 
+
+def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
+    root = resolve_project_data_dir(data_dir)
+    manifest_path = root / "assays" / "manifest.json"
+    if manifest_path.exists():
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        items = payload.get("assays") if isinstance(payload, dict) else []
+        if isinstance(items, list):
+            return [item for item in items if isinstance(item, dict)]
+    items: List[Dict[str, Any]] = []
+    assays_root = root / "assays"
+    for path in sorted(assays_root.glob("*/*.csv")) if assays_root.exists() else []:
+        items.append(
+            {
+                "assay_id": path.stem,
+                "label": path.stem.replace("_", " "),
+                "modality": path.parent.name,
+                "data_type": "raw_counts" if path.parent.name == "transcriptomics" else "feature_matrix",
+                "file": str(path.relative_to(root)),
+            }
+        )
+    return items
+
+
+def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | None:
+    relative_file = str(item.get("file") or "").strip()
+    if not relative_file:
+        return None
+    path = (root / relative_file).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, IndexError, UnicodeDecodeError):
+        return None
+    delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
+    sample_ids: List[str] = []
+    feature_count = 0
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle, delimiter=delimiter)
+            header = next(reader, [])
+            sample_ids = [str(item or "").strip() for item in header[1:] if str(item or "").strip()]
+            for row in reader:
+                if row and str(row[0] or "").strip():
+                    feature_count += 1
+    except (OSError, UnicodeDecodeError):
+        return None
+    patient_ids = sorted({sample_id.split(":", 1)[0] for sample_id in sample_ids if sample_id.split(":", 1)[0]})
+    return {
+        "sample_ids": sample_ids,
+        "patient_ids": patient_ids,
+        "sample_count": len(sample_ids),
+        "patient_count": len(patient_ids),
+        "feature_count": feature_count,
+    }
+
+
+def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_patient_ids: set[str]) -> List[Dict[str, Any]]:
+    root = resolve_project_data_dir(data_dir)
+    items: List[Dict[str, Any]] = []
+    for item in _assay_manifest_items(data_dir):
+        dataset_name = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
+        if not dataset_name or dataset_name in existing_names:
+            continue
+        stats = _assay_matrix_stats(root, item)
+        if not stats:
+            continue
+        modality = str(item.get("modality") or "assay").strip() or "assay"
+        data_type = str(item.get("data_type") or "feature_matrix").strip() or "feature_matrix"
+        patient_ids = list(stats["patient_ids"])
+        clinical_overlap = len(set(patient_ids).intersection(clinical_patient_ids))
+        items.append(
+            {
+                "assay_id": dataset_name,
+                "label": str(item.get("label") or dataset_name).strip() or dataset_name,
+                "dataset_name": dataset_name,
+                "modality": modality,
+                "data_type": data_type,
+                "sample_count": int(stats["sample_count"]),
+                "patient_count": int(stats["patient_count"]),
+                "gene_count": int(stats["feature_count"]),
+                "clinical_overlap_patient_count": clinical_overlap,
+                "mean_total_counts_per_sample": 0.0,
+                "mean_detected_genes_per_sample": 0.0,
+                "sample_ids": list(stats["sample_ids"]),
+                "patient_ids": patient_ids,
+                "top_genes": [],
+                "feature_count": int(stats["feature_count"]),
+                **_assay_inventory_metadata(modality, data_type),
+            }
+        )
+    return sorted(items, key=lambda value: str(value.get("dataset_name") or ""))
+
+
 def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
@@ -1097,6 +1199,11 @@ def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
                 """
             ).fetchall()
         }
+        clinical_patient_ids = {
+            str(row[0])
+            for row in con.execute("SELECT patient_id FROM patients").fetchall()
+            if row and row[0] is not None
+        }
         top_genes_map: Dict[str, List[Dict[str, Any]]] = {}
         for dataset_name in dataset_names:
             top_rows = con.execute(
@@ -1120,7 +1227,7 @@ def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             ]
     finally:
         con.close()
-    return [
+    transcriptomics_items = [
         {
             "assay_id": dataset_name,
             "label": dataset_name,
@@ -1151,6 +1258,8 @@ def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             mean_detected_genes_per_sample,
         ) in rows
     ]
+    manifest_items = _manifest_assay_inventory(data_dir, set(dataset_names), clinical_patient_ids)
+    return sorted([*transcriptomics_items, *manifest_items], key=lambda value: str(value.get("dataset_name") or ""))
 
 
 def assay_feature_inventory(data_dir: str, dataset_name: str, search: str = "", limit: int = 50) -> List[str]:

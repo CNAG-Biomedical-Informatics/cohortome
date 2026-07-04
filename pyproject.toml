@@ -35,6 +35,9 @@ ui_test = [
   "pytest>=8.3,<9",
   "playwright>=1.52,<2",
 ]
+dicom = [
+  "pydicom>=2.4,<4",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "source": "synthetic-private",
+  "studies": [
+    {
+      "study_id": "private-mri-prv001-week0",
+      "label": "Private synthetic MRI baseline PRV001",
+      "patient_id": "PRV001",
+      "sample_id": "PRV001:week_0",
+      "timepoint": "week_0",
+      "modality": "MR",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.2.1",
+      "study_description": "Private synthetic baseline MRI",
+      "series": [
+        {
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.2.1.1",
+          "series_description": "Synthetic axial T1",
+          "instance_count": 1,
+          "sop_instance_uids": [
+            "1.2.826.0.1.3680043.10.54321.2.1.1.1"
+          ]
+        }
+      ]
+    }
+  ]
+}
