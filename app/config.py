@@ -38,7 +38,7 @@ def branding_settings() -> Dict[str, Any]:
         "name": app_env("BRN_BRAND_NAME", "Biomedical Research Navigator").strip() or "Biomedical Research Navigator",
         "subtitle": app_env(
             "BRN_BRAND_SUBTITLE",
-            "Clinical and molecular workspace exploration.",
+            "Clinical and transcriptomics assay workspace exploration.",
         ).strip(),
         "logo_url": "/branding/logo" if logo_path else "",
         "logo_alt": app_env("BRN_BRAND_LOGO_ALT", "Biomedical Research Navigator logo").strip() or "Biomedical Research Navigator logo",

@@ -31,7 +31,7 @@ The backend is a FastAPI application that exposes:
 - patient and dashboard routes
 - Query routes
 - Analysis routes
-- molecular routes
+- assay routes
 - Pheno-Ranker routes
 
 The backend is also responsible for:
@@ -80,7 +80,7 @@ This is why the rest of the app can talk about one active workspace even when th
 
 ## Query store and DuckDB
 
-The app uses a DuckDB-backed query layer to normalize and reuse clinical and molecular data efficiently.
+The app uses a DuckDB-backed query layer to normalize and reuse clinical and assay data efficiently.
 
 Current model:
 
@@ -99,9 +99,9 @@ This query layer is:
 
 The purpose of this layer is to make deterministic querying and summarization fast enough to feel interactive.
 
-### Molecular ingest path
+### Assay ingest path
 
-The molecular build path keeps the same schema and indexes, but ingestion is now more DuckDB-native:
+The assay build path keeps the same schema and indexes, but ingestion is now more DuckDB-native:
 
 - matrix CSVs are loaded directly into DuckDB
 - counts are unpivoted inside DuckDB
@@ -146,9 +146,9 @@ They can point to:
 - curated external runners such as reviewed `Rscript`, `Snakemake`, or `Nextflow` integrations
 - curated multi-step Analysis workflows
 
-Current molecular tool pattern:
+Current assay tool pattern:
 
-- one selected raw-count molecular dataset
+- one selected raw-count transcriptomics assay
 - scoped `Cohort A` and `Cohort B`
 - Python materializes a job-local bundle
   - `manifest.yaml`
@@ -162,7 +162,7 @@ Current examples include:
 - lightweight external differential expression
 - `DESeq2` differential expression
 - Hallmark pathway enrichment using `DESeq2` ranking plus `fgsea`
-- Molecular signature workflow
+- Transcriptomics signature workflow
   - runs `DESeq2` first
   - runs Hallmark pathway enrichment second
   - stores one user-facing job with step directories under `workflow/`

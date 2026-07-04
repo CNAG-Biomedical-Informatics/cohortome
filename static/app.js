@@ -28,10 +28,10 @@ const DASHBOARD_SUBTAB_STORAGE_KEY = "biomedical-research-navigator.dashboard-su
 const ANALYSIS_SESSIONS_STORAGE_KEY = "biomedical-research-navigator.analysis-sessions";
 const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "biomedical-research-navigator.analysis-sidebar-collapsed";
 const TAB_HELPER_TEXT = {
-  dashboard: "Browse the loaded clinical and molecular data",
+  dashboard: "Browse the loaded clinical and assay data",
   timeline: "Review longitudinal patient events and select patients for downstream analysis",
   clinical: "Review the clinical workspace overview",
-  molecular: "Inspect loaded molecular datasets and expression coverage",
+  assay: "Inspect loaded transcriptomics assays and expression coverage",
   datasets: "Choose the authorized datasets that define your active workspace scope",
   data: "Admin-only dataset visibility and access policy management",
   users: "Admin-only read-only user visibility",
@@ -237,7 +237,7 @@ function sendPromptToAnalysis(prompt, options) {
   refs.analysisPromptEl.value = normalizedPrompt;
   state.analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
   state.analysisSelectedCatalogItemId = "";
-  analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+  analysisCatalogUi.renderAnalysisCatalogAssayPanel();
   navigationUi.setActiveTab("analysis");
   dashboardUi.renderAnalysisScopeSummary();
   analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
@@ -458,7 +458,7 @@ dashboardUi = createDashboardUi({
     sendPatientIdsToAnalysis: (patientIds, options) => sendPatientIdsToAnalysisFromSource(patientIds, options),
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
-    renderAnalysisCatalogMolecularPanel: () => analysisCatalogUi.renderAnalysisCatalogMolecularPanel(),
+    renderAnalysisCatalogAssayPanel: () => analysisCatalogUi.renderAnalysisCatalogAssayPanel(),
   },
   state,
   constants: {
@@ -490,12 +490,12 @@ analysisCatalogUi = createAnalysisCatalogUi({
   },
   callbacks: {
     queryWorkspacePolicyExplanation: () => datasetsUi.queryWorkspacePolicyExplanation(),
-    renderMolecularDatasetSelector: () => dashboardUi.renderMolecularDatasetSelector(),
+    renderAssayDatasetSelector: () => dashboardUi.renderAssayDatasetSelector(),
     renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
-    molecularDatasetOverlap: (datasetName) => dashboardUi.molecularDatasetOverlap(datasetName),
+    assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
   },
 });
 
@@ -578,7 +578,7 @@ analysisUi = createAnalysisUi({
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
-    molecularDatasetOverlap: (datasetName) => dashboardUi.molecularDatasetOverlap(datasetName),
+    assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
   },
   state,
 });
@@ -707,7 +707,7 @@ workspaceUi = createWorkspaceUi({
     loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
     loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
     loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
-    loadMolecularDatasets: () => dashboardUi.loadMolecularDatasets(),
+    loadAssayDatasets: () => dashboardUi.loadAssayDatasets(),
     loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderPatientList: (items) => dashboardUi.renderPatientList(items),
@@ -734,7 +734,7 @@ datasetsUi = createDatasetsUi({
     loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
     loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
     loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
-    loadMolecularDatasets: () => dashboardUi.loadMolecularDatasets(),
+    loadAssayDatasets: () => dashboardUi.loadAssayDatasets(),
     loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
     renderPhenoTabAvailability: () => navigationUi.renderPhenoTabAvailability(),
     currentTabName: () => navigationUi.currentTabName(),
@@ -992,8 +992,8 @@ function bindEvents() {
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (target === "requirements") {
-      if (refs.analysisCatalogMolecularPanelEl && !refs.analysisCatalogMolecularPanelEl.classList.contains("is-hidden")) {
-        refs.analysisCatalogMolecularPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (refs.analysisCatalogAssayPanelEl && !refs.analysisCatalogAssayPanelEl.classList.contains("is-hidden")) {
+        refs.analysisCatalogAssayPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
         analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
       }
@@ -1034,7 +1034,7 @@ function bindEvents() {
   refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
   refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
   refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
-  refs.dashboardMolecularBtnEl && refs.dashboardMolecularBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("molecular"));
+  refs.dashboardAssaysBtnEl && refs.dashboardAssaysBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("assays"));
   refs.dashboardTimelineBtnEl && refs.dashboardTimelineBtnEl.addEventListener("click", () => {
     navigationUi.setDashboardSubtab("timeline");
     if (state.dashboardSummaryState) {
@@ -1191,26 +1191,26 @@ function bindEvents() {
   refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("input", () => {
     state.analysisExecutionMode = "auto";
     state.analysisSelectedCatalogItemId = "";
-    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
 
-  const handleMolecularDatasetListChange = (event) => {
+  const handleAssayDatasetListChange = (event) => {
     const checkbox = event.target.closest('input[type="checkbox"]');
     if (!checkbox) {
       return;
     }
-    dashboardUi.handleMolecularDatasetSelectionChange(event.currentTarget, checkbox);
-    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    dashboardUi.handleAssayDatasetSelectionChange(event.currentTarget, checkbox);
+    analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisCatalogUi.renderAnalysisCatalog();
   };
-  refs.analysisMolecularDatasetListEl && refs.analysisMolecularDatasetListEl.addEventListener("change", handleMolecularDatasetListChange);
-  refs.analysisCatalogMolecularDatasetListEl && refs.analysisCatalogMolecularDatasetListEl.addEventListener("change", handleMolecularDatasetListChange);
-  refs.analysisMolecularGeneEl && refs.analysisMolecularGeneEl.addEventListener("input", () => {
-    dashboardUi.handleMolecularGeneInput();
+  refs.analysisAssayDatasetListEl && refs.analysisAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
+  refs.analysisCatalogAssayDatasetListEl && refs.analysisCatalogAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
+  refs.analysisAssayGeneEl && refs.analysisAssayGeneEl.addEventListener("input", () => {
+    dashboardUi.handleAssayFeatureInput();
   });
-  refs.analysisMolecularRunBtnEl && refs.analysisMolecularRunBtnEl.addEventListener("click", () => {
-    void dashboardUi.runMolecularExpressionAnalysis();
+  refs.analysisAssayRunBtnEl && refs.analysisAssayRunBtnEl.addEventListener("click", () => {
+    void dashboardUi.runAssayExpressionAnalysis();
   });
 
   refs.patientsEl && refs.patientsEl.addEventListener("click", (event) => {
@@ -1248,7 +1248,7 @@ function bindEvents() {
       ? "llm_only"
       : (button.dataset.analysisDeterministic === "true" ? "deterministic" : "planner_only");
     state.analysisSelectedCatalogItemId = "";
-    analysisCatalogUi.renderAnalysisCatalogMolecularPanel();
+    analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     state.analysisExamplesPinnedOpen = false;
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
     analysisCatalogUi.renderAnalysisStarterPrompts();
@@ -1476,15 +1476,15 @@ function applyStoredTabPreferences() {
   try {
     const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
     const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
-    if (savedDashboardSubtab && ["clinical", "molecular", "timeline"].includes(savedDashboardSubtab)) {
+    if (savedDashboardSubtab && ["clinical", "assays", "timeline"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
-    if (savedTab && ["dashboard", "cohort", "molecular", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "cohort", "assays", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
       if (savedTab === "cohort") {
         navigationUi.setDashboardSubtab("clinical");
         navigationUi.setActiveTab("dashboard");
-      } else if (savedTab === "molecular") {
-        navigationUi.setDashboardSubtab("molecular");
+      } else if (savedTab === "assays") {
+        navigationUi.setDashboardSubtab("assays");
         navigationUi.setActiveTab("dashboard");
       } else if ((savedTab === "data" || savedTab === "users" || savedTab === "models") && state.authState.enabled && !authUi.canManageDataset()) {
         navigationUi.setActiveTab("datasets");

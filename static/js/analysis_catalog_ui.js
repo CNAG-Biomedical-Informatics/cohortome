@@ -21,11 +21,11 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogDrawerSearchEl,
     analysisCatalogDrawerFiltersEl,
     analysisCatalogDrawerListEl,
-    analysisCatalogMolecularPanelEl,
-    analysisCatalogMolecularStatusEl,
+    analysisCatalogAssayPanelEl,
+    analysisCatalogAssayStatusEl,
     analysisCatalogSetupBadgesEl,
-    analysisCatalogMolecularTitleEl,
-    analysisCatalogMolecularNoteEl,
+    analysisCatalogAssayTitleEl,
+    analysisCatalogAssayNoteEl,
     analysisFlowBarEl,
     analysisComposerSetupEl,
     analysisComposerSetupTitleEl,
@@ -40,12 +40,12 @@ export function createAnalysisCatalogUi(ctx) {
   const { MAX_VISIBLE_EXAMPLES } = constants;
   const {
     queryWorkspacePolicyExplanation,
-    renderMolecularDatasetSelector,
+    renderAssayDatasetSelector,
     renderAnalysisCompareMode,
     syncCurrentAnalysisSessionFromUi,
     currentDatasetSelectionKey,
     isWorkspaceAccessible,
-    molecularDatasetOverlap,
+    assayDatasetOverlap,
   } = callbacks;
 
   function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -229,7 +229,7 @@ export function createAnalysisCatalogUi(ctx) {
       compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8"></path><path d="M8 17h8"></path><path d="m6 9 2-2 2 2"></path><path d="m18 15-2 2-2-2"></path></svg>',
       trajectory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
       survival: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m6 7 4 5 3-3 5 6"></path></svg>',
-      molecular: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
+      assay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
       external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 14v5H5V5h5"></path></svg>',
       general: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>',
     };
@@ -243,7 +243,7 @@ export function createAnalysisCatalogUi(ctx) {
     const id = String(item && item.id ? item.id : "").toLowerCase();
     if (category.includes("survival") || id.includes("survival") || id.includes("kaplan")) return "survival";
     if (category.includes("trajectory") || id.includes("trajectory")) return "trajectory";
-    if (category.includes("molecular") || id.includes("molecular") || id.includes("volcano")) return "molecular";
+    if (category.includes("assays") || id.includes("assays") || id.includes("volcano")) return "assay";
     if (category.includes("compare") || id.includes("compare")) return "compare";
     if (category.includes("clinical") || id.includes("summary")) return "clinical";
     return "general";
@@ -267,9 +267,9 @@ export function createAnalysisCatalogUi(ctx) {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
-  function selectedAnalysisMolecularDatasetNames() {
-    return Array.isArray(state.selectedMolecularDatasets)
-      ? state.selectedMolecularDatasets.map((item) => String(item || "").trim()).filter(Boolean)
+  function selectedAnalysisAssayDatasetNames() {
+    return Array.isArray(state.selectedAssayDatasets)
+      ? state.selectedAssayDatasets.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
   }
 
@@ -279,12 +279,11 @@ export function createAnalysisCatalogUi(ctx) {
       : null;
   }
 
-  function requiresSingleSelectedMolecularDataset(item) {
+  function requiresSingleSelectedAssayDataset(item) {
     const itemId = String(item && item.id ? item.id : "").trim();
-    return itemId === "molecular-differential-expression"
-      || itemId === "molecular-deseq2-differential-expression"
-      || itemId === "molecular-hallmark-pathway-enrichment"
-      || itemId === "molecular-signature-workflow";
+    return itemId === "transcriptomics-deseq2-differential-expression"
+      || itemId === "transcriptomics-hallmark-pathway-enrichment"
+      || itemId === "transcriptomics-signature-workflow";
   }
 
   function analysisCatalogUsageStorageKey() {
@@ -328,13 +327,13 @@ export function createAnalysisCatalogUi(ctx) {
 
   function normalizeAnalysisCatalogFilter(value) {
     const normalized = String(value || "").trim().toLowerCase();
-    return ["all", "clinical", "molecular", "workflow", "background", "external"].includes(normalized) ? normalized : "all";
+    return ["all", "clinical", "assay", "workflow", "background", "external"].includes(normalized) ? normalized : "all";
   }
 
   function analysisCatalogFilterLabel(value) {
     const normalized = normalizeAnalysisCatalogFilter(value);
     if (normalized === "clinical") return "Clinical";
-    if (normalized === "molecular") return "Molecular";
+    if (normalized === "assay") return "Assays";
     if (normalized === "workflow") return "Workflow";
     if (normalized === "background") return "Background";
     if (normalized === "external") return "External";
@@ -344,8 +343,8 @@ export function createAnalysisCatalogUi(ctx) {
   function analysisCatalogItemMatchesFilter(item, filter) {
     const normalized = normalizeAnalysisCatalogFilter(filter);
     if (normalized === "all") return true;
-    if (normalized === "molecular") {
-      return Boolean(item && item.requires_molecular);
+    if (normalized === "assay") {
+      return Boolean(item && item.requires_assays);
     }
     if (normalized === "workflow") {
       return String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() === "workflow";
@@ -357,7 +356,7 @@ export function createAnalysisCatalogUi(ctx) {
       return String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() !== "builtin";
     }
     if (normalized === "clinical") {
-      return !Boolean(item && item.requires_molecular);
+      return !Boolean(item && item.requires_assays);
     }
     return true;
   }
@@ -394,7 +393,7 @@ export function createAnalysisCatalogUi(ctx) {
     const count = Number(current.count || 0);
     const lastUsedAt = Number(current.lastUsedAt || 0);
     const compareRequired = Boolean(item && item.default_compare_mode);
-    const molecularRequired = Boolean(item && item.requires_molecular);
+    const assayRequired = Boolean(item && item.requires_assays);
     const external = String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() !== "builtin";
     const background = String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase() === "job";
     const selected = itemId === String(state.analysisSelectedCatalogItemId || "").trim();
@@ -408,7 +407,7 @@ export function createAnalysisCatalogUi(ctx) {
     }
     if (compareRequired && analysisCompareModeEl && analysisCompareModeEl.checked) score += 40;
     if (!compareRequired && !(analysisCompareModeEl && analysisCompareModeEl.checked)) score += 18;
-    if (molecularRequired && state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_molecular_datasets) score += 24;
+    if (assayRequired && state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_assay_datasets) score += 24;
     if (background) score += 12;
     if (external) score += 8;
     return score;
@@ -444,13 +443,13 @@ export function createAnalysisCatalogUi(ctx) {
     });
   }
 
-  function renderAnalysisCatalogMolecularPanel() {
-    if (!analysisCatalogMolecularPanelEl || !analysisCatalogMolecularStatusEl) {
+  function renderAnalysisCatalogAssayPanel() {
+    if (!analysisCatalogAssayPanelEl || !analysisCatalogAssayStatusEl) {
       return;
     }
     const item = currentAnalysisCatalogItem();
     const hasSelectedItem = Boolean(item);
-    analysisCatalogMolecularPanelEl.classList.toggle("is-hidden", !hasSelectedItem);
+    analysisCatalogAssayPanelEl.classList.toggle("is-hidden", !hasSelectedItem);
     if (analysisComposerSetupEl) {
       analysisComposerSetupEl.classList.toggle("is-hidden", !hasSelectedItem);
     }
@@ -474,16 +473,16 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisFlowBar();
       return;
     }
-    renderMolecularDatasetSelector();
-    const requiresMolecular = Boolean(item && item.requires_molecular);
+    renderAssayDatasetSelector();
+    const requiresAssay = Boolean(item && item.requires_assays);
     const compareRequired = Boolean(item && item.default_compare_mode);
-    const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
+    const selectedDatasetNames = selectedAnalysisAssayDatasetNames();
     const setupState = selectedAnalysisSetupState(item);
-    if (analysisCatalogMolecularTitleEl) {
-      analysisCatalogMolecularTitleEl.textContent = item && item.name ? item.name : "Analysis setup";
+    if (analysisCatalogAssayTitleEl) {
+      analysisCatalogAssayTitleEl.textContent = item && item.name ? item.name : "Analysis setup";
     }
-    if (analysisCatalogMolecularNoteEl) {
-      analysisCatalogMolecularNoteEl.textContent = item && item.guidance
+    if (analysisCatalogAssayNoteEl) {
+      analysisCatalogAssayNoteEl.textContent = item && item.guidance
         ? String(item.guidance || "").trim()
         : "Complete the required inputs for this analysis.";
     }
@@ -495,15 +494,15 @@ export function createAnalysisCatalogUi(ctx) {
         ? String(item.guidance || "").trim()
         : "Complete the required inputs for this analysis.";
     }
-    analysisCatalogMolecularStatusEl.classList.toggle("is-ready", Boolean(setupState.ready));
-    analysisCatalogMolecularStatusEl.classList.toggle("is-blocked", !setupState.ready);
+    analysisCatalogAssayStatusEl.classList.toggle("is-ready", Boolean(setupState.ready));
+    analysisCatalogAssayStatusEl.classList.toggle("is-blocked", !setupState.ready);
     if (analysisComposerSetupStatusEl) {
       analysisComposerSetupStatusEl.classList.toggle("is-ready", Boolean(setupState.ready));
       analysisComposerSetupStatusEl.classList.toggle("is-blocked", !setupState.ready);
     }
     if (analysisCatalogSetupBadgesEl) {
       const badges = [];
-      badges.push(`<span class="query-chip badge">${requiresMolecular ? "Needs molecular dataset" : "No molecular dataset required"}</span>`);
+      badges.push(`<span class="query-chip badge">${requiresAssay ? "Needs assay" : "No assay required"}</span>`);
       badges.push(`<span class="query-chip badge">${compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"}</span>`);
       if (compareRequired) {
         badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Cohort A ready" : "Choose Cohort A"}</span>`);
@@ -511,11 +510,11 @@ export function createAnalysisCatalogUi(ctx) {
       } else {
         badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Saved scope selected" : "Workspace or manual scope"}</span>`);
       }
-      if (requiresMolecular) {
+      if (requiresAssay) {
         const selectedCount = selectedDatasetNames.length;
-        const datasetBadge = requiresSingleSelectedMolecularDataset(item)
-          ? (selectedCount === 1 ? `Dataset ready: ${selectedDatasetNames[0]}` : selectedCount > 1 ? `${selectedCount} datasets selected` : "Choose 1 dataset")
-          : (selectedCount ? `${selectedCount} dataset${selectedCount === 1 ? "" : "s"} selected` : "Choose dataset");
+        const datasetBadge = requiresSingleSelectedAssayDataset(item)
+          ? (selectedCount === 1 ? `Assay ready: ${selectedDatasetNames[0]}` : selectedCount > 1 ? `${selectedCount} assays selected` : "Choose 1 assay")
+          : (selectedCount ? `${selectedCount} dataset${selectedCount === 1 ? "" : "s"} selected` : "Choose assay");
         badges.push(`<span class="query-chip badge">${escapeHtml(datasetBadge)}</span>`);
       }
       analysisCatalogSetupBadgesEl.innerHTML = badges.join("");
@@ -523,44 +522,44 @@ export function createAnalysisCatalogUi(ctx) {
     if (analysisRunBtnEl && !state.analysisInFlight) {
       analysisRunBtnEl.disabled = !setupState.ready;
     }
-    [refs.analysisCatalogMolecularDatasetListEl].filter(Boolean).forEach((listEl) => {
-      listEl.classList.toggle("is-hidden", !requiresMolecular);
+    [refs.analysisCatalogAssayDatasetListEl].filter(Boolean).forEach((listEl) => {
+      listEl.classList.toggle("is-hidden", !requiresAssay);
     });
-    if (!requiresMolecular) {
-      analysisCatalogMolecularStatusEl.textContent = setupState.message;
+    if (!requiresAssay) {
+      analysisCatalogAssayStatusEl.textContent = setupState.message;
       if (analysisComposerSetupStatusEl) {
         analysisComposerSetupStatusEl.textContent = setupState.message;
       }
       renderAnalysisFlowBar();
       return;
     }
-    if (requiresSingleSelectedMolecularDataset(item)) {
+    if (requiresSingleSelectedAssayDataset(item)) {
       if (selectedDatasetNames.length === 1) {
-        const overlap = typeof molecularDatasetOverlap === "function"
-          ? molecularDatasetOverlap(selectedDatasetNames[0])
+        const overlap = typeof assayDatasetOverlap === "function"
+          ? assayDatasetOverlap(selectedDatasetNames[0])
           : null;
         if (overlap && item && item.default_compare_mode) {
           const overlapMessage = `Cohort A overlap: ${overlap.overlapA}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` · Cohort B overlap: ${overlap.overlapB}` : ""}.`;
           const statusMessage = setupState.ready
-            ? `Selected dataset: ${selectedDatasetNames[0]}. ${overlapMessage} Ready to run.`
-            : `Selected dataset: ${selectedDatasetNames[0]}. ${overlapMessage} This molecular tool requires at least one sample in both cohorts.`;
-          analysisCatalogMolecularStatusEl.textContent = statusMessage;
+            ? `Selected assay: ${selectedDatasetNames[0]}. ${overlapMessage} Ready to run.`
+            : `Selected assay: ${selectedDatasetNames[0]}. ${overlapMessage} This assay tool requires at least one sample in both cohorts.`;
+          analysisCatalogAssayStatusEl.textContent = statusMessage;
           if (analysisComposerSetupStatusEl) {
             analysisComposerSetupStatusEl.textContent = statusMessage;
           }
         } else {
-          analysisCatalogMolecularStatusEl.textContent = setupState.message;
+          analysisCatalogAssayStatusEl.textContent = setupState.message;
           if (analysisComposerSetupStatusEl) {
             analysisComposerSetupStatusEl.textContent = setupState.message;
           }
         }
       } else if (selectedDatasetNames.length > 1) {
-        analysisCatalogMolecularStatusEl.textContent = setupState.message;
+        analysisCatalogAssayStatusEl.textContent = setupState.message;
         if (analysisComposerSetupStatusEl) {
           analysisComposerSetupStatusEl.textContent = setupState.message;
         }
       } else {
-        analysisCatalogMolecularStatusEl.textContent = setupState.message;
+        analysisCatalogAssayStatusEl.textContent = setupState.message;
         if (analysisComposerSetupStatusEl) {
           analysisComposerSetupStatusEl.textContent = setupState.message;
         }
@@ -568,7 +567,7 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisFlowBar();
       return;
     }
-    analysisCatalogMolecularStatusEl.textContent = setupState.message;
+    analysisCatalogAssayStatusEl.textContent = setupState.message;
     if (analysisComposerSetupStatusEl) {
       analysisComposerSetupStatusEl.textContent = setupState.message;
     }
@@ -697,25 +696,25 @@ export function createAnalysisCatalogUi(ctx) {
         };
       }
     }
-    const selectedDatasetNames = selectedAnalysisMolecularDatasetNames();
-    if (item.requires_molecular) {
-      if (requiresSingleSelectedMolecularDataset(item)) {
+    const selectedDatasetNames = selectedAnalysisAssayDatasetNames();
+    if (item.requires_assays) {
+      if (requiresSingleSelectedAssayDataset(item)) {
         if (selectedDatasetNames.length !== 1) {
           return {
             ready: false,
             message: selectedDatasetNames.length
-              ? "Choose exactly one molecular dataset for this analysis."
-              : "Choose one molecular dataset for this analysis.",
+              ? "Choose exactly one assay for this analysis."
+              : "Choose one assay for this analysis.",
             availability,
           };
         }
-        const overlap = typeof molecularDatasetOverlap === "function"
-          ? molecularDatasetOverlap(selectedDatasetNames[0])
+        const overlap = typeof assayDatasetOverlap === "function"
+          ? assayDatasetOverlap(selectedDatasetNames[0])
           : null;
         if (overlap && item.default_compare_mode && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
           return {
             ready: false,
-            message: `Selected dataset "${selectedDatasetNames[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}.`,
+            message: `Selected assay "${selectedDatasetNames[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}.`,
             availability,
           };
         }
@@ -730,13 +729,13 @@ export function createAnalysisCatalogUi(ctx) {
       if (!selectedDatasetNames.length) {
         return {
           ready: false,
-          message: "Choose at least one molecular dataset for this analysis.",
+          message: "Choose at least one assay for this analysis.",
           availability,
         };
       }
       return {
         ready: true,
-        message: `Ready to run with ${selectedDatasetNames.length} molecular dataset${selectedDatasetNames.length === 1 ? "" : "s"}.`,
+        message: `Ready to run with ${selectedDatasetNames.length} assay${selectedDatasetNames.length === 1 ? "" : "s"}.`,
         availability,
       };
     }
@@ -763,14 +762,11 @@ export function createAnalysisCatalogUi(ctx) {
     if (item.default_compare_mode) {
       metaBadges.push('<span class="query-chip badge">Compare mode</span>');
     }
-    if (item.requires_molecular) {
-      metaBadges.push('<span class="query-chip badge">Molecular</span>');
+    if (item.requires_assays) {
+      metaBadges.push('<span class="query-chip badge">Assays</span>');
     }
     if (item.requires_detailed_access) {
       metaBadges.push('<span class="query-chip badge">Detailed required</span>');
-    }
-    if (Array.isArray(item.tags) && item.tags.includes("legacy")) {
-      metaBadges.push('<span class="query-chip badge">Legacy</span>');
     }
     if (item && item.debug_only) {
       metaBadges.push('<span class="query-chip badge">Debug</span>');
@@ -857,7 +853,7 @@ export function createAnalysisCatalogUi(ctx) {
         analysisCatalogStatusEl.textContent = "No curated analyses available.";
       }
       renderAnalysisCatalogDisclosureSummary();
-      renderAnalysisCatalogMolecularPanel();
+      renderAnalysisCatalogAssayPanel();
       return;
     }
     const visibleItems = filteredAnalysisCatalogItems();
@@ -880,8 +876,8 @@ export function createAnalysisCatalogUi(ctx) {
       if (unavailableCount) {
         summaryBits.push(`${unavailableCount} unavailable in this workspace`);
       }
-      if (state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_molecular_datasets) {
-        summaryBits.push(`${state.analysisCatalogWorkspace.molecular_dataset_count} molecular dataset${state.analysisCatalogWorkspace.molecular_dataset_count === 1 ? "" : "s"}`);
+      if (state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_assay_datasets) {
+        summaryBits.push(`${state.analysisCatalogWorkspace.assay_dataset_count} assay${state.analysisCatalogWorkspace.assay_dataset_count === 1 ? "" : "s"}`);
       }
       if (catalogUniverse.some((item) => item && item.debug_only)) {
         summaryBits.push("debug tools visible");
@@ -897,7 +893,7 @@ export function createAnalysisCatalogUi(ctx) {
       if (analysisCatalogDrawerListEl) {
         analysisCatalogDrawerListEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
       }
-      renderAnalysisCatalogMolecularPanel();
+      renderAnalysisCatalogAssayPanel();
       return;
     }
     const renderReadinessSection = (label, items, renderOptions = {}) => {
@@ -939,7 +935,7 @@ export function createAnalysisCatalogUi(ctx) {
         renderReadinessSection("Needs setup", setupItems, { drawer: true }),
       ].filter(Boolean).join("");
     }
-    renderAnalysisCatalogMolecularPanel();
+    renderAnalysisCatalogAssayPanel();
   }
 
   function setAnalysisCatalogSearch(value) {
@@ -989,7 +985,7 @@ export function createAnalysisCatalogUi(ctx) {
       }
       setAnalysisCatalogDrawerOpen(false);
       renderAnalysisCatalogDisclosureSummary();
-      renderAnalysisCatalogMolecularPanel();
+      renderAnalysisCatalogAssayPanel();
       return;
     }
     analysisCatalogListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
@@ -1019,7 +1015,7 @@ export function createAnalysisCatalogUi(ctx) {
         analysisCatalogStatusEl.textContent = error && error.message ? error.message : "Unable to load curated analyses.";
       }
       renderAnalysisCatalogDisclosureSummary();
-      renderAnalysisCatalogMolecularPanel();
+      renderAnalysisCatalogAssayPanel();
     }
   }
 
@@ -1046,7 +1042,7 @@ export function createAnalysisCatalogUi(ctx) {
     state.analysisSelectedCatalogItemId = String(item.id || "").trim();
     recordAnalysisCatalogUsage(state.analysisSelectedCatalogItemId);
     renderAnalysisCatalog();
-    renderAnalysisCatalogMolecularPanel();
+    renderAnalysisCatalogAssayPanel();
     const setupState = selectedAnalysisSetupState(item);
     state.analysisExamplesPinnedOpen = false;
     syncCurrentAnalysisSessionFromUi({ render: true });
@@ -1057,7 +1053,7 @@ export function createAnalysisCatalogUi(ctx) {
         : `${item.name} selected. ${setupState.message}`;
     }
     if (analysisCatalogDisclosureEl) {
-      analysisCatalogDisclosureEl.open = Boolean(item.requires_molecular || !setupState.ready);
+      analysisCatalogDisclosureEl.open = Boolean(item.requires_assays || !setupState.ready);
     }
     setAnalysisCatalogDrawerOpen(false);
     renderAnalysisCatalogDisclosureSummary();
@@ -1076,9 +1072,9 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogIconKind,
     analysisCatalogQueueIcon,
     analysisCatalogRunnerTypeLabel,
-    selectedAnalysisMolecularDatasetNames,
+    selectedAnalysisAssayDatasetNames,
     currentAnalysisCatalogItem,
-    renderAnalysisCatalogMolecularPanel,
+    renderAnalysisCatalogAssayPanel,
     renderAnalysisFlowBar,
     analysisCatalogUiAvailability,
     renderAnalysisCatalogCard,

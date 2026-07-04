@@ -489,9 +489,9 @@ def _mock_dashboard_load(page) -> None:
     )
 
 
-def _mock_molecular_datasets(page) -> None:
+def _mock_assay_datasets(page) -> None:
     page.route(
-        "**/molecular/datasets?*",
+        "**/assays?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -521,9 +521,9 @@ def _mock_molecular_datasets(page) -> None:
     )
 
 
-def _mock_molecular_datasets_with_nonmatching_dataset(page) -> None:
+def _mock_assay_datasets_with_nonmatching_dataset(page) -> None:
     page.route(
-        "**/molecular/datasets?*",
+        "**/assays?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -561,9 +561,9 @@ def _mock_molecular_datasets_with_nonmatching_dataset(page) -> None:
     )
 
 
-def _mock_molecular_datasets_with_two_matching_datasets(page) -> None:
+def _mock_assay_datasets_with_two_matching_datasets(page) -> None:
     page.route(
-        "**/molecular/datasets?*",
+        "**/assays?*",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
@@ -658,7 +658,7 @@ def _mock_analysis_trajectory_reply(page) -> None:
     )
 
 
-def _mock_analysis_molecular_volcano_reply(page) -> None:
+def _mock_analysis_assay_volcano_reply(page) -> None:
     page.route(
         "**/analysis",
         lambda route: route.fulfill(
@@ -666,12 +666,12 @@ def _mock_analysis_molecular_volcano_reply(page) -> None:
             content_type="application/json",
             body=json.dumps(
                 {
-                    "intent": "analysis_molecular_medication_compare",
+                    "intent": "analysis_transcriptomics_medication_compare",
                     "reply": "Expression differs between medication-aligned transcriptomics datasets within the current Analysis scope, with exploratory fold-change shifts across multiple genes.",
                     "data": {
                         "provider": "deterministic",
                         "context": {
-                            "mode": "molecular_medication_compare",
+                            "mode": "transcriptomics_medication_compare",
                             "scope_patient_count": 2,
                             "exploratory_note": "Exploratory transcriptomics comparison based on log2(CPM+1) normalization and a simple per-gene normal-approximation test. This is preliminary and not DESeq2-grade differential expression.",
                             "comparisons": [
@@ -858,7 +858,7 @@ def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
 
 def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     _mock_dashboard_load(page)
-    _mock_molecular_datasets(page)
+    _mock_assay_datasets(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -872,7 +872,7 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
 
 def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     _mock_dashboard_load(page)
-    _mock_molecular_datasets(page)
+    _mock_assay_datasets(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -887,7 +887,7 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
 
 def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
     _mock_dashboard_load(page)
-    _mock_molecular_datasets(page)
+    _mock_assay_datasets(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -898,7 +898,7 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
     expect(page.locator("#dashboard-plot-timeline")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Disease")
     expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Treatment")
-    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Molecular")
+    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Assay")
     page.locator("#dashboard-timeline-controls input[value='diseases']").uncheck()
     expect(page.locator("#dashboard-timeline-controls input[value='diseases']")).not_to_be_checked()
     page.evaluate(
@@ -940,7 +940,7 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
 def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
     _mock_dashboard_load(page)
-    _mock_molecular_datasets(page)
+    _mock_assay_datasets(page)
     _mock_disease_inventory(page)
     _mock_query_reply(page)
     expect = playwright.expect
@@ -1158,30 +1158,30 @@ def test_analysis_open_result_recovers_missing_session(page) -> None:
     expect = playwright.expect
 
     page.route(
-        "**/jobs/job-legacy",
+        "**/jobs/job-orphaned",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
             body=json.dumps(
                 {
-                    "job_id": "job-legacy",
+                    "job_id": "job-orphaned",
                     "job_type": "analysis",
                     "feature": "analysis",
                     "status": "completed",
-                    "name": "Legacy external result",
-                    "prompt": "Run the legacy analysis.",
-                    "analysis_session_id": "analysis-legacy-session",
+                    "name": "Orphaned external result",
+                    "prompt": "Run the persisted analysis.",
+                    "analysis_session_id": "analysis-orphaned-session",
                     "result_available": True,
                     "artifacts": [],
                     "result_payload": {
                         "intent": "analysis_external_rscript",
-                        "reply": "Recovered legacy result.",
+                        "reply": "Recovered persisted result.",
                         "data": {
                             "source": "deterministic",
                             "execution": "external_runner",
                             "context": {"mode": "external_rscript_profile"},
                             "runner_type": "rscript",
-                            "job_id": "job-legacy",
+                            "job_id": "job-orphaned",
                         },
                     },
                 }
@@ -1193,7 +1193,7 @@ def test_analysis_open_result_recovers_missing_session(page) -> None:
         """
         () => {
           const list = document.getElementById('jobsDrawerList');
-          list.innerHTML = '<div class="job-card"><button type="button" class="query-chip action" data-job-open-result="job-legacy">Open result</button></div>';
+          list.innerHTML = '<div class="job-card"><button type="button" class="query-chip action" data-job-open-result="job-orphaned">Open result</button></div>';
           const drawer = document.getElementById('jobsDrawer');
           drawer.classList.remove('is-hidden');
           drawer.setAttribute('aria-hidden', 'false');
@@ -1201,11 +1201,11 @@ def test_analysis_open_result_recovers_missing_session(page) -> None:
         """
     )
 
-    page.locator("[data-job-open-result='job-legacy']").click()
+    page.locator("[data-job-open-result='job-orphaned']").click()
 
     expect(page.locator("#jobsDrawer")).to_be_hidden()
-    expect(page.locator("#analysisThread")).to_contain_text("Recovered legacy result.")
-    expect(page.locator("#analysisSessionList")).to_contain_text("Legacy external result")
+    expect(page.locator("#analysisThread")).to_contain_text("Recovered persisted result.")
+    expect(page.locator("#analysisSessionList")).to_contain_text("Orphaned external result")
 
 
 def test_analysis_starter_panel_stays_visible_after_run(page) -> None:
@@ -1273,13 +1273,10 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
 
     page.locator("#analysisCatalogBrowseBtn").click()
 
-    de_button = page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-differential-expression']")
-    expect(de_button).to_be_enabled()
 
-
-def test_analysis_workflow_filter_shows_molecular_dataset_selector(page) -> None:
+def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
     _mock_saved_cohorts(page)
-    _mock_molecular_datasets_with_nonmatching_dataset(page)
+    _mock_assay_datasets_with_nonmatching_dataset(page)
     page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
@@ -1292,19 +1289,19 @@ def test_analysis_workflow_filter_shows_molecular_dataset_selector(page) -> None
 
     page.locator("#analysisCatalogBrowseBtn").click()
     page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
-    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Molecular signature workflow")
-    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Transcriptomics signature workflow")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='transcriptomics-signature-workflow']").click()
 
-    expect(page.locator("#analysisCatalogMolecularPanel")).to_be_visible()
-    expect(page.locator("#analysisCatalogMolecularDatasetList")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
-    expect(page.locator("#analysisCatalogMolecularDatasetList")).not_to_contain_text("unrelated_transcriptome_raw_counts")
-    expect(page.locator("#analysisCatalogMolecularDatasetList input[type='checkbox']")).to_be_checked()
-    expect(page.locator("#analysisCatalogMolecularStatus")).to_contain_text("Selected dataset: synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#analysisCatalogAssayPanel")).to_be_visible()
+    expect(page.locator("#analysisCatalogAssayDatasetList")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#analysisCatalogAssayDatasetList")).not_to_contain_text("unrelated_transcriptome_raw_counts")
+    expect(page.locator("#analysisCatalogAssayDatasetList input[type='checkbox']")).to_be_checked()
+    expect(page.locator("#analysisCatalogAssayStatus")).to_contain_text("Selected assay: synthetic_transcriptome_raw_counts_infliximab")
 
 
-def test_analysis_workflow_molecular_selector_keeps_one_dataset_selected(page) -> None:
+def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> None:
     _mock_saved_cohorts(page)
-    _mock_molecular_datasets_with_two_matching_datasets(page)
+    _mock_assay_datasets_with_two_matching_datasets(page)
     page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
@@ -1317,16 +1314,16 @@ def test_analysis_workflow_molecular_selector_keeps_one_dataset_selected(page) -
 
     page.locator("#analysisCatalogBrowseBtn").click()
     page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
-    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='molecular-signature-workflow']").click()
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='transcriptomics-signature-workflow']").click()
 
-    first_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_infliximab']")
-    second_dataset = page.locator("#analysisCatalogMolecularDatasetList input[value='synthetic_transcriptome_raw_counts_ustekinumab']")
+    first_dataset = page.locator("#analysisCatalogAssayDatasetList input[value='synthetic_transcriptome_raw_counts_infliximab']")
+    second_dataset = page.locator("#analysisCatalogAssayDatasetList input[value='synthetic_transcriptome_raw_counts_ustekinumab']")
     first_dataset.check()
     expect(first_dataset).to_be_checked()
     second_dataset.check()
     expect(second_dataset).to_be_checked()
     expect(first_dataset).not_to_be_checked()
-    expect(page.locator("#analysisCatalogMolecularStatus")).to_contain_text("Selected dataset: synthetic_transcriptome_raw_counts_ustekinumab")
+    expect(page.locator("#analysisCatalogAssayStatus")).to_contain_text("Selected assay: synthetic_transcriptome_raw_counts_ustekinumab")
 
 
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
@@ -1344,20 +1341,20 @@ def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     expect(page.locator("[id$='-trajectory-coverage']")).to_have_attribute("data-plotly-ready", "true")
 
 
-def test_analysis_molecular_medication_compare_mounts_volcano_plot(page) -> None:
+def test_analysis_transcriptomics_medication_compare_mounts_volcano_plot(page) -> None:
     _open_analysis_tab(page)
-    _mock_analysis_molecular_volcano_reply(page)
+    _mock_analysis_assay_volcano_reply(page)
     expect = playwright.expect
 
     page.locator("#analysisPrompt").fill("Explain differences in gene expression according to medication")
     page.locator("#analysisRunBtn").click()
 
     expect(page.locator("#analysisThread")).to_contain_text("within the current Analysis scope")
-    expect(page.locator("#analysisThread")).to_contain_text("Molecular by medication")
+    expect(page.locator("#analysisThread")).to_contain_text("Transcriptomics by medication")
     expect(page.locator("#analysisThread")).to_contain_text("Exploratory transcriptomics comparison")
     expect(page.locator("#analysisThread")).to_contain_text("Positive log2FC means higher in Infliximab")
     expect(page.locator("#analysisThread")).to_contain_text("gray = everything else")
-    expect(page.locator("[id*='molecular-volcano-']")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("[id*='assay-volcano-']")).to_have_attribute("data-plotly-ready", "true")
 
 
 def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> None:
@@ -1413,7 +1410,7 @@ def test_pheno_mds_cohort_chips_render_for_prefixed_ids(page) -> None:
 
 def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     _mock_dashboard_load(page_auth)
-    _mock_molecular_datasets(page_auth)
+    _mock_assay_datasets(page_auth)
     expect = playwright.expect
 
     expect(page_auth.locator("#authGate")).to_be_visible()

@@ -11,7 +11,7 @@ const DEFAULT_USER_SETTINGS = {
   pheno_render_heatmap: true,
   pheno_render_mds: true,
   pheno_render_graph: true,
-  dashboard_molecular_open: false,
+  dashboard_assays_open: false,
   dataset_compact_view: false,
   llm_provider_id: "system-default",
 };
@@ -48,7 +48,7 @@ function normalizeUserSettings(raw) {
     pheno_render_heatmap: source.pheno_render_heatmap !== false,
     pheno_render_mds: source.pheno_render_mds !== false,
     pheno_render_graph: source.pheno_render_graph !== false,
-    dashboard_molecular_open: Boolean(source.dashboard_molecular_open),
+    dashboard_assays_open: Boolean(source.dashboard_assays_open),
     dataset_compact_view: Boolean(source.dataset_compact_view),
     llm_provider_id: String(source.llm_provider_id || DEFAULT_USER_SETTINGS.llm_provider_id).trim() || DEFAULT_USER_SETTINGS.llm_provider_id,
   };
@@ -75,7 +75,7 @@ export function createUserSettingsUi(ctx) {
     settingsPhenoRenderHeatmapEl,
     settingsPhenoRenderMdsEl,
     settingsPhenoRenderGraphEl,
-    settingsDashboardMolecularOpenEl,
+    settingsDashboardAssaysOpenEl,
     settingsDatasetCompactViewEl,
     userDeleteChatsBtnEl,
     userDeleteJobsBtnEl,
@@ -164,7 +164,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsPhenoRenderHeatmapEl) settingsPhenoRenderHeatmapEl.checked = settings.pheno_render_heatmap;
     if (settingsPhenoRenderMdsEl) settingsPhenoRenderMdsEl.checked = settings.pheno_render_mds;
     if (settingsPhenoRenderGraphEl) settingsPhenoRenderGraphEl.checked = settings.pheno_render_graph;
-    if (settingsDashboardMolecularOpenEl) settingsDashboardMolecularOpenEl.checked = settings.dashboard_molecular_open;
+    if (settingsDashboardAssaysOpenEl) settingsDashboardAssaysOpenEl.checked = settings.dashboard_assays_open;
     if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
     renderAuthSummary();
   }
@@ -200,7 +200,7 @@ export function createUserSettingsUi(ctx) {
       pheno_render_heatmap: settingsPhenoRenderHeatmapEl ? settingsPhenoRenderHeatmapEl.checked : DEFAULT_USER_SETTINGS.pheno_render_heatmap,
       pheno_render_mds: settingsPhenoRenderMdsEl ? settingsPhenoRenderMdsEl.checked : DEFAULT_USER_SETTINGS.pheno_render_mds,
       pheno_render_graph: settingsPhenoRenderGraphEl ? settingsPhenoRenderGraphEl.checked : DEFAULT_USER_SETTINGS.pheno_render_graph,
-      dashboard_molecular_open: settingsDashboardMolecularOpenEl ? settingsDashboardMolecularOpenEl.checked : DEFAULT_USER_SETTINGS.dashboard_molecular_open,
+      dashboard_assays_open: settingsDashboardAssaysOpenEl ? settingsDashboardAssaysOpenEl.checked : DEFAULT_USER_SETTINGS.dashboard_assays_open,
       dataset_compact_view: settingsDatasetCompactViewEl ? settingsDatasetCompactViewEl.checked : DEFAULT_USER_SETTINGS.dataset_compact_view,
     });
   }
@@ -230,7 +230,7 @@ export function createUserSettingsUi(ctx) {
     renderQueryExecutionMode();
 
     if (options.applyNavigation !== false && settings.landing_tab_mode === "fixed") {
-      setDashboardSubtab(settings.dashboard_molecular_open ? "molecular" : "timeline");
+      setDashboardSubtab(settings.dashboard_assays_open ? "assays" : "timeline");
       setActiveTab(settings.landing_tab);
     }
     renderUserSettingsForm();

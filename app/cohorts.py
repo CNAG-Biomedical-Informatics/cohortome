@@ -11,7 +11,6 @@ from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
 from app.user_state import normalize_user_id
 
 
-LEGACY_SAVED_COHORTS_PATH = BASE_DIR / ".cache" / "saved-cohorts.json"
 USER_STATE_ROOT = BASE_DIR / "state" / "users"
 
 
@@ -23,8 +22,6 @@ def _cohort_store_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
 
 def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
     path = _cohort_store_path(user_id)
-    if not path.exists() and LEGACY_SAVED_COHORTS_PATH.exists():
-        path = LEGACY_SAVED_COHORTS_PATH
     if not path.exists():
         return []
     try:

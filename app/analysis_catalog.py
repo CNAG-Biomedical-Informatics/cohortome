@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 import yaml
 
-from app.query_store import molecular_dataset_inventory
+from app.query_store import assay_dataset_inventory
 from app.env import app_env
 
 
@@ -93,7 +93,7 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "default_compare_mode": bool(raw.get("default_compare_mode", False)),
         "supports_compare_mode": bool(raw.get("supports_compare_mode", False)),
         "requires_detailed_access": bool(raw.get("requires_detailed_access", False)),
-        "requires_molecular": bool(raw.get("requires_molecular", False)),
+        "requires_assays": bool(raw.get("requires_assays", False)),
         "tags": tags,
     }
 
@@ -114,8 +114,8 @@ def _workspace_requirements(item: Dict[str, Any]) -> List[str]:
     requirements: List[str] = []
     if item.get("requires_detailed_access"):
         requirements.append("Requires Detailed in-app access.")
-    if item.get("requires_molecular"):
-        requirements.append("Requires at least one molecular dataset in the active workspace.")
+    if item.get("requires_assays"):
+        requirements.append("Requires at least one assay in the active workspace.")
     if item.get("default_compare_mode"):
         requirements.append("Runs in compare mode; select Cohort A and Cohort B before executing.")
     if item.get("runner_type") == "rscript":
@@ -131,12 +131,12 @@ def _workspace_requirements(item: Dict[str, Any]) -> List[str]:
     return requirements
 
 
-def _availability_for_item(item: Dict[str, Any], *, granularity_ceiling: str, has_molecular: bool) -> Dict[str, Any]:
+def _availability_for_item(item: Dict[str, Any], *, granularity_ceiling: str, has_assays: bool) -> Dict[str, Any]:
     unavailable_reason = ""
     if item.get("requires_detailed_access") and granularity_ceiling != "detailed":
         unavailable_reason = "Requires Detailed in-app access for the current workspace."
-    elif item.get("requires_molecular") and not has_molecular:
-        unavailable_reason = "No molecular datasets are available in the current workspace."
+    elif item.get("requires_assays") and not has_assays:
+        unavailable_reason = "No assays are available in the current workspace."
     elif item.get("runner_type") == "rscript" and not shutil.which("Rscript"):
         unavailable_reason = "Rscript is not available on this installation."
     elif item.get("runner_type") == "snakemake" and not shutil.which("snakemake"):
@@ -161,10 +161,10 @@ def analysis_catalog_payload(
 ) -> Dict[str, Any]:
     items = load_analysis_catalog(path)
     try:
-        molecular_datasets = molecular_dataset_inventory(data_dir)
+        assay_datasets = assay_dataset_inventory(data_dir)
     except FileNotFoundError:
-        molecular_datasets = []
-    has_molecular = bool(molecular_datasets)
+        assay_datasets = []
+    has_assays = bool(assay_datasets)
     materialized_items = []
     for item in items:
         if item.get("debug_only") and not analysis_catalog_debug_enabled():
@@ -172,7 +172,7 @@ def analysis_catalog_payload(
         availability = _availability_for_item(
             item,
             granularity_ceiling=granularity_ceiling,
-            has_molecular=has_molecular,
+            has_assays=has_assays,
         )
         materialized_items.append({**item, **availability})
     return {
@@ -180,8 +180,8 @@ def analysis_catalog_payload(
         "workspace": {
             "granularity_ceiling": granularity_ceiling,
             "ai_provider_access": ai_provider_access,
-            "has_molecular_datasets": has_molecular,
-            "molecular_dataset_count": len(molecular_datasets),
+            "has_assay_datasets": has_assays,
+            "assay_dataset_count": len(assay_datasets),
         },
     }
 

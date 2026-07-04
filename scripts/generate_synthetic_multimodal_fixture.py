@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET_ROOT = ROOT / "default_dataset"
 CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_longitudinal.json"
 HC_CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_hc_baseline.json"
-MOLECULAR_DIR = DEFAULT_DATASET_ROOT / "molecular"
+TRANSCRIPTOMICS_DIR = DEFAULT_DATASET_ROOT / "assays" / "transcriptomics"
 DEFAULT_LARGE_DATASET_ROOT = ROOT / "dataset-large"
 REAL_GENE_PANEL_PATH = ROOT / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 
@@ -190,7 +190,7 @@ GENE_MODULE_ORDER = [
     "eosinophil",
 ]
 
-LEGACY_CORE_GENES = [
+DEFAULT_CORE_GENES = [
     "ENSG00000111640",
     "ENSG00000169429",
     "ENSG00000124256",
@@ -213,10 +213,10 @@ def generated_ensg_ids(start: int, count: int) -> list[str]:
     return [f"ENSG{value:011d}" for value in range(start, start + count)]
 
 
-LEGACY_GENE_MODULES: dict[str, list[str]] = {
-    "inflammatory": LEGACY_CORE_GENES[:6] + generated_ensg_ids(2500000, 10),
-    "barrier": LEGACY_CORE_GENES[6:10] + generated_ensg_ids(2600000, 8),
-    "housekeeping": LEGACY_CORE_GENES[10:] + generated_ensg_ids(2700000, 30),
+DEFAULT_GENE_MODULES: dict[str, list[str]] = {
+    "inflammatory": DEFAULT_CORE_GENES[:6] + generated_ensg_ids(2500000, 10),
+    "barrier": DEFAULT_CORE_GENES[6:10] + generated_ensg_ids(2600000, 8),
+    "housekeeping": DEFAULT_CORE_GENES[10:] + generated_ensg_ids(2700000, 30),
     "interferon": generated_ensg_ids(2800000, 14),
     "b_cell": generated_ensg_ids(2900000, 14),
     "stromal": generated_ensg_ids(3000000, 14),
@@ -339,7 +339,7 @@ REAL_MODULE_SEED_SYMBOLS: dict[str, list[str]] = {
 
 MODULE_PANEL_WEIGHTS = {
     module_name: len(gene_ids)
-    for module_name, gene_ids in LEGACY_GENE_MODULES.items()
+    for module_name, gene_ids in DEFAULT_GENE_MODULES.items()
 }
 
 MAX_SYNTHETIC_COUNT = 2_000_000_000
@@ -371,7 +371,7 @@ def compile_gene_panel(gene_modules: dict[str, list[str]]) -> tuple[list[str], d
     return gene_ids, gene_module_by_id, gene_baselines
 
 
-LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES = compile_gene_panel(LEGACY_GENE_MODULES)
+DEFAULT_GENE_IDS, DEFAULT_GENE_MODULE_BY_ID, DEFAULT_GENE_BASELINES = compile_gene_panel(DEFAULT_GENE_MODULES)
 
 
 def load_hgnc_gene_rows(path: Path = REAL_GENE_PANEL_PATH) -> list[dict[str, str]]:
@@ -734,15 +734,15 @@ def write_hc_matrix(
         writer.writerows(rows)
 
 
-def build_molecular_matrices(
+def build_transcriptomics_matrices(
     gene_ids: list[str],
     gene_module_by_id: dict[str, str],
     gene_baselines: dict[str, float],
     *,
-    molecular_dir: Path = MOLECULAR_DIR,
+    transcriptomics_dir: Path = TRANSCRIPTOMICS_DIR,
     filename_suffix: str = "",
 ) -> None:
-    molecular_dir.mkdir(parents=True, exist_ok=True)
+    transcriptomics_dir.mkdir(parents=True, exist_ok=True)
     sample_meta: dict[str, tuple[int, CohortSpec, int]] = {}
     all_week0: list[str] = []
     medication_samples: dict[str, list[str]] = {}
@@ -758,7 +758,7 @@ def build_molecular_matrices(
                 medication_samples[key].append(sample_id)
 
     write_matrix(
-        molecular_dir / f"synthetic_transcriptome_raw_counts_baseline{filename_suffix}.csv",
+        transcriptomics_dir / f"synthetic_transcriptome_raw_counts_baseline{filename_suffix}.csv",
         all_week0,
         sample_meta,
         gene_ids,
@@ -767,7 +767,7 @@ def build_molecular_matrices(
     )
     for medication_key, sample_ids in medication_samples.items():
         write_matrix(
-            molecular_dir / f"synthetic_transcriptome_raw_counts_{medication_key}{filename_suffix}.csv",
+            transcriptomics_dir / f"synthetic_transcriptome_raw_counts_{medication_key}{filename_suffix}.csv",
             sample_ids,
             sample_meta,
             gene_ids,
@@ -776,15 +776,15 @@ def build_molecular_matrices(
         )
 
 
-def build_hc_molecular_matrix(
+def build_hc_transcriptomics_matrix(
     gene_ids: list[str],
     gene_module_by_id: dict[str, str],
     gene_baselines: dict[str, float],
     *,
-    molecular_dir: Path = MOLECULAR_DIR,
+    transcriptomics_dir: Path = TRANSCRIPTOMICS_DIR,
     filename_suffix: str = "",
 ) -> None:
-    molecular_dir.mkdir(parents=True, exist_ok=True)
+    transcriptomics_dir.mkdir(parents=True, exist_ok=True)
     sample_ids: list[str] = []
     sample_meta: dict[str, tuple[int, int]] = {}
     for patient_index in range(HC_COUNT):
@@ -792,7 +792,7 @@ def build_hc_molecular_matrix(
         sample_ids.append(sample_id)
         sample_meta[sample_id] = (patient_index, 0)
     write_hc_matrix(
-        molecular_dir / f"synthetic_transcriptome_raw_counts_hc_baseline{filename_suffix}.csv",
+        transcriptomics_dir / f"synthetic_transcriptome_raw_counts_hc_baseline{filename_suffix}.csv",
         sample_ids,
         sample_meta,
         gene_ids,
@@ -809,8 +809,8 @@ def write_hc_clinical_json(records: list[dict]) -> None:
     HC_CLINICAL_PATH.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
 
-def write_molecular_readme(
-    molecular_dir: Path,
+def write_transcriptomics_readme(
+    transcriptomics_dir: Path,
     *,
     large_dataset_gene_count: int | None = None,
     large_dataset_root: Path | None = None,
@@ -823,13 +823,13 @@ def write_molecular_readme(
                 "Large transcriptome fixtures can also be regenerated with the fixture script:",
                 "",
                 f"- `python3 scripts/generate_synthetic_multimodal_fixture.py --large-gene-count {large_dataset_gene_count}`",
-                f"  - Rebuilds `{large_dataset_root.name}` with one active molecular panel of `{large_dataset_gene_count}` HGNC-backed genes using Ensembl row identifiers.",
+                f"  - Rebuilds `{large_dataset_root.name}` with one active transcriptomics assay panel of `{large_dataset_gene_count}` HGNC-backed genes using Ensembl row identifiers.",
             ]
         )
     lines = [
-        "# Molecular Data",
+        "# Transcriptomics Assay Data",
         "",
-        "Place molecular datasets here.",
+        "Transcriptomics assay matrices live here.",
         "",
         "Current development fixture:",
         "",
@@ -870,7 +870,109 @@ def write_molecular_readme(
         "- Matrix row identifiers use Ensembl gene IDs (`ENSG...`) even for the large fixtures.",
         "- The gene identifiers are real, but their module assignments and count dynamics remain synthetic and deterministic for timing and queue testing.",
     ]
-    (molecular_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (transcriptomics_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+PLACEHOLDER_ASSAYS = {
+    "olink": {
+        "filename": "synthetic_olink_inflammation_panel.csv",
+        "features": [
+            ("IL6", [12.4, 11.8, 14.2, 10.9, 16.5, 9.7, 13.1, 15.0]),
+            ("TNF", [5.1, 4.9, 6.2, 4.4, 7.0, 4.1, 5.8, 6.5]),
+            ("CXCL10", [22.0, 20.5, 25.4, 19.2, 30.1, 18.8, 24.6, 28.9]),
+        ],
+        "data_type": "relative_abundance",
+        "feature_namespace": "protein_symbol",
+    },
+    "proteomics": {
+        "filename": "synthetic_proteomics_plasma_panel.csv",
+        "features": [
+            ("P01375_TNF", [110.2, 108.5, 124.7, 103.4, 140.6, 99.8, 119.3, 132.0]),
+            ("P05231_IL6", [88.1, 84.0, 92.5, 80.7, 101.2, 78.4, 90.6, 96.1]),
+            ("P10145_CXCL8", [230.0, 225.6, 240.1, 218.3, 260.4, 210.2, 235.7, 248.9]),
+        ],
+        "data_type": "protein_abundance",
+        "feature_namespace": "uniprot_accession_symbol",
+    },
+    "genotyping": {
+        "filename": "synthetic_genotyping_risk_variants.csv",
+        "features": [
+            ("rs2476601", [0, 0, 1, 0, 1, 0, 0, 1]),
+            ("rs7574865", [1, 1, 1, 0, 2, 0, 1, 2]),
+            ("rs1801274", [0, 1, 0, 0, 1, 0, 1, 1]),
+        ],
+        "data_type": "allele_dosage",
+        "feature_namespace": "dbsnp_rsid",
+    },
+    "imaging": {
+        "filename": "synthetic_imaging_derived_features.csv",
+        "features": [
+            ("synovitis_score", [2.1, 1.8, 3.0, 1.2, 3.5, 0.9, 2.4, 3.1]),
+            ("erosion_volume_mm3", [18.0, 14.5, 22.1, 9.8, 30.4, 7.6, 19.3, 25.2]),
+            ("lesion_count", [4, 3, 6, 2, 8, 1, 5, 7]),
+        ],
+        "data_type": "derived_imaging_features",
+        "feature_namespace": "imaging_feature",
+    },
+}
+
+
+def _baseline_sample_ids(records: list[dict], limit: int = 8) -> list[str]:
+    sample_ids: list[str] = []
+    for record in records:
+        patient_id = str(record.get("subject", {}).get("id") or record.get("id") or "").strip()
+        visit_id = str(record.get("visit", {}).get("id") or "").strip()
+        if patient_id and visit_id == "week_0":
+            sample_ids.append(f"{patient_id}:week_0")
+        if len(sample_ids) >= limit:
+            break
+    return sample_ids
+
+
+def write_placeholder_assay_matrices(dataset_root: Path, clinical_records: list[dict]) -> None:
+    sample_ids = _baseline_sample_ids(clinical_records)
+    if not sample_ids:
+        return
+    assays_root = dataset_root / "assays"
+    header = ["feature_id", *sample_ids]
+    for modality, spec in PLACEHOLDER_ASSAYS.items():
+        out_dir = assays_root / modality
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / str(spec["filename"])
+        with out_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, delimiter=";")
+            writer.writerow(header)
+            for feature_id, values in spec["features"]:
+                row_values = list(values)[: len(sample_ids)]
+                if len(row_values) < len(sample_ids):
+                    row_values.extend([row_values[-1] if row_values else 0] * (len(sample_ids) - len(row_values)))
+                writer.writerow([feature_id, *row_values])
+
+
+def write_assay_manifest(dataset_root: Path) -> None:
+    assays_root = dataset_root / "assays"
+    resources = []
+    for path in sorted(assays_root.glob("*/*.csv")):
+        modality = path.parent.name
+        data_type = "raw_counts" if modality == "transcriptomics" else str(PLACEHOLDER_ASSAYS.get(modality, {}).get("data_type") or "feature_matrix")
+        feature_namespace = "ensembl_gene_id" if modality == "transcriptomics" else str(PLACEHOLDER_ASSAYS.get(modality, {}).get("feature_namespace") or "feature_id")
+        resources.append(
+            {
+                "assay_id": path.stem,
+                "label": path.stem.replace("_", " "),
+                "modality": modality,
+                "data_type": data_type,
+                "level": "sample",
+                "feature_namespace": feature_namespace,
+                "feature_id_column": "gene_id" if modality == "transcriptomics" else "feature_id",
+                "sample_id_column": "matrix_columns",
+                "patient_id_column": "derived_from_sample_id_prefix",
+                "timepoint_column": "derived_from_sample_id_suffix",
+                "file": str(path.relative_to(assays_root.parent)),
+            }
+        )
+    manifest = {"version": 1, "assays": resources}
+    (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 def build_large_dataset(
@@ -884,36 +986,38 @@ def build_large_dataset(
     if dataset_root.exists():
         shutil.rmtree(dataset_root)
     clinical_dir = dataset_root / "clinical"
-    molecular_dir = dataset_root / "molecular"
+    transcriptomics_dir = dataset_root / "assays" / "transcriptomics"
     clinical_dir.mkdir(parents=True, exist_ok=True)
-    molecular_dir.mkdir(parents=True, exist_ok=True)
+    transcriptomics_dir.mkdir(parents=True, exist_ok=True)
     active_clinical_records = clinical_records if clinical_records is not None else json.loads(CLINICAL_PATH.read_text(encoding="utf-8"))
     active_hc_clinical_records = hc_clinical_records if hc_clinical_records is not None else json.loads(HC_CLINICAL_PATH.read_text(encoding="utf-8"))
     (clinical_dir / "synthetic_longitudinal.json").write_text(json.dumps(active_clinical_records, indent=2), encoding="utf-8")
     (clinical_dir / "synthetic_hc_baseline.json").write_text(json.dumps(active_hc_clinical_records, indent=2), encoding="utf-8")
-    build_molecular_matrices(
+    build_transcriptomics_matrices(
         gene_ids,
         gene_module_by_id,
         gene_baselines,
-        molecular_dir=molecular_dir,
+        transcriptomics_dir=transcriptomics_dir,
     )
-    build_hc_molecular_matrix(
+    build_hc_transcriptomics_matrix(
         gene_ids,
         gene_module_by_id,
         gene_baselines,
-        molecular_dir=molecular_dir,
+        transcriptomics_dir=transcriptomics_dir,
     )
-    write_molecular_readme(
-        molecular_dir,
+    write_transcriptomics_readme(
+        transcriptomics_dir,
         large_dataset_gene_count=gene_count,
         large_dataset_root=dataset_root,
     )
+    write_placeholder_assay_matrices(dataset_root, active_clinical_records)
+    write_assay_manifest(dataset_root)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Regenerate the synthetic clinical fixtures and molecular count matrices. "
+            "Regenerate the synthetic clinical fixtures and assay matrices. "
             "Extended matrices are optional and use a vendored HGNC gene list with Ensembl row identifiers."
         )
     )
@@ -922,7 +1026,7 @@ def parse_args() -> argparse.Namespace:
         dest="large_gene_count",
         type=int,
         default=None,
-        help="Rebuild dataset-large with one active large molecular panel using real HGNC-backed genes and Ensembl row identifiers.",
+        help="Rebuild dataset-large with one active large transcriptomics assay panel using real HGNC-backed genes and Ensembl row identifiers.",
     )
     parser.add_argument(
         "--large-dataset-root",
@@ -931,9 +1035,9 @@ def parse_args() -> argparse.Namespace:
         help="Output root for the generated large transcriptome dataset.",
     )
     parser.add_argument(
-        "--skip-legacy",
+        "--skip-default",
         action="store_true",
-        help="Skip rewriting the existing legacy 133-gene matrices.",
+        help="Skip rewriting the default 133-gene assay matrices.",
     )
     return parser.parse_args()
 
@@ -942,12 +1046,14 @@ def main() -> None:
     args = parse_args()
     clinical_records = build_clinical_records()
     hc_clinical_records = build_hc_clinical_records()
-    if not args.skip_legacy:
+    if not args.skip_default:
         write_clinical_json(clinical_records)
         write_hc_clinical_json(hc_clinical_records)
-        build_molecular_matrices(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
-        build_hc_molecular_matrix(LEGACY_GENE_IDS, LEGACY_GENE_MODULE_BY_ID, LEGACY_GENE_BASELINES)
-        write_molecular_readme(MOLECULAR_DIR)
+        build_transcriptomics_matrices(DEFAULT_GENE_IDS, DEFAULT_GENE_MODULE_BY_ID, DEFAULT_GENE_BASELINES)
+        build_hc_transcriptomics_matrix(DEFAULT_GENE_IDS, DEFAULT_GENE_MODULE_BY_ID, DEFAULT_GENE_BASELINES)
+        write_transcriptomics_readme(TRANSCRIPTOMICS_DIR)
+        write_placeholder_assay_matrices(DEFAULT_DATASET_ROOT, clinical_records)
+        write_assay_manifest(DEFAULT_DATASET_ROOT)
     if args.large_gene_count is not None:
         build_large_dataset(
             args.large_gene_count,
@@ -955,12 +1061,12 @@ def main() -> None:
             clinical_records=clinical_records,
             hc_clinical_records=hc_clinical_records,
         )
-    if not args.skip_legacy:
+    if not args.skip_default:
         print(f"Wrote {len(clinical_records)} clinical records to {CLINICAL_PATH}")
         print(f"Wrote {len(hc_clinical_records)} HC clinical records to {HC_CLINICAL_PATH}")
-        legacy_gene_count = len(LEGACY_GENE_IDS)
-        print(f"Wrote molecular fixtures to {MOLECULAR_DIR}")
-        print(f"- Legacy panel: {legacy_gene_count} genes")
+        default_gene_count = len(DEFAULT_GENE_IDS)
+        print(f"Wrote transcriptomics assay fixtures to {TRANSCRIPTOMICS_DIR}")
+        print(f"- Default panel: {default_gene_count} genes")
     if args.large_gene_count is not None:
         print(f"- Large dataset root: {Path(args.large_dataset_root).resolve()}")
         print(f"- Large panel: {args.large_gene_count} genes")

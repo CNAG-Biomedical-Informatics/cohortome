@@ -35,12 +35,12 @@ Each dataset is a directory with the same internal shape:
 ```text
 dataset_root/
   clinical/
-  molecular/
+  assays/transcriptomics/
 ```
 
 Why:
 
-- clinical and molecular discovery can stay predictable
+- clinical and assay discovery can stay predictable
 - permissions apply at dataset level
 - dataset boundaries remain explicit
 
@@ -95,7 +95,7 @@ It does not globally normalize everything to one level.
 Why:
 
 - clinical interpretation often thinks in patients
-- molecular and Pheno-Ranker workflows often require samples
+- assay and Pheno-Ranker workflows often require samples
 
 Consequence:
 
@@ -245,7 +245,7 @@ Consequence:
 - built-in analyses and curated external analyses share the same Analysis tab
 - quick prompts still exist for lighter analysis questions
 - the catalog may choose between synchronous and queued execution without changing the Analysis UX model
-- molecular tools can require a stricter contract than prompt-based interpretation
+- assay tools can require a stricter contract than prompt-based interpretation
   - one selected raw-count dataset
   - compare mode
   - sample-level compatibility checks

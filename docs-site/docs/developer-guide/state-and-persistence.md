@@ -137,7 +137,7 @@ Current settings include:
 - Query execution preference
 - Analysis job drawer behavior
 - Pheno-Ranker default metric and rendering toggles
-- Dashboard molecular view preference
+- Dashboard assay view preference
 - compact dataset card preference
 - selected LLM provider ID
 

@@ -21,7 +21,7 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "pheno_render_heatmap": True,
     "pheno_render_mds": True,
     "pheno_render_graph": True,
-    "dashboard_molecular_open": False,
+    "dashboard_assays_open": False,
     "dataset_compact_view": False,
     "llm_provider_id": "system-default",
 }
@@ -40,7 +40,7 @@ _BOOLEAN_FIELDS = {
     "pheno_render_heatmap",
     "pheno_render_mds",
     "pheno_render_graph",
-    "dashboard_molecular_open",
+    "dashboard_assays_open",
     "dataset_compact_view",
 }
 

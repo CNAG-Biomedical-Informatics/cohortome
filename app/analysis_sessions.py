@@ -9,7 +9,6 @@ from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
 from app.user_state import normalize_user_id
 
 
-LEGACY_ANALYSIS_SESSIONS_PATH = BASE_DIR / ".cache" / "analysis-sessions.json"
 USER_STATE_ROOT = BASE_DIR / "state" / "users"
 
 
@@ -21,8 +20,6 @@ def _store_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
 
 def _read_sessions(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
     path = _store_path(user_id)
-    if not path.exists() and LEGACY_ANALYSIS_SESSIONS_PATH.exists():
-        path = LEGACY_ANALYSIS_SESSIONS_PATH
     if not path.exists():
         return []
     try:

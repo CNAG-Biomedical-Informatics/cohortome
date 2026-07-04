@@ -25,8 +25,8 @@ export function createAuthUi(ctx) {
     detailEl,
     dashboardEl,
     dashboardTimelineEl,
-    molecularDashboardCardsEl,
-    molecularDashboardStatusEl,
+    assayDashboardCardsEl,
+    assayDashboardStatusEl,
     authUsernameEl,
     authPasswordEl,
     authPasswordResetPromptEl,
@@ -145,8 +145,8 @@ export function createAuthUi(ctx) {
     state.currentPatients = [];
     state.selectedPatientId = null;
     state.dashboardSummaryState = null;
-    state.molecularDatasetsState = [];
-    state.selectedMolecularDatasets = [];
+    state.assayDatasetsState = [];
+    state.selectedAssayDatasets = [];
     state.savedCohorts = [];
     if (patientsEl) {
       patientsEl.innerHTML = '<div class="empty">Sign in to access the shared clinical workspace.</div>';
@@ -160,12 +160,12 @@ export function createAuthUi(ctx) {
     if (dashboardTimelineEl) {
       dashboardTimelineEl.innerHTML = '<div class="empty">Timeline hidden until you sign in.</div>';
     }
-    if (molecularDashboardCardsEl) {
-      molecularDashboardCardsEl.innerHTML = '<div class="empty">Molecular dashboard hidden until you sign in.</div>';
+    if (assayDashboardCardsEl) {
+      assayDashboardCardsEl.innerHTML = '<div class="empty">Assays dashboard hidden until you sign in.</div>';
     }
-    if (molecularDashboardStatusEl) {
-      molecularDashboardStatusEl.className = "query-status";
-      molecularDashboardStatusEl.textContent = "Sign in to access shared molecular datasets.";
+    if (assayDashboardStatusEl) {
+      assayDashboardStatusEl.className = "query-status";
+      assayDashboardStatusEl.textContent = "Sign in to access shared assays.";
     }
   }
 

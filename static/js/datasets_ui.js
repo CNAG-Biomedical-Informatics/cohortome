@@ -19,7 +19,7 @@ export function createDatasetsUi(ctx) {
     loadAnalysisCatalog,
     loadSavedCohorts,
     loadQueryDiseaseOptions,
-    loadMolecularDatasets,
+    loadAssayDatasets,
     loadPhenoRankerPatientIds,
     renderPhenoTabAvailability,
     currentTabName,

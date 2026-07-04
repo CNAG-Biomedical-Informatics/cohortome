@@ -64,110 +64,91 @@ items:
     supports_compare_mode: true
     tags: [survival, kaplan-meier, compare, deterministic]
 
-  - id: molecular-expression
-    name: Molecular expression summary
-    category: Molecular
-    kind: molecular_expression
+  - id: transcriptomics-expression
+    name: Transcriptomics expression summary
+    category: Assays
+    kind: transcriptomics_expression
     runner_type: builtin
-    runner_ref: molecular_expression
-    description: Summarize scoped expression for a selected gene across available molecular datasets.
+    runner_ref: transcriptomics_expression
+    description: Summarize scoped expression for a selected gene across available assays.
     guidance: Replace the gene identifier in the prompt if needed.
     default_prompt: Show expression of ENSG00002700028 in the current Analysis scope.
     execution_mode: deterministic
-    requires_molecular: true
-    tags: [molecular, expression, deterministic]
+    requires_assays: true
+    tags: [transcriptomics, expression, deterministic]
 
-  - id: molecular-medication-compare
-    name: Molecular medication comparison
-    category: Molecular
-    kind: molecular_compare
+  - id: transcriptomics-medication-compare
+    name: Transcriptomics medication comparison
+    category: Assays
+    kind: assay_compare
     runner_type: builtin
-    runner_ref: molecular_medication_compare
+    runner_ref: transcriptomics_medication_compare
     description: Compare transcriptomic profiles across medication-defined groups in the current Analysis scope.
-    guidance: Works best when the workspace contains transcriptomic datasets.
+    guidance: Works best when the workspace contains transcriptomics assays.
     default_prompt: Explain differences in gene expression according to medication.
     execution_mode: deterministic
-    requires_molecular: true
-    tags: [molecular, volcano, medication, deterministic]
+    requires_assays: true
+    tags: [transcriptomics, volcano, medication, deterministic]
 
-  - id: molecular-differential-expression
-    name: Differential expression (legacy)
-    category: Molecular
-    kind: differential_expression
-    execution_backend: job
-    expected_runtime: medium
-    job_timeout_seconds: 1800
-    runner_type: rscript
-    runner_ref: molecular_differential_expression
-    description: Legacy approximate differential-expression analysis between Cohort A and Cohort B using log2-CPM plus per-gene t-tests. Prefer DESeq2 for serious RNA-seq work.
-    guidance: Select Cohort A and Cohort B before running. This legacy tool is retained for comparison/debugging; DESeq2 is the recommended default.
-    default_prompt: Run differential expression between Cohort A and Cohort B for the current molecular workspace.
-    execution_mode: deterministic
-    default_compare_mode: true
-    supports_compare_mode: true
-    requires_detailed_access: true
-    requires_molecular: true
-    tags: [molecular, differential-expression, background, rscript, legacy]
-
-  - id: molecular-deseq2-differential-expression
+  - id: transcriptomics-deseq2-differential-expression
     name: DESeq2 differential expression
-    category: Molecular
+    category: Assays
     kind: differential_expression
     execution_backend: job
     expected_runtime: long
     job_timeout_seconds: 3600
     runner_type: rscript
-    runner_ref: molecular_deseq2_differential_expression
-    description: Run a curated DESeq2 differential-expression analysis between Cohort A and Cohort B from one selected raw-count molecular dataset.
+    runner_ref: transcriptomics_deseq2_differential_expression
+    description: Run a curated DESeq2 differential-expression analysis between Cohort A and Cohort B from one selected raw-count assay.
     guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient, so baseline-only or one-sample-per-patient inputs are preferred.
-    default_prompt: Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.
+    default_prompt: Run DESeq2 differential expression between Cohort A and Cohort B for the selected assay.
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
     requires_detailed_access: true
-    requires_molecular: true
-    tags: [molecular, differential-expression, deseq2, background, rscript]
+    requires_assays: true
+    tags: [transcriptomics, differential-expression, deseq2, background, rscript]
 
-  - id: molecular-hallmark-pathway-enrichment
+  - id: transcriptomics-hallmark-pathway-enrichment
     name: Hallmark pathway enrichment
-    category: Molecular
+    category: Assays
     kind: pathway_enrichment
     execution_backend: job
     expected_runtime: long
     job_timeout_seconds: 3600
     runner_type: rscript
-    runner_ref: molecular_hallmark_pathway_enrichment
-    description: Run curated Hallmark pathway enrichment from a DESeq2-ranked comparison between Cohort A and Cohort B on one selected raw-count molecular dataset.
+    runner_ref: transcriptomics_hallmark_pathway_enrichment
+    description: Run curated Hallmark pathway enrichment from a DESeq2-ranked comparison between Cohort A and Cohort B on one selected raw-count assay.
     guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient, so baseline-only or one-sample-per-patient inputs are preferred.
-    default_prompt: Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.
+    default_prompt: Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected assay.
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
     requires_detailed_access: true
-    requires_molecular: true
-    tags: [molecular, pathway-enrichment, hallmark, fgsea, background, rscript]
+    requires_assays: true
+    tags: [transcriptomics, pathway-enrichment, hallmark, fgsea, background, rscript]
 
-  - id: molecular-signature-workflow
-    name: Molecular signature workflow
-    category: Molecular
+  - id: transcriptomics-signature-workflow
+    name: Transcriptomics signature workflow
+    category: Assays
     kind: workflow
     execution_backend: job
     expected_runtime: long
     job_timeout_seconds: 7200
     runner_type: workflow
-    runner_ref: molecular_signature
-    description: "Run a curated two-step molecular workflow: DESeq2 differential expression followed by Hallmark pathway enrichment for Cohort A versus Cohort B."
-    guidance: "Select Cohort A and Cohort B plus one raw-count molecular dataset. This workflow runs both project-approved steps as one background job and returns one combined result."
-    default_prompt: Run the molecular signature workflow between Cohort A and Cohort B for the selected molecular dataset.
+    runner_ref: transcriptomics_signature
+    description: "Run a curated two-step transcriptomics workflow: DESeq2 differential expression followed by Hallmark pathway enrichment for Cohort A versus Cohort B."
+    guidance: "Select Cohort A and Cohort B plus one raw-count assay. This workflow runs both project-approved steps as one background job and returns one combined result."
+    default_prompt: Run the transcriptomics signature workflow between Cohort A and Cohort B for the selected assay.
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
     requires_detailed_access: true
-    requires_molecular: true
+    requires_assays: true
     steps:
-      - molecular-deseq2-differential-expression
-      - molecular-hallmark-pathway-enrichment
-    tags: [molecular, workflow, signature, deseq2, hallmark, fgsea, background]
+      - transcriptomics-deseq2-differential-expression
+      - transcriptomics-hallmark-pathway-enrichment
+    tags: [transcriptomics, workflow, signature, deseq2, hallmark, fgsea, background]
 
   - id: external-r-scope-snapshot
     name: External R cohort snapshot

@@ -52,9 +52,9 @@ from app.query_store import (
     cohort_over_time_summary as store_cohort_over_time_summary,
     duckdb_available,
     medication_counts as store_medication_counts,
-    molecular_dataset_inventory as store_molecular_dataset_inventory,
-    molecular_expression_summary as store_molecular_expression_summary,
-    molecular_gene_inventory as store_molecular_gene_inventory,
+    assay_dataset_inventory as store_assay_dataset_inventory,
+    assay_expression_summary as store_assay_expression_summary,
+    assay_feature_inventory as store_assay_feature_inventory,
     patient_inventory as store_patient_inventory,
     patient_visit_count_cohort as store_patient_visit_count_cohort,
 )
@@ -944,7 +944,6 @@ def test_dashboard_summary_includes_disease_medication_matrix(tmp_path):
 
 def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     saved = cohorts_module.save_cohort(
         name="Crohn cohort",
@@ -978,9 +977,7 @@ def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
 
 def test_saved_cohort_delete_is_blocked_when_referenced_by_analysis_session(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(analysis_sessions_module, "LEGACY_ANALYSIS_SESSIONS_PATH", tmp_path / "legacy-analysis-sessions.json")
 
     saved = cohorts_module.save_cohort(
         name="Crohn cohort",
@@ -1015,7 +1012,6 @@ def test_saved_cohort_delete_is_blocked_when_referenced_by_analysis_session(tmp_
 
 def test_analysis_session_persists_scope_metadata(tmp_path, monkeypatch):
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(analysis_sessions_module, "LEGACY_ANALYSIS_SESSIONS_PATH", tmp_path / "legacy-analysis-sessions.json")
 
     saved = analysis_sessions_module.save_analysis_session({
         "id": "session-metadata",
@@ -1049,7 +1045,6 @@ def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path
         ],
     )
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     saved = cohorts_module.save_cohort(
         name="Full dataset cohort",
@@ -1235,7 +1230,6 @@ def test_pheno_runner_rejects_combined_include_and_exclude_terms(tmp_path, monke
 
 def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     cohorts_module.save_cohort(
         name="Local cohort",
@@ -1260,7 +1254,6 @@ def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
 
 def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
     monkeypatch.setattr(cohorts_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(cohorts_module, "LEGACY_SAVED_COHORTS_PATH", tmp_path / "legacy-saved-cohorts.json")
 
     first = cohorts_module.save_cohort(
         name="Crohn cohort",
@@ -1294,11 +1287,6 @@ def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
 
 def test_analysis_sessions_are_user_scoped(tmp_path, monkeypatch):
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(
-        analysis_sessions_module,
-        "LEGACY_ANALYSIS_SESSIONS_PATH",
-        tmp_path / "legacy-analysis-sessions.json",
-    )
 
     analysis_sessions_module.save_analysis_session(
         {"id": "session_local", "title": "Local session", "turns": []},
@@ -1398,14 +1386,14 @@ def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
     assert alice.post("/auth/login", json={"username": "alice", "password": "secret"}).status_code == 200
     assert bob.post("/auth/login", json={"username": "bob", "password": "secret"}).status_code == 200
 
-    updated = alice.patch("/user-settings", json={"landing_tab": "pheno", "dashboard_molecular_open": True})
+    updated = alice.patch("/user-settings", json={"landing_tab": "pheno", "dashboard_assays_open": True})
     assert updated.status_code == 200
     assert updated.json()["landing_tab"] == "pheno"
 
     assert alice.get("/user-settings").json()["landing_tab"] == "pheno"
     bob_settings = bob.get("/user-settings").json()
     assert bob_settings["landing_tab"] == "dashboard"
-    assert bob_settings["dashboard_molecular_open"] is False
+    assert bob_settings["dashboard_assays_open"] is False
 
 
 def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
@@ -2036,9 +2024,9 @@ def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
 def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_path):
     dataset_root = tmp_path / "dataset-large"
     clinical_root = dataset_root / "clinical"
-    molecular_root = dataset_root / "molecular"
+    transcriptomics_root = dataset_root / "assays" / "transcriptomics"
     clinical_root.mkdir(parents=True)
-    molecular_root.mkdir(parents=True)
+    transcriptomics_root.mkdir(parents=True)
     write_json(
         clinical_root,
         "records.json",
@@ -2048,14 +2036,14 @@ def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_p
             {"id": "P2:baseline", "patient_id": "P2"},
         ],
     )
-    (molecular_root / "counts_a.csv").write_text("gene_id,P1:baseline\nENSG00000141510,10\n", encoding="utf-8")
-    (molecular_root / "counts_b.csv").write_text("gene_id,P2:baseline\nENSG00000171862,11\n", encoding="utf-8")
+    (transcriptomics_root / "counts_a.csv").write_text("gene_id,P1:baseline\nENSG00000141510,10\n", encoding="utf-8")
+    (transcriptomics_root / "counts_b.csv").write_text("gene_id,P2:baseline\nENSG00000171862,11\n", encoding="utf-8")
 
     metadata = datasets_module.dataset_content_metadata(str(dataset_root))
 
     assert metadata["patient_count"] == 2
     assert metadata["timepoint_count"] == 3
-    assert metadata["molecular_file_count"] == 2
+    assert metadata["assay_file_count"] == 2
     assert metadata["content_tags"] == ["2 patients", "3 timepoints", "2 matrices", "large transcriptome"]
     assert metadata["content_summary"] == ""
 
@@ -2313,9 +2301,9 @@ def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_pa
     dataset_a = tmp_path / "dataset-a"
     dataset_b = tmp_path / "dataset-b"
     (dataset_a / "clinical").mkdir(parents=True)
-    (dataset_a / "molecular").mkdir()
+    (dataset_a / "assays" / "transcriptomics").mkdir(parents=True)
     (dataset_b / "clinical").mkdir(parents=True)
-    (dataset_b / "molecular").mkdir()
+    (dataset_b / "assays" / "transcriptomics").mkdir(parents=True)
     write_json(dataset_a / "clinical", "a_records.json", [{"id": "A1:baseline", "patient_id": "A1"}])
     write_json(dataset_b / "clinical", "b_records.json", [{"id": "B1:baseline", "patient_id": "B1"}])
 
@@ -2372,11 +2360,11 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
         (dataset_b, "B1", 30, 40),
     ):
         clinical_dir = root / "clinical"
-        molecular_dir = root / "molecular"
+        transcriptomics_dir = root / "assays" / "transcriptomics"
         clinical_dir.mkdir(parents=True)
-        molecular_dir.mkdir()
+        transcriptomics_dir.mkdir(parents=True)
         write_json(clinical_dir, "records.json", [{"id": f"{patient_id}:baseline", "patient_id": patient_id}])
-        (molecular_dir / "counts.csv").write_text(
+        (transcriptomics_dir / "counts.csv").write_text(
             "\n".join(
                 [
                     f"gene_id;{patient_id}",
@@ -2425,7 +2413,7 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
     assert not combined_meta_path.exists()
 
     assert store_patient_inventory(str(scope_root)) == ["A1", "B1"]
-    inventory = store_molecular_dataset_inventory(str(scope_root))
+    inventory = store_assay_dataset_inventory(str(scope_root))
 
     assert [item["dataset_name"] for item in inventory] == ["dataset-a__counts", "dataset-b__counts"]
     assert [item["patient_ids"] for item in inventory] == [["A1"], ["B1"]]
@@ -2477,6 +2465,7 @@ def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkey
     ]
     datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("maria-dataset")
 
     client = TestClient(app)
     login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
@@ -2554,6 +2543,7 @@ def test_query_route_respects_dataset_ai_provider_access(tmp_path, monkeypatch):
     ]
     datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("maria-dataset")
 
     calls = []
 
@@ -2802,16 +2792,16 @@ def test_analysis_catalog_loader_accepts_curated_workflow_metadata(tmp_path):
     catalog_path.write_text(
         """
 items:
-  - id: molecular-signature-workflow
-    name: Molecular signature workflow
+  - id: transcriptomics-signature-workflow
+    name: Assay signature workflow
     description: Run the project workflow.
-    default_prompt: Run the molecular signature workflow.
+    default_prompt: Run the assay signature workflow.
     runner_type: workflow
-    runner_ref: molecular_signature
+    runner_ref: transcriptomics_signature
     execution_backend: job
     steps:
-      - molecular-deseq2-differential-expression
-      - molecular-hallmark-pathway-enrichment
+      - transcriptomics-deseq2-differential-expression
+      - transcriptomics-hallmark-pathway-enrichment
 """.strip(),
         encoding="utf-8",
     )
@@ -2819,11 +2809,11 @@ items:
     items = analysis_catalog_module.load_analysis_catalog(catalog_path)
 
     assert items[0]["runner_type"] == "workflow"
-    assert items[0]["runner_ref"] == "molecular_signature"
+    assert items[0]["runner_ref"] == "transcriptomics_signature"
     assert items[0]["execution_backend"] == "job"
     assert items[0]["steps"] == [
-        "molecular-deseq2-differential-expression",
-        "molecular-hallmark-pathway-enrichment",
+        "transcriptomics-deseq2-differential-expression",
+        "transcriptomics-hallmark-pathway-enrichment",
     ]
 
 
@@ -2949,7 +2939,7 @@ def test_analysis_catalog_nextflow_availability_accepts_env_override(tmp_path, m
     availability = analysis_catalog_module._availability_for_item(
         catalog_item,
         granularity_ceiling="detailed",
-        has_molecular=True,
+        has_assays=True,
     )
 
     assert availability["available"] is True
@@ -3018,11 +3008,11 @@ items:
     description: Needs detailed access.
     default_prompt: Show the detailed analysis.
     requires_detailed_access: true
-  - id: molecular-only
-    name: Molecular analysis
-    description: Needs molecular data.
-    default_prompt: Show the molecular analysis.
-    requires_molecular: true
+  - id: assay-only
+    name: Assay analysis
+    description: Needs assay data.
+    default_prompt: Show the assay analysis.
+    requires_assays: true
 """.strip(),
         encoding="utf-8",
     )
@@ -3040,8 +3030,8 @@ items:
     items = {item["id"]: item for item in payload["items"]}
     assert items["detailed-only"]["available"] is False
     assert "Detailed" in items["detailed-only"]["unavailable_reason"]
-    assert items["molecular-only"]["available"] is False
-    assert "molecular datasets" in items["molecular-only"]["unavailable_reason"]
+    assert items["assay-only"]["available"] is False
+    assert "assays" in items["assay-only"]["unavailable_reason"]
 
 
 def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
@@ -3151,127 +3141,7 @@ def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
     assert payload["data"]["context"]["cohort_a_patient_count"] == 1
 
 
-def test_analysis_external_rscript_molecular_differential_expression_runner_executes(tmp_path):
-    if shutil.which("Rscript") is None or not duckdb_available():
-        pytest.skip("Rscript and duckdb are required")
-
-    write_json(
-        tmp_path,
-        "records.json",
-        [
-            {"id": "SYN001:week_0", "event_date": "2024-01-01"},
-            {"id": "SYN001:week_2", "event_date": "2024-01-15"},
-            {"id": "SYN002:week_0", "event_date": "2024-01-01"},
-            {"id": "SYN002:week_2", "event_date": "2024-01-15"},
-        ],
-    )
-
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
-        "\n".join(
-            [
-                "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2",
-                "ENSG00000111111;100;120;5;7",
-                "ENSG00000122222;6;8;90;110",
-                "ENSG00000133333;40;42;38;39",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
-    try:
-        job_dir = tmp_path / "job-output"
-        payload = analysis_external_module.run_rscript_analysis(
-            "molecular_differential_expression",
-            prompt="Run differential expression between Cohort A and Cohort B for the current molecular workspace.",
-            data_dir=str(tmp_path),
-            molecular_dataset_name="synthetic_transcriptome_raw_counts",
-            selected_patient_ids="SYN001",
-            compare_selected_patient_ids="SYN002",
-            job_dir=job_dir,
-            timeout_seconds=60,
-        )
-    finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
-
-    assert payload["intent"] == "analysis_external_rscript"
-    assert "External R differential expression" in payload["reply"]
-    assert payload["data"]["execution"] == "external_runner"
-    assert payload["data"]["runner_type"] == "rscript"
-    assert payload["data"]["runner_ref"] == "molecular_differential_expression"
-    assert payload["data"]["context"]["mode"] == "external_rscript_molecular_differential_expression"
-    assert payload["data"]["context"]["dataset_name"] == "synthetic_transcriptome_raw_counts"
-    assert payload["data"]["context"]["cohort_a_sample_count"] == 2
-    assert payload["data"]["context"]["cohort_b_sample_count"] == 2
-    assert payload["data"]["context"]["gene_count"] == 3
-    assert (job_dir / "manifest.yaml").exists()
-    assert (job_dir / "sample_table.tsv").exists()
-    assert (job_dir / "counts_matrix.tsv").exists()
-    assert (job_dir / "de_results.tsv").exists()
-    assert (job_dir / "volcano_points.tsv").exists()
-    assert (job_dir / "summary.json").exists()
-    assert (job_dir / "volcano_plot.png").exists()
-
-
-def test_analysis_external_rscript_molecular_differential_expression_runner_accepts_sample_scopes(tmp_path):
-    if shutil.which("Rscript") is None or not duckdb_available():
-        pytest.skip("Rscript and duckdb are required")
-
-    write_json(
-        tmp_path,
-        "records.json",
-        [
-            {"id": "SYN001:week_0", "event_date": "2024-01-01"},
-            {"id": "SYN001:week_2", "event_date": "2024-01-15"},
-            {"id": "SYN002:week_0", "event_date": "2024-01-01"},
-            {"id": "SYN002:week_2", "event_date": "2024-01-15"},
-        ],
-    )
-
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
-        "\n".join(
-            [
-                "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2",
-                "ENSG00000111111;100;120;5;7",
-                "ENSG00000122222;6;8;90;110",
-                "ENSG00000133333;40;42;38;39",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
-    try:
-        job_dir = tmp_path / "job-output-sample-scope"
-        payload = analysis_external_module.run_rscript_analysis(
-            "molecular_differential_expression",
-            prompt="Run differential expression between Cohort A and Cohort B for the current molecular workspace.",
-            data_dir=str(tmp_path),
-            molecular_dataset_name="synthetic_transcriptome_raw_counts",
-            selected_patient_ids="SYN001:week_0,SYN001:week_2",
-            compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
-            job_dir=job_dir,
-            timeout_seconds=60,
-        )
-    finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
-
-    assert payload["intent"] == "analysis_external_rscript"
-    assert payload["data"]["context"]["dataset_name"] == "synthetic_transcriptome_raw_counts"
-    assert payload["data"]["context"]["cohort_a_sample_count"] == 2
-    assert payload["data"]["context"]["cohort_b_sample_count"] == 2
-    sample_table = (job_dir / "sample_table.tsv").read_text(encoding="utf-8")
-    assert "SYN001:week_0\tSYN001\tA" in sample_table
-    assert "SYN001:week_2\tSYN001\tA" in sample_table
-    assert "SYN002:week_0\tSYN002\tB" in sample_table
-    assert "SYN002:week_2\tSYN002\tB" in sample_table
-
-
-def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, monkeypatch):
+def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkeypatch):
     write_json(
         tmp_path,
         "records.json",
@@ -3283,10 +3153,10 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001:baseline;SYN002:baseline;SYN003:baseline;SYN004:baseline",
@@ -3297,7 +3167,7 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     monkeypatch.setattr(
         analysis_external_module.shutil,
         "which",
@@ -3324,8 +3194,8 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
         payload = {
             "reply": "### External R DESeq2 differential expression\n\n- Significant genes (BH < 0.05): 1",
             "context": {
-                "mode": "external_rscript_molecular_deseq2_differential_expression",
-                "runner": "molecular_deseq2_differential_expression",
+                "mode": "external_rscript_transcriptomics_deseq2_differential_expression",
+                "runner": "transcriptomics_deseq2_differential_expression",
                 "dataset_name": "synthetic_transcriptome_raw_counts",
                 "cohort_a_sample_count": 2,
                 "cohort_b_sample_count": 2,
@@ -3342,21 +3212,21 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
     try:
         job_dir = tmp_path / "job-output-deseq2"
         payload = analysis_external_module.run_rscript_analysis(
-            "molecular_deseq2_differential_expression",
-            prompt="Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.",
+            "transcriptomics_deseq2_differential_expression",
+            prompt="Run DESeq2 differential expression between Cohort A and Cohort B for the selected assay.",
             data_dir=str(tmp_path),
-            molecular_dataset_name="synthetic_transcriptome_raw_counts",
+            assay_id="synthetic_transcriptome_raw_counts",
             selected_patient_ids="SYN001,SYN002",
             compare_selected_patient_ids="SYN003,SYN004",
             job_dir=job_dir,
             timeout_seconds=60,
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
     assert payload["intent"] == "analysis_external_rscript"
-    assert payload["data"]["runner_ref"] == "molecular_deseq2_differential_expression"
-    assert payload["data"]["context"]["mode"] == "external_rscript_molecular_deseq2_differential_expression"
+    assert payload["data"]["runner_ref"] == "transcriptomics_deseq2_differential_expression"
+    assert payload["data"]["context"]["mode"] == "external_rscript_transcriptomics_deseq2_differential_expression"
     assert payload["data"]["context"]["shrinkage_method"] == "apeglm"
     assert (job_dir / "de_results.tsv").exists()
     assert (job_dir / "volcano_points.tsv").exists()
@@ -3367,7 +3237,7 @@ def test_analysis_external_rscript_molecular_deseq2_runner_executes(tmp_path, mo
     assert (job_dir / "top_genes_heatmap_clustering.json").exists()
 
 
-def test_analysis_external_rscript_molecular_deseq2_runner_rejects_repeated_patient_samples(tmp_path):
+def test_analysis_external_rscript_assay_deseq2_runner_rejects_repeated_patient_samples(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -3381,10 +3251,10 @@ def test_analysis_external_rscript_molecular_deseq2_runner_rejects_repeated_pati
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2;SYN003:week_0;SYN004:week_0",
@@ -3394,24 +3264,24 @@ def test_analysis_external_rscript_molecular_deseq2_runner_rejects_repeated_pati
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         with pytest.raises(RuntimeError, match="one sample per patient"):
             analysis_external_module.run_rscript_analysis(
-                "molecular_deseq2_differential_expression",
-                prompt="Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.",
+                "transcriptomics_deseq2_differential_expression",
+                prompt="Run DESeq2 differential expression between Cohort A and Cohort B for the selected assay.",
                 data_dir=str(tmp_path),
-                molecular_dataset_name="synthetic_transcriptome_raw_counts",
+                assay_id="synthetic_transcriptome_raw_counts",
                 selected_patient_ids="SYN001:week_0,SYN001:week_2",
                 compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
                 job_dir=tmp_path / "job-output-deseq2-invalid",
                 timeout_seconds=60,
             )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
 
-def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tmp_path, monkeypatch):
+def test_analysis_external_rscript_assay_hallmark_pathway_runner_executes(tmp_path, monkeypatch):
     write_json(
         tmp_path,
         "records.json",
@@ -3423,10 +3293,10 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tm
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001:baseline;SYN002:baseline;SYN003:baseline;SYN004:baseline",
@@ -3437,7 +3307,7 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tm
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     monkeypatch.setattr(
         analysis_external_module.shutil,
         "which",
@@ -3458,8 +3328,8 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tm
         payload = {
             "reply": "### Hallmark pathway enrichment\n\n- Significant pathways (BH < 0.05): 1",
             "context": {
-                "mode": "external_rscript_molecular_hallmark_pathway_enrichment",
-                "runner": "molecular_hallmark_pathway_enrichment",
+                "mode": "external_rscript_transcriptomics_hallmark_pathway_enrichment",
+                "runner": "transcriptomics_hallmark_pathway_enrichment",
                 "dataset_name": "synthetic_transcriptome_raw_counts",
                 "cohort_a_sample_count": 2,
                 "cohort_b_sample_count": 2,
@@ -3480,21 +3350,21 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tm
     try:
         job_dir = tmp_path / "job-output-pathway"
         payload = analysis_external_module.run_rscript_analysis(
-            "molecular_hallmark_pathway_enrichment",
-            prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+            "transcriptomics_hallmark_pathway_enrichment",
+            prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected assay.",
             data_dir=str(tmp_path),
-            molecular_dataset_name="synthetic_transcriptome_raw_counts",
+            assay_id="synthetic_transcriptome_raw_counts",
             selected_patient_ids="SYN001,SYN002",
             compare_selected_patient_ids="SYN003,SYN004",
             job_dir=job_dir,
             timeout_seconds=60,
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
     assert payload["intent"] == "analysis_external_rscript"
-    assert payload["data"]["runner_ref"] == "molecular_hallmark_pathway_enrichment"
-    assert payload["data"]["context"]["mode"] == "external_rscript_molecular_hallmark_pathway_enrichment"
+    assert payload["data"]["runner_ref"] == "transcriptomics_hallmark_pathway_enrichment"
+    assert payload["data"]["context"]["mode"] == "external_rscript_transcriptomics_hallmark_pathway_enrichment"
     assert payload["data"]["context"]["pathway_collection"] == "MSigDB Hallmark"
     assert payload["data"]["context"]["top_positive_pathway_labels"] == ["TNFA Signaling Via NFKB"]
     assert (job_dir / "pathway_results.tsv").exists()
@@ -3503,7 +3373,7 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_executes(tm
     assert (job_dir / "pathway_plot.png").exists()
 
 
-def test_analysis_external_rscript_molecular_hallmark_pathway_runner_rejects_repeated_patient_samples(tmp_path):
+def test_analysis_external_rscript_assay_hallmark_pathway_runner_rejects_repeated_patient_samples(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -3517,10 +3387,10 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_rejects_rep
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001:week_0;SYN001:week_2;SYN002:week_0;SYN002:week_2;SYN003:week_0;SYN004:week_0",
@@ -3530,21 +3400,21 @@ def test_analysis_external_rscript_molecular_hallmark_pathway_runner_rejects_rep
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         with pytest.raises(RuntimeError, match="one sample per patient"):
             analysis_external_module.run_rscript_analysis(
-                "molecular_hallmark_pathway_enrichment",
-                prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+                "transcriptomics_hallmark_pathway_enrichment",
+                prompt="Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected assay.",
                 data_dir=str(tmp_path),
-                molecular_dataset_name="synthetic_transcriptome_raw_counts",
+                assay_id="synthetic_transcriptome_raw_counts",
                 selected_patient_ids="SYN001:week_0,SYN001:week_2",
                 compare_selected_patient_ids="SYN002:week_0,SYN002:week_2",
                 job_dir=tmp_path / "job-output-pathway-invalid",
                 timeout_seconds=60,
             )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
 
 def test_analysis_external_snakemake_runner_executes(tmp_path, monkeypatch):
@@ -3765,7 +3635,7 @@ def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path
         *,
         prompt,
         data_dir,
-        molecular_dataset_name="",
+        assay_id="",
         selected_patient_ids="",
         compare_selected_patient_ids="",
         job_dir=None,
@@ -3773,11 +3643,11 @@ def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path
     ):
         assert job_dir is not None
         Path(job_dir).mkdir(parents=True, exist_ok=True)
-        if runner_ref == "molecular_deseq2_differential_expression":
+        if runner_ref == "transcriptomics_deseq2_differential_expression":
             (Path(job_dir) / "volcano_plot.png").write_text("png", encoding="utf-8")
             (Path(job_dir) / "de_results.tsv").write_text("gene\tlog2FoldChange\nG1\t1.2\n", encoding="utf-8")
             context = {
-                "mode": "external_rscript_molecular_deseq2_differential_expression",
+                "mode": "external_rscript_transcriptomics_deseq2_differential_expression",
                 "dataset_name": "synthetic_counts",
                 "cohort_a_sample_count": 2,
                 "cohort_b_sample_count": 2,
@@ -3785,11 +3655,11 @@ def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path
                 "significant_gene_count": 3,
             }
             return {"intent": "analysis_external_rscript", "reply": "DESeq2 done.", "data": {"context": context}}
-        if runner_ref == "molecular_hallmark_pathway_enrichment":
+        if runner_ref == "transcriptomics_hallmark_pathway_enrichment":
             (Path(job_dir) / "pathway_plot.png").write_text("png", encoding="utf-8")
             (Path(job_dir) / "pathway_results.tsv").write_text("pathway\tpadj\nHALLMARK_TNFA_SIGNALING_VIA_NFKB\t0.01\n", encoding="utf-8")
             context = {
-                "mode": "external_rscript_molecular_hallmark_pathway_enrichment",
+                "mode": "external_rscript_transcriptomics_hallmark_pathway_enrichment",
                 "dataset_name": "synthetic_counts",
                 "ranked_gene_count": 100,
                 "pathway_count": 50,
@@ -3803,10 +3673,10 @@ def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path
     job_dir = tmp_path / "workflow-job"
 
     payload = analysis_external_module.run_workflow_analysis(
-        "molecular_signature",
-        prompt="Run the molecular signature workflow.",
+        "transcriptomics_signature",
+        prompt="Run the assay signature workflow.",
         data_dir=str(tmp_path),
-        molecular_dataset_name="synthetic_counts",
+        assay_id="synthetic_counts",
         selected_patient_ids="P1,P2",
         compare_selected_patient_ids="P3,P4",
         job_dir=job_dir,
@@ -3815,7 +3685,7 @@ def test_analysis_workflow_runner_creates_step_directories_and_manifest(tmp_path
 
     assert payload["intent"] == "analysis_workflow"
     assert payload["data"]["runner_type"] == "workflow"
-    assert payload["data"]["context"]["mode"] == "workflow_molecular_signature"
+    assert payload["data"]["context"]["mode"] == "workflow_transcriptomics_signature"
     assert payload["data"]["context"]["deseq2"]["significant_gene_count"] == 3
     assert payload["data"]["context"]["hallmark"]["significant_pathway_count"] == 2
     assert (job_dir / "workflow" / "01-deseq2" / "volcano_plot.png").exists()
@@ -3829,11 +3699,6 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(
-        analysis_sessions_module,
-        "LEGACY_ANALYSIS_SESSIONS_PATH",
-        tmp_path / "legacy-analysis-sessions.json",
-    )
     monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "BRN_LOCAL_USERS_JSON",
@@ -4540,11 +4405,6 @@ def test_analysis_session_delete_can_cascade_terminal_job_data(tmp_path, monkeyp
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(
-        analysis_sessions_module,
-        "LEGACY_ANALYSIS_SESSIONS_PATH",
-        tmp_path / "legacy-analysis-sessions.json",
-    )
     monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "BRN_LOCAL_USERS_JSON",
@@ -4597,11 +4457,6 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(
-        analysis_sessions_module,
-        "LEGACY_ANALYSIS_SESSIONS_PATH",
-        tmp_path / "legacy-analysis-sessions.json",
-    )
     monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "BRN_LOCAL_USERS_JSON",
@@ -4648,11 +4503,6 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
 def test_user_data_analysis_sessions_bulk_delete_is_user_scoped(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setattr(
-        analysis_sessions_module,
-        "LEGACY_ANALYSIS_SESSIONS_PATH",
-        tmp_path / "legacy-analysis-sessions.json",
-    )
     monkeypatch.setenv("BRN_AUTH_MODE", "local")
     monkeypatch.setenv(
         "BRN_LOCAL_USERS_JSON",
@@ -4737,10 +4587,10 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
         analysis_catalog_module,
         "get_analysis_catalog_item",
         lambda item_id, path=analysis_catalog_module.ANALYSIS_CATALOG_PATH: {
-            "id": "molecular-signature-workflow",
-            "name": "Molecular signature workflow",
+            "id": "transcriptomics-signature-workflow",
+            "name": "Assay signature workflow",
             "runner_type": "workflow",
-            "runner_ref": "molecular_signature",
+            "runner_ref": "transcriptomics_signature",
         },
     )
     monkeypatch.setattr(
@@ -4752,7 +4602,7 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
             "data": {
                 "source": "deterministic",
                 "execution": "external_runner",
-                "context": {"mode": "workflow_molecular_signature"},
+                "context": {"mode": "workflow_transcriptomics_signature"},
                 "runner_type": "workflow",
                 "runner_ref": runner_ref,
             },
@@ -4765,11 +4615,11 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
         data={
             "feature": "analysis",
             "name": "Queued workflow",
-            "prompt": "Run the molecular signature workflow between Cohort A and Cohort B for the selected molecular dataset.",
+            "prompt": "Run the assay signature workflow between Cohort A and Cohort B for the selected assay.",
             "data_dir": str(tmp_path),
-            "catalog_item_id": "molecular-signature-workflow",
+            "catalog_item_id": "transcriptomics-signature-workflow",
             "runner_type": "workflow",
-            "runner_ref": "molecular_signature",
+            "runner_ref": "transcriptomics_signature",
             "job_timeout_seconds": 120,
         },
     )
@@ -5635,6 +5485,7 @@ def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatc
     ]
     datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("maria-dataset")
 
     client = TestClient(app)
     login = client.post("/auth/login", json={"username": "maria", "password": "demo"})
@@ -7347,7 +7198,7 @@ def test_query_store_rebuilds_stale_schema_missing_required_tables(tmp_path, mon
     db_path, meta_path = query_store_module._store_paths(str(tmp_path))
     con = query_store_module.duckdb.connect(str(db_path))
     try:
-        con.execute("CREATE TABLE legacy_only (id TEXT)")
+        con.execute("CREATE TABLE stale_schema_only (id TEXT)")
     finally:
         con.close()
     meta_path.write_text(
@@ -7360,7 +7211,7 @@ def test_query_store_rebuilds_stale_schema_missing_required_tables(tmp_path, mon
     assert [item["patient_id"] for item in rows] == ["SYN001"]
 
 
-def test_query_store_ingests_molecular_count_matrices(tmp_path):
+def test_query_store_ingests_assay_count_matrices(tmp_path):
     if not duckdb_available():
         return
 
@@ -7373,10 +7224,10 @@ def test_query_store_ingests_molecular_count_matrices(tmp_path):
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002",
@@ -7386,16 +7237,17 @@ def test_query_store_ingests_molecular_count_matrices(tmp_path):
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
-        inventory = store_molecular_dataset_inventory(str(tmp_path))
+        inventory = store_assay_dataset_inventory(str(tmp_path))
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
     assert len(inventory) == 1
     item = inventory[0]
     assert item["dataset_name"] == "synthetic_transcriptome_raw_counts"
-    assert item["modality"] == "transcriptomics_raw_counts"
+    assert item["modality"] == "transcriptomics"
+    assert item["data_type"] == "raw_counts"
     assert item["sample_count"] == 2
     assert item["patient_count"] == 2
     assert item["gene_count"] == 2
@@ -7405,7 +7257,7 @@ def test_query_store_ingests_molecular_count_matrices(tmp_path):
     assert len(item["top_genes"]) == 2
 
 
-def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
+def test_query_store_summarizes_transcriptomics_expression_by_scope(tmp_path):
     if not duckdb_available():
         return
 
@@ -7419,10 +7271,10 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
@@ -7432,11 +7284,11 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
-        inventory = store_molecular_dataset_inventory(str(tmp_path))
-        genes = store_molecular_gene_inventory(str(tmp_path), "synthetic_transcriptome_raw_counts", search="tp53")
-        payload = store_molecular_expression_summary(
+        inventory = store_assay_dataset_inventory(str(tmp_path))
+        genes = store_assay_feature_inventory(str(tmp_path), "synthetic_transcriptome_raw_counts", search="tp53")
+        payload = store_assay_expression_summary(
             str(tmp_path),
             "synthetic_transcriptome_raw_counts",
             "ENSG00000141510",
@@ -7444,7 +7296,7 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
             compare_selected_patient_ids="SYN003",
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
     assert genes == ["ENSG00000141510"]
     assert inventory[0]["clinical_overlap_patient_count"] == 3
@@ -7460,7 +7312,7 @@ def test_query_store_summarizes_molecular_expression_by_scope(tmp_path):
     assert payload["scope_b"]["max"] == 30
 
 
-def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
+def test_analysis_supports_deterministic_transcriptomics_expression_prompt(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -7471,10 +7323,10 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
@@ -7483,7 +7335,7 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         payload = analysis_module.analysis_llm_reply(
             "Show expression of ENSG00002700028 in the current Analysis scope.",
@@ -7491,18 +7343,18 @@ def test_analysis_supports_deterministic_molecular_expression_prompt(tmp_path):
             selected_patient_ids="SYN001,SYN002",
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert payload["intent"] == "analysis_molecular_expression"
+    assert payload["intent"] == "analysis_transcriptomics_expression"
     assert payload["data"]["source"] == "deterministic"
-    assert payload["data"]["context"]["mode"] == "molecular_expression"
+    assert payload["data"]["context"]["mode"] == "transcriptomics_expression"
     assert payload["data"]["context"]["datasets"][0]["scope_a"]["sample_count"] == 2
-    assert "ENSG00002700028 was found in 1 molecular dataset." in payload["reply"]
+    assert "ENSG00002700028 was found in 1 assay." in payload["reply"]
     assert "\n| Dataset | Samples | Patients | Mean | Median | Min | Max |\n" in payload["reply"]
     assert "| synthetic_transcriptome_raw_counts | 2 | 2 | 110 | 110 | 100 | 120 |" in payload["reply"]
 
 
-def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp_path):
+def test_analysis_supports_deterministic_transcriptomics_expression_compare_prompt(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -7513,10 +7365,10 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002;SYN003",
@@ -7525,7 +7377,7 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         payload = analysis_module.analysis_llm_reply(
             "Compare expression of ENSG00002700028 between Cohort A and Cohort B.",
@@ -7535,16 +7387,16 @@ def test_analysis_supports_deterministic_molecular_expression_compare_prompt(tmp
             compare_selected_patient_ids="SYN003",
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert payload["intent"] == "analysis_molecular_expression"
+    assert payload["intent"] == "analysis_transcriptomics_expression"
     assert payload["data"]["context"]["compare_mode"] is True
     assert payload["data"]["context"]["datasets"][0]["scope_b"]["sample_count"] == 1
     assert "\n| Dataset | Scope | Samples | Patients | Mean | Median | Min | Max |\n" in payload["reply"]
     assert "| synthetic_transcriptome_raw_counts | Cohort A | 2 | 2 | 110 | 110 | 100 | 120 |" in payload["reply"]
 
 
-def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_path):
+def test_analysis_supports_deterministic_assay_medication_comparison(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -7556,10 +7408,10 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002",
@@ -7569,7 +7421,7 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
         ),
         encoding="utf-8",
     )
-    (molecular_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN006;SYN007",
@@ -7579,17 +7431,17 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         payload = analysis_module.analysis_llm_reply(
             "Explain differences in gene expression according to medication",
             str(tmp_path),
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert payload["intent"] == "analysis_molecular_medication_compare"
-    assert payload["data"]["context"]["mode"] == "molecular_medication_compare"
+    assert payload["intent"] == "analysis_transcriptomics_medication_compare"
+    assert payload["data"]["context"]["mode"] == "transcriptomics_medication_compare"
     assert payload["data"]["context"]["comparisons"][0]["medication_a"] == "Infliximab"
     assert payload["data"]["context"]["comparisons"][0]["medication_b"] == "Vedolizumab"
     assert payload["data"]["context"]["exploratory_note"].startswith("Exploratory transcriptomics comparison")
@@ -7602,7 +7454,7 @@ def test_analysis_supports_deterministic_molecular_medication_comparison(tmp_pat
     assert "preliminary and not DESeq2-grade differential expression" in payload["reply"]
 
 
-def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
+def test_analysis_assay_medication_comparison_respects_scope(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -7614,10 +7466,10 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001;SYN002",
@@ -7627,7 +7479,7 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
         ),
         encoding="utf-8",
     )
-    (molecular_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_vedolizumab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN006;SYN007",
@@ -7637,7 +7489,7 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         payload = analysis_module.analysis_llm_reply(
             "Explain differences in gene expression according to medication",
@@ -7645,9 +7497,9 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
             selected_patient_ids="SYN001,SYN006",
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert payload["intent"] == "analysis_molecular_medication_compare"
+    assert payload["intent"] == "analysis_transcriptomics_medication_compare"
     context = payload["data"]["context"]
     assert context["scope_patient_count"] == 2
     comparison = context["comparisons"][0]
@@ -7658,7 +7510,7 @@ def test_analysis_molecular_medication_comparison_respects_scope(tmp_path):
     assert volcano_point["sample_count_b"] == 1
 
 
-def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sample_ids(tmp_path):
+def test_analysis_assay_medication_comparison_derives_patient_scope_from_sample_ids(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -7671,10 +7523,10 @@ def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sam
         ],
     )
 
-    original_dir = query_store_module.MOLECULAR_DATA_DIR
-    molecular_dir = tmp_path / "molecular"
-    molecular_dir.mkdir()
-    (molecular_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
+    original_dir = query_store_module.ASSAY_DATA_DIR
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_infliximab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN001:week_0;SYN002:week_0;SYN003:week_0",
@@ -7684,7 +7536,7 @@ def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sam
         ),
         encoding="utf-8",
     )
-    (molecular_dir / "synthetic_transcriptome_raw_counts_ustekinumab.csv").write_text(
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts_ustekinumab.csv").write_text(
         "\n".join(
             [
                 "gene_id;SYN004:week_0;SYN005:week_0",
@@ -7694,7 +7546,7 @@ def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sam
         ),
         encoding="utf-8",
     )
-    query_store_module.MOLECULAR_DATA_DIR = molecular_dir
+    query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     try:
         payload = analysis_module.analysis_llm_reply(
             "Explain differences in gene expression according to medication",
@@ -7704,9 +7556,9 @@ def test_analysis_molecular_medication_comparison_derives_patient_scope_from_sam
             compare_selected_patient_ids="SYN004:week_0,SYN005:week_0",
         )
     finally:
-        query_store_module.MOLECULAR_DATA_DIR = original_dir
+        query_store_module.ASSAY_DATA_DIR = original_dir
 
-    assert payload["intent"] == "analysis_molecular_medication_compare"
+    assert payload["intent"] == "analysis_transcriptomics_medication_compare"
     context = payload["data"]["context"]
     assert context["scope_patient_count"] == 5
     comparison = context["comparisons"][0]
@@ -7876,26 +7728,26 @@ def test_query_analysis_and_dashboard_route_wrappers_map_file_not_found(monkeypa
     monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "detailed_allowed")
     monkeypatch.setattr(routes_module, "answer_query", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing query data")))
     monkeypatch.setattr(routes_module, "analysis_llm_reply", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing analysis data")))
-    monkeypatch.setattr(routes_module, "molecular_dataset_inventory", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing molecular data")))
-    monkeypatch.setattr(routes_module, "molecular_gene_inventory", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing genes")))
-    monkeypatch.setattr(routes_module, "molecular_expression_summary", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing expression")))
+    monkeypatch.setattr(routes_module, "assay_dataset_inventory", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing assay data")))
+    monkeypatch.setattr(routes_module, "assay_feature_inventory", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing genes")))
+    monkeypatch.setattr(routes_module, "assay_expression_summary", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing expression")))
     monkeypatch.setattr(routes_module, "dashboard_summary", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing dashboard data")))
     monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda request, dataset_id="", data_dir="": "/resolved/data")
 
     query_payload = routes_module.QueryRequest(q="hello")
     analysis_payload = routes_module.AnalysisRequest(prompt="explain")
-    expression_payload = routes_module.MolecularExpressionRequest(dataset_name="rna", gene_id="TP53")
+    expression_payload = routes_module.AssayExpressionRequest(assay_id="rna", gene_id="TP53")
 
     with pytest.raises(HTTPException) as query_exc:
         routes_module.query_app_post(query_payload, request)
     with pytest.raises(HTTPException) as analysis_exc:
         routes_module.analysis_app(analysis_payload, request)
     with pytest.raises(HTTPException) as datasets_exc:
-        routes_module.get_molecular_datasets(request)
+        routes_module.get_assay_datasets(request)
     with pytest.raises(HTTPException) as genes_exc:
-        routes_module.get_molecular_genes("rna", request)
+        routes_module.get_assay_features("rna", request)
     with pytest.raises(HTTPException) as expression_exc:
-        routes_module.get_molecular_expression(expression_payload, request)
+        routes_module.get_assay_expression(expression_payload, request)
     with pytest.raises(HTTPException) as dashboard_exc:
         routes_module.get_dashboard(request)
 

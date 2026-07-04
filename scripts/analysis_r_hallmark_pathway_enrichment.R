@@ -258,8 +258,8 @@ reply_lines <- c(
 )
 
 context_payload <- list(
-  mode = "external_rscript_molecular_hallmark_pathway_enrichment",
-  runner = "molecular_hallmark_pathway_enrichment",
+  mode = "external_rscript_transcriptomics_hallmark_pathway_enrichment",
+  runner = "transcriptomics_hallmark_pathway_enrichment",
   dataset_name = dataset_name,
   cohort_a_sample_count = unname(cohort_counts[["A"]]),
   cohort_b_sample_count = unname(cohort_counts[["B"]]),

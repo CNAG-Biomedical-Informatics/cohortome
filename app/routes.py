@@ -100,7 +100,7 @@ from app.pheno import (
     run_pheno_ranker,
 )
 from app.env import app_env
-from app.query_store import molecular_dataset_inventory, molecular_expression_summary, molecular_gene_annotations, molecular_gene_inventory
+from app.query_store import assay_dataset_inventory, assay_expression_summary, assay_feature_annotations, assay_feature_inventory
 from app.query_store import QueryStoreNotReadyError, dataset_query_store_status, ensure_query_store, prepare_dataset_query_store
 from app.user_settings import load_user_settings, update_user_settings as patch_user_settings
 from app.schemas import (
@@ -124,8 +124,8 @@ from app.schemas import (
     DatasetSelectionRequest,
     DatasetUpdateRequest,
     DeleteResponse,
-    MolecularExpressionRequest,
-    MolecularDatasetsResponse,
+    AssayExpressionRequest,
+    AssayDatasetsResponse,
     LmStatusResponse,
     PatientSummaryResponse,
     PhenoRankerPlanRequest,
@@ -918,8 +918,12 @@ def delete_user_saved_cohorts(request: Request) -> Dict:
 
 def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
-    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+    if str(request.dataset_id or "").strip():
+        selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+        resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id)
+    else:
+        selected_ids = []
+        resolved_dir = request.data_dir
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
             return answer_query(
@@ -940,8 +944,12 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or "")
-    resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+    if str(request.dataset_id or "").strip():
+        selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+        resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id)
+    else:
+        selected_ids = []
+        resolved_dir = request.data_dir
     if str(request.analysis_session_id or "").strip():
         session = get_analysis_session(request.analysis_session_id, user_id=request_user_id(raw_request))
         if session:
@@ -955,7 +963,7 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
                 resolved_dir,
                 catalog_item_id=request.catalog_item_id,
                 dataset_id=request.dataset_id or "",
-                molecular_dataset_name=request.molecular_dataset_name,
+                assay_id=request.assay_id,
                 analysis_session_id=request.analysis_session_id,
                 user_id=request_user_id(raw_request),
                 selected_patient_ids=request.selected_patient_ids,
@@ -1039,24 +1047,24 @@ def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str =
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def get_molecular_datasets(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
+def get_assay_datasets(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return {"datasets": molecular_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))}
+        return {"datasets": assay_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
+def get_assay_features(assay_id: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
     require_authenticated(request)
     try:
-        genes = molecular_gene_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), dataset_name, search=q, limit=limit)
+        genes = assay_feature_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), assay_id, search=q, limit=limit)
         return {
-            "dataset_name": dataset_name,
+            "assay_id": assay_id,
             "genes": genes,
-            "annotations": molecular_gene_annotations(genes),
+            "annotations": assay_feature_annotations(genes),
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1064,13 +1072,13 @@ def get_molecular_genes(dataset_name: str, request: Request, dataset_id: str = "
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def get_molecular_expression(request: MolecularExpressionRequest, raw_request: Request) -> Dict:
+def get_assay_expression(request: AssayExpressionRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
-        return molecular_expression_summary(
+        return assay_expression_summary(
             resolved_dir,
-            request.dataset_name,
+            request.assay_id,
             request.gene_id,
             selected_patient_ids=request.selected_patient_ids,
             compare_selected_patient_ids=request.compare_selected_patient_ids,
@@ -1132,6 +1140,8 @@ def remove_analysis_session(
     keep_generated_jobs: bool = Query(default=False),
 ) -> Dict:
     require_authenticated(request)
+    delete_generated_data = delete_generated_data is True
+    keep_generated_jobs = keep_generated_jobs is True
     if delete_generated_data and keep_generated_jobs:
         raise HTTPException(status_code=400, detail="Choose either delete_generated_data or keep_generated_jobs, not both.")
     user_id = request_user_id(request)
@@ -1163,7 +1173,7 @@ def remove_analysis_session(
         if active:
             raise HTTPException(
                 status_code=409,
-                detail="This analysis session has active background runs. Wait for them to finish before deleting generated data.",
+                detail="This analysis session has active background jobs. Wait for them to finish before deleting generated data.",
             )
         for item in related_jobs:
             if delete_job(str(item.get("job_id") or "").strip(), user_id):
@@ -1254,10 +1264,6 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
     granularity_ceiling = effective_query_granularity_ceiling(selected_ids)
     if granularity_ceiling != "detailed":
         raise HTTPException(status_code=403, detail="Pheno-Ranker requires Detailed in-app access for the current dataset or workspace.")
-    try:
-        ensure_query_store(resolved_dir)
-    except QueryStoreNotReadyError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
     payload = request.model_copy(
         update={
             "data_dir": resolved_dir,
@@ -1284,6 +1290,10 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
                 f"This request resolved to {int(pheno_background.get('resolved_sample_count') or 0)} samples."
             ),
         )
+    try:
+        ensure_query_store(resolved_dir)
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if pheno_background["requires_background_job"]:
         try:
             job = submit_pheno_job(
@@ -1451,7 +1461,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/user-data/saved-cohorts", delete_user_saved_cohorts, methods=["DELETE"], tags=["auth"], summary="Delete current user's saved cohorts", description="Deletes saved cohorts owned by the current user when they are not referenced by saved analysis chats.")
     app.add_api_route("/query", query_app_post, methods=["POST"], tags=["query"], summary="Run a workspace query", description="Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.")
     app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
-    app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or molecular analysis over the active workspace or selected saved cohorts.")
+    app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or assay analysis over the active workspace or selected saved cohorts.")
     app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")
     app.add_api_route("/jobs/{job_id}", get_job, methods=["GET"], tags=["jobs"], summary="Get one background job", description="Returns detailed status plus the completed payload for one background job visible to the current user.")
     app.add_api_route("/jobs/{job_id}", remove_job, methods=["DELETE"], tags=["jobs"], summary="Delete one terminal job", description="Deletes one completed, failed, or cancelled job and its generated artifacts for the current user.", response_model=DeleteResponse)
@@ -1459,9 +1469,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/run-history", get_run_history, methods=["GET"], tags=["jobs"], summary="List generated run history", description="Returns all generated analysis and Pheno-Ranker runs visible to the current user.")
     app.add_api_route("/run-history", delete_run_history, methods=["DELETE"], tags=["jobs"], summary="Delete terminal generated runs", description="Deletes completed, failed, or cancelled generated runs and artifacts owned by the current user. Active runs are skipped.", response_model=DeleteResponse)
     app.add_api_route("/run-history/{job_id}", remove_run_history_item, methods=["DELETE"], tags=["jobs"], summary="Delete one generated run", description="Deletes one completed, failed, or cancelled generated run and its artifacts for the current user.", response_model=DeleteResponse)
-    app.add_api_route("/molecular/datasets", get_molecular_datasets, methods=["GET"], tags=["molecular"], summary="List molecular datasets in scope", description="Returns transcriptomic datasets visible in the current workspace.", response_model=MolecularDatasetsResponse)
-    app.add_api_route("/molecular/genes", get_molecular_genes, methods=["GET"], tags=["molecular"], summary="Search genes in a molecular dataset", description="Returns gene identifiers for a selected molecular dataset with optional search and limit filtering.")
-    app.add_api_route("/molecular/expression", get_molecular_expression, methods=["POST"], tags=["molecular"], summary="Summarize gene expression", description="Returns scoped gene expression summaries for one molecular dataset, optionally comparing cohort A and cohort B.")
+    app.add_api_route("/assays", get_assay_datasets, methods=["GET"], tags=["assays"], summary="List assays in scope", description="Returns transcriptomics assays visible in the current workspace.", response_model=AssayDatasetsResponse)
+    app.add_api_route("/assays/features", get_assay_features, methods=["GET"], tags=["assays"], summary="Search features in an assay", description="Returns gene identifiers for a selected assay with optional search and limit filtering.")
+    app.add_api_route("/assays/expression", get_assay_expression, methods=["POST"], tags=["assays"], summary="Summarize assay expression", description="Returns scoped gene expression summaries for one assay, optionally comparing cohort A and cohort B.")
     app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"], tags=["analysis"], summary="List saved analysis sessions", description="Returns persisted analysis sessions for the current user.")
     app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"], tags=["analysis"], summary="Create or update an analysis session", description="Persists analysis session state, including prompt draft, scopes, and prior turns.")
     app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"], tags=["analysis"], summary="Rename an analysis session", description="Updates the title of a saved analysis session.")
@@ -1473,4 +1483,4 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/pheno-ranker/alignment/{job_id}", get_pheno_ranker_alignment, methods=["GET"], tags=["pheno-ranker"], summary="Get alignment details for one match", description="Returns the term-level alignment details between a target and a selected Pheno-Ranker match.")
     app.add_api_route("/pheno-ranker/explain/{job_id}", explain_pheno_ranker_results, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results deterministically", description="Builds a deterministic summary from the top ranked Pheno-Ranker matches.")
     app.add_api_route("/pheno-ranker/explain-llm/{job_id}", explain_pheno_ranker_results_llm, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results with the LLM", description="Builds an LLM-assisted explanation from the top ranked Pheno-Ranker matches.")
-    app.add_api_route("/dashboard", get_dashboard, methods=["GET"], tags=["patients"], summary="Get the dashboard summary", description="Returns the dashboard summary payload used by the clinical and molecular overview panels.")
+    app.add_api_route("/dashboard", get_dashboard, methods=["GET"], tags=["patients"], summary="Get the dashboard summary", description="Returns the dashboard summary payload used by the clinical and assay overview panels.")

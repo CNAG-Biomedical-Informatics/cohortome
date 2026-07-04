@@ -180,8 +180,7 @@ def _verify_password(password: str, user: Dict[str, Any]) -> bool:
             return False
         actual = hashlib.pbkdf2_hmac("sha256", str(password or "").encode("utf-8"), salt, PASSWORD_HASH_ITERATIONS)
         return secrets.compare_digest(actual, expected)
-    legacy = str(user.get("password") or "")
-    return bool(legacy) and secrets.compare_digest(legacy, str(password or ""))
+    return False
 
 
 def _state_users_path() -> Path:

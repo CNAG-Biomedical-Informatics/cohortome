@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "assays": [
+    {
+      "assay_id": "private_imaging_derived_features",
+      "label": "private imaging derived features",
+      "modality": "imaging",
+      "data_type": "derived_imaging_features",
+      "level": "sample",
+      "feature_namespace": "imaging_feature",
+      "feature_id_column": "feature_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "derived_from_sample_id_prefix",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/imaging/private_imaging_derived_features.csv"
+    },
+    {
+      "assay_id": "private_olink_inflammation_panel",
+      "label": "private olink inflammation panel",
+      "modality": "olink",
+      "data_type": "relative_abundance",
+      "level": "sample",
+      "feature_namespace": "protein_symbol",
+      "feature_id_column": "feature_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "derived_from_sample_id_prefix",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/olink/private_olink_inflammation_panel.csv"
+    },
+    {
+      "assay_id": "private_transcriptome_raw_counts_ocrelizumab",
+      "label": "private transcriptome raw counts ocrelizumab",
+      "modality": "transcriptomics",
+      "data_type": "raw_counts",
+      "level": "sample",
+      "feature_namespace": "ensembl_gene_id",
+      "feature_id_column": "gene_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "derived_from_sample_id_prefix",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/transcriptomics/private_transcriptome_raw_counts_ocrelizumab.csv"
+    }
+  ]
+}

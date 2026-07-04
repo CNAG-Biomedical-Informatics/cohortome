@@ -201,12 +201,12 @@ export function createJobsUi(ctx) {
     const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
     const prompt = String(item && item.prompt ? item.prompt : "").trim();
     const datasetId = String(item && item.dataset_id ? item.dataset_id : "").trim();
-    const molecularDatasetName = String(item && item.molecular_dataset_name ? item.molecular_dataset_name : "").trim();
+    const assayDatasetName = String(item && item.assay_id ? item.assay_id : "").trim();
     const sessionTitle = String(item && item.analysis_session_title ? item.analysis_session_title : "").trim();
     const metaBits = [];
     if (item && item.job_code) metaBits.push(String(item.job_code));
     if (datasetId) metaBits.push(`dataset ${datasetId}`);
-    if (molecularDatasetName) metaBits.push(`molecular ${molecularDatasetName}`);
+    if (assayDatasetName) metaBits.push(`assay ${assayDatasetName}`);
     if (sessionTitle) metaBits.push(sessionTitle);
     const actions = [];
     const feature = String(item && item.feature ? item.feature : "").trim();
@@ -391,7 +391,7 @@ export function createJobsUi(ctx) {
         resultPayload.data.job_status = String(payload.status || resultPayload.data.job_status || "");
         resultPayload.data.job_code = String(payload.job_code || resultPayload.data.job_code || "");
         resultPayload.data.artifacts = versionedJobArtifacts(payload.artifacts, artifactVersion);
-        resultPayload.data.molecular_dataset_name = String(payload.molecular_dataset_name || resultPayload.data.molecular_dataset_name || "");
+        resultPayload.data.assay_id = String(payload.assay_id || resultPayload.data.assay_id || "");
         const turnIndex = state.analysisTurns.findIndex((turn) => {
           const data = turn && turn.payload ? turn.payload.data : null;
           return turn
@@ -532,7 +532,7 @@ export function createJobsUi(ctx) {
       resultPayload.data.job_status = String(payload.status || resultPayload.data.job_status || "");
       resultPayload.data.job_code = String(payload.job_code || resultPayload.data.job_code || "");
       resultPayload.data.artifacts = versionedJobArtifacts(payload.artifacts, artifactVersion);
-      resultPayload.data.molecular_dataset_name = String(payload.molecular_dataset_name || resultPayload.data.molecular_dataset_name || "");
+      resultPayload.data.assay_id = String(payload.assay_id || resultPayload.data.assay_id || "");
     }
     const existingIndex = Array.isArray(state.analysisTurns)
       ? state.analysisTurns.findIndex((turn) => {

@@ -20,7 +20,7 @@ class QueryTurn(BaseModel):
 class QueryRequest(BaseModel):
     q: str = Field(description="Natural-language workspace query.", examples=["How many patients take biologics in this workspace?"])
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID to query against.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     query_mode: str = Field(default="auto", description="Query execution mode. Supported values include auto and planner_only.")
     granularity_mode: str = Field(default="detailed", description="Disclosure mode requested by the Query UI. Supported values currently include summary and detailed.")
     history: List[QueryTurn] = Field(default_factory=list)
@@ -42,7 +42,7 @@ class UserSettingsResponse(BaseModel):
     pheno_render_heatmap: bool = True
     pheno_render_mds: bool = True
     pheno_render_graph: bool = True
-    dashboard_molecular_open: bool = False
+    dashboard_assays_open: bool = False
     dataset_compact_view: bool = False
     llm_provider_id: str = "system-default"
 
@@ -59,7 +59,7 @@ class UserSettingsUpdateRequest(BaseModel):
     pheno_render_heatmap: bool | None = None
     pheno_render_mds: bool | None = None
     pheno_render_graph: bool | None = None
-    dashboard_molecular_open: bool | None = None
+    dashboard_assays_open: bool | None = None
     dataset_compact_view: bool | None = None
     llm_provider_id: str | None = None
 
@@ -69,8 +69,8 @@ class AnalysisRequest(BaseModel):
     catalog_item_id: str = Field(default="", description="Optional Analysis Catalog item identifier used for structured curated analyses.")
     analysis_session_id: str = Field(default="", description="Current Analysis session identifier used to associate queued jobs back to the active session.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the analysis workspace.")
-    molecular_dataset_name: str = Field(default="", description="Selected molecular dataset for curated molecular analyses that require one explicit transcriptomics source.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    assay_id: str = Field(default="", description="Selected assay identifier for curated analyses that require one explicit transcriptomics source.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.")
     scope_metadata: Dict[str, Any] = Field(default_factory=dict, description="Saved-cohort-shaped metadata for the Cohort A selection, including sample IDs, patient IDs, and source.")
     compare_mode: bool = Field(default=False, description="Whether to run a compare-mode analysis using cohort A vs cohort B.")
@@ -81,11 +81,11 @@ class AnalysisRequest(BaseModel):
     history: List[QueryTurn] = Field(default_factory=list)
 
 
-class MolecularExpressionRequest(BaseModel):
-    dataset_name: str = Field(description="Name of the molecular dataset to inspect.")
+class AssayExpressionRequest(BaseModel):
+    assay_id: str = Field(description="Assay identifier to inspect.")
     gene_id: str = Field(description="Gene identifier or symbol to summarize.")
-    dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for molecular lookups.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for assay lookups.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Optional comma-separated scope IDs for cohort A filtering.")
     compare_selected_patient_ids: str = Field(default="", description="Optional comma-separated scope IDs for cohort B filtering.")
 
@@ -94,7 +94,7 @@ class AnalysisSessionRequest(BaseModel):
     id: str = Field(description="Client-generated analysis session identifier.")
     title: str = Field(default="", description="Optional user-facing session title.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the session.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     workspace_fingerprint: Dict[str, Any] = Field(default_factory=dict, description="Workspace fingerprint snapshot captured when the session was first bound.")
     catalog_item_id: str = Field(default="", description="Selected Analysis Catalog item for this session, if any.")
     prompt_draft: str = Field(default="", description="Current draft prompt stored for the session.")
@@ -120,7 +120,7 @@ class PhenoRankerRequest(BaseModel):
     action: str = Field(default="compare", description="Pheno-Ranker action, typically compare.")
     mode: str = Field(default="cohort", description="Pheno-Ranker mode, such as cohort or patient.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the workspace.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     patient_id: str = Field(default="", description="Single target sample/patient ID for patient mode.")
     selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort mode.")
     selected_saved_cohort_ids: List[str] = Field(default_factory=list)
@@ -167,7 +167,7 @@ class PhenoRankerRequest(BaseModel):
 class PhenoRankerPlanRequest(BaseModel):
     text: str = Field(description="Natural-language instruction to convert into a Pheno-Ranker plan.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for planning.")
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Optional comma-separated scope IDs already selected in the UI.")
 
 
@@ -175,7 +175,7 @@ class SavedCohortRequest(BaseModel):
     name: str = Field(default="", description="User-facing saved cohort name.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID where the cohort was created.")
     dataset_ids: List[str] = Field(default_factory=list)
-    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Legacy dataset directory fallback. Prefer dataset_id.")
+    data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     sample_ids: List[str] = Field(default_factory=list, description="Canonical sample/record IDs stored for the cohort.")
     patient_ids: List[str] = Field(default_factory=list, description="Derived patient IDs stored alongside the cohort.")
     id_type: str = Field(default="sample", description="Canonical ID level used by the cohort payload.")
@@ -231,7 +231,7 @@ class DatasetSelectionRequest(BaseModel):
 
 class DatasetRegistrationRequest(BaseModel):
     name: str = Field(default="", description="Human-readable dataset name.")
-    root_path: str = Field(default="", description="Dataset root directory containing clinical/ and molecular/ subdirectories.")
+    root_path: str = Field(default="", description="Dataset root directory containing clinical/ and assays/ subdirectories.")
     description: str = Field(default="", description="Optional dataset description shown in the UI.")
     visibility: str = Field(default="all_authenticated", description="Dataset visibility policy: all_authenticated, restricted, or admin_only.")
     allowed_users: List[str] = Field(default_factory=list, description="Usernames with direct access when visibility is restricted.")
@@ -375,9 +375,9 @@ class LmStatusResponse(BaseModel):
     providers: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-class MolecularDatasetResponse(FlexibleModel):
-    dataset_name: str = ""
+class AssayDatasetResponse(FlexibleModel):
+    assay_id: str = ""
 
 
-class MolecularDatasetsResponse(BaseModel):
-    datasets: List[MolecularDatasetResponse] = Field(default_factory=list)
+class AssayDatasetsResponse(BaseModel):
+    datasets: List[AssayDatasetResponse] = Field(default_factory=list)

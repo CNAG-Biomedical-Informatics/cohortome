@@ -46,7 +46,7 @@ Some analyses are naturally patient-level:
 Other analyses are naturally sample-level:
 
 - Pheno-Ranker comparisons
-- biosample-oriented molecular views
+- biosample-oriented assay views
 - timepoint-specific record selection
 
 The app therefore needs both levels, but they should not be mixed carelessly.

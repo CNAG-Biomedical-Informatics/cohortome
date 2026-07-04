@@ -198,15 +198,15 @@ By the end of this journey, the user should have:
 - one or more clinical comparisons in Analysis
 - an interpretable thread that can be revisited later
 
-## Journey 4: Explore molecular differences between two groups
+## Journey 4: Explore transcriptomics differences between two groups
 
-**Goal:** compare two subsets at the molecular level.
+**Goal:** compare two subsets at the assay level.
 
 ### Typical flow
 
 1. Reuse two saved cohorts that were built in `Query`
 2. Open `Analysis`
-3. Ask for a molecular comparison such as:
+3. Ask for a transcriptomics comparison such as:
    - exploratory volcano plot
    - expression of one gene
 
@@ -216,7 +216,7 @@ Example prompts:
 - `Show expression of ENSG00002700028 in the current Analysis scope.`
 
 <Tabs>
-  <TabItem value="molecular-exploratory" label="Exploratory volcano" default>
+  <TabItem value="assay-exploratory" label="Exploratory volcano" default>
     <div>
       <p>Use this when the user wants a broad exploratory contrast between two groups.</p>
       <ul>
@@ -225,7 +225,7 @@ Example prompts:
       </ul>
     </div>
   </TabItem>
-  <TabItem value="molecular-gene" label="Gene-focused follow-up">
+  <TabItem value="assay-gene" label="Gene-focused follow-up">
     <div>
       <p>Use this when the user already has a concrete feature in mind, for example one gene identifier.</p>
       <ul>
@@ -238,12 +238,12 @@ Example prompts:
 
 ### Why this journey is different
 
-Molecular analysis is often sample-aware rather than purely patient-level.
+Assay analysis is often sample-aware rather than purely patient-level.
 
 That means:
 
 - the saved cohort can still be displayed in patient-oriented language elsewhere
-- the underlying scope sent into molecular analysis may stay sample-level
+- the underlying scope sent into assay analysis may stay sample-level
 
 :::tip
 If the result comes from `Pheno-Ranker` or another sample-driven path, preserve the sample-level handoff into Analysis.

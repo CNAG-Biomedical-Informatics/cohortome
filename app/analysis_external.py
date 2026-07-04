@@ -21,9 +21,8 @@ RSCRIPT_RUNNERS = {
     "dummy_scope_snapshot": SCRIPTS_DIR / "analysis_dummy_scope_snapshot.R",
     "clinical_scope_profile": SCRIPTS_DIR / "analysis_r_clinical_profile.R",
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
-    "molecular_differential_expression": SCRIPTS_DIR / "analysis_r_differential_expression.R",
-    "molecular_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
-    "molecular_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
+    "transcriptomics_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
+    "transcriptomics_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
 }
 SNAKEMAKE_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
@@ -32,25 +31,25 @@ NEXTFLOW_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_nextflow" / "main.nf",
 }
 WORKFLOW_RUNNERS = {
-    "molecular_signature": {
-        "id": "molecular_signature",
-        "name": "Molecular signature workflow",
+    "transcriptomics_signature": {
+        "id": "transcriptomics_signature",
+        "name": "Assay signature workflow",
         "steps": [
             {
                 "id": "deseq2",
                 "label": "DESeq2 differential expression",
                 "runner_type": "rscript",
-                "runner_ref": "molecular_deseq2_differential_expression",
+                "runner_ref": "transcriptomics_deseq2_differential_expression",
                 "artifact_dir": "workflow/01-deseq2",
-                "prompt": "Run DESeq2 differential expression between Cohort A and Cohort B for the selected molecular dataset.",
+                "prompt": "Run DESeq2 differential expression between Cohort A and Cohort B for the selected assay.",
             },
             {
                 "id": "hallmark",
                 "label": "Hallmark pathway enrichment",
                 "runner_type": "rscript",
-                "runner_ref": "molecular_hallmark_pathway_enrichment",
+                "runner_ref": "transcriptomics_hallmark_pathway_enrichment",
                 "artifact_dir": "workflow/02-hallmark",
-                "prompt": "Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected molecular dataset.",
+                "prompt": "Run Hallmark pathway enrichment between Cohort A and Cohort B for the selected assay.",
             },
         ],
     },
@@ -360,16 +359,16 @@ def _clinical_profile_tables(
     }
 
 
-def _molecular_scope_tokens(value: str) -> List[str]:
+def _assay_scope_tokens(value: str) -> List[str]:
     return [item.strip() for item in str(value or "").split(",") if item.strip()]
 
 
-def _resolve_molecular_scope(value: str) -> Dict[str, List[str]]:
+def _resolve_assay_scope(value: str) -> Dict[str, List[str]]:
     sample_ids: List[str] = []
     patient_ids: List[str] = []
     seen_samples = set()
     seen_patients = set()
-    for item in _molecular_scope_tokens(value):
+    for item in _assay_scope_tokens(value):
         normalized = str(item or "").strip()
         if not normalized:
             continue
@@ -383,34 +382,34 @@ def _resolve_molecular_scope(value: str) -> Dict[str, List[str]]:
     return {"sample_ids": sample_ids, "patient_ids": patient_ids}
 
 
-def _choose_molecular_dataset(data_dir: str, requested_name: str = "") -> Dict[str, Any]:
-    inventory = query_store_module.molecular_dataset_inventory(data_dir)
+def _choose_transcriptomics_assay(data_dir: str, requested_name: str = "") -> Dict[str, Any]:
+    inventory = query_store_module.assay_dataset_inventory(data_dir)
     if not inventory:
-        raise RuntimeError("No molecular datasets are available in the current workspace.")
+        raise RuntimeError("No transcriptomics assays are available in the current workspace.")
     wanted = str(requested_name or "").strip()
     if wanted:
         for item in inventory:
             if str(item.get("dataset_name") or "").strip() == wanted:
                 return dict(item or {})
-        raise RuntimeError(f"Molecular dataset '{wanted}' is not available in the current workspace.")
+        raise RuntimeError(f"Assay '{wanted}' is not available in the current workspace.")
     if len(inventory) != 1:
-        raise RuntimeError("Differential expression requires one explicitly selected molecular dataset.")
+        raise RuntimeError("Differential expression requires one explicitly selected assay.")
     return dict(inventory[0] or {})
 
 
-def _prepare_molecular_differential_expression_bundle(
+def _prepare_transcriptomics_differential_expression_bundle(
     data_dir: str,
     *,
     prompt: str,
-    molecular_dataset_name: str,
+    assay_id: str,
     selected_patient_ids: str,
     compare_selected_patient_ids: str,
     output_dir: Path,
     method: str = "log2_cpm_welch",
     minimum_samples_per_group: int = 1,
 ) -> Dict[str, Any]:
-    cohort_a_scope = _resolve_molecular_scope(selected_patient_ids)
-    cohort_b_scope = _resolve_molecular_scope(compare_selected_patient_ids)
+    cohort_a_scope = _resolve_assay_scope(selected_patient_ids)
+    cohort_b_scope = _resolve_assay_scope(compare_selected_patient_ids)
     cohort_a_tokens = cohort_a_scope["sample_ids"] + cohort_a_scope["patient_ids"]
     cohort_b_tokens = cohort_b_scope["sample_ids"] + cohort_b_scope["patient_ids"]
     if not cohort_a_tokens or not cohort_b_tokens:
@@ -419,10 +418,10 @@ def _prepare_molecular_differential_expression_bundle(
     if overlap:
         raise RuntimeError("Differential expression requires disjoint Cohort A and Cohort B selections.")
 
-    dataset = _choose_molecular_dataset(data_dir, molecular_dataset_name)
+    dataset = _choose_transcriptomics_assay(data_dir, assay_id)
     dataset_name = str(dataset.get("dataset_name") or "").strip()
     if not dataset_name:
-        raise RuntimeError("No valid molecular dataset name is available for differential expression.")
+        raise RuntimeError("No valid assay name is available for differential expression.")
 
     query_store_module.ensure_query_store(data_dir)
     con = query_store_module._connect(data_dir)
@@ -444,14 +443,14 @@ def _prepare_molecular_differential_expression_bundle(
         sample_rows = con.execute(
             f"""
             SELECT sample_id, patient_id
-            FROM molecular_samples
+            FROM assay_samples
             WHERE {" AND ".join([where_clauses[0], "(" + " OR ".join(where_clauses[1:]) + ")"])}
             ORDER BY sample_id
             """,
             query_params,
         ).fetchall()
         if not sample_rows:
-            raise RuntimeError(f"No molecular samples overlap the current Analysis scope for dataset '{dataset_name}'.")
+            raise RuntimeError(f"No assay samples overlap the current Analysis scope for assay '{dataset_name}'.")
 
         sample_table_rows: List[Dict[str, Any]] = []
         sample_ids: List[str] = []
@@ -484,7 +483,7 @@ def _prepare_molecular_differential_expression_bundle(
                 }
             )
         if not sample_table_rows:
-            raise RuntimeError(f"No molecular samples overlap the selected cohorts for dataset '{dataset_name}'.")
+            raise RuntimeError(f"No assay samples overlap the selected cohorts for dataset '{dataset_name}'.")
         cohort_a_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "A")
         cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
         if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
@@ -555,7 +554,7 @@ def _prepare_molecular_differential_expression_bundle(
     _write_yaml(params_path, params_payload)
     manifest_payload = {
         "version": 1,
-        "analysis_type": "molecular_differential_expression",
+        "analysis_type": "transcriptomics_differential_expression",
         "dataset_name": dataset_name,
         "prompt": str(prompt or "").strip(),
         "cohorts": {
@@ -620,7 +619,7 @@ def run_rscript_analysis(
     *,
     prompt: str,
     data_dir: str,
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -702,48 +701,11 @@ def run_rscript_analysis(
                 "--sleep-seconds",
                 "60",
             ]
-        elif runner_ref == "molecular_differential_expression":
-            bundle = _prepare_molecular_differential_expression_bundle(
+        elif runner_ref == "transcriptomics_deseq2_differential_expression":
+            bundle = _prepare_transcriptomics_differential_expression_bundle(
                 data_dir,
                 prompt=prompt,
-                molecular_dataset_name=molecular_dataset_name,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-                method="log2_cpm_welch",
-                minimum_samples_per_group=1,
-            )
-            command = [
-                binary,
-                str(script_path),
-                "--job-dir",
-                str(temp_path),
-                "--manifest",
-                str(bundle["manifest_path"]),
-                "--params",
-                str(bundle["params_path"]),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--counts-matrix",
-                str(bundle["counts_matrix_path"]),
-                "--results-table",
-                str(temp_path / "de_results.tsv"),
-                "--volcano-table",
-                str(temp_path / "volcano_points.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "volcano_plot.png"),
-            ]
-        elif runner_ref == "molecular_deseq2_differential_expression":
-            bundle = _prepare_molecular_differential_expression_bundle(
-                data_dir,
-                prompt=prompt,
-                molecular_dataset_name=molecular_dataset_name,
+                assay_id=assay_id,
                 selected_patient_ids=selected_patient_ids,
                 compare_selected_patient_ids=compare_selected_patient_ids,
                 output_dir=temp_path,
@@ -783,11 +745,11 @@ def run_rscript_analysis(
                 "--heatmap-clustering",
                 str(temp_path / "top_genes_heatmap_clustering.json"),
             ]
-        elif runner_ref == "molecular_hallmark_pathway_enrichment":
-            bundle = _prepare_molecular_differential_expression_bundle(
+        elif runner_ref == "transcriptomics_hallmark_pathway_enrichment":
+            bundle = _prepare_transcriptomics_differential_expression_bundle(
                 data_dir,
                 prompt=prompt,
-                molecular_dataset_name=molecular_dataset_name,
+                assay_id=assay_id,
                 selected_patient_ids=selected_patient_ids,
                 compare_selected_patient_ids=compare_selected_patient_ids,
                 output_dir=temp_path,
@@ -1008,7 +970,7 @@ def run_workflow_analysis(
     *,
     prompt: str,
     data_dir: str,
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -1030,7 +992,7 @@ def run_workflow_analysis(
             "runner_ref": str(runner_ref or "").strip(),
             "prompt": str(prompt or ""),
             "data_dir": str(data_dir or ""),
-            "molecular_dataset_name": str(molecular_dataset_name or ""),
+            "assay_id": str(assay_id or ""),
             "selected_patient_ids": str(selected_patient_ids or ""),
             "compare_selected_patient_ids": str(compare_selected_patient_ids or ""),
             "steps": [
@@ -1060,7 +1022,7 @@ def run_workflow_analysis(
                     str(step.get("runner_ref") or "").strip(),
                     prompt=str(step.get("prompt") or prompt or ""),
                     data_dir=data_dir,
-                    molecular_dataset_name=molecular_dataset_name,
+                    assay_id=assay_id,
                     selected_patient_ids=selected_patient_ids,
                     compare_selected_patient_ids=compare_selected_patient_ids,
                     job_dir=step_dir,
@@ -1095,12 +1057,12 @@ def run_workflow_analysis(
         dataset_name = (
             str(deseq2_context.get("dataset_name") or "").strip()
             or str(hallmark_context.get("dataset_name") or "").strip()
-            or str(molecular_dataset_name or "").strip()
+            or str(assay_id or "").strip()
         )
         significant_genes = int(deseq2_context.get("significant_gene_count") or 0) if isinstance(deseq2_context, dict) else 0
         significant_pathways = int(hallmark_context.get("significant_pathway_count") or 0) if isinstance(hallmark_context, dict) else 0
         reply = (
-            f"Molecular signature workflow completed for {dataset_name or 'the selected molecular dataset'}. "
+            f"Assay signature workflow completed for {dataset_name or 'the selected assay'}. "
             f"DESeq2 found {significant_genes} significant genes and Hallmark enrichment found "
             f"{significant_pathways} significant pathways."
         )
@@ -1113,7 +1075,7 @@ def run_workflow_analysis(
                 "source": "deterministic",
                 "execution": "external_runner",
                 "context": {
-                    "mode": "workflow_molecular_signature",
+                    "mode": "workflow_transcriptomics_signature",
                     "workflow_id": str(workflow.get("id") or runner_ref),
                     "workflow_name": str(workflow.get("name") or "Analysis workflow"),
                     "dataset_name": dataset_name,
@@ -1138,7 +1100,7 @@ def run_external_analysis(
     *,
     prompt: str,
     data_dir: str,
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -1150,7 +1112,7 @@ def run_external_analysis(
             runner_ref,
             prompt=prompt,
             data_dir=data_dir,
-            molecular_dataset_name=molecular_dataset_name,
+            assay_id=assay_id,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids,
             job_dir=job_dir,
@@ -1181,7 +1143,7 @@ def run_external_analysis(
             runner_ref,
             prompt=prompt,
             data_dir=data_dir,
-            molecular_dataset_name=molecular_dataset_name,
+            assay_id=assay_id,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids,
             job_dir=job_dir,

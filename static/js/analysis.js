@@ -21,27 +21,25 @@ export function createAnalysisUi(ctx) {
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
     renderAnalysisFlowBar,
-    molecularDatasetOverlap,
+    assayDatasetOverlap,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
 
-  function requiresSingleSelectedMolecularDataset(itemId) {
+  function requiresSingleSelectedAssayDataset(itemId) {
     const normalized = String(itemId || "").trim();
-    return normalized === "molecular-differential-expression"
-      || normalized === "molecular-deseq2-differential-expression"
-      || normalized === "molecular-hallmark-pathway-enrichment"
-      || normalized === "molecular-signature-workflow";
+    return normalized === "transcriptomics-deseq2-differential-expression"
+      || normalized === "transcriptomics-hallmark-pathway-enrichment"
+      || normalized === "transcriptomics-signature-workflow";
   }
 
   function isDifferentialExpressionContextMode(mode) {
     const normalized = String(mode || "").trim();
-    return normalized === "external_rscript_molecular_differential_expression"
-      || normalized === "external_rscript_molecular_deseq2_differential_expression";
+    return normalized === "external_rscript_transcriptomics_deseq2_differential_expression";
   }
 
   function isPathwayEnrichmentContextMode(mode) {
-    return String(mode || "").trim() === "external_rscript_molecular_hallmark_pathway_enrichment";
+    return String(mode || "").trim() === "external_rscript_transcriptomics_hallmark_pathway_enrichment";
   }
 
   function prettyHallmarkLabel(value) {
@@ -152,7 +150,7 @@ export function createAnalysisUi(ctx) {
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
-    if (context.mode === "workflow_molecular_signature") {
+    if (context.mode === "workflow_transcriptomics_signature") {
       const findArtifact = (suffix) => artifacts.find((item) => String(item && item.name ? item.name : "").endsWith(suffix));
       const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
       const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
@@ -201,8 +199,8 @@ export function createAnalysisUi(ctx) {
         : "none at BH < 0.05";
       return `
         <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Molecular Signature Workflow</h3>
-          <p class="section-note">Curated DESeq2 differential expression followed by Hallmark pathway enrichment for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))}.</p>
+          <h3>Transcriptomics Signature Workflow</h3>
+          <p class="section-note">Curated DESeq2 differential expression followed by Hallmark pathway enrichment for ${escapeHtml(String(context.dataset_name || "the selected assay"))}.</p>
           ${downloads}
         </div>
         <div class="viz-card" style="grid-column: 1 / -1;">
@@ -257,7 +255,7 @@ export function createAnalysisUi(ctx) {
       return `
         <div class="viz-card" style="grid-column: 1 / -1;">
           <h3>Differential Expression Volcano Plot</h3>
-          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))}.</p>
+          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected assay"))}.</p>
           <div class="analysis-view-tabs" role="tablist" aria-label="Differential expression plot views">
             <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
             <button type="button" class="analysis-view-tab${volcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}" role="tab" aria-selected="false"${volcanoArtifact ? "" : " disabled"}>Interactive plot</button>
@@ -301,7 +299,7 @@ export function createAnalysisUi(ctx) {
       return `
         <div class="viz-card" style="grid-column: 1 / -1;">
           <h3>Hallmark Pathway Enrichment</h3>
-          <p class="section-note">MSigDB Hallmark enrichment for ${escapeHtml(String(context.dataset_name || "the selected molecular dataset"))} using a DESeq2-ranked comparison.</p>
+          <p class="section-note">MSigDB Hallmark enrichment for ${escapeHtml(String(context.dataset_name || "the selected assay"))} using a DESeq2-ranked comparison.</p>
           <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
           <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
           ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
@@ -310,15 +308,15 @@ export function createAnalysisUi(ctx) {
         ${renderBarChartCard(`analysis-plot-${turnIndex}-pathway-summary`, "Pathway Enrichment Summary", summaryItems, "label", "value")}
       `;
     }
-    if (context.mode === "molecular_medication_compare") {
+    if (context.mode === "transcriptomics_medication_compare") {
       const comparisons = Array.isArray(context.comparisons) ? context.comparisons : [];
       const cards = comparisons.map((item, index) => {
         const title = `${item.medication_a || "Group A"} vs ${item.medication_b || "Group B"}`;
         const note = context.exploratory_note || "Exploratory transcriptomics comparison.";
         const thresholdNote = `Coloring is exploratory: red = log2FC >= 1 and p <= 0.05, blue = log2FC <= -1 and p <= 0.05, gray = everything else. Positive log2FC means higher in ${item.medication_a || "Group A"}; negative log2FC means higher in ${item.medication_b || "Group B"}.`;
-        return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Exploratory Volcano Plot: ${escapeHtml(title)}</h3><p class="section-note">${escapeHtml(note)}</p><p class="section-note">${escapeHtml(thresholdNote)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-molecular-volcano-${index}`, 420)}</div>`;
+        return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Exploratory Volcano Plot: ${escapeHtml(title)}</h3><p class="section-note">${escapeHtml(note)}</p><p class="section-note">${escapeHtml(thresholdNote)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-assay-volcano-${index}`, 420)}</div>`;
       });
-      return cards.join("") || '<div class="empty">No exploratory molecular comparison plot available.</div>';
+      return cards.join("") || '<div class="empty">No exploratory transcriptomics comparison plot available.</div>';
     }
     if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
       const unit = context.unit ? ` (${context.unit})` : "";
@@ -1040,12 +1038,12 @@ export function createAnalysisUi(ctx) {
       if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
       const context = turn.payload.data.context;
       if (!context) return;
-      if (context.mode === "molecular_medication_compare") {
+      if (context.mode === "transcriptomics_medication_compare") {
         (context.comparisons || []).forEach((item, comparisonIndex) => {
           const points = Array.isArray(item.exploratory_volcano_points) ? item.exploratory_volcano_points : [];
           if (!points.length) return;
           const volcano = buildExploratoryVolcanoPlot(points, `${item.medication_a || "A"} vs ${item.medication_b || "B"}`);
-          mountPlot(`analysis-plot-${turnIndex}-molecular-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
+          mountPlot(`analysis-plot-${turnIndex}-assay-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
         });
         return;
       }
@@ -1070,7 +1068,7 @@ export function createAnalysisUi(ctx) {
         mountPlot(`analysis-plot-${turnIndex}-pathway-summary`, summary.traces, summary.layout);
         return;
       }
-      if (context.mode === "workflow_molecular_signature") {
+      if (context.mode === "workflow_transcriptomics_signature") {
         const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
         const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
         const deSummary = buildHorizontalBar([
@@ -1187,8 +1185,8 @@ export function createAnalysisUi(ctx) {
     const labels = {
       analysis_deterministic: { label: "Workspace summary", title: "Deterministic workspace summary produced by the app." },
       analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
-      analysis_molecular_expression: { label: "Molecular expression", title: "Deterministic molecular expression summary across the loaded molecular datasets." },
-      analysis_molecular_medication_compare: { label: "Molecular by medication", title: "Deterministic molecular comparison aligned to medication-specific datasets." },
+      analysis_transcriptomics_expression: { label: "Transcriptomics expression", title: "Deterministic transcriptomics expression summary across the loaded assays." },
+      analysis_transcriptomics_medication_compare: { label: "Transcriptomics by medication", title: "Deterministic transcriptomics comparison aligned to medication-specific datasets." },
       analysis_survival: { label: "Time-to-event analysis", title: "Deterministic Kaplan-Meier time-to-event analysis." },
       analysis_survival_compare: { label: "Time-to-event comparison", title: "Deterministic Kaplan-Meier time-to-event comparison between two cohorts." },
       analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
@@ -1382,11 +1380,10 @@ export function createAnalysisUi(ctx) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
-      "external_rscript_molecular_differential_expression",
-      "external_rscript_molecular_deseq2_differential_expression",
-      "external_rscript_molecular_hallmark_pathway_enrichment",
-      "workflow_molecular_signature",
-      "molecular_medication_compare",
+      "external_rscript_transcriptomics_deseq2_differential_expression",
+      "external_rscript_transcriptomics_hallmark_pathway_enrichment",
+      "workflow_transcriptomics_signature",
+      "transcriptomics_medication_compare",
       "trajectory",
       "trajectory_response",
       "trajectory_compare",
@@ -1421,12 +1418,12 @@ export function createAnalysisUi(ctx) {
     const eventLabel = formatTimeToEventLabel(context);
     const trajectorySubject = treatment ? `response to ${treatment}` : measure ? `${measure} trajectory` : "trajectory";
     const comparisonLabel = measure ? `${measure} comparison` : "comparison";
-    const molecularComparison = Array.isArray(context && context.comparisons) && context.comparisons.length
+    const transcriptomicsComparison = Array.isArray(context && context.comparisons) && context.comparisons.length
       ? context.comparisons[0]
       : null;
-    const medicationComparisonLabel = molecularComparison
-      ? `${String(molecularComparison.medication_a || "Group A").trim()} vs ${String(molecularComparison.medication_b || "Group B").trim()}`
-      : "this molecular comparison";
+    const medicationComparisonLabel = transcriptomicsComparison
+      ? `${String(transcriptomicsComparison.medication_a || "Group A").trim()} vs ${String(transcriptomicsComparison.medication_b || "Group B").trim()}`
+      : "this transcriptomics comparison";
     if (!context && !hasPlots) return [];
     if (mode === "survival" || mode === "survival_compare") {
       return [
@@ -1444,7 +1441,7 @@ export function createAnalysisUi(ctx) {
         "What should I look at next?",
       ];
     }
-    if (mode === "molecular_medication_compare") {
+    if (mode === "transcriptomics_medication_compare") {
       return [
         `Can you explain the volcano plot for ${medicationComparisonLabel}?`,
         `Which genes drive the main separation in ${medicationComparisonLabel}?`,
@@ -1499,9 +1496,9 @@ export function createAnalysisUi(ctx) {
       const source = context && typeof context.source === "string" && context.source.trim() ? context.source : "";
       const contextParts = [];
       if (source) contextParts.push(source);
-      if (context && context.mode === "molecular_expression") {
+      if (context && context.mode === "transcriptomics_expression") {
         const datasetCount = Array.isArray(context.datasets) ? context.datasets.length : 0;
-        if (datasetCount) contextParts.push(`${datasetCount} molecular dataset${datasetCount === 1 ? "" : "s"}`);
+        if (datasetCount) contextParts.push(`${datasetCount} assay${datasetCount === 1 ? "" : "s"}`);
         if (context.gene_id) contextParts.push(`gene ${context.gene_id}`);
       }
       if (context && (context.mode === "survival" || context.mode === "survival_compare")) {
@@ -1562,7 +1559,7 @@ export function createAnalysisUi(ctx) {
     const deterministicOnly = state.analysisExecutionMode === "deterministic";
     const showPlots = analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
-    const selectedMolecularDatasets = Array.isArray(state.selectedMolecularDatasets) ? state.selectedMolecularDatasets : [];
+    const selectedAssayDatasets = Array.isArray(state.selectedAssayDatasets) ? state.selectedAssayDatasets : [];
     if ((llmOnly || plannerOnly) && (!state.lmStatus || state.lmStatus.available !== true)) {
       const message = plannerOnly
         ? "LLM planner unavailable. Start an LLM model or choose a deterministic analysis."
@@ -1588,19 +1585,19 @@ export function createAnalysisUi(ctx) {
         return;
       }
     }
-    if (requiresSingleSelectedMolecularDataset(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length !== 1) {
+    if (requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length !== 1) {
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = selectedMolecularDatasets.length
-        ? "This molecular tool requires exactly one selected molecular dataset."
-        : "Select one molecular dataset before running this molecular tool.";
+      analysisStatusEl.textContent = selectedAssayDatasets.length
+        ? "This assay tool requires exactly one selected assay."
+        : "Select one assay before running this assay tool.";
       state.analysisExecutionMode = "auto";
       return;
     }
-    if (compareMode && requiresSingleSelectedMolecularDataset(state.analysisSelectedCatalogItemId) && selectedMolecularDatasets.length === 1 && typeof molecularDatasetOverlap === "function") {
-      const overlap = molecularDatasetOverlap(selectedMolecularDatasets[0]);
+    if (compareMode && requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length === 1 && typeof assayDatasetOverlap === "function") {
+      const overlap = assayDatasetOverlap(selectedAssayDatasets[0]);
       if (overlap && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
         analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = `Selected molecular dataset "${selectedMolecularDatasets[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}. Choose a dataset with at least one sample in both cohorts.`;
+        analysisStatusEl.textContent = `Selected assay "${selectedAssayDatasets[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}. Choose an assay with at least one sample in both cohorts.`;
         state.analysisExecutionMode = "auto";
         return;
       }
@@ -1627,7 +1624,7 @@ export function createAnalysisUi(ctx) {
           prompt,
           catalog_item_id: state.analysisSelectedCatalogItemId || "",
           analysis_session_id: state.currentAnalysisSessionId || "",
-          molecular_dataset_name: selectedMolecularDatasets.length === 1 ? selectedMolecularDatasets[0] : "",
+          assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
           data_dir: (refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId) ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl.value.trim() || refs.dataDirEl.value),
           selected_patient_ids: currentScope,
           scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},

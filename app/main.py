@@ -42,15 +42,15 @@ OPENAPI_TAGS = [
     },
     {
         "name": "analysis",
-        "description": "Clinical and molecular workspace analysis plus saved analysis sessions.",
+        "description": "Clinical and transcriptomics assay workspace analysis plus saved analysis sessions.",
     },
     {
         "name": "cohorts",
         "description": "Saved cohort persistence and cohort-scoped handoff utilities.",
     },
     {
-        "name": "molecular",
-        "description": "Molecular dataset inventory and per-gene expression summaries.",
+        "name": "assays",
+        "description": "Assay inventory and per-gene expression summaries.",
     },
     {
         "name": "pheno-ranker",
@@ -70,7 +70,7 @@ def _session_secret() -> str:
 
 app = FastAPI(
     title="Biomedical Research Navigator API",
-    summary="Workspace-oriented clinical and molecular exploration API.",
+    summary="Workspace-oriented clinical and assay exploration API.",
     description=(
         "Biomedical Research Navigator exposes a browser-facing API for multi-dataset workspace selection, "
         "clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data."

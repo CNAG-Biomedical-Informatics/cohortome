@@ -21,11 +21,11 @@ from app.query_store import (
     disease_counts as store_disease_counts,
     duckdb_available,
     medication_counts as store_medication_counts,
-    molecular_dataset_gene_means_scoped as store_molecular_dataset_gene_means_scoped,
-    molecular_dataset_pairwise_exploratory_volcano as store_molecular_dataset_pairwise_exploratory_volcano,
-    molecular_dataset_pairwise_gene_differences as store_molecular_dataset_pairwise_gene_differences,
-    molecular_dataset_inventory as store_molecular_dataset_inventory,
-    molecular_expression_summary as store_molecular_expression_summary,
+    assay_dataset_feature_means_scoped as store_assay_dataset_feature_means_scoped,
+    assay_dataset_pairwise_exploratory_volcano as store_assay_dataset_pairwise_exploratory_volcano,
+    assay_dataset_pairwise_feature_differences as store_assay_dataset_pairwise_feature_differences,
+    assay_dataset_inventory as store_assay_dataset_inventory,
+    assay_expression_summary as store_assay_expression_summary,
     patient_query_index as store_patient_query_index,
 )
 
@@ -148,7 +148,7 @@ def _analysis_catalog_dispatch(
     catalog_item_id: str,
     data_dir: str,
     dataset_id: str = "",
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     analysis_session_id: str = "",
     user_id: str = "",
     selected_patient_ids: str = "",
@@ -169,8 +169,8 @@ def _analysis_catalog_dispatch(
         raise RuntimeError("This analysis is not available in the current catalog.")
     if item.get("requires_detailed_access") and granularity_applied != "detailed":
         raise RuntimeError("This analysis requires Detailed in-app access for the current workspace.")
-    if item.get("requires_molecular") and not store_molecular_dataset_inventory(data_dir):
-        raise RuntimeError("This analysis requires at least one molecular dataset in the active workspace.")
+    if item.get("requires_assays") and not store_assay_dataset_inventory(data_dir):
+        raise RuntimeError("This analysis requires at least one assay in the active workspace.")
     runner_type = str(item.get("runner_type") or "builtin").strip().lower()
     execution_backend = str(item.get("execution_backend") or "sync").strip().lower()
     if runner_type == "builtin":
@@ -182,7 +182,7 @@ def _analysis_catalog_dispatch(
             prompt=prompt,
             data_dir=data_dir,
             dataset_id=dataset_id,
-            molecular_dataset_name=molecular_dataset_name,
+            assay_id=assay_id,
             catalog_item=item,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids,
@@ -226,7 +226,7 @@ def _analysis_catalog_dispatch(
             str(item.get("runner_ref") or "").strip(),
             prompt=prompt,
             data_dir=data_dir,
-            molecular_dataset_name=molecular_dataset_name,
+            assay_id=assay_id,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids,
         )
@@ -402,7 +402,7 @@ def _parse_trajectory_request(prompt: str) -> Dict[str, Any] | None:
     return None
 
 
-def _parse_molecular_expression_request(prompt: str) -> Dict[str, Any] | None:
+def _parse_transcriptomics_expression_request(prompt: str) -> Dict[str, Any] | None:
     lowered = prompt.lower()
     if "expression" not in lowered:
         return None
@@ -418,7 +418,7 @@ def _parse_molecular_expression_request(prompt: str) -> Dict[str, Any] | None:
     return {"gene_id": gene_id, "compare": compare}
 
 
-def _parse_molecular_medication_request(prompt: str) -> bool:
+def _parse_transcriptomics_medication_request(prompt: str) -> bool:
     lowered = prompt.lower()
     if "gene expression" not in lowered and "expression" not in lowered:
         return False
@@ -516,19 +516,19 @@ def compare_measure_inventory_context(data_dir: str, selected_patient_ids_a: str
     }
 
 
-def molecular_expression_by_medication_context(
+def transcriptomics_expression_by_medication_context(
     data_dir: str,
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
 ) -> Dict[str, Any]:
-    datasets = store_molecular_dataset_inventory(data_dir)
+    datasets = store_assay_dataset_inventory(data_dir)
     scope_ids = parse_scope_ids(selected_patient_ids) + parse_scope_ids(compare_selected_patient_ids)
     scope_patient_ids = derive_scope_patient_ids(scope_ids)
     scope_patient_id_set = {item for item in scope_patient_ids if item}
     if len(datasets) < 2:
         return {
-            "mode": "molecular_medication_compare",
-            "error": "At least two molecular datasets are required to compare gene expression by medication.",
+            "mode": "transcriptomics_medication_compare",
+            "error": "At least two assays are required to compare gene expression by medication.",
             "comparisons": [],
         }
     medication_items = store_medication_counts(data_dir)
@@ -559,14 +559,14 @@ def molecular_expression_by_medication_context(
             ) or "none"
             detail = (
                 f" Current Analysis scope resolves to {len(scope_patient_id_set)} patient"
-                f"{'s' if len(scope_patient_id_set) != 1 else ''} for molecular comparison; medication-aligned molecular datasets found in scope: {matched_summary}."
+                f"{'s' if len(scope_patient_id_set) != 1 else ''} for assay comparison; medication-aligned assays found in scope: {matched_summary}."
             )
         else:
             detail = ""
         return {
-            "mode": "molecular_medication_compare",
+            "mode": "transcriptomics_medication_compare",
             "error": (
-                "At least two medication-aligned molecular datasets with patients in the current Analysis scope are required for deterministic comparison."
+                "At least two medication-aligned assays with patients in the current Analysis scope are required for deterministic comparison."
                 + detail
             ),
             "comparisons": [],
@@ -578,7 +578,7 @@ def molecular_expression_by_medication_context(
         left_dataset = left["dataset"]["dataset_name"]
         right_dataset = right["dataset"]["dataset_name"]
         scoped_ids = sorted(set(left["scoped_patient_ids"]) | set(right["scoped_patient_ids"]))
-        top_differences = store_molecular_dataset_pairwise_gene_differences(
+        top_differences = store_assay_dataset_pairwise_feature_differences(
             data_dir,
             left_dataset,
             right_dataset,
@@ -593,20 +593,20 @@ def molecular_expression_by_medication_context(
                 "dataset_b": right_dataset,
                 "scoped_patient_ids_a": left["scoped_patient_ids"],
                 "scoped_patient_ids_b": right["scoped_patient_ids"],
-                "top_genes_a": store_molecular_dataset_gene_means_scoped(
+                "top_genes_a": store_assay_dataset_feature_means_scoped(
                     data_dir,
                     left_dataset,
                     selected_patient_ids=left["scoped_patient_ids"],
                     limit=5,
                 ),
-                "top_genes_b": store_molecular_dataset_gene_means_scoped(
+                "top_genes_b": store_assay_dataset_feature_means_scoped(
                     data_dir,
                     right_dataset,
                     selected_patient_ids=right["scoped_patient_ids"],
                     limit=5,
                 ),
                 "top_differences": top_differences,
-                "exploratory_volcano_points": store_molecular_dataset_pairwise_exploratory_volcano(
+                "exploratory_volcano_points": store_assay_dataset_pairwise_exploratory_volcano(
                     data_dir,
                     left_dataset,
                     right_dataset,
@@ -616,7 +616,7 @@ def molecular_expression_by_medication_context(
             }
         )
     return {
-        "mode": "molecular_medication_compare",
+        "mode": "transcriptomics_medication_compare",
         "comparisons": comparisons,
         "matched_datasets": matched,
         "scope_patient_count": len(scope_patient_id_set),
@@ -627,22 +627,22 @@ def molecular_expression_by_medication_context(
     }
 
 
-def molecular_expression_context(
+def transcriptomics_expression_context(
     data_dir: str,
     gene_id: str,
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
 ) -> Dict[str, Any]:
-    datasets = store_molecular_dataset_inventory(data_dir)
+    datasets = store_assay_dataset_inventory(data_dir)
     if not datasets:
         return {
-            "mode": "molecular_expression",
+            "mode": "transcriptomics_expression",
             "gene_id": gene_id,
             "datasets": [],
-            "error": "No molecular datasets are currently available.",
+            "error": "No assays are currently available.",
         }
     summaries = [
-        store_molecular_expression_summary(
+        store_assay_expression_summary(
             data_dir,
             item["dataset_name"],
             gene_id,
@@ -652,7 +652,7 @@ def molecular_expression_context(
         for item in datasets
     ]
     return {
-        "mode": "molecular_expression",
+        "mode": "transcriptomics_expression",
         "gene_id": gene_id,
         "datasets": summaries,
         "compare_mode": bool(compare_selected_patient_ids.strip()),
@@ -1494,16 +1494,16 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
             f"Cohort B has {int(cohort_b.get('measure_count') or 0)}. "
             f"Available measures across these cohorts: {', '.join(labels[:12])}."
         )
-    if context.get("mode") == "molecular_medication_compare":
+    if context.get("mode") == "transcriptomics_medication_compare":
         if context.get("error"):
             return str(context["error"])
         comparisons = [item for item in (context.get("comparisons") or []) if isinstance(item, dict)]
         if not comparisons:
-            return "No deterministic medication-based molecular comparison is available."
+            return "No deterministic medication-based assay comparison is available."
         lines: List[str] = []
         if int(context.get("scope_patient_count") or 0) > 0:
             lines.append(
-                f"The medication-based molecular comparison is restricted to the current Analysis scope ({int(context.get('scope_patient_count') or 0)} patient{'s' if int(context.get('scope_patient_count') or 0) != 1 else ''})."
+                f"The medication-based assay comparison is restricted to the current Analysis scope ({int(context.get('scope_patient_count') or 0)} patient{'s' if int(context.get('scope_patient_count') or 0) != 1 else ''})."
             )
         for item in comparisons:
             top_difference = (item.get("top_differences") or [{}])[0]
@@ -1532,14 +1532,14 @@ def deterministic_analysis_reply(prompt: str, context: Dict[str, Any]) -> str:
         if context.get("exploratory_note"):
             lines.append(str(context["exploratory_note"]))
         return "\n".join(lines)
-    if context.get("mode") == "molecular_expression":
+    if context.get("mode") == "transcriptomics_expression":
         if context.get("error"):
             return str(context["error"])
         datasets = [item for item in (context.get("datasets") or []) if isinstance(item, dict)]
         if not datasets:
-            return f"No molecular expression summaries are available for {context.get('gene_id', 'the requested gene')}."
+            return f"No assay expression summaries are available for {context.get('gene_id', 'the requested gene')}."
         gene_id = context.get("gene_id", "the requested gene")
-        lines: List[str] = [f"{gene_id} was found in {len(datasets)} molecular dataset{'s' if len(datasets) != 1 else ''}."]
+        lines: List[str] = [f"{gene_id} was found in {len(datasets)} assay{'s' if len(datasets) != 1 else ''}."]
         if context.get("compare_mode"):
             lines.extend(
                 [
@@ -1777,9 +1777,9 @@ def compare_survival_analysis_context(
 
 
 def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
-    if context.get("mode") == "molecular_medication_compare":
+    if context.get("mode") == "transcriptomics_medication_compare":
         return {
-            "mode": "molecular_medication_compare",
+            "mode": "transcriptomics_medication_compare",
             "exploratory_note": context.get("exploratory_note"),
             "comparisons": [
                 {
@@ -1812,9 +1812,9 @@ def compact_analysis_context_for_llm(context: Dict[str, Any]) -> Dict[str, Any]:
                 if isinstance(item, dict)
             ],
         }
-    if context.get("mode") == "molecular_expression":
+    if context.get("mode") == "transcriptomics_expression":
         return {
-            "mode": "molecular_expression",
+            "mode": "transcriptomics_expression",
             "gene_id": context.get("gene_id"),
             "compare_mode": context.get("compare_mode"),
             "datasets": [
@@ -1981,7 +1981,7 @@ def _analysis_llm_reply_impl(
     data_dir: str,
     catalog_item_id: str = "",
     dataset_id: str = "",
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     analysis_session_id: str = "",
     user_id: str = "",
     selected_patient_ids: str = "",
@@ -1998,7 +1998,7 @@ def _analysis_llm_reply_impl(
         catalog_item_id=catalog_item_id,
         data_dir=data_dir,
         dataset_id=dataset_id,
-        molecular_dataset_name=molecular_dataset_name,
+        assay_id=assay_id,
         analysis_session_id=analysis_session_id,
         user_id=user_id,
         selected_patient_ids=selected_patient_ids,
@@ -2024,14 +2024,14 @@ def _analysis_llm_reply_impl(
                 "base_url": lm_studio_base_url(),
             },
         }
-    if _parse_molecular_medication_request(prompt):
-        context = molecular_expression_by_medication_context(
+    if _parse_transcriptomics_medication_request(prompt):
+        context = transcriptomics_expression_by_medication_context(
             data_dir,
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
         )
         return {
-            "intent": "analysis_molecular_medication_compare",
+            "intent": "analysis_transcriptomics_medication_compare",
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
@@ -2040,16 +2040,16 @@ def _analysis_llm_reply_impl(
                 "base_url": lm_studio_base_url(),
             },
         }
-    molecular_request = _parse_molecular_expression_request(prompt)
-    if molecular_request is not None:
-        context = molecular_expression_context(
+    assay_request = _parse_transcriptomics_expression_request(prompt)
+    if assay_request is not None:
+        context = transcriptomics_expression_context(
             data_dir,
-            molecular_request["gene_id"],
+            assay_request["gene_id"],
             selected_patient_ids=selected_patient_ids,
             compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
         )
         return {
-            "intent": "analysis_molecular_expression",
+            "intent": "analysis_transcriptomics_expression",
             "reply": deterministic_analysis_reply(prompt, context),
             "data": {
                 "source": "deterministic",
@@ -2306,7 +2306,7 @@ def analysis_llm_reply(
     data_dir: str,
     catalog_item_id: str = "",
     dataset_id: str = "",
-    molecular_dataset_name: str = "",
+    assay_id: str = "",
     analysis_session_id: str = "",
     user_id: str = "",
     selected_patient_ids: str = "",
@@ -2325,7 +2325,7 @@ def analysis_llm_reply(
         data_dir,
         catalog_item_id=catalog_item_id,
         dataset_id=dataset_id,
-        molecular_dataset_name=molecular_dataset_name,
+        assay_id=assay_id,
         analysis_session_id=analysis_session_id,
         user_id=user_id,
         selected_patient_ids=selected_patient_ids,

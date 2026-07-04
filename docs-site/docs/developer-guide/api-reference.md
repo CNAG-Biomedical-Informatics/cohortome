@@ -25,7 +25,7 @@ The current OpenAPI contract is strongest for the stable top-level API surfaces:
 - dataset registry and workspace selection
 - patient list endpoints
 - saved cohorts
-- molecular dataset inventory
+- transcriptomics assay inventory
 - selected delete/update helpers
 
 More dynamic endpoints such as free-form `Query`, `Analysis`, and some `Pheno-Ranker`

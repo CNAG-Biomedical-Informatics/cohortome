@@ -29,8 +29,8 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 BASE_DIR = Path(__file__).resolve().parent.parent
 QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
 GENE_ANNOTATION_PATH = BASE_DIR / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
-MOLECULAR_DATA_DIR: Path | None = None
-QUERY_STORE_SCHEMA_VERSION = 2
+ASSAY_DATA_DIR: Path | None = None
+QUERY_STORE_SCHEMA_VERSION = 3
 
 
 class QueryStoreNotReadyError(RuntimeError):
@@ -67,14 +67,14 @@ def _store_key(data_dir: str) -> str:
     return digest[:16]
 
 
-def _legacy_store_paths(data_dir: str) -> Tuple[Path, Path]:
+def _store_paths_for_data_dir(data_dir: str) -> Tuple[Path, Path]:
     key = _store_key(data_dir)
     QUERY_STORE_DIR.mkdir(parents=True, exist_ok=True)
     return QUERY_STORE_DIR / f"{key}.duckdb", QUERY_STORE_DIR / f"{key}.meta.json"
 
 
 def _store_paths(data_dir: str) -> Tuple[Path, Path]:
-    return _legacy_store_paths(data_dir)
+    return _store_paths_for_data_dir(data_dir)
 
 
 def _dataset_store_paths(dataset_id: str) -> Tuple[Path, Path, Path]:
@@ -101,7 +101,7 @@ def _dataset_root_path(dataset_id: str) -> Path:
 
 def _scope_manifest_dataset_ids(path: Path) -> List[str]:
     candidates = [path]
-    if path.name in {"clinical", "molecular"}:
+    if path.name in {"clinical", "assays", "transcriptomics"}:
         candidates.append(path.parent)
     for candidate in candidates:
         manifest_path = candidate / "manifest.json"
@@ -136,16 +136,16 @@ def _workspace_dataset_ids(workspace_key: str) -> List[str]:
     for dataset in list_registered_datasets():
         dataset_id = normalize_dataset_id(dataset.get("dataset_id"))
         root_path = Path(str(dataset.get("root_path") or "")).expanduser().resolve()
-        if resolved in {root_path, root_path / "clinical", root_path / "molecular"}:
+        if resolved in {root_path, root_path / "clinical", root_path / "assays", root_path / "assays" / "transcriptomics"}:
             return [dataset_id]
     return []
 
 
-def _resolve_molecular_data_dir(data_dir: str) -> Path | None:
-    if MOLECULAR_DATA_DIR is not None:
-        return Path(MOLECULAR_DATA_DIR).expanduser().resolve()
+def _resolve_assay_transcriptomics_dir(data_dir: str) -> Path | None:
+    if ASSAY_DATA_DIR is not None:
+        return Path(ASSAY_DATA_DIR).expanduser().resolve()
     project_root = resolve_project_data_dir(data_dir)
-    candidate = project_root / "molecular"
+    candidate = project_root / "assays" / "transcriptomics"
     if candidate.exists() and candidate.is_dir():
         return candidate.resolve()
     return None
@@ -185,7 +185,7 @@ def _gene_annotation(gene_id: str) -> Dict[str, str]:
     return annotation
 
 
-def molecular_gene_annotations(gene_ids: List[str]) -> Dict[str, Dict[str, str]]:
+def assay_feature_annotations(gene_ids: List[str]) -> Dict[str, Dict[str, str]]:
     payload: Dict[str, Dict[str, str]] = {}
     for raw_gene_id in gene_ids:
         gene_id = str(raw_gene_id or "").strip()
@@ -197,13 +197,13 @@ def molecular_gene_annotations(gene_ids: List[str]) -> Dict[str, Dict[str, str]]
     return payload
 
 
-def _molecular_matrix_files(data_dir: str) -> List[Path]:
-    molecular_dir = _resolve_molecular_data_dir(data_dir)
-    if molecular_dir is None:
+def _assay_matrix_files(data_dir: str) -> List[Path]:
+    assay_dir = _resolve_assay_transcriptomics_dir(data_dir)
+    if assay_dir is None:
         return []
     return [
         path
-        for path in sorted(molecular_dir.glob("*.csv"))
+        for path in sorted(assay_dir.glob("*.csv"))
         if path.is_file()
     ]
 
@@ -222,10 +222,10 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
             }
         )
-    molecular_files = []
-    for path in _molecular_matrix_files(data_dir):
+    assay_files = []
+    for path in _assay_matrix_files(data_dir):
         stat = path.stat()
-        molecular_files.append(
+        assay_files.append(
             {
                 "path": str(path),
                 "size": stat.st_size,
@@ -236,7 +236,7 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
         "schema_version": QUERY_STORE_SCHEMA_VERSION,
         "data_dir": str(resolved_dir),
         "files": files,
-        "molecular_files": molecular_files,
+        "assay_files": assay_files,
     }
 
 
@@ -244,7 +244,7 @@ def _detect_matrix_delimiter(header_line: str) -> str:
     return ";" if header_line.count(";") >= header_line.count(",") else ","
 
 
-def _read_molecular_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, List[int]]]]:
+def _read_transcriptomics_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, List[int]]]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         first_line = handle.readline()
         if not first_line:
@@ -277,7 +277,7 @@ def _read_molecular_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, 
         return path.stem, sample_ids, rows
 
 
-def _read_molecular_matrix_header(path: Path) -> Tuple[str, str, List[str]]:
+def _read_transcriptomics_matrix_header(path: Path) -> Tuple[str, str, List[str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         first_line = handle.readline()
         if not first_line:
@@ -293,7 +293,7 @@ def _read_molecular_matrix_header(path: Path) -> Tuple[str, str, List[str]]:
     return path.stem, delimiter, sample_ids
 
 
-def _patient_id_from_molecular_sample(sample_id: str) -> str:
+def _patient_id_from_assay_sample(sample_id: str) -> str:
     value = str(sample_id).strip()
     if ":" in value:
         return value.split(":", 1)[0].strip() or value
@@ -305,7 +305,7 @@ def _connect(data_dir: str):
         raise RuntimeError("duckdb is not installed")
     dataset_ids = _workspace_dataset_ids(data_dir)
     if not dataset_ids:
-        db_path, _ = _legacy_store_paths(data_dir)
+        db_path, _ = _store_paths_for_data_dir(data_dir)
         return duckdb.connect(str(db_path))
     return _connect_workspace(dataset_ids)
 
@@ -346,7 +346,7 @@ def _store_has_required_tables(db_path: Path) -> bool:
         "patient_medications",
         "disease_events",
         "medication_events",
-        "molecular_samples",
+        "assay_samples",
         "transcript_counts",
     }
     return required.issubset(existing)
@@ -355,7 +355,7 @@ def _store_has_required_tables(db_path: Path) -> bool:
 def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
     dataset_root = _dataset_root_path(dataset_id)
     clinical_dir = dataset_root / "clinical"
-    molecular_dir = dataset_root / "molecular"
+    assay_dir = dataset_root / "assays" / "transcriptomics"
     files = []
     if clinical_dir.exists():
         for pattern in ("*.json", "*.json.gz"):
@@ -370,13 +370,13 @@ def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
                         "mtime_ns": stat.st_mtime_ns,
                     }
                 )
-    molecular_files = []
-    if molecular_dir.exists():
-        for path in sorted(molecular_dir.glob("*.csv")):
+    assay_files = []
+    if assay_dir.exists():
+        for path in sorted(assay_dir.glob("*.csv")):
             if not path.is_file():
                 continue
             stat = path.stat()
-            molecular_files.append(
+            assay_files.append(
                 {
                     "path": str(path.resolve()),
                     "size": stat.st_size,
@@ -388,7 +388,7 @@ def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
         "dataset_id": normalize_dataset_id(dataset_id),
         "root_path": str(dataset_root),
         "files": files,
-        "molecular_files": molecular_files,
+        "assay_files": assay_files,
     }
 
 
@@ -528,8 +528,8 @@ def _union_select(aliases: List[str], expression: str) -> str:
     return " UNION ALL ".join(expression.format(alias=alias) for alias in aliases)
 
 
-def _insert_transcript_matrix(con: Any, matrix_path: Path) -> List[Tuple[str, str, str, str]]:
-    dataset_name, delimiter, sample_ids = _read_molecular_matrix_header(matrix_path)
+def _insert_transcript_matrix(con: Any, matrix_path: Path) -> List[Tuple[str, str, str, str, str]]:
+    dataset_name, delimiter, sample_ids = _read_transcriptomics_matrix_header(matrix_path)
     if not sample_ids:
         return []
     dataset_literal = _sql_literal(dataset_name)
@@ -562,7 +562,7 @@ def _insert_transcript_matrix(con: Any, matrix_path: Path) -> List[Tuple[str, st
         """
     )
     return [
-        (dataset_name, sample_id, _patient_id_from_molecular_sample(sample_id), "transcriptomics_raw_counts")
+        (dataset_name, sample_id, _patient_id_from_assay_sample(sample_id), "transcriptomics", "raw_counts")
         for sample_id in sample_ids
     ]
 
@@ -643,18 +643,19 @@ def _connect_workspace(dataset_ids: List[str]):
         FROM {alias}.medication_events
         """,
     )
-    molecular_samples_parts = []
+    assay_samples_parts = []
     transcript_counts_parts = []
     for alias, dataset_id in zip(aliases, normalized):
         dataset_name_expr = f"{_sql_literal(dataset_id + '__')} || dataset_name" if multi_dataset else "dataset_name"
-        molecular_samples_parts.append(
+        assay_samples_parts.append(
             f"""
             SELECT
                 {dataset_name_expr} AS dataset_name,
                 sample_id,
                 patient_id,
-                modality
-            FROM {alias}.molecular_samples
+                modality,
+                data_type
+            FROM {alias}.assay_samples
             """
         )
         transcript_counts_parts.append(
@@ -674,7 +675,7 @@ def _connect_workspace(dataset_ids: List[str]):
     con.execute(f"CREATE TEMP VIEW medication_events AS {medication_events_sql}")
     con.execute(f"CREATE TEMP VIEW patient_diseases AS SELECT DISTINCT patient_id, disease FROM ({patient_diseases_sql})")
     con.execute(f"CREATE TEMP VIEW patient_medications AS SELECT DISTINCT patient_id, medication FROM ({patient_medications_sql})")
-    con.execute(f"CREATE TEMP VIEW molecular_samples AS {' UNION ALL '.join(molecular_samples_parts)}")
+    con.execute(f"CREATE TEMP VIEW assay_samples AS {' UNION ALL '.join(assay_samples_parts)}")
     con.execute(f"CREATE TEMP VIEW transcript_counts AS {' UNION ALL '.join(transcript_counts_parts)}")
     con.execute(
         """
@@ -715,7 +716,7 @@ def ensure_query_store(data_dir: str) -> None:
         for dataset_id in dataset_ids:
             _store_ready_or_raise(dataset_id)
         return
-    db_path, meta_path = _legacy_store_paths(data_dir)
+    db_path, meta_path = _store_paths_for_data_dir(data_dir)
     current_signature = _source_files_signature(data_dir)
     if db_path.exists() and meta_path.exists():
         try:
@@ -794,11 +795,12 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         )
         con.execute(
             """
-            CREATE TABLE molecular_samples (
+            CREATE TABLE assay_samples (
                 dataset_name TEXT,
                 sample_id TEXT,
                 patient_id TEXT,
-                modality TEXT
+                modality TEXT,
+                data_type TEXT
             );
             """
         )
@@ -820,7 +822,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         timepoint_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], Optional[str], str, int]] = []
         disease_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
         medication_event_rows: List[Tuple[str, Optional[str], str, Optional[str], Optional[str], str, str, int]] = []
-        molecular_sample_rows: List[Tuple[str, str, str, str]] = []
+        assay_sample_rows: List[Tuple[str, str, str, str, str]] = []
         seen_patient_diseases = set()
         seen_patient_medications = set()
 
@@ -900,13 +902,13 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                     )
                 )
 
-        seen_molecular_samples = set()
-        for matrix_path in _molecular_matrix_files(data_dir):
-            for dataset_name, sample_id, patient_id, modality in _insert_transcript_matrix(con, matrix_path):
+        seen_assay_samples = set()
+        for matrix_path in _assay_matrix_files(data_dir):
+            for dataset_name, sample_id, patient_id, modality, data_type in _insert_transcript_matrix(con, matrix_path):
                 key = (dataset_name, sample_id)
-                if key not in seen_molecular_samples:
-                    seen_molecular_samples.add(key)
-                    molecular_sample_rows.append((dataset_name, sample_id, patient_id, modality))
+                if key not in seen_assay_samples:
+                    seen_assay_samples.add(key)
+                    assay_sample_rows.append((dataset_name, sample_id, patient_id, modality, data_type))
 
         patient_rows: List[Tuple[str, Optional[str], int, int, int, Optional[str], Optional[str], int]] = []
         for patient_id in sorted(patient_stats):
@@ -925,7 +927,8 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                 )
             )
 
-        con.executemany("INSERT INTO patients VALUES (?, ?, ?, ?, ?, ?, ?, ?)", patient_rows)
+        if patient_rows:
+            con.executemany("INSERT INTO patients VALUES (?, ?, ?, ?, ?, ?, ?, ?)", patient_rows)
         if timepoint_rows:
             con.executemany("INSERT INTO timepoints VALUES (?, ?, ?, ?, ?, ?, ?, ?)", timepoint_rows)
         if patient_disease_rows:
@@ -936,15 +939,15 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             con.executemany("INSERT INTO disease_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)", disease_event_rows)
         if medication_event_rows:
             con.executemany("INSERT INTO medication_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)", medication_event_rows)
-        if molecular_sample_rows:
-            con.executemany("INSERT INTO molecular_samples VALUES (?, ?, ?, ?)", molecular_sample_rows)
+        if assay_sample_rows:
+            con.executemany("INSERT INTO assay_samples VALUES (?, ?, ?, ?, ?)", assay_sample_rows)
 
         con.execute("CREATE INDEX idx_patients_patient_id ON patients(patient_id)")
         con.execute("CREATE INDEX idx_timepoints_patient_id ON timepoints(patient_id)")
         con.execute("CREATE INDEX idx_disease_events_disease ON disease_events(disease)")
         con.execute("CREATE INDEX idx_medication_events_medication ON medication_events(medication)")
-        con.execute("CREATE INDEX idx_molecular_samples_sample_id ON molecular_samples(sample_id)")
-        con.execute("CREATE INDEX idx_molecular_samples_patient_id ON molecular_samples(patient_id)")
+        con.execute("CREATE INDEX idx_assay_samples_sample_id ON assay_samples(sample_id)")
+        con.execute("CREATE INDEX idx_assay_samples_patient_id ON assay_samples(patient_id)")
         con.execute("CREATE INDEX idx_transcript_counts_gene_id ON transcript_counts(gene_id)")
         con.execute("CREATE INDEX idx_transcript_counts_sample_id ON transcript_counts(sample_id)")
     finally:
@@ -964,7 +967,7 @@ def patient_inventory(data_dir: str) -> List[str]:
     return [row[0] for row in rows]
 
 
-def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
+def assay_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
@@ -1001,7 +1004,7 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
                 SELECT
                     s.dataset_name,
                     count(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN s.patient_id END) AS clinical_overlap_patient_count
-                FROM molecular_samples AS s
+                FROM assay_samples AS s
                 LEFT JOIN patients AS p
                     ON s.patient_id = p.patient_id
                 GROUP BY s.dataset_name
@@ -1009,13 +1012,14 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             SELECT
                 s.dataset_name,
                 max(s.modality) AS modality,
+                max(s.data_type) AS data_type,
                 max(ds.sample_count) AS sample_count,
                 max(ds.patient_count) AS patient_count,
                 max(gs.gene_count) AS gene_count,
                 max(os.clinical_overlap_patient_count) AS clinical_overlap_patient_count,
                 max(ds.mean_total_counts_per_sample) AS mean_total_counts_per_sample,
                 max(ds.mean_detected_genes_per_sample) AS mean_detected_genes_per_sample
-            FROM molecular_samples AS s
+            FROM assay_samples AS s
             LEFT JOIN dataset_stats AS ds
                 ON s.dataset_name = ds.dataset_name
             LEFT JOIN gene_stats AS gs
@@ -1032,7 +1036,7 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             for dataset_name, values in con.execute(
                 """
                 SELECT dataset_name, list(sample_id ORDER BY sample_id)
-                FROM molecular_samples
+                FROM assay_samples
                 GROUP BY dataset_name
                 """
             ).fetchall()
@@ -1042,7 +1046,7 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
             for dataset_name, values in con.execute(
                 """
                 SELECT dataset_name, list(DISTINCT patient_id ORDER BY patient_id)
-                FROM molecular_samples
+                FROM assay_samples
                 GROUP BY dataset_name
                 """
             ).fetchall()
@@ -1072,8 +1076,11 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
         con.close()
     return [
         {
+            "assay_id": dataset_name,
+            "label": dataset_name,
             "dataset_name": dataset_name,
             "modality": modality,
+            "data_type": data_type,
             "sample_count": int(sample_count),
             "patient_count": int(patient_count),
             "gene_count": int(gene_count),
@@ -1087,6 +1094,7 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
         for (
             dataset_name,
             modality,
+            data_type,
             sample_count,
             patient_count,
             gene_count,
@@ -1097,7 +1105,7 @@ def molecular_dataset_inventory(data_dir: str) -> List[Dict[str, Any]]:
     ]
 
 
-def molecular_gene_inventory(data_dir: str, dataset_name: str, search: str = "", limit: int = 50) -> List[str]:
+def assay_feature_inventory(data_dir: str, dataset_name: str, search: str = "", limit: int = 50) -> List[str]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
@@ -1198,7 +1206,7 @@ def _summarize_expression_rows(rows: List[Tuple[str, str, int]], label: str) -> 
     }
 
 
-def molecular_expression_summary(
+def assay_expression_summary(
     data_dir: str,
     dataset_name: str,
     gene_id: str,
@@ -1225,11 +1233,11 @@ def molecular_expression_summary(
     return payload
 
 
-def molecular_dataset_gene_means(data_dir: str, dataset_name: str, limit: int = 20) -> List[Dict[str, Any]]:
-    return molecular_dataset_gene_means_scoped(data_dir, dataset_name, selected_patient_ids=None, limit=limit)
+def assay_dataset_feature_means(data_dir: str, dataset_name: str, limit: int = 20) -> List[Dict[str, Any]]:
+    return assay_dataset_feature_means_scoped(data_dir, dataset_name, selected_patient_ids=None, limit=limit)
 
 
-def molecular_dataset_gene_means_scoped(
+def assay_dataset_feature_means_scoped(
     data_dir: str,
     dataset_name: str,
     selected_patient_ids: List[str] | None = None,
@@ -1288,7 +1296,7 @@ def molecular_dataset_gene_means_scoped(
     ]
 
 
-def molecular_dataset_pairwise_gene_differences(
+def assay_dataset_pairwise_feature_differences(
     data_dir: str,
     dataset_a: str,
     dataset_b: str,
@@ -1360,7 +1368,7 @@ def molecular_dataset_pairwise_gene_differences(
     ]
 
 
-def molecular_dataset_pairwise_exploratory_volcano(
+def assay_dataset_pairwise_exploratory_volcano(
     data_dir: str,
     dataset_a: str,
     dataset_b: str,

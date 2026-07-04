@@ -11,7 +11,7 @@ Use it to answer:
 - what is currently loaded
 - how many patients and timepoints are in the workspace
 - which diseases and medications dominate the workspace
-- which molecular datasets are available in the current scope
+- which transcriptomics assays are available in the current scope
 
 ## Clinical dashboard
 
@@ -25,17 +25,17 @@ The clinical dashboard gives a workspace-level summary of:
 
 This is the fastest way to sanity-check that the right datasets are loaded before you start filtering in `Query` or interpreting in `Analysis`.
 
-## Molecular dashboard
+## Assays dashboard
 
-The molecular dashboard is dataset-aware.
+The assays dashboard is dataset-aware.
 
 It shows:
 
-- molecular datasets currently visible in the workspace
+- transcriptomics assays currently visible in the workspace
 - dataset-level counts and metadata
-- workspace-level molecular summary
+- workspace-level assay summary
 
-In a multi-dataset workspace, molecular provenance matters. If two datasets are active, the dashboard helps confirm whether the molecular side really comes from both.
+In a multi-dataset workspace, assay provenance matters. If two datasets are active, the dashboard helps confirm whether the assay side really comes from both.
 
 ## Patient list and patient detail
 
@@ -55,7 +55,7 @@ Use `Dashboard` before `Query` if you need to:
 - confirm the current workspace after changing datasets
 - verify that healthy controls or private datasets are really loaded
 - check whether the workspace looks mixed across several datasets
-- understand whether the molecular side is populated before asking molecular questions
+- understand whether the assay side is populated before asking assay questions
 
 ## Practical workflow
 

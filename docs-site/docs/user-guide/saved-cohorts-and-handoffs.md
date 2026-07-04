@@ -41,7 +41,7 @@ This distinction is important because the same workspace may contain:
 
 - several datasets
 - several diseases
-- several molecular files
+- several assay files
 
 A saved cohort gives you a stable subset that can be compared, saved, and revisited later.
 

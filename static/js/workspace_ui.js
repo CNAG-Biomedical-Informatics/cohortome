@@ -38,7 +38,7 @@ export function createWorkspaceUi(ctx) {
     loadAnalysisCatalog,
     loadSavedCohorts,
     loadQueryDiseaseOptions,
-    loadMolecularDatasets,
+    loadAssayDatasets,
     loadPhenoRankerPatientIds,
     renderAnalysisCatalog,
     renderPatientList,
@@ -102,7 +102,7 @@ export function createWorkspaceUi(ctx) {
       }
       return `${ids.length} IDs in Analysis scope`;
     }
-    if (tabName === "dashboard" && state.currentDashboardSubtab === "molecular") {
+    if (tabName === "dashboard" && state.currentDashboardSubtab === "assays") {
       const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
         ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
         : String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
@@ -123,7 +123,7 @@ export function createWorkspaceUi(ctx) {
       if (!ids.length) {
         return "Full workspace";
       }
-      return `${ids.length} IDs in Molecular scope`;
+      return `${ids.length} IDs in Assay scope`;
     }
     return "Full workspace";
   }
@@ -252,7 +252,7 @@ export function createWorkspaceUi(ctx) {
         : pendingDatasetSelectionIds();
       const targetScopeId = currentDatasetSelectionKey(selectedIds);
       const hadActiveWorkspace = Boolean(state.currentDatasetIds.length);
-      let prefetchedMolecularPayload = null;
+      let prefetchedAssayPayload = null;
       state.dashboardTimelineSelectedPatientIds = [];
 
       if (!selectedIds.length) {
@@ -327,16 +327,16 @@ export function createWorkspaceUi(ctx) {
       const patients = await patientResponse.json();
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = "Preparing molecular datasets for the selected workspace...";
+        loadStatusEl.textContent = "Preparing transcriptomics assays for the selected workspace...";
       }
       await nextFrame();
       try {
-        const molecularResponse = await fetch(`/molecular/datasets?data_dir=${encodeURIComponent(targetScopeId)}`);
-        if (molecularResponse.ok) {
-          prefetchedMolecularPayload = await molecularResponse.json();
+        const assayResponse = await fetch(`/assays?data_dir=${encodeURIComponent(targetScopeId)}`);
+        if (assayResponse.ok) {
+          prefetchedAssayPayload = await assayResponse.json();
         }
       } catch (_error) {
-        prefetchedMolecularPayload = null;
+        prefetchedAssayPayload = null;
       }
 
       await fetch("/datasets/select", {
@@ -370,10 +370,10 @@ export function createWorkspaceUi(ctx) {
       await loadQueryDiseaseOptions();
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = "Indexing molecular datasets for the selected workspace...";
+        loadStatusEl.textContent = "Indexing transcriptomics assays for the selected workspace...";
       }
       await nextFrame();
-      await loadMolecularDatasets({ scopeId: targetScopeId, prefetched: prefetchedMolecularPayload });
+      await loadAssayDatasets({ scopeId: targetScopeId, prefetched: prefetchedAssayPayload });
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
         loadStatusEl.textContent = "Loading Pheno-Ranker scope IDs and patient roster...";

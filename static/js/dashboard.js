@@ -7,15 +7,15 @@ export function createDashboardUi(ctx) {
     dashboardTimelineEl,
     detailEl,
     dataDirEl,
-    molecularDashboardStatusEl,
-    molecularDashboardCardsEl,
-    analysisMolecularDatasetListEl,
-    analysisCatalogMolecularDatasetListEl,
-    analysisMolecularGeneEl,
-    analysisMolecularGenesEl,
-    analysisMolecularStatusEl,
-    analysisCatalogMolecularStatusEl,
-    analysisMolecularResultEl,
+    assayDashboardStatusEl,
+    assayDashboardCardsEl,
+    analysisAssayDatasetListEl,
+    analysisCatalogAssayDatasetListEl,
+    analysisAssayGeneEl,
+    analysisAssayGenesEl,
+    analysisAssayStatusEl,
+    analysisCatalogAssayStatusEl,
+    analysisAssayResultEl,
     analysisSelectedPatientIdsEl,
     analysisSelectedPatientIdsSummaryEl,
     analysisSelectedSavedCohortSelectionEl,
@@ -32,7 +32,7 @@ export function createDashboardUi(ctx) {
     sendPatientIdsToAnalysis,
     saveIdsAsCohort,
     renderAnalysisCatalog,
-    renderAnalysisCatalogMolecularPanel,
+    renderAnalysisCatalogAssayPanel,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
@@ -43,7 +43,7 @@ export function createDashboardUi(ctx) {
     { key: "measures", label: "Measure", color: "#0f766e", symbol: "triangle-up" },
     { key: "procedures", label: "Procedure", color: "#b91c1c", symbol: "cross" },
     { key: "exposures", label: "Exposure", color: "#6d28d9", symbol: "x" },
-    { key: "molecular", label: "Molecular", color: "#0891b2", symbol: "star" },
+    { key: "assay", label: "Assay", color: "#0891b2", symbol: "star" },
   ];
 
   function plotlyAvailable() {
@@ -352,7 +352,7 @@ export function createDashboardUi(ctx) {
 
   function normalizeTimelineItems(summary) {
     const timelines = Array.isArray(summary && summary.timelines) ? summary.timelines : [];
-    const molecularCoverage = molecularTimelineCoverage();
+    const assayCoverage = assayTimelineCoverage();
     return timelines
       .map((item) => {
         const patientId = String(item && item.patient_id ? item.patient_id : "").trim();
@@ -371,7 +371,7 @@ export function createDashboardUi(ctx) {
           has_dated_range: Boolean(hasDatedRange),
           events: [
             ...(Array.isArray(item && item.events) ? item.events : []),
-            ...molecularTimelineEvents(patientId, firstDate, lastDate, molecularCoverage.get(patientId)),
+            ...assayTimelineEvents(patientId, firstDate, lastDate, assayCoverage.get(patientId)),
           ].map((event) => {
             const eventDate = String(event && event.event_date ? event.event_date : "").trim();
             return {
@@ -397,11 +397,11 @@ export function createDashboardUi(ctx) {
       });
   }
 
-  function molecularTimelineCoverage() {
+  function assayTimelineCoverage() {
     const coverage = new Map();
-    const datasets = Array.isArray(state.molecularDatasetsState) ? state.molecularDatasetsState : [];
+    const datasets = Array.isArray(state.assayDatasetsState) ? state.assayDatasetsState : [];
     datasets.forEach((dataset) => {
-      const datasetName = String(dataset && dataset.dataset_name ? dataset.dataset_name : "molecular dataset").trim();
+      const datasetName = String(dataset && dataset.dataset_name ? dataset.dataset_name : "transcriptomics assay").trim();
       const sampleIds = Array.isArray(dataset && dataset.sample_ids) ? dataset.sample_ids : [];
       const patientIds = Array.isArray(dataset && dataset.patient_ids) ? dataset.patient_ids : [];
       const addSample = (patientId, sampleId) => {
@@ -422,20 +422,20 @@ export function createDashboardUi(ctx) {
     return coverage;
   }
 
-  function molecularTimelineEvents(patientId, firstDate, lastDate, coverage) {
+  function assayTimelineEvents(patientId, firstDate, lastDate, coverage) {
     if (!patientId || !coverage) return [];
     const sampleIds = Array.from(coverage.sampleIds || []);
     const datasetNames = Array.from(coverage.datasetNames || []);
     const eventDate = firstDate || lastDate || "";
     return [{
-      visit_id: sampleIds.length ? `molecular:${sampleIds.slice(0, 2).join(",")}` : "molecular",
+      visit_id: sampleIds.length ? `assay:${sampleIds.slice(0, 2).join(",")}` : "assays",
       event_date: eventDate,
-      event_type: "molecular sample coverage",
+      event_type: "assay sample coverage",
       diagnosis: "",
       biosample_id: sampleIds.slice(0, 3).join(", "),
       domains: [{
-        key: "molecular",
-        label: "Molecular",
+        key: "assay",
+        label: "Assay",
         count: sampleIds.length || datasetNames.length,
         examples: datasetNames.slice(0, 3),
       }],
@@ -542,7 +542,7 @@ export function createDashboardUi(ctx) {
           </div>
           <span class="query-chip badge">${selected ? "Selected" : "Not selected"}</span>
         </div>
-        <div class="molecular-stats">
+        <div class="assay-stats">
           <span class="query-chip badge">Date: ${escapeHtml(row.event_date || "undated")}</span>
           ${row.event_type ? `<span class="query-chip badge">Type: ${escapeHtml(row.event_type)}</span>` : ""}
           ${row.diagnosis ? `<span class="query-chip badge">Diagnosis: ${escapeHtml(row.diagnosis)}</span>` : ""}
@@ -598,7 +598,7 @@ export function createDashboardUi(ctx) {
             <th>Date</th>
             <th>Domains</th>
             <th>Context</th>
-            <th>Molecular sample</th>
+            <th>Assay sample</th>
           </tr>
         </thead>
         <tbody>
@@ -1053,7 +1053,7 @@ export function createDashboardUi(ctx) {
           <div class="section-card-eyebrow">Longitudinal coverage</div>
           <h3>Patient timeline</h3>
         </div>
-        <div class="section-note">Click timeline bars or event markers to toggle one patient, or drag with the lasso/select tool to select several patients. Event markers are colored by BFF domain, including molecular sample coverage when present.</div>
+        <div class="section-note">Click timeline bars or event markers to toggle one patient, or drag with the lasso/select tool to select several patients. Event markers are colored by BFF domain, including assay sample coverage when present.</div>
         <div id="dashboard-timeline-controls" class="dashboard-timeline-controls"></div>
         <div class="dashboard-timeline-actions">
           <div id="dashboard-timeline-selection-status" class="section-note">Click timeline bars or event markers to build a patient selection.</div>
@@ -1082,11 +1082,11 @@ export function createDashboardUi(ctx) {
       <section class="section-card dashboard-hero">
         <h2>Clinical dashboard</h2>
         <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
-        <div class="molecular-kpi-grid">
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Timepoints</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Avg visits / patient</span><strong class="molecular-kpi-value">${escapeHtml(String(totals.avg_visits_per_patient || 0))}</strong></div>
-          <div class="molecular-kpi"><span class="molecular-kpi-label">Source files</span><strong class="molecular-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
+        <div class="assay-kpi-grid">
+          <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Timepoints</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Avg visits / patient</span><strong class="assay-kpi-value">${escapeHtml(String(totals.avg_visits_per_patient || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Source files</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
         </div>
       </section>
       ${overviewMarkup}
@@ -1157,8 +1157,8 @@ export function createDashboardUi(ctx) {
         analysisSelectedSavedCohortSelectionEl.innerHTML = "";
       }
     }
-    renderMolecularDatasetSelector();
-    renderMolecularDashboardCards(state.molecularDatasetsState);
+    renderAssayDatasetSelector();
+    renderAssayDashboardCards(state.assayDatasetsState);
     if (typeof renderAnalysisCatalog === "function") {
       renderAnalysisCatalog();
     }
@@ -1177,8 +1177,8 @@ export function createDashboardUi(ctx) {
       }
     }
     if (!compareMode) {
-      renderMolecularDatasetSelector();
-      renderMolecularDashboardCards(state.molecularDatasetsState);
+      renderAssayDatasetSelector();
+      renderAssayDashboardCards(state.assayDatasetsState);
       if (typeof renderAnalysisCatalog === "function") {
         renderAnalysisCatalog();
       }
@@ -1228,8 +1228,8 @@ export function createDashboardUi(ctx) {
         analysisCompareSavedCohortSelectionEl.innerHTML = "";
       }
     }
-    renderMolecularDatasetSelector();
-    renderMolecularDashboardCards(state.molecularDatasetsState);
+    renderAssayDatasetSelector();
+    renderAssayDashboardCards(state.assayDatasetsState);
     if (typeof renderAnalysisCatalog === "function") {
       renderAnalysisCatalog();
     }
@@ -1237,7 +1237,7 @@ export function createDashboardUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ render: true });
   }
 
-  function renderMolecularScopeCard(scope) {
+  function renderAssayScopeCard(scope) {
     const mean = typeof scope.mean === "number" ? scope.mean.toFixed(1) : "n/a";
     const median = typeof scope.median === "number" ? scope.median.toFixed(1) : "n/a";
     const min = scope.min === null || scope.min === undefined ? "n/a" : String(scope.min);
@@ -1250,9 +1250,9 @@ export function createDashboardUi(ctx) {
       ? `<div class="section-note">Showing 8 of ${values.length} measurements.</div>`
       : "";
     return `
-      <div class="molecular-scope-card">
+      <div class="assay-scope-card">
         <h4>${escapeHtml(scope.label || "Scope")}</h4>
-        <div class="molecular-stats">
+        <div class="assay-stats">
           <span class="query-chip badge">Samples: ${escapeHtml(String(scope.sample_count || 0))}</span>
           <span class="query-chip badge">Patients: ${escapeHtml(String(scope.patient_count || 0))}</span>
           <span class="query-chip badge">Mean: ${escapeHtml(mean)}</span>
@@ -1260,62 +1260,62 @@ export function createDashboardUi(ctx) {
           <span class="query-chip badge">Range: ${escapeHtml(min)} to ${escapeHtml(max)}</span>
         </div>
         ${values.length ? `
-          <div class="molecular-table-wrap">
-            <table class="molecular-table">
+          <div class="assay-table-wrap">
+            <table class="assay-table">
               <thead><tr><th>Patient</th><th>Sample</th><th>Raw count</th></tr></thead>
               <tbody>${preview}</tbody>
             </table>
           </div>
           ${more}
-        ` : '<div class="empty">No molecular samples matched this scope for the selected gene.</div>'}
+        ` : '<div class="empty">No assay samples matched this scope for the selected gene.</div>'}
       </div>
     `;
   }
 
-  function renderMolecularExpressionResult(payload) {
-    if (!analysisMolecularResultEl) return;
+  function renderAssayExpressionResult(payload) {
+    if (!analysisAssayResultEl) return;
     if (!payload) {
-      analysisMolecularResultEl.className = "molecular-result empty";
-      analysisMolecularResultEl.textContent = "No molecular expression summary yet.";
+      analysisAssayResultEl.className = "assay-result empty";
+      analysisAssayResultEl.textContent = "No transcriptomics expression summary yet.";
       return;
     }
     const payloads = Array.isArray(payload) ? payload : [payload];
     if (!payloads.length) {
-      analysisMolecularResultEl.className = "molecular-result empty";
-      analysisMolecularResultEl.textContent = "No molecular expression summary yet.";
+      analysisAssayResultEl.className = "assay-result empty";
+      analysisAssayResultEl.textContent = "No transcriptomics expression summary yet.";
       return;
     }
-    analysisMolecularResultEl.className = "molecular-result";
-    analysisMolecularResultEl.innerHTML = payloads.map((item) => {
-      const sections = [renderMolecularScopeCard(item.scope_a)];
-      if (item.scope_b) sections.push(renderMolecularScopeCard(item.scope_b));
+    analysisAssayResultEl.className = "assay-result";
+    analysisAssayResultEl.innerHTML = payloads.map((item) => {
+      const sections = [renderAssayScopeCard(item.scope_a)];
+      if (item.scope_b) sections.push(renderAssayScopeCard(item.scope_b));
       const geneTooltip = [
         String(item.gene_id || "").trim(),
         String(item.gene_symbol || "").trim(),
         String(item.gene_name || "").trim(),
       ].filter(Boolean).join(" • ");
       const geneMarkup = item.ensembl_url
-        ? `<a class="molecular-result-gene-link" href="${escapeHtml(item.ensembl_url)}" target="_blank" rel="noopener" title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</a>`
+        ? `<a class="assay-result-gene-link" href="${escapeHtml(item.ensembl_url)}" target="_blank" rel="noopener" title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</a>`
         : `<span title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</span>`;
       return `
-        <div class="molecular-expression-card">
-          <div class="molecular-result-header">
+        <div class="transcriptomics-expression-card">
+          <div class="assay-result-header">
             <strong>${geneMarkup}</strong>
             ${item.gene_symbol && item.gene_symbol !== item.gene_id ? `<span class="query-chip badge">${escapeHtml(item.gene_symbol)}</span>` : ""}
             <span class="query-chip badge">${escapeHtml(item.dataset_name)}</span>
           </div>
-          <div class="molecular-result-grid">${sections.join("")}</div>
+          <div class="assay-result-grid">${sections.join("")}</div>
         </div>
       `;
     }).join("");
   }
 
-  function selectedMolecularDatasetNames() {
-    return state.selectedMolecularDatasets.slice();
+  function selectedAssayDatasetNames() {
+    return state.selectedAssayDatasets.slice();
   }
 
-  function molecularDatasetListElements() {
-    return [analysisMolecularDatasetListEl, analysisCatalogMolecularDatasetListEl].filter(Boolean);
+  function assayDatasetListElements() {
+    return [analysisAssayDatasetListEl, analysisCatalogAssayDatasetListEl].filter(Boolean);
   }
 
   function currentAnalysisCatalogItem() {
@@ -1324,26 +1324,25 @@ export function createDashboardUi(ctx) {
       : null;
   }
 
-  function requiresSingleSelectedMolecularDataset(item) {
+  function requiresSingleSelectedAssayDataset(item) {
     const itemId = String(item && item.id ? item.id : "").trim();
-    return itemId === "molecular-differential-expression"
-      || itemId === "molecular-deseq2-differential-expression"
-      || itemId === "molecular-hallmark-pathway-enrichment"
-      || itemId === "molecular-signature-workflow";
+    return itemId === "transcriptomics-deseq2-differential-expression"
+      || itemId === "transcriptomics-hallmark-pathway-enrichment"
+      || itemId === "transcriptomics-signature-workflow";
   }
 
-  function contextualMolecularDatasets() {
+  function contextualAssayDatasets() {
     const item = currentAnalysisCatalogItem();
-    if (!item || !item.requires_molecular) {
+    if (!item || !item.requires_assays) {
       return [];
     }
     const compareRequired = Boolean(item.default_compare_mode);
-    const compatibleDatasets = state.molecularDatasetsState.filter((dataset) => {
+    const compatibleDatasets = state.assayDatasetsState.filter((dataset) => {
       const patientIds = Array.isArray(dataset && dataset.patient_ids) ? dataset.patient_ids : [];
       if (!patientIds.length) {
         return true;
       }
-      const overlap = currentMolecularScopeOverlap(patientIds);
+      const overlap = currentAssayScopeOverlap(patientIds);
       if (compareRequired) {
         return overlap.overlapA > 0 && overlap.overlapB > 0;
       }
@@ -1353,42 +1352,42 @@ export function createDashboardUi(ctx) {
       return true;
     });
     const compatibleNames = new Set(compatibleDatasets.map((dataset) => dataset.dataset_name));
-    const filteredSelected = state.selectedMolecularDatasets.filter((name) => compatibleNames.has(name));
-    if (filteredSelected.length !== state.selectedMolecularDatasets.length) {
-      state.selectedMolecularDatasets = filteredSelected;
+    const filteredSelected = state.selectedAssayDatasets.filter((name) => compatibleNames.has(name));
+    if (filteredSelected.length !== state.selectedAssayDatasets.length) {
+      state.selectedAssayDatasets = filteredSelected;
     }
     if (
-      requiresSingleSelectedMolecularDataset(item)
+      requiresSingleSelectedAssayDataset(item)
       && compatibleDatasets.length === 1
       && (
-        state.selectedMolecularDatasets.length !== 1
-        || state.selectedMolecularDatasets[0] !== compatibleDatasets[0].dataset_name
+        state.selectedAssayDatasets.length !== 1
+        || state.selectedAssayDatasets[0] !== compatibleDatasets[0].dataset_name
       )
     ) {
-      state.selectedMolecularDatasets = [compatibleDatasets[0].dataset_name];
+      state.selectedAssayDatasets = [compatibleDatasets[0].dataset_name];
     }
     return compatibleDatasets;
   }
 
-  function renderMolecularDatasetSelector() {
+  function renderAssayDatasetSelector() {
     const item = currentAnalysisCatalogItem();
-    const contextRequiresMolecular = Boolean(item && item.requires_molecular);
-    const mainListEl = analysisMolecularDatasetListEl;
-    const contextualListEl = analysisCatalogMolecularDatasetListEl;
+    const contextRequiresAssay = Boolean(item && item.requires_assays);
+    const mainListEl = analysisAssayDatasetListEl;
+    const contextualListEl = analysisCatalogAssayDatasetListEl;
     if (!mainListEl && !contextualListEl) return;
-    if (!state.molecularDatasetsState.length) {
-      if (mainListEl) mainListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
-      if (contextualListEl) contextualListEl.innerHTML = '<div class="empty">No molecular dataset loaded</div>';
+    if (!state.assayDatasetsState.length) {
+      if (mainListEl) mainListEl.innerHTML = '<div class="empty">No assay loaded</div>';
+      if (contextualListEl) contextualListEl.innerHTML = '<div class="empty">No assay loaded</div>';
       return;
     }
-    const selected = new Set(state.selectedMolecularDatasets);
+    const selected = new Set(state.selectedAssayDatasets);
     const renderOption = (dataset, options = {}) => {
-      const overlap = currentMolecularScopeOverlap(dataset.patient_ids);
+      const overlap = currentAssayScopeOverlap(dataset.patient_ids);
       const small = options.includeOverlap
         ? `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
         : `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(dataset.gene_count || 0))} genes`;
       return `
-      <label class="molecular-dataset-option">
+      <label class="assay-dataset-option">
         <input type="checkbox" value="${escapeHtml(dataset.dataset_name)}"${selected.has(dataset.dataset_name) ? " checked" : ""}>
         <span>
           <strong>${escapeHtml(dataset.dataset_name)}</strong>
@@ -1398,45 +1397,45 @@ export function createDashboardUi(ctx) {
     `;
     };
     if (mainListEl) {
-      mainListEl.innerHTML = state.molecularDatasetsState.map((dataset) => renderOption(dataset)).join("");
+      mainListEl.innerHTML = state.assayDatasetsState.map((dataset) => renderOption(dataset)).join("");
     }
     if (contextualListEl) {
-      if (!contextRequiresMolecular) {
-        contextualListEl.innerHTML = '<div class="empty">Choose a molecular analysis to select a compatible dataset.</div>';
+      if (!contextRequiresAssay) {
+        contextualListEl.innerHTML = '<div class="empty">Choose an assay analysis to select a compatible assay.</div>';
         return;
       }
-      const availableDatasets = contextualMolecularDatasets();
+      const availableDatasets = contextualAssayDatasets();
       if (!availableDatasets.length) {
-        contextualListEl.innerHTML = '<div class="empty">No molecular datasets are available in this workspace.</div>';
+        contextualListEl.innerHTML = '<div class="empty">No transcriptomics assays are available in this workspace.</div>';
         return;
       }
       contextualListEl.innerHTML = availableDatasets.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("");
     }
   }
 
-  function syncSelectedMolecularDatasets() {
-    const available = new Set(state.molecularDatasetsState.map((item) => item.dataset_name));
-    state.selectedMolecularDatasets = state.selectedMolecularDatasets.filter((item) => available.has(item));
-    renderMolecularDatasetSelector();
+  function syncSelectedAssayDatasets() {
+    const available = new Set(state.assayDatasetsState.map((item) => item.dataset_name));
+    state.selectedAssayDatasets = state.selectedAssayDatasets.filter((item) => available.has(item));
+    renderAssayDatasetSelector();
   }
 
-  function clearMolecularWorkspaceSelection() {
-    state.selectedMolecularDatasets = [];
-    if (analysisMolecularGeneEl) {
-      analysisMolecularGeneEl.value = "";
+  function clearAssayWorkspaceSelection() {
+    state.selectedAssayDatasets = [];
+    if (analysisAssayGeneEl) {
+      analysisAssayGeneEl.value = "";
     }
-    renderMolecularExpressionResult(null);
+    renderAssayExpressionResult(null);
   }
 
-  function molecularDatasetOverlap(datasetName) {
+  function assayDatasetOverlap(datasetName) {
     const normalizedName = String(datasetName || "").trim();
     if (!normalizedName) return null;
-    const dataset = state.molecularDatasetsState.find((item) => String(item && item.dataset_name ? item.dataset_name : "").trim() === normalizedName);
+    const dataset = state.assayDatasetsState.find((item) => String(item && item.dataset_name ? item.dataset_name : "").trim() === normalizedName);
     if (!dataset) return null;
-    return currentMolecularScopeOverlap(dataset.patient_ids);
+    return currentAssayScopeOverlap(dataset.patient_ids);
   }
 
-  function currentMolecularScopeOverlap(patientIds) {
+  function currentAssayScopeOverlap(patientIds) {
     const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map((item) => String(item)));
     const selectedCohortA = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
@@ -1461,15 +1460,15 @@ export function createDashboardUi(ctx) {
     return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
   }
 
-  function renderMolecularDashboardCards(datasets) {
-    if (!molecularDashboardCardsEl) return;
+  function renderAssayDashboardCards(datasets) {
+    if (!assayDashboardCardsEl) return;
     if (!Array.isArray(datasets) || !datasets.length) {
-      molecularDashboardCardsEl.innerHTML = '<div class="empty">No molecular datasets loaded.</div>';
+      assayDashboardCardsEl.innerHTML = '<div class="empty">No transcriptomics assays loaded.</div>';
       return;
     }
-    const formatMolecularModality = (value) => {
-      const text = String(value || "molecular").trim();
-      if (!text) return "Molecular";
+    const formatAssayModality = (value) => {
+      const text = String(value || "assay").trim();
+      if (!text) return "Assays";
       return text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
     };
     const workspaceSummary = datasets.reduce((summary, item) => {
@@ -1484,20 +1483,20 @@ export function createDashboardUi(ctx) {
       patientCount: 0,
       geneCount: 0,
     });
-    molecularDashboardCardsEl.innerHTML = `
-      <section class="molecular-workspace-summary">
-        <div class="molecular-workspace-summary-copy">
-          <strong class="molecular-workspace-summary-title">Molecular workspace</strong>
+    assayDashboardCardsEl.innerHTML = `
+      <section class="assay-workspace-summary">
+        <div class="assay-workspace-summary-copy">
+          <strong class="assay-workspace-summary-title">Assay workspace</strong>
         </div>
-        <div class="molecular-workspace-kpis">
-          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Datasets</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>
-          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.sampleCount))}</strong></div>
-          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.patientCount))}</strong></div>
-          <div class="molecular-kpi molecular-kpi-compact"><span class="molecular-kpi-label">Max genes / dataset</span><strong class="molecular-kpi-value">${escapeHtml(String(workspaceSummary.geneCount))}</strong></div>
+        <div class="assay-workspace-kpis">
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Datasets</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.datasetCount))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.sampleCount))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.patientCount))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Max genes / dataset</span><strong class="assay-kpi-value">${escapeHtml(String(workspaceSummary.geneCount))}</strong></div>
         </div>
       </section>
       ${datasets.map((item) => {
-      const overlap = currentMolecularScopeOverlap(item.patient_ids);
+      const overlap = currentAssayScopeOverlap(item.patient_ids);
       const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
       const topGenesMarkup = topGenes.length
         ? topGenes.map((gene) => {
@@ -1508,16 +1507,16 @@ export function createDashboardUi(ctx) {
             `Total raw count: ${String(gene.total_raw_count || 0)}`,
           ].filter(Boolean).join(" • ");
           if (gene.ensembl_url) {
-            return `<a class="molecular-gene-pill molecular-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
+            return `<a class="assay-gene-pill assay-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
           }
-          return `<span class="molecular-gene-pill" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</span>`;
+          return `<span class="assay-gene-pill" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</span>`;
         }).join("")
         : '<span class="section-note">No top-gene summary available.</span>';
       const overlapMarkup = overlap.scopeASize || overlap.scopeBSize
         ? `
-          <div class="molecular-card-section">
+          <div class="assay-card-section">
             <strong>Current Analysis scope</strong>
-            <div class="molecular-stats">
+            <div class="assay-stats">
               <span class="query-chip badge">A overlap: ${escapeHtml(String(overlap.overlapA))} / ${escapeHtml(String(overlap.scopeASize || item.clinical_overlap_patient_count || 0))}</span>
               ${analysisCompareModeEl && analysisCompareModeEl.checked ? `<span class="query-chip badge">B overlap: ${escapeHtml(String(overlap.overlapB))} / ${escapeHtml(String(overlap.scopeBSize || item.clinical_overlap_patient_count || 0))}</span>` : ""}
             </div>
@@ -1525,55 +1524,55 @@ export function createDashboardUi(ctx) {
         `
         : "";
       return `
-        <article class="molecular-dashboard-card">
-          <div class="molecular-card-header">
+        <article class="assay-dashboard-card">
+          <div class="assay-card-header">
             <div>
-              <div class="molecular-card-eyebrow">Loaded dataset</div>
-              <strong class="molecular-card-title">${escapeHtml(item.dataset_name)}</strong>
+              <div class="assay-card-eyebrow">Loaded assay</div>
+              <strong class="assay-card-title">${escapeHtml(item.dataset_name)}</strong>
             </div>
-            <span class="query-chip badge molecular-modality-badge">${escapeHtml(formatMolecularModality(item.modality))}</span>
+            <span class="query-chip badge assay-modality-badge">${escapeHtml(formatAssayModality(item.modality))}</span>
           </div>
-          <div class="molecular-card-meta">
+          <div class="assay-card-meta">
             <span class="dataset-picker-tag">${escapeHtml(item.dataset_name)}</span>
-            <span class="dataset-picker-tag">${escapeHtml(formatMolecularModality(item.modality))}</span>
+            <span class="dataset-picker-tag">${escapeHtml(formatAssayModality(item.modality))}</span>
           </div>
-          <div class="molecular-kpi-grid">
-            <div class="molecular-kpi"><span class="molecular-kpi-label">Samples</span><strong class="molecular-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
-            <div class="molecular-kpi"><span class="molecular-kpi-label">Patients</span><strong class="molecular-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
-            <div class="molecular-kpi"><span class="molecular-kpi-label">Genes</span><strong class="molecular-kpi-value">${escapeHtml(String(item.gene_count || 0))}</strong></div>
-            <div class="molecular-kpi"><span class="molecular-kpi-label">Clinical overlap</span><strong class="molecular-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
+          <div class="assay-kpi-grid">
+            <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
+            <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
+            <div class="assay-kpi"><span class="assay-kpi-label">Genes</span><strong class="assay-kpi-value">${escapeHtml(String(item.gene_count || 0))}</strong></div>
+            <div class="assay-kpi"><span class="assay-kpi-label">Clinical overlap</span><strong class="assay-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
           </div>
-          <div class="molecular-card-section">
+          <div class="assay-card-section">
             <strong>Sample-level summary</strong>
-            <div class="molecular-summary-grid">
-              <div class="molecular-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
-              <div class="molecular-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
+            <div class="assay-summary-grid">
+              <div class="assay-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
+              <div class="assay-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
             </div>
           </div>
           ${overlapMarkup}
-          <div class="molecular-card-section">
+          <div class="assay-card-section">
             <strong>Top abundant genes</strong>
-            <div class="molecular-gene-list">${topGenesMarkup}</div>
+            <div class="assay-gene-list">${topGenesMarkup}</div>
           </div>
         </article>
       `;
     }).join("")}`;
   }
 
-  async function loadMolecularGeneSuggestions() {
-    if (!analysisMolecularGenesEl) return;
-    const datasetNames = selectedMolecularDatasetNames();
+  async function loadAssayFeatureSuggestions() {
+    if (!analysisAssayGenesEl) return;
+    const datasetNames = selectedAssayDatasetNames();
     if (!datasetNames.length) {
-      analysisMolecularGenesEl.innerHTML = "";
+      analysisAssayGenesEl.innerHTML = "";
       return;
     }
-    const query = encodeURIComponent(String(analysisMolecularGeneEl && analysisMolecularGeneEl.value ? analysisMolecularGeneEl.value.trim() : ""));
+    const query = encodeURIComponent(String(analysisAssayGeneEl && analysisAssayGeneEl.value ? analysisAssayGeneEl.value.trim() : ""));
     const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
     try {
       const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
         const dataset = encodeURIComponent(datasetName);
-        const response = await fetch(`/molecular/genes?data_dir=${dataDir}&dataset_name=${dataset}&q=${query}&limit=50`);
-        if (!response.ok) throw new Error("Unable to load molecular genes.");
+        const response = await fetch(`/assays/features?data_dir=${dataDir}&assay_id=${dataset}&q=${query}&limit=50`);
+        if (!response.ok) throw new Error("Unable to load assay features.");
         return response.json();
       }));
       const genes = Array.from(new Set(payloads.flatMap((payload) => Array.isArray(payload.genes) ? payload.genes : []))).sort();
@@ -1581,7 +1580,7 @@ export function createDashboardUi(ctx) {
         const current = payload && payload.annotations && typeof payload.annotations === "object" ? payload.annotations : {};
         return { ...acc, ...current };
       }, {});
-      analysisMolecularGenesEl.innerHTML = genes.map((geneId) => {
+      analysisAssayGenesEl.innerHTML = genes.map((geneId) => {
         const annotation = annotations[geneId] && typeof annotations[geneId] === "object" ? annotations[geneId] : {};
         const geneSymbol = String(annotation.gene_symbol || "").trim();
         const geneName = String(annotation.gene_name || "").trim();
@@ -1590,80 +1589,80 @@ export function createDashboardUi(ctx) {
         return `<option value="${escapeHtml(geneId)}" label="${escapeHtml(label)}" title="${escapeHtml(title || geneId)}"></option>`;
       }).join("");
     } catch (_error) {
-      analysisMolecularGenesEl.innerHTML = "";
+      analysisAssayGenesEl.innerHTML = "";
     }
   }
 
-  async function loadMolecularDatasets(options = {}) {
-    if (!analysisMolecularStatusEl || !molecularDashboardStatusEl) return;
+  async function loadAssayDatasets(options = {}) {
+    if (!analysisAssayStatusEl || !assayDashboardStatusEl) return;
     const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
-    const previousScopeId = String(state.molecularDatasetsScopeId || "").trim();
+    const previousScopeId = String(state.assayDatasetsScopeId || "").trim();
     const scopeChanged = previousScopeId !== scopeId;
-    state.molecularDatasetsScopeId = scopeId;
+    state.assayDatasetsScopeId = scopeId;
     if (scopeChanged) {
-      clearMolecularWorkspaceSelection();
+      clearAssayWorkspaceSelection();
     }
     const dataDir = encodeURIComponent(scopeId);
-    analysisMolecularStatusEl.className = "query-status loading";
-    analysisMolecularStatusEl.textContent = "Checking molecular datasets...";
-    if (analysisCatalogMolecularStatusEl) {
-      analysisCatalogMolecularStatusEl.textContent = "Checking molecular datasets...";
+    analysisAssayStatusEl.className = "query-status loading";
+    analysisAssayStatusEl.textContent = "Checking transcriptomics assays...";
+    if (analysisCatalogAssayStatusEl) {
+      analysisCatalogAssayStatusEl.textContent = "Checking transcriptomics assays...";
     }
-    molecularDashboardStatusEl.className = "query-status loading";
-    molecularDashboardStatusEl.textContent = "Checking molecular datasets...";
+    assayDashboardStatusEl.className = "query-status loading";
+    assayDashboardStatusEl.textContent = "Checking transcriptomics assays...";
     try {
       const payload = options.prefetched && typeof options.prefetched === "object"
         ? options.prefetched
         : await (async () => {
-          const response = await fetch(`/molecular/datasets?data_dir=${dataDir}`);
-          if (!response.ok) throw new Error("Unable to load molecular datasets.");
+          const response = await fetch(`/assays?data_dir=${dataDir}`);
+          if (!response.ok) throw new Error("Unable to load transcriptomics assays.");
           return response.json();
         })();
       const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
-      state.molecularDatasetsState = datasets;
-      syncSelectedMolecularDatasets();
-      renderMolecularDashboardCards(state.molecularDatasetsState);
-      if (typeof renderAnalysisCatalogMolecularPanel === "function") {
-        renderAnalysisCatalogMolecularPanel();
+      state.assayDatasetsState = datasets;
+      syncSelectedAssayDatasets();
+      renderAssayDashboardCards(state.assayDatasetsState);
+      if (typeof renderAnalysisCatalogAssayPanel === "function") {
+        renderAnalysisCatalogAssayPanel();
       }
       if (typeof renderAnalysisCatalog === "function") {
         renderAnalysisCatalog();
       }
       if (!datasets.length) {
-        analysisMolecularStatusEl.className = "query-status";
-        analysisMolecularStatusEl.textContent = "No molecular datasets are currently available for quick expression checks.";
-        if (analysisCatalogMolecularStatusEl) {
-          analysisCatalogMolecularStatusEl.textContent = "No molecular datasets are currently available in this workspace.";
+        analysisAssayStatusEl.className = "query-status";
+        analysisAssayStatusEl.textContent = "No transcriptomics assays are currently available for quick expression checks.";
+        if (analysisCatalogAssayStatusEl) {
+          analysisCatalogAssayStatusEl.textContent = "No transcriptomics assays are currently available in this workspace.";
         }
-        molecularDashboardStatusEl.className = "query-status";
-        molecularDashboardStatusEl.textContent = "No molecular datasets are currently available.";
-        renderMolecularExpressionResult(null);
+        assayDashboardStatusEl.className = "query-status";
+        assayDashboardStatusEl.textContent = "No transcriptomics assays are currently available.";
+        renderAssayExpressionResult(null);
         return;
       }
-      analysisMolecularStatusEl.className = "query-status";
-      analysisMolecularStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"} for quick expression checks.`;
-      if (analysisCatalogMolecularStatusEl) {
-        analysisCatalogMolecularStatusEl.textContent = datasets.length === 1
-          ? `1 molecular dataset available for Analysis.`
-          : `${datasets.length} molecular datasets available. Some molecular tools require exactly one selected dataset.`;
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = `Loaded ${datasets.length} transcriptomics assay${datasets.length === 1 ? "" : "s"} for quick expression checks.`;
+      if (analysisCatalogAssayStatusEl) {
+        analysisCatalogAssayStatusEl.textContent = datasets.length === 1
+          ? `1 transcriptomics assay available for Analysis.`
+          : `${datasets.length} transcriptomics assays available. Some assay tools require exactly one selected assay.`;
       }
-      molecularDashboardStatusEl.className = "query-status";
-      molecularDashboardStatusEl.textContent = `Loaded ${datasets.length} molecular dataset${datasets.length === 1 ? "" : "s"}.`;
-      await loadMolecularGeneSuggestions();
+      assayDashboardStatusEl.className = "query-status";
+      assayDashboardStatusEl.textContent = `Loaded ${datasets.length} transcriptomics assay${datasets.length === 1 ? "" : "s"}.`;
+      await loadAssayFeatureSuggestions();
     } catch (error) {
-      analysisMolecularStatusEl.className = "query-status";
-      analysisMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
-      if (analysisCatalogMolecularStatusEl) {
-        analysisCatalogMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
+      if (analysisCatalogAssayStatusEl) {
+        analysisCatalogAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
       }
-      molecularDashboardStatusEl.className = "query-status";
-      molecularDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load molecular datasets.";
-      state.molecularDatasetsState = [];
-      clearMolecularWorkspaceSelection();
-      renderMolecularDatasetSelector();
-      renderMolecularDashboardCards(state.molecularDatasetsState);
-      if (typeof renderAnalysisCatalogMolecularPanel === "function") {
-        renderAnalysisCatalogMolecularPanel();
+      assayDashboardStatusEl.className = "query-status";
+      assayDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
+      state.assayDatasetsState = [];
+      clearAssayWorkspaceSelection();
+      renderAssayDatasetSelector();
+      renderAssayDashboardCards(state.assayDatasetsState);
+      if (typeof renderAnalysisCatalogAssayPanel === "function") {
+        renderAnalysisCatalogAssayPanel();
       }
       if (typeof renderAnalysisCatalog === "function") {
         renderAnalysisCatalog();
@@ -1671,17 +1670,17 @@ export function createDashboardUi(ctx) {
     }
   }
 
-  async function runMolecularExpressionAnalysis() {
-    if (!analysisMolecularGeneEl || !analysisMolecularStatusEl) return;
-    const datasetNames = selectedMolecularDatasetNames();
-    const geneId = String(analysisMolecularGeneEl.value || "").trim();
+  async function runAssayExpressionAnalysis() {
+    if (!analysisAssayGeneEl || !analysisAssayStatusEl) return;
+    const datasetNames = selectedAssayDatasetNames();
+    const geneId = String(analysisAssayGeneEl.value || "").trim();
     if (!datasetNames.length || !geneId) {
-      analysisMolecularStatusEl.className = "query-status";
-      analysisMolecularStatusEl.textContent = "Choose at least one molecular dataset and a gene ID first.";
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = "Choose at least one transcriptomics assay and a gene ID first.";
       return;
     }
-    analysisMolecularStatusEl.className = "query-status loading";
-    analysisMolecularStatusEl.textContent = "Fetching molecular expression summary...";
+    analysisAssayStatusEl.className = "query-status loading";
+    analysisAssayStatusEl.textContent = "Fetching transcriptomics expression summary...";
     try {
       const selectedCohortA = Array.isArray(state.savedCohorts)
         ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
@@ -1690,12 +1689,12 @@ export function createDashboardUi(ctx) {
         ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
         : null;
       const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
-        const response = await fetch("/molecular/expression", {
+        const response = await fetch("/assays/expression", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
-            dataset_name: datasetName,
+            assay_id: datasetName,
             gene_id: geneId,
             selected_patient_ids: selectedCohortA && Array.isArray(selectedCohortA.patient_ids)
               ? selectedCohortA.patient_ids.join(",")
@@ -1707,37 +1706,37 @@ export function createDashboardUi(ctx) {
               : "",
           }),
         });
-        if (!response.ok) throw new Error("Unable to fetch molecular expression.");
+        if (!response.ok) throw new Error("Unable to fetch transcriptomics expression.");
         return response.json();
       }));
-      renderMolecularExpressionResult(payloads);
-      analysisMolecularStatusEl.className = "query-status";
-      analysisMolecularStatusEl.textContent = `Expression summary ready for ${geneId} across ${datasetNames.length} dataset${datasetNames.length === 1 ? "" : "s"}.`;
+      renderAssayExpressionResult(payloads);
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = `Expression summary ready for ${geneId} across ${datasetNames.length} assay${datasetNames.length === 1 ? "" : "s"}.`;
     } catch (error) {
-      renderMolecularExpressionResult(null);
-      analysisMolecularStatusEl.className = "query-status";
-      analysisMolecularStatusEl.textContent = error && error.message ? error.message : "Unable to fetch molecular expression.";
+      renderAssayExpressionResult(null);
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = error && error.message ? error.message : "Unable to fetch transcriptomics expression.";
     }
   }
 
-  function handleMolecularDatasetSelectionChange(sourceEl = null, changedInput = null) {
-    const listEl = sourceEl || analysisMolecularDatasetListEl || analysisCatalogMolecularDatasetListEl;
+  function handleAssayDatasetSelectionChange(sourceEl = null, changedInput = null) {
+    const listEl = sourceEl || analysisAssayDatasetListEl || analysisCatalogAssayDatasetListEl;
     if (!listEl) return;
     let selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked'))
       .map((item) => item.value)
       .filter(Boolean);
     const item = currentAnalysisCatalogItem();
-    if (requiresSingleSelectedMolecularDataset(item) && selected.length > 1) {
+    if (requiresSingleSelectedAssayDataset(item) && selected.length > 1) {
       const changedValue = changedInput && changedInput.checked ? String(changedInput.value || "").trim() : "";
       selected = changedValue ? [changedValue] : selected.slice(-1);
     }
-    state.selectedMolecularDatasets = selected;
-    renderMolecularDatasetSelector();
-    void loadMolecularGeneSuggestions();
+    state.selectedAssayDatasets = selected;
+    renderAssayDatasetSelector();
+    void loadAssayFeatureSuggestions();
   }
 
-  function handleMolecularGeneInput() {
-    void loadMolecularGeneSuggestions();
+  function handleAssayFeatureInput() {
+    void loadAssayFeatureSuggestions();
   }
 
   return {
@@ -1746,14 +1745,14 @@ export function createDashboardUi(ctx) {
     renderDashboard,
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
-    renderMolecularDatasetSelector,
-    renderMolecularExpressionResult,
-    renderMolecularDashboardCards,
-    loadMolecularDatasets,
-    runMolecularExpressionAnalysis,
-    handleMolecularDatasetSelectionChange,
-    handleMolecularGeneInput,
-    molecularDatasetOverlap,
+    renderAssayDatasetSelector,
+    renderAssayExpressionResult,
+    renderAssayDashboardCards,
+    loadAssayDatasets,
+    runAssayExpressionAnalysis,
+    handleAssayDatasetSelectionChange,
+    handleAssayFeatureInput,
+    assayDatasetOverlap,
     toggleTimelinePatientSelection,
   };
 }

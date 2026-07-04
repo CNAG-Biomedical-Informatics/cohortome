@@ -30,7 +30,7 @@
               <img class="auth-gate-heading-logo" src="/static/img/biomedical-research-navigator-logo.png" alt="Biomedical Research Navigator logo">
               <h2>Sign in</h2>
             </div>
-            <p>Authentication is required before any clinical, molecular, or analysis workspace is shown.</p>
+            <p>Authentication is required before any clinical, assay, or analysis workspace is shown.</p>
           </div>
           <div id="authGateStatus" class="section-note">Enter your credentials to open your private workspace.</div>
           <div id="authOidcForm" class="auth-oidc-form is-hidden">
@@ -217,7 +217,7 @@
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderGraph" type="checkbox"> Render Pheno graph</label>
-          <label class="user-settings-check"><input id="settingsDashboardMolecularOpen" type="checkbox"> Open Dashboard on molecular view</label>
+          <label class="user-settings-check"><input id="settingsDashboardAssaysOpen" type="checkbox"> Open Dashboard on assays view</label>
           <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
         </div>
         <div class="user-settings-danger">
@@ -292,7 +292,7 @@
             </span>
             <span>Clinical</span>
           </button>
-          <button id="dashboardMolecularBtn" type="button" class="dashboard-subtab">
+          <button id="dashboardAssaysBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path>
@@ -301,7 +301,7 @@
                 <path d="M8 18h8"></path>
               </svg>
             </span>
-            <span>Molecular</span>
+            <span>Assays</span>
           </button>
         </div>
         </div>
@@ -448,30 +448,30 @@
             </div>
           </div>
         </section>
-        <section id="dashboardMolecularPanel" class="dashboard-subpanel">
+        <section id="dashboardAssaysPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <div id="molecularDashboardStatus" class="query-status molecular-status-strip">Checking molecular datasets...</div>
-            <div id="molecularDashboardCards" class="molecular-dashboard-grid">
-              <div class="empty">No molecular datasets loaded.</div>
+            <div id="assayDashboardStatus" class="query-status assay-status-strip">Checking transcriptomics assays...</div>
+            <div id="assayDashboardCards" class="assay-dashboard-grid">
+              <div class="empty">No transcriptomics assays loaded.</div>
             </div>
             <details class="query-section">
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Quick expression check</span></span></summary>
               <div class="section-note">A small deterministic lookup tool using the current Analysis scope. Real multimodal interpretation will stay in Analysis.</div>
-              <div class="molecular-grid" style="margin-top:12px;">
+              <div class="assay-grid" style="margin-top:12px;">
                 <div>
                   <label>Transcriptomics datasets</label>
-                  <div id="analysisMolecularDatasetList" class="molecular-dataset-select">
-                    <div class="empty">No molecular dataset loaded</div>
+                  <div id="analysisAssayDatasetList" class="assay-dataset-select">
+                    <div class="empty">No assay loaded</div>
                   </div>
                 </div>
                 <div>
-                  <label for="analysisMolecularGene">Gene ID</label>
-                  <input id="analysisMolecularGene" list="analysisMolecularGenes" placeholder="e.g. ENSG00000169429">
-                  <datalist id="analysisMolecularGenes"></datalist>
+                  <label for="analysisAssayGene">Gene ID</label>
+                  <input id="analysisAssayGene" list="analysisAssayGenes" placeholder="e.g. ENSG00000169429">
+                  <datalist id="analysisAssayGenes"></datalist>
                 </div>
               </div>
               <div class="query-row" style="margin-top:12px;">
-                <button id="analysisMolecularRunBtn" type="button">
+                <button id="analysisAssayRunBtn" type="button">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M4 19h16"></path>
@@ -481,8 +481,8 @@
                   <span>Show expression</span>
                 </button>
               </div>
-              <div id="analysisMolecularStatus" class="query-status" style="margin-top:10px;">Choose a dataset and gene to inspect expression in the current Analysis scope.</div>
-              <div id="analysisMolecularResult" class="molecular-result empty" style="margin-top:12px;">No molecular expression summary yet.</div>
+              <div id="analysisAssayStatus" class="query-status" style="margin-top:10px;">Choose an assay and gene to inspect expression in the current Analysis scope.</div>
+              <div id="analysisAssayResult" class="assay-result empty" style="margin-top:12px;">No transcriptomics expression summary yet.</div>
             </details>
           </div>
         </section>
@@ -529,7 +529,7 @@
           <div id="datasetAdminList" class="dataset-picker-list">
             <div class="empty">No dataset administration entries available.</div>
           </div>
-          <div class="section-note">Shared clinical and molecular data are managed globally for all users.</div>
+          <div class="section-note">Shared clinical and assay data are managed globally for all users.</div>
         </div>
       </section>
 
@@ -1142,7 +1142,7 @@
                         <button type="button" class="query-chip query-chip-planner" data-analysis-prompt="Compare the active analysis scopes by disease burden, medication burden, and timepoint distribution."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Compare A vs B core profiles</span></button>
                         <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the disease and medication profiles in this workspace and summarize the main themes."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret disease and medication profiles</span></button>
                         <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a concise workspace briefing for a clinician, including what stands out and what needs validation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinician-facing workspace briefing</span></button>
-                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the current analysis scope profile and the observed molecular expression findings."><span class="analysis-domain-icons" aria-hidden="true"><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span></span><span>Clinical + molecular summary</span></button>
+                        <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Write a short clinician-facing summary combining the current analysis scope profile and the observed transcriptomics expression findings."><span class="analysis-domain-icons" aria-hidden="true"><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span class="analysis-domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg></span></span><span>Clinical + assay summary</span></button>
                         <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Compare the active analysis scopes like a clinical reviewer and summarize the main similarities, differences, and uncertainties."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Clinical review of A vs B</span></button>
                         <button type="button" class="query-chip query-chip-llm" data-analysis-llm-only="true" data-analysis-prompt="Interpret the selected workspace subset as a possible clinical subgroup and explain what evidence supports that interpretation."><span class="analysis-domain-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"></path><path d="M8 5h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path><path d="M9 10h6"></path><path d="M9 14h6"></path></svg></span><span>Interpret selected subgroup</span></button>
                       </div>
@@ -1170,7 +1170,7 @@
                   <div id="analysisCatalogDrawerFilters" class="analysis-catalog-filters" role="tablist" aria-label="Analysis Catalog filters">
                     <button type="button" class="query-chip is-active" data-analysis-catalog-filter="all" aria-pressed="true">All</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="clinical" aria-pressed="false">Clinical</button>
-                    <button type="button" class="query-chip" data-analysis-catalog-filter="molecular" aria-pressed="false">Molecular</button>
+                    <button type="button" class="query-chip" data-analysis-catalog-filter="assay" aria-pressed="false">Assays</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="workflow" aria-pressed="false">Workflow</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="background" aria-pressed="false">Background</button>
                     <button type="button" class="query-chip" data-analysis-catalog-filter="external" aria-pressed="false">External</button>
@@ -1220,17 +1220,17 @@
                 <div id="analysisCatalogList" class="analysis-catalog-featured is-hidden" aria-hidden="true">
                   <div class="empty">Loading curated analyses...</div>
                 </div>
-                <div id="analysisCatalogMolecularParking">
-                  <div id="analysisCatalogMolecularPanel" class="analysis-molecular-panel is-hidden">
-                    <div class="analysis-molecular-panel-header">
-                      <div class="analysis-molecular-panel-heading">Requirements</div>
-                      <strong id="analysisCatalogMolecularTitle">Analysis setup</strong>
+                <div id="analysisCatalogAssayParking">
+                  <div id="analysisCatalogAssayPanel" class="analysis-assay-panel is-hidden">
+                    <div class="analysis-assay-panel-header">
+                      <div class="analysis-assay-panel-heading">Requirements</div>
+                      <strong id="analysisCatalogAssayTitle">Analysis setup</strong>
                     </div>
-                    <div id="analysisCatalogMolecularNote" class="analysis-molecular-panel-note">Select an analysis to see its required inputs.</div>
+                    <div id="analysisCatalogAssayNote" class="analysis-assay-panel-note">Select an analysis to see its required inputs.</div>
                     <div id="analysisCatalogSetupBadges" class="analysis-catalog-tags"></div>
-                    <div id="analysisCatalogMolecularStatus" class="analysis-setup-status">Checking molecular datasets...</div>
-                    <div id="analysisCatalogMolecularDatasetList" class="molecular-dataset-select">
-                      <div class="empty">No molecular dataset loaded</div>
+                    <div id="analysisCatalogAssayStatus" class="analysis-setup-status">Checking transcriptomics assays...</div>
+                    <div id="analysisCatalogAssayDatasetList" class="assay-dataset-select">
+                      <div class="empty">No assay loaded</div>
                     </div>
                   </div>
                 </div>

@@ -19,9 +19,8 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - LLM-planned comparative analysis
 - trajectories
 - Kaplan-Meier curves
-- molecular expression summaries
+- transcriptomics expression summaries
 - DESeq2 differential expression on one raw-count dataset
-- legacy approximate differential expression for comparison/debugging
 - Hallmark pathway enrichment from a DESeq2-ranked comparison
 - curated external analyses through reviewed runners
 
@@ -85,7 +84,7 @@ That means each thread can preserve:
 - attached saved cohorts
 - generated turns and plots
 
-This is useful because clinical and molecular interpretation often unfolds across several questions rather than one prompt.
+This is useful because clinical and assay interpretation often unfolds across several questions rather than one prompt.
 
 ## Analysis Catalog and quick prompts
 
@@ -137,7 +136,7 @@ An Analysis Workflow is a curated project-approved sequence of analysis steps. U
 
 Current first workflow:
 
-- `Molecular signature workflow`
+- `Transcriptomics signature workflow`
   - runs `DESeq2 differential expression`
   - then runs `Hallmark pathway enrichment`
   - stores one background job with step-level artifacts under one workflow result
@@ -150,28 +149,27 @@ For this first workflow, select exactly one compatible raw-count transcriptomics
 
 The workflow result keeps interpretation and plots visible first. Raw output files are folded under `Result files` and can be opened when needed.
 
-## Molecular tool contract
+## Assay tool contract
 
-The current molecular catalog tools are method-driven.
+The current assay catalog tools are method-driven.
 
 Examples:
 
 - `DESeq2 differential expression`
-- `Differential expression (legacy)`
 - `Hallmark pathway enrichment`
 
-These tools do not compare two molecular datasets against each other.
+These tools do not compare two transcriptomics assays against each other.
 
 They use:
 
-- one selected raw-count molecular dataset
+- one selected raw-count transcriptomics assay
 - `Cohort A`
 - `Cohort B`
 
 The cohorts define the groups.
-The molecular dataset defines the transcriptomics matrix.
+The transcriptomics assay defines the transcriptomics matrix.
 
-Both cohorts must overlap the same selected molecular dataset.
+Both cohorts must overlap the same selected transcriptomics assay.
 
 If the chosen dataset contributes samples to only one side, the curated differential-expression tools fail with a validation error instead of silently dropping one cohort.
 
@@ -185,7 +183,6 @@ In practice, that means baseline-only transcriptomics datasets are the safest fi
 
 For the synthetic large transcriptome fixtures, remember that treatment-specific matrices only contain their own patient subset. For example, an `infliximab` matrix does not contain `vedolizumab` patients. If you want a broad split across many synthetic patients, use the baseline matrix for that workspace.
 
-`Differential expression (legacy)` remains available as a lighter approximate method based on log2-CPM plus per-gene t-tests. It is retained for comparison/debugging, not as the preferred RNA-seq result.
 
 ## Catalog search, filters, and suggestions
 
@@ -203,14 +200,14 @@ Filters are intentionally coarse:
 
 - `All`
 - `Clinical`
-- `Molecular`
+- `Assays`
 - `Workflow`
 - `Background jobs`
 - `External`
 
 These filters are meant to reduce browse cost quickly, not to replace the catalog structure.
 
-When a selected catalog item requires molecular data, the compatible molecular dataset selector appears below the catalog search and filters. For single-dataset molecular analyses, including the current workflow, the selector behaves as a single-select control.
+When a selected catalog item requires assay data, the compatible transcriptomics assay selector appears below the catalog search and filters. For single-dataset assay analyses, including the current workflow, the selector behaves as a single-select control.
 
 The folded catalog in the main tab also shows a `Suggested` strip.
 
@@ -223,7 +220,7 @@ Suggestions are lightweight and local:
 
 Examples of setup-aware suggestions:
 
-- molecular tools rank better when molecular datasets are available
+- assay tools rank better when transcriptomics assays are available
 - compare-oriented tools rank better when compare mode is active
 
 :::note
@@ -269,7 +266,7 @@ Examples:
 
 - Kaplan-Meier follow-ups
 - trajectory follow-ups
-- molecular volcano follow-ups
+- assay volcano follow-ups
 - A/B comparison follow-ups
 
 These follow-ups are intentionally neutral in color. They are suggestions about the next analytical question, not a promise about whether the reply will be deterministic or LLM-assisted.
@@ -320,14 +317,14 @@ Examples of questions that fit well here:
 - temporal change over time
 - trajectory of a numeric longitudinal measure
 - Kaplan-Meier time to event
-- molecular expression by medication
+- transcriptomics expression by medication
 - exploratory volcano comparison
 - curated external runner demo analyses
 
 As a rule:
 
 - summaries and interpretation requests fit best as prompts
-- trajectories, Kaplan-Meier, molecular tools, and external runners fit best as catalog analyses
+- trajectories, Kaplan-Meier, assay tools, and external runners fit best as catalog analyses
 
 ## Curated external analyses
 
@@ -396,13 +393,13 @@ Examples:
 
 - broad clinical summaries
   - often patient-oriented
-- molecular comparisons
+- assay comparisons
   - often sample-aware
 - Pheno-Ranker handoff
   - should preserve sample IDs
 
 :::warning
-Do not assume all Analysis questions are patient-level. Molecular and Pheno-driven paths are often sample-aware.
+Do not assume all Analysis questions are patient-level. Assay and Pheno-driven paths are often sample-aware.
 :::
 
 ## Practical advice

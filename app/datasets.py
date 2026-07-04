@@ -72,9 +72,11 @@ def _clinical_records(path: Path) -> List[Dict[str, Any]]:
 def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     root = resolve_project_data_dir(root_path)
     clinical_dir = root / "clinical"
-    molecular_dir = root / "molecular"
+    assays_dir = root / "assays"
+    transcriptomics_dir = assays_dir / "transcriptomics"
     clinical_files = sorted(path for path in (clinical_dir if clinical_dir.is_dir() else root).glob("*.json") if path.is_file())
-    molecular_files = sorted(path for path in molecular_dir.glob("*.csv") if path.is_file()) if molecular_dir.is_dir() else []
+    assay_files = sorted(path for path in assays_dir.glob("*/*.csv") if path.is_file()) if assays_dir.is_dir() else []
+    transcriptomics_files = sorted(path for path in transcriptomics_dir.glob("*.csv") if path.is_file()) if transcriptomics_dir.is_dir() else []
     patient_ids = set()
     timepoint_count = 0
     for clinical_file in clinical_files:
@@ -89,12 +91,12 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         tags.append(_plural(patient_count, "patient"))
     if timepoint_count:
         tags.append(_plural(timepoint_count, "timepoint"))
-    if molecular_files:
-        tags.append(_plural(len(molecular_files), "matrix", "matrices"))
-    large_hint = "large" in root.name.lower() or any(path.stat().st_size > 1_000_000 for path in molecular_files)
+    if assay_files:
+        tags.append(_plural(len(assay_files), "matrix", "matrices"))
+    large_hint = "large" in root.name.lower() or any(path.stat().st_size > 1_000_000 for path in transcriptomics_files)
     if large_hint:
         tags.append("large transcriptome")
-    elif molecular_files:
+    elif assay_files:
         tags.append("compact transcriptome")
     if "private" in root.name.lower():
         tags.append("private fixture")
@@ -102,7 +104,8 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         "content_tags": tags,
         "content_summary": "",
         "clinical_file_count": len(clinical_files),
-        "molecular_file_count": len(molecular_files),
+        "assay_file_count": len(assay_files),
+        "assay_file_count": len(transcriptomics_files),
         "patient_count": patient_count,
         "timepoint_count": timepoint_count,
     }
@@ -430,7 +433,7 @@ def parse_scope_dataset_ids(value: str | None) -> List[str]:
 
 
 def _scope_source_files_manifest(dataset_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
-    manifest = {"clinical_files": [], "molecular_files": []}
+    manifest = {"clinical_files": [], "assay_files": []}
     for dataset_id in dataset_ids:
         dataset = get_dataset(dataset_id)
         if dataset is None:
@@ -438,7 +441,7 @@ def _scope_source_files_manifest(dataset_ids: List[str]) -> Dict[str, List[Dict[
         dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
         for key, directory, patterns in (
             ("clinical_files", dataset_root / "clinical", ("*.json", "*.json.gz")),
-            ("molecular_files", dataset_root / "molecular", ("*.csv",)),
+            ("assay_files", dataset_root / "assays", ("*/*.csv",)),
         ):
             seen_paths = set()
             for pattern in patterns:
@@ -447,11 +450,14 @@ def _scope_source_files_manifest(dataset_ids: List[str]) -> Dict[str, List[Dict[
                         continue
                     seen_paths.add(path)
                     stat = path.stat()
+                    target_name = f"{dataset_id}__{path.name}"
+                    if key == "assay_files":
+                        target_name = f"{dataset_id}__{path.parent.name}__{path.name}"
                     manifest[key].append(
                         {
                             "dataset_id": dataset_id,
                             "source": str(path.resolve()),
-                            "target": f"{dataset_id}__{path.name}",
+                            "target": target_name,
                             "size": int(stat.st_size),
                             "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
                         }
@@ -523,7 +529,7 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
     scope_id = dataset_scope_id(normalized)
     root = _scope_root() / scope_id
     clinical_dir = root / "clinical"
-    molecular_dir = root / "molecular"
+    assays_dir = root / "assays"
     manifest_path = root / "manifest.json"
     manifest = {
         "dataset_ids": normalized,
@@ -535,11 +541,11 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
             stored = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             stored = None
-        if stored == manifest and clinical_dir.exists() and molecular_dir.exists():
+        if stored == manifest and clinical_dir.exists() and assays_dir.exists():
             return str(root)
         shutil.rmtree(root, ignore_errors=True)
     clinical_dir.mkdir(parents=True, exist_ok=True)
-    molecular_dir.mkdir(parents=True, exist_ok=True)
+    assays_dir.mkdir(parents=True, exist_ok=True)
     for dataset_id in normalized:
         dataset = get_dataset(dataset_id)
         if dataset is None:
@@ -550,8 +556,10 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
                 target = clinical_dir / f"{dataset_id}__{path.name}"
                 if not target.exists():
                     target.symlink_to(path.resolve())
-        for path in sorted((dataset_root / "molecular").glob("*.csv")):
-            target = molecular_dir / f"{dataset_id}__{path.name}"
+        for path in sorted((dataset_root / "assays").glob("*/*.csv")):
+            modality_dir = assays_dir / path.parent.name
+            modality_dir.mkdir(parents=True, exist_ok=True)
+            target = modality_dir / f"{dataset_id}__{path.name}"
             if not target.exists():
                 target.symlink_to(path.resolve())
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
