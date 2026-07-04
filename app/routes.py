@@ -73,7 +73,7 @@ from app.datasets import (
 )
 from app.dicom import dicom_status, dicom_studies
 from app.lm import DEFAULT_LLM_PROVIDER_ID, llm_provider_registry_status, lm_provider_context, lm_studio_health
-from app.multimodal import multimodal_readiness
+from app.multimodal import multimodal_feature_matrix, multimodal_readiness
 from app.jobs import (
     active_feature_job,
     active_job_status,
@@ -128,6 +128,7 @@ from app.schemas import (
     DeleteResponse,
     AssayExpressionRequest,
     AssayDatasetsResponse,
+    AssayFeatureMatrixResponse,
     AssayReadinessResponse,
     DicomStatusResponse,
     DicomStudiesResponse,
@@ -1072,6 +1073,26 @@ def get_assay_readiness(request: Request, dataset_id: str = "", data_dir: str = 
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+def get_assay_feature_matrix(
+    request: Request,
+    dataset_id: str = "",
+    data_dir: str = DEFAULT_DATA_DIR,
+    max_features_per_dataset: int = 3,
+    max_rows: int = 25,
+) -> Dict:
+    require_authenticated(request)
+    try:
+        return multimodal_feature_matrix(
+            _resolve_route_dataset_dir(request, dataset_id, data_dir),
+            max_features_per_dataset=max_features_per_dataset,
+            max_rows=max_rows,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 def get_assay_features(assay_id: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
     require_authenticated(request)
     try:
@@ -1509,6 +1530,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/run-history/{job_id}", remove_run_history_item, methods=["DELETE"], tags=["jobs"], summary="Delete one generated run", description="Deletes one completed, failed, or cancelled generated run and its artifacts for the current user.", response_model=DeleteResponse)
     app.add_api_route("/assays", get_assay_datasets, methods=["GET"], tags=["assays"], summary="List assays in scope", description="Returns assay datasets visible in the current workspace.", response_model=AssayDatasetsResponse)
     app.add_api_route("/assays/readiness", get_assay_readiness, methods=["GET"], tags=["assays"], summary="Get multimodal analysis readiness", description="Returns workspace-level multimodal coverage, overlap, linkage issues, and deterministic next-step suggestions.", response_model=AssayReadinessResponse)
+    app.add_api_route("/assays/matrix", get_assay_feature_matrix, methods=["GET"], tags=["assays"], summary="Build multimodal feature matrix preview", description="Returns a bounded sample-level multimodal matrix preview with clinical covariates, selected assay features, DICOM viewer metadata, missingness, and provenance.", response_model=AssayFeatureMatrixResponse)
     app.add_api_route("/assays/features", get_assay_features, methods=["GET"], tags=["assays"], summary="Search features in an assay", description="Returns gene identifiers for a selected assay with optional search and limit filtering.")
     app.add_api_route("/assays/expression", get_assay_expression, methods=["POST"], tags=["assays"], summary="Summarize assay expression", description="Returns scoped gene expression summaries for one assay, optionally comparing cohort A and cohort B.")
     app.add_api_route("/dicom/studies", get_dicom_studies, methods=["GET"], tags=["dicom"], summary="List DICOM studies in scope", description="Returns DICOM studies configured for the current workspace with OHIF launch URLs.", response_model=DicomStudiesResponse)

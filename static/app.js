@@ -28,10 +28,10 @@ const DASHBOARD_SUBTAB_STORAGE_KEY = "biomedical-research-navigator.dashboard-su
 const ANALYSIS_SESSIONS_STORAGE_KEY = "biomedical-research-navigator.analysis-sessions";
 const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "biomedical-research-navigator.analysis-sidebar-collapsed";
 const TAB_HELPER_TEXT = {
-  dashboard: "Browse the loaded clinical and assay data",
+  dashboard: "Browse the loaded clinical, assay, imaging, and multimodal workspace data",
   timeline: "Review longitudinal patient events and select patients for downstream analysis",
   clinical: "Review the clinical workspace overview",
-  assay: "Inspect loaded transcriptomics assays and expression coverage",
+  assay: "Inspect loaded assay modalities, DICOM status, and expression coverage",
   datasets: "Choose the authorized datasets that define your active workspace scope",
   data: "Admin-only dataset visibility and access policy management",
   users: "Admin-only read-only user visibility",
@@ -242,9 +242,11 @@ function sendPromptToAnalysis(prompt, options) {
   dashboardUi.renderAnalysisScopeSummary();
   analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   refs.analysisStatusEl.className = "query-status";
-  refs.analysisStatusEl.textContent = state.latestQueryPatientIds.length
-    ? `Analysis prompt prepared for the ${state.latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
-    : "Analysis prompt prepared. Select a scope or use the full workspace.";
+  refs.analysisStatusEl.textContent = settings.statusMessage
+    ? String(settings.statusMessage)
+    : (state.latestQueryPatientIds.length
+      ? `Analysis prompt prepared for the ${state.latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
+      : "Analysis prompt prepared. Select a scope or use the full workspace.");
   refs.analysisPromptEl.focus();
 }
 
@@ -457,6 +459,7 @@ dashboardUi = createDashboardUi({
     isMultiDatasetWorkspace,
     sendPatientIdsToAnalysis: (patientIds, options) => sendPatientIdsToAnalysisFromSource(patientIds, options),
     saveIdsAsCohort: (options) => savedCohortsUi.saveIdsAsCohort(options),
+    sendPromptToAnalysis,
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderAnalysisCatalogAssayPanel: () => analysisCatalogUi.renderAnalysisCatalogAssayPanel(),
   },
@@ -578,6 +581,7 @@ analysisUi = createAnalysisUi({
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
+    currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
   },
   state,
@@ -1035,6 +1039,7 @@ function bindEvents() {
   refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
   refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
   refs.dashboardAssaysBtnEl && refs.dashboardAssaysBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("assays"));
+  refs.dashboardMultimodalBtnEl && refs.dashboardMultimodalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("multimodal"));
   refs.dashboardTimelineBtnEl && refs.dashboardTimelineBtnEl.addEventListener("click", () => {
     navigationUi.setDashboardSubtab("timeline");
     if (state.dashboardSummaryState) {
@@ -1483,7 +1488,7 @@ function applyStoredTabPreferences() {
   try {
     const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
     const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
-    if (savedDashboardSubtab && ["clinical", "assays", "timeline"].includes(savedDashboardSubtab)) {
+    if (savedDashboardSubtab && ["clinical", "assays", "multimodal", "timeline"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
     if (savedTab && ["dashboard", "cohort", "assays", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {

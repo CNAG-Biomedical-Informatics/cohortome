@@ -42,7 +42,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "analysis",
-        "description": "Clinical and transcriptomics assay workspace analysis plus saved analysis sessions.",
+        "description": "Clinical, assay, imaging, and multimodal workspace analysis plus saved analysis sessions.",
     },
     {
         "name": "cohorts",
@@ -50,7 +50,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "assays",
-        "description": "Assay inventory and per-gene expression summaries.",
+        "description": "Multimodal assay inventory, feature matrices, DICOM metadata, and expression summaries.",
     },
     {
         "name": "dicom",

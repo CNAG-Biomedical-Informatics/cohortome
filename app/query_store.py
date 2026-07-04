@@ -208,8 +208,21 @@ def _assay_matrix_files(data_dir: str) -> List[Path]:
     ]
 
 
+def _assay_source_files(root: Path) -> List[Path]:
+    assays_root = root / "assays"
+    if not assays_root.exists() or not assays_root.is_dir():
+        return []
+    paths = []
+    manifest_path = assays_root / "manifest.json"
+    if manifest_path.is_file():
+        paths.append(manifest_path)
+    paths.extend(path for path in sorted(assays_root.glob("*/*.csv")) if path.is_file())
+    return sorted(dict.fromkeys(paths))
+
+
 def _source_files_signature(data_dir: str) -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
+    project_root = resolve_project_data_dir(data_dir)
     files = []
     for path in sorted(resolved_dir.glob("*.json")):
         if not path.is_file():
@@ -223,11 +236,11 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
             }
         )
     assay_files = []
-    for path in _assay_matrix_files(data_dir):
+    for path in _assay_source_files(project_root):
         stat = path.stat()
         assay_files.append(
             {
-                "path": str(path),
+                "path": str(path.resolve()),
                 "size": stat.st_size,
                 "mtime_ns": stat.st_mtime_ns,
             }
@@ -355,7 +368,6 @@ def _store_has_required_tables(db_path: Path) -> bool:
 def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
     dataset_root = _dataset_root_path(dataset_id)
     clinical_dir = dataset_root / "clinical"
-    assay_dir = dataset_root / "assays" / "transcriptomics"
     files = []
     if clinical_dir.exists():
         for pattern in ("*.json", "*.json.gz"):
@@ -371,18 +383,15 @@ def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
                     }
                 )
     assay_files = []
-    if assay_dir.exists():
-        for path in sorted(assay_dir.glob("*.csv")):
-            if not path.is_file():
-                continue
-            stat = path.stat()
-            assay_files.append(
-                {
-                    "path": str(path.resolve()),
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
-                }
-            )
+    for path in _assay_source_files(dataset_root):
+        stat = path.stat()
+        assay_files.append(
+            {
+                "path": str(path.resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
     return {
         "schema_version": QUERY_STORE_SCHEMA_VERSION,
         "dataset_id": normalize_dataset_id(dataset_id),
@@ -971,7 +980,20 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
     ensure_query_store(data_dir)
     con = _connect(data_dir)
     try:
-        patient_rows = con.execute("SELECT patient_id FROM patients ORDER BY patient_id").fetchall()
+        patient_rows = con.execute(
+            """
+            SELECT
+                patient_id,
+                sex,
+                visit_count,
+                medication_count,
+                disease_count,
+                first_event_date,
+                last_event_date
+            FROM patients
+            ORDER BY patient_id
+            """
+        ).fetchall()
         timepoint_rows = con.execute(
             """
             SELECT patient_id, original_id, visit_id, event_date
@@ -986,6 +1008,13 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
             ORDER BY patient_id, disease
             """
         ).fetchall()
+        medication_rows = con.execute(
+            """
+            SELECT patient_id, medication
+            FROM patient_medications
+            ORDER BY patient_id, medication
+            """
+        ).fetchall()
     finally:
         con.close()
 
@@ -995,6 +1024,30 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
         disease_label = str(disease or "").strip()
         if patient_key and disease_label:
             diseases_by_patient.setdefault(patient_key, []).append(disease_label)
+
+    medications_by_patient: Dict[str, List[str]] = {}
+    for patient_id, medication in medication_rows:
+        patient_key = str(patient_id or "").strip()
+        medication_label = str(medication or "").strip()
+        if patient_key and medication_label:
+            medications_by_patient.setdefault(patient_key, []).append(medication_label)
+
+    patients = []
+    for patient_id, sex, visit_count, medication_count, disease_count, first_event_date, last_event_date in patient_rows:
+        patient_key = str(patient_id or "").strip()
+        if not patient_key:
+            continue
+        patients.append(
+            {
+                "patient_id": patient_key,
+                "sex": str(sex or "").strip(),
+                "visit_count": int(visit_count or 0),
+                "medication_count": int(medication_count or 0),
+                "disease_count": int(disease_count or 0),
+                "first_event_date": str(first_event_date or "").strip(),
+                "last_event_date": str(last_event_date or "").strip(),
+            }
+        )
 
     samples = []
     for patient_id, original_id, visit_id, event_date in timepoint_rows:
@@ -1009,10 +1062,12 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
         )
 
     return {
-        "patient_ids": [str(row[0] or "").strip() for row in patient_rows if str(row[0] or "").strip()],
+        "patients": patients,
+        "patient_ids": [item["patient_id"] for item in patients],
         "samples": samples,
         "sample_ids": sorted({item["sample_id"] for item in samples if item["sample_id"]}),
         "diseases_by_patient": diseases_by_patient,
+        "medications_by_patient": medications_by_patient,
     }
 
 
@@ -1343,6 +1398,166 @@ def assay_feature_inventory(data_dir: str, dataset_name: str, search: str = "", 
         if len(matches) >= int(limit):
             break
     return matches
+
+
+def _coerce_matrix_preview_value(value: Any) -> Any:
+    text = str(value or "").strip()
+    if text == "":
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+    if not math.isfinite(number):
+        return text
+    if number.is_integer():
+        return int(number)
+    return number
+
+
+def _manifest_assay_item(data_dir: str, dataset_name: str) -> Dict[str, Any] | None:
+    wanted = str(dataset_name or "").strip()
+    if not wanted:
+        return None
+    for item in _assay_manifest_items(data_dir):
+        assay_id = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
+        if assay_id == wanted:
+            return item
+    return None
+
+
+def _manifest_assay_matrix_preview(data_dir: str, dataset_name: str, feature_limit: int) -> Dict[str, Any] | None:
+    item = _manifest_assay_item(data_dir, dataset_name)
+    if not item:
+        return None
+    root = resolve_project_data_dir(data_dir)
+    relative_file = str(item.get("file") or "").strip()
+    if not relative_file:
+        return None
+    path = (root / relative_file).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            first_line = handle.readline()
+            if not first_line:
+                return None
+            delimiter = _detect_matrix_delimiter(first_line)
+            handle.seek(0)
+            reader = csv.reader(handle, delimiter=delimiter)
+            header = next(reader, [])
+            sample_ids = [str(value or "").strip() for value in header[1:] if str(value or "").strip()]
+            features: List[Dict[str, Any]] = []
+            sample_values: Dict[str, Dict[str, Any]] = {sample_id: {} for sample_id in sample_ids}
+            for raw_row in reader:
+                if len(features) >= max(1, int(feature_limit)):
+                    break
+                if not raw_row:
+                    continue
+                feature_id = str(raw_row[0] or "").strip()
+                if not feature_id:
+                    continue
+                features.append({"feature_id": feature_id, "label": feature_id})
+                for index, sample_id in enumerate(sample_ids, start=1):
+                    sample_values.setdefault(sample_id, {})[feature_id] = _coerce_matrix_preview_value(raw_row[index] if index < len(raw_row) else "")
+    except (OSError, UnicodeDecodeError):
+        return None
+    modality = str(item.get("modality") or "assay").strip() or "assay"
+    data_type = str(item.get("data_type") or "feature_matrix").strip() or "feature_matrix"
+    return {
+        "dataset_name": dataset_name,
+        "label": str(item.get("label") or dataset_name).strip() or dataset_name,
+        "modality": modality,
+        "data_type": data_type,
+        "features": features,
+        "sample_ids": sample_ids,
+        "sample_values": sample_values,
+        **_assay_inventory_metadata(modality, data_type),
+    }
+
+
+def assay_dataset_matrix_preview(data_dir: str, dataset_name: str, feature_limit: int = 3) -> Dict[str, Any] | None:
+    ensure_query_store(data_dir)
+    normalized_name = str(dataset_name or "").strip()
+    if not normalized_name:
+        return None
+    limit = max(1, int(feature_limit or 3))
+    con = _connect(data_dir)
+    try:
+        stored = con.execute(
+            """
+            SELECT max(modality), max(data_type), count(*)
+            FROM assay_samples
+            WHERE dataset_name = ?
+            """,
+            [normalized_name],
+        ).fetchone()
+        stored_count = int(stored[2] or 0) if stored else 0
+        if stored_count:
+            feature_rows = con.execute(
+                """
+                SELECT gene_id, avg(raw_count) AS mean_raw_count
+                FROM transcript_counts
+                WHERE dataset_name = ?
+                GROUP BY gene_id
+                ORDER BY mean_raw_count DESC, gene_id
+                LIMIT ?
+                """,
+                [normalized_name, limit],
+            ).fetchall()
+            feature_ids = [str(row[0]) for row in feature_rows if row and str(row[0] or "").strip()]
+            sample_ids = [
+                str(row[0])
+                for row in con.execute(
+                    """
+                    SELECT sample_id
+                    FROM assay_samples
+                    WHERE dataset_name = ?
+                    ORDER BY sample_id
+                    """,
+                    [normalized_name],
+                ).fetchall()
+                if row and str(row[0] or "").strip()
+            ]
+            sample_values: Dict[str, Dict[str, Any]] = {sample_id: {} for sample_id in sample_ids}
+            if feature_ids:
+                placeholders = ",".join("?" for _ in feature_ids)
+                value_rows = con.execute(
+                    f"""
+                    SELECT sample_id, gene_id, raw_count
+                    FROM transcript_counts
+                    WHERE dataset_name = ? AND gene_id IN ({placeholders})
+                    ORDER BY sample_id, gene_id
+                    """,
+                    [normalized_name, *feature_ids],
+                ).fetchall()
+                for sample_id, gene_id, raw_count in value_rows:
+                    sample_values.setdefault(str(sample_id), {})[str(gene_id)] = int(raw_count or 0)
+            modality = str(stored[0] or "transcriptomics").strip() or "transcriptomics"
+            data_type = str(stored[1] or "raw_counts").strip() or "raw_counts"
+            return {
+                "dataset_name": normalized_name,
+                "label": normalized_name,
+                "modality": modality,
+                "data_type": data_type,
+                "features": [
+                    {
+                        "feature_id": feature_id,
+                        "label": _gene_annotation(feature_id).get("gene_symbol") or feature_id,
+                    }
+                    for feature_id in feature_ids
+                ],
+                "sample_ids": sample_ids,
+                "sample_values": sample_values,
+                **_assay_inventory_metadata(modality, data_type),
+            }
+    finally:
+        con.close()
+    return _manifest_assay_matrix_preview(data_dir, normalized_name, limit)
 
 
 def _parse_patient_scope(scope: str) -> List[str]:

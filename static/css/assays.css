@@ -396,7 +396,16 @@
         gap: 12px;
         padding: 2px 0 0;
       }
+      .multimodal-matrix-panel {
+        display: grid;
+        gap: 12px;
+        padding: 2px 0 0;
+      }
       .multimodal-readiness-content {
+        display: grid;
+        gap: 14px;
+      }
+      .multimodal-matrix-content {
         display: grid;
         gap: 14px;
       }
@@ -404,13 +413,44 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
       .multimodal-readiness-table th,
-      .multimodal-readiness-table td {
+      .multimodal-readiness-table td,
+      .multimodal-matrix-table th,
+      .multimodal-matrix-table td {
         white-space: nowrap;
       }
+      .multimodal-matrix-table-wrap {
+        max-height: 440px;
+      }
+      .multimodal-matrix-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f8fbff;
+      }
       .multimodal-overlap-list,
-      .multimodal-issue-list {
+      .multimodal-issue-list,
+      .multimodal-feature-group-list {
         display: grid;
         gap: 8px;
+      }
+      .multimodal-feature-group {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(15, 118, 110, 0.14);
+        background: rgba(240, 253, 250, 0.72);
+      }
+      .multimodal-feature-group strong,
+      .multimodal-feature-group small {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .multimodal-feature-group small {
+        grid-column: 1 / -1;
+        color: var(--muted);
       }
       .multimodal-overlap-row {
         display: grid;

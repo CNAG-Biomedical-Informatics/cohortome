@@ -1964,6 +1964,80 @@
         }
       }
     },
+    "/assays/matrix": {
+      "get": {
+        "tags": [
+          "assays"
+        ],
+        "summary": "Build multimodal feature matrix preview",
+        "description": "Returns a bounded sample-level multimodal matrix preview with clinical covariates, selected assay features, DICOM viewer metadata, missingness, and provenance.",
+        "operationId": "get_assay_feature_matrix_assays_matrix_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "data_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "title": "Data Dir"
+            }
+          },
+          {
+            "name": "max_features_per_dataset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "title": "Max Features Per Dataset"
+            }
+          },
+          {
+            "name": "max_rows",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "title": "Max Rows"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssayFeatureMatrixResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/assays/features": {
       "get": {
         "tags": [
@@ -3087,6 +3161,52 @@
           "gene_id"
         ],
         "title": "AssayExpressionRequest"
+      },
+      "AssayFeatureMatrixResponse": {
+        "properties": {
+          "metadata": {
+            "type": "object",
+            "title": "Metadata"
+          },
+          "columns": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "missingness": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Missingness"
+          },
+          "feature_groups": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Feature Groups"
+          },
+          "warnings": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AssayFeatureMatrixResponse"
       },
       "AssayReadinessResponse": {
         "properties": {
@@ -4849,7 +4969,7 @@
     },
     {
       "name": "analysis",
-      "description": "Clinical and transcriptomics assay workspace analysis plus saved analysis sessions."
+      "description": "Clinical, assay, imaging, and multimodal workspace analysis plus saved analysis sessions."
     },
     {
       "name": "cohorts",
@@ -4857,7 +4977,7 @@
     },
     {
       "name": "assays",
-      "description": "Assay inventory and per-gene expression summaries."
+      "description": "Multimodal assay inventory, feature matrices, DICOM metadata, and expression summaries."
     },
     {
       "name": "dicom",

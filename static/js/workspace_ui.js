@@ -102,7 +102,7 @@ export function createWorkspaceUi(ctx) {
       }
       return `${ids.length} IDs in Analysis scope`;
     }
-    if (tabName === "dashboard" && state.currentDashboardSubtab === "assays") {
+    if (tabName === "dashboard" && (state.currentDashboardSubtab === "assays" || state.currentDashboardSubtab === "multimodal")) {
       const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
         ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
         : String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
@@ -123,7 +123,7 @@ export function createWorkspaceUi(ctx) {
       if (!ids.length) {
         return "Full workspace";
       }
-      return `${ids.length} IDs in Assay scope`;
+      return `${ids.length} IDs in ${state.currentDashboardSubtab === "multimodal" ? "Multimodal" : "Assay"} scope`;
     }
     return "Full workspace";
   }

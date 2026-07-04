@@ -2245,6 +2245,8 @@ def test_checked_in_openapi_snapshot_includes_dicom_routes():
 
     assert "/assays/readiness" in paths
     assert paths["/assays/readiness"]["get"]["tags"] == ["assays"]
+    assert "/assays/matrix" in paths
+    assert paths["/assays/matrix"]["get"]["tags"] == ["assays"]
     assert "/dicom/studies" in paths
     assert "/dicom/status" in paths
     assert paths["/dicom/studies"]["get"]["tags"] == ["dicom"]
@@ -2354,6 +2356,130 @@ def test_multimodal_readiness_reports_overlap_and_linkage_issues(tmp_path, monke
     suggestions = {item["key"]: item for item in payload["suggestions"]}
     assert suggestions["dicom_review"]["enabled"] is True
     assert suggestions["patient_level_cross_modal"]["enabled"] is True
+
+
+def test_multimodal_feature_matrix_joins_clinical_assays_and_dicom(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda _request, _dataset_id, data_dir: data_dir)
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN011:week_0",
+                "patient_id": "SYN011",
+                "sex": "female",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "treatments": [{"treatmentCode": {"label": "Ocrelizumab"}}],
+                "info": {"event_date": "2024-01-01"},
+            },
+            {
+                "id": "SYN012:week_0",
+                "patient_id": "SYN012",
+                "sex": "male",
+                "diseases": [{"diseaseCode": {"label": "Multiple Sclerosis"}}],
+                "info": {"event_date": "2024-01-08"},
+            },
+        ],
+    )
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    (transcriptomics_dir / "synthetic_transcriptome_raw_counts.csv").write_text(
+        "\n".join(
+            [
+                "gene_id;SYN011:week_0;SYN012:week_0",
+                "ENSG00000111111;10;20",
+                "ENSG00000222222;5;4",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    imaging_dir = tmp_path / "assays" / "imaging"
+    imaging_dir.mkdir(parents=True)
+    (imaging_dir / "synthetic_imaging_derived_features.csv").write_text(
+        "\n".join(
+            [
+                "feature_id;SYN011:week_0;SYN012:week_0",
+                "lesion_volume_ml;1.2;0.8",
+                "brain_volume_ml;1450;1420",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (imaging_dir / "dicom_studies.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "studies": [
+                    {
+                        "study_id": "ms-syn011",
+                        "label": "Synthetic MS brain MRI SYN011",
+                        "patient_id": "SYN011",
+                        "sample_id": "SYN011:week_0",
+                        "study_instance_uid": "1.2.826.0.1.3680043.10.54321.200.1",
+                        "series": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proteomics_dir = tmp_path / "assays" / "proteomics"
+    proteomics_dir.mkdir(parents=True)
+    (proteomics_dir / "synthetic_proteomics.csv").write_text(
+        "\n".join(["protein_id;SYN011:plasma", "CXCL13;3.4"]),
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_imaging_derived_features",
+                        "label": "synthetic imaging derived features",
+                        "modality": "imaging",
+                        "data_type": "dicom_derived_measurements",
+                        "file": "assays/imaging/synthetic_imaging_derived_features.csv",
+                    },
+                    {
+                        "assay_id": "synthetic_proteomics",
+                        "label": "synthetic proteomics",
+                        "modality": "proteomics",
+                        "data_type": "feature_matrix",
+                        "file": "assays/proteomics/synthetic_proteomics.csv",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = routes_module.get_assay_feature_matrix(
+        make_request({"user": {"username": "maria"}}),
+        data_dir=str(tmp_path),
+        max_features_per_dataset=2,
+        max_rows=10,
+    )
+
+    column_keys = {item["key"] for item in payload["columns"]}
+    assert payload["metadata"]["join_level"] == "sample"
+    assert payload["metadata"]["row_count"] == 2
+    assert "clinical.sex" in column_keys
+    assert "synthetic_transcriptome_raw_counts.ENSG00000111111" in column_keys
+    assert "synthetic_imaging_derived_features.lesion_volume_ml" in column_keys
+    assert "dicom.study_count" in column_keys
+    row = next(item for item in payload["rows"] if item["sample_id"] == "SYN011:week_0")
+    assert row["values"]["clinical.sex"] == "female"
+    assert row["values"]["clinical.diseases"] == "Multiple Sclerosis"
+    assert row["values"]["synthetic_transcriptome_raw_counts.ENSG00000111111"] == 10
+    assert row["values"]["synthetic_imaging_derived_features.lesion_volume_ml"] == 1.2
+    assert row["values"]["dicom.study_count"] == 1
+    assert any(item["dataset_name"] == "synthetic_imaging_derived_features" for item in payload["feature_groups"])
+    assert any(item["kind"] == "patient_overlap_without_exact_sample_match" for item in payload["warnings"])
 
 
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
@@ -3399,6 +3525,9 @@ def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkey
         ),
         encoding="utf-8",
     )
+    signature_files = {Path(item["path"]).name for item in query_store_module._source_files_signature(str(tmp_path))["assay_files"]}
+    assert "manifest.json" in signature_files
+    assert "synthetic_imaging_derived_features.csv" in signature_files
     query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     monkeypatch.setattr(
         analysis_external_module.shutil,

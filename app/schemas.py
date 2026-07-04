@@ -391,6 +391,15 @@ class AssayReadinessResponse(FlexibleModel):
     suggestions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class AssayFeatureMatrixResponse(FlexibleModel):
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    columns: List[Dict[str, Any]] = Field(default_factory=list)
+    rows: List[Dict[str, Any]] = Field(default_factory=list)
+    missingness: List[Dict[str, Any]] = Field(default_factory=list)
+    feature_groups: List[Dict[str, Any]] = Field(default_factory=list)
+    warnings: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class DicomStudyResponse(FlexibleModel):
     study_instance_uid: str = ""
 

@@ -25,6 +25,7 @@
         .dashboard-timeline-lower { grid-template-columns: 1fr; }
         .assay-grid, .assay-result-grid, .assay-dashboard-grid, .dicom-health-grid, .dicom-study-grid, .multimodal-kpi-grid, .multimodal-suggestion-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
         .multimodal-overlap-row { grid-template-columns: 1fr; }
+        .multimodal-feature-group { grid-template-columns: 1fr; }
         .assay-overview-summary, .assay-workspace-summary { grid-template-columns: 1fr; }
         .assay-kpi-grid, .assay-summary-grid, .assay-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-loader-row { grid-template-columns: 1fr; align-items: stretch; }

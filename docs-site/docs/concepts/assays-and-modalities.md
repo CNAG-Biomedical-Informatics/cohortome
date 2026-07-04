@@ -73,6 +73,15 @@ association questions, while exact sample/timepoint overlap is needed for
 visit-matched analyses. Raw DICOM studies contribute viewer/readiness metadata;
 only derived imaging matrices contribute analyzable imaging features.
 
+## Multimodal feature matrix
+
+The matrix builder turns that readiness check into an inspectable table. It
+uses clinical sample/timepoint IDs as rows, includes core clinical covariates,
+adds a bounded number of representative assay features per dataset, and reports
+column-level missingness and provenance. DICOM contributes study-count and OHIF
+readiness metadata; quantitative MRI or radiomics values must come from a
+derived imaging matrix under `assays/`.
+
 ## Analysis requirements
 
 Curated Analysis tools declare their assay capabilities explicitly. For example, transcriptomics differential expression requires:

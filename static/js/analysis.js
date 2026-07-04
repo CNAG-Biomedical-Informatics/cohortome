@@ -21,10 +21,19 @@ export function createAnalysisUi(ctx) {
     renderAnalysisScopeSummary,
     renderAnalysisCompareScopeSummary,
     renderAnalysisFlowBar,
+    currentDatasetSelectionKey,
     assayDatasetOverlap,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
+
+  function analysisWorkspaceKey() {
+    const selected = typeof currentDatasetSelectionKey === "function" ? String(currentDatasetSelectionKey() || "").trim() : "";
+    if (selected) return selected;
+    const scopeId = refs.dataDirEl && refs.dataDirEl.dataset ? String(refs.dataDirEl.dataset.scopeId || "").trim() : "";
+    if (scopeId) return scopeId;
+    return refs.dataDirEl ? String(refs.dataDirEl.value || "").trim() : "";
+  }
 
   function requiresSingleSelectedAssayDataset(itemId) {
     const normalized = String(itemId || "").trim();
@@ -1625,7 +1634,7 @@ export function createAnalysisUi(ctx) {
           catalog_item_id: state.analysisSelectedCatalogItemId || "",
           analysis_session_id: state.currentAnalysisSessionId || "",
           assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
-          data_dir: (refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId) ? refs.dataDirEl.dataset.scopeId : (refs.dataDirEl.value.trim() || refs.dataDirEl.value),
+          data_dir: analysisWorkspaceKey(),
           selected_patient_ids: currentScope,
           scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},
           compare_mode: compareMode,

@@ -303,6 +303,20 @@
             </span>
             <span>Assays</span>
           </button>
+          <button id="dashboardMultimodalBtn" type="button" class="dashboard-subtab">
+            <span class="dashboard-subtab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h7"></path>
+                <path d="M13 7h7"></path>
+                <path d="M4 17h7"></path>
+                <path d="M13 17h7"></path>
+                <path d="M8 7v10"></path>
+                <path d="M16 7v10"></path>
+                <path d="M8 12h8"></path>
+              </svg>
+            </span>
+            <span>Multimodal</span>
+          </button>
         </div>
         </div>
         <button id="datasetsTabBtn" class="tab-btn" type="button">
@@ -455,16 +469,6 @@
               <div class="empty">Load assay datasets to review modality coverage.</div>
             </div>
             <div id="assayModalityTabs" class="assay-modality-tabs" role="tablist" aria-label="Assay modalities"></div>
-            <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
-              <div class="assay-modality-section-header">
-                <strong>Multimodal analysis readiness</strong>
-                <span class="query-chip badge">Workspace QC, overlap, suggestions</span>
-              </div>
-              <div id="multimodalReadinessStatus" class="query-status assay-status-strip">Checking multimodal readiness...</div>
-              <div id="multimodalReadinessContent" class="multimodal-readiness-content">
-                <div class="empty">Load a workspace to review multimodal readiness.</div>
-              </div>
-            </section>
             <div id="assayDashboardCards" class="assay-dashboard-grid">
               <div class="empty">No assays loaded.</div>
             </div>
@@ -511,6 +515,30 @@
               <div id="analysisAssayStatus" class="query-status" style="margin-top:10px;">Choose an assay and gene to inspect expression in the current Analysis scope.</div>
               <div id="analysisAssayResult" class="assay-result empty" style="margin-top:12px;">No transcriptomics expression summary yet.</div>
             </details>
+          </div>
+        </section>
+        <section id="dashboardMultimodalPanel" class="dashboard-subpanel">
+          <div class="controls dashboard-panel-frame">
+            <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
+              <div class="assay-modality-section-header">
+                <strong>Multimodal analysis readiness</strong>
+                <span class="query-chip badge">Workspace QC, overlap, suggestions</span>
+              </div>
+              <div id="multimodalReadinessStatus" class="query-status assay-status-strip">Checking multimodal readiness...</div>
+              <div id="multimodalReadinessContent" class="multimodal-readiness-content">
+                <div class="empty">Load a workspace to review multimodal readiness.</div>
+              </div>
+            </section>
+            <section id="multimodalMatrixPanel" class="multimodal-matrix-panel">
+              <div class="assay-modality-section-header">
+                <strong>Multimodal feature matrix</strong>
+                <span class="query-chip badge">Sample-level preview, provenance, missingness</span>
+              </div>
+              <div id="multimodalMatrixStatus" class="query-status assay-status-strip">Building multimodal feature matrix...</div>
+              <div id="multimodalMatrixContent" class="multimodal-matrix-content">
+                <div class="empty">Load a workspace to preview the analysis-ready matrix.</div>
+              </div>
+            </section>
           </div>
         </section>
       </section>

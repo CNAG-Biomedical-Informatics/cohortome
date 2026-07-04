@@ -34,16 +34,9 @@ It shows:
 - assay modalities currently visible in the workspace
 - dataset-level counts and metadata
 - workspace-level assay summary
-- multimodal analysis readiness for the full workspace
 - DICOM viewer readiness when imaging studies are configured
 
 In a multi-dataset workspace, assay provenance matters. If two datasets are active, the dashboard helps confirm whether the assay side really comes from both.
-
-`Multimodal analysis readiness` is a QC panel. It reports modality coverage,
-patient-level overlap, exact sample/timepoint overlap, DICOM-clinical linkage
-issues, and deterministic suggestions for what analyses are valid next. It does
-not run cross-modal statistics; it tells you whether the workspace is ready for
-them.
 
 For DICOM imaging, BRN lists authorized study metadata and launches OHIF. Pixel data stays in Orthanc or another DICOMweb service.
 
@@ -53,6 +46,23 @@ They appear in the same DICOM imaging list because BRN treats both as authorized
 study metadata linked to samples. The smoke-test study is useful when checking
 that OHIF renders real pixels; the MS brain studies are better examples for the
 kind of clinical imaging workflow the project is expected to support.
+
+## Multimodal dashboard
+
+The multimodal dashboard is the cross-modal preparation layer.
+
+`Multimodal analysis readiness` is a QC panel. It reports modality coverage,
+patient-level overlap, exact sample/timepoint overlap, DICOM-clinical linkage
+issues, and deterministic suggestions for what analyses are valid next. It does
+not run cross-modal statistics; it tells you whether the workspace is ready for
+them. Suggestions whose requirements are met include `Open in Analysis`, which
+prefills a focused Analysis prompt for the current workspace but does not run it
+automatically.
+
+`Multimodal feature matrix` builds a bounded sample-level preview for the full
+workspace. It joins clinical covariates, selected assay features, derived
+imaging matrices, and DICOM viewer metadata by exact sample/timepoint ID. Raw
+DICOM pixels are not converted into numeric analysis features in this step.
 
 ## Patient list and patient detail
 

@@ -612,8 +612,68 @@ def _mock_multimodal_readiness(page) -> None:
                     ],
                     "suggestions": [
                         {"key": "dicom_review", "label": "Review DICOM studies in OHIF", "enabled": True, "reason": "DICOM studies are linked to this workspace."},
+                        {"key": "imaging_feature_summary", "label": "Summarize derived imaging features", "enabled": True, "reason": "Imaging feature matrices overlap clinical patients."},
                         {"key": "patient_level_cross_modal", "label": "Explore patient-level cross-modal associations", "enabled": True, "reason": "At least two modalities share 1 patient."},
                         {"key": "visit_matched_multimodal", "label": "Explore visit-matched multimodal associations", "enabled": True, "reason": "At least two modalities share 1 exact sample ID."},
+                    ],
+                }
+            ),
+        ),
+    )
+
+
+def _mock_multimodal_matrix(page) -> None:
+    page.route(
+        "**/assays/matrix?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "metadata": {
+                        "join_level": "sample",
+                        "row_count": 2,
+                        "preview_row_count": 2,
+                        "column_count": 6,
+                        "assay_dataset_count": 2,
+                        "feature_group_count": 3,
+                        "selected_feature_count": 3,
+                        "missing_cell_count": 1,
+                        "missing_fraction": 0.0833,
+                    },
+                    "columns": [
+                        {"key": "patient_id", "label": "Patient ID", "role": "identifier"},
+                        {"key": "sample_id", "label": "Sample/timepoint ID", "role": "identifier"},
+                        {"key": "clinical.sex", "label": "Sex", "role": "covariate"},
+                        {"key": "synthetic_transcriptome_raw_counts_infliximab.ENSG00000111111", "label": "ENSG00000111111", "role": "feature", "modality": "transcriptomics"},
+                        {"key": "synthetic_mri_derived_measurements.lesion_volume_ml", "label": "lesion_volume_ml", "role": "feature", "modality": "imaging"},
+                        {"key": "dicom.study_count", "label": "DICOM study count", "role": "viewer_metadata", "modality": "dicom"},
+                    ],
+                    "rows": [
+                        {
+                            "row_id": "SYN001:week_0",
+                            "patient_id": "SYN001",
+                            "sample_id": "SYN001:week_0",
+                            "values": {
+                                "patient_id": "SYN001",
+                                "sample_id": "SYN001:week_0",
+                                "clinical.sex": "female",
+                                "synthetic_transcriptome_raw_counts_infliximab.ENSG00000111111": 42,
+                                "synthetic_mri_derived_measurements.lesion_volume_ml": 1.4,
+                                "dicom.study_count": 1,
+                            },
+                        }
+                    ],
+                    "missingness": [
+                        {"key": "synthetic_mri_derived_measurements.lesion_volume_ml", "label": "lesion_volume_ml", "missing_count": 1, "missing_fraction": 0.5}
+                    ],
+                    "feature_groups": [
+                        {"dataset_name": "synthetic_transcriptome_raw_counts_infliximab", "label": "Transcriptomics", "modality": "transcriptomics", "feature_count_selected": 1, "exact_sample_match_count": 1},
+                        {"dataset_name": "synthetic_mri_derived_measurements", "label": "MRI derived measurements", "modality": "imaging", "feature_count_selected": 1, "exact_sample_match_count": 1},
+                        {"dataset_name": "dicom_studies", "label": "DICOM studies", "modality": "dicom", "feature_count_selected": 1, "exact_sample_match_count": 1},
+                    ],
+                    "warnings": [
+                        {"severity": "warning", "kind": "patient_overlap_without_exact_sample_match", "message": "A modality overlaps patients but not exact sample IDs."}
                     ],
                 }
             ),
@@ -1034,6 +1094,7 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
     _mock_dicom_studies(page)
     _mock_dicom_status(page)
     _mock_multimodal_readiness(page)
+    _mock_multimodal_matrix(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -1050,6 +1111,13 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
         "href",
         "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
     )
+    expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
+
+    page.locator("#dashboardMultimodalBtn").click()
+
+    expect(page.locator("#dashboardMultimodalBtn")).to_have_class(re.compile("active"))
+    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Multimodal feature matrix")
+    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Sample-level matrix")
 
 
 def test_dashboard_assays_panel_filters_modalities(page) -> None:
@@ -1058,6 +1126,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     _mock_dicom_studies(page)
     _mock_dicom_status(page)
     _mock_multimodal_readiness(page)
+    _mock_multimodal_matrix(page)
     expect = playwright.expect
 
     page.locator("#datasetsTabBtn").click()
@@ -1070,12 +1139,29 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()
+    expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
+    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
+    expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
+
+    page.locator("#dashboardMultimodalBtn").click()
+
     expect(page.locator("#multimodalReadinessPanel")).to_be_visible()
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Multimodal analysis readiness")
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Imaging features")
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Review DICOM studies in OHIF")
-    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
-    expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
+    expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Requirements met")
+    page.locator("[data-readiness-analysis-key='imaging_feature_summary']").click()
+    expect(page.locator("#analysisTab")).to_have_class(re.compile("active"))
+    expect(page.locator("#analysisPrompt")).to_have_value(re.compile("Summarize the derived imaging features"))
+
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardMultimodalBtn").click()
+    expect(page.locator("#multimodalMatrixPanel")).to_be_visible()
+    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("MRI derived measurements")
+    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("lesion_volume_ml")
+
+    page.locator("#dashboardAssaysBtn").click()
 
     page.locator("[data-assay-modality-filter='transcriptomics']").click()
 
@@ -1083,6 +1169,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_mri_derived_measurements")
     expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()
+    expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardPanel")).not_to_be_visible()
     expect(page.locator("#transcriptomicsQuickExpressionPanel")).to_be_visible()
 
@@ -1092,6 +1179,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
     expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()
+    expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardPanel")).to_be_visible()
     expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")

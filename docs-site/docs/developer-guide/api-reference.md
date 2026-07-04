@@ -27,6 +27,7 @@ The current OpenAPI contract is strongest for the stable top-level API surfaces:
 - saved cohorts
 - transcriptomics assay inventory
 - multimodal assay readiness
+- multimodal feature matrix preview
 - DICOM study discovery and integration status
 - selected delete/update helpers
 

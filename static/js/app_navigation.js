@@ -11,6 +11,7 @@ export function createNavigationUi(ctx) {
     phenoTabBtnEl,
     dashboardClinicalBtnEl,
     dashboardAssaysBtnEl,
+    dashboardMultimodalBtnEl,
     dashboardTimelineBtnEl,
     tabHelperTextEl,
     dashboardTabEl,
@@ -23,6 +24,7 @@ export function createNavigationUi(ctx) {
     phenoTabEl,
     dashboardClinicalPanelEl,
     dashboardAssaysPanelEl,
+    dashboardMultimodalPanelEl,
     dashboardTimelinePanelEl,
     loadStatusEl,
   } = refs;
@@ -37,6 +39,7 @@ export function createNavigationUi(ctx) {
       const helperText = {
         clinical: "Browse patients and orient yourself in the loaded clinical dataset",
         assays: "Inspect assay modalities, DICOM viewer status, and transcriptomics quick summaries",
+        multimodal: "Review cross-modal readiness, sample-level feature joins, missingness, and provenance",
         timeline: "Review longitudinal timepoints, BFF event domains, and assay coverage",
       };
       tabHelperTextEl.textContent = helperText[state.currentDashboardSubtab] || helperText.clinical;
@@ -114,12 +117,14 @@ export function createNavigationUi(ctx) {
   }
 
   function setDashboardSubtab(subtabName) {
-    state.currentDashboardSubtab = subtabName === "assays" || subtabName === "timeline" ? subtabName : "clinical";
+    state.currentDashboardSubtab = ["assays", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
     dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");
     dashboardAssaysBtnEl && dashboardAssaysBtnEl.classList.toggle("active", state.currentDashboardSubtab === "assays");
+    dashboardMultimodalBtnEl && dashboardMultimodalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "multimodal");
     dashboardTimelineBtnEl && dashboardTimelineBtnEl.classList.toggle("active", state.currentDashboardSubtab === "timeline");
     dashboardClinicalPanelEl && dashboardClinicalPanelEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");
     dashboardAssaysPanelEl && dashboardAssaysPanelEl.classList.toggle("active", state.currentDashboardSubtab === "assays");
+    dashboardMultimodalPanelEl && dashboardMultimodalPanelEl.classList.toggle("active", state.currentDashboardSubtab === "multimodal");
     dashboardTimelinePanelEl && dashboardTimelinePanelEl.classList.toggle("active", state.currentDashboardSubtab === "timeline");
     try {
       window.localStorage.setItem(DASHBOARD_SUBTAB_STORAGE_KEY, state.currentDashboardSubtab);

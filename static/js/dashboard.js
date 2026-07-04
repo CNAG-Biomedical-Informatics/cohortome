@@ -14,6 +14,9 @@ export function createDashboardUi(ctx) {
     multimodalReadinessPanelEl,
     multimodalReadinessStatusEl,
     multimodalReadinessContentEl,
+    multimodalMatrixPanelEl,
+    multimodalMatrixStatusEl,
+    multimodalMatrixContentEl,
     dicomDashboardPanelEl,
     dicomDashboardHealthEl,
     dicomDashboardStatusEl,
@@ -41,6 +44,7 @@ export function createDashboardUi(ctx) {
     isMultiDatasetWorkspace,
     sendPatientIdsToAnalysis,
     saveIdsAsCohort,
+    sendPromptToAnalysis,
     renderAnalysisCatalog,
     renderAnalysisCatalogAssayPanel,
   } = callbacks;
@@ -1791,9 +1795,14 @@ export function createDashboardUi(ctx) {
 
   function renderMultimodalReadinessVisibility() {
     if (!multimodalReadinessPanelEl) return;
-    const visible = selectedAssayModalityFilter() === "all";
-    multimodalReadinessPanelEl.classList.toggle("is-hidden", !visible);
-    multimodalReadinessPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
+    multimodalReadinessPanelEl.classList.remove("is-hidden");
+    multimodalReadinessPanelEl.setAttribute("aria-hidden", "false");
+  }
+
+  function renderMultimodalMatrixVisibility() {
+    if (!multimodalMatrixPanelEl) return;
+    multimodalMatrixPanelEl.classList.remove("is-hidden");
+    multimodalMatrixPanelEl.setAttribute("aria-hidden", "false");
   }
 
   function renderReadinessKpis(workspace) {
@@ -1864,14 +1873,46 @@ export function createDashboardUi(ctx) {
     `;
   }
 
+  function readinessAnalysisPrompt(item) {
+    const key = String(item && item.key ? item.key : "").trim();
+    const prompts = {
+      dicom_review: "Review the DICOM studies available in this workspace. Summarize which patients and samples have viewer-ready studies, which linkage checks matter, and what imaging review steps are feasible next.",
+      imaging_feature_summary: "Summarize the derived imaging features in this workspace, including patient overlap, exact sample/timepoint overlap, missingness, value ranges, and which imaging analyses are feasible next.",
+      transcriptomics_summary: "Summarize the transcriptomics assay data in this workspace, including sample coverage, clinical overlap, available datasets, missingness considerations, and which expression analyses are feasible next.",
+      patient_level_cross_modal: "Review this workspace for patient-level multimodal analysis readiness. Summarize which clinical, imaging, DICOM, and assay modalities overlap by patient and what exploratory association analyses are feasible.",
+      visit_matched_multimodal: "Review the visit-matched multimodal data in this workspace. Summarize exact sample/timepoint overlap, missingness, available feature groups, and which sample-level analyses are feasible.",
+    };
+    return prompts[key] || `Review the ${String(item && item.label ? item.label : "multimodal")} readiness suggestion and summarize what analysis steps are feasible in this workspace.`;
+  }
+
+  function openReadinessSuggestionInAnalysis(item) {
+    if (typeof sendPromptToAnalysis !== "function" || !item || !item.enabled) return;
+    sendPromptToAnalysis(readinessAnalysisPrompt(item), {
+      statusMessage: `Analysis prompt prepared from multimodal readiness: ${String(item.label || "suggested next step")}. Review it and run when ready.`,
+    });
+  }
+
+  function bindReadinessSuggestionActions(suggestions) {
+    if (!multimodalReadinessContentEl || typeof sendPromptToAnalysis !== "function") return;
+    const items = Array.isArray(suggestions) ? suggestions : [];
+    multimodalReadinessContentEl.querySelectorAll("[data-readiness-analysis-key]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = String(button.getAttribute("data-readiness-analysis-key") || "").trim();
+        const item = items.find((candidate) => String(candidate && candidate.key ? candidate.key : "").trim() === key);
+        openReadinessSuggestionInAnalysis(item);
+      });
+    });
+  }
+
   function renderReadinessSuggestions(suggestions) {
     const items = Array.isArray(suggestions) ? suggestions : [];
     const content = items.length
       ? items.map((item) => `
         <article class="multimodal-suggestion${item.enabled ? "" : " disabled"}">
           <strong>${escapeHtml(String(item.label || "Suggested analysis"))}</strong>
-          <span class="query-chip badge">${escapeHtml(item.enabled ? "Ready" : "Not ready")}</span>
+          <span class="query-chip badge">${escapeHtml(item.enabled ? "Requirements met" : "Missing data")}</span>
           <small>${escapeHtml(String(item.reason || ""))}</small>
+          ${item.enabled ? `<button type="button" class="query-chip action multimodal-suggestion-action" data-readiness-analysis-key="${escapeHtml(String(item.key || ""))}">Open in Analysis</button>` : ""}
         </article>
       `).join("")
       : '<div class="empty">No suggestions available.</div>';
@@ -1895,6 +1936,7 @@ export function createDashboardUi(ctx) {
       ${renderReadinessIssues(issues)}
       ${renderReadinessSuggestions(source.suggestions || [])}
     `;
+    bindReadinessSuggestionActions(source.suggestions || []);
     renderMultimodalReadinessVisibility();
   }
 
@@ -1905,6 +1947,128 @@ export function createDashboardUi(ctx) {
     multimodalReadinessStatusEl.textContent = message || "Unable to load multimodal readiness.";
     multimodalReadinessContentEl.innerHTML = '<div class="empty">Multimodal readiness is unavailable for this workspace.</div>';
     renderMultimodalReadinessVisibility();
+  }
+
+  function renderMatrixKpis(metadata) {
+    const source = metadata && typeof metadata === "object" ? metadata : {};
+    const missingPct = `${(Number(source.missing_fraction || 0) * 100).toFixed(1)}%`;
+    return `
+      <div class="assay-kpi-grid multimodal-kpi-grid">
+        <div class="assay-kpi"><span class="assay-kpi-label">Rows</span><strong class="assay-kpi-value">${escapeHtml(String(source.row_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Columns</span><strong class="assay-kpi-value">${escapeHtml(String(source.column_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Feature groups</span><strong class="assay-kpi-value">${escapeHtml(String(source.feature_group_count || 0))}</strong></div>
+        <div class="assay-kpi"><span class="assay-kpi-label">Missing cells</span><strong class="assay-kpi-value">${escapeHtml(missingPct)}</strong></div>
+      </div>
+    `;
+  }
+
+  function renderMatrixFeatureGroups(groups) {
+    const items = Array.isArray(groups) ? groups : [];
+    const content = items.length
+      ? items.map((item) => `
+        <div class="multimodal-feature-group">
+          <strong>${escapeHtml(String(item.label || item.dataset_name || "Feature group"))}</strong>
+          <span class="query-chip badge">${escapeHtml(formatAssayModality(item.modality || "assay"))}</span>
+          <small>${escapeHtml(String(item.feature_count_selected || 0))} columns · ${escapeHtml(String(item.exact_sample_match_count || 0))} exact sample matches</small>
+        </div>
+      `).join("")
+      : '<div class="empty">No feature groups selected.</div>';
+    return `<div class="assay-card-section"><strong>Provenance</strong><div class="multimodal-feature-group-list">${content}</div></div>`;
+  }
+
+  function renderMatrixMissingness(missingness) {
+    const rows = (Array.isArray(missingness) ? missingness : [])
+      .filter((item) => Number(item.missing_count || 0) > 0)
+      .sort((left, right) => Number(right.missing_fraction || 0) - Number(left.missing_fraction || 0))
+      .slice(0, 6);
+    if (!rows.length) {
+      return '<div class="assay-card-section"><strong>Missingness</strong><div class="query-status">No missing values in selected preview columns.</div></div>';
+    }
+    return `
+      <div class="assay-card-section">
+        <strong>Missingness</strong>
+        <div class="multimodal-overlap-list">
+          ${rows.map((item) => `
+            <div class="multimodal-overlap-row">
+              <span>${escapeHtml(String(item.label || item.key || "Column"))}</span>
+              <strong>${escapeHtml(String(item.missing_count || 0))}</strong>
+              <small>${escapeHtml((Number(item.missing_fraction || 0) * 100).toFixed(1))}%</small>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMatrixWarnings(warnings) {
+    const items = Array.isArray(warnings) ? warnings : [];
+    if (!items.length) return "";
+    return `
+      <div class="assay-card-section">
+        <strong>Matrix checks</strong>
+        <div class="multimodal-issue-list">
+          ${items.slice(0, 4).map((item) => `<div class="query-status">${escapeHtml(String(item.message || "Matrix warning."))}</div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMatrixPreviewTable(columns, rows) {
+    const columnItems = Array.isArray(columns) ? columns : [];
+    const rowItems = Array.isArray(rows) ? rows : [];
+    if (!columnItems.length || !rowItems.length) {
+      return '<div class="assay-card-section"><strong>Preview</strong><div class="empty">No matrix rows available.</div></div>';
+    }
+    return `
+      <div class="assay-card-section">
+        <strong>Preview</strong>
+        <div class="assay-table-wrap multimodal-matrix-table-wrap">
+          <table class="assay-table multimodal-matrix-table">
+            <thead>
+              <tr>${columnItems.map((column) => `<th title="${escapeHtml(String(column.key || ""))}">${escapeHtml(String(column.label || column.key || "Column"))}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${rowItems.map((row) => {
+                const values = row && typeof row.values === "object" ? row.values : {};
+                return `<tr>${columnItems.map((column) => {
+                  const key = String(column.key || "");
+                  const value = values[key];
+                  return `<td>${escapeHtml(value === null || typeof value === "undefined" ? "" : String(value))}</td>`;
+                }).join("")}</tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMultimodalMatrix(payload) {
+    if (!multimodalMatrixStatusEl || !multimodalMatrixContentEl) return;
+    const source = payload && typeof payload === "object" ? payload : {};
+    const metadata = source.metadata && typeof source.metadata === "object" ? source.metadata : {};
+    state.multimodalMatrixState = source;
+    multimodalMatrixStatusEl.className = "query-status";
+    multimodalMatrixStatusEl.textContent = Number(metadata.row_count || 0)
+      ? `Sample-level matrix: ${metadata.row_count || 0} rows x ${metadata.column_count || 0} columns.`
+      : "No matrix rows available.";
+    multimodalMatrixContentEl.innerHTML = `
+      ${renderMatrixKpis(metadata)}
+      ${renderMatrixFeatureGroups(source.feature_groups || [])}
+      ${renderMatrixMissingness(source.missingness || [])}
+      ${renderMatrixWarnings(source.warnings || [])}
+      ${renderMatrixPreviewTable(source.columns || [], source.rows || [])}
+    `;
+    renderMultimodalMatrixVisibility();
+  }
+
+  function renderMultimodalMatrixError(message) {
+    if (!multimodalMatrixStatusEl || !multimodalMatrixContentEl) return;
+    state.multimodalMatrixState = null;
+    multimodalMatrixStatusEl.className = "query-status";
+    multimodalMatrixStatusEl.textContent = message || "Unable to build multimodal feature matrix.";
+    multimodalMatrixContentEl.innerHTML = '<div class="empty">Multimodal feature matrix is unavailable for this workspace.</div>';
+    renderMultimodalMatrixVisibility();
   }
 
   function renderAssayOverlapSection(item) {
@@ -2013,6 +2177,7 @@ export function createDashboardUi(ctx) {
     renderDicomPanelVisibility();
     renderTranscriptomicsQuickExpressionVisibility();
     renderMultimodalReadinessVisibility();
+    renderMultimodalMatrixVisibility();
     if (!items.length) {
       assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
       return;
@@ -2054,6 +2219,22 @@ export function createDashboardUi(ctx) {
       renderMultimodalReadiness(await response.json());
     } catch (error) {
       renderMultimodalReadinessError(error && error.message ? error.message : "Unable to load multimodal readiness.");
+    }
+  }
+
+  async function loadMultimodalMatrix(options = {}) {
+    if (!multimodalMatrixStatusEl || !multimodalMatrixContentEl) return;
+    const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
+    const dataDir = encodeURIComponent(scopeId);
+    multimodalMatrixStatusEl.className = "query-status loading";
+    multimodalMatrixStatusEl.textContent = "Building multimodal feature matrix...";
+    multimodalMatrixContentEl.innerHTML = '<div class="empty">Joining clinical, assay, and imaging metadata...</div>';
+    try {
+      const response = await fetch(`/assays/matrix?data_dir=${dataDir}&max_features_per_dataset=3&max_rows=12`);
+      if (!response.ok) throw new Error("Unable to build multimodal feature matrix.");
+      renderMultimodalMatrix(await response.json());
+    } catch (error) {
+      renderMultimodalMatrixError(error && error.message ? error.message : "Unable to build multimodal feature matrix.");
     }
   }
 
@@ -2103,6 +2284,7 @@ export function createDashboardUi(ctx) {
     const dataDir = encodeURIComponent(scopeId);
     void loadDicomStudies({ scopeId });
     void loadMultimodalReadiness({ scopeId });
+    void loadMultimodalMatrix({ scopeId });
     analysisAssayStatusEl.className = "query-status loading";
     analysisAssayStatusEl.textContent = "Checking transcriptomics assays...";
     if (analysisCatalogAssayStatusEl) {
