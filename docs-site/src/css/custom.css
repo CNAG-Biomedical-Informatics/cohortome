@@ -14,11 +14,11 @@
   --ifm-global-radius: 6px;
   --ifm-button-border-radius: 6px;
   --docusaurus-highlighted-code-line-bg: rgba(14, 105, 100, 0.1);
-  --brn-ink: #172a32;
-  --brn-muted: #536970;
-  --brn-line: #cfdbde;
-  --brn-wash: #eef4f3;
-  --brn-warm: #fff6e2;
+  --cohortome-ink: #172a32;
+  --cohortome-muted: #536970;
+  --cohortome-line: #cfdbde;
+  --cohortome-wash: #eef4f3;
+  --cohortome-warm: #fff6e2;
 }
 
 [data-theme='dark'] {
@@ -36,17 +36,40 @@
   --ifm-heading-color: #f6faf9;
   --ifm-card-background-color: #192321;
   --docusaurus-highlighted-code-line-bg: rgba(119, 201, 191, 0.13);
-  --brn-ink: #f2f8f6;
-  --brn-muted: #b6c8c4;
-  --brn-line: #354a46;
-  --brn-wash: #1a2926;
-  --brn-warm: #352e1d;
+  --cohortome-ink: #f2f8f6;
+  --cohortome-muted: #b6c8c4;
+  --cohortome-line: #354a46;
+  --cohortome-wash: #1a2926;
+  --cohortome-warm: #352e1d;
 }
 
 .navbar {
   border-bottom: 1px solid var(--ifm-color-emphasis-200);
   box-shadow: none;
   backdrop-filter: blur(10px);
+}
+
+.cohortomeNavbarIcon {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  margin-right: 0.55rem;
+}
+
+.cohortomeNavbarWordmark {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--cohortome-ink);
+  letter-spacing: 0;
+}
+
+.cohortomeNavbarPrimary {
+  font-weight: 700;
+}
+
+.cohortomeNavbarSecondary {
+  color: var(--ifm-color-primary);
+  font-weight: 450;
 }
 
 .button,
@@ -85,16 +108,16 @@
 .pnQuickHero {
   margin: 0 0 1.5rem;
   padding: clamp(1.25rem, 3vw, 2rem);
-  border: 1px solid var(--brn-line);
+  border: 1px solid var(--cohortome-line);
   border-left: 4px solid var(--ifm-color-primary);
   border-radius: 6px;
-  background: var(--brn-wash);
+  background: var(--cohortome-wash);
 }
 
 .pnQuickHero h2 {
   max-width: 820px;
   margin: 0;
-  color: var(--brn-ink);
+  color: var(--cohortome-ink);
   font-size: clamp(1.45rem, 3vw, 2.25rem);
   line-height: 1.16;
   letter-spacing: 0;
@@ -103,7 +126,7 @@
 .pnQuickHero .pnHeroText {
   max-width: 780px;
   margin: 0.9rem 0 0;
-  color: var(--brn-muted);
+  color: var(--cohortome-muted);
   font-size: 1.04rem;
   line-height: 1.65;
 }
@@ -117,12 +140,12 @@
   text-transform: uppercase;
 }
 
-.brnFundingImage {
+.cohortomeFundingImage {
   display: block;
   width: min(760px, 100%);
   margin: 1.25rem 0;
   padding: 1rem;
-  border: 1px solid var(--brn-line);
+  border: 1px solid var(--cohortome-line);
   border-radius: 6px;
   background: #ffffff;
 }

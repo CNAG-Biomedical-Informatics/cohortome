@@ -11,7 +11,7 @@ window.config = {
       namespace: "@ohif/extension-default.dataSourcesModule.dicomweb",
       sourceName: "orthanc",
       configuration: {
-        friendlyName: "BRN Orthanc",
+        friendlyName: "COHORTome Orthanc",
         name: "orthanc",
         qidoRoot: "/dicom-web",
         wadoRoot: "/dicom-web",

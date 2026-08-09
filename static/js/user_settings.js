@@ -145,7 +145,7 @@ export function createUserSettingsUi(ctx) {
           <div class="user-settings-auth-value">${String(value).replace(/</g, "&lt;")}</div>
         `).join("")}
       </div>
-      <div class="section-note">Dataset access is managed by Biomedical Research Navigator roles and groups.</div>
+      <div class="section-note">Dataset access is managed by COHORTome roles and groups.</div>
     `;
   }
 

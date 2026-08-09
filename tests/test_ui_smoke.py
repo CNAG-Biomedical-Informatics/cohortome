@@ -85,9 +85,9 @@ def live_server_auth() -> str:
         auth_path.unlink()
     process, base_url = _spawn_live_server(
         {
-            "BRN_AUTH_MODE": "local",
-            "BRN_SESSION_SECRET": "ui-smoke-test-session-secret",
-            "BRN_LOCAL_USERS_JSON": json.dumps(
+            "COHORTOME_AUTH_MODE": "local",
+            "COHORTOME_SESSION_SECRET": "ui-smoke-test-session-secret",
+            "COHORTOME_LOCAL_USERS_JSON": json.dumps(
                 [
                     {
                         "username": "admin",
@@ -1029,6 +1029,27 @@ def _mock_analysis_reply(page) -> None:
     )
 
 
+def test_primary_wordmark_emphasizes_cohort(page) -> None:
+    wordmark = page.locator("#appShell .brand-wordmark")
+    primary = wordmark.locator(".brand-wordmark-primary")
+    secondary = wordmark.locator(".brand-wordmark-secondary")
+
+    playwright.expect(wordmark).to_have_attribute("aria-label", "COHORTome")
+    playwright.expect(primary).to_have_text("COHORT")
+    playwright.expect(secondary).to_have_text("ome")
+    assert page.title() == "COHORTome"
+    assert int(primary.evaluate("element => getComputedStyle(element).fontWeight")) > int(
+        secondary.evaluate("element => getComputedStyle(element).fontWeight")
+    )
+    assert primary.evaluate("element => getComputedStyle(element).color") != secondary.evaluate(
+        "element => getComputedStyle(element).color"
+    )
+    visible_text = page.locator("body").inner_text()
+    assert "CohorToMe" not in visible_text
+    assert "Cohort2Me" not in visible_text
+    assert "Cohortome" not in visible_text
+
+
 def test_pheno_run_button_requires_prompt(page) -> None:
     _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
@@ -1241,11 +1262,20 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     _open_query_tab(page)
     _mock_query_reply(page)
     expect = playwright.expect
+    captured = {}
+    page.on(
+        "request",
+        lambda request: captured.setdefault("body", request.post_data_json)
+        if request.url.endswith("/query")
+        else None,
+    )
 
     page.locator("#question").fill("Which patients have Crohn Disease?")
     page.locator("#askBtn").click()
 
     expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
+    assert captured["body"]["dataset_id"] == "default"
+    assert "data_dir" not in captured["body"]
     expect(page.locator("#queryThread")).to_contain_text("Open in Analysis")
     page.locator("[data-query-action='use-analysis']").click()
 
@@ -1312,6 +1342,8 @@ def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> 
 
     assert captured["body"]["llm_only"] is False
     assert captured["body"]["deterministic_only"] is True
+    assert captured["body"]["dataset_id"] == "default"
+    assert "data_dir" not in captured["body"]
 
 
 def test_analysis_llm_starter_chip_blocks_when_lm_unavailable(page) -> None:

@@ -14,7 +14,7 @@ const FeatureList: FeatureItem[] = [
     title: 'One active workspace, multiple datasets when needed',
     description: (
       <>
-        Biomedical Research Navigator uses the concept of a workspace for the currently
+        COHORTome uses the concept of a workspace for the currently
         loaded dataset scope. A workspace may contain one dataset or multiple
         authorized datasets.
       </>

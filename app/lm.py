@@ -64,9 +64,9 @@ def _normalize_provider(raw: Dict[str, Any]) -> Dict[str, Any] | None:
 
 
 def _configured_registry_providers() -> list[Dict[str, Any]]:
-    raw = app_env("BRN_LLM_PROVIDERS_JSON", "").strip()
+    raw = app_env("COHORTOME_LLM_PROVIDERS_JSON", "").strip()
     if not raw:
-        registry_path = app_env("BRN_LLM_PROVIDERS_FILE", "").strip()
+        registry_path = app_env("COHORTOME_LLM_PROVIDERS_FILE", "").strip()
         if registry_path:
             try:
                 raw = BASE_DIR.joinpath(registry_path).read_text(encoding="utf-8") if not os.path.isabs(registry_path) else open(registry_path, encoding="utf-8").read()

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="680" height="1500" viewBox="0 0 680 1500" role="img" aria-labelledby="title desc">
-  <title id="title">A research journey through Biomedical Research Navigator</title>
-  <desc id="desc">Approved clinical, assay, and imaging data enter BRN. BRN links patients, samples, and visits, helps a researcher find a cohort, runs a reviewed analysis, and keeps the result with its history.</desc>
+  <title id="title">A research journey through COHORTome</title>
+  <desc id="desc">Approved clinical, assay, and imaging data enter COHORTome. COHORTome links patients, samples, and visits, helps a researcher find a cohort, runs a reviewed analysis, and keeps the result with its history.</desc>
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#17313a" flood-opacity=".12"/>
@@ -15,10 +15,10 @@
 
   <rect width="680" height="1500" fill="#f3f6f6"/>
   <g font-family="Inter, Arial, sans-serif">
-    <text x="30" y="39" fill="#177d75" font-size="16" font-weight="800">A BRN RESEARCH JOURNEY</text>
+    <text x="30" y="39" fill="#177d75" font-size="16" font-weight="800">A COHORTome RESEARCH JOURNEY</text>
     <text x="30" y="77" fill="#172a32" font-size="29" font-weight="800">From approved data to a result</text>
     <text x="30" y="108" fill="#172a32" font-size="29" font-weight="800">you can trace</text>
-    <text x="30" y="137" fill="#566b73" font-size="16">BRN keeps the research steps connected.</text>
+    <text x="30" y="137" fill="#566b73" font-size="16">COHORTome keeps the research steps connected.</text>
 
     <!-- Stage 1: approved sources -->
     <g filter="url(#shadow)">
@@ -72,7 +72,7 @@
     </g>
     <rect x="30" y="468" width="620" height="56" rx="8" fill="#0e6964"/>
     <rect x="30" y="516" width="620" height="8" fill="#0e6964"/>
-    <text x="58" y="502" fill="#ffffff" font-size="16" font-weight="800">2  BRN CONNECTS THE RECORDS</text>
+    <text x="58" y="502" fill="#ffffff" font-size="16" font-weight="800">2  COHORTome CONNECTS THE RECORDS</text>
 
     <rect x="58" y="545" width="564" height="62" rx="6" fill="#eef6f5" stroke="#9bc9c4"/>
     <g transform="translate(78 561)">
@@ -178,6 +178,6 @@
     <path d="M622 1394H657V816H526V842" fill="none" stroke="#b25c25" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#historyArrow)"/>
     <text x="645" y="1117" fill="#9a4c1d" font-size="10" font-weight="800" text-anchor="middle" transform="rotate(-90 645 1117)">THE RESULT CAN INFORM THE NEXT QUESTION</text>
 
-    <text x="340" y="1481" fill="#536970" font-size="13" font-weight="700" text-anchor="middle">Source data stay outside BRN &#183; research history stays attached</text>
+    <text x="340" y="1481" fill="#536970" font-size="13" font-weight="700" text-anchor="middle">Source data stay outside COHORTome &#183; research history stays attached</text>
   </g>
 </svg>

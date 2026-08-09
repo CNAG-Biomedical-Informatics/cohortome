@@ -28,7 +28,7 @@ PASSWORD_RESET_TOKEN_BYTES = 32
 
 
 def auth_mode() -> str:
-    return (app_env("BRN_AUTH_MODE", "none").strip().lower() or "none")
+    return (app_env("COHORTOME_AUTH_MODE", "none").strip().lower() or "none")
 
 
 def auth_enabled() -> bool:
@@ -41,7 +41,7 @@ def auth_provider_mode() -> str:
 
 
 def password_reset_ttl_minutes() -> int:
-    raw = app_env("BRN_PASSWORD_RESET_TTL_MINUTES", "").strip()
+    raw = app_env("COHORTOME_PASSWORD_RESET_TTL_MINUTES", "").strip()
     if not raw:
         return 60
     try:
@@ -51,11 +51,11 @@ def password_reset_ttl_minutes() -> int:
 
 
 def _smtp_host() -> str:
-    return app_env("BRN_SMTP_HOST", "").strip()
+    return app_env("COHORTOME_SMTP_HOST", "").strip()
 
 
 def _smtp_from() -> str:
-    return app_env("BRN_SMTP_FROM", "").strip()
+    return app_env("COHORTOME_SMTP_FROM", "").strip()
 
 
 def password_reset_enabled() -> bool:
@@ -63,27 +63,27 @@ def password_reset_enabled() -> bool:
 
 
 def oidc_provider_name() -> str:
-    return app_env("BRN_OIDC_PROVIDER_NAME", "OIDC").strip() or "OIDC"
+    return app_env("COHORTOME_OIDC_PROVIDER_NAME", "OIDC").strip() or "OIDC"
 
 
 def oidc_issuer() -> str:
-    return app_env("BRN_OIDC_ISSUER", "").strip().rstrip("/")
+    return app_env("COHORTOME_OIDC_ISSUER", "").strip().rstrip("/")
 
 
 def oidc_client_id() -> str:
-    return app_env("BRN_OIDC_CLIENT_ID", "").strip()
+    return app_env("COHORTOME_OIDC_CLIENT_ID", "").strip()
 
 
 def oidc_client_secret() -> str:
-    return app_env("BRN_OIDC_CLIENT_SECRET", "")
+    return app_env("COHORTOME_OIDC_CLIENT_SECRET", "")
 
 
 def oidc_redirect_uri() -> str:
-    return app_env("BRN_OIDC_REDIRECT_URI", "").strip()
+    return app_env("COHORTOME_OIDC_REDIRECT_URI", "").strip()
 
 
 def oidc_scopes() -> str:
-    return app_env("BRN_OIDC_SCOPES", "openid email profile").strip() or "openid email profile"
+    return app_env("COHORTOME_OIDC_SCOPES", "openid email profile").strip() or "openid email profile"
 
 
 def oidc_configured() -> bool:
@@ -95,7 +95,7 @@ def local_fallback_enabled() -> bool:
         return True
     if auth_mode() != "oidc":
         return False
-    return app_env("BRN_AUTH_LOCAL_FALLBACK", "").strip().lower() in {"1", "true", "yes", "on"}
+    return app_env("COHORTOME_AUTH_LOCAL_FALLBACK", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_email(value: Any) -> str:
@@ -251,7 +251,7 @@ def _normalize_seed_users(raw_items: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def _seed_users_from_env_or_default() -> List[Dict[str, Any]]:
-    raw = app_env("BRN_LOCAL_USERS_JSON", "").strip()
+    raw = app_env("COHORTOME_LOCAL_USERS_JSON", "").strip()
     if not raw:
         return _normalize_seed_users(_default_users())
     try:
@@ -289,7 +289,7 @@ def local_users(include_secrets: bool = False) -> List[Dict[str, Any]]:
     else:
         users = _seed_users_from_env_or_default()
         _write_local_users(users)
-        source = "env" if app_env_has("BRN_LOCAL_USERS_JSON") and app_env("BRN_LOCAL_USERS_JSON", "").strip() else "default"
+        source = "env" if app_env_has("COHORTOME_LOCAL_USERS_JSON") and app_env("COHORTOME_LOCAL_USERS_JSON", "").strip() else "default"
     if include_secrets:
         return users
     public_users: List[Dict[str, Any]] = []
@@ -539,7 +539,7 @@ def _write_password_reset_tokens(tokens: List[Dict[str, Any]]) -> None:
 
 
 def _password_reset_base_url(request: Request) -> str:
-    configured = app_env("BRN_PUBLIC_BASE_URL", "").strip()
+    configured = app_env("COHORTOME_PUBLIC_BASE_URL", "").strip()
     if configured:
         return configured.rstrip("/")
     return str(request.base_url).rstrip("/")
@@ -580,7 +580,7 @@ def _http_json(
 def oidc_discovery_document() -> Dict[str, Any]:
     issuer = oidc_issuer()
     if not issuer:
-        raise ValueError("BRN_OIDC_ISSUER is required.")
+        raise ValueError("COHORTOME_OIDC_ISSUER is required.")
     return _http_json(f"{issuer}/.well-known/openid-configuration")
 
 
@@ -671,12 +671,12 @@ def send_password_reset_email(user: Dict[str, Any], reset_url: str) -> None:
     sender = _smtp_from()
     if not host or not sender:
         raise ValueError("SMTP password reset is not configured.")
-    port = int(app_env("BRN_SMTP_PORT", "587") or "587")
-    username = app_env("BRN_SMTP_USERNAME", "").strip()
-    password = app_env("BRN_SMTP_PASSWORD", "")
-    use_tls = app_env("BRN_SMTP_TLS", "true").strip().lower() not in {"0", "false", "no", "off"}
+    port = int(app_env("COHORTOME_SMTP_PORT", "587") or "587")
+    username = app_env("COHORTOME_SMTP_USERNAME", "").strip()
+    password = app_env("COHORTOME_SMTP_PASSWORD", "")
+    use_tls = app_env("COHORTOME_SMTP_TLS", "true").strip().lower() not in {"0", "false", "no", "off"}
     message = EmailMessage()
-    message["Subject"] = "Biomedical Research Navigator password reset"
+    message["Subject"] = "COHORTome password reset"
     message["From"] = sender
     message["To"] = recipient
     display_name = str(user.get("display_name") or user.get("username") or "user")
@@ -686,7 +686,7 @@ def send_password_reset_email(user: Dict[str, Any], reset_url: str) -> None:
             [
                 f"Hello {display_name},",
                 "",
-                "A password reset was requested for your Biomedical Research Navigator account.",
+                "A password reset was requested for your COHORTome account.",
                 f"Use this link within {ttl} minutes:",
                 "",
                 reset_url,

@@ -2,36 +2,36 @@
 sidebar_position: 1
 ---
 
-# Biomedical Research Navigator
+# COHORTome
 
 :::tip[In one sentence]
-Biomedical Research Navigator helps research teams connect clinical and assay
+COHORTome helps research teams connect clinical and assay
 data over time, find groups of patients, and run traceable analyses without
 replacing the systems that store the source data.
 :::
 
 <picture>
-  <source media="(max-width: 700px)" srcSet="/img/brn-research-journey-mobile.svg" />
+  <source media="(max-width: 700px)" srcSet="/img/cohortome-research-journey-mobile.svg" />
   <img
-    src="/img/brn-research-journey.svg"
-    alt="Approved clinical, assay, and imaging data enter BRN, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
+    src="/img/cohortome-research-journey.svg"
+    alt="Approved clinical, assay, and imaging data enter COHORTome, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
   />
 </picture>
 
-BRN is a generic open-source tool that can be deployed alongside different
+COHORTome is a generic open-source tool that can be deployed alongside different
 approved data systems. Its first consortium-scale deployment is planned in the
 context of the
 [3TR consortium](https://www.ihi.europa.eu/projects-results/project-factsheets/3tr).
-In that deployment, BRN will receive authorized releases from the 3TR Omics DM
+In that deployment, COHORTome will receive authorized releases from the 3TR Omics DM
 Warehouse without depending on how the warehouse stores its files. The warehouse
-keeps and distributes data; BRN provides the research workspace.
+keeps and distributes data; COHORTome provides the research workspace.
 
 [PRECISESADS](https://www.ihi.europa.eu/projects-results/project-factsheets/precisesads)
 is held in the Omics DM Warehouse and is the first real reference implementation,
 with scientific collaboration from FPS in Granada. Public synthetic fixtures
 remain available for development, demonstration, and automated testing.
 
-## What BRN does
+## What COHORTome does
 
 - brings approved clinical and assay datasets into one research workspace
 - connects records from the same patient, sample, visit, or time point
@@ -48,21 +48,21 @@ remain available for development, demonstration, and automated testing.
 | Layer | Responsibility |
 | --- | --- |
 | Sources | The Omics DM Warehouse and other approved systems keep and distribute the original data. |
-| Preparing data | BRN organizes clinical and assay information and connects patient, sample, and visit identifiers. |
-| Controlling access | BRN decides which registered datasets a user may open and what information may be sent to an approved model. |
+| Preparing data | COHORTome organizes clinical and assay information and connects patient, sample, and visit identifiers. |
+| Controlling access | COHORTome decides which registered datasets a user may open and what information may be sent to an approved model. |
 | Exploring | Researchers review timelines, clinical and assay summaries, medical images, missing data, and overlap between modalities. |
 | Finding cohorts | Researchers ask questions, inspect the method used, and save reusable groups of patients or samples. |
-| Analyzing | BRN runs reviewed clinical, omics, pathway, and phenotype-similarity methods. |
-| Keeping evidence | BRN retains the data scope, settings, logs, plots, tables, files, and run history needed to understand a result. |
+| Analyzing | COHORTome runs reviewed clinical, omics, pathway, and phenotype-similarity methods. |
+| Keeping evidence | COHORTome retains the data scope, settings, logs, plots, tables, files, and run history needed to understand a result. |
 
 The technical boundary behind that journey is shown below. Source systems keep
-the originals; BRN prepares authorized releases for exploration and analysis.
+the originals; COHORTome prepares authorized releases for exploration and analysis.
 
 <picture>
-  <source media="(max-width: 700px)" srcSet="/img/brn-platform-workflow-mobile.svg" />
+  <source media="(max-width: 700px)" srcSet="/img/cohortome-platform-workflow-mobile.svg" />
   <img
-    src="/img/brn-platform-workflow.svg"
-    alt="Source systems feed BRN, where records are prepared, access is checked, and researchers explore patients, find cohorts, and run analyses."
+    src="/img/cohortome-platform-workflow.svg"
+    alt="Source systems feed COHORTome, where records are prepared, access is checked, and researchers explore patients, find cohorts, and run analyses."
     loading="lazy"
   />
 </picture>
@@ -90,7 +90,7 @@ inside the current user's authorized workspace.
 Administrators choose which model services are approved, including services
 that run locally or inside a private network. Rules attached to each dataset
 determine whether detailed information, a limited summary, or nothing at all
-may be sent. BRN can still answer supported questions without a model and tells
+may be sent. COHORTome can still answer supported questions without a model and tells
 the researcher which route produced the result.
 
 Read [Governed AI](./concepts/governed-ai) for the execution and evaluation
@@ -98,7 +98,7 @@ contract.
 
 ## Current status
 
-BRN currently implements the governed workspace, longitudinal dashboard,
+COHORTome currently implements the governed workspace, longitudinal dashboard,
 clinical and assay exploration, Query, saved cohorts, Analysis sessions,
 transcriptomics workflows, Pheno-Ranker, configurable LLM providers,
 multimodal-readiness inspection, and optional OHIF/DICOMweb integration.
@@ -111,7 +111,7 @@ demonstrator, and formal LLM evaluation are active project work.
 See [Platform Scope And Boundaries](./project/scope-and-boundaries) for a precise
 current-versus-target account.
 
-## What BRN is not
+## What COHORTome is not
 
 - the 3TR Omics DM Warehouse or another primary storage system
 - an ADEx replacement

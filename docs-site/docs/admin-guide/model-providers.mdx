@@ -14,7 +14,7 @@ sidebar_position: 3
   </div>
 </div>
 
-LLM assistance is a core BRN interaction mode, but provider access is always a
+LLM assistance is a core COHORTome interaction mode, but provider access is always a
 deployment and dataset-policy decision. A disabled provider is an explicit
 governed state. It does not mean the rest of the platform is disabled.
 
@@ -23,7 +23,7 @@ For the conceptual execution modes and publication evaluation contract, read
 
 ## Current model
 
-Biomedical Research Navigator treats LLM endpoints as approved providers, not arbitrary
+COHORTome treats LLM endpoints as approved providers, not arbitrary
 user-supplied URLs.
 
 The current supported protocol is OpenAI-compatible chat completions. This fits
@@ -44,7 +44,7 @@ export LM_STUDIO_API_KEY=lm-studio
 Additional providers can be supplied by JSON:
 
 ```bash
-export BRN_LLM_PROVIDERS_JSON='{
+export COHORTOME_LLM_PROVIDERS_JSON='{
   "llm_providers": [
     {
       "id": "cnag-gpu-a",
@@ -70,7 +70,7 @@ export BRN_LLM_PROVIDERS_JSON='{
 The same JSON can also live in a file:
 
 ```bash
-export BRN_LLM_PROVIDERS_FILE=config/llm-providers.json
+export COHORTOME_LLM_PROVIDERS_FILE=config/llm-providers.json
 ```
 
 Relative paths are resolved from the repository root.

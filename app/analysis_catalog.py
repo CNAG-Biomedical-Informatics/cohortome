@@ -18,7 +18,7 @@ VALID_EXECUTION_BACKENDS = {"sync", "job"}
 
 
 def analysis_catalog_debug_enabled() -> bool:
-    return app_env("BRN_ANALYSIS_CATALOG_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    return app_env("COHORTOME_ANALYSIS_CATALOG_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _configured_runtime_available(env_var: str, default_name: str) -> bool:

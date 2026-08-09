@@ -181,8 +181,8 @@ In practice:
 
 `Query` distinguishes:
 
-- what the user is allowed to see inside Biomedical Research Navigator
-- what Biomedical Research Navigator is allowed to send to AI providers
+- what the user is allowed to see inside COHORTome
+- what COHORTome is allowed to send to AI providers
 
 The dataset/workspace AI-provider policy is separate from the in-app Query mode:
 

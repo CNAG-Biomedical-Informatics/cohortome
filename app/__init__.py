@@ -1,1 +1,1 @@
-"""Biomedical Research Navigator app."""
+"""COHORTome app."""

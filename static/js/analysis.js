@@ -1634,7 +1634,7 @@ export function createAnalysisUi(ctx) {
           catalog_item_id: state.analysisSelectedCatalogItemId || "",
           analysis_session_id: state.currentAnalysisSessionId || "",
           assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
-          data_dir: analysisWorkspaceKey(),
+          dataset_id: analysisWorkspaceKey(),
           selected_patient_ids: currentScope,
           scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},
           compare_mode: compareMode,

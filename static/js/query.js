@@ -716,7 +716,7 @@ export function createQueryUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           q: question,
-          data_dir: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
+          dataset_id: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
           query_mode: queryMode,
           granularity_mode: granularityMode,
           history: state.queryHistory.slice(-6),

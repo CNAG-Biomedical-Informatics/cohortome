@@ -4,7 +4,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     R_LIBS_USER=/usr/local/lib/R/site-library \
-    BRN_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker
+    COHORTOME_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker
 
 ARG PHENO_RANKER_SPEC=Pheno::Ranker
 
@@ -56,10 +56,10 @@ COPY state/analysis ./state/analysis
 COPY state/datasets/registry.json ./state/datasets/registry.json
 
 RUN mkdir -p /app/state /app/.cache /app/runs \
-    && useradd --create-home --shell /usr/sbin/nologin patientnav \
-    && chown -R patientnav:patientnav /app
+    && useradd --create-home --shell /usr/sbin/nologin cohortome \
+    && chown -R cohortome:cohortome /app
 
-USER patientnav
+USER cohortome
 
 EXPOSE 8000
 

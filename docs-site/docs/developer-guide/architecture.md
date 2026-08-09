@@ -8,16 +8,16 @@ This page describes how the current app is structured and where it sits in a
 consortium data environment.
 
 <picture>
-  <source media="(max-width: 700px)" srcSet="/img/brn-platform-workflow-mobile.svg" />
+  <source media="(max-width: 700px)" srcSet="/img/cohortome-platform-workflow-mobile.svg" />
   <img
-    src="/img/brn-platform-workflow.svg"
-    alt="BRN architecture from source systems through data preparation, access control, research workspaces, analysis, and saved results."
+    src="/img/cohortome-platform-workflow.svg"
+    alt="COHORTome architecture from source systems through data preparation, access control, research workspaces, analysis, and saved results."
   />
 </picture>
 
 ## Platform boundary
 
-BRN is generic and independent of any one upstream warehouse. In the planned
+COHORTome is generic and independent of any one upstream warehouse. In the planned
 3TR deployment, the Omics DM Warehouse supplies the authorized PRECISESADS
 release and may supply other 3TR releases, but it is not a runtime dependency or
 the application's identity boundary. Other deployments can register approved
@@ -229,8 +229,8 @@ subject to the active workspace AI-provider policy.
 
 ### DICOM and OHIF
 
-BRN stores dataset-authorized study linkage and opens the configured OHIF
-viewer. Orthanc or another DICOMweb archive serves pixel objects. BRN does not
+COHORTome stores dataset-authorized study linkage and opens the configured OHIF
+viewer. Orthanc or another DICOMweb archive serves pixel objects. COHORTome does not
 perform raw-pixel segmentation; derived imaging features enter through an assay
 matrix produced by an external method.
 
@@ -244,7 +244,7 @@ Model providers are admin-defined OpenAI-compatible endpoints.
 Current model:
 
 - `system-default` comes from the existing `LM_STUDIO_*` environment variables
-- additional providers come from `BRN_LLM_PROVIDERS_JSON` or `BRN_LLM_PROVIDERS_FILE`
+- additional providers come from `COHORTOME_LLM_PROVIDERS_JSON` or `COHORTOME_LLM_PROVIDERS_FILE`
 - users select a provider in persisted Settings
 - admins inspect provider health in the `Models` tab
 - dataset policy still controls what, if anything, can be sent to a provider

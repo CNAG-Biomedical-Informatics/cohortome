@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'About',
       items: [
+        'about/faq',
         'about/citation-and-funding',
       ],
     },

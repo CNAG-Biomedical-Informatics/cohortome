@@ -42,15 +42,15 @@ def jobs_enabled() -> bool:
 
 
 def jobs_queue_name() -> str:
-    return str(app_env("BRN_JOBS_QUEUE_NAME", "analysis")).strip() or "analysis"
+    return str(app_env("COHORTOME_JOBS_QUEUE_NAME", "analysis")).strip() or "analysis"
 
 
 def jobs_redis_url() -> str:
-    return str(app_env("BRN_JOBS_REDIS_URL", "redis://127.0.0.1:6379/0")).strip() or "redis://127.0.0.1:6379/0"
+    return str(app_env("COHORTOME_JOBS_REDIS_URL", "redis://127.0.0.1:6379/0")).strip() or "redis://127.0.0.1:6379/0"
 
 
 def jobs_default_timeout_seconds() -> int:
-    raw = str(app_env("BRN_JOBS_DEFAULT_TIMEOUT_SECONDS", "1800")).strip()
+    raw = str(app_env("COHORTOME_JOBS_DEFAULT_TIMEOUT_SECONDS", "1800")).strip()
     try:
         return max(30, int(raw))
     except ValueError:

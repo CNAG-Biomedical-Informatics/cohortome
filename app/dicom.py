@@ -24,15 +24,15 @@ def _clean_url(value: str) -> str:
 
 
 def dicom_enabled() -> bool:
-    return _truthy(app_env("BRN_DICOM_ENABLED", "false"))
+    return _truthy(app_env("COHORTOME_DICOM_ENABLED", "false"))
 
 
 def dicom_public_config() -> Dict[str, Any]:
     return {
         "enabled": dicom_enabled(),
-        "ohif_public_url": _clean_url(app_env("BRN_OHIF_PUBLIC_URL", "http://127.0.0.1:3000")),
-        "dicomweb_public_url": _clean_url(app_env("BRN_DICOMWEB_PUBLIC_URL", "http://127.0.0.1:8042/dicom-web")),
-        "orthanc_configured": bool(_clean_url(app_env("BRN_ORTHANC_INTERNAL_URL", ""))),
+        "ohif_public_url": _clean_url(app_env("COHORTOME_OHIF_PUBLIC_URL", "http://127.0.0.1:3000")),
+        "dicomweb_public_url": _clean_url(app_env("COHORTOME_DICOMWEB_PUBLIC_URL", "http://127.0.0.1:8042/dicom-web")),
+        "orthanc_configured": bool(_clean_url(app_env("COHORTOME_ORTHANC_INTERNAL_URL", ""))),
     }
 
 
@@ -57,7 +57,7 @@ def _clean_text(value: Any) -> str:
 
 
 def _ohif_launch_url(study_instance_uid: str) -> str:
-    base = _clean_url(app_env("BRN_OHIF_PUBLIC_URL", "http://127.0.0.1:3000"))
+    base = _clean_url(app_env("COHORTOME_OHIF_PUBLIC_URL", "http://127.0.0.1:3000"))
     if not base:
         return ""
     return f"{base}/viewer?StudyInstanceUIDs={quote(study_instance_uid, safe='.')}"
@@ -161,14 +161,14 @@ def dicom_studies(data_dir: str) -> List[Dict[str, Any]]:
 
 
 def orthanc_health() -> Dict[str, Any]:
-    internal_url = _clean_url(app_env("BRN_ORTHANC_INTERNAL_URL", ""))
+    internal_url = _clean_url(app_env("COHORTOME_ORTHANC_INTERNAL_URL", ""))
     if not dicom_enabled():
         return {"checked": False, "reachable": False, "message": "DICOM integration is disabled."}
     if not internal_url:
-        return {"checked": False, "reachable": False, "message": "BRN_ORTHANC_INTERNAL_URL is not configured."}
+        return {"checked": False, "reachable": False, "message": "COHORTOME_ORTHANC_INTERNAL_URL is not configured."}
     request = UrlRequest(f"{internal_url}/system", headers={"Accept": "application/json"})
-    username = app_env("BRN_ORTHANC_USERNAME", "").strip()
-    password = app_env("BRN_ORTHANC_PASSWORD", "")
+    username = app_env("COHORTOME_ORTHANC_USERNAME", "").strip()
+    password = app_env("COHORTOME_ORTHANC_PASSWORD", "")
     if username or password:
         token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
         request.add_header("Authorization", f"Basic {token}")

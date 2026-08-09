@@ -1,12 +1,12 @@
 # Governed AI
 
 A language model can help a researcher express a question or understand a
-result. BRN checks what data may be used, limits what may be sent, and remains
+result. COHORTome checks what data may be used, limits what may be sent, and remains
 responsible for running the requested operation.
 
 ## Supported roles
 
-BRN uses approved models to assist with:
+COHORTome uses approved models to assist with:
 
 - translating natural-language research intent into inspectable query or
   analysis plans
@@ -22,7 +22,7 @@ expected governed state, not an application failure.
 | Mode | Role |
 | --- | --- |
 | Deterministic | Structured application logic queries data or computes a known result directly. |
-| LLM planner | A model interprets intent and proposes a structured operation that BRN executes within its allowed contract. |
+| LLM planner | A model interprets intent and proposes a structured operation that COHORTome executes within its allowed contract. |
 | LLM interpretation | A model explains bounded context or outputs produced by deterministic or curated methods. |
 | Curated runner | Reviewed backend code launches a declared statistical or workflow implementation. |
 
@@ -43,10 +43,10 @@ For a workspace containing several datasets, the strictest selected policy
 wins. Provider health never overrides dataset policy.
 
 <picture>
-  <source media="(max-width: 700px)" srcSet="/img/brn-governed-ai-mobile.svg" />
+  <source media="(max-width: 700px)" srcSet="/img/cohortome-governed-ai-mobile.svg" />
   <img
-    src="/img/brn-governed-ai.svg"
-    alt="BRN checks access, works with or without an approved language model, runs the operation itself, and keeps the result with its history."
+    src="/img/cohortome-governed-ai.svg"
+    alt="COHORTome checks access, works with or without an approved language model, runs the operation itself, and keeps the result with its history."
   />
 </picture>
 
@@ -79,5 +79,5 @@ response alone is not evidence of correctness.
 
 Model Context Protocol integrations may later expose approved metadata or
 analysis tools. MCP is an extension point, not a currently validated scientific
-claim. Any connector must inherit BRN authorization, disclosure, scope, and
+claim. Any connector must inherit COHORTome authorization, disclosure, scope, and
 audit rules rather than bypassing them.

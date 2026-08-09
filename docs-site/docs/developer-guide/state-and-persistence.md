@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # State And Persistence
 
-Biomedical Research Navigator mixes:
+COHORTome mixes:
 
 - backend persisted state
 - browser-local UI state
@@ -151,8 +151,8 @@ The approved model-provider registry is configuration, not user state.
 Current sources:
 
 - `LM_STUDIO_*` environment variables for `system-default`
-- `BRN_LLM_PROVIDERS_JSON`
-- `BRN_LLM_PROVIDERS_FILE`
+- `COHORTOME_LLM_PROVIDERS_JSON`
+- `COHORTOME_LLM_PROVIDERS_FILE`
 
 The selected provider ID is stored per user, but provider endpoints and secrets
 remain deployment/admin configuration.

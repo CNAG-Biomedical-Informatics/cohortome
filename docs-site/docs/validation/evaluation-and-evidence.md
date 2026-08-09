@@ -1,6 +1,6 @@
 # Evaluation And Evidence
 
-BRN needs evidence at two levels: software correctness and translational utility.
+COHORTome needs evidence at two levels: software correctness and translational utility.
 The public synthetic fixture supports the first level. The restricted
 PRECISESADS demonstrator is required for the second.
 

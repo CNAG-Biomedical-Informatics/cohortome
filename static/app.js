@@ -23,10 +23,10 @@ const state = createAppState();
 
 const MAX_VISIBLE_PATIENTS = 80;
 const MAX_VISIBLE_EXAMPLES = 8;
-const ACTIVE_TAB_STORAGE_KEY = "biomedical-research-navigator.active-tab";
-const DASHBOARD_SUBTAB_STORAGE_KEY = "biomedical-research-navigator.dashboard-subtab";
-const ANALYSIS_SESSIONS_STORAGE_KEY = "biomedical-research-navigator.analysis-sessions";
-const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "biomedical-research-navigator.analysis-sidebar-collapsed";
+const ACTIVE_TAB_STORAGE_KEY = "cohortome.active-tab";
+const DASHBOARD_SUBTAB_STORAGE_KEY = "cohortome.dashboard-subtab";
+const ANALYSIS_SESSIONS_STORAGE_KEY = "cohortome.analysis-sessions";
+const ANALYSIS_SIDEBAR_COLLAPSED_STORAGE_KEY = "cohortome.analysis-sidebar-collapsed";
 const TAB_HELPER_TEXT = {
   dashboard: "Browse the loaded clinical, assay, imaging, and multimodal workspace data",
   timeline: "Review longitudinal patient events and select patients for downstream analysis",
@@ -1541,8 +1541,8 @@ function initializeUiShell() {
 async function bootstrap() {
   bindEvents();
   initializeUiShell();
-  window.__patientNavigatorLoadPatients = (options) => workspaceUi.loadPatients(options);
-  window.__patientNavigatorAskQuery = () => queryUi.askQuery();
+  window.__cohortomeLoadPatients = (options) => workspaceUi.loadPatients(options);
+  window.__cohortomeAskQuery = () => queryUi.askQuery();
   await workspaceUi.loadLmStatus();
   await authUi.fetchAuthStatus();
   if (!authUi.isWorkspaceAccessible()) {

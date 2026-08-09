@@ -7,7 +7,7 @@ from app.models import (
     EvidenceBucket,
     EvidenceFragment,
     EvidenceInventory,
-    NavigatorVisit,
+    PatientWorkspaceVisit,
     PatientContext,
     PatientWorkspace,
     PatientSummary,
@@ -608,14 +608,14 @@ def build_patient_workspace(data_dir: str, patient_id: str) -> Optional[PatientW
     if patient is None:
         return None
 
-    navigator_visits: List[NavigatorVisit] = []
+    workspace_visits: List[PatientWorkspaceVisit] = []
     key_fragments: List[EvidenceFragment] = []
 
     for visit in patient.visits:
         record = visit.provenance.raw_bff
         visit_fragments = build_visit_fragments(record, visit)
-        navigator_visits.append(
-            NavigatorVisit(
+        workspace_visits.append(
+            PatientWorkspaceVisit(
                 visit_id=visit.visit_id,
                 event_type=visit.event_type,
                 event_date=visit.event_date,
@@ -646,7 +646,7 @@ def build_patient_workspace(data_dir: str, patient_id: str) -> Optional[PatientW
         patient_context=patient_context,
         evidence=patient.evidence,
         key_fragments=key_fragments,
-        visits=navigator_visits,
+        visits=workspace_visits,
     )
 
 

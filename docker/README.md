@@ -1,6 +1,6 @@
-# Biomedical Research Navigator Docker Deployment
+# COHORTome Docker Deployment
 
-This directory contains the pilot Docker deployment path for Biomedical Research Navigator.
+This directory contains the pilot Docker deployment path for COHORTome.
 
 It is intended for a single VM with synthetic data and a small group of test
 users. It runs:
@@ -29,9 +29,9 @@ cp docker/env.example docker/.env
 
 Edit `docker/.env` before starting:
 
-- replace `BRN_SESSION_SECRET`
+- replace `COHORTOME_SESSION_SECRET`
 - decide whether to keep the bootstrap users
-- configure `LM_STUDIO_*` or `BRN_LLM_PROVIDERS_JSON` if an LLM endpoint is available
+- configure `LM_STUDIO_*` or `COHORTOME_LLM_PROVIDERS_JSON` if an LLM endpoint is available
 
 Start the stack:
 
@@ -107,7 +107,7 @@ container expects:
 /usr/local/bin/pheno-ranker
 ```
 
-Override `BRN_PHENO_RANKER_BIN` only if you build a custom image or mount a
+Override `COHORTOME_PHENO_RANKER_BIN` only if you build a custom image or mount a
 different binary for development.
 
 ## DICOM Viewing
@@ -115,11 +115,11 @@ different binary for development.
 DICOM viewing is optional. Enable it in `docker/.env`:
 
 ```bash
-BRN_DICOM_ENABLED=true
-BRN_OHIF_HOST_PORT=3000
-BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3000
-BRN_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
-BRN_ORTHANC_INTERNAL_URL=http://orthanc:8042
+COHORTOME_DICOM_ENABLED=true
+COHORTOME_OHIF_HOST_PORT=3000
+COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3000
+COHORTOME_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
+COHORTOME_ORTHANC_INTERNAL_URL=http://orthanc:8042
 ```
 
 Start the DICOM services with the Compose profile:
@@ -135,7 +135,7 @@ PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
 python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
 ```
 
-Dataset roots expose studies to BRN through
+Dataset roots expose studies to COHORTome through
 `assays/imaging/dicom_studies.json`. The file stores Study/Series/SOP Instance
 UIDs and sample linkage only; DICOM pixels stay in Orthanc or another DICOMweb
 service.
@@ -146,7 +146,7 @@ browser CORS problems during local development.
 
 ### Source app with Docker DICOM services
 
-During source development, run only the DICOM services in Docker and run BRN
+During source development, run only the DICOM services in Docker and run COHORTome
 with `uvicorn` on the host:
 
 ```bash
@@ -160,17 +160,17 @@ PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
 python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
 ```
 
-Start BRN from source. Because BRN is running on the host, use
+Start COHORTome from source. Because COHORTome is running on the host, use
 `127.0.0.1` for Orthanc instead of the Docker service name `orthanc`:
 
 ```bash
-export BRN_AUTH_MODE=local
-export BRN_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export COHORTOME_AUTH_MODE=local
+export COHORTOME_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
-export BRN_DICOM_ENABLED=true
-export BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3000
-export BRN_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
-export BRN_ORTHANC_INTERNAL_URL=http://127.0.0.1:8042
+export COHORTOME_DICOM_ENABLED=true
+export COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3000
+export COHORTOME_DICOMWEB_PUBLIC_URL=http://127.0.0.1:8042/dicom-web
+export COHORTOME_ORTHANC_INTERNAL_URL=http://127.0.0.1:8042
 
 PYTHONPATH=.deps uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
@@ -198,8 +198,8 @@ OHIF, for example `3001`.
 Edit `docker/.env`:
 
 ```bash
-BRN_OHIF_HOST_PORT=3001
-BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3001
+COHORTOME_OHIF_HOST_PORT=3001
+COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3001
 ```
 
 Restart OHIF:
@@ -208,11 +208,11 @@ Restart OHIF:
 docker compose -f docker/docker-compose.yml --env-file docker/.env --profile dicom up -d ohif
 ```
 
-If BRN is running from source, export the matching OHIF URL before starting
+If COHORTome is running from source, export the matching OHIF URL before starting
 `uvicorn`:
 
 ```bash
-export BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3001
+export COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3001
 ```
 
 ## LLM Providers
@@ -225,13 +225,13 @@ LM_STUDIO_BASE_URL=http://host.docker.internal:1234/v1
 LM_STUDIO_MODEL=openai/gpt-oss-120b
 ```
 
-For several approved endpoints, use `BRN_LLM_PROVIDERS_JSON` or
-`BRN_LLM_PROVIDERS_FILE`. Users can then choose an approved provider in Settings.
+For several approved endpoints, use `COHORTOME_LLM_PROVIDERS_JSON` or
+`COHORTOME_LLM_PROVIDERS_FILE`. Users can then choose an approved provider in Settings.
 Dataset policy still controls whether clinical context can be sent to a model.
 
 ## Local Auth
 
-The first boot can seed users from `BRN_LOCAL_USERS_JSON`.
+The first boot can seed users from `COHORTOME_LOCAL_USERS_JSON`.
 
 After `state/auth/users.json` exists, that file is the source of truth. Manage
 users in the `Users` admin tab.

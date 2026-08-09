@@ -446,15 +446,15 @@ def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: 
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
-        navigator = build_patient_workspace(resolved_dir, patient_id)
+        patient_workspace = build_patient_workspace(resolved_dir, patient_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    if navigator is None:
+    if patient_workspace is None:
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
-    payload = navigator.model_dump()
+    payload = patient_workspace.model_dump()
     provenance = _dataset_provenance_from_sources(request, payload.get("summary", {}).get("source_files") or payload.get("patient_context", {}).get("source_files") or [])
     payload["summary"] = {**payload.get("summary", {}), **provenance}
     payload["patient_context"] = {**payload.get("patient_context", {}), **provenance}
@@ -637,7 +637,7 @@ def oidc_callback(request: Request, code: str = "", state: str = "", error: str 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     user = find_oidc_user(claims)
     if not user or not bool(user.get("enabled", True)):
-        raise HTTPException(status_code=403, detail="OIDC user is not authorized for this Biomedical Research Navigator deployment.")
+        raise HTTPException(status_code=403, detail="OIDC user is not authorized for this COHORTome deployment.")
     request.session.pop("oidc_state", None)
     request.session.pop("oidc_nonce", None)
     request.session["username"] = user["username"]
@@ -676,7 +676,7 @@ def confirm_auth_password_reset(payload: AuthPasswordResetConfirmRequest) -> Dic
 def get_auth_diagnostics(request: Request) -> Dict:
     if auth_enabled():
         require_admin(request)
-    elif app_env("BRN_AUTH_DEBUG_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    elif app_env("COHORTOME_AUTH_DEBUG_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
         raise HTTPException(status_code=404, detail="Auth diagnostics are disabled.")
     return local_auth_diagnostics()
 
@@ -1481,7 +1481,7 @@ def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAUL
 def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     init_routes_templates(template_engine)
 
-    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the Biomedical Research Navigator HTML shell with the current branding and authenticated user context.")
+    app.add_api_route("/", index, methods=["GET"], response_class=HTMLResponse, tags=["ui"], summary="Render the main application shell", description="Serves the COHORTome HTML shell with the current branding and authenticated user context.")
     app.add_api_route("/patients", get_patients, methods=["GET"], tags=["patients"], summary="List patient summaries", description="Returns patient-level summaries for the active dataset or workspace scope.", response_model=List[PatientSummaryResponse])
     app.add_api_route("/patients/{patient_id}", get_patient, methods=["GET"], tags=["patients"], summary="Get a patient context", description="Returns the normalized clinical context for a single patient identifier.")
     app.add_api_route("/patients/{patient_id}/workspace", get_patient_workspace, methods=["GET"], tags=["patients"], summary="Get a patient workspace view", description="Returns the timeline-oriented patient workspace payload used by the patient detail view.")
@@ -1492,9 +1492,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.")
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
-    app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when BRN_AUTH_MODE=oidc.")
+    app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when COHORTOME_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
-    app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local Biomedical Research Navigator user.")
+    app.add_api_route("/auth/oidc/callback", oidc_callback, methods=["GET"], tags=["auth"], summary="Complete external OIDC login", description="Handles the OIDC authorization-code callback and maps the external identity to a local COHORTome user.")
     app.add_api_route("/auth/logout", logout_local, methods=["POST"], tags=["auth"], summary="Log out the current user", description="Clears the local session for the current user.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/password-reset/request", request_auth_password_reset, methods=["POST"], tags=["auth"], summary="Request a local password reset", description="Sends a password reset email when SMTP-backed local reset is configured. The response does not reveal whether the account exists.", response_model=AuthPasswordResetResponse)
     app.add_api_route("/auth/password-reset/confirm", confirm_auth_password_reset, methods=["POST"], tags=["auth"], summary="Confirm a local password reset", description="Consumes a password reset token and replaces the local password.", response_model=AuthPasswordResetResponse)

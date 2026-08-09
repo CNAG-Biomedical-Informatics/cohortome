@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "biomedical-research-navigator"
+name = "cohortome"
 version = "0.1.0"
-description = "Local FastAPI MVP for Beacon Friendly Format JSON"
+description = "Open-source workspace for integrated clinical and multimodal cohort research"
 authors = [{ name = "Manuel Rueda - CNAG" }]
 license = { file = "LICENSE" }
 requires-python = ">=3.8"

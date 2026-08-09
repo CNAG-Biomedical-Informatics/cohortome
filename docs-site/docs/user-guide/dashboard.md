@@ -38,11 +38,11 @@ It shows:
 
 In a multi-dataset workspace, assay provenance matters. If two datasets are active, the dashboard helps confirm whether the assay side really comes from both.
 
-For DICOM imaging, BRN lists authorized study metadata and launches OHIF. Pixel data stays in Orthanc or another DICOMweb service.
+For DICOM imaging, COHORTome lists authorized study metadata and launches OHIF. Pixel data stays in Orthanc or another DICOMweb service.
 
 In the bundled demo dataset, the first DICOM study is a stable viewer smoke test
 and the additional synthetic MS brain MRI studies behave like patient examples.
-They appear in the same DICOM imaging list because BRN treats both as authorized
+They appear in the same DICOM imaging list because COHORTome treats both as authorized
 study metadata linked to samples. The smoke-test study is useful when checking
 that OHIF renders real pixels; the MS brain studies are better examples for the
 kind of clinical imaging workflow the project is expected to support.

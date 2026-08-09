@@ -16,9 +16,13 @@
           <img class="hero-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
           {% endif %}
           <div class="hero-copy">
+            {% if branding.name == "COHORTome" %}
+            <h1 class="brand-wordmark" aria-label="COHORTome"><span class="brand-wordmark-primary">COHORT</span><span class="brand-wordmark-secondary">ome</span></h1>
+            {% else %}
             <h1>{{ branding.name }}</h1>
+            {% endif %}
             <p>{{ branding.subtitle }}</p>
-            <div class="hero-powered-by">Biomedical Research Navigator platform</div>
+            <div class="hero-powered-by">Open-source research workspace</div>
           </div>
         </div>
       </div>
@@ -27,7 +31,9 @@
         <div class="auth-gate-card">
           <div class="auth-gate-copy">
             <div class="auth-gate-heading">
-              <img class="auth-gate-heading-logo" src="/static/img/biomedical-research-navigator-logo.png" alt="Biomedical Research Navigator logo">
+              {% if branding.logo_url %}
+              <img class="auth-gate-heading-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
+              {% endif %}
               <h2>Sign in</h2>
             </div>
             <p>Authentication is required before any clinical, assay, or analysis workspace is shown.</p>
@@ -93,9 +99,13 @@
           <img class="hero-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
           {% endif %}
           <div class="hero-copy">
+            {% if branding.name == "COHORTome" %}
+            <h1 class="brand-wordmark" aria-label="COHORTome"><span class="brand-wordmark-primary">COHORT</span><span class="brand-wordmark-secondary">ome</span></h1>
+            {% else %}
             <h1>{{ branding.name }}</h1>
+            {% endif %}
             <p>{{ branding.subtitle }}</p>
-            <div class="hero-powered-by">Biomedical Research Navigator platform</div>
+            <div class="hero-powered-by">Open-source research workspace</div>
           </div>
         </div>
         <div id="heroAuthUtility" class="hero-utility is-hidden">
@@ -396,7 +406,7 @@
         </button>
           </nav>
           <div class="app-sidebar-utility">
-            <a class="app-sidebar-settings app-sidebar-help" href="{{ branding.help_url }}" target="_blank" rel="noopener noreferrer" title="Open Biomedical Research Navigator documentation.">
+            <a class="app-sidebar-settings app-sidebar-help" href="{{ branding.help_url }}" target="_blank" rel="noopener noreferrer" title="Open {{ branding.name }} documentation.">
               <span class="button-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H21"></path>

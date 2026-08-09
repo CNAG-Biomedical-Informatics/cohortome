@@ -50,7 +50,7 @@ class VisitContext(BaseModel):
     provenance: RecordProvenance
 
 
-class NavigatorVisit(BaseModel):
+class PatientWorkspaceVisit(BaseModel):
     visit_id: str
     event_type: Optional[str] = None
     event_date: Optional[str] = None
@@ -90,4 +90,4 @@ class PatientWorkspace(BaseModel):
     patient_context: Dict[str, Any] = Field(default_factory=dict)
     evidence: EvidenceInventory = Field(default_factory=EvidenceInventory)
     key_fragments: List[EvidenceFragment] = Field(default_factory=list)
-    visits: List[NavigatorVisit] = Field(default_factory=list)
+    visits: List[PatientWorkspaceVisit] = Field(default_factory=list)

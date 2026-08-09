@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="680" height="1080" viewBox="0 0 680 1080" role="img" aria-labelledby="title desc">
-  <title id="title">Governed AI workflow in Biomedical Research Navigator</title>
+  <title id="title">Governed AI workflow in COHORTome</title>
   <desc id="desc">A research request is scoped, routed through deterministic or approved language model paths, validated, executed, and recorded.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
@@ -22,14 +22,14 @@
   <rect x="38" y="364" width="286" height="170" rx="6" fill="#edf6ee" stroke="#8fbb97" stroke-width="2"/>
   <text x="60" y="398" fill="#24502d" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">WITHOUT A MODEL</text>
   <text x="60" y="432" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Known question</text>
-  <text x="60" y="462" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">BRN answers supported</text>
+  <text x="60" y="462" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome answers supported</text>
   <text x="60" y="486" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">questions and runs</text>
   <text x="60" y="510" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">reviewed methods.</text>
 
   <rect x="356" y="364" width="286" height="170" rx="6" fill="#fff6e2" stroke="#d1ad56" stroke-width="2"/>
   <text x="378" y="398" fill="#6a4b0b" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">WITH A MODEL</text>
   <text x="378" y="432" fill="#332a19" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Approved model</text>
-  <text x="378" y="462" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">BRN limits what is sent</text>
+  <text x="378" y="462" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome limits what is sent</text>
   <text x="378" y="486" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">and may block a request.</text>
   <text x="378" y="510" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">Admins choose models.</text>
 
@@ -40,8 +40,8 @@
 
   <rect x="38" y="626" width="604" height="142" rx="6" fill="#f2f5f7" stroke="#aab9bf" stroke-width="2"/>
   <text x="62" y="662" fill="#41565e" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">CHECK + RUN</text>
-  <text x="62" y="696" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">BRN runs the operation</text>
-  <text x="62" y="726" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">BRN checks the proposed action first.</text>
+  <text x="62" y="696" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">COHORTome runs the operation</text>
+  <text x="62" y="726" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome checks the proposed action first.</text>
   <text x="62" y="750" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">The model cannot run unrestricted commands.</text>
   <line x1="340" y1="768" x2="340" y2="806" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
 

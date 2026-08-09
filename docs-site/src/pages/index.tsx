@@ -35,24 +35,27 @@ const researchPaths = [
 
 export default function Home() {
   const workspaceImage = useBaseUrl('/img/screenshots/workspace-shell.png');
-  const journeyDiagram = useBaseUrl('/img/brn-research-journey.svg');
-  const journeyDiagramMobile = useBaseUrl('/img/brn-research-journey-mobile.svg');
-  const aiDiagram = useBaseUrl('/img/brn-governed-ai.svg');
-  const aiDiagramMobile = useBaseUrl('/img/brn-governed-ai-mobile.svg');
+  const journeyDiagram = useBaseUrl('/img/cohortome-research-journey.svg');
+  const journeyDiagramMobile = useBaseUrl('/img/cohortome-research-journey-mobile.svg');
+  const aiDiagram = useBaseUrl('/img/cohortome-governed-ai.svg');
+  const aiDiagramMobile = useBaseUrl('/img/cohortome-governed-ai-mobile.svg');
 
   const heroStyle = {
-    '--brn-workspace-image': `url("${workspaceImage}")`,
+    '--cohortome-workspace-image': `url("${workspaceImage}")`,
   } as CSSProperties;
 
   return (
     <Layout
-      title="Biomedical Research Navigator"
-      description="Open-source software for exploring longitudinal clinical and assay data, finding cohorts, and running traceable analyses.">
+      title="COHORTome"
+      description="Open-source workspace for connecting longitudinal clinical records and multimodal assays, finding cohorts, and running traceable analyses.">
       <main className={styles.page}>
         <section className={styles.hero} style={heroStyle}>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>Open-source biomedical research software</p>
-            <h1>Biomedical Research Navigator</h1>
+            <p className={styles.eyebrow}>Open-source biomedical research workspace</p>
+            <h1 className={styles.heroWordmark} aria-label="COHORTome">
+              <span className={styles.heroWordmarkPrimary}>COHORT</span>
+              <span className={styles.heroWordmarkSecondary}>ome</span>
+            </h1>
             <p className={styles.heroLead}>
               Bring clinical records, assays, and imaging together. Follow
               patients over time, find cohorts, and run analyses without losing
@@ -60,13 +63,13 @@ export default function Home() {
             </p>
             <div className={styles.heroActions}>
               <Link className="button button--primary button--lg" to="/docs/overview">
-                See what BRN does
+                See what COHORTome does
               </Link>
               <Link className="button button--outline button--secondary button--lg" to="/docs/admin-guide/local-auth-and-groups">
                 Run from source
               </Link>
             </div>
-            <div className={styles.heroSignals} aria-label="What BRN covers">
+            <div className={styles.heroSignals} aria-label="What COHORTome covers">
               <span>Patients over time</span>
               <span>Clinical + assay data</span>
               <span>Optional language models</span>
@@ -81,7 +84,7 @@ export default function Home() {
             <div className={styles.definitionGrid}>
               <h2>Stored data are not yet usable research data.</h2>
               <p>
-                BRN can be deployed alongside an existing warehouse, file service,
+                COHORTome can be deployed alongside an existing warehouse, file service,
                 or institutional data system. It receives authorized data and turns
                 them into a workspace where researchers can connect clinical and
                 assay information, define cohorts, and run traceable analyses. The
@@ -99,7 +102,7 @@ export default function Home() {
                 <h2>Keep every step connected</h2>
               </div>
               <p>
-                BRN links the records that belong to the same patient, sample,
+                COHORTome links the records that belong to the same patient, sample,
                 and visit. A research question can then move into cohort discovery
                 and analysis without losing its authorized data scope or history.
               </p>
@@ -109,7 +112,7 @@ export default function Home() {
                 <source media="(max-width: 700px)" srcSet={journeyDiagramMobile} />
                 <img
                   src={journeyDiagram}
-                  alt="Approved clinical, assay, and imaging data enter BRN, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
+                  alt="Approved clinical, assay, and imaging data enter COHORTome, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
                   loading="eager"
                 />
               </picture>
@@ -148,13 +151,13 @@ export default function Home() {
             <div className={styles.aiIntro}>
               <div>
                 <p className={styles.sectionLabel}>Language models</p>
-                <h2>AI can help. BRN stays in control.</h2>
+                <h2>AI can help. COHORTome stays in control.</h2>
               </div>
               <div>
                 <p>
-                  BRN answers familiar questions directly and can use an approved
+                  COHORTome answers familiar questions directly and can use an approved
                   language model for more flexible requests. Before anything is sent
-                  to a model, BRN checks what the user and dataset allow. BRN, not the
+                  to a model, COHORTome checks what the user and dataset allow. COHORTome, not the
                   model, remains responsible for running the operation.
                 </p>
                 <Link to="/docs/concepts/governed-ai">How model access works</Link>
@@ -165,7 +168,7 @@ export default function Home() {
                 <source media="(max-width: 700px)" srcSet={aiDiagramMobile} />
                 <img
                   src={aiDiagram}
-                  alt="BRN checks access, works with or without an approved language model, runs the operation, and keeps the result with its history."
+                  alt="COHORTome checks access, works with or without an approved language model, runs the operation, and keeps the result with its history."
                   loading="lazy"
                 />
               </picture>
@@ -180,7 +183,7 @@ export default function Home() {
                 <p className={styles.sectionLabel}>First deployment</p>
                 <h2>A generic tool, first deployed for 3TR</h2>
                 <p>
-                  BRN is not tied to 3TR or to one disease area. Its first
+                  COHORTome is not tied to 3TR or to one disease area. Its first
                   consortium-scale deployment will be for 3TR. PRECISESADS data,
                   held in the 3TR Omics DM Warehouse and used with FPS collaborators
                   in Granada, provide the first real dataset use case. The same
@@ -207,7 +210,7 @@ export default function Home() {
                 <strong>Open source under Apache-2.0</strong>
                 <span>Run it independently, inspect how it works, and contribute changes.</span>
               </div>
-              <Link to="https://github.com/mrueda/biomedical-research-navigator">
+              <Link to="https://github.com/mrueda/cohortome">
                 View the source on GitHub
               </Link>
             </div>

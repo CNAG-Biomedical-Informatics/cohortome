@@ -8,7 +8,7 @@ with protected services and approved data handling.
 
 ## Trust boundaries
 
-BRN authorization protects application routes and controls which datasets are
+COHORTome authorization protects application routes and controls which datasets are
 available in a user's workspace. Every external data or model service must also
 enforce an appropriate boundary:
 
@@ -26,7 +26,7 @@ archive, model server, Redis instance, or filesystem mount.
 
 1. Confirm the legal basis, data-use agreement, and approved user population.
 2. Keep source data outside Git and outside public container images.
-3. Map project identifiers to the minimum identifiers needed by BRN.
+3. Map project identifiers to the minimum identifiers needed by COHORTome.
 4. Validate patient, sample, visit, time-point, and assay linkage.
 5. Configure dataset groups, disclosure level, and AI-provider policy.
 6. Protect prepared stores, generated artifacts, backups, and logs.
@@ -45,7 +45,7 @@ For real imaging:
 - otherwise place Orthanc and OHIF behind an authenticated reverse proxy
 - do not publish DICOM or DICOMweb ports directly
 - de-identify headers and pixel data according to the approved protocol
-- audit pixel access independently of BRN metadata access
+- audit pixel access independently of COHORTome metadata access
 - verify that an OHIF URL cannot retrieve a study outside the user's allowed
   data scope
 

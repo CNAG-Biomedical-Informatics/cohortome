@@ -18,6 +18,7 @@ import app.analysis_external as analysis_external_module
 import app.analysis_sessions as analysis_sessions_module
 import app.auth as auth_module
 import app.cohorts as cohorts_module
+import app.config as config_module
 import app.datasets as datasets_module
 import app.dicom as dicom_module
 import app.jobs as jobs_module
@@ -95,14 +96,27 @@ def make_request(session=None):
 
 
 def test_session_secret_is_required_when_local_auth_enabled(monkeypatch):
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
-    monkeypatch.delenv("BRN_SESSION_SECRET", raising=False)
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
+    monkeypatch.delenv("COHORTOME_SESSION_SECRET", raising=False)
 
-    with pytest.raises(RuntimeError, match="BRN_SESSION_SECRET"):
+    with pytest.raises(RuntimeError, match="COHORTOME_SESSION_SECRET"):
         main_module._session_secret()
 
-    monkeypatch.setenv("BRN_SESSION_SECRET", "test-secret")
+    monkeypatch.setenv("COHORTOME_SESSION_SECRET", "test-secret")
     assert main_module._session_secret() == "test-secret"
+
+
+def test_default_branding_uses_cohortome_and_keeps_instance_override(monkeypatch):
+    monkeypatch.delenv("COHORTOME_BRAND_NAME", raising=False)
+    monkeypatch.delenv("COHORTOME_BRAND_LOGO_ALT", raising=False)
+
+    default_branding = config_module.branding_settings()
+
+    assert default_branding["name"] == "COHORTome"
+    assert default_branding["logo_alt"] == "COHORTome logo"
+
+    monkeypatch.setenv("COHORTOME_BRAND_NAME", "Research Portal")
+    assert config_module.branding_settings()["name"] == "Research Portal"
 
 
 def test_lm_studio_health_reports_disabled(monkeypatch):
@@ -159,7 +173,7 @@ def test_lm_studio_health_reports_ready_model(monkeypatch):
 def test_lm_provider_registry_selects_approved_endpoint(monkeypatch):
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "BRN_LLM_PROVIDERS_JSON",
+        "COHORTOME_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1306,9 +1320,9 @@ def test_analysis_sessions_are_user_scoped(tmp_path, monkeypatch):
 
 def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "display_name": "Alice"}]),
     )
     client = TestClient(app)
@@ -1334,7 +1348,7 @@ def test_local_auth_login_logout_cycle(monkeypatch, tmp_path):
 
 def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.delenv("BRN_AUTH_MODE", raising=False)
+    monkeypatch.delenv("COHORTOME_AUTH_MODE", raising=False)
     client = TestClient(app)
 
     defaults = client.get("/user-settings")
@@ -1373,9 +1387,9 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
 def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"},
@@ -1401,7 +1415,7 @@ def test_user_settings_are_scoped_to_authenticated_user(monkeypatch, tmp_path):
 
 def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.delenv("BRN_AUTH_MODE", raising=False)
+    monkeypatch.delenv("COHORTOME_AUTH_MODE", raising=False)
     client = TestClient(app)
 
     response = client.patch("/user-settings", json={"landing_tab": "admin"})
@@ -1412,14 +1426,14 @@ def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
 def test_lm_status_uses_authenticated_user_provider_setting(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
     )
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "BRN_LLM_PROVIDERS_JSON",
+        "COHORTOME_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1461,7 +1475,7 @@ def test_lm_status_uses_authenticated_user_provider_setting(monkeypatch, tmp_pat
 def test_lm_provider_registry_accepts_future_llm_providers_key(monkeypatch):
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "BRN_LLM_PROVIDERS_JSON",
+        "COHORTOME_LLM_PROVIDERS_JSON",
         json.dumps(
             {
                 "llm_providers": [
@@ -1484,9 +1498,9 @@ def test_lm_provider_registry_accepts_future_llm_providers_key(monkeypatch):
 
 def test_lm_providers_route_is_admin_only_when_auth_enabled(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin"},
@@ -1510,14 +1524,14 @@ def test_lm_providers_route_is_admin_only_when_auth_enabled(monkeypatch, tmp_pat
 def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "display_name": "Alice"}]),
     )
     monkeypatch.setenv("LM_STUDIO_ENABLED", "false")
     monkeypatch.setenv(
-        "BRN_LLM_PROVIDERS_JSON",
+        "COHORTOME_LLM_PROVIDERS_JSON",
         json.dumps(
             [
                 {
@@ -1554,9 +1568,9 @@ def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, t
 
 def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1583,9 +1597,9 @@ def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
 
 def test_auth_users_requires_admin(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1621,9 +1635,9 @@ def test_auth_users_requires_admin(monkeypatch, tmp_path):
 
 def test_auth_debug_requires_admin_when_auth_enabled(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
@@ -1649,9 +1663,9 @@ def test_auth_debug_requires_admin_when_auth_enabled(monkeypatch, tmp_path):
 
 def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
     )
     client = TestClient(app)
@@ -1725,9 +1739,9 @@ def test_auth_admin_can_create_update_reset_and_delete_local_users(monkeypatch, 
 
 def test_auth_admin_can_create_and_update_user_email(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"}]),
     )
     client = TestClient(app)
@@ -1760,11 +1774,11 @@ def test_auth_admin_can_create_and_update_user_email(monkeypatch, tmp_path):
 
 def test_password_reset_reports_disabled_without_smtp(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
-    monkeypatch.delenv("BRN_SMTP_HOST", raising=False)
-    monkeypatch.delenv("BRN_SMTP_FROM", raising=False)
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
+    monkeypatch.delenv("COHORTOME_SMTP_HOST", raising=False)
+    monkeypatch.delenv("COHORTOME_SMTP_FROM", raising=False)
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "user", "email": "alice@example.org"}]),
     )
     client = TestClient(app)
@@ -1782,12 +1796,12 @@ def test_password_reset_reports_disabled_without_smtp(monkeypatch, tmp_path):
 
 def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
-    monkeypatch.setenv("BRN_SMTP_HOST", "smtp.example.org")
-    monkeypatch.setenv("BRN_SMTP_FROM", "navigator@example.org")
-    monkeypatch.setenv("BRN_PUBLIC_BASE_URL", "https://navigator.example.org")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_SMTP_HOST", "smtp.example.org")
+    monkeypatch.setenv("COHORTOME_SMTP_FROM", "patient_workspace@example.org")
+    monkeypatch.setenv("COHORTOME_PUBLIC_BASE_URL", "https://patient_workspace.example.org")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1833,14 +1847,14 @@ def test_password_reset_request_is_non_enumerating_and_confirms_once(monkeypatch
 
 def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "oidc")
+    monkeypatch.setenv("COHORTOME_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("COHORTOME_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_ID", "cohortome")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_SECRET", "cohortome-secret")
+    monkeypatch.setenv("COHORTOME_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {
@@ -1861,7 +1875,7 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
     def fake_oidc_userinfo_from_code(code):
         assert code == "valid-code"
         return {
-            "sub": "biomedical-research-navigator-dev-mrueda",
+            "sub": "cohortome-dev-mrueda",
             "email": "manuel.rueda@cnag.eu",
             "email_verified": True,
             "name": "Manuel Rueda",
@@ -1897,14 +1911,14 @@ def test_oidc_login_maps_verified_email_to_local_user(monkeypatch, tmp_path):
 
 def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "oidc")
+    monkeypatch.setenv("COHORTOME_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("COHORTOME_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_ID", "cohortome")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_SECRET", "cohortome-secret")
+    monkeypatch.setenv("COHORTOME_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
     )
     monkeypatch.setattr(
@@ -1929,15 +1943,15 @@ def test_oidc_callback_rejects_unmapped_user(monkeypatch, tmp_path):
 
 def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "oidc")
-    monkeypatch.setenv("BRN_AUTH_LOCAL_FALLBACK", "true")
-    monkeypatch.setenv("BRN_OIDC_PROVIDER_NAME", "Dex")
-    monkeypatch.setenv("BRN_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_ID", "biomedical-research-navigator")
-    monkeypatch.setenv("BRN_OIDC_CLIENT_SECRET", "biomedical-research-navigator-secret")
-    monkeypatch.setenv("BRN_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "oidc")
+    monkeypatch.setenv("COHORTOME_AUTH_LOCAL_FALLBACK", "true")
+    monkeypatch.setenv("COHORTOME_OIDC_PROVIDER_NAME", "Dex")
+    monkeypatch.setenv("COHORTOME_OIDC_ISSUER", "http://127.0.0.1:5556/dex")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_ID", "cohortome")
+    monkeypatch.setenv("COHORTOME_OIDC_CLIENT_SECRET", "cohortome-secret")
+    monkeypatch.setenv("COHORTOME_OIDC_REDIRECT_URI", "http://127.0.0.1:8000/auth/oidc/callback")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "email": "admin@example.org"}]),
     )
     client = TestClient(app)
@@ -1958,9 +1972,9 @@ def test_oidc_mode_can_enable_local_password_fallback(monkeypatch, tmp_path):
 
 def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin User"},
@@ -1980,9 +1994,9 @@ def test_auth_admin_cannot_delete_last_enabled_admin(monkeypatch, tmp_path):
 
 def test_auth_admin_group_member_can_access_admin_endpoints(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "mrueda", "password": "secret", "role": "user", "display_name": "mrueda", "groups": ["admin"]},
@@ -2001,9 +2015,9 @@ def test_auth_admin_group_member_can_access_admin_endpoints(monkeypatch, tmp_pat
 
 def test_auth_admin_cannot_delete_disable_or_demote_self(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "mrueda", "password": "secret", "role": "admin", "display_name": "mrueda"}]),
     )
     client = TestClient(app)
@@ -2054,9 +2068,9 @@ def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_p
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2128,8 +2142,8 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
 
 
 def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRN_DICOM_ENABLED", "true")
-    monkeypatch.setenv("BRN_OHIF_PUBLIC_URL", "http://ohif.example")
+    monkeypatch.setenv("COHORTOME_DICOM_ENABLED", "true")
+    monkeypatch.setenv("COHORTOME_OHIF_PUBLIC_URL", "http://ohif.example")
     monkeypatch.setattr(dicom_module, "orthanc_health", lambda: {"checked": False, "reachable": False, "message": "mocked"})
     monkeypatch.setattr(routes_module, "require_authenticated", lambda request: {"username": "maria"})
 
@@ -2174,7 +2188,7 @@ def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeyp
     assert status["manifest_found"] is True
     assert status["manifest_count"] == 1
     assert "manifest_paths" not in status
-    assert "BRN_ORTHANC_PASSWORD" not in json.dumps(status)
+    assert "COHORTOME_ORTHANC_PASSWORD" not in json.dumps(status)
 
 
 def test_dicom_studies_route_enforces_dataset_access(tmp_path, monkeypatch):
@@ -2241,7 +2255,7 @@ def test_synthetic_dicom_fixtures_use_visible_mr_pixel_data():
 
 
 def test_checked_in_openapi_snapshot_includes_dicom_routes():
-    snapshot_path = Path("docs-site/static/openapi/biomedical-research-navigator-openapi.json")
+    snapshot_path = Path("docs-site/static/openapi/cohortome-openapi.json")
     payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
     paths = payload.get("paths", {})
 
@@ -2487,9 +2501,9 @@ def test_multimodal_feature_matrix_joins_clinical_assays_and_dicom(tmp_path, mon
 def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2549,9 +2563,9 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
 def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"}]),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
@@ -2604,9 +2618,9 @@ def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
 def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_query_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"}]),
     )
     monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
@@ -2829,9 +2843,9 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
 
 def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -2905,9 +2919,9 @@ def test_query_route_respects_dataset_query_granularity_ceiling(tmp_path, monkey
 
 def test_query_route_respects_dataset_ai_provider_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -3262,7 +3276,7 @@ items:
         encoding="utf-8",
     )
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.delenv("BRN_ANALYSIS_CATALOG_DEBUG", raising=False)
+    monkeypatch.delenv("COHORTOME_ANALYSIS_CATALOG_DEBUG", raising=False)
 
     payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
 
@@ -3287,7 +3301,7 @@ items:
         encoding="utf-8",
     )
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.setenv("BRN_ANALYSIS_CATALOG_DEBUG", "true")
+    monkeypatch.setenv("COHORTOME_ANALYSIS_CATALOG_DEBUG", "true")
 
     payload = analysis_catalog_module.analysis_catalog_payload(str(tmp_path), path=catalog_path)
 
@@ -3380,7 +3394,7 @@ def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_pa
 
 def test_analysis_debug_catalog_item_is_rejected_without_server_flag(tmp_path, monkeypatch):
     write_json(tmp_path, "records.json", [{"id": "P1:baseline", "patient_id": "P1"}])
-    monkeypatch.delenv("BRN_ANALYSIS_CATALOG_DEBUG", raising=False)
+    monkeypatch.delenv("COHORTOME_ANALYSIS_CATALOG_DEBUG", raising=False)
 
     with pytest.raises(RuntimeError, match="not available"):
         analysis_module.analysis_llm_reply(
@@ -3471,7 +3485,7 @@ def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
 def test_analysis_external_rscript_runner_executes_curated_catalog_item(tmp_path, monkeypatch):
     if shutil.which("Rscript") is None:
         pytest.skip("Rscript is not available")
-    monkeypatch.setenv("BRN_ANALYSIS_CATALOG_DEBUG", "true")
+    monkeypatch.setenv("COHORTOME_ANALYSIS_CATALOG_DEBUG", "true")
 
     write_json(
         tmp_path,
@@ -4108,9 +4122,9 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4181,9 +4195,9 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
 def test_analysis_job_submission_requires_live_worker(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4619,9 +4633,9 @@ def test_load_job_record_reconciles_finished_rq_job_with_result_to_completed(tmp
 def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4687,9 +4701,9 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
 def test_run_history_lists_inline_runs_without_polluting_jobs_drawer(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
 
@@ -4722,9 +4736,9 @@ def test_run_history_lists_inline_runs_without_polluting_jobs_drawer(tmp_path, m
 def test_run_history_delete_removes_terminal_runs_and_skips_active(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
 
@@ -4761,9 +4775,9 @@ def test_run_history_applies_user_retention_to_terminal_runs(tmp_path, monkeypat
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_user_state(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps([{"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]}]),
     )
     user_settings_module.save_user_settings({"run_history_retention_days": 7}, "alice")
@@ -4814,9 +4828,9 @@ def test_analysis_session_delete_can_cascade_terminal_job_data(tmp_path, monkeyp
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4866,9 +4880,9 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
     isolate_auth_store(monkeypatch, tmp_path)
     isolate_jobs_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -4912,9 +4926,9 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
 def test_user_data_analysis_sessions_bulk_delete_is_user_scoped(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
     monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "alice", "password": "secret", "role": "admin", "groups": ["admin"]},
@@ -5852,9 +5866,9 @@ def test_pheno_explain_llm_ai_provider_restricted_returns_deterministic_metadata
 
 def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -5916,9 +5930,9 @@ def test_pheno_run_route_requires_detailed_workspace_access(tmp_path, monkeypatc
 
 def test_pheno_patient_ids_route_requires_detailed_workspace_access(tmp_path, monkeypatch):
     isolate_auth_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("BRN_AUTH_MODE", "local")
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
-        "BRN_LOCAL_USERS_JSON",
+        "COHORTOME_LOCAL_USERS_JSON",
         json.dumps(
             [
                 {"username": "admin", "password": "secret", "role": "admin", "display_name": "Admin"},
@@ -6093,18 +6107,18 @@ def test_patient_workspace_precomputes_fragment_pointers(tmp_path):
         ],
     )
 
-    navigator = build_patient_workspace(str(tmp_path), "900")
-    assert navigator is not None
-    assert navigator.summary.patient_id == "900"
-    assert navigator.evidence.diseases.count == 1
-    assert navigator.visits[0].key_fragments[0].path == "diseases[0]"
-    assert navigator.visits[0].key_fragments[0].label == "Ulcerative Colitis"
-    assert navigator.visits[0].key_fragments[1].path == "measures[0]"
-    assert navigator.key_fragments[2].label == "Infliximab"
+    patient_workspace = build_patient_workspace(str(tmp_path), "900")
+    assert patient_workspace is not None
+    assert patient_workspace.summary.patient_id == "900"
+    assert patient_workspace.evidence.diseases.count == 1
+    assert patient_workspace.visits[0].key_fragments[0].path == "diseases[0]"
+    assert patient_workspace.visits[0].key_fragments[0].label == "Ulcerative Colitis"
+    assert patient_workspace.visits[0].key_fragments[1].path == "measures[0]"
+    assert patient_workspace.key_fragments[2].label == "Infliximab"
 
-    navigator_payload = get_patient_workspace("900", data_dir=str(tmp_path))
-    assert navigator_payload["patient_id"] == "900"
-    assert navigator_payload["visits"][0]["key_fragments"][0]["category"] == "disease"
+    workspace_payload = get_patient_workspace("900", data_dir=str(tmp_path))
+    assert workspace_payload["patient_id"] == "900"
+    assert workspace_payload["visits"][0]["key_fragments"][0]["category"] == "disease"
 
 
 def test_medication_cohort_counts_unique_patients(tmp_path):

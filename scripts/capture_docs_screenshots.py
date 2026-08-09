@@ -10,6 +10,7 @@ import urllib.request
 from contextlib import closing
 from pathlib import Path
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 
@@ -41,12 +42,13 @@ def _spawn_server() -> tuple[subprocess.Popen, str]:
     port = _free_port()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
-    env["BRN_AUTH_MODE"] = "local"
-    env["BRN_LOCAL_USERS_JSON"] = json.dumps(
+    env["COHORTOME_AUTH_MODE"] = "local"
+    env["COHORTOME_SESSION_SECRET"] = "cohortome-docs-screenshot-session"
+    env["COHORTOME_LOCAL_USERS_JSON"] = json.dumps(
         [
             {
                 "username": "admin",
-                "password": "secret",
+                "password": "admin",
                 "role": "admin",
                 "display_name": "Admin User",
                 "groups": ["admin"],
@@ -116,15 +118,24 @@ window.Plotly = {
 
 def _login(page) -> None:
     page.locator("#authUsername").fill("admin")
-    page.locator("#authPassword").fill("secret")
+    page.locator("#authPassword").fill("admin")
     page.locator("#authLoginBtn").click()
     page.locator("#datasetsTabBtn").wait_for()
 
 
 def _apply_default_workspace(page) -> None:
     page.locator("#datasetsTabBtn").click()
-    page.locator("#loadBtn").wait_for()
-    page.locator("#loadBtn").click()
+    load_button = page.locator("#loadBtn")
+    load_button.wait_for(state="attached")
+    page.wait_for_function(
+        """() => {
+          const button = document.querySelector('#loadBtn');
+          return button && !button.classList.contains('is-loading');
+        }""",
+        timeout=60000,
+    )
+    if load_button.is_visible() and load_button.is_enabled():
+        load_button.click()
     page.locator("#loadStatus").wait_for()
     page.wait_for_timeout(1200)
 
@@ -139,18 +150,33 @@ def _capture_login(page) -> None:
 
 def _capture_datasets(page) -> None:
     page.locator("#datasetsTabBtn").click()
-    page.locator("[data-dataset-card='private-dataset']").click()
+    private_dataset = page.locator("[data-dataset-card='private-dataset']")
+    private_dataset.click()
     page.wait_for_timeout(250)
     page.locator("#datasetsTab .dashboard-loader").screenshot(path=str(SCREENSHOT_DIR / "datasets-tab.png"))
-    page.locator("#loadBtn").click()
+    private_dataset.click()
+    load_button = page.locator("#loadBtn")
+    if load_button.is_visible() and load_button.is_enabled():
+        load_button.click()
     page.wait_for_timeout(1200)
+
+
+def _capture_workspace(page) -> None:
+    page.locator("#appShell").wait_for()
+    page.screenshot(
+        path=str(SCREENSHOT_DIR / "workspace-shell.png"),
+        clip={"x": 0, "y": 0, "width": 1600, "height": 1000},
+    )
 
 
 def _capture_query(page) -> None:
     page.locator("#queryTabBtn").click()
     page.locator("#question").fill("Which patients have Crohn Disease?")
     page.locator("#askBtn").click()
-    page.locator("#queryThread .query-thread-turn-assistant").wait_for(timeout=15000)
+    try:
+        page.locator("#queryThread .query-thread-turn-assistant").wait_for(timeout=15000)
+    except PlaywrightTimeoutError:
+        pass
     page.wait_for_timeout(500)
     page.locator("#queryTab .controls").screenshot(path=str(SCREENSHOT_DIR / "query-tab.png"))
 
@@ -159,7 +185,10 @@ def _capture_analysis(page) -> None:
     page.locator("#analysisTabBtn").click()
     page.locator("#analysisPrompt").fill("Show a Kaplan-Meier curve for time to Clinical relapse > 0")
     page.locator("#analysisRunBtn").click()
-    page.locator("#analysisThread .analysis-turn-assistant").wait_for(timeout=15000)
+    try:
+        page.locator("#analysisThread .analysis-turn-assistant").wait_for(timeout=15000)
+    except PlaywrightTimeoutError:
+        pass
     page.wait_for_timeout(800)
     page.locator("#analysisTab .analysis-main").screenshot(path=str(SCREENSHOT_DIR / "analysis-tab.png"))
 
@@ -186,6 +215,7 @@ def main() -> int:
             _capture_login(page)
             _login(page)
             _apply_default_workspace(page)
+            _capture_workspace(page)
             _capture_datasets(page)
             _capture_query(page)
             _capture_analysis(page)

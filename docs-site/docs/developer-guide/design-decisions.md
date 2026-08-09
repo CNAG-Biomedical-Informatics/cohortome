@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Design Decisions
 
-This page captures stable architectural decisions that shape how Biomedical Research Navigator behaves today.
+This page captures stable architectural decisions that shape how COHORTome behaves today.
 
 It is not a changelog. It records decisions that are important for future implementation and maintenance.
 
@@ -334,9 +334,9 @@ Consequence:
 
 - OpenAPI is worth maintaining even if the main consumer is still the app itself
 
-## 17. BRN is independent of the upstream warehouse
+## 17. COHORTome is independent of the upstream warehouse
 
-The 3TR Omics DM Warehouse may supply authorized data exports, but BRN must not
+The 3TR Omics DM Warehouse may supply authorized data exports, but COHORTome must not
 depend on its filesystem layout, API, or storage implementation.
 
 Why:
@@ -348,9 +348,9 @@ Why:
 
 Consequence:
 
-- source adapters terminate at the BRN clinical and assay contracts
+- source adapters terminate at the COHORTome clinical and assay contracts
 - the warehouse remains an upstream source, not the active workspace model
-- public documentation must not describe BRN as the warehouse or ADEx
+- public documentation must not describe COHORTome as the warehouse or ADEx
 
 ## 18. The product model is clinical plus assays
 

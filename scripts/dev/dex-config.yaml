@@ -1,0 +1,23 @@
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+  - id: cohortome
+    name: COHORTome
+    secret: cohortome-secret
+    redirectURIs:
+      - http://127.0.0.1:8000/auth/oidc/callback
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: manuel.rueda@cnag.eu
+    # bcrypt hash for the dev-only password: password
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: mrueda
+    userID: cohortome-dev-mrueda

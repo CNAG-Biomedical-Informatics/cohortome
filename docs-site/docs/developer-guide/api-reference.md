@@ -5,12 +5,12 @@ sidebar_position: 2
 
 # API Reference
 
-Biomedical Research Navigator exposes a FastAPI-generated OpenAPI contract.
+COHORTome exposes a FastAPI-generated OpenAPI contract.
 
 This gives you three useful entry points:
 
 - A checked-in OpenAPI snapshot for documentation and tooling:
-  [`biomedical-research-navigator-openapi.json`](/openapi/biomedical-research-navigator-openapi.json)
+  [`cohortome-openapi.json`](/openapi/cohortome-openapi.json)
 - The live OpenAPI schema from the running app:
   `/openapi.json`
 - The live interactive API UIs from the running app:
@@ -54,7 +54,7 @@ import json
 from pathlib import Path
 from app.main import app
 
-placeholder = "/path/to/biomedical-research-navigator/default_dataset"
+placeholder = "/path/to/cohortome/default_dataset"
 absolute_default = str((Path.cwd() / "default_dataset").resolve())
 
 def clean(value):
@@ -68,7 +68,7 @@ def clean(value):
 
 path = Path("docs-site/static/openapi")
 path.mkdir(parents=True, exist_ok=True)
-(path / "biomedical-research-navigator-openapi.json").write_text(
+(path / "cohortome-openapi.json").write_text(
     json.dumps(clean(app.openapi()), indent=2, ensure_ascii=False),
     encoding="utf-8",
 )

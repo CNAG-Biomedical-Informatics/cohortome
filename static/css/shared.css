@@ -372,6 +372,19 @@
         font-size: clamp(1.45rem, 2.2vw, 2rem);
         line-height: 1;
       }
+      .brand-wordmark {
+        display: inline-flex;
+        align-items: baseline;
+        letter-spacing: 0;
+      }
+      .brand-wordmark-primary {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .brand-wordmark-secondary {
+        color: var(--handoff);
+        font-weight: 450;
+      }
       .hero-copy p {
         margin-top: 4px;
         max-width: none;

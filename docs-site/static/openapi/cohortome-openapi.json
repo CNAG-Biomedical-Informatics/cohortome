@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Biomedical Research Navigator API",
-    "summary": "Workspace-oriented clinical and assay exploration API.",
-    "description": "Biomedical Research Navigator exposes a browser-facing API for multi-dataset workspace selection, clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data.",
+    "title": "COHORTome API",
+    "summary": "Clinical and multimodal cohort exploration and analysis API.",
+    "description": "COHORTome exposes a browser-facing API for governed multi-dataset workspaces, longitudinal clinical and assay exploration, cohort discovery, and traceable analysis.",
     "version": "0.1.0"
   },
   "paths": {
@@ -13,7 +13,7 @@
           "ui"
         ],
         "summary": "Render the main application shell",
-        "description": "Serves the Biomedical Research Navigator HTML shell with the current branding and authenticated user context.",
+        "description": "Serves the COHORTome HTML shell with the current branding and authenticated user context.",
         "operationId": "index__get",
         "responses": {
           "200": {
@@ -54,7 +54,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -121,7 +121,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -185,7 +185,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -240,7 +240,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -298,7 +298,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -365,7 +365,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -429,7 +429,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -573,7 +573,7 @@
           "auth"
         ],
         "summary": "Start external OIDC login",
-        "description": "Redirects to the configured OIDC provider when BRN_AUTH_MODE=oidc.",
+        "description": "Redirects to the configured OIDC provider when COHORTOME_AUTH_MODE=oidc.",
         "operationId": "login_oidc_auth_login_get",
         "responses": {
           "200": {
@@ -633,7 +633,7 @@
           "auth"
         ],
         "summary": "Complete external OIDC login",
-        "description": "Handles the OIDC authorization-code callback and maps the external identity to a local Biomedical Research Navigator user.",
+        "description": "Handles the OIDC authorization-code callback and maps the external identity to a local COHORTome user.",
         "operationId": "oidc_callback_auth_oidc_callback_get",
         "parameters": [
           {
@@ -1333,7 +1333,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1539,7 +1539,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1881,7 +1881,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1935,7 +1935,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -1989,7 +1989,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           },
@@ -2072,7 +2072,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           },
@@ -2190,7 +2190,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -2244,7 +2244,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -2563,7 +2563,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -2839,7 +2839,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "/path/to/biomedical-research-navigator/default_dataset",
+              "default": "/path/to/cohortome/default_dataset",
               "title": "Data Dir"
             }
           }
@@ -2910,7 +2910,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -3001,7 +3001,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "workspace_fingerprint": {
             "type": "object",
@@ -3140,7 +3140,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -4173,7 +4173,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "selected_patient_ids": {
             "type": "string",
@@ -4218,7 +4218,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "patient_id": {
             "type": "string",
@@ -4361,7 +4361,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "query_mode": {
             "type": "string",
@@ -4454,7 +4454,7 @@
             "type": "string",
             "title": "Data Dir",
             "description": "Manual dataset directory fallback. Prefer dataset_id.",
-            "default": "/path/to/biomedical-research-navigator/default_dataset"
+            "default": "/path/to/cohortome/default_dataset"
           },
           "sample_ids": {
             "items": {

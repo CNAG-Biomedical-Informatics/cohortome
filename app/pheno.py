@@ -33,11 +33,11 @@ JQ_BIN = shutil.which("jq") or "jq"
 
 
 def _pheno_ranker_candidate_bins() -> List[Path]:
-    configured_bin = app_env("BRN_PHENO_RANKER_BIN", "").strip()
+    configured_bin = app_env("COHORTOME_PHENO_RANKER_BIN", "").strip()
     if configured_bin:
         return [Path(configured_bin).expanduser()]
 
-    configured_dir = app_env("BRN_PHENO_RANKER_DIR", "").strip()
+    configured_dir = app_env("COHORTOME_PHENO_RANKER_DIR", "").strip()
     if configured_dir:
         return [Path(configured_dir).expanduser() / "bin" / "pheno-ranker"]
 
@@ -65,7 +65,7 @@ PHENO_RANKER_BIN = resolve_pheno_ranker_bin()
 
 
 def pheno_background_sample_threshold() -> int:
-    raw = str(app_env("BRN_PHENO_BACKGROUND_SAMPLE_THRESHOLD", "1500")).strip()
+    raw = str(app_env("COHORTOME_PHENO_BACKGROUND_SAMPLE_THRESHOLD", "1500")).strip()
     try:
         return max(1, int(raw))
     except ValueError:
@@ -73,7 +73,7 @@ def pheno_background_sample_threshold() -> int:
 
 
 def pheno_max_sample_cap() -> int:
-    raw = str(app_env("BRN_PHENO_MAX_SAMPLE_CAP", "2500")).strip()
+    raw = str(app_env("COHORTOME_PHENO_MAX_SAMPLE_CAP", "2500")).strip()
     try:
         return max(1, int(raw))
     except ValueError:
@@ -81,7 +81,7 @@ def pheno_max_sample_cap() -> int:
 
 
 def pheno_mds_max_records() -> int:
-    raw = str(app_env("BRN_PHENO_MDS_MAX_RECORDS", str(pheno_background_sample_threshold()))).strip()
+    raw = str(app_env("COHORTOME_PHENO_MDS_MAX_RECORDS", str(pheno_background_sample_threshold()))).strip()
     try:
         return max(1, int(raw))
     except ValueError:

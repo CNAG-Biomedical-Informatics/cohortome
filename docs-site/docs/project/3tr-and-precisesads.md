@@ -1,7 +1,7 @@
 # 3TR And PRECISESADS
 
-3TR is the first planned consortium-scale deployment of BRN, not the boundary of
-the software. BRN is a generic open-source tool that can be configured for other
+3TR is the first planned consortium-scale deployment of COHORTome, not the boundary of
+the software. COHORTome is a generic open-source tool that can be configured for other
 approved longitudinal clinical and assay datasets.
 
 ## Consortium context
@@ -20,20 +20,20 @@ autoimmune, inflammatory, and allergic disease areas:
 
 Its research model depends on joint interpretation of longitudinal clinical
 data and multiple molecular measurements across conditions. This makes 3TR a
-strong first deployment setting for the reusable BRN workbench.
+strong first deployment setting for the reusable COHORTome workbench.
 
-## How BRN relates to the Omics DM Warehouse
+## How COHORTome relates to the Omics DM Warehouse
 
-The 3TR Omics DM Warehouse and BRN solve different problems.
+The 3TR Omics DM Warehouse and COHORTome solve different problems.
 
-| 3TR Omics DM Warehouse | Biomedical Research Navigator |
+| 3TR Omics DM Warehouse | COHORTome |
 | --- | --- |
 | Keeps and distributes project files. | Turns an authorized release into a research workspace. |
 | Preserves the data delivered by each project. | Connects clinical records, assays, patients, samples, and visits. |
 | Provides PRECISESADS and other authorized data releases. | Helps researchers explore data, find cohorts, run analyses, and keep the results. |
 | Remains the source system. | Remains a separate application with its own access and analysis workflow. |
 
-BRN can consume authorized warehouse exports, but core behavior must not depend
+COHORTome can consume authorized warehouse exports, but core behavior must not depend
 on warehouse-specific paths, APIs, or storage conventions. The same deployment
 model can operate on institutional files or other approved services.
 
@@ -42,9 +42,9 @@ model can operate on institutional files or other approved services.
 [PRECISESADS](https://www.ihi.europa.eu/projects-results/project-factsheets/precisesads)
 studied molecular reclassification across systemic autoimmune diseases and
 provides an appropriate real-world setting for cross-condition cohort analysis.
-The PRECISESADS data are stored in the 3TR Omics DM Warehouse. BRN receives an
+The PRECISESADS data are stored in the 3TR Omics DM Warehouse. COHORTome receives an
 authorized release from that warehouse; PRECISESADS is not a separate storage
-system. The BRN demonstrator is being developed with collaborators at FPS in
+system. The COHORTome demonstrator is being developed with collaborators at FPS in
 Granada.
 
 The reference implementation is intended to exercise a complete path:

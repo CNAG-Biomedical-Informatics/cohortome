@@ -74,7 +74,7 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     file_meta.MediaStorageSOPInstanceUID = sop_instance_uid
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
     file_meta.ImplementationClassUID = "1.2.826.0.1.3680043.10.54321.999"
-    file_meta.ImplementationVersionName = "BRN_SYNTH_DICOM"
+    file_meta.ImplementationVersionName = "COHORTOME_DICOM"
 
     ds = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
     ds.is_little_endian = True
@@ -86,7 +86,7 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     ds.SeriesInstanceUID = str(series["series_instance_uid"])
     ds.Modality = str(study.get("modality") or source.get("Modality", "MR"))
     ds.PatientID = str(study.get("patient_id") or "SYNTHETIC")
-    ds.PatientName = "Synthetic^BRN"
+    ds.PatientName = "Synthetic^COHORTome"
     ds.PatientBirthDate = ""
     ds.PatientSex = "O"
     ds.StudyDate = now.strftime("%Y%m%d")
@@ -95,12 +95,12 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     ds.SeriesTime = ds.StudyTime
     ds.ContentDate = ds.StudyDate
     ds.ContentTime = ds.StudyTime
-    ds.StudyDescription = str(study.get("study_description") or "Synthetic BRN study")
-    ds.SeriesDescription = str(series.get("series_description") or "Synthetic BRN series")
+    ds.StudyDescription = str(study.get("study_description") or "Synthetic COHORTome study")
+    ds.SeriesDescription = str(series.get("series_description") or "Synthetic COHORTome series")
     ds.BodyPartExamined = str(study.get("body_part") or ("BRAIN" if profile.startswith("ms_brain") else "SYNTHETIC"))
-    ds.Manufacturer = "Biomedical Research Navigator"
+    ds.Manufacturer = "COHORTome"
     ds.ManufacturerModelName = "pydicom MR_small fixture"
-    ds.ImageType = ["DERIVED", "SECONDARY", "BRN"]
+    ds.ImageType = ["DERIVED", "SECONDARY", "COHORTOME"]
     ds.ProtocolName = ds.SeriesDescription
     ds.ScanningSequence = "SE"
     ds.SequenceVariant = "SK"
@@ -108,7 +108,7 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     ds.MagneticFieldStrength = "1.5"
     ds.ImagedNucleus = "1H"
     ds.DerivationDescription = (
-        f"Synthetic BRN fixture using visible pixel data from pydicom {SOURCE_DICOM_NAME}; "
+        f"Synthetic COHORTome fixture using visible pixel data from pydicom {SOURCE_DICOM_NAME}; "
         f"profile={profile or 'source'}."
     )
     for name in [
@@ -168,7 +168,7 @@ def generate_dataset(dataset_root: Path) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate tiny synthetic DICOM files for BRN fixture manifests.")
+    parser = argparse.ArgumentParser(description="Generate tiny synthetic DICOM files for COHORTome fixture manifests.")
     parser.add_argument("dataset_roots", nargs="*", type=Path, help="Dataset roots to generate. Defaults to bundled fixtures.")
     args = parser.parse_args()
     roots = args.dataset_roots or DEFAULT_DATASETS

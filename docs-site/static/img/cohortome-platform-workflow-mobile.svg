@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="680" height="1180" viewBox="0 0 680 1180" role="img" aria-labelledby="title desc">
-  <title id="title">Biomedical Research Navigator platform workflow</title>
-  <desc id="desc">Source systems flow into BRN harmonization, governance, research workspaces, and reproducible evidence.</desc>
+  <title id="title">COHORTome platform workflow</title>
+  <desc id="desc">Source systems flow into COHORTome harmonization, governance, research workspaces, and reproducible evidence.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
       <path d="M0 0L10 5L0 10Z" fill="#5f7482"/>
@@ -27,7 +27,7 @@
   <rect x="36" y="276" width="608" height="850" rx="8" fill="#ffffff" stroke="#13847c" stroke-width="2"/>
   <rect x="36" y="276" width="608" height="62" rx="8" fill="#0e6964"/>
   <rect x="36" y="330" width="608" height="8" fill="#0e6964"/>
-  <text x="62" y="314" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">BIOMEDICAL RESEARCH NAVIGATOR</text>
+  <text x="62" y="314" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="19"><tspan font-weight="700">COHORT</tspan><tspan fill="#d5f2ee" font-weight="400">ome</tspan></text>
 
   <text x="62" y="380" fill="#0e6964" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">01  PREPARE THE DATA</text>
   <rect x="62" y="398" width="556" height="124" rx="6" fill="#edf8f6" stroke="#96cfc9"/>
@@ -58,5 +58,5 @@
   <text x="84" y="1052" fill="#203d27" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Keep results understandable</text>
   <text x="84" y="1078" fill="#4b6852" font-family="Inter, Arial, sans-serif" font-size="14">Retain what is needed to review or repeat a result.</text>
 
-  <text x="340" y="1158" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="middle">Source systems keep the data. BRN provides the workspace.</text>
+  <text x="340" y="1158" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="13" text-anchor="middle">Source systems keep the data. COHORTome provides the workspace.</text>
 </svg>

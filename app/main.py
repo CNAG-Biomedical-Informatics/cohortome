@@ -64,20 +64,20 @@ OPENAPI_TAGS = [
 
 
 def _session_secret() -> str:
-    configured = app_env("BRN_SESSION_SECRET", "").strip()
+    configured = app_env("COHORTOME_SESSION_SECRET", "").strip()
     if configured:
         return configured
-    if app_env("BRN_AUTH_MODE", "none").strip().lower() == "local":
-        raise RuntimeError("BRN_SESSION_SECRET must be set when BRN_AUTH_MODE=local.")
-    return "biomedical-research-navigator-dev-session"
+    if app_env("COHORTOME_AUTH_MODE", "none").strip().lower() == "local":
+        raise RuntimeError("COHORTOME_SESSION_SECRET must be set when COHORTOME_AUTH_MODE=local.")
+    return "cohortome-dev-session"
 
 
 app = FastAPI(
-    title="Biomedical Research Navigator API",
-    summary="Workspace-oriented clinical and assay exploration API.",
+    title="COHORTome API",
+    summary="Clinical and multimodal cohort exploration and analysis API.",
     description=(
-        "Biomedical Research Navigator exposes a browser-facing API for multi-dataset workspace selection, "
-        "clinical query and analysis, saved cohorts, and Pheno-Ranker execution over sample-level data."
+        "COHORTome exposes a browser-facing API for governed multi-dataset workspaces, "
+        "longitudinal clinical and assay exploration, cohort discovery, and traceable analysis."
     ),
     version="0.1.0",
     openapi_tags=OPENAPI_TAGS,

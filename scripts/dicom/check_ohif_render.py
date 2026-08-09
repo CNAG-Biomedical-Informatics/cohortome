@@ -13,7 +13,7 @@ def main() -> int:
         default="http://127.0.0.1:3001/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
         help="OHIF viewer URL to inspect.",
     )
-    parser.add_argument("--output", type=Path, default=Path("/tmp/brn-ohif-canvas.png"), help="Canvas screenshot path.")
+    parser.add_argument("--output", type=Path, default=Path("/tmp/cohortome-ohif-canvas.png"), help="Canvas screenshot path.")
     parser.add_argument("--wait-ms", type=int, default=15000, help="Milliseconds to wait after page load.")
     parser.add_argument("--min-nonblack-ratio", type=float, default=0.05, help="Minimum fraction of pixels above black.")
     parser.add_argument("--min-stddev", type=float, default=5.0, help="Minimum grayscale standard deviation.")
@@ -37,7 +37,7 @@ def main() -> int:
         canvases = page.locator("canvas")
         canvas_count = canvases.count()
         if canvas_count == 0:
-            page.screenshot(path=str(args.output.with_name("brn-ohif-page.png")), full_page=True)
+            page.screenshot(path=str(args.output.with_name("cohortome-ohif-page.png")), full_page=True)
             browser.close()
             raise SystemExit(f"No OHIF canvas found at {args.url} (HTTP {status}).")
         boxes = []

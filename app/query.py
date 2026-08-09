@@ -1024,9 +1024,9 @@ def _is_patient_count_query(text: str) -> bool:
     return inventory_count_prompt_matches(text, "patient")
 
 
-def _render_patient_summary(navigator: Dict[str, Any]) -> str:
-    summary = navigator["summary"]
-    context = navigator["patient_context"]
+def _render_patient_summary(patient_workspace: Dict[str, Any]) -> str:
+    summary = patient_workspace["summary"]
+    context = patient_workspace["patient_context"]
     return (
         "Patient {patient_id} has {visit_count} visits. Sex: {sex}. "
         "DOB: {date_of_birth}. Vital status: {vital_status}."
@@ -1039,8 +1039,8 @@ def _render_patient_summary(navigator: Dict[str, Any]) -> str:
     )
 
 
-def _render_visit_list(navigator: Dict[str, Any]) -> str:
-    visits = navigator["visits"]
+def _render_visit_list(patient_workspace: Dict[str, Any]) -> str:
+    visits = patient_workspace["visits"]
     if not visits:
         return "No visits found for that patient."
     parts = []
@@ -1049,11 +1049,11 @@ def _render_visit_list(navigator: Dict[str, Any]) -> str:
     return "Visits: " + ", ".join(parts)
 
 
-def _render_patient_timeline(navigator: Dict[str, Any]) -> str:
-    visits = navigator["visits"]
+def _render_patient_timeline(patient_workspace: Dict[str, Any]) -> str:
+    visits = patient_workspace["visits"]
     if not visits:
         return "No timepoints found for that patient."
-    lines = [f"Timeline for patient {navigator['patient_id']}:"]
+    lines = [f"Timeline for patient {patient_workspace['patient_id']}:"]
     for visit in visits:
         diseases = visit.get("evidence", {}).get("diseases", {}).get("examples", [])
         treatments = visit.get("evidence", {}).get("treatments", {}).get("examples", [])
@@ -1253,11 +1253,11 @@ def _lm_studio_context(
     if history_context:
         context["conversation_history"] = history_context
     if granularity_mode != "summary" and patient_id is not None and _lm_studio_include_patient_workspace():
-        navigator = build_patient_workspace(data_dir, patient_id)
-        if navigator is not None:
+        patient_workspace = build_patient_workspace(data_dir, patient_id)
+        if patient_workspace is not None:
             context["patient_workspace"] = {
-                "summary": navigator.summary.model_dump(),
-                "patient_context": navigator.patient_context.model_dump(),
+                "summary": patient_workspace.summary.model_dump(),
+                "patient_context": patient_workspace.patient_context.model_dump(),
                 "visits": [
                     {
                         "visit_id": visit.visit_id,
@@ -1265,9 +1265,9 @@ def _lm_studio_context(
                         "event_type": visit.event_type,
                         "diagnosis": visit.diagnosis,
                     }
-                    for visit in navigator.visits[:6]
+                    for visit in patient_workspace.visits[:6]
                 ],
-                "key_fragments": [fragment.model_dump() for fragment in navigator.key_fragments[:12]],
+                "key_fragments": [fragment.model_dump() for fragment in patient_workspace.key_fragments[:12]],
             }
     return context
 
@@ -1646,7 +1646,7 @@ def _lm_studio_reply(
                 "role": "system",
                 "content": (
                     (
-                        "You answer questions about a patient navigation dataset. "
+                        "You answer questions about a longitudinal patient workspace. "
                         "Use only the supplied JSON context. "
                         "If the answer is not supported by the context, say that clearly. "
                         "Prefer short answers. "
@@ -2568,8 +2568,8 @@ def _answer_query_impl(
 
     patient_id = _extract_patient_id(text)
     if patient_id is not None:
-        navigator = build_patient_workspace(data_dir, patient_id)
-        if navigator is None:
+        patient_workspace = build_patient_workspace(data_dir, patient_id)
+        if patient_workspace is None:
             return {
                 "query": query,
                 "intent": "patient_lookup",
@@ -2583,7 +2583,7 @@ def _answer_query_impl(
                     ],
                 },
             }
-        payload = navigator.model_dump()
+        payload = patient_workspace.model_dump()
         if "timeline" in lowered or "over time" in lowered:
             reply = _render_patient_timeline(payload)
             intent = "patient_timeline"

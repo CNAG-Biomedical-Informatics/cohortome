@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="720" viewBox="0 0 1440 720" role="img" aria-labelledby="title desc">
-  <title id="title">A research journey through Biomedical Research Navigator</title>
-  <desc id="desc">Approved clinical, assay, and imaging data enter BRN. BRN links patients, samples, and visits, helps a researcher find a cohort, runs a reviewed analysis, and keeps the result with its history.</desc>
+  <title id="title">A research journey through COHORTome</title>
+  <desc id="desc">Approved clinical, assay, and imaging data enter COHORTome. COHORTome links patients, samples, and visits, helps a researcher find a cohort, runs a reviewed analysis, and keeps the result with its history.</desc>
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#17313a" flood-opacity=".12"/>
@@ -18,9 +18,9 @@
   <path d="M0 628H1440" stroke="#bdcccc" stroke-width="2"/>
 
   <g font-family="Inter, Arial, sans-serif">
-    <text x="42" y="38" fill="#177d75" font-size="13" font-weight="800">A BRN RESEARCH JOURNEY</text>
+    <text x="42" y="38" fill="#177d75" font-size="13" font-weight="800">A COHORTome RESEARCH JOURNEY</text>
     <text x="42" y="76" fill="#172a32" font-size="30" font-weight="800">From approved data to a result you can trace</text>
-    <text x="42" y="104" fill="#566b73" font-size="15">The source systems keep the original data. BRN keeps the research work connected.</text>
+    <text x="42" y="104" fill="#566b73" font-size="15">The source systems keep the original data. COHORTome keeps the research work connected.</text>
 
     <!-- Approved sources -->
     <g filter="url(#shadow)">
@@ -76,7 +76,7 @@
     </g>
     <rect x="370" y="134" width="390" height="54" rx="8" fill="#0e6964"/>
     <rect x="370" y="180" width="390" height="8" fill="#0e6964"/>
-    <text x="394" y="167" fill="#ffffff" font-size="13" font-weight="800">2  BRN CONNECTS THE RECORDS</text>
+    <text x="394" y="167" fill="#ffffff" font-size="13" font-weight="800">2  COHORTome CONNECTS THE RECORDS</text>
 
     <rect x="394" y="210" width="342" height="68" rx="6" fill="#eef6f5" stroke="#9bc9c4"/>
     <g transform="translate(412 226)">

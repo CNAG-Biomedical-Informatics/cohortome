@@ -6,9 +6,9 @@ import type * as Redocusaurus from 'redocusaurus';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Biomedical Research Navigator',
-  tagline: 'Open-source workspace for longitudinal clinical and assay research',
-  favicon: 'img/biomedical-research-navigator-logo.png',
+  title: 'COHORTome',
+  tagline: 'Open-source workspace for integrated clinical and multimodal cohort research',
+  favicon: 'img/cohortome-logo.svg',
   markdown: {
     mermaid: true,
   },
@@ -23,12 +23,12 @@ const config: Config = {
   url: 'https://mrueda.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/biomedical-research-navigator/',
+  baseUrl: '/cohortome/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'mrueda',
-  projectName: 'biomedical-research-navigator',
+  projectName: 'cohortome',
 
   onBrokenLinks: 'throw',
 
@@ -47,7 +47,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/mrueda/biomedical-research-navigator/tree/main/docs-site/',
+            'https://github.com/mrueda/cohortome/tree/main/docs-site/',
         },
         blog: false,
         theme: {
@@ -60,7 +60,7 @@ const config: Config = {
       {
         specs: [
           {
-            spec: 'static/openapi/biomedical-research-navigator-openapi.json',
+            spec: 'static/openapi/cohortome-openapi.json',
             route: '/api/',
           },
         ],
@@ -77,10 +77,10 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Biomedical Research Navigator',
+      title: 'COHORTome',
       logo: {
-        alt: 'Biomedical Research Navigator',
-        src: 'img/biomedical-research-navigator-logo.png',
+        alt: 'COHORTome',
+        src: 'img/cohortome-logo.svg',
       },
       items: [
         {
@@ -95,7 +95,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/mrueda/biomedical-research-navigator',
+          href: 'https://github.com/mrueda/cohortome',
           label: 'GitHub',
           position: 'right',
         },
@@ -143,7 +143,7 @@ const config: Config = {
           items: [
             {
               label: 'Repository',
-              href: 'https://github.com/mrueda/biomedical-research-navigator',
+              href: 'https://github.com/mrueda/cohortome',
             },
             {
               label: 'API',
@@ -151,7 +151,7 @@ const config: Config = {
             },
             {
               label: 'Apache License 2.0',
-              href: 'https://github.com/mrueda/biomedical-research-navigator/blob/main/LICENSE',
+              href: 'https://github.com/mrueda/cohortome/blob/main/LICENSE',
             },
           ],
         },

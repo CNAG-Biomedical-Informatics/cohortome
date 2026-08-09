@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Assays and modalities
 
-Biomedical Research Navigator workspaces combine clinical records with assay data. Clinical data describes patients, visits, diagnoses, treatments, and measurements. Assays describe measured sample-level data that can be linked back to patients and visits.
+COHORTome workspaces combine clinical records with assay data. Clinical data describes patients, visits, diagnoses, treatments, and measurements. Assays describe measured sample-level data that can be linked back to patients and visits.
 
 ## Assay model
 
@@ -26,9 +26,9 @@ Assay columns use sample IDs. In the synthetic fixtures, sample IDs follow the `
 
 Imaging assays must use the DICOM standard. The current fixture represents imaging as DICOM-derived measurement matrices keyed by DICOM tag identifiers such as `DICOM:0018,0087_MagneticFieldStrength` and `DICOM:0028,0030_PixelSpacingRow`.
 
-Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to BRN patient and sample IDs. When `BRN_DICOM_ENABLED=true`, the Assays dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
+Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to COHORTome patient and sample IDs. When `COHORTOME_DICOM_ENABLED=true`, the Assays dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
 
-BRN does not copy OHIF, Cornerstone, or Orthanc source code into the app. OHIF and Orthanc run as separate services; BRN only stores study metadata and creates viewer links for studies that belong to the authorized workspace.
+COHORTome does not copy OHIF, Cornerstone, or Orthanc source code into the app. OHIF and Orthanc run as separate services; COHORTome only stores study metadata and creates viewer links for studies that belong to the authorized workspace.
 
 ## Synthetic imaging data
 
@@ -54,13 +54,13 @@ that add visible, deterministic hyperintense regions to the source image.
 For real MS cohorts, the expected pattern is:
 
 - DICOM pixels remain in Orthanc or an institutional DICOMweb archive.
-- `dicom_studies.json` links each study to BRN patient, sample, and timepoint IDs.
+- `dicom_studies.json` links each study to COHORTome patient, sample, and timepoint IDs.
 - Derived imaging features, such as lesion count or lesion volume, are stored in an imaging assay matrix.
 - OHIF is used for visual review of the corresponding study.
 
 ## Multimodal readiness
 
-Before BRN runs cross-modal analyses, the Dashboard checks whether the workspace
+Before COHORTome runs cross-modal analyses, the Dashboard checks whether the workspace
 is actually ready for them. The readiness report compares clinical records,
 assay matrices, imaging-derived features, and DICOM study metadata at two
 levels:

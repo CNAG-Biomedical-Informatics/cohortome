@@ -1,12 +1,12 @@
 # Query Disclosure Modes
 
-This note records the current Query disclosure design in Biomedical Research Navigator.
+This note records the current Query disclosure design in COHORTome.
 
 It is still intentionally narrower than a full privacy architecture, but it now reflects the implemented Query behavior rather than only an initial design sketch.
 
 ## Why This Exists
 
-Biomedical Research Navigator may eventually send selected query or analysis context to external LLM providers for richer interpretation.
+COHORTome may eventually send selected query or analysis context to external LLM providers for richer interpretation.
 
 Today, most query behavior is effectively record-level when the result includes patient IDs, row-level payloads, or actions derived from visible IDs.
 
@@ -225,7 +225,7 @@ The disclosure policy should exist independently of transport or client type.
 
 The intended layering is:
 
-- Biomedical Research Navigator backend defines disclosure policy
+- COHORTome backend defines disclosure policy
 - Query/Analysis/Pheno-Ranker consume that policy
 - external LLM calls obey that policy
 - MCP, if added later, also obeys that policy

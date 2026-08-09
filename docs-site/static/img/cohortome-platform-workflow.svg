@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="620" viewBox="0 0 1440 620" role="img" aria-labelledby="title desc">
-  <title id="title">Biomedical Research Navigator platform workflow</title>
-  <desc id="desc">Source systems feed an independent BRN layer that harmonizes clinical and assay data, applies governance, supports research workspaces, and records reproducible evidence.</desc>
+  <title id="title">COHORTome platform workflow</title>
+  <desc id="desc">Source systems feed an independent COHORTome layer that harmonizes clinical and assay data, applies governance, supports research workspaces, and records reproducible evidence.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
       <path d="M0 0L10 5L0 10Z" fill="#5f7482"/>
@@ -26,13 +26,13 @@
   <text x="74" y="404" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Imaging archives</text>
   <text x="74" y="432" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">DICOMweb services keep</text>
   <text x="74" y="456" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">the original image pixels</text>
-  <text x="74" y="480" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">BRN keeps study links and</text>
+  <text x="74" y="480" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome keeps study links and</text>
   <text x="74" y="504" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">derived imaging measurements</text>
 
   <rect x="350" y="36" width="1060" height="548" rx="8" fill="#ffffff" stroke="#13847c" stroke-width="2"/>
   <rect x="350" y="36" width="1060" height="54" rx="8" fill="#0e6964"/>
   <rect x="350" y="82" width="1060" height="8" fill="#0e6964"/>
-  <text x="378" y="70" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">BIOMEDICAL RESEARCH NAVIGATOR</text>
+  <text x="378" y="70" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="20"><tspan font-weight="700">COHORT</tspan><tspan fill="#d5f2ee" font-weight="400">ome</tspan></text>
   <text x="1378" y="70" fill="#d5f2ee" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="end">generic open-source research workspace</text>
 
   <line x1="316" y1="186" x2="382" y2="186" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
@@ -91,5 +91,5 @@
   <text x="1064" y="480" fill="#4b6852" font-family="Inter, Arial, sans-serif" font-size="14">Retain the inputs and history needed</text>
   <text x="1064" y="504" fill="#4b6852" font-family="Inter, Arial, sans-serif" font-size="14">to review, share, or repeat a result</text>
 
-  <text x="720" y="606" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="middle">The source systems keep the original data. BRN provides the research workspace.</text>
+  <text x="720" y="606" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="middle">The source systems keep the original data. COHORTome provides the research workspace.</text>
 </svg>

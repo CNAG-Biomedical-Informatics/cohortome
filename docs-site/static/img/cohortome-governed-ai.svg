@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="560" viewBox="0 0 1440 560" role="img" aria-labelledby="title desc">
-  <title id="title">Governed AI workflow in Biomedical Research Navigator</title>
+  <title id="title">Governed AI workflow in COHORTome</title>
   <desc id="desc">A user request is scoped to an authorized workspace, routed through deterministic or approved language model paths, validated, executed, and recorded as an auditable research result.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
@@ -8,7 +8,7 @@
   </defs>
 
   <rect width="1440" height="560" fill="#f7f8f7"/>
-  <text x="42" y="48" fill="#4f6269" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">BRN CAN WORK WITH OR WITHOUT A LANGUAGE MODEL</text>
+  <text x="42" y="48" fill="#4f6269" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">COHORTome CAN WORK WITH OR WITHOUT A LANGUAGE MODEL</text>
 
   <rect x="42" y="78" width="218" height="116" rx="6" fill="#ffffff" stroke="#aab9bf" stroke-width="2"/>
   <text x="64" y="114" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Research request</text>
@@ -27,13 +27,13 @@
   <rect x="100" y="244" width="394" height="142" rx="6" fill="#edf6ee" stroke="#8fbb97" stroke-width="2"/>
   <text x="124" y="278" fill="#24502d" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">WITHOUT A MODEL</text>
   <text x="124" y="312" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Known question or method</text>
-  <text x="124" y="342" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">BRN can answer supported questions</text>
+  <text x="124" y="342" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome can answer supported questions</text>
   <text x="124" y="366" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">and run reviewed methods directly.</text>
 
   <rect x="548" y="244" width="394" height="142" rx="6" fill="#fff6e2" stroke="#d1ad56" stroke-width="2"/>
   <text x="572" y="278" fill="#6a4b0b" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">WITH A LANGUAGE MODEL</text>
   <text x="572" y="312" fill="#332a19" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Use an approved model</text>
-  <text x="572" y="342" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">BRN limits the information sent and</text>
+  <text x="572" y="342" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome limits the information sent and</text>
   <text x="572" y="366" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">can block the request when needed.</text>
 
   <line x1="546" y1="136" x2="744" y2="136" stroke="#5f7482" stroke-width="2"/>
@@ -44,8 +44,8 @@
 
   <rect x="1010" y="244" width="388" height="142" rx="6" fill="#f2f5f7" stroke="#aab9bf" stroke-width="2"/>
   <text x="1034" y="278" fill="#41565e" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">CHECK + RUN</text>
-  <text x="1034" y="312" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">BRN runs the operation</text>
-  <text x="1034" y="342" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">BRN checks the proposed action first.</text>
+  <text x="1034" y="312" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">COHORTome runs the operation</text>
+  <text x="1034" y="342" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">COHORTome checks the proposed action first.</text>
   <text x="1034" y="366" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">The model cannot run unrestricted commands.</text>
 
   <line x1="1204" y1="386" x2="1204" y2="426" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
