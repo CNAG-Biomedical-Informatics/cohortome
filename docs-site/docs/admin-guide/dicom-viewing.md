@@ -6,6 +6,14 @@ sidebar_position: 4
 
 BRN can launch DICOM studies in OHIF while keeping pixel storage in Orthanc or another DICOMweb service. This integration is optional and disabled by default.
 
+:::danger Local development only
+The bundled Orthanc configuration disables authentication and exposes
+development ports. Use it only with the public synthetic fixtures. Before using
+real patient images, read [Real-Data Security](./real-data-security) and deploy
+an authenticated, network-restricted institutional DICOMweb service or reverse
+proxy.
+:::
+
 ## Runtime services
 
 The Docker deployment includes an optional `dicom` profile:
@@ -236,7 +244,11 @@ export BRN_OHIF_PUBLIC_URL=http://127.0.0.1:3001
 
 ## Real DICOM data
 
-For real data:
+The steps below describe linkage only. They do not make the bundled Docker
+services suitable for restricted data. Complete the security controls in
+[Real-Data Security](./real-data-security) first.
+
+For an approved real-data deployment:
 
 1. Import `.dcm` files into Orthanc or make sure they are available through an institutional DICOMweb endpoint.
 2. Extract the Study/Series/SOP Instance UIDs.

@@ -4,18 +4,50 @@ sidebar_position: 1
 
 # Architecture
 
-This page describes how the current app is structured at a high level.
+This page describes how the current app is structured and where it sits in a
+consortium data environment.
+
+<picture>
+  <source media="(max-width: 700px)" srcSet="/img/brn-platform-workflow-mobile.svg" />
+  <img
+    src="/img/brn-platform-workflow.svg"
+    alt="BRN architecture from source systems through data preparation, access control, research workspaces, analysis, and saved results."
+  />
+</picture>
+
+## Platform boundary
+
+BRN is generic and independent of any one upstream warehouse. In the planned
+3TR deployment, the Omics DM Warehouse supplies the authorized PRECISESADS
+release and may supply other 3TR releases, but it is not a runtime dependency or
+the application's identity boundary. Other deployments can register approved
+institutional sources that satisfy the same clinical and assay contracts.
+
+The platform owns:
+
+- application-level clinical and assay contracts
+- patient, sample, visit, time-point, and source linkage
+- prepared query stores and workspace composition
+- authorization, disclosure, and AI-provider policy
+- cohort persistence and analysis scope
+- curated execution and generated evidence
+
+It does not own the upstream warehouse, primary DICOM archive, or specialist
+statistical algorithms.
 
 ## High-level components
 
 - FastAPI backend
 - browser-based tabbed frontend
+- clinical and assay harmonization contracts
 - DuckDB-backed query store/cache
 - dataset registry and per-user dataset scope
 - saved cohorts
 - Analysis sessions
 - YAML-backed Analysis Catalog for tool-like analyses
 - curated external analysis runners
+- multimodal readiness and feature preview
+- optional OHIF/DICOMweb integration
 - shared background jobs via `RQ + Redis`
 - Pheno-Ranker integration
 - local/OIDC authentication with local authorization
@@ -32,13 +64,14 @@ The backend is a FastAPI application that exposes:
 - Query routes
 - Analysis routes
 - assay routes
+- multimodal and DICOM routes
 - Pheno-Ranker routes
 
 The backend is also responsible for:
 
 - dataset authorization
 - dataset scope resolution
-- multi-dataset scope materialization
+- multi-dataset workspace resolution
 - dataset-store readiness checks and admin-triggered store preparation
 - saved cohort persistence
 - Analysis session persistence
@@ -74,9 +107,11 @@ The app operates on an active workspace, not directly on arbitrary file paths.
 That workspace may represent:
 
 - one dataset
-- several selected datasets materialized into one combined scope for file-based compatibility
+- several selected datasets attached into one query context
 
-This is why the rest of the app can talk about one active workspace even when the user selected multiple datasets.
+Prepared DuckDB stores remain per dataset. File-based compatibility helpers may
+still materialize a resolved scope directory, but that directory is not the
+database identity boundary. Dataset provenance remains explicit in both cases.
 
 ## Query store and DuckDB
 
@@ -113,7 +148,12 @@ This keeps rebuild time low without changing the product-facing data model.
 
 ### Dashboard
 
-Uses the active workspace to provide orientation and provenance-aware summaries.
+Uses the active workspace to provide Timeline, Clinical, Assays, and Multimodal
+orientation with provenance-aware summaries.
+
+The Multimodal view reports overlap, missingness, DICOM linkage, and readiness.
+Its bounded feature matrix is an inspectable preview, not a trained model or a
+validated integration method.
 
 ### Query
 
@@ -187,6 +227,16 @@ Current operational guardrails:
 Pheno-Ranker can also call the selected LLM provider for narrative explanation,
 subject to the active workspace AI-provider policy.
 
+### DICOM and OHIF
+
+BRN stores dataset-authorized study linkage and opens the configured OHIF
+viewer. Orthanc or another DICOMweb archive serves pixel objects. BRN does not
+perform raw-pixel segmentation; derived imaging features enter through an assay
+matrix produced by an external method.
+
+The bundled Orthanc configuration is a synthetic local-development service and
+must not be used as the security boundary for real patient imaging.
+
 ### Model providers
 
 Model providers are admin-defined OpenAI-compatible endpoints.
@@ -202,6 +252,11 @@ Current model:
 The provider registry accepts both `providers` and `llm_providers` as the JSON
 list key so future model/tool configuration can stay explicit without breaking
 current deployments.
+
+Model assistance is part of the platform contract, but deployment availability
+is configurable. Dataset policy can permit detailed context, restrict calls to
+safe summaries, or block provider access. Publication claims about model
+assistance require task-level evaluation in addition to provider health checks.
 
 ## Provenance
 

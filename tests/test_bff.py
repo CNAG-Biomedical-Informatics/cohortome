@@ -1,8 +1,10 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 import subprocess
+from threading import Barrier
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -2650,6 +2652,52 @@ def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypa
     patients = client.get("/patients", params={"dataset_id": "maria-dataset"})
     assert patients.status_code == 200
     assert patients.json()[0]["patient_id"] == "M1"
+
+
+def test_prepared_dataset_store_supports_concurrent_readers(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_root = tmp_path / "concurrent-dataset"
+    clinical_dir = dataset_root / "clinical"
+    clinical_dir.mkdir(parents=True)
+    write_json(clinical_dir, "records.json", [{"id": "C1:baseline", "patient_id": "C1"}])
+
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(
+        json.dumps(
+            [
+                {
+                    "dataset_id": "concurrent-dataset",
+                    "name": "Concurrent dataset",
+                    "root_path": str(dataset_root),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    query_store_module.prepare_dataset_query_store("concurrent-dataset")
+
+    reader_count = 8
+    start = Barrier(reader_count)
+
+    def read_patients():
+        start.wait()
+        return query_store_module.patient_inventory(str(dataset_root))
+
+    with ThreadPoolExecutor(max_workers=reader_count) as executor:
+        results = list(executor.map(lambda _index: read_patients(), range(reader_count)))
+
+    assert results == [["C1"]] * reader_count
 
 
 def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_path, monkeypatch):

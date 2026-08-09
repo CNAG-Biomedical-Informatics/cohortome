@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="1080" viewBox="0 0 680 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Governed AI workflow in Biomedical Research Navigator</title>
+  <desc id="desc">A research request is scoped, routed through deterministic or approved language model paths, validated, executed, and recorded.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#5f7482"/>
+    </marker>
+  </defs>
+  <rect width="680" height="1080" fill="#f7f8f7"/>
+  <text x="38" y="42" fill="#4f6269" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">WITH OR WITHOUT A LANGUAGE MODEL</text>
+
+  <rect x="38" y="66" width="604" height="100" rx="6" fill="#ffffff" stroke="#aab9bf" stroke-width="2"/>
+  <text x="62" y="104" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Research request</text>
+  <text x="62" y="136" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">Question, cohort, or analysis objective</text>
+  <line x1="340" y1="166" x2="340" y2="204" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="38" y="210" width="604" height="110" rx="6" fill="#eef5f7" stroke="#9bb7c0" stroke-width="2"/>
+  <text x="62" y="248" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">Check access first</text>
+  <text x="62" y="280" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">Which data may be used or shared with a model?</text>
+  <line x1="340" y1="320" x2="340" y2="358" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="38" y="364" width="286" height="170" rx="6" fill="#edf6ee" stroke="#8fbb97" stroke-width="2"/>
+  <text x="60" y="398" fill="#24502d" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">WITHOUT A MODEL</text>
+  <text x="60" y="432" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Known question</text>
+  <text x="60" y="462" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">BRN answers supported</text>
+  <text x="60" y="486" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">questions and runs</text>
+  <text x="60" y="510" fill="#526b58" font-family="Inter, Arial, sans-serif" font-size="14">reviewed methods.</text>
+
+  <rect x="356" y="364" width="286" height="170" rx="6" fill="#fff6e2" stroke="#d1ad56" stroke-width="2"/>
+  <text x="378" y="398" fill="#6a4b0b" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">WITH A MODEL</text>
+  <text x="378" y="432" fill="#332a19" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Approved model</text>
+  <text x="378" y="462" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">BRN limits what is sent</text>
+  <text x="378" y="486" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">and may block a request.</text>
+  <text x="378" y="510" fill="#6b5b38" font-family="Inter, Arial, sans-serif" font-size="14">Admins choose models.</text>
+
+  <line x1="181" y1="534" x2="181" y2="582" stroke="#5f7482" stroke-width="2"/>
+  <line x1="499" y1="534" x2="499" y2="582" stroke="#5f7482" stroke-width="2"/>
+  <line x1="181" y1="582" x2="499" y2="582" stroke="#5f7482" stroke-width="2"/>
+  <line x1="340" y1="582" x2="340" y2="620" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="38" y="626" width="604" height="142" rx="6" fill="#f2f5f7" stroke="#aab9bf" stroke-width="2"/>
+  <text x="62" y="662" fill="#41565e" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">CHECK + RUN</text>
+  <text x="62" y="696" fill="#1b2c33" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="700">BRN runs the operation</text>
+  <text x="62" y="726" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">BRN checks the proposed action first.</text>
+  <text x="62" y="750" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">The model cannot run unrestricted commands.</text>
+  <line x1="340" y1="768" x2="340" y2="806" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="38" y="812" width="604" height="128" rx="6" fill="#0e6964"/>
+  <text x="62" y="852" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">Result with its history</text>
+  <text x="62" y="884" fill="#d5f2ee" font-family="Inter, Arial, sans-serif" font-size="14">Selected data, route, model, settings, software,</text>
+  <text x="62" y="908" fill="#d5f2ee" font-family="Inter, Arial, sans-serif" font-size="14">outputs, and limitations stay attached.</text>
+
+  <text x="38" y="988" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">A model may help plan or explain.</text>
+  <text x="38" y="1014" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">It does not decide access, run arbitrary code,</text>
+  <text x="38" y="1040" fill="#536970" font-family="Inter, Arial, sans-serif" font-size="14">or prove that a result is scientifically valid.</text>
+</svg>

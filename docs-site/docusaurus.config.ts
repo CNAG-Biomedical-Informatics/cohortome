@@ -7,7 +7,7 @@ import type * as Redocusaurus from 'redocusaurus';
 
 const config: Config = {
   title: 'Biomedical Research Navigator',
-  tagline: 'Documentation for workspace navigation, analysis, and administration',
+  tagline: 'Open-source workspace for longitudinal clinical and assay research',
   favicon: 'img/biomedical-research-navigator-logo.png',
   markdown: {
     mermaid: true,
@@ -65,15 +65,14 @@ const config: Config = {
           },
         ],
         theme: {
-          primaryColor: '#1677ff',
+          primaryColor: '#0e6964',
         },
       },
     ] satisfies Redocusaurus.PresetEntry,
   ],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/screenshots/workspace-shell.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -112,14 +111,47 @@ const config: Config = {
               label: 'Overview',
               to: '/docs/overview',
             },
+            {
+              label: 'Run from source',
+              to: '/docs/admin-guide/local-auth-and-groups',
+            },
+            {
+              label: 'DICOM viewing',
+              to: '/docs/admin-guide/dicom-viewing',
+            },
           ],
         },
         {
-          title: 'More',
+          title: 'Project',
+          items: [
+            {
+              label: 'Scope and boundaries',
+              to: '/docs/project/scope-and-boundaries',
+            },
+            {
+              label: '3TR and PRECISESADS',
+              to: '/docs/project/3tr-and-precisesads',
+            },
+            {
+              label: 'Citation and funding',
+              to: '/docs/about/citation-and-funding',
+            },
+          ],
+        },
+        {
+          title: 'Open Source',
           items: [
             {
               label: 'Repository',
               href: 'https://github.com/mrueda/biomedical-research-navigator',
+            },
+            {
+              label: 'API',
+              to: '/api/',
+            },
+            {
+              label: 'Apache License 2.0',
+              href: 'https://github.com/mrueda/biomedical-research-navigator/blob/main/LICENSE',
             },
           ],
         },

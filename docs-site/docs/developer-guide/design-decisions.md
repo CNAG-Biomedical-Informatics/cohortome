@@ -35,7 +35,10 @@ Each dataset is a directory with the same internal shape:
 ```text
 dataset_root/
   clinical/
-  assays/transcriptomics/
+  assays/
+    transcriptomics/
+    proteomics/
+    imaging/
 ```
 
 Why:
@@ -49,21 +52,27 @@ Consequence:
 - many files may contribute to one dataset
 - one dataset may contribute several active workspace files to Pheno-Ranker
 
-## 3. Multi-dataset workspaces are materialized, not merged in place
+## 3. Multi-dataset query stores stay independent
 
-When several datasets are selected, the backend materializes a combined workspace under:
+Each registered dataset has an independently prepared DuckDB store. When
+several datasets are selected, the backend attaches the authorized stores into
+one query context rather than rebuilding a permanent database for every
+combination.
 
-- `state/datasets/scopes/`
+Materialized compatibility scopes may still exist under
+`state/datasets/scopes/` for helpers that require files.
 
 Why:
 
-- the rest of the app can keep operating on one resolved workspace root
-- query-store and DuckDB caching stay simpler
-- dataset provenance can still be preserved in namespaced filenames
+- administrators can prepare and validate each dataset once
+- users can change workspaces without repeated ingestion
+- dataset authorization and provenance remain explicit
 
 Consequence:
 
-- the app behaves as if it has one active workspace root, even when that workspace spans several datasets
+- the application exposes one active workspace while preserving the identity of
+  every contributing dataset
+- a compatibility scope directory is not the query-store identity boundary
 
 ## 4. Saved cohorts are sample-first
 
@@ -324,3 +333,58 @@ Why:
 Consequence:
 
 - OpenAPI is worth maintaining even if the main consumer is still the app itself
+
+## 17. BRN is independent of the upstream warehouse
+
+The 3TR Omics DM Warehouse may supply authorized data exports, but BRN must not
+depend on its filesystem layout, API, or storage implementation.
+
+Why:
+
+- storage/distribution and harmonization/analysis have different lifecycles
+- PRECISESADS arrives as an authorized Omics DM Warehouse release, while other
+  approved institutional sources may use different delivery paths
+- a reusable open-source platform needs explicit application contracts
+
+Consequence:
+
+- source adapters terminate at the BRN clinical and assay contracts
+- the warehouse remains an upstream source, not the active workspace model
+- public documentation must not describe BRN as the warehouse or ADEx
+
+## 18. The product model is clinical plus assays
+
+Transcriptomics, OLINK, proteomics, genotyping, and imaging are assay
+modalities. `Molecular` is not a top-level product peer to `Assays`.
+
+Why:
+
+- the assay model supports molecular and imaging measurements consistently
+- modality-specific behavior can be declared through metadata
+- the UI can derive available controls from the active workspace
+
+Consequence:
+
+- use `clinical + assays` in code and documentation
+- show transcriptomics-only controls only for compatible assays
+- keep patient/sample/time-point linkage explicit across modalities
+
+## 19. LLM assistance is first-class and governed
+
+LLM assistance is a product capability for cohort discovery, planning, and
+interpretation, not a general chatbot or an unrestricted agent.
+
+Why:
+
+- natural-language interaction can lower the operational barrier for clinical
+  and translational researchers
+- record-level context and model execution introduce disclosure and correctness
+  risks
+
+Consequence:
+
+- administrators approve providers
+- dataset policy constrains context before provider calls
+- deterministic execution remains visible
+- the UI reports unavailable or blocked providers explicitly
+- publication claims require reference-task evaluation

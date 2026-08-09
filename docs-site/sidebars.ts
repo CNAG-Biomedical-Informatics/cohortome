@@ -5,11 +5,20 @@ const sidebars: SidebarsConfig = {
     'overview',
     {
       type: 'category',
+      label: 'Project',
+      items: [
+        'project/3tr-and-precisesads',
+        'project/scope-and-boundaries',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Concepts',
       items: [
         'concepts/workspace-and-cohorts',
         'concepts/patient-vs-sample',
         'concepts/assays-and-modalities',
+        'concepts/governed-ai',
       ],
     },
     {
@@ -33,6 +42,7 @@ const sidebars: SidebarsConfig = {
         'admin-guide/local-auth-and-groups',
         'admin-guide/model-providers',
         'admin-guide/dicom-viewing',
+        'admin-guide/real-data-security',
       ],
     },
     {
@@ -44,6 +54,20 @@ const sidebars: SidebarsConfig = {
         'developer-guide/query-disclosure-modes',
         'developer-guide/state-and-persistence',
         'developer-guide/api-reference',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Validation',
+      items: [
+        'validation/evaluation-and-evidence',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'About',
+      items: [
+        'about/citation-and-funding',
       ],
     },
   ],

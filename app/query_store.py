@@ -346,7 +346,7 @@ def _signature_payload(payload: Dict[str, Any] | None) -> Dict[str, Any] | None:
 def _store_has_required_tables(db_path: Path) -> bool:
     if duckdb is None or not db_path.exists():
         return False
-    con = duckdb.connect(str(db_path))
+    con = duckdb.connect(str(db_path), read_only=True)
     try:
         rows = con.execute("SHOW TABLES").fetchall()
     finally:
@@ -584,6 +584,9 @@ def _connect_workspace(dataset_ids: List[str]):
         raise RuntimeError("At least one dataset is required.")
     for dataset_id in normalized:
         _store_ready_or_raise(dataset_id)
+    if len(normalized) == 1:
+        db_path, _, _ = _dataset_store_paths(normalized[0])
+        return duckdb.connect(str(db_path), read_only=True)
     con = duckdb.connect()
     aliases: List[str] = []
     multi_dataset = len(normalized) > 1
@@ -591,7 +594,7 @@ def _connect_workspace(dataset_ids: List[str]):
         alias = f"ds{index}"
         aliases.append(alias)
         db_path, _, _ = _dataset_store_paths(dataset_id)
-        con.execute(f"ATTACH {_sql_literal(str(db_path))} AS {alias}")
+        con.execute(f"ATTACH {_sql_literal(str(db_path))} AS {alias} (READ_ONLY)")
     patient_rows_sql = _union_select(
         aliases,
         """

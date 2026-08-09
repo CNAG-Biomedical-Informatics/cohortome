@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="620" viewBox="0 0 1440 620" role="img" aria-labelledby="title desc">
+  <title id="title">Biomedical Research Navigator platform workflow</title>
+  <desc id="desc">Source systems feed an independent BRN layer that harmonizes clinical and assay data, applies governance, supports research workspaces, and records reproducible evidence.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#5f7482"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="620" fill="#f6f8fa"/>
+  <rect x="30" y="36" width="286" height="548" rx="8" fill="#ffffff" stroke="#cbd5dc" stroke-width="2"/>
+  <text x="58" y="76" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">SOURCE SYSTEMS</text>
+  <text x="58" y="104" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="700">Independent inputs</text>
+
+  <rect x="54" y="134" width="238" height="104" rx="6" fill="#f3f6f8" stroke="#b8c5cc"/>
+  <text x="74" y="164" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Data warehouse</text>
+  <text x="74" y="190" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">3TR example: Omics DM</text>
+  <text x="74" y="214" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">with PRECISESADS data</text>
+
+  <rect x="54" y="254" width="238" height="104" rx="6" fill="#f3f6f8" stroke="#b8c5cc"/>
+  <text x="74" y="284" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Other approved data</text>
+  <text x="74" y="310" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">Institutional clinical + assay</text>
+  <text x="74" y="334" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">releases and derived results</text>
+
+  <rect x="54" y="374" width="238" height="150" rx="6" fill="#f3f6f8" stroke="#b8c5cc"/>
+  <text x="74" y="404" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Imaging archives</text>
+  <text x="74" y="432" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">DICOMweb services keep</text>
+  <text x="74" y="456" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">the original image pixels</text>
+  <text x="74" y="480" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">BRN keeps study links and</text>
+  <text x="74" y="504" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">derived imaging measurements</text>
+
+  <rect x="350" y="36" width="1060" height="548" rx="8" fill="#ffffff" stroke="#13847c" stroke-width="2"/>
+  <rect x="350" y="36" width="1060" height="54" rx="8" fill="#0e6964"/>
+  <rect x="350" y="82" width="1060" height="8" fill="#0e6964"/>
+  <text x="378" y="70" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">BIOMEDICAL RESEARCH NAVIGATOR</text>
+  <text x="1378" y="70" fill="#d5f2ee" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="end">generic open-source research workspace</text>
+
+  <line x1="316" y1="186" x2="382" y2="186" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="316" y1="306" x2="382" y2="306" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="316" y1="450" x2="382" y2="450" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="388" y="126" fill="#0e6964" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">01  PREPARE THE DATA</text>
+  <rect x="382" y="144" width="282" height="118" rx="6" fill="#edf8f6" stroke="#96cfc9"/>
+  <text x="404" y="176" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Organize clinical + assay data</text>
+  <text x="404" y="204" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Match names, units, timepoints,</text>
+  <text x="404" y="228" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">identifiers, and data sources</text>
+
+  <rect x="382" y="282" width="282" height="118" rx="6" fill="#edf8f6" stroke="#96cfc9"/>
+  <text x="404" y="314" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Connect related records</text>
+  <text x="404" y="342" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Link the right patient, sample,</text>
+  <text x="404" y="366" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">visit, assay, and image study</text>
+
+  <rect x="382" y="420" width="282" height="118" rx="6" fill="#edf8f6" stroke="#96cfc9"/>
+  <text x="404" y="452" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Prepare for search</text>
+  <text x="404" y="480" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Build fast indexes and data views</text>
+  <text x="404" y="504" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">without replacing the source archive</text>
+
+  <line x1="664" y1="341" x2="712" y2="341" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="718" y="126" fill="#0e6964" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">02  CONTROL ACCESS</text>
+  <rect x="712" y="144" width="282" height="118" rx="6" fill="#f3f7fb" stroke="#a8becd"/>
+  <text x="734" y="176" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Apply dataset rules</text>
+  <text x="734" y="204" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Choose who may use each dataset</text>
+  <text x="734" y="228" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">and what they are allowed to see</text>
+
+  <rect x="712" y="282" width="282" height="118" rx="6" fill="#fff7e7" stroke="#dec37f"/>
+  <text x="734" y="314" fill="#4a3611" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Use approved language models</text>
+  <text x="734" y="342" fill="#6c5730" font-family="Inter, Arial, sans-serif" font-size="14">Check what may leave the workspace</text>
+  <text x="734" y="366" fill="#6c5730" font-family="Inter, Arial, sans-serif" font-size="14">before sending anything to a model</text>
+
+  <rect x="712" y="420" width="282" height="118" rx="6" fill="#f3f7fb" stroke="#a8becd"/>
+  <text x="734" y="452" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Run reviewed methods</text>
+  <text x="734" y="480" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Keep settings, software versions,</text>
+  <text x="734" y="504" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">logs, and generated files together</text>
+
+  <line x1="994" y1="341" x2="1042" y2="341" stroke="#5f7482" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="1048" y="126" fill="#0e6964" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">03  WORK WITH THE DATA</text>
+  <rect x="1042" y="144" width="336" height="118" rx="6" fill="#f4f7f8" stroke="#b8c5cc"/>
+  <text x="1064" y="176" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Explore patients over time</text>
+  <text x="1064" y="204" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Review visits, clinical data, assays,</text>
+  <text x="1064" y="228" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">images, overlap, and missing data</text>
+
+  <rect x="1042" y="282" width="336" height="118" rx="6" fill="#f4f7f8" stroke="#b8c5cc"/>
+  <text x="1064" y="314" fill="#17343a" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Find cohorts and analyze</text>
+  <text x="1064" y="342" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">Save patient groups, combine features,</text>
+  <text x="1064" y="366" fill="#4f676d" font-family="Inter, Arial, sans-serif" font-size="14">compare phenotypes, and run methods</text>
+
+  <rect x="1042" y="420" width="336" height="118" rx="6" fill="#edf6ee" stroke="#9fc3a5"/>
+  <text x="1064" y="452" fill="#203d27" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700">Keep results understandable</text>
+  <text x="1064" y="480" fill="#4b6852" font-family="Inter, Arial, sans-serif" font-size="14">Retain the inputs and history needed</text>
+  <text x="1064" y="504" fill="#4b6852" font-family="Inter, Arial, sans-serif" font-size="14">to review, share, or repeat a result</text>
+
+  <text x="720" y="606" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="middle">The source systems keep the original data. BRN provides the research workspace.</text>
+</svg>

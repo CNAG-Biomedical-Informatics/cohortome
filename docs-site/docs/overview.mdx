@@ -2,148 +2,134 @@
 sidebar_position: 1
 ---
 
-import Link from '@docusaurus/Link';
-
 # Biomedical Research Navigator
 
-<div className="pnDocHero">
-  <div className="pnEyebrow">Overview</div>
-  <h2>Clinical and assay workspace exploration with governed analysis and controlled AI provider access.</h2>
-  <div className="pnHeroText">
-    Biomedical Research Navigator is a local-first workbench for dataset selection, cohort
-    discovery, analysis workflows, phenotypic similarity, and clinical review
-    in translational research projects.
-  </div>
-  <div className="pnHeroActions">
-    <Link className="button button--primary" to="/docs/user-guide/datasets">Load a workspace</Link>
-    <Link className="button button--secondary" to="/docs/user-guide/analysis">Run analyses</Link>
-    <Link className="button button--secondary" to="/docs/admin-guide/datasets-and-access">Administer data access</Link>
-  </div>
-</div>
+:::tip[In one sentence]
+Biomedical Research Navigator helps research teams connect clinical and assay
+data over time, find groups of patients, and run traceable analyses without
+replacing the systems that store the source data.
+:::
 
-Biomedical Research Navigator is a multimodal clinical exploration app for:
+<picture>
+  <source media="(max-width: 700px)" srcSet="/img/brn-research-journey-mobile.svg" />
+  <img
+    src="/img/brn-research-journey.svg"
+    alt="Approved clinical, assay, and imaging data enter BRN, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
+  />
+</picture>
 
-- browsing dataset-backed patient workspaces
-- building subsets in `Query`
-- interpreting them in `Analysis`
-- launching curated tool-like analyses from an Analysis Catalog
-- running longer curated analyses as background jobs
-- comparing phenotypic similarity in `Pheno-Ranker`
-- managing approved AI providers for controlled LLM-assisted behavior
+BRN is a generic open-source tool that can be deployed alongside different
+approved data systems. Its first consortium-scale deployment is planned in the
+context of the
+[3TR consortium](https://www.ihi.europa.eu/projects-results/project-factsheets/3tr).
+In that deployment, BRN will receive authorized releases from the 3TR Omics DM
+Warehouse without depending on how the warehouse stores its files. The warehouse
+keeps and distributes data; BRN provides the research workspace.
 
-## What the app is optimized for
+[PRECISESADS](https://www.ihi.europa.eu/projects-results/project-factsheets/precisesads)
+is held in the Omics DM Warehouse and is the first real reference implementation,
+with scientific collaboration from FPS in Granada. Public synthetic fixtures
+remain available for development, demonstration, and automated testing.
 
-- exploratory cohort building from clinical data
-- clinical plus assay interpretation in one workspace
-- saved subset reuse across tabs
-- dataset-level access control for different users
-- curated built-in and external analysis launchers
-- background execution for longer curated analyses
-- local or OIDC authentication with local authorization
-- local-first model provider selection for controlled deployments
+## What BRN does
 
-![Login view](/img/screenshots/login-page.png)
+- brings approved clinical and assay datasets into one research workspace
+- connects records from the same patient, sample, visit, or time point
+- shows what data are available, what are missing, and which modalities overlap
+- helps researchers find and save groups of patients for follow-up analysis
+- runs reviewed statistical and bioinformatics methods and keeps their outputs
+- compares patients or samples by phenotype through Pheno-Ranker
+- opens linked medical images in OHIF while the original pixels remain in the
+  imaging archive
+- can use approved language models to help plan a query or explain a result
 
-## Fast Orientation
+## How responsibilities are divided
 
-<div className="pnWorkflowGrid">
-  <Link className="pnWorkflowCard" to="/docs/user-guide/datasets">
-    <span className="pnCardLabel">1. Workspace</span>
-    <h3>Select datasets</h3>
-    <div>Default data loads at startup; other authorized datasets are applied on demand.</div>
-  </Link>
-  <Link className="pnWorkflowCard" to="/docs/user-guide/query">
-    <span className="pnCardLabel">2. Cohorts</span>
-    <h3>Build subsets</h3>
-    <div>Use Query to find patients or samples, then save reusable cohorts.</div>
-  </Link>
-  <Link className="pnWorkflowCard" to="/docs/user-guide/analysis">
-    <span className="pnCardLabel">3. Analysis</span>
-    <h3>Interpret and run tools</h3>
-    <div>Use prompts, catalog tools, background jobs, and curated workflows.</div>
-  </Link>
-  <Link className="pnWorkflowCard" to="/docs/user-guide/pheno-ranker">
-    <span className="pnCardLabel">4. Similarity</span>
-    <h3>Compare phenotypes</h3>
-    <div>Use Pheno-Ranker heatmaps, MDS plots, and graph views for sample-level similarity.</div>
-  </Link>
-  <Link className="pnWorkflowCard" to="/docs/admin-guide/model-providers">
-    <span className="pnCardLabel">Admin</span>
-    <h3>Configure models</h3>
-    <div>Expose approved OpenAI-compatible endpoints while dataset policy controls what can be sent.</div>
-  </Link>
-</div>
+| Layer | Responsibility |
+| --- | --- |
+| Sources | The Omics DM Warehouse and other approved systems keep and distribute the original data. |
+| Preparing data | BRN organizes clinical and assay information and connects patient, sample, and visit identifiers. |
+| Controlling access | BRN decides which registered datasets a user may open and what information may be sent to an approved model. |
+| Exploring | Researchers review timelines, clinical and assay summaries, medical images, missing data, and overlap between modalities. |
+| Finding cohorts | Researchers ask questions, inspect the method used, and save reusable groups of patients or samples. |
+| Analyzing | BRN runs reviewed clinical, omics, pathway, and phenotype-similarity methods. |
+| Keeping evidence | BRN retains the data scope, settings, logs, plots, tables, files, and run history needed to understand a result. |
 
-## Current core concepts
+The technical boundary behind that journey is shown below. Source systems keep
+the originals; BRN prepares authorized releases for exploration and analysis.
 
-- `Workspace`
-  - the currently loaded dataset scope
-  - may contain one or more authorized datasets
-- `Saved cohort`
-  - a reusable saved subset inside a workspace
-- `Sample ID`
-  - record-level or biosample-level identifier
-- `Patient ID`
-  - person-level identifier derived from one or more samples
+<picture>
+  <source media="(max-width: 700px)" srcSet="/img/brn-platform-workflow-mobile.svg" />
+  <img
+    src="/img/brn-platform-workflow.svg"
+    alt="Source systems feed BRN, where records are prepared, access is checked, and researchers explore patients, find cohorts, and run analyses."
+    loading="lazy"
+  />
+</picture>
 
-## Typical workflow
+## Core workflow
 
-For most users, the app flows like this:
+1. An administrator registers an approved dataset and prepares it for searching.
+2. A researcher chooses one or more datasets they are allowed to use.
+3. The Dashboard shows the patient timeline, available assays, missing data,
+   and overlap between modalities.
+4. Query helps the researcher find a group of patients or samples and shows how
+   that group was selected.
+5. The researcher saves the group as a cohort and opens it in Analysis.
+6. Analysis runs a reviewed method and keeps the settings, logs, plots, tables,
+   and generated files with the result.
+7. Where permitted, an approved language model can help plan the next question
+   or explain the output without taking control of access or execution.
 
-1. choose one or more datasets in `Datasets`
-2. inspect the loaded workspace in `Dashboard`
-3. build a subset in `Query`
-4. save that subset as a saved cohort when it becomes reusable
-5. interpret it in `Analysis`
-6. use `Pheno-Ranker` when you want sample-level phenotypic similarity
+## Governed AI
 
-## Why the app uses the term workspace
+LLM assistance is a first-class platform capability, not a general-purpose
+chatbot. It supports cohort discovery, analysis planning, and interpretation
+inside the current user's authorized workspace.
 
-The app originally behaved as if there were always one loaded cohort. That became too vague once:
+Administrators choose which model services are approved, including services
+that run locally or inside a private network. Rules attached to each dataset
+determine whether detailed information, a limited summary, or nothing at all
+may be sent. BRN can still answer supported questions without a model and tells
+the researcher which route produced the result.
 
-- multiple datasets could be active at once
-- saved cohorts became a reusable concept
-- users needed to reason about broader dataset scope versus narrower saved subsets
-
-The term `workspace` is now used for the currently loaded dataset scope because it is broader and more accurate.
-
-## Main tabs
-
-- `Dashboard`
-  - orient yourself in the currently loaded workspace
-- `Datasets`
-  - choose the active dataset scope
-- `Data Administration`
-  - admin-only dataset policy and DuckDB store preparation
-- `Users`
-  - admin-only local user, role, group, email, and password management
-- `Models`
-  - admin-only view of approved LLM providers and health state
-- `Query`
-  - build subsets and inspect deterministic or LLM-assisted results
-- `Analysis`
-  - summarize, compare, and visualize clinical or assay patterns
-  - mix catalog tools with lighter prompt-based questions
-- `Pheno-Ranker`
-  - compare patients or subsets using phenotypic similarity
-- `Settings`
-  - per-user preferences, including default tab behavior, analysis job behavior, Pheno-Ranker rendering, and preferred AI provider
-
-## Documentation layout
-
-This docs site is organized around four questions:
-
-- what the main concepts mean
-- how users are expected to work in the app
-- how admins manage datasets and access
-- how authentication and model providers are configured
-- how the application is structured internally
+Read [Governed AI](./concepts/governed-ai) for the execution and evaluation
+contract.
 
 ## Current status
 
-The application is still evolving quickly. The documentation is being built to stabilize:
+BRN currently implements the governed workspace, longitudinal dashboard,
+clinical and assay exploration, Query, saved cohorts, Analysis sessions,
+transcriptomics workflows, Pheno-Ranker, configurable LLM providers,
+multimodal-readiness inspection, and optional OHIF/DICOMweb integration.
 
-- terminology
-- workflow expectations
-- admin behavior
-- patient-versus-sample semantics
+The multimodal feature matrix is currently a bounded inspection and
+feature-engineering preview. It is not yet a validated cross-modal statistical
+or machine-learning workflow. PRECISESADS ingestion, the publication
+demonstrator, and formal LLM evaluation are active project work.
+
+See [Platform Scope And Boundaries](./project/scope-and-boundaries) for a precise
+current-versus-target account.
+
+## What BRN is not
+
+- the 3TR Omics DM Warehouse or another primary storage system
+- an ADEx replacement
+- a raw DICOM archive or MRI segmentation pipeline
+- an arbitrary notebook or command-execution service
+- an autonomous clinical decision-support system
+- evidence that synthetic disease or treatment effects are biologically real
+
+## Choose a path
+
+| Goal | Start here |
+| --- | --- |
+| Understand the 3TR and PRECISESADS role | [3TR And PRECISESADS](./project/3tr-and-precisesads) |
+| Load and inspect a workspace | [Datasets](./user-guide/datasets) and [Dashboard](./user-guide/dashboard) |
+| Discover and save cohorts | [Query](./user-guide/query) |
+| Run a curated method | [Analysis](./user-guide/analysis) |
+| Configure data access | [Datasets And Access](./admin-guide/datasets-and-access) |
+| Configure approved models | [Model Providers](./admin-guide/model-providers) |
+| Prepare a real-data deployment | [Real-Data Security](./admin-guide/real-data-security) |
+| Understand the implementation | [Architecture](./developer-guide/architecture) |
+| Understand the publication evidence plan | [Evaluation And Evidence](./validation/evaluation-and-evidence) |
