@@ -59,20 +59,19 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env down
 
 ## Persistent Paths
 
-The Compose file mounts these host paths into the containers:
+The Compose file mounts one mutable host directory into the containers:
 
-- `state/` -> local users, settings, saved cohorts, jobs, dataset registry
-- `.cache/` -> DuckDB query stores
-- `runs/` -> generated Pheno-Ranker and analysis artifacts
+- `runtime/` -> local users, settings, dataset registry, DuckDB stores, and generated runs
 - `default_dataset/`, `private_dataset/`, `dataset-large/` -> read-only datasets
 
-Back up at least:
+Back up:
 
 ```text
-state/
-.cache/query-store/
-runs/
+runtime/
 ```
+
+Inside the container, `COHORTOME_RUNTIME_ROOT=/var/lib/cohortome`. Both the web
+process and worker use that same root.
 
 ## Dataset Stores
 
@@ -166,6 +165,7 @@ Start COHORTome from source. Because COHORTome is running on the host, use
 ```bash
 export COHORTOME_AUTH_MODE=local
 export COHORTOME_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export COHORTOME_RUNTIME_ROOT="$PWD/runtime"
 
 export COHORTOME_DICOM_ENABLED=true
 export COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3000
@@ -233,8 +233,8 @@ Dataset policy still controls whether clinical context can be sent to a model.
 
 The first boot can seed users from `COHORTOME_LOCAL_USERS_JSON`.
 
-After `state/auth/users.json` exists, that file is the source of truth. Manage
-users in the `Users` admin tab.
+After `runtime/state/auth/users.json` exists, that file is the source of truth.
+Manage users in the `Users` admin tab.
 
 For a controlled synthetic-data pilot, local auth is simpler than OIDC. Add OIDC
 only when you need institutional identity integration.

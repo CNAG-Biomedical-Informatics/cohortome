@@ -7,11 +7,13 @@ from typing import Any, Dict, List
 
 import yaml
 
+from app.config import CONFIG_DIR
+from app.datasets import clinical_representation
 from app.query_store import assay_dataset_inventory
 from app.env import app_env
 
 
-ANALYSIS_CATALOG_PATH = Path(__file__).resolve().parent.parent / "state" / "analysis" / "catalog.yaml"
+ANALYSIS_CATALOG_PATH = CONFIG_DIR / "analysis" / "catalog.yaml"
 VALID_EXECUTION_MODES = {"auto", "deterministic", "llm_only"}
 VALID_RUNNER_TYPES = {"builtin", "rscript", "snakemake", "nextflow", "workflow", "cli", "container"}
 VALID_EXECUTION_BACKENDS = {"sync", "job"}
@@ -73,6 +75,12 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         raise ValueError(
             f"Analysis catalog item '{item_id}' uses invalid job_timeout_seconds '{timeout_raw}'."
         ) from None
+    required_clinical_representation = str(raw.get("required_clinical_representation") or "").strip().lower()
+    if required_clinical_representation not in {"", "person", "snapshot"}:
+        raise ValueError(
+            f"Analysis catalog item '{item_id}' uses invalid required_clinical_representation "
+            f"'{required_clinical_representation}'."
+        )
     return {
         "id": item_id,
         "name": name,
@@ -97,6 +105,7 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "required_modalities": [str(item or "").strip() for item in raw.get("required_modalities", []) if str(item or "").strip()],
         "required_data_types": [str(item or "").strip() for item in raw.get("required_data_types", []) if str(item or "").strip()],
         "analysis_level": str(raw.get("analysis_level") or "patient").strip() or "patient",
+        "required_clinical_representation": required_clinical_representation,
         "tags": tags,
     }
 
@@ -131,6 +140,8 @@ def _workspace_requirements(item: Dict[str, Any]) -> List[str]:
         requirements.append(f"Runs at {analysis_level} level.")
     if item.get("default_compare_mode"):
         requirements.append("Runs in compare mode; select Cohort A and Cohort B before executing.")
+    if item.get("required_clinical_representation") == "snapshot":
+        requirements.append("Requires longitudinal visit or timepoint records.")
     if item.get("runner_type") == "rscript":
         requirements.append("Uses a curated external Rscript runner.")
     if item.get("runner_type") == "snakemake":
@@ -166,12 +177,21 @@ def _availability_for_item(
     granularity_ceiling: str,
     assay_datasets: List[Dict[str, Any]] | None = None,
     has_assays: bool | None = None,
+    clinical_record_representation: str = "unspecified",
 ) -> Dict[str, Any]:
     if assay_datasets is None:
         assay_datasets = [{}] if has_assays else []
     unavailable_reason = ""
     if item.get("requires_detailed_access") and granularity_ceiling != "detailed":
         unavailable_reason = "Requires Detailed in-app access for the current workspace."
+    elif (
+        item.get("required_clinical_representation")
+        and item.get("required_clinical_representation") != clinical_record_representation
+    ):
+        unavailable_reason = (
+            "Requires longitudinal visit or timepoint records; "
+            f"this workspace uses {clinical_record_representation} representation."
+        )
     elif item.get("requires_assays") and not assay_datasets:
         unavailable_reason = "No assays are available in the current workspace."
     elif item.get("requires_assays") and not _assay_requirement_available(item, assay_datasets):
@@ -207,6 +227,7 @@ def analysis_catalog_payload(
     except FileNotFoundError:
         assay_datasets = []
     has_assays = bool(assay_datasets)
+    record_representation = clinical_representation(data_dir)
     materialized_items = []
     for item in items:
         if item.get("debug_only") and not analysis_catalog_debug_enabled():
@@ -215,6 +236,7 @@ def analysis_catalog_payload(
             item,
             granularity_ceiling=granularity_ceiling,
             assay_datasets=assay_datasets,
+            clinical_record_representation=record_representation,
         )
         materialized_items.append({**item, **availability})
     return {
@@ -226,6 +248,7 @@ def analysis_catalog_payload(
             "assay_dataset_count": len(assay_datasets),
             "assay_modalities": sorted({str(item.get("modality") or "").strip() for item in assay_datasets if str(item.get("modality") or "").strip()}),
             "assay_data_types": sorted({str(item.get("data_type") or "").strip() for item in assay_datasets if str(item.get("data_type") or "").strip()}),
+            "clinical_representation": record_representation,
         },
     }
 

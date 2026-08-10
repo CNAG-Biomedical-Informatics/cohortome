@@ -60,6 +60,23 @@ export function createDashboardUi(ctx) {
     { key: "assay", label: "Assay", color: "#0891b2", symbol: "star" },
   ];
 
+  function clinicalRepresentation(payload = null) {
+    const direct = String(payload && payload.clinical_representation ? payload.clinical_representation : "").trim().toLowerCase();
+    if (direct) return direct;
+    const activeIds = new Set(Array.isArray(state.currentDatasetIds) ? state.currentDatasetIds : []);
+    const values = (Array.isArray(state.availableDatasets) ? state.availableDatasets : [])
+      .filter((item) => activeIds.has(String(item && item.dataset_id ? item.dataset_id : "")))
+      .map((item) => String(item && item.clinical_representation ? item.clinical_representation : "unspecified").trim().toLowerCase());
+    return values.length && values.every((value) => value === values[0]) ? values[0] : "mixed";
+  }
+
+  function clinicalRecordLabel(payload, count, capitalize = false) {
+    const representation = clinicalRepresentation(payload);
+    const singular = representation === "snapshot" ? "timepoint" : representation === "person" ? "person record" : "clinical record";
+    const label = Number(count) === 1 ? singular : `${singular}s`;
+    return capitalize ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : label;
+  }
+
   function plotlyAvailable() {
     return typeof window !== "undefined" && window.Plotly && typeof window.Plotly.newPlot === "function";
   }
@@ -279,6 +296,7 @@ export function createDashboardUi(ctx) {
     }
 
     const visitEntries = Object.entries(visitDistribution);
+    const snapshotRepresentation = clinicalRepresentation(summary) === "snapshot";
     if (visitEntries.length) {
       mountPlot(
         "dashboard-plot-visits",
@@ -287,10 +305,10 @@ export function createDashboardUi(ctx) {
           x: visitEntries.map(([label]) => label),
           y: visitEntries.map(([, value]) => Number(value || 0)),
           marker: { color: "#7c3aed" },
-          hovertemplate: "%{x} visits: %{y}<extra></extra>",
+          hovertemplate: snapshotRepresentation ? "%{x} visits: %{y}<extra></extra>" : "%{x} records: %{y}<extra></extra>",
         }],
         dashboardPlotLayout({
-          xaxis: { ...dashboardPlotLayout().xaxis, title: { text: "Visits per patient bucket", font: { color: "#61758c", size: 12 } } },
+          xaxis: { ...dashboardPlotLayout().xaxis, title: { text: snapshotRepresentation ? "Visits per patient bucket" : "Clinical records per patient", font: { color: "#61758c", size: 12 } } },
           yaxis: { ...dashboardPlotLayout().yaxis, title: { text: "Patients", font: { color: "#61758c", size: 12 } } },
         })
       );
@@ -562,7 +580,7 @@ export function createDashboardUi(ctx) {
           ${row.diagnosis ? `<span class="query-chip badge">Diagnosis: ${escapeHtml(row.diagnosis)}</span>` : ""}
           ${row.biosample_id ? `<span class="query-chip badge">Sample: ${escapeHtml(row.biosample_id)}</span>` : ""}
         </div>
-        <h3>Evidence at this timepoint</h3>
+        <h3>Evidence in this ${clinicalRepresentation(state.dashboardSummaryState || state.dashboardSummary) === "snapshot" ? "timepoint" : "clinical record"}</h3>
         <div class="evidence-grid">${domainCards || '<div class="empty">No domain evidence captured for this event.</div>'}</div>
       </div>
     `;
@@ -575,6 +593,8 @@ export function createDashboardUi(ctx) {
     if (!tableEl) return;
     const query = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
     const selectedOnly = selectedPatients.size > 0 && !query;
+    const snapshotRepresentation = clinicalRepresentation(summary) === "snapshot";
+    const eventNoun = snapshotRepresentation ? "events" : "records";
     const allRows = timelineEventRows(timelineItems, selectedDomains, selectedPatients);
     const scopedRows = allRows.filter((row) => {
       if (selectedOnly && !selectedPatients.has(row.patient_id)) return false;
@@ -592,10 +612,10 @@ export function createDashboardUi(ctx) {
     });
     if (countEl) {
       countEl.textContent = query
-        ? `${scopedRows.length} matching events across the timeline`
+        ? `${scopedRows.length} matching ${eventNoun}`
         : selectedOnly
-        ? `${scopedRows.length} events for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
-        : `${scopedRows.length} visible events`;
+        ? `${scopedRows.length} ${eventNoun} for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
+        : `${scopedRows.length} visible ${eventNoun}`;
     }
     if (!scopedRows.length) {
       tableEl.innerHTML = '<div class="empty">No events match the current timeline filters.</div>';
@@ -608,7 +628,7 @@ export function createDashboardUi(ctx) {
           <tr>
             <th>Inspect</th>
             <th>Patient</th>
-            <th>Visit</th>
+            <th>${snapshotRepresentation ? "Visit" : "Record"}</th>
             <th>Date</th>
             <th>Domains</th>
             <th>Context</th>
@@ -625,7 +645,7 @@ export function createDashboardUi(ctx) {
             const isInspected = timelineEventKey(row) === String(state.dashboardTimelineInspectedEventKey || "");
             return `
               <tr class="${row.selected ? "is-selected" : ""}${isInspected ? " is-inspected" : ""}" data-dashboard-event-patient="${escapeHtml(row.patient_id)}">
-                <td><button type="button" class="dashboard-timeline-inspect-btn${isInspected ? " is-active" : ""}" data-dashboard-event-inspect="${escapeHtml(String(index))}" title="Inspect this timepoint" aria-label="Inspect ${escapeHtml(row.patient_id)} ${escapeHtml(row.visit_id || "timepoint")}" aria-pressed="${isInspected ? "true" : "false"}">
+                <td><button type="button" class="dashboard-timeline-inspect-btn${isInspected ? " is-active" : ""}" data-dashboard-event-inspect="${escapeHtml(String(index))}" title="Inspect this ${snapshotRepresentation ? "timepoint" : "clinical record"}" aria-label="Inspect ${escapeHtml(row.patient_id)} ${escapeHtml(row.visit_id || (snapshotRepresentation ? "timepoint" : "record"))}" aria-pressed="${isInspected ? "true" : "false"}">
                   ${isInspected
                     ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"></path></svg>'
                     : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5 0 9 5 9 7s-4 7-9 7-9-5-9-7 4-7 9-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'}
@@ -898,6 +918,8 @@ export function createDashboardUi(ctx) {
       : "";
     const selectionBadge = timelineSelected ? '<span class="pill">selected</span>' : "";
     const compactTimeline = state.currentDashboardSubtab === "timeline";
+    const recordCount = Number(patient.clinical_record_count ?? patient.visit_count ?? 0);
+    const recordText = `${recordCount} ${clinicalRecordLabel(patient, recordCount)}`;
     if (compactTimeline) {
       return `
         <div class="patient-card patient-card-compact ${activeClass}" data-patient-id="${patient.patient_id}">
@@ -906,7 +928,7 @@ export function createDashboardUi(ctx) {
             ${selectionBadge}
           </div>
           <div class="patient-card-compact-meta">
-            <span>${escapeHtml(String(patient.visit_count || 0))} visits</span>
+            <span>${escapeHtml(recordText)}</span>
             <span>${escapeHtml(patient.sex || "sex n/a")}</span>
             <span>${escapeHtml(String(patient.evidence.diseases.count || 0))} dx</span>
           </div>
@@ -919,7 +941,7 @@ export function createDashboardUi(ctx) {
         <div>
           ${selectionBadge}
           ${datasetBadge}
-          <span class="pill">${patient.visit_count} visits</span>
+          <span class="pill">${escapeHtml(recordText)}</span>
           <span class="pill">${patient.sex || "sex: n/a"}</span>
           <span class="pill">${patient.evidence.diseases.count} diseases</span>
         </div>
@@ -984,6 +1006,7 @@ export function createDashboardUi(ctx) {
       </div>
     `).join("");
 
+    const personRepresentation = clinicalRepresentation(patient) === "person";
     const visits = (patient.visits || []).slice(0, 8).map((visit) => `
       <li>
         <div>
@@ -1005,8 +1028,8 @@ export function createDashboardUi(ctx) {
           ${renderEvidence(patient.evidence)}
         </div>
         <div class="workspace-card">
-          <h3>Visit Overview</h3>
-          <ul class="mini-list">${visits || '<li><small>No visits found.</small></li>'}</ul>
+          <h3>${personRepresentation ? "Clinical record overview" : "Visit overview"}</h3>
+          <ul class="mini-list">${visits || `<li><small>No ${personRepresentation ? "clinical records" : "visits"} found.</small></li>`}</ul>
         </div>
       </div>
       <div class="workspace-card" style="margin-top:16px;">
@@ -1024,6 +1047,9 @@ export function createDashboardUi(ctx) {
     state.dashboardSummary = summary;
     const expanded = Boolean(state.dashboardClinicalExpanded);
     const totals = summary && summary.totals ? summary.totals : {};
+    const representation = clinicalRepresentation(summary);
+    const snapshotRepresentation = representation === "snapshot";
+    const recordCount = Number(totals.clinical_records ?? totals.visits ?? summary.visits ?? 0);
     const extraPlotsMarkup = expanded ? `
           <div class="dashboard-plot-card">
             <h4>Disease by medication</h4>
@@ -1043,7 +1069,7 @@ export function createDashboardUi(ctx) {
             <div class="dashboard-plot-frame" id="dashboard-plot-sex"></div>
           </div>
           <div class="dashboard-plot-card">
-            <h4>Visits per patient</h4>
+            <h4>${snapshotRepresentation ? "Visits per patient" : "Clinical records per patient"}</h4>
             <div class="dashboard-plot-frame" id="dashboard-plot-visits"></div>
           </div>
           <div class="dashboard-plot-card">
@@ -1064,8 +1090,8 @@ export function createDashboardUi(ctx) {
     const timelineMarkup = `
       <section class="section-card dashboard-timeline-card">
         <div class="section-card-header">
-          <div class="section-card-eyebrow">Longitudinal coverage</div>
-          <h3>Patient timeline</h3>
+          <div class="section-card-eyebrow">${snapshotRepresentation ? "Longitudinal coverage" : "Clinical coverage"}</div>
+          <h3>${snapshotRepresentation ? "Patient timeline" : "Patient records"}</h3>
         </div>
         <div class="section-note">Click timeline bars or event markers to toggle one patient, or drag with the lasso/select tool to select several patients. Event markers are colored by BFF domain, including assay sample coverage when present.</div>
         <div id="dashboard-timeline-controls" class="dashboard-timeline-controls"></div>
@@ -1083,7 +1109,7 @@ export function createDashboardUi(ctx) {
           <div class="dashboard-timeline-event-header">
             <div>
               <h4>Selection table</h4>
-              <div id="dashboard-timeline-event-count" class="section-note">Filter by patient, visit, domain, diagnosis, event type, or sample.</div>
+              <div id="dashboard-timeline-event-count" class="section-note">Filter by patient, ${snapshotRepresentation ? "visit" : "record"}, domain, diagnosis, event type, or sample.</div>
             </div>
             <input id="dashboardTimelineEventSearch" class="patient-search dashboard-timeline-event-search" aria-label="Search all timeline fields" placeholder="Search all fields">
           </div>
@@ -1098,8 +1124,8 @@ export function createDashboardUi(ctx) {
         <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
         <div class="assay-kpi-grid">
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">Timepoints</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.visits || summary.visits || 0))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">Avg visits / patient</span><strong class="assay-kpi-value">${escapeHtml(String(totals.avg_visits_per_patient || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Timepoints" : "Clinical records"}</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(recordCount))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Avg visits / patient" : "Representation"}</span><strong class="assay-kpi-value">${snapshotRepresentation ? escapeHtml(String(totals.avg_visits_per_patient || 0)) : escapeHtml(representation === "person" ? "One record per person" : "Mixed or unspecified")}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">Source files</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
         </div>
       </section>

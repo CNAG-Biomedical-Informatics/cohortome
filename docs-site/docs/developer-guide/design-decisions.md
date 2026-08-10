@@ -60,7 +60,7 @@ one query context rather than rebuilding a permanent database for every
 combination.
 
 Materialized compatibility scopes may still exist under
-`state/datasets/scopes/` for helpers that require files.
+`<runtime>/state/datasets/scopes/` for helpers that require files.
 
 Why:
 

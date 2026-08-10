@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
+from app.config import BASE_DIR, CACHE_ROOT_DIR
 from app.bff import (
     build_visit_context,
     ensure_data_dir,
@@ -26,8 +27,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     duckdb = None
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-QUERY_STORE_DIR = BASE_DIR / ".cache" / "query-store"
+QUERY_STORE_DIR = CACHE_ROOT_DIR / "query-store"
 GENE_ANNOTATION_PATH = BASE_DIR / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 ASSAY_DATA_DIR: Path | None = None
 QUERY_STORE_SCHEMA_VERSION = 3
@@ -844,6 +844,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                 continue
 
             visit = build_visit_context(path, index, record, patient_id)
+            source_label = path.relative_to(resolved_dir).as_posix()
             original_id = normalize_value(record.get("id"))
             stat = patient_stats.setdefault(
                 patient_id,
@@ -861,7 +862,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             stat["visit_count"] += 1
             if visit.event_date:
                 stat["dates"].append(visit.event_date)
-            stat["source_files"].add(str(path))
+            stat["source_files"].add(source_label)
 
             timepoint_rows.append(
                 (
@@ -871,7 +872,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                     visit.event_date,
                     visit.event_type,
                     visit.diagnosis,
-                    str(path),
+                    source_label,
                     index,
                 )
             )
@@ -890,7 +891,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                         visit.event_date,
                         visit.event_type,
                         disease,
-                        str(path),
+                        source_label,
                         index,
                     )
                 )
@@ -909,7 +910,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                         visit.event_date,
                         visit.event_type,
                         medication,
-                        str(path),
+                        source_label,
                         index,
                     )
                 )

@@ -10,10 +10,10 @@ from typing import Any, Dict
 from urllib import error, request
 from uuid import uuid4
 
-from app.config import BASE_DIR
+from app.config import RUNS_ROOT_DIR
 from app.env import app_env
 
-LM_DEBUG_DIR = BASE_DIR / "runs" / "lm-debug"
+LM_DEBUG_DIR = RUNS_ROOT_DIR / "lm-debug"
 DEFAULT_LLM_PROVIDER_ID = "system-default"
 _CURRENT_PROVIDER_ID: ContextVar[str] = ContextVar("patient_workspace_lm_provider_id", default=DEFAULT_LLM_PROVIDER_ID)
 

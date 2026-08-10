@@ -7,11 +7,11 @@ from typing import Any, Dict, List
 from uuid import uuid4
 
 from app.bff import ensure_data_dir, extract_patient_id, normalize_value, read_bff_records
-from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
+from app.config import DEFAULT_LOCAL_USER_ID, STATE_ROOT_DIR
 from app.user_state import normalize_user_id
 
 
-USER_STATE_ROOT = BASE_DIR / "state" / "users"
+USER_STATE_ROOT = STATE_ROOT_DIR / "users"
 
 
 def _cohort_store_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:

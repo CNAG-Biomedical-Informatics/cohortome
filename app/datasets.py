@@ -12,11 +12,12 @@ from fastapi import HTTPException, Request
 
 from app.auth import auth_enabled, require_authenticated, session_user
 from app.bff import extract_patient_id, resolve_project_data_dir
-from app.config import DEFAULT_DATA_DIR, STATE_ROOT_DIR
+from app.config import BASE_DIR, CONFIG_DIR, DEFAULT_DATA_DIR, STATE_ROOT_DIR
 from app.user_state import normalize_user_id, user_state_file
 
 
 DATASET_REGISTRY_PATH = STATE_ROOT_DIR / "datasets" / "registry.json"
+DATASET_REGISTRY_SEED_PATH = CONFIG_DIR / "datasets" / "registry.json"
 DATASET_VISIBILITIES = {"admin_only", "all_authenticated", "restricted"}
 QUERY_GRANULARITY_CEILINGS = {"summary", "detailed"}
 DEFAULT_QUERY_GRANULARITY_CEILING = "summary"
@@ -25,6 +26,8 @@ DEFAULT_AI_PROVIDER_ACCESS = "detailed_allowed"
 DEFAULT_DATASET_ID = "default"
 _SAFE_DATASET_ID_RE = re.compile(r"[^a-z0-9._-]+")
 _SCOPE_PREFIX = "scope--"
+CLINICAL_REPRESENTATIONS = {"person", "snapshot"}
+DEFAULT_CLINICAL_REPRESENTATION = "unspecified"
 
 
 def _now_iso() -> str:
@@ -69,6 +72,50 @@ def _clinical_records(path: Path) -> List[Dict[str, Any]]:
     return []
 
 
+def normalize_clinical_representation(value: str | None) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return normalized if normalized in CLINICAL_REPRESENTATIONS else DEFAULT_CLINICAL_REPRESENTATION
+
+
+def clinical_representation(root_path: str) -> str:
+    root = resolve_project_data_dir(root_path)
+    if root.name == "clinical" and (root.parent / "manifest.json").is_file():
+        root = root.parent
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        return DEFAULT_CLINICAL_REPRESENTATION
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return DEFAULT_CLINICAL_REPRESENTATION
+    clinical = manifest.get("clinical") if isinstance(manifest, dict) else None
+    if not isinstance(clinical, dict):
+        return DEFAULT_CLINICAL_REPRESENTATION
+    return normalize_clinical_representation(clinical.get("representation"))
+
+
+def combined_clinical_representation(representations: List[str]) -> str:
+    normalized = {normalize_clinical_representation(item) for item in representations}
+    if len(normalized) == 1:
+        return normalized.pop()
+    return "mixed" if normalized else DEFAULT_CLINICAL_REPRESENTATION
+
+
+def validate_dataset_release_root(root_path: str) -> Path:
+    root = resolve_project_data_dir(root_path)
+    clinical_dir = root / "clinical"
+    if not clinical_dir.is_dir():
+        raise ValueError("Dataset root must contain a clinical/ directory.")
+    if not any(path.is_file() for path in clinical_dir.glob("*.json")):
+        raise ValueError("Dataset clinical/ directory must contain at least one JSON file.")
+    representation = clinical_representation(str(root))
+    if representation == DEFAULT_CLINICAL_REPRESENTATION:
+        raise ValueError(
+            "Dataset manifest.json must declare clinical.representation as person or snapshot."
+        )
+    return root
+
+
 def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     root = resolve_project_data_dir(root_path)
     clinical_dir = root / "clinical"
@@ -77,11 +124,12 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     clinical_files = sorted(path for path in (clinical_dir if clinical_dir.is_dir() else root).glob("*.json") if path.is_file())
     assay_files = sorted(path for path in assays_dir.glob("*/*.csv") if path.is_file()) if assays_dir.is_dir() else []
     transcriptomics_files = sorted(path for path in transcriptomics_dir.glob("*.csv") if path.is_file()) if transcriptomics_dir.is_dir() else []
+    representation = clinical_representation(str(root))
     patient_ids = set()
-    timepoint_count = 0
+    clinical_record_count = 0
     for clinical_file in clinical_files:
         for record in _clinical_records(clinical_file):
-            timepoint_count += 1
+            clinical_record_count += 1
             patient_id = extract_patient_id(record)
             if patient_id:
                 patient_ids.add(patient_id)
@@ -89,8 +137,9 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     tags: List[str] = []
     if patient_count:
         tags.append(_plural(patient_count, "patient"))
-    if timepoint_count:
-        tags.append(_plural(timepoint_count, "timepoint"))
+    if clinical_record_count:
+        record_label = "timepoint" if representation == "snapshot" else "person record" if representation == "person" else "clinical record"
+        tags.append(_plural(clinical_record_count, record_label))
     if assay_files:
         tags.append(_plural(len(assay_files), "matrix", "matrices"))
     large_hint = "large" in root.name.lower() or any(path.stat().st_size > 1_000_000 for path in transcriptomics_files)
@@ -105,9 +154,9 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         "content_summary": "",
         "clinical_file_count": len(clinical_files),
         "assay_file_count": len(assay_files),
-        "assay_file_count": len(transcriptomics_files),
         "patient_count": patient_count,
-        "timepoint_count": timepoint_count,
+        "clinical_record_count": clinical_record_count,
+        "clinical_representation": representation,
     }
 
 
@@ -203,6 +252,19 @@ def _default_dataset_record() -> Dict[str, Any]:
     }
 
 
+def _seed_dataset_records() -> List[Dict[str, Any]]:
+    try:
+        payload = json.loads(DATASET_REGISTRY_SEED_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        payload = []
+    records = []
+    for item in payload if isinstance(payload, list) else []:
+        normalized = _normalize_dataset_record(item)
+        if normalized is not None:
+            records.append(normalized)
+    return records or [_default_dataset_record()]
+
+
 def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
     if not isinstance(item, dict):
         return None
@@ -212,10 +274,13 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
     root_path = str(item.get("root_path") or "").strip()
     if not root_path:
         return None
+    root = Path(root_path).expanduser()
+    if not root.is_absolute():
+        root = BASE_DIR / root
     try:
-        resolved_root = str(resolve_project_data_dir(root_path))
+        resolved_root = str(resolve_project_data_dir(str(root)))
     except FileNotFoundError:
-        resolved_root = str(Path(root_path).expanduser().resolve())
+        resolved_root = str(root.resolve())
     visibility = str(item.get("visibility") or "all_authenticated").strip().lower()
     if visibility not in DATASET_VISIBILITIES:
         visibility = "all_authenticated"
@@ -256,7 +321,7 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
 def _read_registry() -> List[Dict[str, Any]]:
     path = _registry_path()
     if not path.exists():
-        items = [_default_dataset_record()]
+        items = _seed_dataset_records()
         _write_registry(items)
         return items
     try:
@@ -532,8 +597,18 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
     assays_dir = root / "assays"
     manifest_path = root / "manifest.json"
     manifest = {
+        "schema_version": 1,
         "dataset_ids": normalized,
         "root_paths": [str(get_dataset(item).get("root_path") or "") for item in normalized if get_dataset(item)],
+        "clinical": {
+            "representation": combined_clinical_representation(
+                [
+                    clinical_representation(str(get_dataset(item).get("root_path") or ""))
+                    for item in normalized
+                    if get_dataset(item)
+                ]
+            )
+        },
         **_scope_source_files_manifest(normalized),
     }
     if manifest_path.exists():
@@ -613,7 +688,7 @@ def register_dataset(
     normalized_name = str(name or "").strip()
     if not normalized_name:
         raise ValueError("Dataset name is required.")
-    resolved_root = str(resolve_project_data_dir(root_path))
+    resolved_root = str(validate_dataset_release_root(root_path))
     normalized_visibility = str(visibility or "all_authenticated").strip().lower()
     if normalized_visibility not in DATASET_VISIBILITIES:
         raise ValueError("Invalid dataset visibility.")
@@ -680,7 +755,7 @@ def update_dataset(
         if name is not None:
             updated["name"] = str(name).strip() or updated["name"]
         if root_path is not None:
-            updated["root_path"] = str(resolve_project_data_dir(root_path))
+            updated["root_path"] = str(validate_dataset_release_root(root_path))
         if description is not None:
             updated["description"] = str(description).strip()
         if visibility is not None:

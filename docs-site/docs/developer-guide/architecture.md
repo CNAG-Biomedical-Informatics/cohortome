@@ -124,7 +124,7 @@ Current model:
 - merged workspaces attach the selected dataset stores into one in-memory DuckDB session
 - the app no longer relies on building one physical DuckDB per dataset combination during user workspace reload
 
-Materialized scope directories can still exist under `state/datasets/scopes/`, but they are no longer the identity boundary for DuckDB storage.
+Materialized scope directories can still exist under `<runtime>/state/datasets/scopes/`, but they are no longer the identity boundary for DuckDB storage.
 
 This query layer is:
 
@@ -290,7 +290,7 @@ The current queued path uses:
 
 - `RQ`
 - `Redis`
-- per-user persisted job records and artifacts under `state/users/<user>/jobs/`
+- per-user persisted job records and artifacts under `<runtime>/state/users/<user>/jobs/`
 
 This means the catalog is allowed to describe external integrations such as:
 

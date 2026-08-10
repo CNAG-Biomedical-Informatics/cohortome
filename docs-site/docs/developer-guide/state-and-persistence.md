@@ -12,13 +12,37 @@ COHORTome mixes:
 
 This page summarizes what lives where.
 
+## Runtime root
+
+All mutable backend files live below one directory selected with
+`COHORTOME_RUNTIME_ROOT`. A source checkout uses `runtime/` by default. A
+restricted or shared deployment should set an absolute path on protected
+storage outside the Git checkout.
+
+```bash
+export COHORTOME_RUNTIME_ROOT=/srv/cohortome/runtime
+```
+
+The runtime has three top-level areas:
+
+```text
+runtime/
+  state/
+  cache/
+  runs/
+```
+
+Checked-in defaults are immutable application configuration under `config/`.
+For example, `config/datasets/registry.json` seeds a new runtime registry; it is
+not the live registry.
+
 ## Dataset registry
 
 Datasets are persisted as first-class records.
 
 Key file:
 
-- `state/datasets/registry.json`
+- `<runtime>/state/datasets/registry.json`
 
 This registry stores metadata such as:
 
@@ -34,7 +58,7 @@ This registry stores metadata such as:
 
 When a user selects multiple datasets, the backend materializes a combined workspace under:
 
-- `state/datasets/scopes/`
+- `<runtime>/state/datasets/scopes/`
 
 This primarily supports compatibility with file-based clinical helpers while preserving dataset provenance in filenames.
 
@@ -44,7 +68,7 @@ It is no longer the primary storage boundary for DuckDB query stores.
 
 Saved cohorts are persisted per user under:
 
-- `state/users/<user>/saved-cohorts.json`
+- `<runtime>/state/users/<user>/saved-cohorts.json`
 
 Important stored fields include:
 
@@ -60,7 +84,7 @@ These are application objects, not just temporary UI selections.
 
 Analysis sessions are also persisted per user under:
 
-- `state/users/<user>/analysis-sessions.json`
+- `<runtime>/state/users/<user>/analysis-sessions.json`
 
 An analysis session stores:
 
@@ -90,7 +114,7 @@ The app reuses a DuckDB-backed query layer.
 
 Cache location:
 
-- `.cache/query-store/`
+- `<runtime>/cache/query-store/`
 
 Current prepared-store model:
 
@@ -120,7 +144,7 @@ This lets user routes block with a clear readiness error instead of rebuilding h
 
 When local auth is enabled, persisted users live in:
 
-- `state/auth/users.json`
+- `<runtime>/state/auth/users.json`
 
 If this file already exists, it overrides bootstrap seed users from env or built-in defaults.
 
@@ -128,7 +152,7 @@ If this file already exists, it overrides bootstrap seed users from env or built
 
 Per-user UI preferences live under:
 
-- `state/users/<user>/settings.json`
+- `<runtime>/state/users/<user>/settings.json`
 
 Current settings include:
 
@@ -176,7 +200,7 @@ Curated queued analyses now persist per-user job state on disk.
 
 Current location:
 
-- `state/users/<user>/jobs/<job_id>/`
+- `<runtime>/state/users/<user>/jobs/<job_id>/`
 
 Typical contents include:
 

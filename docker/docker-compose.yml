@@ -11,12 +11,11 @@ services:
         required: false
     environment:
       COHORTOME_JOBS_REDIS_URL: redis://redis:6379/0
+      COHORTOME_RUNTIME_ROOT: /var/lib/cohortome
     ports:
       - "8000:8000"
     volumes:
-      - ../state:/app/state
-      - ../.cache:/app/.cache
-      - ../runs:/app/runs
+      - ../runtime:/var/lib/cohortome
       - ../default_dataset:/app/default_dataset:ro
       - ../private_dataset:/app/private_dataset:ro
       - ../dataset-large:/app/dataset-large:ro
@@ -34,11 +33,10 @@ services:
         required: false
     environment:
       COHORTOME_JOBS_REDIS_URL: redis://redis:6379/0
+      COHORTOME_RUNTIME_ROOT: /var/lib/cohortome
     command: ["rq", "worker", "analysis", "--url", "redis://redis:6379/0"]
     volumes:
-      - ../state:/app/state
-      - ../.cache:/app/.cache
-      - ../runs:/app/runs
+      - ../runtime:/var/lib/cohortome
       - ../default_dataset:/app/default_dataset:ro
       - ../private_dataset:/app/private_dataset:ro
       - ../dataset-large:/app/dataset-large:ro

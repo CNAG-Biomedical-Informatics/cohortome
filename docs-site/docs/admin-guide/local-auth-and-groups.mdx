@@ -20,7 +20,7 @@ external identity providers such as Dex, Google, or institutional SSO.
 
 User identity is now persisted locally in:
 
-- `state/auth/users.json`
+- `<runtime>/state/auth/users.json`
 
 Environment configuration is still used as bootstrap seed data when no local user store exists yet.
 
@@ -42,7 +42,7 @@ COHORTome supports three authentication modes:
 - `COHORTOME_AUTH_MODE=none`
   - development fallback with a synthetic local admin user
 - `COHORTOME_AUTH_MODE=local`
-  - local username/password users stored in `state/auth/users.json`
+  - local username/password users stored in `<runtime>/state/auth/users.json`
 - `COHORTOME_AUTH_MODE=oidc`
   - external OIDC login, with COHORTome still owning roles, groups, and
     dataset access
@@ -195,7 +195,7 @@ generic so that the app does not reveal whether an account exists.
 Reset links are one-time use and expire after the configured TTL. Tokens are
 stored hashed under:
 
-- `state/auth/password-reset-tokens.json`
+- `<runtime>/state/auth/password-reset-tokens.json`
 
 Users without an email address, disabled users, and non-local users cannot use
 self-service password reset. They still require an administrator reset.
@@ -261,7 +261,7 @@ The development Dex config includes one static user:
 - password: `password`
 
 That email must also exist on the local COHORTome user record, for
-example `mrueda` in `state/auth/users.json`.
+example `mrueda` in `<runtime>/state/auth/users.json`.
 
 Production Google or institutional OIDC should use the same app-side variables
 with provider-specific issuer, client ID, client secret, and redirect URI.

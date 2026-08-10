@@ -294,7 +294,7 @@ class DatasetRecordResponse(FlexibleModel):
     dataset_id: str
     name: str
     description: str = ""
-    root_path: str
+    root_path: str = ""
     enabled: bool
     visibility: str
     allowed_users: List[str] = Field(default_factory=list)

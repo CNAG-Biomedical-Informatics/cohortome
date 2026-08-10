@@ -9,6 +9,7 @@ from app.analysis_catalog import analysis_catalog_debug_enabled, get_analysis_ca
 from app.analysis_external import run_external_analysis
 from app.jobs import submit_analysis_job
 from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
+from app.datasets import clinical_representation
 from app.lm import (
     http_json,
     lm_studio_base_url,
@@ -169,6 +170,9 @@ def _analysis_catalog_dispatch(
         raise RuntimeError("This analysis is not available in the current catalog.")
     if item.get("requires_detailed_access") and granularity_applied != "detailed":
         raise RuntimeError("This analysis requires Detailed in-app access for the current workspace.")
+    required_representation = str(item.get("required_clinical_representation") or "").strip().lower()
+    if required_representation and clinical_representation(data_dir) != required_representation:
+        raise RuntimeError("This analysis requires longitudinal visit or timepoint records.")
     if item.get("requires_assays") and not store_assay_dataset_inventory(data_dir):
         raise RuntimeError("This analysis requires at least one assay in the active workspace.")
     runner_type = str(item.get("runner_type") or "builtin").strip().lower()

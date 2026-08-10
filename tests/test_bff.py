@@ -2044,6 +2044,7 @@ def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_p
     transcriptomics_root = dataset_root / "assays" / "transcriptomics"
     clinical_root.mkdir(parents=True)
     transcriptomics_root.mkdir(parents=True)
+    write_json(dataset_root, "manifest.json", {"schema_version": 1, "clinical": {"representation": "snapshot"}})
     write_json(
         clinical_root,
         "records.json",
@@ -2059,10 +2060,34 @@ def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_p
     metadata = datasets_module.dataset_content_metadata(str(dataset_root))
 
     assert metadata["patient_count"] == 2
-    assert metadata["timepoint_count"] == 3
+    assert metadata["clinical_record_count"] == 3
+    assert metadata["clinical_representation"] == "snapshot"
     assert metadata["assay_file_count"] == 2
     assert metadata["content_tags"] == ["2 patients", "3 timepoints", "2 matrices", "large transcriptome"]
     assert metadata["content_summary"] == ""
+
+
+def test_dataset_content_metadata_labels_person_representation_without_visits(tmp_path):
+    dataset_root = tmp_path / "cross-sectional"
+    clinical_root = dataset_root / "clinical"
+    clinical_root.mkdir(parents=True)
+    write_json(dataset_root, "manifest.json", {"schema_version": 1, "clinical": {"representation": "person"}})
+    write_json(
+        clinical_root,
+        "individuals.json",
+        [
+            {"id": "P1", "patient_id": "P1"},
+            {"id": "P2", "patient_id": "P2"},
+        ],
+    )
+
+    metadata = datasets_module.dataset_content_metadata(str(dataset_root))
+
+    assert metadata["patient_count"] == 2
+    assert metadata["clinical_record_count"] == 2
+    assert metadata["clinical_representation"] == "person"
+    assert metadata["content_tags"] == ["2 patients", "2 person records"]
+    assert all("visit" not in tag and "timepoint" not in tag for tag in metadata["content_tags"])
 
 
 def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_path, monkeypatch):
@@ -2085,6 +2110,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     restricted_root = tmp_path / "restricted"
     restricted_clinical = restricted_root / "clinical"
     restricted_clinical.mkdir(parents=True)
+    write_json(restricted_root, "manifest.json", {"schema_version": 1, "clinical": {"representation": "person"}})
     write_json(restricted_clinical, "records.json", [{"id": "M1:week_0", "patient_id": "M1"}])
 
     admin_root = tmp_path / "admin-only"
@@ -2128,6 +2154,8 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     assert listed.status_code == 200
     assert [item["dataset_id"] for item in listed.json()["datasets"]] == ["maria-dataset"]
     assert listed.json()["current_dataset_id"] == "maria-dataset"
+    assert listed.json()["datasets"][0]["root_path"] == ""
+    assert listed.json()["datasets"][0]["clinical_representation"] == "person"
 
     denied = client.get("/patients?dataset_id=default")
     assert denied.status_code == 403
@@ -2139,6 +2167,9 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     patients = client.get("/patients")
     assert patients.status_code == 200
     assert patients.json()[0]["patient_id"] == "M1"
+    assert patients.json()[0]["clinical_representation"] == "person"
+    assert patients.json()[0]["source_files"] == ["maria-dataset:clinical/records.json"]
+    assert str(tmp_path) not in json.dumps(patients.json())
 
 
 def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeypatch):
@@ -3004,6 +3035,7 @@ def test_restricted_dataset_clamps_ai_provider_access_to_safe_summary(tmp_path, 
     dataset_root = tmp_path / "restricted-dataset"
     (dataset_root / "clinical").mkdir(parents=True)
     write_json(dataset_root / "clinical", "records.json", [{"id": "P1:v1", "patient_id": "P1"}])
+    write_json(dataset_root, "manifest.json", {"schema_version": 1, "clinical": {"representation": "snapshot"}})
 
     item = datasets_module.register_dataset(
         name="Restricted dataset",
@@ -3019,6 +3051,16 @@ def test_restricted_dataset_clamps_ai_provider_access_to_safe_summary(tmp_path, 
     stored = datasets_module.get_dataset(item["dataset_id"])
     assert stored is not None
     assert stored["ai_provider_access"] == "safe_summary"
+
+
+def test_dataset_registration_requires_explicit_clinical_representation(tmp_path, monkeypatch):
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    dataset_root = tmp_path / "ambiguous-dataset"
+    (dataset_root / "clinical").mkdir(parents=True)
+    write_json(dataset_root / "clinical", "records.json", [{"id": "P1", "patient_id": "P1"}])
+
+    with pytest.raises(ValueError, match="clinical.representation"):
+        datasets_module.register_dataset(name="Ambiguous", root_path=str(dataset_root))
 
 
 def test_generate_mds_points_skips_oversized_matrix(tmp_path, monkeypatch):
@@ -3364,6 +3406,22 @@ def test_analysis_catalog_nextflow_availability_accepts_env_override(tmp_path, m
 
     assert availability["available"] is True
     assert availability["unavailable_reason"] == ""
+
+
+def test_analysis_catalog_blocks_longitudinal_item_for_person_representation():
+    availability = analysis_catalog_module._availability_for_item(
+        {
+            "id": "trajectory-single",
+            "runner_type": "builtin",
+            "required_clinical_representation": "snapshot",
+        },
+        granularity_ceiling="detailed",
+        has_assays=False,
+        clinical_record_representation="person",
+    )
+
+    assert availability["available"] is False
+    assert "longitudinal visit or timepoint records" in availability["unavailable_reason"]
 
 
 def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_path):
@@ -8125,6 +8183,18 @@ def test_routes_index_and_dataset_helpers(monkeypatch, tmp_path):
     )
     assert provenance["dataset_ids"] == ["dataset-a"]
     assert provenance["dataset_name"] == "Dataset A"
+    sanitized = routes_module._sanitize_response_paths(
+        {
+            "source_file": str(source_file),
+            "source_files": [str(source_file)],
+            "unrelated_absolute_path": str(tmp_path / "outside" / "secret.txt"),
+        },
+        make_request({"username": "analyst"}),
+    )
+    assert sanitized["source_file"] == "dataset-a:clinical/records.json"
+    assert sanitized["source_files"] == ["dataset-a:clinical/records.json"]
+    assert sanitized["unrelated_absolute_path"] == "[filesystem path redacted]"
+    assert routes_module._safe_source_path(make_request({"username": "analyst"}), "~unknown-user/value") == "~unknown-user/value"
     assert routes_module._resolve_route_dataset_dir(None, dataset_id="dataset-a") == "/resolved/dataset-a"
     assert routes_module._resolve_route_dataset_dir(make_request(), dataset_id="", data_dir="workspace") == "/resolved/workspace"
 

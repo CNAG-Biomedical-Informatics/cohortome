@@ -28,9 +28,71 @@ Each dataset has its own root directory, for example:
 
 ```text
 dataset_root/
+  manifest.json
   clinical/
   assays/transcriptomics/
 ```
+
+The root manifest makes the clinical record shape explicit:
+
+```json
+{
+  "schema_version": 1,
+  "clinical": {
+    "representation": "person"
+  }
+}
+```
+
+Use `person` when each BFF object represents one participant, as in a
+cross-sectional release. Use `snapshot` when each object represents one
+participant at one visit or timepoint. New registrations are rejected when
+this declaration is missing, because COHORTome should not guess that one
+record equals one visit.
+
+## Register a protected release
+
+Keep source files, the prepared release, and the runtime on approved storage
+outside the repository. A registered release is read in place; it is not
+uploaded into Git or copied into the application source tree.
+
+For a first clinical-only review:
+
+1. Freeze the validated BFF file in a versioned release directory.
+2. Add a `manifest.json` with the correct clinical representation.
+3. Point `COHORTOME_RUNTIME_ROOT` to protected mutable storage.
+4. Register the release as admin-only and prepare its DuckDB store.
+5. Confirm the cohort totals and access rules before granting a group access.
+
+From the repository root, an operator can perform steps 3 and 4 with:
+
+```bash
+export COHORTOME_RUNTIME_ROOT=/protected/cohortome/runtime
+
+PYTHONPATH=.deps:. python3 scripts/register_dataset.py \
+  --name "Study clinical v1" \
+  --root /protected/releases/study-clinical-v1 \
+  --description "Clinical release pending semantic mapping review." \
+  --visibility admin_only \
+  --query-detail detailed \
+  --ai-provider-access blocked \
+  --created-by admin \
+  --prepare-store
+```
+
+The command prints the dataset ID and store status, but not the source path or
+record contents. Restart source services with the same
+`COHORTOME_RUNTIME_ROOT`; the web process and RQ worker must share it.
+
+:::warning Restricted data
+Do not place restricted releases under the repository, Docker build context, or
+a public volume. Start with `admin_only` and `blocked` AI access. Change those
+policies only after access, provider, and permitted-output review.
+:::
+
+Regular dataset responses omit server root paths. Clinical provenance shown in
+the browser uses a dataset ID plus a release-relative path rather than an
+absolute filesystem location.
 
 <Tabs>
   <TabItem value="user-view" label="User view" default>

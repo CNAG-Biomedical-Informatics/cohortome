@@ -15,7 +15,7 @@ from fastapi import HTTPException, Query
 from app.analysis import extract_record_disease_labels, extract_record_patient_id
 from app.bff import ensure_data_dir, read_bff_records
 from app.cohorts import get_saved_cohorts_by_ids
-from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
+from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID, RUNS_ROOT_DIR
 from app.entity_terms import normalize_entity_synonym_mentions
 from app.env import app_env
 from app.lm import (
@@ -28,7 +28,7 @@ from app.lm import (
 from pathlib import Path
 import numpy as np
 
-PHENO_RANKER_RUNS_DIR = BASE_DIR / "runs" / "pheno-ranker"
+PHENO_RANKER_RUNS_DIR = RUNS_ROOT_DIR / "pheno-ranker"
 JQ_BIN = shutil.which("jq") or "jq"
 
 

@@ -49,15 +49,14 @@ RUN python -m pip install --upgrade pip setuptools wheel \
     && python -m pip install .
 
 COPY app ./app
+COPY config ./config
 COPY scripts ./scripts
 COPY static ./static
 COPY templates ./templates
-COPY state/analysis ./state/analysis
-COPY state/datasets/registry.json ./state/datasets/registry.json
 
-RUN mkdir -p /app/state /app/.cache /app/runs \
+RUN mkdir -p /var/lib/cohortome \
     && useradd --create-home --shell /usr/sbin/nologin cohortome \
-    && chown -R cohortome:cohortome /app
+    && chown -R cohortome:cohortome /app /var/lib/cohortome
 
 USER cohortome
 

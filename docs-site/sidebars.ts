@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'concepts/workspace-and-cohorts',
         'concepts/patient-vs-sample',
+        'concepts/cross-sectional-and-longitudinal',
         'concepts/assays-and-modalities',
         'concepts/governed-ai',
       ],

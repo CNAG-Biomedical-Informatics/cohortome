@@ -10,6 +10,7 @@ items:
     guidance: Edit the measure in the prompt if you want a different marker.
     default_prompt: Show the trajectory of Leukocyte Count over time.
     execution_mode: deterministic
+    required_clinical_representation: snapshot
     tags: [trajectory, longitudinal, deterministic]
 
   - id: trajectory-compare
@@ -22,6 +23,7 @@ items:
     guidance: Select saved cohorts for A and B before running.
     default_prompt: Compare the active analysis scopes using Leukocyte Count trajectories.
     execution_mode: auto
+    required_clinical_representation: snapshot
     default_compare_mode: true
     supports_compare_mode: true
     tags: [trajectory, compare, longitudinal]
@@ -36,6 +38,7 @@ items:
     guidance: Edit the treatment or measure in the prompt if needed.
     default_prompt: Show response to Infliximab using CRP.
     execution_mode: deterministic
+    required_clinical_representation: snapshot
     tags: [trajectory, treatment-response, deterministic]
 
   - id: survival-single
@@ -48,6 +51,7 @@ items:
     guidance: Edit the measure, operator, or threshold in the prompt if needed.
     default_prompt: Show a Kaplan-Meier curve for time to Clinical relapse > 0.
     execution_mode: deterministic
+    required_clinical_representation: snapshot
     tags: [survival, kaplan-meier, deterministic]
 
   - id: survival-compare
@@ -60,6 +64,7 @@ items:
     guidance: Select saved cohorts for A and B before running.
     default_prompt: Compare Cohort A and Cohort B with Kaplan-Meier for time to Clinical relapse > 0.
     execution_mode: deterministic
+    required_clinical_representation: snapshot
     default_compare_mode: true
     supports_compare_mode: true
     tags: [survival, kaplan-meier, compare, deterministic]

@@ -7,10 +7,26 @@ from app.env import app_env
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_DIR = BASE_DIR / "config"
 DATA_ROOT_DIR = BASE_DIR / "default_dataset"
 DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
-STATE_ROOT_DIR = BASE_DIR / "state"
+
+
+def _runtime_root() -> Path:
+    configured = app_env("COHORTOME_RUNTIME_ROOT", "").strip()
+    if not configured:
+        return (BASE_DIR / "runtime").resolve()
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        path = BASE_DIR / path
+    return path.resolve()
+
+
+RUNTIME_ROOT_DIR = _runtime_root()
+STATE_ROOT_DIR = RUNTIME_ROOT_DIR / "state"
+CACHE_ROOT_DIR = RUNTIME_ROOT_DIR / "cache"
+RUNS_ROOT_DIR = RUNTIME_ROOT_DIR / "runs"
 DEFAULT_LOCAL_USER_ID = "local"
 DEFAULT_HELP_URL = "https://mrueda.github.io/cohortome/"
 

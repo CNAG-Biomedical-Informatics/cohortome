@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
@@ -58,6 +58,7 @@ from app.datasets import (
     authorized_datasets_for_user,
     current_dataset_id,
     current_dataset_ids,
+    clinical_representation,
     dataset_content_metadata,
     dataset_scope_id,
     effective_ai_provider_access,
@@ -243,12 +244,14 @@ def index(request: Request) -> HTMLResponse:
         user = {"username": "local", "role": "admin", "display_name": "Local user"}
         datasets = authorized_datasets_for_user(user)
         selected = resolve_dataset(request)
+    visible_datasets = [_dataset_record_for_user(item, user) for item in datasets]
+    selected_name = str(selected.get("name") or selected.get("dataset_id") or "Not configured")
     return templates.TemplateResponse(
         request,
         "index.html",
         {
-            "default_data_dir": DEFAULT_DATA_DIR,
-            "datasets": datasets,
+            "default_data_dir": selected_name,
+            "datasets": visible_datasets,
             "current_dataset_id": str(selected.get("dataset_id") or ""),
             "branding": branding_settings(),
             "auth_enabled": auth_enabled(),
@@ -256,14 +259,63 @@ def index(request: Request) -> HTMLResponse:
     )
 
 
-def _dataset_provenance_from_sources(request: Request | None, source_files: List[str]) -> Dict[str, Any]:
+def _dataset_record_for_user(item: Dict[str, Any], user: Dict[str, Any] | None) -> Dict[str, Any]:
+    payload = dict(item)
+    if str((user or {}).get("role") or "user") != "admin":
+        payload["root_path"] = ""
+    return payload
+
+
+def _authorized_datasets_for_request(request: Request | None) -> List[Dict[str, Any]]:
     user = session_user(request) if request is not None and auth_enabled() else None
     if user:
-        datasets = authorized_datasets_for_user(user)
-    elif auth_enabled():
-        datasets = []
-    else:
-        datasets = authorized_datasets_for_user({"username": "local", "role": "admin", "display_name": "Local user"})
+        return authorized_datasets_for_user(user)
+    if auth_enabled():
+        return []
+    return authorized_datasets_for_user({"username": "local", "role": "admin", "display_name": "Local user"})
+
+
+def _safe_source_path(request: Request | None, value: str) -> str:
+    source = str(value or "").strip()
+    if not source:
+        return source
+    try:
+        path = Path(source).expanduser()
+    except (OSError, RuntimeError, ValueError):
+        return source
+    is_absolute = path.is_absolute() or PureWindowsPath(source).is_absolute()
+    if not is_absolute:
+        return source
+    if path.is_absolute():
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        for dataset in _authorized_datasets_for_request(request):
+            dataset_id = str(dataset.get("dataset_id") or "dataset").strip() or "dataset"
+            root_path = str(dataset.get("root_path") or "").strip()
+            if not root_path:
+                continue
+            try:
+                relative = resolved.relative_to(Path(root_path).expanduser().resolve())
+            except (OSError, RuntimeError, ValueError):
+                continue
+            return f"{dataset_id}:{relative.as_posix()}"
+    return "[filesystem path redacted]"
+
+
+def _sanitize_response_paths(value: Any, request: Request | None) -> Any:
+    if isinstance(value, dict):
+        return {key: _sanitize_response_paths(item, request) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_response_paths(item, request) for item in value]
+    if isinstance(value, str):
+        return _safe_source_path(request, value)
+    return value
+
+
+def _dataset_provenance_from_sources(request: Request | None, source_files: List[str]) -> Dict[str, Any]:
+    datasets = _authorized_datasets_for_request(request)
     matched_ids: List[str] = []
     matched_names: List[str] = []
     normalized_sources = [str(item).strip() for item in source_files if str(item).strip()]
@@ -322,7 +374,7 @@ def get_datasets(request: Request) -> Dict:
             payload.update(dataset_content_metadata(str(item.get("root_path") or "")))
         except FileNotFoundError:
             payload.update({"content_tags": [], "content_summary": "Dataset files are not available."})
-        datasets.append(payload)
+        datasets.append(_dataset_record_for_user(payload, user))
     selected_ids = resolve_dataset_ids(request)
     return {
         "datasets": datasets,
@@ -409,6 +461,7 @@ def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = 
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
         patients = list_patient_summaries(resolved_dir)
+        representation = clinical_representation(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -417,7 +470,9 @@ def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = 
     for patient in patients:
         item = patient.model_dump()
         item.update(_dataset_provenance_from_sources(request, item.get("source_files") or []))
-        payload.append(item)
+        item["clinical_record_count"] = int(item.get("visit_count") or 0)
+        item["clinical_representation"] = representation
+        payload.append(_sanitize_response_paths(item, request))
     return payload
 
 
@@ -428,6 +483,7 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
         patient = get_patient_context(resolved_dir, patient_id)
+        representation = clinical_representation(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -437,7 +493,9 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
         raise HTTPException(status_code=404, detail=f"Patient not found: {patient_id}")
     payload = patient.model_dump()
     payload.update(_dataset_provenance_from_sources(request, payload.get("source_files") or []))
-    return payload
+    payload["clinical_record_count"] = len(payload.get("visits") or [])
+    payload["clinical_representation"] = representation
+    return _sanitize_response_paths(payload, request)
 
 
 def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -447,6 +505,7 @@ def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: 
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
         patient_workspace = build_patient_workspace(resolved_dir, patient_id)
+        representation = clinical_representation(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -458,7 +517,10 @@ def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: 
     provenance = _dataset_provenance_from_sources(request, payload.get("summary", {}).get("source_files") or payload.get("patient_context", {}).get("source_files") or [])
     payload["summary"] = {**payload.get("summary", {}), **provenance}
     payload["patient_context"] = {**payload.get("patient_context", {}), **provenance}
-    return payload
+    payload["summary"]["clinical_record_count"] = int(payload["summary"].get("visit_count") or 0)
+    payload["patient_context"]["clinical_representation"] = representation
+    payload["clinical_representation"] = representation
+    return _sanitize_response_paths(payload, request)
 
 
 def get_medication_counts(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:
@@ -487,7 +549,8 @@ def search_medication_cohort(medication: str, request: Request = None, dataset_i
     if request is not None:
         require_authenticated(request)
     try:
-        return medication_cohort(_resolve_route_dataset_dir(request, dataset_id, data_dir), medication)
+        payload = medication_cohort(_resolve_route_dataset_dir(request, dataset_id, data_dir), medication)
+        return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -498,7 +561,8 @@ def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DE
     require_authenticated(request)
     try:
         with lm_provider_context(selected_lm_provider_id(request)):
-            return answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
+            payload = answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
+            return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -932,7 +996,7 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
         resolved_dir = request.data_dir
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
-            return answer_query(
+            payload = answer_query(
                 resolved_dir,
                 request.q,
                 query_mode=request.query_mode,
@@ -942,6 +1006,7 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
                 ai_provider_access=effective_ai_provider_access(selected_ids),
             )
+            return _sanitize_response_paths(payload, raw_request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -1471,7 +1536,11 @@ def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAUL
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
-        return dashboard_summary(resolved_dir)
+        payload = dashboard_summary(resolved_dir)
+        representation = clinical_representation(resolved_dir)
+        payload["clinical_representation"] = representation
+        payload.setdefault("totals", {})["clinical_records"] = int(payload.get("totals", {}).get("visits") or 0)
+        return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:

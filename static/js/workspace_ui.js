@@ -139,12 +139,19 @@ export function createWorkspaceUi(ctx) {
         ? datasetScopeLabel()
         : (currentDatasetSelectionKey() || "Not configured"));
 
+    const activeRepresentations = (Array.isArray(state.availableDatasets) ? state.availableDatasets : [])
+      .filter((item) => (Array.isArray(state.currentDatasetIds) ? state.currentDatasetIds : []).includes(String(item && item.dataset_id ? item.dataset_id : "")))
+      .map((item) => String(item && item.clinical_representation ? item.clinical_representation : "unspecified").trim().toLowerCase());
+    const representation = state.dashboardSummaryState && state.dashboardSummaryState.clinical_representation
+      ? String(state.dashboardSummaryState.clinical_representation).trim().toLowerCase()
+      : (activeRepresentations.length && activeRepresentations.every((item) => item === activeRepresentations[0]) ? activeRepresentations[0] : "mixed");
+    const recordLabel = representation === "snapshot" ? "timepoints" : representation === "person" ? "person records" : "clinical records";
     if (state.dashboardSummaryState && state.dashboardSummaryState.totals) {
       const totals = state.dashboardSummaryState.totals;
-      contextCohortEl.textContent = `${formatNumber(totals.patients || 0)} patients, ${formatNumber(totals.visits || 0)} timepoints`;
+      contextCohortEl.textContent = `${formatNumber(totals.patients || 0)} patients, ${formatNumber(totals.clinical_records ?? totals.visits ?? 0)} ${recordLabel}`;
     } else if (state.currentPatients.length) {
-      const totalVisits = state.currentPatients.reduce((sum, patient) => sum + Number(patient.visit_count || 0), 0);
-      contextCohortEl.textContent = `${formatNumber(state.currentPatients.length)} patients, ${formatNumber(totalVisits)} timepoints`;
+      const totalRecords = state.currentPatients.reduce((sum, patient) => sum + Number(patient.clinical_record_count ?? patient.visit_count ?? 0), 0);
+      contextCohortEl.textContent = `${formatNumber(state.currentPatients.length)} patients, ${formatNumber(totalRecords)} ${recordLabel}`;
     } else if (state.loadInFlight) {
       contextCohortEl.textContent = "Loading...";
     } else {

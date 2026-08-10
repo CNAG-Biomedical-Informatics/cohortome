@@ -13,10 +13,10 @@
   <a href="LICENSE">Apache-2.0</a>
 </p>
 
-COHORTome is an open-source research workspace for longitudinal clinical data
-and multimodal assays. It connects patients, samples, visits, and measurements
-so researchers can explore available data, define cohorts, and carry a clear
-data scope into traceable analyses.
+COHORTome is an open-source research workspace for cross-sectional and
+longitudinal clinical data and multimodal assays. It connects patients,
+samples, visits, and measurements so researchers can explore available data,
+define cohorts, and carry a clear data scope into traceable analyses.
 
 <p align="center">
   <img src="docs-site/static/img/cohortome-platform-workflow.svg" alt="Authorized source data enter COHORTome, where records are connected, access is checked, and research results retain their history." width="100%">
@@ -24,7 +24,7 @@ data scope into traceable analyses.
 
 ## At A Glance
 
-- longitudinal clinical and multimodal assay exploration
+- cross-sectional and longitudinal clinical and multimodal assay exploration
 - patient- and sample-aware cohort discovery
 - multimodal overlap, missingness, and feature-matrix readiness
 - curated analyses with persisted inputs, outputs, and run history
@@ -49,6 +49,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[test,dicom]'
 
+export COHORTOME_RUNTIME_ROOT="$PWD/runtime"
 COHORTOME_AUTH_MODE=none uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 

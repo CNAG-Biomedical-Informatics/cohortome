@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
-from app.config import BASE_DIR, DEFAULT_LOCAL_USER_ID
+from app.config import DEFAULT_LOCAL_USER_ID, STATE_ROOT_DIR
 from app.user_state import normalize_user_id
 
 
-USER_STATE_ROOT = BASE_DIR / "state" / "users"
+USER_STATE_ROOT = STATE_ROOT_DIR / "users"
 
 
 def _store_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
