@@ -138,6 +138,7 @@ def _install_dataset_lifecycle_routes(page):
             "description": "Synthetic UI fixture",
             "enabled": True,
             "visibility": "all_authenticated",
+            "data_classification": "public",
             "allowed_users": [],
             "allowed_groups": [],
             "query_granularity_ceiling": "detailed",
@@ -151,6 +152,7 @@ def _install_dataset_lifecycle_routes(page):
             "description": "Secondary synthetic UI fixture",
             "enabled": True,
             "visibility": "all_authenticated",
+            "data_classification": "public",
             "allowed_users": [],
             "allowed_groups": [],
             "query_granularity_ceiling": "detailed",
@@ -351,6 +353,27 @@ def _open_query_tab(page) -> None:
 def _open_analysis_tab(page) -> None:
     page.locator("#analysisTabBtn").click()
     page.locator("#analysisPrompt").wait_for()
+
+
+def _mock_available_lm(page) -> None:
+    page.route(
+        "**/lm-status",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "enabled": True,
+                    "available": True,
+                    "status": "ready",
+                    "base_url": "http://127.0.0.1:1234/v1",
+                    "model": "openai/gpt-oss-20b",
+                    "detail": "Provider is reachable.",
+                    "selected_provider_id": "system-default",
+                }
+            ),
+        ),
+    )
 
 
 def _mock_pheno_plan(page, expected_mode: str, patient_id: str = "", selected_ids: str = "") -> None:
@@ -1559,6 +1582,19 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
     expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
     expect(page.locator("#queryThread")).to_contain_text("Dataset: Synthetic demo")
+    expect(page.locator("#queryThread")).to_contain_text("Response detail: Detailed")
+    expect(page.locator("#queryThread .query-thread-turn-user .analysis-turn-body")).to_have_text("Which patients have Crohn Disease?")
+    expect(page.locator("#queryThread .query-thread-turn-user")).to_have_css("background-color", "rgb(248, 250, 252)")
+    expect(page.locator("#queryThread .query-thread-turn-user")).to_have_css("background-image", "none")
+    expect(page.locator("#queryThread .query-thread-turn-user .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
+    expect(page.locator("#question")).to_have_value("")
+    expect(page.locator("#queryMeta")).to_have_count(0)
+    expect(page.locator("#queryStatus")).to_be_hidden()
+    expect(page.locator("#queryStarterPanel")).to_be_visible()
+    expect(page.locator("#queryStarterTopHost > #queryStarterPanel")).to_have_count(1)
+    expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-color", "rgb(255, 255, 255)")
+    expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-image", "none")
+    expect(page.locator("#queryThread .query-thread-turn-assistant .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
     assert captured["body"]["dataset_id"] == "default"
     assert "data_dir" not in captured["body"]
     expect(page.locator("#queryThread")).to_contain_text("Open in Analysis")
@@ -1566,6 +1602,148 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+
+
+def test_query_provenance_separates_response_detail_from_model_context(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    page.route(
+        "**/query",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "llm_fallback",
+                    "reply": "There are 42 patients receiving biologic therapy.",
+                    "data": {
+                        "provider": "lm_studio",
+                        "source": "llm",
+                        "dataset_name": "Private study",
+                        "granularity_requested": "detailed",
+                        "granularity_applied": "detailed",
+                        "ai_provider_access": "safe_summary",
+                        "ai_provider_context_granularity": "safe_summary",
+                        "model": "openai/gpt-oss-20b",
+                    },
+                }
+            ),
+        ),
+    )
+
+    page.locator("#question").fill("How many patients take biologics?")
+    page.locator("#askBtn").click()
+
+    expect(page.locator("#queryThread")).to_contain_text("Response detail: Detailed")
+    expect(page.locator("#queryThread")).to_contain_text("Model context: Safe summary")
+    expect(page.locator("#queryThread")).to_contain_text("LLM answer")
+    expect(page.locator("#queryThread")).not_to_contain_text("Disclosure:")
+
+
+def test_latest_query_details_user_setting_controls_panel_visibility(page) -> None:
+    expect = playwright.expect
+    settings = {"latest_query_details": True}
+
+    def settings_handler(route):
+        if route.request.method == "PATCH":
+            settings.update(route.request.post_data_json)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(settings))
+
+    page.route("**/user-settings", settings_handler)
+    page.route(
+        "**/query",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"intent": "count", "reply": "2 patients.", "data": {"source": "deterministic"}}),
+        ),
+    )
+    page.reload(wait_until="networkidle")
+    expect(page.locator("#userSettingsStatus")).to_have_text("Preferences loaded.")
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded")
+    _open_query_tab(page)
+    page.locator("#question").fill("How many patients are in the workspace?")
+    page.locator("#askBtn").click()
+    expect(page.locator("#queryThread")).to_contain_text("2 patients.")
+    expect(page.locator("#queryLatestDetails")).to_be_visible()
+
+    page.locator("#userSettingsBtn").click()
+    expect(page.locator("#settingsLatestQueryDetails")).to_be_checked()
+    page.locator("#settingsLatestQueryDetails").uncheck()
+    page.locator("#userSettingsSaveBtn").click()
+    expect(page.locator("#userSettingsStatus")).to_have_text("Preferences saved.")
+    _open_query_tab(page)
+    expect(page.locator("#queryLatestDetails")).to_be_hidden()
+
+    page.locator("#userSettingsBtn").click()
+    page.locator("#settingsLatestQueryDetails").check()
+    page.locator("#userSettingsSaveBtn").click()
+    expect(page.locator("#userSettingsStatus")).to_have_text("Preferences saved.")
+    _open_query_tab(page)
+    expect(page.locator("#queryLatestDetails")).to_be_visible()
+
+
+def test_query_general_question_mode_sends_no_workspace_context(page) -> None:
+    expect = playwright.expect
+    captured = []
+    workspace_query_called = {"value": False}
+    page._cohortome_dataset_state["current_ids"] = []
+    _mock_available_lm(page)
+
+    def general_handler(route):
+        captured.append(route.request.post_data_json)
+        reply = (
+            "Aspirin is a medicine with analgesic, anti-inflammatory, and antiplatelet uses."
+            if len(captured) == 1
+            else "It irreversibly inhibits platelet cyclooxygenase-1 and reduces thromboxane production."
+        )
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "general_llm",
+                    "reply": reply,
+                    "data": {
+                        "source": "general_llm",
+                        "execution": "llm",
+                        "context_mode": "none",
+                        "workspace_context_used": False,
+                        "model": "openai/gpt-oss-20b",
+                    },
+                }
+            ),
+        )
+
+    def unexpected_workspace_query(route):
+        workspace_query_called["value"] = True
+        route.fulfill(status=500, content_type="application/json", body=json.dumps({"detail": "unexpected"}))
+
+    page.route("**/llm/general", general_handler)
+    page.route("**/query", unexpected_workspace_query)
+    page.reload(wait_until="networkidle")
+    _open_query_tab(page)
+
+    page.locator("#queryContextGeneralBtn").click()
+    expect(page.locator("#queryContextGeneralBtn")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#queryGranularityModeValue")).to_have_text("No workspace context")
+    page.locator("#question").fill("What is aspirin?")
+    page.locator("#askBtn").click()
+
+    expect(page.locator("#queryThread")).to_contain_text("General LLM answer")
+    expect(page.locator("#queryThread")).to_contain_text("No workspace context")
+    expect(page.locator("#queryThread")).to_contain_text("openai/gpt-oss-20b")
+    expect(page.locator("#queryThread")).not_to_contain_text("Response detail:")
+    assert captured[0] == {"prompt": "What is aspirin?", "history": []}
+    assert workspace_query_called["value"] is False
+
+    page.locator("#question").fill("How does it reduce platelet aggregation?")
+    page.locator("#askBtn").click()
+    expect(page.locator("#queryThread")).to_contain_text("reduces thromboxane production")
+    assert captured[1]["history"] == [
+        {"role": "user", "content": "What is aspirin?"},
+        {"role": "assistant", "content": "Aspirin is a medicine with analgesic, anti-inflammatory, and antiplatelet uses."},
+    ]
 
 
 def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
@@ -1601,6 +1779,101 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
 
     expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
+    expect(page.locator("#analysisThread .analysis-turn-user")).to_have_css("background-color", "rgb(248, 250, 252)")
+    expect(page.locator("#analysisThread .analysis-turn-user")).to_have_css("background-image", "none")
+    expect(page.locator("#analysisThread .analysis-turn-user .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
+    expect(page.locator("#analysisThread .analysis-turn-assistant")).to_have_css("background-color", "rgb(255, 255, 255)")
+    expect(page.locator("#analysisThread .analysis-turn-assistant")).to_have_css("background-image", "none")
+    expect(page.locator("#analysisThread .analysis-turn-assistant .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
+
+
+def test_analysis_general_question_mode_bypasses_workspace_analysis(page) -> None:
+    expect = playwright.expect
+    captured = []
+    workspace_analysis_called = {"value": False}
+    _mock_available_lm(page)
+
+    page.route(
+        "**/llm/general",
+        lambda route: (
+            captured.append(route.request.post_data_json),
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {
+                        "intent": "general_llm",
+                        "reply": "Aspirin irreversibly inhibits platelet cyclooxygenase-1.",
+                        "data": {
+                            "source": "general_llm",
+                            "execution": "llm",
+                            "context_mode": "none",
+                            "workspace_context_used": False,
+                            "model": "openai/gpt-oss-20b",
+                        },
+                    }
+                ),
+            ),
+        ),
+    )
+
+    def unexpected_workspace_analysis(route):
+        workspace_analysis_called["value"] = True
+        route.fulfill(status=500, content_type="application/json", body=json.dumps({"detail": "unexpected"}))
+
+    page.route("**/analysis", unexpected_workspace_analysis)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+
+    page.locator("#analysisContextGeneralBtn").click()
+    expect(page.locator("#analysisContextGeneralBtn")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#analysisWorkspaceSetup")).to_be_hidden()
+    expect(page.locator("#analysisRunBtnLabel")).to_have_text("Ask")
+    page.locator("#analysisPrompt").fill("How does aspirin affect platelets?")
+    page.locator("#analysisRunBtn").click()
+
+    expect(page.locator("#analysisThread")).to_contain_text("General LLM answer")
+    expect(page.locator("#analysisThread")).to_contain_text("No workspace context")
+    expect(page.locator("#analysisThread")).to_contain_text("Aspirin irreversibly inhibits")
+    expect(page.locator("#analysisThread .analysis-turn-user").last).not_to_contain_text("Scope:")
+    assert captured == [{"prompt": "How does aspirin affect platelets?", "history": []}]
+    assert workspace_analysis_called["value"] is False
+
+
+def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(page) -> None:
+    expect = playwright.expect
+    _open_analysis_tab(page)
+
+    page.locator("#analysisChatsDrawerBtn").click()
+    expect(page.locator("#analysisChatsDrawer")).to_be_visible()
+    delete_button = page.locator("#analysisSessionList [data-analysis-session-delete]").first
+    expect(delete_button).to_be_visible()
+    delete_button.click()
+
+    dialog = page.locator("#analysisSessionDeleteDialog")
+    expect(dialog).to_be_visible()
+    expect(page.locator("#analysisSessionDeleteDialog .analysis-session-delete-dialog-panel")).to_be_visible()
+    layers = page.evaluate(
+        """() => ({
+          drawer: Number.parseInt(getComputedStyle(document.getElementById('analysisChatsDrawer')).zIndex, 10),
+          dialog: Number.parseInt(getComputedStyle(document.getElementById('analysisSessionDeleteDialog')).zIndex, 10),
+        })"""
+    )
+    assert layers["dialog"] > layers["drawer"]
+    dialog_owns_drawer_hit_area = page.evaluate(
+        """() => {
+          const drawerPanel = document.querySelector('#analysisChatsDrawer .analysis-chats-drawer-panel');
+          const dialog = document.getElementById('analysisSessionDeleteDialog');
+          const bounds = drawerPanel.getBoundingClientRect();
+          const hit = document.elementFromPoint(bounds.left + 20, bounds.bottom - 20);
+          return Boolean(hit && dialog.contains(hit));
+        }"""
+    )
+    assert dialog_owns_drawer_hit_area is True
+
+    page.locator("#analysisSessionDeleteCloseBtn").click()
+    expect(dialog).to_be_hidden()
+    expect(page.locator("#analysisChatsDrawer")).to_be_visible()
 
 
 def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> None:
@@ -2049,6 +2322,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#appShell")).to_be_hidden()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Signed out")
     expect(page_auth.locator("#datasetsTabBtn")).to_be_hidden()
+    expect(page_auth.locator("#adminTabBtn")).to_be_hidden()
     expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
     expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
 
@@ -2061,19 +2335,31 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#appShell")).to_be_visible()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
     expect(page_auth.locator("#datasetsTabBtn")).to_be_visible()
-    expect(page_auth.locator("#dataTabBtn")).to_be_visible()
-    expect(page_auth.locator("#usersTabBtn")).to_be_visible()
+    expect(page_auth.locator("#adminTabBtn")).to_be_visible()
+    expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
+    expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User (admin)")
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page_auth.wait_for_load_state("networkidle")
 
-    page_auth.locator("#dataTabBtn").click()
+    page_auth.locator("#adminTabBtn").click()
+    expect(page_auth.locator("#adminTabBtn")).to_have_class(re.compile(r"\bactive\b"))
+    expect(page_auth.locator("#dataTabBtn")).to_be_visible()
+    expect(page_auth.locator("#usersTabBtn")).to_be_visible()
+    expect(page_auth.locator("#modelsTabBtn")).to_be_visible()
+    nav_order = page_auth.locator("#phenoTabBtn, #adminTabBtn").evaluate_all("elements => elements.map(element => element.id)")
+    assert nav_order == ["phenoTabBtn", "adminTabBtn"]
+    expect(page_auth.locator("#dataTabBtn")).to_have_class(re.compile(r"\bactive\b"))
     admin_card = page_auth.locator("#datasetAdminList [data-dataset-admin-card]").first
     expect(admin_card).to_be_visible()
     expect(admin_card).not_to_have_attribute("open", "")
     expect(admin_card.locator(".dataset-admin-body")).to_be_hidden()
     admin_card.locator("summary").click()
     expect(admin_card.locator(".dataset-admin-body")).to_be_visible()
+    provider_context = admin_card.locator("[data-dataset-ai-provider-access]")
+    expect(provider_context).to_have_value("detailed_allowed")
+    expect(provider_context.locator('option[value="detailed_allowed"]')).to_be_enabled()
+    expect(provider_context.locator('option[value="detailed_allowed"]')).to_have_text("Detailed allowed")
 
     page_auth.locator("#usersTabBtn").click()
     user_card = page_auth.locator("#usersList [data-auth-user-card]").first
@@ -2082,6 +2368,10 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(user_card.locator(".dataset-admin-body")).to_be_hidden()
     user_card.locator("summary").click()
     expect(user_card.locator(".dataset-admin-body")).to_be_visible()
+
+    page_auth.locator("#modelsTabBtn").click()
+    expect(page_auth.locator("#modelsTab")).to_have_class(re.compile(r"\bactive\b"))
+    expect(page_auth.locator("#adminTabBtn")).to_have_class(re.compile(r"\bactive\b"))
 
     page_auth.locator("#datasetsTabBtn").click()
     expect(page_auth.locator("#loadBtn")).to_be_visible()
@@ -2092,3 +2382,55 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     page_auth.locator("#heroLogoutBtn").click()
     expect(page_auth.locator("#authGate")).to_be_visible()
     expect(page_auth.locator("#appShell")).to_be_hidden()
+
+
+def test_admin_can_manage_model_providers_in_app(page_auth) -> None:
+    expect = playwright.expect
+    page_auth.locator("#authUsername").fill("admin")
+    page_auth.locator("#authPassword").fill("secret")
+    page_auth.locator("#authLoginBtn").click()
+    expect(page_auth.locator("#appShell")).to_be_visible()
+    expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded")
+    page_auth.wait_for_load_state("networkidle")
+
+    page_auth.locator("#adminTabBtn").click()
+    page_auth.locator("#modelsTabBtn").click()
+    expect(page_auth.locator("#modelsCreateCard")).to_be_visible()
+    expect(page_auth.locator("[data-lm-provider-card='system-default']")).to_be_visible()
+
+    page_auth.locator("#modelCreateId").fill("ui-local")
+    page_auth.locator("#modelCreateLabel").fill("UI local model")
+    page_auth.locator("#modelCreateBaseUrl").fill("http://127.0.0.1:1/v1")
+    page_auth.locator("#modelCreateModel").fill("test-model")
+    page_auth.locator("#modelCreateBoundary").select_option("local")
+    page_auth.locator("#modelCreateApiKey").fill("ui-route-secret")
+    page_auth.locator("#modelCreateBtn").click()
+
+    managed_card = page_auth.locator("[data-lm-provider-card='ui-local']")
+    expect(managed_card).to_be_visible()
+    expect(managed_card).to_contain_text("In-app")
+    expect(managed_card).to_contain_text("local boundary")
+    expect(managed_card).to_contain_text("API key stored")
+    expect(page_auth.locator("body")).not_to_contain_text("ui-route-secret")
+
+    managed_body = managed_card.locator(".dataset-admin-body")
+    if not managed_body.is_visible():
+        managed_card.locator("summary").click()
+    expect(managed_body).to_be_visible()
+    managed_card.locator('[data-lm-provider-field="label"]').fill("Updated UI model")
+    managed_card.locator('[data-lm-provider-action="save"]').click()
+    updated_card = page_auth.locator("[data-lm-provider-card='ui-local']")
+    expect(updated_card).to_contain_text("Updated UI model")
+
+    page_auth.on("dialog", lambda dialog: dialog.accept())
+    if not page_auth.locator("#modelsTab").is_visible():
+        page_auth.locator("#adminTabBtn").click()
+        page_auth.locator("#modelsTabBtn").click()
+    expect(page_auth.locator("#modelsTab")).to_be_visible()
+    expect(updated_card).to_be_visible()
+    updated_body = updated_card.locator(".dataset-admin-body")
+    if not updated_body.is_visible():
+        updated_card.locator("summary").click()
+    expect(updated_body).to_be_visible()
+    updated_card.locator("[data-lm-provider-action='delete']").click()
+    expect(page_auth.locator("[data-lm-provider-card='ui-local']")).to_have_count(0)

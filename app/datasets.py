@@ -21,6 +21,8 @@ from app.user_state import normalize_user_id, user_state_file
 DATASET_REGISTRY_PATH = STATE_ROOT_DIR / "datasets" / "registry.json"
 DATASET_REGISTRY_SEED_PATH = CONFIG_DIR / "datasets" / "registry.json"
 DATASET_VISIBILITIES = {"admin_only", "all_authenticated", "restricted"}
+DATA_CLASSIFICATIONS = {"public", "private"}
+DEFAULT_DATA_CLASSIFICATION = "private"
 QUERY_GRANULARITY_CEILINGS = {"summary", "detailed"}
 DEFAULT_QUERY_GRANULARITY_CEILING = "summary"
 AI_PROVIDER_ACCESS_MODES = {"detailed_allowed", "safe_summary", "blocked"}
@@ -236,6 +238,13 @@ def normalize_query_granularity_ceiling(value: str | None) -> str:
     return DEFAULT_QUERY_GRANULARITY_CEILING
 
 
+def normalize_data_classification(value: str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in DATA_CLASSIFICATIONS:
+        return normalized
+    return DEFAULT_DATA_CLASSIFICATION
+
+
 def normalize_ai_provider_access(value: str | None) -> str:
     normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {
@@ -252,14 +261,6 @@ def normalize_ai_provider_access(value: str | None) -> str:
     return DEFAULT_AI_PROVIDER_ACCESS
 
 
-def clamp_ai_provider_access_for_visibility(value: str | None, visibility: str | None) -> str:
-    normalized = normalize_ai_provider_access(value)
-    normalized_visibility = str(visibility or "all_authenticated").strip().lower()
-    if normalized_visibility in {"restricted", "admin_only"} and normalized == "detailed_allowed":
-        return "safe_summary"
-    return normalized
-
-
 def _default_dataset_record() -> Dict[str, Any]:
     return {
         "dataset_id": DEFAULT_DATASET_ID,
@@ -268,6 +269,7 @@ def _default_dataset_record() -> Dict[str, Any]:
         "root_path": str(Path(DEFAULT_DATA_DIR).resolve()),
         "enabled": True,
         "visibility": "all_authenticated",
+        "data_classification": "public",
         "allowed_users": [],
         "allowed_groups": [],
         "query_granularity_ceiling": "detailed",
@@ -334,10 +336,11 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
         "root_path": resolved_root,
         "enabled": bool(item.get("enabled", True)),
         "visibility": visibility,
+        "data_classification": normalize_data_classification(item.get("data_classification")),
         "allowed_users": allowed_users,
         "allowed_groups": allowed_groups,
         "query_granularity_ceiling": query_granularity_ceiling,
-        "ai_provider_access": clamp_ai_provider_access_for_visibility(item.get("ai_provider_access"), visibility),
+        "ai_provider_access": normalize_ai_provider_access(item.get("ai_provider_access")),
         "created_by": str(item.get("created_by") or "system").strip() or "system",
         "created_at": str(item.get("created_at") or _now_iso()),
         "updated_at": str(item.get("updated_at") or _now_iso()),
@@ -722,12 +725,36 @@ def effective_ai_provider_access(dataset_ids: List[str]) -> str:
     return effective
 
 
+def effective_data_classification(dataset_ids: List[str]) -> str:
+    normalized = [normalize_dataset_id(item) for item in (dataset_ids or []) if normalize_dataset_id(item)]
+    if not normalized:
+        return DEFAULT_DATA_CLASSIFICATION
+    for dataset_id in normalized:
+        dataset = get_dataset(dataset_id)
+        if dataset is None or normalize_data_classification(dataset.get("data_classification")) == "private":
+            return "private"
+    return "public"
+
+
+def constrain_ai_provider_access(
+    dataset_ids: List[str],
+    ai_provider_access: str | None,
+    provider_data_boundary: str | None,
+) -> str:
+    normalized_access = normalize_ai_provider_access(ai_provider_access)
+    normalized_boundary = str(provider_data_boundary or "").strip().lower()
+    if normalized_boundary != "local" and effective_data_classification(dataset_ids) == "private":
+        return "blocked"
+    return normalized_access
+
+
 def register_dataset(
     *,
     name: str,
     root_path: str,
     description: str = "",
     visibility: str = "all_authenticated",
+    data_classification: str = DEFAULT_DATA_CLASSIFICATION,
     allowed_users: List[str] | None = None,
     allowed_groups: List[str] | None = None,
     query_granularity_ceiling: str = DEFAULT_QUERY_GRANULARITY_CEILING,
@@ -742,6 +769,9 @@ def register_dataset(
     normalized_visibility = str(visibility or "all_authenticated").strip().lower()
     if normalized_visibility not in DATASET_VISIBILITIES:
         raise ValueError("Invalid dataset visibility.")
+    normalized_data_classification = normalize_data_classification(data_classification)
+    if str(data_classification or "").strip().lower() not in DATA_CLASSIFICATIONS:
+        raise ValueError("Invalid data classification.")
     base_id = normalize_dataset_id(normalized_name) or "dataset"
     now = _now_iso()
     item = {
@@ -751,6 +781,7 @@ def register_dataset(
         "root_path": resolved_root,
         "enabled": bool(enabled),
         "visibility": normalized_visibility,
+        "data_classification": normalized_data_classification,
         "allowed_users": sorted(
             {
                 normalize_user_id(value)
@@ -766,7 +797,7 @@ def register_dataset(
             }
         ),
         "query_granularity_ceiling": normalize_query_granularity_ceiling(query_granularity_ceiling),
-        "ai_provider_access": clamp_ai_provider_access_for_visibility(ai_provider_access, normalized_visibility),
+        "ai_provider_access": normalize_ai_provider_access(ai_provider_access),
         "created_by": str(created_by or "system").strip() or "system",
         "created_at": now,
         "updated_at": now,
@@ -792,6 +823,7 @@ def update_dataset(
     root_path: str | None = None,
     description: str | None = None,
     visibility: str | None = None,
+    data_classification: str | None = None,
     allowed_users: List[str] | None = None,
     allowed_groups: List[str] | None = None,
     query_granularity_ceiling: str | None = None,
@@ -816,6 +848,11 @@ def update_dataset(
                 if normalized_visibility not in DATASET_VISIBILITIES:
                     raise ValueError("Invalid dataset visibility.")
                 updated["visibility"] = normalized_visibility
+            if data_classification is not None:
+                normalized_data_classification = str(data_classification or "").strip().lower()
+                if normalized_data_classification not in DATA_CLASSIFICATIONS:
+                    raise ValueError("Invalid data classification.")
+                updated["data_classification"] = normalized_data_classification
             if allowed_users is not None:
                 updated["allowed_users"] = sorted(
                     {
@@ -836,10 +873,6 @@ def update_dataset(
                 updated["query_granularity_ceiling"] = normalize_query_granularity_ceiling(query_granularity_ceiling)
             if ai_provider_access is not None:
                 updated["ai_provider_access"] = normalize_ai_provider_access(ai_provider_access)
-            updated["ai_provider_access"] = clamp_ai_provider_access_for_visibility(
-                updated.get("ai_provider_access"),
-                updated.get("visibility"),
-            )
             if enabled is not None:
                 updated["enabled"] = bool(enabled)
             updated["updated_at"] = _now_iso()

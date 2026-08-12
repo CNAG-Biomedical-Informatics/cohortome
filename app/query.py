@@ -1751,7 +1751,7 @@ def _ai_provider_blocked_response(query: str, history: Optional[List[Dict[str, s
         "intent": "unsupported",
         "reply": (
             "AI provider access is blocked for this dataset. "
-            "Use a deterministic query or update Data Administration."
+            "Use a deterministic query or update Admin > Data."
         ),
         "data": {
             "follow_up_suggestions": _follow_up_suggestions(query),
@@ -2699,6 +2699,9 @@ def _answer_query_impl(
         )
         if fallback is not None:
             return fallback
+
+    if normalized_ai_provider_access == "blocked":
+        return _ai_provider_blocked_response(query, history=history)
 
     return {
         "query": query,

@@ -54,7 +54,7 @@ COHORTOME_AUTH_MODE=none uvicorn app.main:app --host 127.0.0.1 --port 8000 --rel
 ```
 
 Open <http://127.0.0.1:8000>. On a fresh checkout, prepare the default
-dataset store from **Data Admin** before applying it in **Datasets**.
+dataset store from **Admin > Data** before applying it in **Datasets**.
 
 For shared deployments, authentication, Docker, DICOM, and model-provider
 configuration, use the documentation below rather than this quick development

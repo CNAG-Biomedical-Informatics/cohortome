@@ -536,8 +536,184 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Get Lm Providers Lm Providers Get"
+                  "$ref": "#/components/schemas/LmProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create a managed LLM provider",
+        "description": "Persists an OpenAI-compatible provider in protected runtime state. The API key is write-only.",
+        "operationId": "create_lm_provider_lm_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LmProviderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmProviderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lm-providers/{provider_id}": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update a managed LLM provider",
+        "description": "Updates a runtime-managed provider. Environment-defined providers are read-only.",
+        "operationId": "update_lm_provider_lm_providers__provider_id__patch",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LmProviderUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmProviderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete a managed LLM provider",
+        "description": "Deletes a runtime-managed provider. Environment-defined providers cannot be deleted.",
+        "operationId": "delete_lm_provider_lm_providers__provider_id__delete",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lm-providers/{provider_id}/test": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Test an LLM provider",
+        "description": "Runs an admin-only models-endpoint health check without exposing the configured API key.",
+        "operationId": "test_lm_provider_route_lm_providers__provider_id__test_post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmProviderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1507,6 +1683,49 @@
                 "schema": {
                   "type": "object",
                   "title": "Response Delete User Saved Cohorts User Data Saved Cohorts Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/llm/general": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Ask a general-knowledge question",
+        "description": "Sends the prompt and recent General-question turns to the selected model provider without workspace or dataset context.",
+        "operationId": "general_llm_app_llm_general_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralLlmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response General Llm App Llm General Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3020,6 +3239,16 @@
             "description": "Current draft prompt stored for the session.",
             "default": ""
           },
+          "context_mode": {
+            "type": "string",
+            "enum": [
+              "workspace",
+              "general"
+            ],
+            "title": "Context Mode",
+            "description": "Whether the saved composer is using workspace context or general knowledge.",
+            "default": "workspace"
+          },
           "scope": {
             "type": "string",
             "title": "Scope",
@@ -3619,7 +3848,8 @@
           },
           "root_path": {
             "type": "string",
-            "title": "Root Path"
+            "title": "Root Path",
+            "default": ""
           },
           "enabled": {
             "type": "boolean",
@@ -3628,6 +3858,11 @@
           "visibility": {
             "type": "string",
             "title": "Visibility"
+          },
+          "data_classification": {
+            "type": "string",
+            "title": "Data Classification",
+            "default": "private"
           },
           "allowed_users": {
             "items": {
@@ -3678,7 +3913,6 @@
         "required": [
           "dataset_id",
           "name",
-          "root_path",
           "enabled",
           "visibility"
         ],
@@ -3710,6 +3944,12 @@
             "description": "Dataset visibility policy: all_authenticated, restricted, or admin_only.",
             "default": "all_authenticated"
           },
+          "data_classification": {
+            "type": "string",
+            "title": "Data Classification",
+            "description": "Data egress classification: public or private. Private data cannot be sent to external AI providers.",
+            "default": "private"
+          },
           "allowed_users": {
             "items": {
               "type": "string"
@@ -3735,7 +3975,7 @@
           "ai_provider_access": {
             "type": "string",
             "title": "Ai Provider Access",
-            "description": "Maximum AI provider disclosure allowed for this dataset.",
+            "description": "Maximum AI provider disclosure allowed after applying data classification and provider boundary.",
             "default": "detailed_allowed"
           },
           "enabled": {
@@ -3762,7 +4002,7 @@
             },
             "type": "array",
             "title": "Dataset Ids",
-            "description": "One or more dataset IDs that define the active workspace."
+            "description": "Dataset IDs that define the active workspace. An empty list unloads it."
           }
         },
         "type": "object",
@@ -3848,6 +4088,18 @@
             "title": "Visibility",
             "description": "Updated visibility policy."
           },
+          "data_classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Classification",
+            "description": "Updated data egress classification: public or private."
+          },
           "allowed_users": {
             "anyOf": [
               {
@@ -3900,7 +4152,7 @@
               }
             ],
             "title": "Ai Provider Access",
-            "description": "Updated AI provider access mode for this dataset."
+            "description": "Updated maximum AI provider access mode."
           },
           "enabled": {
             "anyOf": [
@@ -4053,6 +4305,33 @@
         "type": "object",
         "title": "DicomStudyResponse"
       },
+      "GeneralLlmRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Prompt",
+            "description": "General-knowledge question sent without workspace or dataset context.",
+            "examples": [
+              "What is aspirin?"
+            ]
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/QueryTurn"
+            },
+            "type": "array",
+            "title": "History",
+            "description": "Recent turns from General question mode only."
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "title": "GeneralLlmRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4065,6 +4344,247 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LmProviderCreateRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable provider ID used by persisted user settings.",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "User-facing provider label.",
+            "default": ""
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url",
+            "description": "OpenAI-compatible API base URL, normally ending in /v1.",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "Model ID. Leave empty to use the first model reported by the provider.",
+            "default": ""
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "Write-only API key. It is never returned by the API.",
+            "default": "",
+            "writeOnly": true
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "title": "Timeout Seconds",
+            "description": "Provider request timeout in seconds.",
+            "default": 30
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether users may select and use this provider.",
+            "default": true
+          },
+          "data_boundary": {
+            "type": "string",
+            "enum": [
+              "local",
+              "external"
+            ],
+            "title": "Data Boundary",
+            "description": "Explicit deployment boundary used for private-data policy.",
+            "default": "external"
+          }
+        },
+        "type": "object",
+        "title": "LmProviderCreateRequest"
+      },
+      "LmProviderResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "data_boundary": {
+            "type": "string",
+            "enum": [
+              "local",
+              "external"
+            ],
+            "title": "Data Boundary",
+            "default": "external"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "configuration"
+          },
+          "managed": {
+            "type": "boolean",
+            "title": "Managed",
+            "default": false
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "title": "Timeout Seconds",
+            "default": 30
+          },
+          "api_key_configured": {
+            "type": "boolean",
+            "title": "Api Key Configured",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "base_url"
+        ],
+        "title": "LmProviderResponse"
+      },
+      "LmProviderUpdateRequest": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Updated user-facing provider label."
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "Updated OpenAI-compatible API base URL."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Updated model ID; an empty value enables model discovery."
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key",
+            "description": "Replacement write-only API key. Empty values retain the stored key.",
+            "writeOnly": true
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds",
+            "description": "Updated provider request timeout in seconds."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "Whether users may select and use this provider."
+          },
+          "data_boundary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "local",
+                  "external"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Boundary",
+            "description": "Updated deployment boundary."
+          }
+        },
+        "type": "object",
+        "title": "LmProviderUpdateRequest"
+      },
+      "LmProvidersResponse": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/LmProviderResponse"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "registry_error": {
+            "type": "string",
+            "title": "Registry Error",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "LmProvidersResponse"
       },
       "LmStatusResponse": {
         "properties": {
@@ -4652,6 +5172,11 @@
             "title": "Query Default Mode",
             "default": "auto"
           },
+          "latest_query_details": {
+            "type": "boolean",
+            "title": "Latest Query Details",
+            "default": true
+          },
           "analysis_auto_open_jobs": {
             "type": "boolean",
             "title": "Analysis Auto Open Jobs",
@@ -4783,6 +5308,17 @@
               }
             ],
             "title": "Query Default Mode"
+          },
+          "latest_query_details": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Query Details"
           },
           "analysis_auto_open_jobs": {
             "anyOf": [

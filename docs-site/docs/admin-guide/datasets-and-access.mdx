@@ -11,8 +11,8 @@ import TabItem from '@theme/TabItem';
   <div className="pnEyebrow">Data administration</div>
   <h2>Control who can load each dataset and whether its store is ready for interactive use.</h2>
   <div className="pnHeroText">
-    Dataset access, in-app disclosure, AI-provider policy, and DuckDB store
-    readiness are admin-owned controls.
+    Dataset access, public/private classification, in-app disclosure,
+    AI-provider policy, and DuckDB store readiness are admin-owned controls.
   </div>
 </div>
 
@@ -74,6 +74,7 @@ PYTHONPATH=.deps:. python3 scripts/register_dataset.py \
   --root /protected/releases/study-clinical-v1 \
   --description "Clinical release pending semantic mapping review." \
   --visibility admin_only \
+  --data-classification private \
   --query-detail detailed \
   --ai-provider-access blocked \
   --created-by admin \
@@ -91,8 +92,8 @@ half-prepared dataset as available.
 
 :::warning Restricted data
 Do not place restricted releases under the repository, Docker build context, or
-a public volume. Start with `admin_only` and `blocked` AI access. Change those
-policies only after access, provider, and permitted-output review.
+a public volume. Start with `admin_only`, `private`, and `blocked` AI access.
+Change those policies only after access, provider, and permitted-output review.
 :::
 
 Regular dataset responses omit server root paths. Clinical provenance shown in
@@ -118,6 +119,7 @@ absolute filesystem location.
       <p>Admins are expected to:</p>
       <ul>
         <li>review dataset visibility</li>
+        <li>classify data as public or private</li>
         <li>assign allowed groups</li>
         <li>assign allowed users</li>
         <li>set Query detail policy</li>
@@ -127,7 +129,7 @@ absolute filesystem location.
         <li>inspect effective dataset access</li>
       </ul>
 
-      <p>This happens in <code>Data Administration</code>, not in the user-facing <code>Datasets</code> tab.</p>
+      <p>This happens in <code>Admin &gt; Data</code>, not in the user-facing <code>Datasets</code> tab.</p>
     </div>
 
   </TabItem>
@@ -171,6 +173,10 @@ The effective rule is a union:
 
 This is intentionally a union, not a conflict model.
 
+Visibility answers **who may use the dataset inside COHORTome**. It does not
+answer whether data may leave the deployment. A consortium dataset can be
+available to every authenticated member and still be private.
+
 :::info
 Effective access is granted if any allowed path matches:
 
@@ -212,20 +218,21 @@ Such a user:
 Groupless users are valid. They do not need to be forced into a group just to be usable in the app.
 :::
 
-## What Data Administration edits
+## What the Data page edits
 
-`Data Administration` edits dataset policy, not user identity.
+`Admin > Data` edits dataset policy, not user identity.
 
 It currently allows admins to edit:
 
 - `Visibility`
+- `Data classification`
 - `Allowed groups`
 - `Allowed users`
 - `In-app Query detail`
 - `AI providers`
 - dataset DuckDB store preparation state
 
-User records are managed in the `Users` admin tab. Dataset cards do not edit user identity directly.
+User records are managed in `Admin > Users`. Dataset cards do not edit user identity directly.
 
 ## Dataset store preparation
 
@@ -240,6 +247,20 @@ The admin UI now shows dataset-store state and a matching action:
 - `Rebuild store` when a store is already ready and you want to refresh it deliberately
 
 Normal user workspace loading should reuse prepared stores rather than triggering heavy rebuilds.
+
+## Data classification
+
+Every dataset is classified independently as:
+
+- `Private data`: context may be used by an explicitly local provider, subject
+  to the dataset's AI-provider setting, but is always blocked from external
+  providers.
+- `Public data`: an approved local or external provider may receive context,
+  subject to the dataset's AI-provider setting.
+
+New registrations default to `Private data`. Classification never grants a
+user access to a dataset; visibility, groups, and direct users still decide
+that separately.
 
 ## Query policy fields
 
@@ -279,6 +300,14 @@ The user's selected model provider is configured separately in `Settings`.
 Admins manage the provider registry in [Model Providers](./model-providers).
 Dataset policy still decides whether that provider can receive context.
 
+The effective decision combines all three controls:
+
+| Data classification | Selected provider | Result |
+| --- | --- | --- |
+| Private | Local | Follow `Detailed allowed`, `Safe summary`, or `Blocked` |
+| Private | External | Always `Blocked` |
+| Public | Local or external | Follow `Detailed allowed`, `Safe summary`, or `Blocked` |
+
 For multi-dataset workspaces, the strictest selected dataset wins:
 
 - `Blocked` overrides everything
@@ -308,9 +337,10 @@ This is useful because it makes the group-versus-user rule explicit instead of f
 
 ## Current admin workflow
 
-In `Data Administration`, admins can:
+In `Admin > Data`, admins can:
 
 - review dataset visibility
+- classify the dataset as public or private
 - assign allowed groups
 - assign allowed users
 - choose whether Query is `Summary only` or `Detailed allowed` in-app

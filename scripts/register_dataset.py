@@ -21,6 +21,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=("admin_only", "restricted", "all_authenticated"),
         default="admin_only",
     )
+    parser.add_argument(
+        "--data-classification",
+        choices=("private", "public"),
+        default="private",
+    )
     parser.add_argument("--allowed-user", action="append", default=[])
     parser.add_argument("--allowed-group", action="append", default=[])
     parser.add_argument(
@@ -45,6 +50,7 @@ def main() -> int:
         root_path=args.root,
         description=args.description,
         visibility=args.visibility,
+        data_classification=args.data_classification,
         allowed_users=args.allowed_user,
         allowed_groups=args.allowed_group,
         query_granularity_ceiling=args.query_detail,
@@ -69,6 +75,7 @@ def main() -> int:
             {
                 "dataset_id": dataset["dataset_id"],
                 "visibility": dataset["visibility"],
+                "data_classification": dataset["data_classification"],
                 "query_granularity_ceiling": dataset["query_granularity_ceiling"],
                 "ai_provider_access": dataset["ai_provider_access"],
                 "query_store": {

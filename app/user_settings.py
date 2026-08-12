@@ -14,6 +14,7 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "landing_tab": "dashboard",
     "query_disclosure_default": "detailed",
     "query_default_mode": "auto",
+    "latest_query_details": True,
     "analysis_auto_open_jobs": True,
     "run_history_retention_days": 30,
     "pheno_default_metric": "",
@@ -35,6 +36,7 @@ _ALLOWED_VALUES = {
     "pheno_default_metric": {"", "hamming", "jaccard"},
 }
 _BOOLEAN_FIELDS = {
+    "latest_query_details",
     "analysis_auto_open_jobs",
     "pheno_advanced_open",
     "pheno_render_heatmap",

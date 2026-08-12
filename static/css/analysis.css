@@ -760,7 +760,7 @@
       .analysis-session-delete-dialog {
         position: fixed;
         inset: 0;
-        z-index: 119;
+        z-index: 160;
         display: flex;
         align-items: flex-start;
         justify-content: center;
@@ -1294,10 +1294,28 @@
         box-shadow: var(--shadow);
       }
       .analysis-turn-user {
-        background: linear-gradient(145deg, rgba(219, 234, 254, 0.72), rgba(255, 255, 255, 0.9));
+        border-color: rgba(148, 163, 184, 0.28);
+        background: #f8fafc;
+        color: var(--ink);
+      }
+      .analysis-turn-user > .analysis-turn-label {
+        color: #334155;
+        font-weight: 700;
       }
       .analysis-turn-assistant {
-        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 255, 0.92));
+        border-color: rgba(100, 116, 139, 0.28);
+        border-left: 3px solid rgba(71, 85, 105, 0.55);
+        background: #ffffff;
+        color: var(--ink);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      }
+      .analysis-turn-assistant > .analysis-turn-label {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .analysis-turn-user .analysis-turn-body,
+      .analysis-turn-assistant .analysis-turn-body {
+        color: var(--ink);
       }
       .analysis-turn-error {
         background: linear-gradient(145deg, rgba(254, 242, 242, 0.98), rgba(255, 255, 255, 0.94));
@@ -1312,8 +1330,8 @@
       .analysis-result-content > .analysis-turn-body {
         padding: 14px;
         border-radius: 16px;
-        border: 1px solid rgba(37, 99, 235, 0.12);
-        background: rgba(248, 251, 255, 0.82);
+        border: 1px solid rgba(100, 116, 139, 0.16);
+        background: rgba(255, 255, 255, 0.82);
       }
       .analysis-result-visuals {
         display: grid;

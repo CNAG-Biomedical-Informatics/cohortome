@@ -13,6 +13,8 @@ COHORTome uses approved models to assist with:
 - explaining available data, overlap, and missingness
 - interpreting deterministic or curated analysis results
 - suggesting follow-up questions without silently expanding the data scope
+- answering explicitly selected general-knowledge questions without attaching
+  workspace context
 
 A deployment may disable model access, and a dataset may block it. This is an
 expected governed state, not an application failure.
@@ -29,18 +31,49 @@ expected governed state, not an application failure.
 The interface should report the mode used. An unavailable or disallowed model
 must not be hidden by silently switching to an unrelated mode.
 
+## Workspace and General question contexts
+
+The user chooses the model context before sending a question:
+
+| Context | What COHORTome sends |
+| --- | --- |
+| Workspace | Only the authorized workspace context allowed by dataset and provider policy, plus the question. |
+| General question | The question and recent General-question history only. No active dataset, patients, assays, results, or workspace metadata. |
+
+The histories are separate. A failed or unsupported Workspace request is never
+silently retried as a General question, because the text may itself contain
+private study information. General responses are labeled `No workspace
+context` rather than with workspace disclosure badges.
+
 ## Provider and disclosure policy
 
 Administrators define approved OpenAI-compatible endpoints. Users choose among
 those endpoints; they cannot supply an arbitrary model URL.
 
-Each dataset contributes two relevant ceilings:
+The decision uses three independent controls:
 
-- in-application disclosure: detailed or summary
+- dataset visibility: which users may work with the data
+- data classification: public or private
 - AI-provider access: detailed allowed, safe summary, or blocked
 
+The selected provider is also marked `local` or `external`. Private dataset
+context may reach a local provider when the dataset permits it. It never
+reaches an external provider. Public datasets continue to follow their
+configured AI-provider access level for either provider boundary.
+
+General-question mode does not attach dataset context, so it can use any
+approved provider that the administrator has enabled. The question itself is
+still sent to that provider. Users must not paste confidential or patient-level
+content into an external model.
+
 For a workspace containing several datasets, the strictest selected policy
-wins. Provider health never overrides dataset policy.
+wins, and one private dataset blocks the entire workspace from an external
+provider. Provider health never overrides dataset policy.
+
+The result provenance keeps two outputs explicit: `Response detail` is the
+detail visible to the authorized user in COHORTome, while `Model context` is
+the context actually supplied to a model. This avoids suggesting that a
+detailed local response was also sent to the provider.
 
 <picture>
   <source media="(max-width: 700px)" srcSet="/img/cohortome-governed-ai-mobile.svg" />

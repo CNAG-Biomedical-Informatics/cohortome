@@ -29,12 +29,23 @@ class QueryRequest(BaseModel):
     scoped_id_type: str = Field(default="patient", description="The primary ID level used by the carried scoped context.")
 
 
+class GeneralLlmRequest(BaseModel):
+    prompt: str = Field(
+        min_length=1,
+        max_length=12000,
+        description="General-knowledge question sent without workspace or dataset context.",
+        examples=["What is aspirin?"],
+    )
+    history: List[QueryTurn] = Field(default_factory=list, description="Recent turns from General question mode only.")
+
+
 class UserSettingsResponse(BaseModel):
     version: int = 1
     landing_tab_mode: Literal["fixed", "last"] = "fixed"
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] = "dashboard"
     query_disclosure_default: Literal["summary", "detailed"] = "detailed"
     query_default_mode: Literal["auto", "planner_only"] = "auto"
+    latest_query_details: bool = True
     analysis_auto_open_jobs: bool = True
     run_history_retention_days: Literal[0, 7, 30, 90, 180, 365] = 30
     pheno_default_metric: Literal["", "hamming", "jaccard"] = ""
@@ -52,6 +63,7 @@ class UserSettingsUpdateRequest(BaseModel):
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None
     query_disclosure_default: Literal["summary", "detailed"] | None = None
     query_default_mode: Literal["auto", "planner_only"] | None = None
+    latest_query_details: bool | None = None
     analysis_auto_open_jobs: bool | None = None
     run_history_retention_days: Literal[0, 7, 30, 90, 180, 365] | None = None
     pheno_default_metric: Literal["", "hamming", "jaccard"] | None = None
@@ -98,6 +110,7 @@ class AnalysisSessionRequest(BaseModel):
     workspace_fingerprint: Dict[str, Any] = Field(default_factory=dict, description="Workspace fingerprint snapshot captured when the session was first bound.")
     catalog_item_id: str = Field(default="", description="Selected Analysis Catalog item for this session, if any.")
     prompt_draft: str = Field(default="", description="Current draft prompt stored for the session.")
+    context_mode: Literal["workspace", "general"] = Field(default="workspace", description="Whether the saved composer is using workspace context or general knowledge.")
     scope: str = Field(default="", description="Comma-separated scope IDs for cohort A.")
     scope_metadata: Dict[str, Any] = Field(default_factory=dict, description="Saved-cohort-shaped metadata for Cohort A.")
     saved_cohort_id_a: str = Field(default="", description="Saved cohort ID currently assigned to cohort A, if any.")
@@ -224,6 +237,45 @@ class AuthPasswordResetResponse(BaseModel):
     message: str
 
 
+class LmProviderCreateRequest(BaseModel):
+    id: str = Field(default="", description="Stable provider ID used by persisted user settings.")
+    label: str = Field(default="", description="User-facing provider label.")
+    base_url: str = Field(default="", description="OpenAI-compatible API base URL, normally ending in /v1.")
+    model: str = Field(default="", description="Model ID. Leave empty to use the first model reported by the provider.")
+    api_key: str = Field(default="", description="Write-only API key. It is never returned by the API.", json_schema_extra={"writeOnly": True})
+    timeout_seconds: float = Field(default=30, description="Provider request timeout in seconds.")
+    enabled: bool = Field(default=True, description="Whether users may select and use this provider.")
+    data_boundary: Literal["local", "external"] = Field(default="external", description="Explicit deployment boundary used for private-data policy.")
+
+
+class LmProviderUpdateRequest(BaseModel):
+    label: str | None = Field(default=None, description="Updated user-facing provider label.")
+    base_url: str | None = Field(default=None, description="Updated OpenAI-compatible API base URL.")
+    model: str | None = Field(default=None, description="Updated model ID; an empty value enables model discovery.")
+    api_key: str | None = Field(default=None, description="Replacement write-only API key. Empty values retain the stored key.", json_schema_extra={"writeOnly": True})
+    timeout_seconds: float | None = Field(default=None, description="Updated provider request timeout in seconds.")
+    enabled: bool | None = Field(default=None, description="Whether users may select and use this provider.")
+    data_boundary: Literal["local", "external"] | None = Field(default=None, description="Updated deployment boundary.")
+
+
+class LmProviderResponse(FlexibleModel):
+    id: str
+    label: str
+    base_url: str
+    model: str | None = None
+    enabled: bool = True
+    data_boundary: Literal["local", "external"] = "external"
+    source: str = "configuration"
+    managed: bool = False
+    timeout_seconds: float = 30
+    api_key_configured: bool = False
+
+
+class LmProvidersResponse(BaseModel):
+    providers: List[LmProviderResponse] = Field(default_factory=list)
+    registry_error: str = ""
+
+
 class DatasetSelectionRequest(BaseModel):
     dataset_id: str = Field(default="", description="Single dataset ID for backward compatibility.")
     dataset_ids: List[str] = Field(default_factory=list, description="Dataset IDs that define the active workspace. An empty list unloads it.")
@@ -234,10 +286,11 @@ class DatasetRegistrationRequest(BaseModel):
     root_path: str = Field(default="", description="Dataset root directory containing clinical/ and assays/ subdirectories.")
     description: str = Field(default="", description="Optional dataset description shown in the UI.")
     visibility: str = Field(default="all_authenticated", description="Dataset visibility policy: all_authenticated, restricted, or admin_only.")
+    data_classification: str = Field(default="private", description="Data egress classification: public or private. Private data cannot be sent to external AI providers.")
     allowed_users: List[str] = Field(default_factory=list, description="Usernames with direct access when visibility is restricted.")
     allowed_groups: List[str] = Field(default_factory=list, description="Groups with access when visibility is restricted.")
     query_granularity_ceiling: str = Field(default="summary", description="Maximum Query thread mode allowed for this dataset: summary or detailed.")
-    ai_provider_access: str = Field(default="detailed_allowed", description="Maximum AI provider disclosure allowed for this dataset.")
+    ai_provider_access: str = Field(default="detailed_allowed", description="Maximum AI provider disclosure allowed after applying data classification and provider boundary.")
     enabled: bool = Field(default=True, description="Whether the dataset can be selected in the UI.")
 
 
@@ -246,10 +299,11 @@ class DatasetUpdateRequest(BaseModel):
     root_path: str | None = Field(default=None, description="Updated dataset root directory.")
     description: str | None = Field(default=None, description="Updated UI description.")
     visibility: str | None = Field(default=None, description="Updated visibility policy.")
+    data_classification: str | None = Field(default=None, description="Updated data egress classification: public or private.")
     allowed_users: List[str] | None = Field(default=None, description="Replacement direct-access username list.")
     allowed_groups: List[str] | None = Field(default=None, description="Replacement allowed-group list.")
     query_granularity_ceiling: str | None = Field(default=None, description="Updated maximum Query thread mode for this dataset.")
-    ai_provider_access: str | None = Field(default=None, description="Updated AI provider access mode for this dataset.")
+    ai_provider_access: str | None = Field(default=None, description="Updated maximum AI provider access mode.")
     enabled: bool | None = Field(default=None, description="Whether the dataset remains selectable.")
 
 
@@ -297,6 +351,7 @@ class DatasetRecordResponse(FlexibleModel):
     root_path: str = ""
     enabled: bool
     visibility: str
+    data_classification: str = "private"
     allowed_users: List[str] = Field(default_factory=list)
     allowed_groups: List[str] = Field(default_factory=list)
     query_granularity_ceiling: str = "summary"

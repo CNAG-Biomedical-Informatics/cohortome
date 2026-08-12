@@ -10,6 +10,12 @@ export function createAnalysisUi(ctx) {
     analysisSelectedPatientIdsEl,
     analysisCompareModeEl,
     analysisCompareSelectedPatientIdsEl,
+    analysisContextWorkspaceBtnEl,
+    analysisContextGeneralBtnEl,
+    analysisComposerEl,
+    analysisComposerTitleEl,
+    analysisRunBtnLabelEl,
+    analysisShellEl,
   } = refs;
   const { escapeHtml, renderQueryReply } = helpers;
   const {
@@ -23,9 +29,60 @@ export function createAnalysisUi(ctx) {
     renderAnalysisFlowBar,
     currentDatasetSelectionKey,
     assayDatasetOverlap,
+    renderAnalysisCatalogAssayPanel,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
+
+  function isGeneralQuestionMode() {
+    return state.analysisContextMode === "general";
+  }
+
+  function historyForContext(mode) {
+    return (Array.isArray(state.analysisHistory) ? state.analysisHistory : [])
+      .filter((turn) => mode === "general" ? turn.context_mode === "general" : turn.context_mode !== "general")
+      .slice(-6)
+      .map((turn) => ({ role: turn.role, content: turn.content }));
+  }
+
+  function renderAnalysisContextMode() {
+    const general = isGeneralQuestionMode();
+    [[analysisContextWorkspaceBtnEl, !general], [analysisContextGeneralBtnEl, general]].forEach(([button, active]) => {
+      if (!button) return;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (analysisShellEl) analysisShellEl.classList.toggle("analysis-general-mode", general);
+    if (analysisComposerEl) analysisComposerEl.classList.toggle("is-general-mode", general);
+    if (analysisComposerTitleEl) analysisComposerTitleEl.textContent = general ? "Ask Model" : "Run Analysis";
+    if (analysisRunBtnLabelEl) analysisRunBtnLabelEl.textContent = general ? "Ask" : "Run analysis";
+    if (analysisPromptEl) {
+      analysisPromptEl.placeholder = general
+        ? "Ask a general question without workspace context"
+        : "Describe the analysis to run against the current workspace";
+    }
+    if (general && analysisRunBtnEl && !state.analysisInFlight) {
+      analysisRunBtnEl.disabled = false;
+    }
+    if (!general && typeof renderAnalysisCatalogAssayPanel === "function") {
+      renderAnalysisCatalogAssayPanel();
+    }
+    if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
+  }
+
+  function setAnalysisContextMode(value) {
+    state.analysisContextMode = value === "general" ? "general" : "workspace";
+    if (isGeneralQuestionMode()) state.analysisExecutionMode = "auto";
+    renderAnalysisContextMode();
+    if (analysisStatusEl) {
+      analysisStatusEl.className = "analysis-workspace-status";
+      analysisStatusEl.textContent = isGeneralQuestionMode()
+        ? "General question selected. No workspace context will be sent."
+        : "Workspace analysis selected.";
+    }
+    syncCurrentAnalysisSessionFromUi({ render: true });
+    analysisPromptEl && analysisPromptEl.focus();
+  }
 
   function analysisWorkspaceKey() {
     const selected = typeof currentDatasetSelectionKey === "function" ? String(currentDatasetSelectionKey() || "").trim() : "";
@@ -1200,6 +1257,7 @@ export function createAnalysisUi(ctx) {
       analysis_survival_compare: { label: "Time-to-event comparison", title: "Deterministic Kaplan-Meier time-to-event comparison between two cohorts." },
       analysis_trajectory: { label: "Trajectory analysis", title: "Deterministic longitudinal trajectory analysis." },
       analysis_trajectory_compare: { label: "Trajectory comparison", title: "Deterministic trajectory comparison between two cohorts." },
+      general_llm: { label: "General LLM answer", title: "The selected model answered without receiving workspace, cohort, assay, or analysis context." },
       analysis_llm: { label: "LLM interpretation", title: "LM Studio narrative interpretation grounded in the provided analysis context." },
       analysis_compare_llm: { label: "LLM comparison", title: "LM Studio narrative comparison grounded in the provided cohort context." },
     };
@@ -1212,7 +1270,7 @@ export function createAnalysisUi(ctx) {
   function analysisIconSvg(kind) {
     const icons = {
       summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
-      disclosure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.5 7.8 8 9 4.5-1.2 8-4 8-9V7l-8-4Z"></path><path d="m9.5 12 1.8 1.8 3.2-3.6"></path></svg>',
+      response: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>',
       provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
       planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
       deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
@@ -1224,6 +1282,7 @@ export function createAnalysisUi(ctx) {
       plot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m7 16 4-5 3 3 5-7"></path></svg>',
       followup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="m5 12 7 7 7-7"></path></svg>',
       data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>',
+      no_context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3 1.1 0 2.1-.1 3-.3"></path><path d="m5 4 14 16"></path></svg>',
     };
     return icons[kind] || icons.summary;
   }
@@ -1238,7 +1297,8 @@ export function createAnalysisUi(ctx) {
   }
 
   function formatAnalysisAiProviderGranularity(value) {
-    return String(value || "").replace(/_/g, " ");
+    const label = String(value || "").replace(/_/g, " ");
+    return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : "";
   }
 
   function getAnalysisProvenanceChips(payload) {
@@ -1248,11 +1308,20 @@ export function createAnalysisUi(ctx) {
     const answeredByLmStudio = data.source === "llm";
     const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
     const chips = [renderAnalysisBadge(intentInfo.label, intentInfo.title, "summary")];
+    if (payload && payload.intent === "general_llm") {
+      chips.push(renderAnalysisBadge(
+        "No workspace context",
+        "Only this prompt and recent General-question turns were sent to the selected model. No workspace, cohort, assay, or analysis context was supplied.",
+        "no_context",
+      ));
+      if (data.model) chips.push(renderAnalysisBadge(data.model, "Model used for this general answer.", "llm"));
+      return chips;
+    }
     if (data.granularity_applied) {
       chips.push(renderAnalysisBadge(
-        `Disclosure: ${data.granularity_applied}`,
-        `Applied disclosure mode for this analysis: ${data.granularity_applied}.`,
-        "disclosure",
+        `Response detail: ${formatAnalysisAiProviderGranularity(data.granularity_applied)}`,
+        `Detail available in the COHORTome response: ${data.granularity_applied}. This is separate from the context sent to a model.`,
+        "response",
       ));
     }
     if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
@@ -1265,7 +1334,7 @@ export function createAnalysisUi(ctx) {
         title = `AI providers may receive up to detailed context and currently receive ${formatAnalysisAiProviderGranularity(data.ai_provider_context_granularity)} context for this analysis.`;
       }
       chips.push(renderAnalysisBadge(
-        `AI providers: ${formatAnalysisAiProviderGranularity(data.ai_provider_context_granularity)}`,
+        `Model context: ${formatAnalysisAiProviderGranularity(data.ai_provider_context_granularity)}`,
         title,
         "provider",
       ));
@@ -1371,9 +1440,11 @@ export function createAnalysisUi(ctx) {
   }
 
   function renderAnalysisBlockedTurn(prompt, currentScope, compareScope, message) {
-    state.analysisTurns.push({ role: "user", prompt, scope: currentScope || "", compareScope: compareScope || "" });
+    const contextMode = isGeneralQuestionMode() ? "general" : "workspace";
+    state.analysisTurns.push({ role: "user", prompt, scope: currentScope || "", compareScope: compareScope || "", contextMode });
     state.analysisTurns.push({
       role: "assistant",
+      contextMode,
       payload: {
         intent: "analysis_error",
         reply: message,
@@ -1494,11 +1565,14 @@ export function createAnalysisUi(ctx) {
     })();
     analysisThreadEl.innerHTML = state.analysisTurns.map((turn, turnIndex) => {
       if (turn.role === "user") {
+        if (turn.contextMode === "general") {
+          return `<article class="analysis-turn analysis-turn-user" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt)}</p></div></article>`;
+        }
         const compareHtml = turn.compareScope ? `<div class="analysis-turn-scope"><strong>Cohort B:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.compareScope || ""))}</div>` : "";
         return `<article class="analysis-turn analysis-turn-user" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt)}</p><div class="analysis-turn-scope"><strong>${turn.compareScope ? "Cohort A" : "Scope"}:</strong> ${escapeHtml(formatAnalysisScopeLabel(turn.scope || ""))}</div>${compareHtml}</div></article>`;
       }
       if (turn.pending) {
-        return `<article class="analysis-turn analysis-turn-pending" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">Analysis</div><div class="analysis-turn-meta"><span class="query-chip badge">pending</span><span class="query-chip badge">${escapeHtml(turn.pendingLabel || "Preparing response")}</span></div><div class="analysis-turn-body"><div class="analysis-pending-row"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>${escapeHtml(turn.pendingDetail || "Building cohort context and waiting for the model reply.")}</span></div></div></article>`;
+        return `<article class="analysis-turn analysis-turn-pending" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turn.contextMode === "general" ? "Model" : "Analysis"}</div><div class="analysis-turn-meta"><span class="query-chip badge">pending</span><span class="query-chip badge">${escapeHtml(turn.pendingLabel || "Preparing response")}</span></div><div class="analysis-turn-body"><div class="analysis-pending-row"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>${escapeHtml(turn.pendingDetail || "Building cohort context and waiting for the model reply.")}</span></div></div></article>`;
       }
       const context = turn.payload && turn.payload.data ? turn.payload.data.context : null;
       const notable = context && Array.isArray(context.notable_findings) ? context.notable_findings : [];
@@ -1518,7 +1592,8 @@ export function createAnalysisUi(ctx) {
         || String(turn.payload && turn.payload.data && turn.payload.data.source ? turn.payload.data.source : "").trim() === "error";
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
-      const turnLabel = isErrorTurn ? "Analysis Error" : "Analysis";
+      const generalAnswer = turn.contextMode === "general" || String(turn.payload && turn.payload.intent ? turn.payload.intent : "") === "general_llm";
+      const turnLabel = isErrorTurn ? (generalAnswer ? "Model Error" : "Analysis Error") : (generalAnswer ? "Model" : "Analysis");
       const contextHtml = contextParts.length
         ? `<div class="analysis-turn-context"><p>${escapeHtml(contextParts.join(" | "))}</p></div>`
         : "";
@@ -1528,7 +1603,7 @@ export function createAnalysisUi(ctx) {
       const followupHtml = followUpsHtml
         ? `<div class="analysis-result-followups">${followUpsHtml}</div>`
         : "";
-      const dataHtml = `<details class="query-section analysis-result-data"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>Show analysis data</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details>`;
+      const dataHtml = `<details class="query-section analysis-result-data"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${generalAnswer ? "Show response data" : "Show analysis data"}</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details>`;
       const resultHtml = `<div class="analysis-result-content"><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${visualHtml}${contextHtml}${followupHtml}${dataHtml}</div>`;
       const intentInfo = analysisIntentPresentation(turn.payload && turn.payload.intent ? turn.payload.intent : "analysis");
       const summaryText = contextParts.length ? contextParts.slice(0, 2).join(" | ") : String(turn.payload && turn.payload.reply ? turn.payload.reply : "").replace(/\s+/g, " ").slice(0, 140);
@@ -1555,6 +1630,7 @@ export function createAnalysisUi(ctx) {
   async function runAnalysis() {
     if (state.analysisInFlight) return;
     const prompt = analysisPromptEl.value.trim();
+    const generalQuestion = isGeneralQuestionMode();
     if (!prompt) {
       setAnalysisBlockedStatus("Enter an analysis prompt first.");
       return;
@@ -1566,24 +1642,26 @@ export function createAnalysisUi(ctx) {
     const llmOnly = state.analysisExecutionMode === "llm_only";
     const plannerOnly = state.analysisExecutionMode === "planner_only";
     const deterministicOnly = state.analysisExecutionMode === "deterministic";
-    const showPlots = analysisPromptRequestsPlots(prompt);
+    const showPlots = generalQuestion ? false : analysisPromptRequestsPlots(prompt);
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
     const selectedAssayDatasets = Array.isArray(state.selectedAssayDatasets) ? state.selectedAssayDatasets : [];
-    if ((llmOnly || plannerOnly) && (!state.lmStatus || state.lmStatus.available !== true)) {
+    if ((generalQuestion || llmOnly || plannerOnly) && (!state.lmStatus || state.lmStatus.available !== true)) {
       const message = plannerOnly
         ? "LLM planner unavailable. Start an LLM model or choose a deterministic analysis."
-        : "LLM unavailable. Start an LLM model or choose a deterministic analysis.";
+        : generalQuestion
+          ? "General questions require an available model provider."
+          : "LLM unavailable. Start an LLM model or choose a deterministic analysis.";
       setAnalysisBlockedStatus(message);
-      renderAnalysisBlockedTurn(prompt, currentScope, compareScope, message);
+      renderAnalysisBlockedTurn(prompt, generalQuestion ? "" : currentScope, generalQuestion ? "" : compareScope, message);
       return;
     }
-    if (compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
+    if (!generalQuestion && compareMode && (!state.analysisSelectedSavedCohortId || !state.analysisCompareSavedCohortId)) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "Analysis cohort comparison requires saved Cohort A and Cohort B.";
       state.analysisExecutionMode = "auto";
       return;
     }
-    if (compareMode) {
+    if (!generalQuestion && compareMode) {
       const overlappingIds = overlappingAnalysisScopeIds(currentScopeIds, compareScopeIds);
       if (overlappingIds.length) {
         const preview = overlappingIds.slice(0, 6).join(", ");
@@ -1594,7 +1672,7 @@ export function createAnalysisUi(ctx) {
         return;
       }
     }
-    if (requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length !== 1) {
+    if (!generalQuestion && requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length !== 1) {
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = selectedAssayDatasets.length
         ? "This assay tool requires exactly one selected assay."
@@ -1602,7 +1680,7 @@ export function createAnalysisUi(ctx) {
       state.analysisExecutionMode = "auto";
       return;
     }
-    if (compareMode && requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length === 1 && typeof assayDatasetOverlap === "function") {
+    if (!generalQuestion && compareMode && requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length === 1 && typeof assayDatasetOverlap === "function") {
       const overlap = assayDatasetOverlap(selectedAssayDatasets[0]);
       if (overlap && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
         analysisStatusEl.className = "query-status";
@@ -1612,39 +1690,50 @@ export function createAnalysisUi(ctx) {
       }
     }
     const workspaceRevision = state.workspaceRevision;
+    const requestIsStale = () => !generalQuestion && workspaceRevision !== state.workspaceRevision;
     state.analysisInFlight = true;
     analysisRunBtnEl.disabled = true;
     if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
     analysisStatusEl.className = "query-status";
-    analysisStatusEl.textContent = "Running analysis...";
-    setAnalysisComposerStatus("Running analysis. Results will appear below.");
+    analysisStatusEl.textContent = generalQuestion ? "Waiting for the model..." : "Running analysis...";
+    setAnalysisComposerStatus(generalQuestion ? "Waiting for a general answer." : "Running analysis. Results will appear below.");
     if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     state.analysisExamplesPinnedOpen = false;
-    state.analysisTurns.push({ role: "user", prompt, scope: currentScope, compareScope });
-    state.analysisTurns.push({ role: "assistant", pending: true, pendingLabel: "Preparing response", pendingDetail: "Building cohort context and waiting for the model reply." });
+    state.analysisTurns.push({ role: "user", prompt, scope: generalQuestion ? "" : currentScope, compareScope: generalQuestion ? "" : compareScope, contextMode: generalQuestion ? "general" : "workspace" });
+    state.analysisTurns.push({
+      role: "assistant",
+      pending: true,
+      contextMode: generalQuestion ? "general" : "workspace",
+      pendingLabel: generalQuestion ? "Asking model" : "Preparing response",
+      pendingDetail: generalQuestion
+        ? "Waiting for a general answer without workspace context."
+        : "Building cohort context and waiting for the model reply.",
+    });
     renderAnalysisThread();
     scrollAnalysisTurnIntoView(state.analysisTurns.length - 1);
     syncCurrentAnalysisSessionFromUi({ render: true });
-    startAnalysisProgressUpdates(compareMode, showPlots);
+    startAnalysisProgressUpdates(generalQuestion ? false : compareMode, showPlots);
     try {
-      const response = await fetch("/analysis", {
+      const response = await fetch(generalQuestion ? "/llm/general" : "/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          catalog_item_id: state.analysisSelectedCatalogItemId || "",
-          analysis_session_id: state.currentAnalysisSessionId || "",
-          assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
-          dataset_id: analysisWorkspaceKey(),
-          selected_patient_ids: currentScope,
-          scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},
-          compare_mode: compareMode,
-          compare_selected_patient_ids: compareScope,
-          compare_scope_metadata: state.analysisCompareScopeMetadata && typeof state.analysisCompareScopeMetadata === "object" ? state.analysisCompareScopeMetadata : {},
-          llm_only: llmOnly,
-          deterministic_only: deterministicOnly,
-          history: state.analysisHistory.slice(-6),
-        }),
+        body: JSON.stringify(generalQuestion
+          ? { prompt, history: historyForContext("general") }
+          : {
+            prompt,
+            catalog_item_id: state.analysisSelectedCatalogItemId || "",
+            analysis_session_id: state.currentAnalysisSessionId || "",
+            assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
+            dataset_id: analysisWorkspaceKey(),
+            selected_patient_ids: currentScope,
+            scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},
+            compare_mode: compareMode,
+            compare_selected_patient_ids: compareScope,
+            compare_scope_metadata: state.analysisCompareScopeMetadata && typeof state.analysisCompareScopeMetadata === "object" ? state.analysisCompareScopeMetadata : {},
+            llm_only: llmOnly,
+            deterministic_only: deterministicOnly,
+            history: historyForContext("workspace"),
+          }),
       });
       if (!response.ok) {
         let message = "Analysis failed.";
@@ -1655,36 +1744,40 @@ export function createAnalysisUi(ctx) {
         } catch (_error) {
           message = raw || message;
         }
-        if (workspaceRevision !== state.workspaceRevision) return;
+        if (requestIsStale()) return;
         throw new Error(message);
       }
       const payload = await response.json();
-      if (workspaceRevision !== state.workspaceRevision) return;
+      if (requestIsStale()) return;
       const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
       stopAnalysisProgressUpdates();
       renderAnalysisMeta(payload);
-      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots };
+      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots, contextMode: generalQuestion ? "general" : "workspace" };
       renderAnalysisThread();
       if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       syncCurrentAnalysisSessionFromUi({ render: true });
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = payload && payload.data && payload.data.execution === "queued"
+      analysisStatusEl.textContent = generalQuestion
+        ? "Answer complete."
+        : payload && payload.data && payload.data.execution === "queued"
         ? "Analysis job submitted."
         : "Analysis complete.";
       setAnalysisComposerStatus(analysisStatusEl.textContent);
       scrollAnalysisTurnIntoView(state.analysisTurns.length - 1);
-      state.analysisHistory.push({ role: "user", content: prompt });
-      state.analysisHistory.push({ role: "assistant", content: payload.reply || "" });
-      state.analysisHistory = state.analysisHistory.slice(-8);
+      const contextMode = generalQuestion ? "general" : "workspace";
+      state.analysisHistory.push({ role: "user", content: prompt, context_mode: contextMode });
+      state.analysisHistory.push({ role: "assistant", content: payload.reply || "", context_mode: contextMode });
+      state.analysisHistory = state.analysisHistory.slice(-16);
       state.analysisExecutionMode = "auto";
       syncCurrentAnalysisSessionFromUi({ render: true });
       if (payload && payload.data && payload.data.execution === "queued" && typeof handleAnalysisJobSubmission === "function") {
         handleAnalysisJobSubmission(payload);
       }
     } catch (error) {
-      if (workspaceRevision !== state.workspaceRevision) return;
+      if (requestIsStale()) return;
       state.analysisTurns[state.analysisTurns.length - 1] = {
         role: "assistant",
+        contextMode: generalQuestion ? "general" : "workspace",
         payload: {
           intent: "analysis_error",
           reply: error && error.message ? error.message : "Analysis failed.",
@@ -1714,6 +1807,8 @@ export function createAnalysisUi(ctx) {
     analysisPromptRequestsPlots,
     analysisPayloadHasPlots,
     renderAnalysisThread,
+    renderAnalysisContextMode,
+    setContextMode: setAnalysisContextMode,
     scrollAnalysisTurnIntoView,
     handleAnalysisPlotViewClick(event) {
       const button = event.target.closest("[data-de-view-btn]");

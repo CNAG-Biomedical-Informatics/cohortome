@@ -3,7 +3,6 @@ export function createQueryUi(ctx) {
   const {
     queryReplyEl,
     queryStatusEl,
-    queryMetaEl,
     queryReasonEl,
     queryActionsEl,
     queryFollowupsEl,
@@ -20,6 +19,10 @@ export function createQueryUi(ctx) {
     queryComposerExamplesBtnEl,
     queryDiseaseTopChipsEl,
     queryDiseaseStatusEl,
+    queryContextWorkspaceBtnEl,
+    queryContextGeneralBtnEl,
+    queryComposerTitleEl,
+    queryThreadModeLabelEl,
   } = refs;
   const { escapeHtml, renderActivityCard, fallbackCopyText } = helpers;
   const {
@@ -38,7 +41,53 @@ export function createQueryUi(ctx) {
     setLatestScopedContext,
   } = callbacks;
   let diseaseOptions = [];
-  let queryPromptLibraryOpen = false;
+  let queryPromptLibraryOpen = true;
+
+  function isGeneralQuestionMode() {
+    return state.queryContextMode === "general";
+  }
+
+  function historyForContext(mode) {
+    return (Array.isArray(state.queryHistory) ? state.queryHistory : [])
+      .filter((turn) => mode === "general" ? turn.context_mode === "general" : turn.context_mode !== "general")
+      .slice(-6)
+      .map((turn) => ({ role: turn.role, content: turn.content }));
+  }
+
+  function renderQueryContextMode() {
+    const general = isGeneralQuestionMode();
+    [[queryContextWorkspaceBtnEl, !general], [queryContextGeneralBtnEl, general]].forEach(([button, active]) => {
+      if (!button) return;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (queryTabEl) queryTabEl.classList.toggle("query-tab-general-mode", general);
+    if (queryComposerTitleEl) queryComposerTitleEl.textContent = general ? "Ask Model" : "Continue Query";
+    if (queryThreadModeLabelEl) queryThreadModeLabelEl.textContent = general ? "General question" : "Workspace mode";
+    if (questionEl) {
+      questionEl.placeholder = general
+        ? "Ask a general question without workspace context"
+        : "Ask about the active workspace";
+    }
+    renderQueryStarterPrompts();
+    renderQueryExecutionMode();
+  }
+
+  function setQueryContextMode(value) {
+    state.queryContextMode = value === "general" ? "general" : "workspace";
+    if (isGeneralQuestionMode()) {
+      state.queryExecutionMode = "auto";
+      state.queryFollowMemoryEnabled = false;
+      if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.add("is-hidden");
+      if (refs.queryDiseaseBuilderBtnEl) refs.queryDiseaseBuilderBtnEl.classList.remove("is-active");
+    }
+    renderQueryContextMode();
+    if (queryStatusEl) {
+      queryStatusEl.className = "query-status is-hidden";
+      queryStatusEl.textContent = "";
+    }
+    questionEl && questionEl.focus();
+  }
 
   function hasQueryTurns() {
     return Array.isArray(state.queryTurns) && state.queryTurns.length > 0;
@@ -49,23 +98,23 @@ export function createQueryUi(ctx) {
       return;
     }
     const hasTurns = hasQueryTurns();
-    const targetHost = hasTurns ? queryStarterHostEl : queryStarterTopHostEl;
+    const targetHost = queryStarterTopHostEl;
     if (targetHost && queryStarterPanelEl.parentElement !== targetHost) {
       targetHost.appendChild(queryStarterPanelEl);
     }
 
-    const visible = !hasTurns || queryPromptLibraryOpen;
+    const visible = !isGeneralQuestionMode() && (!hasTurns || queryPromptLibraryOpen);
     queryStarterPanelEl.hidden = !visible;
     queryStarterPanelEl.classList.toggle("is-hidden", !visible);
-    queryStarterPanelEl.classList.toggle("query-starter-panel-compact", hasTurns);
+    queryStarterPanelEl.classList.remove("query-starter-panel-compact");
 
     if (queryStarterHostEl) {
-      queryStarterHostEl.hidden = !hasTurns || !queryPromptLibraryOpen;
-      queryStarterHostEl.classList.toggle("is-hidden", !hasTurns || !queryPromptLibraryOpen);
+      queryStarterHostEl.hidden = true;
+      queryStarterHostEl.classList.add("is-hidden");
     }
 
     if (queryComposerExamplesBtnEl) {
-      queryComposerExamplesBtnEl.hidden = !hasTurns;
+      queryComposerExamplesBtnEl.hidden = !hasTurns || isGeneralQuestionMode();
       queryComposerExamplesBtnEl.classList.toggle("is-active", hasTurns && queryPromptLibraryOpen);
       queryComposerExamplesBtnEl.setAttribute("aria-expanded", hasTurns && queryPromptLibraryOpen ? "true" : "false");
       const labelEl = queryComposerExamplesBtnEl.querySelector("span:last-child");
@@ -127,11 +176,13 @@ export function createQueryUi(ctx) {
   function preloadDiseaseCohort(disease) {
     const normalized = String(disease || "").trim();
     if (!normalized) return;
+    state.queryContextMode = "workspace";
     questionEl.value = normalized === "Healthy Control"
       ? "Which subjects are Healthy Controls?"
       : `Which patients have ${disease}?`;
     state.queryExecutionMode = "auto";
     renderQueryExecutionMode();
+    renderQueryContextMode();
     renderTopDiseaseChips();
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = `Prompt prepared for disease workspace ${normalized}. Press Ask to run.`;
     questionEl.focus();
@@ -345,6 +396,7 @@ export function createQueryUi(ctx) {
       patient_started_after_cohort: { label: "Started-after query", title: "Deterministic temporal query over patients who started one term after another." },
       patient_temporal_order_cohort: { label: "Temporal order query", title: "Deterministic temporal query over the order of events in patient timelines." },
       patient_inventory: { label: "Patient inventory", title: "Deterministic listing of patients in the current cohort." },
+      general_llm: { label: "General LLM answer", title: "The selected model answered without receiving workspace or dataset context." },
       llm_fallback: { label: "LLM fallback answer", title: "LM Studio answered directly from the provided context because no deterministic route or semantic plan was used." },
       llm_unavailable: { label: "LLM unavailable", title: "LM Studio fallback is enabled, but no loaded model was available." },
       llm_error: { label: "LLM error", title: "LM Studio fallback was attempted but did not return a usable answer." },
@@ -360,13 +412,14 @@ export function createQueryUi(ctx) {
   function queryIconSvg(kind) {
     const icons = {
       summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
-      disclosure: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v5c0 5 3.5 7.8 8 9 4.5-1.2 8-4 8-9V7l-8-4Z"></path><path d="m9.5 12 1.8 1.8 3.2-3.6"></path></svg>',
+      response: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>',
       provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
       planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
       deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
       llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
       blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
       unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+      no_context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3 1.1 0 2.1-.1 3-.3"></path><path d="m5 4 14 16"></path></svg>',
     };
     return icons[kind] || icons.summary;
   }
@@ -381,7 +434,8 @@ export function createQueryUi(ctx) {
   }
 
   function formatAiProviderGranularity(value) {
-    return String(value || "").replace(/_/g, " ");
+    const label = String(value || "").replace(/_/g, " ");
+    return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : "";
   }
 
   function getQueryProvenanceChips(payload) {
@@ -391,6 +445,15 @@ export function createQueryUi(ctx) {
     const answeredByLmStudio = data.provider === "lm_studio";
     const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
     const chips = [renderQueryBadge(intentInfo.label, intentInfo.title, "summary")];
+    if (payload && payload.intent === "general_llm") {
+      chips.push(renderQueryBadge(
+        "No workspace context",
+        "Only this prompt and recent General-question turns were sent to the selected model. No workspace or dataset context was supplied.",
+        "no_context",
+      ));
+      if (data.model) chips.push(renderQueryBadge(data.model, "Model used for this general answer.", "llm"));
+      return chips;
+    }
     const datasetNames = Array.isArray(data.dataset_names)
       ? data.dataset_names.map((item) => String(item || "").trim()).filter(Boolean)
       : String(data.dataset_name || "").trim()
@@ -408,9 +471,9 @@ export function createQueryUi(ctx) {
         ? ` Requested: ${data.granularity_requested}.`
         : "";
       chips.push(renderQueryBadge(
-        `Disclosure: ${data.granularity_applied}`,
-        `Applied disclosure mode for this answer: ${data.granularity_applied}.${requested}`.trim(),
-        "disclosure",
+        `Response detail: ${formatAiProviderGranularity(data.granularity_applied)}`,
+        `Detail available in the COHORTome response: ${data.granularity_applied}. This is separate from the context sent to a model.${requested}`.trim(),
+        "response",
       ));
     }
     if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
@@ -423,7 +486,7 @@ export function createQueryUi(ctx) {
         title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context.`;
       }
       chips.push(renderQueryBadge(
-        `AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`,
+        `Model context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`,
         title,
         "provider",
       ));
@@ -460,6 +523,9 @@ export function createQueryUi(ctx) {
 
   function describeQueryProvenance(payload) {
     const data = payload && payload.data ? payload.data : {};
+    if (payload && payload.intent === "general_llm") {
+      return "The selected model answered from general knowledge. No workspace or dataset context was supplied.";
+    }
     if (data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio") {
       const model = data.planner.model ? ` using ${data.planner.model}` : "";
       const providerContext = data.ai_provider_context_granularity
@@ -479,21 +545,27 @@ export function createQueryUi(ctx) {
   function resetQueryWorkspace() {
     state.queryHistory = [];
     state.queryTurns = [];
-    queryPromptLibraryOpen = false;
+    queryPromptLibraryOpen = true;
+    state.queryContextMode = "workspace";
     state.queryExecutionMode = defaultQueryExecutionMode();
     state.queryFollowMemoryEnabled = false;
+    if (questionEl) questionEl.value = "";
     renderTopDiseaseChips();
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
     setLatestQueryState({ ids: [], prompt: "", analysisPrompt: "", idType: "patient" });
     setLatestScopedContext({ patientIds: [], recordIds: [], idType: "patient", sourceTab: "", prompt: "" });
-    queryMetaEl.innerHTML = "";
     queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
     queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
     if (queryActionsEl) queryActionsEl.innerHTML = "";
     queryFollowupsEl.innerHTML = "";
     queryDataEl.textContent = "";
     queryDetailsEl.open = false;
+    if (queryStatusEl) {
+      queryStatusEl.className = "query-status is-hidden";
+      queryStatusEl.textContent = "";
+    }
     renderQueryExecutionMode();
+    renderQueryContextMode();
     renderQueryStarterPrompts();
     renderQueryThread();
   }
@@ -503,7 +575,9 @@ export function createQueryUi(ctx) {
     if (!queryThreadEl) return;
     if (queryTabEl) queryTabEl.classList.toggle("query-tab-empty", !state.queryTurns.length);
     if (!state.queryTurns.length) {
-      queryThreadEl.innerHTML = '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
+      queryThreadEl.innerHTML = isGeneralQuestionMode()
+        ? '<div class="empty">Ask a general question. The model will not receive workspace context.</div>'
+        : '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
       return;
     }
     const latestAssistantIndex = (() => {
@@ -521,13 +595,16 @@ export function createQueryUi(ctx) {
       const payload = turn.payload || {};
       const data = payload.data || {};
       const toneClass = turn.pending ? "query-thread-turn-pending" : data.source === "error" ? "query-thread-turn-error" : "query-thread-turn-assistant";
+      const sourcePrompt = index > 0 && state.queryTurns[index - 1].role === "user"
+        ? state.queryTurns[index - 1].prompt || ""
+        : "";
       return `
         <article class="analysis-turn query-thread-turn ${toneClass}" data-query-turn-index="${index}">
           <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
           ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
             ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}
-            ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload) : ""}
+            ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
             ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(payload.data && payload.data.follow_up_suggestions) : ""}
           </div>
         </article>
@@ -545,10 +622,6 @@ export function createQueryUi(ctx) {
     window.requestAnimationFrame(() => {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  }
-
-  function renderQueryMeta(payload) {
-    queryMetaEl.innerHTML = getQueryProvenanceChips(payload).join("");
   }
 
   function renderQueryReason(payload) {
@@ -595,7 +668,9 @@ export function createQueryUi(ctx) {
     };
   }
 
-  function queryActionsMarkup(payload) {
+  function queryActionsMarkup(payload, sourcePrompt = "") {
+    if (payload && payload.intent === "general_llm") return "";
+    const submittedPrompt = String(sourcePrompt || "").trim();
     const actionContext = queryActionContext(payload);
     const patientIds = actionContext.patientIds;
     const recordIds = actionContext.recordIds;
@@ -605,7 +680,7 @@ export function createQueryUi(ctx) {
     setLatestQueryState({
       ids: patientIds,
       recordIds,
-      prompt: questionEl.value.trim(),
+      prompt: submittedPrompt,
       analysisPrompt: actionContext.analysisPrompt,
       idType: actionContext.idType,
     });
@@ -615,7 +690,7 @@ export function createQueryUi(ctx) {
         recordIds,
         idType: actionContext.idType,
         sourceTab: "query",
-        prompt: questionEl.value.trim(),
+        prompt: submittedPrompt,
       });
       renderQueryExecutionMode();
     }
@@ -643,8 +718,8 @@ export function createQueryUi(ctx) {
     `;
   }
 
-  function renderQueryActions(payload) {
-    if (queryActionsEl) queryActionsEl.innerHTML = queryActionsMarkup(payload);
+  function renderQueryActions(payload, sourcePrompt = "") {
+    if (queryActionsEl) queryActionsEl.innerHTML = queryActionsMarkup(payload, sourcePrompt);
   }
 
   function flashQueryActionFeedback(button, label) {
@@ -691,71 +766,84 @@ export function createQueryUi(ctx) {
     const question = questionEl.value.trim();
     const queryMode = state.queryExecutionMode;
     const granularityMode = state.queryGranularityMode;
+    const generalQuestion = isGeneralQuestionMode();
     if (!question) {
+      queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Enter a question first.";
       return;
     }
     const queryDatasetId = refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId
       ? String(refs.dataDirEl.dataset.scopeId).trim()
       : String(refs.dataDirEl.value || "").trim();
-    if (!queryDatasetId) {
+    if (!generalQuestion && !queryDatasetId) {
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Select and apply a dataset before running Query.";
       return;
     }
-    if (queryMode === "planner_only" && (!state.lmStatus || state.lmStatus.available !== true)) {
+    if ((generalQuestion || queryMode === "planner_only") && (!state.lmStatus || state.lmStatus.available !== true)) {
       queryStatusEl.className = "query-status";
-      queryStatusEl.textContent = "LLM planner unavailable. Start an LLM model or switch Query mode back to Auto.";
+      queryStatusEl.textContent = generalQuestion
+        ? "General questions require an available model provider."
+        : "LLM planner unavailable. Start an LLM model or switch Query mode back to Auto.";
       renderQueryExecutionMode();
       return;
     }
     const workspaceRevision = state.workspaceRevision;
+    const requestIsStale = () => !generalQuestion && workspaceRevision !== state.workspaceRevision;
     state.queryInFlight = true;
     askBtnEl.disabled = true;
     queryStatusEl.className = "query-status loading";
-    queryStatusEl.textContent = "Running query. Waiting for response...";
-    queryReplyEl.innerHTML = "<p><strong>Running query...</strong><br>Please wait.</p>";
+    queryStatusEl.textContent = generalQuestion ? "Waiting for the model..." : "Running query. Waiting for response...";
+    queryReplyEl.innerHTML = generalQuestion
+      ? "<p><strong>Asking the model...</strong><br>Please wait.</p>"
+      : "<p><strong>Running query...</strong><br>Please wait.</p>";
     queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
-    queryMetaEl.innerHTML = "";
     if (queryActionsEl) queryActionsEl.innerHTML = "";
     queryFollowupsEl.innerHTML = "";
-    state.queryTurns.push({ role: "user", prompt: question });
+    state.queryTurns.push({ role: "user", prompt: question, contextMode: generalQuestion ? "general" : "workspace" });
     state.queryTurns.push({
       role: "assistant",
       pending: true,
-      pendingLabel: "Parsing request",
-      pendingDetail: "Interpreting the cohort question and selecting the right query path.",
+      contextMode: generalQuestion ? "general" : "workspace",
+      pendingLabel: generalQuestion ? "Asking model" : "Parsing request",
+      pendingDetail: generalQuestion
+        ? "Waiting for a general answer without workspace context."
+        : "Interpreting the cohort question and selecting the right query path.",
       payload: { reply: "Running query..." },
     });
+    questionEl.value = "";
+    renderTopDiseaseChips();
     renderQueryThread();
     scrollQueryTurnIntoView(state.queryTurns.length - 1);
     startQueryProgressUpdates();
     await nextFrame();
-    if (workspaceRevision !== state.workspaceRevision) return;
+    if (requestIsStale()) return;
     try {
-      const response = await fetch("/query", {
+      const response = await fetch(generalQuestion ? "/llm/general" : "/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          q: question,
-          dataset_id: queryDatasetId,
-          query_mode: queryMode,
-          granularity_mode: granularityMode,
-          history: state.queryHistory.slice(-6),
-          scoped_patient_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
-            ? state.latestScopedContext.patientIds
-            : [],
-          scoped_record_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.recordIds)
-            ? state.latestScopedContext.recordIds
-            : [],
-          scoped_id_type: state.queryFollowMemoryEnabled && state.latestScopedContext && state.latestScopedContext.idType
-            ? state.latestScopedContext.idType
-            : "patient",
-        }),
+        body: JSON.stringify(generalQuestion
+          ? { prompt: question, history: historyForContext("general") }
+          : {
+            q: question,
+            dataset_id: queryDatasetId,
+            query_mode: queryMode,
+            granularity_mode: granularityMode,
+            history: historyForContext("workspace"),
+            scoped_patient_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
+              ? state.latestScopedContext.patientIds
+              : [],
+            scoped_record_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.recordIds)
+              ? state.latestScopedContext.recordIds
+              : [],
+            scoped_id_type: state.queryFollowMemoryEnabled && state.latestScopedContext && state.latestScopedContext.idType
+              ? state.latestScopedContext.idType
+              : "patient",
+          }),
       });
       if (!response.ok) {
         const error = await response.json();
-        if (workspaceRevision !== state.workspaceRevision) return;
+        if (requestIsStale()) return;
         queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
         queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
         queryDataEl.textContent = "";
@@ -772,27 +860,27 @@ export function createQueryUi(ctx) {
         return;
       }
       const payload = await response.json();
-      if (workspaceRevision !== state.workspaceRevision) return;
+      if (requestIsStale()) return;
       stopQueryProgressUpdates();
-      state.queryTurns[state.queryTurns.length - 1] = { role: "assistant", payload };
+      state.queryTurns[state.queryTurns.length - 1] = { role: "assistant", payload, contextMode: generalQuestion ? "general" : "workspace" };
       renderQueryThread();
       scrollQueryTurnIntoView(state.queryTurns.length - 1);
       queryReplyEl.innerHTML = renderQueryReply(payload);
-      renderQueryMeta(payload);
       renderQueryReason(payload);
-      renderQueryActions(payload);
+      renderQueryActions(payload, question);
       renderFollowupButtons(payload.data && payload.data.follow_up_suggestions);
       queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
       queryDetailsEl.open = false;
-      state.queryHistory.push({ role: "user", content: question });
-      state.queryHistory.push({ role: "assistant", content: payload.reply || "" });
-      state.queryHistory = state.queryHistory.slice(-8);
+      const contextMode = generalQuestion ? "general" : "workspace";
+      state.queryHistory.push({ role: "user", content: question, context_mode: contextMode });
+      state.queryHistory.push({ role: "assistant", content: payload.reply || "", context_mode: contextMode });
+      state.queryHistory = state.queryHistory.slice(-16);
       state.queryExecutionMode = defaultQueryExecutionMode();
       renderQueryExecutionMode();
-      queryStatusEl.className = "query-status";
-      queryStatusEl.textContent = "Done.";
+      queryStatusEl.className = "query-status is-hidden";
+      queryStatusEl.textContent = "";
     } catch (error) {
-      if (workspaceRevision !== state.workspaceRevision) return;
+      if (requestIsStale()) return;
       stopQueryProgressUpdates();
       queryReplyEl.innerHTML = `<p>${escapeHtml(error && error.message ? error.message : "Request failed.")}</p>`;
       queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";
@@ -802,6 +890,7 @@ export function createQueryUi(ctx) {
       setLatestQueryState({ ids: [] });
       state.queryTurns[state.queryTurns.length - 1] = {
         role: "assistant",
+        contextMode: generalQuestion ? "general" : "workspace",
         payload: { intent: "query_error", reply: error && error.message ? error.message : "Request failed.", data: { source: "error", provider: "deterministic" } },
       };
       renderQueryThread();
@@ -814,6 +903,7 @@ export function createQueryUi(ctx) {
       stopQueryProgressUpdates();
       state.queryInFlight = false;
       askBtnEl.disabled = false;
+      questionEl.focus();
     }
   }
 
@@ -901,7 +991,6 @@ export function createQueryUi(ctx) {
 
   return {
     renderQueryReply,
-    renderQueryMeta,
     renderQueryReason,
     renderQueryActions,
     renderQueryExecutionMode,
@@ -914,11 +1003,13 @@ export function createQueryUi(ctx) {
     handleQueryExamplesClick,
     handleQueryFollowupsClick,
     handleDocumentClick,
+    renderQueryContextMode,
     togglePromptLibrary() {
       setQueryPromptLibraryOpen(!queryPromptLibraryOpen, { scroll: true });
     },
     setExecutionMode(value) {
       state.queryExecutionMode = value;
     },
+    setContextMode: setQueryContextMode,
   };
 }

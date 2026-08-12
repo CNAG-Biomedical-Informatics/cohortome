@@ -30,18 +30,47 @@ The current supported protocol is OpenAI-compatible chat completions. This fits
 local deployments such as LM Studio while leaving room for institutional model
 gateways later.
 
-## Configuration
+## Configure a provider in the app
 
-The environment-level default still works:
+Open `Admin > Models` to:
+
+- add an OpenAI-compatible endpoint
+- edit its label, URL, model, timeout, and data boundary
+- enable or disable it
+- replace its API key
+- test whether its models endpoint is reachable
+- delete providers created in the app
+
+Provider IDs are stable because user Settings store the selected ID. They
+cannot be renamed after creation; create a replacement provider when an ID must
+change.
+
+API keys are write-only in the UI and API. Leaving the replacement field blank
+keeps the existing key. Managed providers are stored under the protected
+runtime root in:
+
+```text
+<runtime>/state/llm/providers.json
+```
+
+The file is written with owner-only permissions. The key is not encrypted by
+COHORTome, so the runtime directory must live on an access-controlled host or
+volume and must not be committed or included in backups with broader access.
+
+## Deployment configuration
+
+The environment-level default remains useful for secrets managed by the
+deployment platform:
 
 ```bash
 export LM_STUDIO_ENABLED=true
 export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
 export LM_STUDIO_MODEL=gpt-oss-120b
 export LM_STUDIO_API_KEY=lm-studio
+export LM_STUDIO_DATA_BOUNDARY=local
 ```
 
-Additional providers can be supplied by JSON:
+Additional read-only providers can be supplied by JSON:
 
 ```bash
 export COHORTOME_LLM_PROVIDERS_JSON='{
@@ -53,6 +82,7 @@ export COHORTOME_LLM_PROVIDERS_JSON='{
       "model": "gpt-oss-120b",
       "api_key_env": "CNAG_GPU_A_API_KEY",
       "timeout_seconds": 45,
+      "data_boundary": "local",
       "enabled": true
     },
     {
@@ -61,6 +91,7 @@ export COHORTOME_LLM_PROVIDERS_JSON='{
       "base_url": "http://10.0.0.11:1234/v1",
       "model": "gpt-oss-20b",
       "api_key": "lm-studio",
+      "data_boundary": "local",
       "enabled": true
     }
   ]
@@ -73,12 +104,34 @@ The same JSON can also live in a file:
 export COHORTOME_LLM_PROVIDERS_FILE=config/llm-providers.json
 ```
 
-Relative paths are resolved from the repository root.
+Relative paths are resolved from the repository root. Prefer an absolute path
+outside the repository when the file contains credentials.
 
 :::tip
 Use `api_key_env` for production-like deployments. It keeps secrets out of the
 provider registry file.
 :::
+
+`system-default` and providers loaded from environment variables or a
+configuration file are shown in `Admin > Models`, but they are read-only there.
+This prevents an in-app edit from silently overriding deployment-owned
+configuration. All providers, regardless of source, can be connection-tested
+by an administrator.
+
+## Local versus external
+
+Every provider must declare its data boundary:
+
+- `local`: operated inside the deployment's approved private-data boundary
+- `external`: outside that boundary
+
+An omitted or invalid value defaults to `external`. COHORTome does not infer
+trust from `localhost`, a private IP address, a hostname, or the use of LM
+Studio. The administrator is making an explicit governance decision.
+
+A provider marked `local` may receive private dataset context only when the
+user is authorized for the dataset and its AI-provider setting permits that
+level. A provider marked `external` never receives private dataset context.
 
 ## User selection
 
@@ -97,30 +150,33 @@ back to a deterministic answer.
 
 ## Admin visibility
 
-Admins can open the `Models` tab to inspect:
+Admins can open `Admin > Models` to inspect and manage:
 
 - configured providers
 - label and provider ID
 - base URL
 - model name
 - enabled state
+- local or external data boundary
 - current health check result
+- whether the provider is deployment-managed or managed in the app
 
-The UI does not expose API keys.
+The UI and API never return API-key values.
 
 ## Dataset policy still wins
 
 Provider selection does not bypass dataset policy.
 
-The effective AI-provider policy is still derived from the selected workspace:
+The effective AI-provider policy combines the selected workspace and provider:
 
 - `Detailed allowed`
 - `Safe summary`
 - `Blocked`
 
-For multi-dataset workspaces, the strictest selected dataset wins. A user can
-select an available model and still be blocked from sending clinical context if
-the dataset policy does not allow it.
+For multi-dataset workspaces, the strictest selected dataset wins. If any
+selected dataset is private, an external provider is blocked for the whole
+workspace. Local providers still follow the workspace's strictest configured
+context level.
 
 ## Future MCP direction
 

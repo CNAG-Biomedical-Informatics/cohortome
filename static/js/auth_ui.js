@@ -12,6 +12,7 @@ export function createAuthUi(ctx) {
     heroAuthIdentityEl,
     heroLogoutBtnEl,
     datasetsTabBtnEl,
+    adminTabBtnEl,
     dataTabBtnEl,
     usersTabBtnEl,
     modelsTabBtnEl,
@@ -183,6 +184,7 @@ export function createAuthUi(ctx) {
       }
       datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
+      adminTabBtnEl && adminTabBtnEl.classList.remove("is-hidden");
       dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
       modelsTabBtnEl && modelsTabBtnEl.classList.remove("is-hidden");
@@ -212,6 +214,7 @@ export function createAuthUi(ctx) {
       }
       const admin = canManageDataset();
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
+      adminTabBtnEl && adminTabBtnEl.classList.toggle("is-hidden", !admin);
       dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
       usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
       modelsTabBtnEl && modelsTabBtnEl.classList.toggle("is-hidden", !admin);
@@ -228,6 +231,7 @@ export function createAuthUi(ctx) {
         heroAuthIdentityEl.textContent = "Signed out";
       }
       datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
+      adminTabBtnEl && adminTabBtnEl.classList.add("is-hidden");
       dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
       modelsTabBtnEl && modelsTabBtnEl.classList.add("is-hidden");
@@ -343,7 +347,7 @@ export function createAuthUi(ctx) {
       if (authPasswordEl) authPasswordEl.value = "";
       await fetchAuthStatus();
       if (typeof loadUserSettings === "function") {
-        await loadUserSettings({ applyNavigation: false });
+        await loadUserSettings({ applyNavigation: true });
       }
       if (typeof loadLmStatus === "function") {
         await loadLmStatus();
@@ -352,7 +356,7 @@ export function createAuthUi(ctx) {
       await loadPatients({ respectAdminGate: false, targetDatasetIds: state.currentDatasetIds.slice() });
       await refreshUserWorkspaceState();
       if (typeof applyUserSettings === "function") {
-        applyUserSettings({ applyNavigation: true });
+        applyUserSettings({ applyNavigation: false });
       }
     } catch (error) {
       if (authGateStatusEl) {

@@ -43,6 +43,7 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
     workspaceStatus: session.workspaceStatus && typeof session.workspaceStatus === "object" ? session.workspaceStatus : {},
     catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
     promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
+    contextMode: session.contextMode === "general" ? "general" : "workspace",
     scope: typeof session.scope === "string" ? session.scope : "",
     scopeMetadata: normalizeSelectionMetadata(session.scopeMetadata || session.scope_metadata || {}),
     compareMode: Boolean(session.compareMode),

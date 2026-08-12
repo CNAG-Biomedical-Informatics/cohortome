@@ -80,6 +80,7 @@ The backend is also responsible for:
 - submitting and resolving queued analysis jobs
 - resolving the active LLM provider for each authenticated user
 - enforcing dataset AI-provider policy before provider calls
+- keeping explicit General-question calls separate from workspace resolution
 
 ## Frontend
 
@@ -87,12 +88,13 @@ The frontend is a browser-based app organized around top-level tabs:
 
 - `Dashboard`
 - `Datasets`
-- `Data Administration`
-- `Users`
-- `Models`
 - `Query`
 - `Analysis`
 - `Pheno-Ranker`
+- `Admin`
+  - `Data`
+  - `Users`
+  - `Models`
 
 The frontend is stateful and uses:
 
@@ -120,7 +122,7 @@ The app uses a DuckDB-backed query layer to normalize and reuse clinical and ass
 Current model:
 
 - each dataset has its own prepared DuckDB store
-- admins prepare or rebuild these stores in `Data Administration`
+- admins prepare or rebuild these stores in `Admin > Data`
 - merged workspaces attach the selected dataset stores into one in-memory DuckDB session
 - the app no longer relies on building one physical DuckDB per dataset combination during user workspace reload
 
@@ -161,6 +163,10 @@ Builds subsets and counts from the active workspace.
 
 It is the main subset-building surface.
 
+Its explicit `General question` context calls the approved model without
+resolving a workspace. It has separate history and cannot produce workspace
+actions or scopes.
+
 ### Analysis
 
 Consumes either:
@@ -170,6 +176,9 @@ Consumes either:
 - saved cohorts
 
 It is session-based and supports both deterministic and LLM-assisted interpretation.
+
+The same explicit `General question` context is available for background
+knowledge without attaching dataset, cohort, assay, or result context.
 
 The Analysis tab now has two launch surfaces:
 
@@ -245,8 +254,9 @@ Current model:
 
 - `system-default` comes from the existing `LM_STUDIO_*` environment variables
 - additional providers come from `COHORTOME_LLM_PROVIDERS_JSON` or `COHORTOME_LLM_PROVIDERS_FILE`
+- providers created in `Admin > Models` live in protected runtime state
 - users select a provider in persisted Settings
-- admins inspect provider health in the `Models` tab
+- admins manage runtime providers and inspect provider health in `Admin > Models`
 - dataset policy still controls what, if anything, can be sent to a provider
 
 The provider registry accepts both `providers` and `llm_providers` as the JSON

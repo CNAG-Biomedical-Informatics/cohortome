@@ -29,6 +29,30 @@ Common examples include:
 - `Which patients have Crohn Disease?`
 - `Which patients do not have Crohn Disease but take Infliximab?`
 
+## Choose the question context
+
+The composer has an explicit context switch:
+
+- `Workspace` asks about the active data and can use deterministic or
+  model-planned execution under the workspace policy.
+- `General question` asks the selected approved model without supplying an
+  active dataset, patient list, assay inventory, or other workspace context.
+
+General questions are useful for quick background explanations such as “What
+is aspirin?” They also work when no dataset is selected. Their result is marked
+`No workspace context`, and their conversation history is kept separate from
+workspace questions.
+
+COHORTome does not automatically turn an unsupported workspace question into a
+general one. This keeps a question that may contain private study details from
+being sent under a different context than the user selected.
+
+:::caution General questions still leave the browser
+The question text and recent General-question history are sent to the selected
+model provider. Do not paste confidential or patient-level information into an
+external provider.
+:::
+
 ## Result types
 
 Query can return:
@@ -73,6 +97,27 @@ The mode is now applied automatically from the active workspace policy:
 - if any selected dataset is `Summary only`, the workspace runs in `Summary`
 
 The Query header shows the effective mode as a read-only workspace indicator.
+
+After a query, provenance uses two separate badges:
+
+- `Response detail` describes what may be shown to you inside COHORTome.
+- `Model context` appears when a model was consulted and describes what the
+  model actually received.
+
+These values can differ. `Response detail: Detailed` and `Model context: Safe
+summary` means detailed local results are allowed in your session, but only a
+reduced summary was sent to the model.
+
+These badges apply to `Workspace` questions. A `General question` instead shows
+`No workspace context`, because no dataset-derived context was supplied.
+
+## Latest query details
+
+The collapsed `Latest query details` panel shows how the latest answer was
+produced and its structured response metadata. It is visible by default. Turn
+`Latest query details` off in `Settings` when you prefer a simpler Query view;
+this changes only the panel's visibility, not Query execution, model context,
+or disclosure policy.
 
 ### Summary
 
@@ -189,6 +234,10 @@ The dataset/workspace AI-provider policy is separate from the in-app Query mode:
 - `Detailed allowed`
 - `Safe summary`
 - `Blocked`
+
+Data classification is applied first: private dataset context can be used by an
+approved local provider when policy allows it, but never by an external
+provider.
 
 Examples:
 

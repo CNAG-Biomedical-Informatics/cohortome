@@ -35,6 +35,11 @@ More dynamic endpoints such as free-form `Query`, `Analysis`, and some `Pheno-Ra
 result payloads are already tagged and described, but still have looser response
 contracts. That is intentional for now while those response shapes are still evolving.
 
+`POST /llm/general` is the context-free model endpoint used by the explicit
+General-question mode in Query and Analysis. Its request contains a prompt and
+recent General-question turns only; it does not resolve or serialize an active
+workspace.
+
 ## Suggested uses
 
 The OpenAPI schema is useful even if the browser UI remains the main interface:
@@ -69,7 +74,7 @@ def clean(value):
 path = Path("docs-site/static/openapi")
 path.mkdir(parents=True, exist_ok=True)
 (path / "cohortome-openapi.json").write_text(
-    json.dumps(clean(app.openapi()), indent=2, ensure_ascii=False),
+    json.dumps(clean(app.openapi()), indent=2, ensure_ascii=False) + "\n",
     encoding="utf-8",
 )
 PY

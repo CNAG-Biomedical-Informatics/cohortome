@@ -4,6 +4,7 @@ const DEFAULT_USER_SETTINGS = {
   landing_tab: "dashboard",
   query_disclosure_default: "detailed",
   query_default_mode: "auto",
+  latest_query_details: true,
   analysis_auto_open_jobs: true,
   run_history_retention_days: 30,
   pheno_default_metric: "",
@@ -41,6 +42,7 @@ function normalizeUserSettings(raw) {
     landing_tab: normalizeChoice(source.landing_tab, ALLOWED_TABS, DEFAULT_USER_SETTINGS.landing_tab),
     query_disclosure_default: normalizeChoice(source.query_disclosure_default, ALLOWED_DISCLOSURE, DEFAULT_USER_SETTINGS.query_disclosure_default),
     query_default_mode: normalizeChoice(source.query_default_mode, ALLOWED_QUERY_MODES, DEFAULT_USER_SETTINGS.query_default_mode),
+    latest_query_details: source.latest_query_details !== false,
     analysis_auto_open_jobs: source.analysis_auto_open_jobs !== false,
     run_history_retention_days: normalizeRetentionDays(source.run_history_retention_days, DEFAULT_USER_SETTINGS.run_history_retention_days),
     pheno_default_metric: normalizeChoice(source.pheno_default_metric, ALLOWED_PHENO_METRICS, DEFAULT_USER_SETTINGS.pheno_default_metric),
@@ -69,6 +71,7 @@ export function createUserSettingsUi(ctx) {
     settingsQueryDefaultModeEl,
     settingsRunRetentionEl,
     settingsAnalysisAutoOpenJobsEl,
+    settingsLatestQueryDetailsEl,
     settingsPhenoDefaultMetricEl,
     settingsLlmProviderEl,
     settingsPhenoAdvancedOpenEl,
@@ -85,6 +88,7 @@ export function createUserSettingsUi(ctx) {
     phenoRenderHeatmapEl,
     phenoRenderMdsEl,
     phenoRenderGraphEl,
+    queryLatestDetailsEl,
   } = refs;
   const {
     effectiveQueryGranularityCeiling,
@@ -158,6 +162,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsQueryDefaultModeEl) settingsQueryDefaultModeEl.value = settings.query_default_mode;
     if (settingsRunRetentionEl) settingsRunRetentionEl.value = String(settings.run_history_retention_days);
     if (settingsAnalysisAutoOpenJobsEl) settingsAnalysisAutoOpenJobsEl.checked = settings.analysis_auto_open_jobs;
+    if (settingsLatestQueryDetailsEl) settingsLatestQueryDetailsEl.checked = settings.latest_query_details;
     if (settingsPhenoDefaultMetricEl) settingsPhenoDefaultMetricEl.value = settings.pheno_default_metric;
     if (settingsLlmProviderEl) settingsLlmProviderEl.value = settings.llm_provider_id;
     if (settingsPhenoAdvancedOpenEl) settingsPhenoAdvancedOpenEl.checked = settings.pheno_advanced_open;
@@ -178,7 +183,8 @@ export function createUserSettingsUi(ctx) {
       const label = String(provider.label || id || "Provider");
       const model = String(provider.model || "").trim();
       const enabled = provider.enabled !== false;
-      const text = `${label}${model ? ` - ${model}` : ""}${enabled ? "" : " (disabled)"}`;
+      const dataBoundary = String(provider.data_boundary || "external").trim().toLowerCase() === "local" ? "local" : "external";
+      const text = `${label} (${dataBoundary})${model ? ` - ${model}` : ""}${enabled ? "" : " (disabled)"}`;
       return `<option value="${id.replace(/"/g, "&quot;")}"${id === selectedProviderId ? " selected" : ""}>${text.replace(/</g, "&lt;")}</option>`;
     }).join("");
     if (selectedProviderId && !options.some((provider) => String(provider.id || "") === selectedProviderId)) {
@@ -194,6 +200,7 @@ export function createUserSettingsUi(ctx) {
       query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
       run_history_retention_days: settingsRunRetentionEl ? Number(settingsRunRetentionEl.value) : DEFAULT_USER_SETTINGS.run_history_retention_days,
       analysis_auto_open_jobs: settingsAnalysisAutoOpenJobsEl ? settingsAnalysisAutoOpenJobsEl.checked : DEFAULT_USER_SETTINGS.analysis_auto_open_jobs,
+      latest_query_details: settingsLatestQueryDetailsEl ? settingsLatestQueryDetailsEl.checked : DEFAULT_USER_SETTINGS.latest_query_details,
       pheno_default_metric: settingsPhenoDefaultMetricEl ? settingsPhenoDefaultMetricEl.value : DEFAULT_USER_SETTINGS.pheno_default_metric,
       llm_provider_id: settingsLlmProviderEl ? settingsLlmProviderEl.value : DEFAULT_USER_SETTINGS.llm_provider_id,
       pheno_advanced_open: settingsPhenoAdvancedOpenEl ? settingsPhenoAdvancedOpenEl.checked : DEFAULT_USER_SETTINGS.pheno_advanced_open,
@@ -209,6 +216,10 @@ export function createUserSettingsUi(ctx) {
     const settings = normalizeUserSettings(state.userSettings);
     state.userSettings = settings;
     document.body.classList.toggle("user-setting-dataset-compact", settings.dataset_compact_view);
+    if (queryLatestDetailsEl) {
+      queryLatestDetailsEl.classList.toggle("is-hidden", !settings.latest_query_details);
+      if (!settings.latest_query_details) queryLatestDetailsEl.open = false;
+    }
 
     state.queryExecutionMode = settings.query_default_mode;
     if (phenoAdvancedOptionsEl) {

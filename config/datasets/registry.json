@@ -6,6 +6,7 @@
     "root_path": "default_dataset",
     "enabled": true,
     "visibility": "all_authenticated",
+    "data_classification": "public",
     "allowed_users": [],
     "allowed_groups": [],
     "query_granularity_ceiling": "detailed",
@@ -21,6 +22,7 @@
     "root_path": "private_dataset",
     "enabled": true,
     "visibility": "restricted",
+    "data_classification": "private",
     "allowed_users": [],
     "allowed_groups": [
       "cnag"
@@ -38,6 +40,7 @@
     "root_path": "dataset-large",
     "enabled": true,
     "visibility": "all_authenticated",
+    "data_classification": "public",
     "allowed_users": [],
     "allowed_groups": [],
     "query_granularity_ceiling": "detailed",

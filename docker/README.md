@@ -31,7 +31,7 @@ Edit `docker/.env` before starting:
 
 - replace `COHORTOME_SESSION_SECRET`
 - decide whether to keep the bootstrap users
-- configure `LM_STUDIO_*` or `COHORTOME_LLM_PROVIDERS_JSON` if an LLM endpoint is available
+- configure the `LM_STUDIO_*` system default or add an endpoint later in `Admin > Models`
 
 Start the stack:
 
@@ -76,7 +76,7 @@ process and worker use that same root.
 ## Dataset Stores
 
 User workspace loading expects selected dataset stores to be prepared. For the
-pilot, sign in as an admin and prepare stores from `Data Administration`.
+pilot, sign in as an admin and prepare stores from `Admin > Data`.
 
 The default dataset should be prepared before users test the app. Large datasets
 can be prepared later if the pilot includes molecular timing or workflow tests.
@@ -226,7 +226,9 @@ LM_STUDIO_MODEL=openai/gpt-oss-120b
 ```
 
 For several approved endpoints, use `COHORTOME_LLM_PROVIDERS_JSON` or
-`COHORTOME_LLM_PROVIDERS_FILE`. Users can then choose an approved provider in Settings.
+`COHORTOME_LLM_PROVIDERS_FILE`, or add runtime-managed providers in `Admin > Models`.
+Users can then choose an approved provider in Settings. Environment and file
+providers are read-only in the app.
 Dataset policy still controls whether clinical context can be sent to a model.
 
 ## Local Auth
@@ -267,4 +269,4 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env logs -f redis
 ```
 
 If the app says a dataset store is stale or not ready, sign in as admin and use
-`Data Administration` to prepare or rebuild the store.
+`Admin > Data` to prepare or rebuild the store.

@@ -34,7 +34,7 @@ const TAB_HELPER_TEXT = {
   assay: "Inspect loaded assay modalities, DICOM status, and expression coverage",
   datasets: "Choose the authorized datasets that define your active workspace scope",
   data: "Admin-only dataset visibility and access policy management",
-  users: "Admin-only read-only user visibility",
+  users: "Admin-only local user and group management",
   models: "Admin-only approved LLM endpoint registry and health",
   query: "Build and refine cohorts (LLM-assisted, deterministic results)",
   analysis: "Interpret and compare cohorts (LLM-assisted insights)",
@@ -234,6 +234,7 @@ function sendPatientIdsToAnalysis() {
     return;
   }
   state.analysisSelectedSavedCohortId = "";
+  analysisUi.setContextMode("workspace");
   refs.analysisSelectedPatientIdsEl.value = scopeIds.join(",");
   setAnalysisScopeMetadataFromSelection({
     sampleIds: state.latestQueryRecordIds,
@@ -263,6 +264,7 @@ function sendPatientIdsToAnalysisFromSource(patientIds, options = {}) {
   }
   const sourceLabel = String(options.sourceLabel || "Dashboard").trim() || "Dashboard";
   state.analysisSelectedSavedCohortId = "";
+  analysisUi.setContextMode("workspace");
   refs.analysisSelectedPatientIdsEl.value = ids.join(",");
   setAnalysisScopeMetadataFromSelection({
     sampleIds: Array.isArray(options.sampleIds) ? options.sampleIds : [],
@@ -286,6 +288,7 @@ function sendPromptToAnalysis(prompt, options) {
     return;
   }
   refs.analysisPromptEl.value = normalizedPrompt;
+  analysisUi.setContextMode("workspace");
   state.analysisExecutionMode = settings.llmOnly ? "llm_only" : "auto";
   state.analysisSelectedCatalogItemId = "";
   analysisCatalogUi.renderAnalysisCatalogAssayPanel();
@@ -532,6 +535,12 @@ usersAdminUi = createUsersAdminUi({
 
 modelsAdminUi = createModelsAdminUi({
   refs,
+  callbacks: {
+    onProvidersChanged: async () => {
+      await workspaceUi.loadLmStatus();
+      userSettingsUi.renderUserSettingsForm();
+    },
+  },
 });
 
 analysisCatalogUi = createAnalysisCatalogUi({
@@ -551,6 +560,7 @@ analysisCatalogUi = createAnalysisCatalogUi({
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
+    setAnalysisContextMode: (value) => analysisUi.setContextMode(value),
   },
 });
 
@@ -635,6 +645,7 @@ analysisUi = createAnalysisUi({
     renderAnalysisCompareScopeSummary: () => dashboardUi.renderAnalysisCompareScopeSummary(),
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
+    renderAnalysisCatalogAssayPanel: () => analysisCatalogUi.renderAnalysisCatalogAssayPanel(),
   },
   state,
 });
@@ -657,6 +668,7 @@ analysisSessionsUi = createAnalysisSessionsUi({
     renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
     renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
     renderAnalysisFlowBar: () => analysisCatalogUi.renderAnalysisFlowBar(),
+    renderAnalysisContextMode: () => analysisUi.renderAnalysisContextMode(),
   },
   state,
   constants: {
@@ -997,6 +1009,12 @@ function bindEvents() {
   refs.askBtnEl && refs.askBtnEl.addEventListener("click", () => {
     void queryUi.askQuery();
   });
+  refs.queryContextWorkspaceBtnEl && refs.queryContextWorkspaceBtnEl.addEventListener("click", () => {
+    queryUi.setContextMode("workspace");
+  });
+  refs.queryContextGeneralBtnEl && refs.queryContextGeneralBtnEl.addEventListener("click", () => {
+    queryUi.setContextMode("general");
+  });
   refs.queryComposerExamplesBtnEl && refs.queryComposerExamplesBtnEl.addEventListener("click", () => {
     queryUi.togglePromptLibrary();
   });
@@ -1022,9 +1040,8 @@ function bindEvents() {
     state.queryFollowMemoryEnabled = false;
     if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.add("is-hidden");
     refs.queryDiseaseBuilderBtnEl && refs.queryDiseaseBuilderBtnEl.classList.remove("is-active");
-    refs.queryStatusEl.className = "query-status";
-    refs.queryStatusEl.textContent = "Query thread cleared.";
     analysisCatalogUi.renderQueryExecutionMode();
+    refs.questionEl && refs.questionEl.focus();
   });
 
   refs.analysisRunBtnEl && refs.analysisRunBtnEl.addEventListener("click", () => {
@@ -1077,6 +1094,7 @@ function bindEvents() {
 
   refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("dashboard"));
   refs.datasetsTabBtnEl && refs.datasetsTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("datasets"));
+  refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("admin"));
   refs.dataTabBtnEl && refs.dataTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("data"));
   refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("users");
@@ -1085,6 +1103,19 @@ function bindEvents() {
   refs.modelsTabBtnEl && refs.modelsTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("models");
     void modelsAdminUi.loadModels();
+  });
+  refs.modelCreateBtnEl && refs.modelCreateBtnEl.addEventListener("click", () => {
+    void modelsAdminUi.createModel();
+  });
+  refs.modelsListEl && refs.modelsListEl.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-lm-provider-action]");
+    if (!trigger) return;
+    const id = String(trigger.dataset.lmProvider || "");
+    const action = String(trigger.dataset.lmProviderAction || "");
+    if (!id) return;
+    if (action === "save") void modelsAdminUi.saveModel(id);
+    else if (action === "test") void modelsAdminUi.testModel(id);
+    else if (action === "delete") void modelsAdminUi.deleteModel(id);
   });
   refs.queryTabBtnEl && refs.queryTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("query"));
   refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
@@ -1251,6 +1282,12 @@ function bindEvents() {
     analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
+  refs.analysisContextWorkspaceBtnEl && refs.analysisContextWorkspaceBtnEl.addEventListener("click", () => {
+    analysisUi.setContextMode("workspace");
+  });
+  refs.analysisContextGeneralBtnEl && refs.analysisContextGeneralBtnEl.addEventListener("click", () => {
+    analysisUi.setContextMode("general");
+  });
 
   const handleAssayDatasetListChange = (event) => {
     const checkbox = event.target.closest('input[type="checkbox"]');
@@ -1308,6 +1345,7 @@ function bindEvents() {
       return;
     }
     refs.analysisPromptEl.value = button.dataset.analysisPrompt || "";
+    analysisUi.setContextMode("workspace");
     state.analysisExecutionMode = button.dataset.analysisLlmOnly === "true"
       ? "llm_only"
       : (button.dataset.analysisDeterministic === "true" ? "deterministic" : "planner_only");
@@ -1579,11 +1617,13 @@ function initializeUiShell() {
   phenoUi.updatePhenoMode();
   phenoUi.renderSelectedPatientIdsSummary();
   analysisCatalogUi.renderQueryExecutionMode();
+  queryUi.renderQueryContextMode();
   phenoUi.setPhenoResultWorkspaceVisible(false);
   savedCohortsUi.renderPhenoSavedCohortsSelection();
   analysisSessionsUi.ensureAnalysisSessionsLoaded();
   void analysisSessionsUi.loadAnalysisSessionsFromBackend();
   analysisUi.renderAnalysisCompareMode();
+  analysisUi.renderAnalysisContextMode();
   dashboardUi.renderAnalysisCompareScopeSummary();
   workspaceUi.renderGlobalContext();
   phenoUi.renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");

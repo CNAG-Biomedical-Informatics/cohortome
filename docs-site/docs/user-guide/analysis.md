@@ -26,9 +26,26 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 
 ![Analysis tab with a plotted result and follow-up queries](/img/screenshots/analysis-tab.png)
 
+## Choose the question context
+
+Analysis has the same explicit context switch as Query:
+
+- `Workspace` uses the active data, scopes, saved cohorts, and Analysis Catalog.
+- `General question` asks the selected approved model without workspace data.
+
+In General-question mode, workspace setup and catalog controls are hidden
+because they are not part of the request. The response is marked `No workspace
+context`, and its history is kept separate from workspace analysis. Switching
+back to `Workspace` restores the research workflow without mixing the two
+conversations.
+
+The typed question and recent General-question history are still sent to the
+selected provider. Do not include confidential or patient-level information
+when that provider is external.
+
 ## Two main modes
 
-Analysis can work in two broad ways:
+Within `Workspace` context, Analysis can work in two broad ways:
 
 - single-workspace or single-subset interpretation
 - saved-cohort comparison
@@ -303,6 +320,7 @@ That means:
 - a deterministic Analysis turn may show a local clinical summary without sending it anywhere
 - if AI providers are `Safe summary`, provider-facing Analysis context is reduced to structural/provider-safe context only
 - if AI providers are `Blocked`, Analysis stays local
+- private dataset context is always blocked when the selected provider is external
 - `LLM interpretation` prompts that require a provider may return a policy or availability message instead of silently degrading into a richer local summary
 
 :::note

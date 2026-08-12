@@ -56,6 +56,7 @@ from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings
 from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort
 from app.datasets import (
     authorized_datasets_for_user,
+    constrain_ai_provider_access,
     current_dataset_id,
     current_dataset_ids,
     clinical_representation,
@@ -74,7 +75,18 @@ from app.datasets import (
     workspace_fingerprint_for_data_dir,
 )
 from app.dicom import dicom_status, dicom_studies
-from app.lm import DEFAULT_LLM_PROVIDER_ID, llm_provider_registry_status, lm_provider_context, lm_studio_health
+from app.lm import (
+    DEFAULT_LLM_PROVIDER_ID,
+    create_managed_lm_provider,
+    delete_managed_lm_provider,
+    general_llm_reply,
+    llm_provider_registry_status,
+    lm_provider_context,
+    lm_provider_data_boundary,
+    lm_studio_health,
+    test_lm_provider,
+    update_managed_lm_provider,
+)
 from app.multimodal import multimodal_feature_matrix, multimodal_readiness
 from app.jobs import (
     active_feature_job,
@@ -134,6 +146,7 @@ from app.schemas import (
     DatasetSelectionRequest,
     DatasetUpdateRequest,
     DeleteResponse,
+    GeneralLlmRequest,
     AssayExpressionRequest,
     AssayDatasetsResponse,
     AssayFeatureMatrixResponse,
@@ -149,6 +162,10 @@ from app.schemas import (
     SavedCohortResponse,
     SavedCohortsResponse,
     LoginRequest,
+    LmProviderCreateRequest,
+    LmProviderResponse,
+    LmProvidersResponse,
+    LmProviderUpdateRequest,
     UserSettingsResponse,
     UserSettingsUpdateRequest,
 )
@@ -448,6 +465,7 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
             root_path=payload.root_path,
             description=payload.description,
             visibility=payload.visibility,
+            data_classification=payload.data_classification,
             allowed_users=payload.allowed_users,
             allowed_groups=payload.allowed_groups,
             query_granularity_ceiling=payload.query_granularity_ceiling,
@@ -470,6 +488,7 @@ def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request
             root_path=payload.root_path,
             description=payload.description,
             visibility=payload.visibility,
+            data_classification=payload.data_classification,
             allowed_users=payload.allowed_users,
             allowed_groups=payload.allowed_groups,
             query_granularity_ceiling=payload.query_granularity_ceiling,
@@ -602,8 +621,14 @@ def search_medication_cohort(medication: str, request: Request = None, dataset_i
 def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
+        selected_ids = resolve_dataset_ids(request, dataset_id or "")
         with lm_provider_context(selected_lm_provider_id(request)):
-            payload = answer_query(_resolve_route_dataset_dir(request, dataset_id, data_dir), q)
+            payload = answer_query(
+                _resolve_route_dataset_dir(request, dataset_id, data_dir),
+                q,
+                granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
+                ai_provider_access=selected_ai_provider_access(request, selected_ids),
+            )
             return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -621,6 +646,15 @@ def selected_lm_provider_id(request: Request | None) -> str:
     return str(load_user_settings(user_id).get("llm_provider_id") or DEFAULT_LLM_PROVIDER_ID)
 
 
+def selected_ai_provider_access(request: Request | None, dataset_ids: List[str]) -> str:
+    provider_id = selected_lm_provider_id(request)
+    return constrain_ai_provider_access(
+        dataset_ids,
+        effective_ai_provider_access(dataset_ids),
+        lm_provider_data_boundary(provider_id),
+    )
+
+
 def get_lm_status(request: Request) -> Dict:
     if auth_enabled():
         require_authenticated(request)
@@ -631,6 +665,49 @@ def get_lm_providers(request: Request) -> Dict:
     if auth_enabled():
         require_admin(request)
     return llm_provider_registry_status()
+
+
+def create_lm_provider(payload: LmProviderCreateRequest, request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    try:
+        return create_managed_lm_provider(payload.model_dump())
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def update_lm_provider(provider_id: str, payload: LmProviderUpdateRequest, request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    try:
+        return update_managed_lm_provider(provider_id, payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        status_code = 404 if str(exc) == "Managed provider not found." else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def delete_lm_provider(provider_id: str, request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    try:
+        delete_managed_lm_provider(provider_id)
+    except ValueError as exc:
+        status_code = 404 if str(exc) == "Managed provider not found." else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": True, "id": provider_id}
+
+
+def test_lm_provider_route(provider_id: str, request: Request) -> Dict:
+    if auth_enabled():
+        require_admin(request)
+    try:
+        return test_lm_provider(provider_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def get_branding_logo() -> FileResponse:
@@ -1050,7 +1127,7 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
                 scoped_patient_ids=request.scoped_patient_ids,
                 granularity_mode=request.granularity_mode,
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
-                ai_provider_access=effective_ai_provider_access(selected_ids),
+                ai_provider_access=selected_ai_provider_access(raw_request, selected_ids),
             )
             data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
             dataset_names_by_id = {
@@ -1072,6 +1149,20 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def general_llm_app(request: GeneralLlmRequest, raw_request: Request) -> Dict:
+    require_authenticated(raw_request)
+    try:
+        with lm_provider_context(selected_lm_provider_id(raw_request)):
+            return general_llm_reply(
+                request.prompt,
+                history=[turn.model_dump() for turn in request.history],
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
@@ -1105,7 +1196,7 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
                 deterministic_only=request.deterministic_only,
                 history=[turn.model_dump() for turn in request.history],
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
-                ai_provider_access=effective_ai_provider_access(selected_ids),
+                ai_provider_access=selected_ai_provider_access(raw_request, selected_ids),
             )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1171,7 +1262,7 @@ def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str =
         return analysis_catalog_payload(
             resolved_dir,
             granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
-            ai_provider_access=effective_ai_provider_access(selected_ids),
+            ai_provider_access=selected_ai_provider_access(request, selected_ids),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1454,7 +1545,7 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
             "data_dir": resolved_dir,
             "dataset_id": resolved_scope_id,
             "granularity_ceiling": granularity_ceiling,
-            "ai_provider_access": effective_ai_provider_access(selected_ids),
+            "ai_provider_access": selected_ai_provider_access(raw_request, selected_ids),
         }
     )
     active_pheno_job = active_feature_job(user_id, "pheno")
@@ -1549,7 +1640,7 @@ def plan_pheno_ranker_route(request: PhenoRankerPlanRequest, raw_request: Reques
                 request.text,
                 resolved_dir,
                 selected_patient_ids=request.selected_patient_ids,
-                ai_provider_access=effective_ai_provider_access(selected_ids),
+                ai_provider_access=selected_ai_provider_access(raw_request, selected_ids),
             )
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -1582,14 +1673,14 @@ def get_pheno_ranker_alignment(job_id: str, reference_id: str, request: Request,
 def explain_pheno_ranker_results(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, "")
-    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
+    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=selected_ai_provider_access(request, selected_ids), user_id=request_user_id(request))
 
 
 def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, "")
     with lm_provider_context(selected_lm_provider_id(request)):
-        return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=effective_ai_provider_access(selected_ids), user_id=request_user_id(request))
+        return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=selected_ai_provider_access(request, selected_ids), user_id=request_user_id(request))
 
 
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -1620,7 +1711,11 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
     app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
-    app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.")
+    app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.", response_model=LmProvidersResponse)
+    app.add_api_route("/lm-providers", create_lm_provider, methods=["POST"], tags=["auth"], summary="Create a managed LLM provider", description="Persists an OpenAI-compatible provider in protected runtime state. The API key is write-only.", response_model=LmProviderResponse)
+    app.add_api_route("/lm-providers/{provider_id}", update_lm_provider, methods=["PATCH"], tags=["auth"], summary="Update a managed LLM provider", description="Updates a runtime-managed provider. Environment-defined providers are read-only.", response_model=LmProviderResponse)
+    app.add_api_route("/lm-providers/{provider_id}", delete_lm_provider, methods=["DELETE"], tags=["auth"], summary="Delete a managed LLM provider", description="Deletes a runtime-managed provider. Environment-defined providers cannot be deleted.", response_model=DeleteResponse)
+    app.add_api_route("/lm-providers/{provider_id}/test", test_lm_provider_route, methods=["POST"], tags=["auth"], summary="Test an LLM provider", description="Runs an admin-only models-endpoint health check without exposing the configured API key.", response_model=LmProviderResponse)
     app.add_api_route("/auth/me", get_auth_status, methods=["GET"], tags=["auth"], summary="Get current authentication state", description="Returns the current local-auth session state and visible user identity.", response_model=AuthStatusResponse)
     app.add_api_route("/auth/login", login_oidc, methods=["GET"], tags=["auth"], summary="Start external OIDC login", description="Redirects to the configured OIDC provider when COHORTOME_AUTH_MODE=oidc.")
     app.add_api_route("/auth/login", login_local, methods=["POST"], tags=["auth"], summary="Log in with local credentials", description="Authenticates a local user and creates a session-backed login.", response_model=AuthStatusResponse)
@@ -1649,6 +1744,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/user-data/jobs", delete_user_completed_jobs, methods=["DELETE"], tags=["auth"], summary="Delete current user's completed jobs", description="Deletes terminal background jobs and generated artifacts owned by the current user. Active jobs are skipped.")
     app.add_api_route("/user-data/saved-cohorts", delete_user_saved_cohorts, methods=["DELETE"], tags=["auth"], summary="Delete current user's saved cohorts", description="Deletes saved cohorts owned by the current user when they are not referenced by saved analysis chats.")
     app.add_api_route("/query", query_app_post, methods=["POST"], tags=["query"], summary="Run a workspace query", description="Executes a deterministic and/or LLM-assisted natural-language query against the active workspace.")
+    app.add_api_route("/llm/general", general_llm_app, methods=["POST"], tags=["llm"], summary="Ask a general-knowledge question", description="Sends the prompt and recent General-question turns to the selected model provider without workspace or dataset context.")
     app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or assay analysis over the active workspace or selected saved cohorts.")
     app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")

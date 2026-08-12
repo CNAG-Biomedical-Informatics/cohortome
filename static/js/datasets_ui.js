@@ -53,8 +53,8 @@ export function createDatasetsUi(ctx) {
     const storeStatus = normalizedDatasetStoreStatus(blockedRecord);
     const datasetLabel = String(blockedRecord.name || blockedRecord.dataset_id || "Dataset").trim();
     const actionLabel = canManageDataset()
-      ? "Prepare or rebuild it in Data Admin."
-      : "Ask an admin to prepare it in Data Admin.";
+      ? "Prepare or rebuild it in Admin > Data."
+      : "Ask an admin to prepare it in Admin > Data.";
     const statusText = ({
       stale: "stale",
       failed: "failed",
@@ -175,6 +175,15 @@ export function createDatasetsUi(ctx) {
     return ["detailed_allowed", "safe_summary", "blocked"].includes(normalized) ? normalized : "detailed_allowed";
   }
 
+  function normalizeDataClassification(value) {
+    return String(value || "").trim().toLowerCase() === "public" ? "public" : "private";
+  }
+
+  function selectedProviderDataBoundary() {
+    const provider = state.lmStatus && typeof state.lmStatus.provider === "object" ? state.lmStatus.provider : {};
+    return String(provider.data_boundary || "").trim().toLowerCase() === "local" ? "local" : "external";
+  }
+
   function effectiveAiProviderAccess(datasetIds = state.currentDatasetIds) {
     const selected = new Set((Array.isArray(datasetIds) ? datasetIds : [])
       .map((item) => String(item || "").trim())
@@ -185,6 +194,9 @@ export function createDatasetsUi(ctx) {
     const records = state.availableDatasets.filter((item) => selected.has(String(item.dataset_id || "")));
     if (!records.length) {
       return "detailed_allowed";
+    }
+    if (selectedProviderDataBoundary() !== "local" && records.some((item) => normalizeDataClassification(item.data_classification) === "private")) {
+      return "blocked";
     }
     if (records.some((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked")) {
       return "blocked";
@@ -204,7 +216,11 @@ export function createDatasetsUi(ctx) {
     const effectiveDisclosure = effectiveQueryGranularityCeiling();
     const blockedCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "blocked").length;
     const safeSummaryCount = records.filter((item) => normalizeAiProviderAccess(item.ai_provider_access) === "safe_summary").length;
+    const privateDatasetCount = records.filter((item) => normalizeDataClassification(item.data_classification) === "private").length;
     if (effectiveProviderAccess === "blocked") {
+      if (privateDatasetCount > 0 && selectedProviderDataBoundary() !== "local") {
+        return `AI provider policy: Blocked. The selected external provider cannot receive context from ${privateDatasetCount} private dataset${privateDatasetCount === 1 ? "" : "s"}.`;
+      }
       return blockedCount > 0
         ? `AI provider policy: Blocked. ${blockedCount} selected dataset${blockedCount === 1 ? "" : "s"} require this stricter policy.`
         : "AI provider policy: Blocked.";
@@ -488,7 +504,7 @@ export function createDatasetsUi(ctx) {
     datasetAdminListEl.innerHTML = state.availableDatasets.map((dataset) => {
       const datasetId = String(dataset.dataset_id || "");
       const visibility = String(dataset.visibility || "all_authenticated");
-      const providerDetailedAllowed = visibility === "all_authenticated";
+      const dataClassification = normalizeDataClassification(dataset.data_classification);
       const description = String(dataset.description || "").trim();
       const contentTags = Array.isArray(dataset.content_tags) ? dataset.content_tags.map((item) => String(item || "").trim()).filter(Boolean) : [];
       const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
@@ -519,6 +535,7 @@ export function createDatasetsUi(ctx) {
               <span class="dataset-picker-meta">
                 <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
                 <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
               </span>
             </span>
             <span class="dataset-picker-tag ${storeReady ? "dataset-picker-tag-ready" : storeState === "failed" ? "dataset-picker-tag-danger" : "dataset-picker-tag-warning"}">${escapeHtml(storeLabel)}</span>
@@ -528,8 +545,9 @@ export function createDatasetsUi(ctx) {
               <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
             </div>
             <div class="dataset-picker-meta">
-              <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-              <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
+                <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
               ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
               ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
               ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
@@ -537,14 +555,21 @@ export function createDatasetsUi(ctx) {
             ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
             <div class="dataset-picker-access">
               <div class="dataset-policy-section">
-                <div class="dataset-policy-heading">Internal</div>
-                <div class="section-note">Controls who can use this dataset inside COHORTome and how much Query detail is allowed in-app.</div>
+                <div class="dataset-policy-heading">Access and classification</div>
+                <div class="section-note">Visibility controls who can use the dataset inside COHORTome. Classification controls whether its data may be sent outside this deployment.</div>
                 <div class="dataset-picker-access-row">
                   <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
                   <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
                     <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
                     <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
                     <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
+                  </select>
+                </div>
+                <div class="dataset-picker-access-row">
+                  <label for="dataset-classification-${escapeHtml(datasetId)}">Data classification</label>
+                  <select id="dataset-classification-${escapeHtml(datasetId)}" data-dataset-classification="${escapeHtml(datasetId)}">
+                    <option value="private" ${dataClassification === "private" ? "selected" : ""}>Private data</option>
+                    <option value="public" ${dataClassification === "public" ? "selected" : ""}>Public data</option>
                   </select>
                 </div>
                 <div class="dataset-picker-access-row">
@@ -556,7 +581,7 @@ export function createDatasetsUi(ctx) {
                   <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
                 </div>
                 <div class="dataset-picker-access-row">
-                  <label for="dataset-query-granularity-${escapeHtml(datasetId)}">Query detail in app</label>
+                  <label for="dataset-query-granularity-${escapeHtml(datasetId)}">In-app detail ceiling</label>
                   <select id="dataset-query-granularity-${escapeHtml(datasetId)}" data-dataset-query-granularity="${escapeHtml(datasetId)}">
                     <option value="summary" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "summary" ? "selected" : ""}>Summary only</option>
                     <option value="detailed" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "detailed" ? "selected" : ""}>Detailed allowed</option>
@@ -573,11 +598,11 @@ export function createDatasetsUi(ctx) {
               </div>
               <div class="dataset-policy-section dataset-policy-section-muted">
                 <div class="dataset-policy-heading">AI Providers</div>
-                <div class="section-note">Controls what COHORTome may send to the currently configured AI provider. LM Studio is the active provider today.</div>
+                <div class="section-note">Sets the maximum context an eligible provider may receive. Private data is never sent to a provider marked external.</div>
                 <div class="dataset-picker-access-row">
-                  <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">LM Studio</label>
+                  <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">Provider context ceiling</label>
                   <select id="dataset-ai-provider-access-${escapeHtml(datasetId)}" data-dataset-ai-provider-access="${escapeHtml(datasetId)}">
-                    <option value="detailed_allowed" ${["detailed_allowed", "use_thread_mode"].includes(String(dataset.ai_provider_access || "detailed_allowed")) ? "selected" : ""} ${providerDetailedAllowed ? "" : "disabled"}>Detailed allowed</option>
+                    <option value="detailed_allowed" ${["detailed_allowed", "use_thread_mode"].includes(String(dataset.ai_provider_access || "detailed_allowed")) ? "selected" : ""}>Detailed allowed</option>
                     <option value="safe_summary" ${["safe_summary", "restricted", "summary_only"].includes(String(dataset.ai_provider_access || "")) ? "selected" : ""}>Safe summary</option>
                     <option value="blocked" ${String(dataset.ai_provider_access || "") === "blocked" ? "selected" : ""}>Blocked</option>
                   </select>
@@ -586,12 +611,14 @@ export function createDatasetsUi(ctx) {
                   <label>Current behavior</label>
                   <div class="dataset-policy-placeholder">${
                     normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "blocked"
-                      ? "LM Studio is disabled for this dataset."
-                      : !providerDetailedAllowed
-                        ? "Restricted and admin-only datasets are capped at Safe summary for AI providers."
+                      ? "No AI provider receives dataset context."
+                      : dataClassification === "private"
+                        ? normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
+                          ? "Local providers may receive a safe structural summary. External providers are blocked."
+                          : "Local providers may receive detailed context. External providers are blocked."
                         : normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
-                          ? "LM Studio may be used, but only with provider-safe structural summary context."
-                          : "LM Studio may receive detailed context when the current in-app result allows it."
+                          ? "Approved providers may receive only a safe structural summary."
+                          : "Approved providers may receive detailed context when the in-app result allows it."
                   }</div>
                 </div>
               </div>
@@ -648,11 +675,12 @@ export function createDatasetsUi(ctx) {
       return;
     }
     const visibilityEl = datasetAdminListEl.querySelector(`[data-dataset-visibility="${CSS.escape(datasetId)}"]`);
+    const dataClassificationEl = datasetAdminListEl.querySelector(`[data-dataset-classification="${CSS.escape(datasetId)}"]`);
     const groupsEl = datasetAdminListEl.querySelector(`[data-dataset-groups="${CSS.escape(datasetId)}"]`);
     const usersEl = datasetAdminListEl.querySelector(`[data-dataset-users="${CSS.escape(datasetId)}"]`);
     const queryGranularityEl = datasetAdminListEl.querySelector(`[data-dataset-query-granularity="${CSS.escape(datasetId)}"]`);
     const aiProviderAccessEl = datasetAdminListEl.querySelector(`[data-dataset-ai-provider-access="${CSS.escape(datasetId)}"]`);
-    if (!visibilityEl || !groupsEl || !usersEl || !queryGranularityEl || !aiProviderAccessEl) {
+    if (!visibilityEl || !dataClassificationEl || !groupsEl || !usersEl || !queryGranularityEl || !aiProviderAccessEl) {
       return;
     }
     const allowedGroups = String(groupsEl.value || "")
@@ -663,11 +691,7 @@ export function createDatasetsUi(ctx) {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
-    const normalizedVisibility = String(visibilityEl.value || "all_authenticated").trim().toLowerCase();
     const requestedAiProviderAccess = String(aiProviderAccessEl.value || "detailed_allowed").trim();
-    const effectiveProviderAccess = (normalizedVisibility === "restricted" || normalizedVisibility === "admin_only")
-      ? (requestedAiProviderAccess === "blocked" ? "blocked" : "safe_summary")
-      : requestedAiProviderAccess;
     loadStatusEl.className = "load-status loading";
     loadStatusEl.textContent = `Saving access for ${datasetId}...`;
     setDatasetAdminFeedback(datasetId, "Saving settings...", "success", 0);
@@ -677,10 +701,11 @@ export function createDatasetsUi(ctx) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           visibility: visibilityEl.value,
+          data_classification: dataClassificationEl.value,
           allowed_groups: allowedGroups,
           allowed_users: allowedUsers,
           query_granularity_ceiling: queryGranularityEl.value,
-          ai_provider_access: effectiveProviderAccess,
+          ai_provider_access: requestedAiProviderAccess,
         }),
       });
       if (!response.ok) {

@@ -152,6 +152,22 @@ Read it as:
 
 Query responses now carry explicit disclosure metadata, separate from execution metadata such as `Deterministic` or `LLM-planned`.
 
+The UI deliberately avoids presenting both policy layers as generic
+"disclosure" badges:
+
+- `Response detail` says what the authorized user can see in COHORTome.
+- `Model context` says what was actually supplied to the selected model.
+
+For example, `Response detail: Detailed` together with `Model context: Safe
+summary` means the application may return detailed local results to the user,
+while the model received only reduced structural context.
+
+The explicit `General question` context is outside this workspace-disclosure
+model. It calls `POST /llm/general` with only the prompt and recent
+General-question history, so the UI reports `No workspace context` rather than
+`Response detail` or `Model context`. The endpoint does not resolve the active
+dataset and cannot return workspace actions.
+
 Current fields:
 
 - `granularity_requested`
@@ -202,7 +218,7 @@ Included:
 
 - Query-only implementation
 - automatic workspace-level `Summary` / `Detailed` application from dataset policy
-- response badge showing the applied disclosure mode
+- response badge showing the applied response-detail mode
 - output shaping for a small set of common query intents
 - backend-declared action capabilities
 - dataset-level policy ceilings for:
@@ -254,6 +270,10 @@ Dataset administration now controls two separate Query-related ceilings:
   - `Safe summary`
   - `Blocked`
 
+Data classification and the selected provider boundary are applied before these
+ceilings. A private dataset forces `Blocked` for an external provider. With a
+local provider, the configured dataset ceiling applies normally.
+
 For multi-dataset workspaces, the strictest selected dataset policy wins.
 
 This means:
@@ -261,6 +281,8 @@ This means:
 - if any selected dataset is `Summary only`, the workspace Query thread cannot use `Detailed`
 - if any selected dataset is `Safe summary`, AI providers are restricted to provider-safe structural context for the workspace
 - if any selected dataset is `Blocked`, AI providers are blocked for the workspace
+- if any selected dataset is private and the provider is external, AI providers
+  are blocked for the workspace regardless of the configured context ceiling
 
 ## Safe Summary AI Provider Mode
 

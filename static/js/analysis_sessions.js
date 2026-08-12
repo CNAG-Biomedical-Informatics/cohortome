@@ -33,6 +33,7 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisThread,
     renderAnalysisMeta,
     renderAnalysisFlowBar,
+    renderAnalysisContextMode,
   } = callbacks;
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
   let pendingDeleteSessionId = "";
@@ -58,6 +59,7 @@ export function createAnalysisSessionsUi(ctx) {
   }
 
   function analysisSessionScopeSummary(session) {
+    if (session.contextMode === "general") return "General questions";
     const scopeCount = String(session.scope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
     const compareCount = String(session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
     if (session.compareMode) {
@@ -152,6 +154,7 @@ export function createAnalysisSessionsUi(ctx) {
           workspace_fingerprint: session.workspaceFingerprint || {},
           catalog_item_id: session.catalogItemId || "",
           prompt_draft: session.promptDraft || "",
+          context_mode: session.contextMode === "general" ? "general" : "workspace",
           scope: session.scope || "",
           scope_metadata: session.scopeMetadata || {},
           saved_cohort_id_a: session.savedCohortIdA || "",
@@ -223,6 +226,7 @@ export function createAnalysisSessionsUi(ctx) {
         workspaceStatus: item.workspace_status,
         catalogItemId: item.catalog_item_id,
         promptDraft: item.prompt_draft,
+        contextMode: item.context_mode,
         scope: item.scope,
         scopeMetadata: item.scope_metadata,
         savedCohortIdA: item.saved_cohort_id_a,
@@ -319,6 +323,7 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     session.promptDraft = analysisPromptEl.value;
+    session.contextMode = state.analysisContextMode === "general" ? "general" : "workspace";
     session.datasetId = typeof currentDatasetSelectionKey === "function"
       ? String(currentDatasetSelectionKey() || "").trim()
       : (session.datasetId || "");
@@ -342,6 +347,7 @@ export function createAnalysisSessionsUi(ctx) {
   function applyAnalysisSession(session) {
     state.analysisExamplesPinnedOpen = false;
     analysisPromptEl.value = session.promptDraft || "";
+    state.analysisContextMode = session.contextMode === "general" ? "general" : "workspace";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
     analysisSelectedPatientIdsEl.value = session.scope || "";
     state.analysisScopeMetadata = session.scopeMetadata && typeof session.scopeMetadata === "object" ? session.scopeMetadata : {};
@@ -357,6 +363,7 @@ export function createAnalysisSessionsUi(ctx) {
     renderAnalysisCompareScopeSummary();
     renderAnalysisStarterPrompts();
     renderAnalysisThread();
+    if (typeof renderAnalysisContextMode === "function") renderAnalysisContextMode();
     if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
     const latestAssistantTurn = state.analysisTurns.slice().reverse().find((turn) => turn.role === "assistant" && turn.payload && !turn.pending);
     if (latestAssistantTurn && latestAssistantTurn.payload) {

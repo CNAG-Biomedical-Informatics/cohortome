@@ -3,6 +3,7 @@ export function createNavigationUi(ctx) {
   const {
     dashboardTabBtnEl,
     datasetsTabBtnEl,
+    adminTabBtnEl,
     dataTabBtnEl,
     usersTabBtnEl,
     modelsTabBtnEl,
@@ -65,6 +66,10 @@ export function createNavigationUi(ctx) {
   }
 
   function setActiveTab(tabName) {
+    if (tabName === "admin") {
+      const current = currentTabName();
+      tabName = ["data", "users", "models"].includes(current) ? current : "data";
+    }
     if (tabName === "pheno" && !phenoTabAvailable()) {
       renderPhenoTabAvailability();
       if (loadStatusEl) {
@@ -78,11 +83,13 @@ export function createNavigationUi(ctx) {
     const showData = tabName === "data";
     const showUsers = tabName === "users";
     const showModels = tabName === "models";
+    const showAdmin = showData || showUsers || showModels;
     const showQuery = tabName === "query";
     const showAnalysis = tabName === "analysis";
     const showPheno = tabName === "pheno";
     dashboardTabBtnEl && dashboardTabBtnEl.classList.toggle("active", showDashboard);
     datasetsTabBtnEl && datasetsTabBtnEl.classList.toggle("active", showDatasets);
+    adminTabBtnEl && adminTabBtnEl.classList.toggle("active", showAdmin);
     dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
     usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
     modelsTabBtnEl && modelsTabBtnEl.classList.toggle("active", showModels);
@@ -90,7 +97,10 @@ export function createNavigationUi(ctx) {
     analysisTabBtnEl && analysisTabBtnEl.classList.toggle("active", showAnalysis);
     phenoTabBtnEl && phenoTabBtnEl.classList.toggle("active", showPheno);
     dashboardTabBtnEl && dashboardTabBtnEl.setAttribute("aria-current", showDashboard ? "page" : "false");
+    dashboardTabBtnEl && dashboardTabBtnEl.setAttribute("aria-expanded", showDashboard ? "true" : "false");
     datasetsTabBtnEl && datasetsTabBtnEl.setAttribute("aria-current", showDatasets ? "page" : "false");
+    adminTabBtnEl && adminTabBtnEl.setAttribute("aria-current", showAdmin ? "page" : "false");
+    adminTabBtnEl && adminTabBtnEl.setAttribute("aria-expanded", showAdmin ? "true" : "false");
     dataTabBtnEl && dataTabBtnEl.setAttribute("aria-current", showData ? "page" : "false");
     usersTabBtnEl && usersTabBtnEl.setAttribute("aria-current", showUsers ? "page" : "false");
     modelsTabBtnEl && modelsTabBtnEl.setAttribute("aria-current", showModels ? "page" : "false");

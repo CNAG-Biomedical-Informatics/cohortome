@@ -195,7 +195,24 @@ Consequence:
 - groupless users are still valid
 - they simply need broad visibility or direct allowed-user access
 
-## 11. Local user administration is now real, but provider-ready
+## 11. Data classification is separate from visibility
+
+Dataset visibility controls authorization inside COHORTome. Public/private data
+classification controls whether context may cross the deployment boundary.
+
+Why:
+
+- data shared with every authenticated consortium member may still be private
+- deriving egress permission from application visibility would be unsafe
+
+Consequence:
+
+- missing classification defaults to private
+- private context can reach an explicitly local provider when dataset policy
+  permits it
+- private context is always blocked from external providers
+
+## 12. Local user administration is now real, but provider-ready
 
 The current app now lets the frontend edit local users, while still keeping the auth model provider-ready.
 
@@ -220,7 +237,7 @@ Consequence:
 - environment JSON acts as bootstrap seed data
 - future Google/OIDC-style authentication can plug into the same authorization model
 
-## 12. Query disclosure is policy-driven, not manually user-switched
+## 13. Query disclosure is policy-driven, not manually user-switched
 
 `Query` no longer treats `Summary` vs `Detailed` as a normal user toggle.
 
@@ -236,7 +253,7 @@ Consequence:
 - the active workspace applies the strictest selected dataset policy
 - Query shows the effective mode as read-only state
 
-## 13. Analysis Catalog is a launch layer, not an execution engine
+## 14. Analysis Catalog is a launch layer, not an execution engine
 
 The Analysis Catalog exists to make built-in and curated analyses discoverable, not to replace the Analysis backend.
 
@@ -259,7 +276,7 @@ Consequence:
   - compare mode
   - sample-level compatibility checks
 
-## 14. External analysis runners are curated, not arbitrary code execution
+## 15. External analysis runners are curated, not arbitrary code execution
 
 External integrations should be declared and dispatched through reviewed runner types such as:
 
@@ -303,7 +320,7 @@ Suggestions are not a server-side personalization system. They are derived from:
 
 This keeps catalog navigation fast without introducing a separate recommendation backend or catalog-specific persistence model.
 
-## 15. Background jobs are a shared substrate, not an Analysis-only special case
+## 16. Background jobs are a shared substrate, not an Analysis-only special case
 
 Longer curated analyses should not hold the request open.
 
@@ -321,7 +338,7 @@ Consequence:
 - completed results can be reopened into Analysis, even when the original session is gone
 - current queued `Pheno-Ranker` cohort runs are intentionally capped at `2500` resolved samples until the large-output path is redesigned
 
-## 16. OpenAPI is a product asset, not only an integration artifact
+## 17. OpenAPI is a product asset, not only an integration artifact
 
 The API contract is being formalized through FastAPI response and request models.
 
@@ -334,7 +351,7 @@ Consequence:
 
 - OpenAPI is worth maintaining even if the main consumer is still the app itself
 
-## 17. COHORTome is independent of the upstream warehouse
+## 18. COHORTome is independent of the upstream warehouse
 
 The 3TR Omics DM Warehouse may supply authorized data exports, but COHORTome must not
 depend on its filesystem layout, API, or storage implementation.
@@ -352,7 +369,7 @@ Consequence:
 - the warehouse remains an upstream source, not the active workspace model
 - public documentation must not describe COHORTome as the warehouse or ADEx
 
-## 18. The product model is clinical plus assays
+## 19. The product model is clinical plus assays
 
 Transcriptomics, OLINK, proteomics, genotyping, and imaging are assay
 modalities. `Molecular` is not a top-level product peer to `Assays`.
@@ -369,10 +386,12 @@ Consequence:
 - show transcriptomics-only controls only for compatible assays
 - keep patient/sample/time-point linkage explicit across modalities
 
-## 19. LLM assistance is first-class and governed
+## 20. LLM assistance is first-class and governed
 
 LLM assistance is a product capability for cohort discovery, planning, and
-interpretation, not a general chatbot or an unrestricted agent.
+interpretation. Query and Analysis also provide an explicitly selected
+General-question utility, but COHORTome is not an unrestricted agent and never
+attaches workspace context to that mode.
 
 Why:
 
@@ -385,6 +404,8 @@ Consequence:
 
 - administrators approve providers
 - dataset policy constrains context before provider calls
+- general questions send only their own prompt and separate recent history
+- unsupported workspace requests are not silently rerouted as general questions
 - deterministic execution remains visible
 - the UI reports unavailable or blocked providers explicitly
 - publication claims require reference-task evaluation

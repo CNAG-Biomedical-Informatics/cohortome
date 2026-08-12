@@ -372,7 +372,10 @@ export function createPhenoUi(ctx) {
       return;
     }
     const chips = [];
-    const formatAiProviderGranularity = (value) => String(value || "").replace(/_/g, " ");
+    const formatAiProviderGranularity = (value) => {
+      const label = String(value || "").replace(/_/g, " ");
+      return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : "";
+    };
     if (aiProviderConsulted && data.ai_provider_context_granularity && data.ai_provider_access) {
       let title = "";
       if (data.ai_provider_access === "blocked") {
@@ -382,7 +385,7 @@ export function createPhenoUi(ctx) {
       } else {
         title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context for Pheno-Ranker planning.`;
       }
-      chips.push(renderProvenanceBadge(`AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
+      chips.push(renderProvenanceBadge(`Model context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
     }
     if (planner && planner.provider === "lm_studio") {
       chips.push(renderProvenanceBadge("LLM-planned", "LM Studio translated the prompt into a Pheno-Ranker execution plan.", "planner"));
@@ -1228,7 +1231,10 @@ export function createPhenoUi(ctx) {
     const data = payload && payload.data ? payload.data : {};
     const isLlm = data.source === "llm" || payload.source === "lm_studio";
     const badges = [];
-    const formatAiProviderGranularity = (value) => String(value || "").replace(/_/g, " ");
+    const formatAiProviderGranularity = (value) => {
+      const label = String(value || "").replace(/_/g, " ");
+      return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : "";
+    };
     if (isLlm && data.ai_provider_context_granularity && data.ai_provider_access) {
       let title = "";
       if (data.ai_provider_access === "blocked") {
@@ -1238,7 +1244,7 @@ export function createPhenoUi(ctx) {
       } else {
         title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context for this Pheno-Ranker explanation.`;
       }
-      badges.push(renderProvenanceBadge(`AI providers: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
+      badges.push(renderProvenanceBadge(`Model context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`, title, "provider"));
     }
     const resultIcon = isLlm
       ? "llm"

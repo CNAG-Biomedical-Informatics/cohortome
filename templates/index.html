@@ -223,6 +223,7 @@
             </select>
           </div>
           <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
+          <label class="user-settings-check"><input id="settingsLatestQueryDetails" type="checkbox"> Latest query details</label>
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
@@ -262,11 +263,32 @@
         </aside>
       </div>
 
+      <div id="analysisSessionDeleteDialog" class="analysis-session-delete-dialog is-hidden" aria-hidden="true">
+        <div class="analysis-session-delete-dialog-backdrop" data-analysis-session-delete-close="true"></div>
+        <div class="analysis-session-delete-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="analysisSessionDeleteTitle">
+          <div class="analysis-session-delete-dialog-header">
+            <div>
+              <strong id="analysisSessionDeleteTitle">Delete analysis session</strong>
+              <div class="section-note">Choose whether to remove only the chat while keeping generated runs, or delete the generated results, logs, and artifacts too.</div>
+            </div>
+            <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip">Cancel</button>
+          </div>
+          <div class="analysis-session-delete-dialog-body">
+            <div id="analysisSessionDeleteSummary" class="analysis-session-delete-summary">Delete this analysis session?</div>
+            <div id="analysisSessionDeleteStatus" class="query-status is-hidden"></div>
+          </div>
+          <div class="analysis-session-delete-dialog-actions">
+            <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip">Delete chat, keep runs</button>
+            <button id="analysisSessionDeleteAllBtn" type="button" class="query-chip action">Delete chat and generated data</button>
+          </div>
+        </div>
+      </div>
+
       <div class="app-workbench">
         <aside class="app-sidebar" aria-label="Primary navigation">
           <nav class="tab-bar app-sidebar-nav" aria-label="Application sections">
         <div class="app-nav-group">
-        <button id="dashboardTabBtn" class="tab-btn active" type="button" aria-current="page">
+        <button id="dashboardTabBtn" class="tab-btn app-nav-parent active" type="button" aria-current="page" aria-expanded="true">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -339,41 +361,6 @@
           </span>
           <span>Datasets</span>
         </button>
-        <button id="dataTabBtn" class="tab-btn is-hidden" type="button">
-          <span class="tab-btn-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v12"></path>
-              <path d="m7 10 5 5 5-5"></path>
-              <path d="M5 21h14"></path>
-            </svg>
-          </span>
-          <span>Data Admin</span>
-        </button>
-        <button id="usersTabBtn" class="tab-btn is-hidden" type="button">
-          <span class="tab-btn-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-          </span>
-          <span>Users</span>
-        </button>
-        <button id="modelsTabBtn" class="tab-btn is-hidden" type="button">
-          <span class="tab-btn-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v4"></path>
-              <path d="M12 17v4"></path>
-              <path d="M3 12h4"></path>
-              <path d="M17 12h4"></path>
-              <circle cx="12" cy="12" r="5"></circle>
-              <path d="M8.5 8.5 6 6"></path>
-              <path d="m18 18-2.5-2.5"></path>
-            </svg>
-          </span>
-          <span>Models</span>
-        </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -404,6 +391,54 @@
           </span>
           <span>Pheno-Ranker</span>
         </button>
+        <div class="app-nav-group">
+        <button id="adminTabBtn" class="tab-btn app-nav-parent is-hidden" type="button" aria-expanded="false">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"></path>
+              <path d="m9 12 2 2 4-4"></path>
+            </svg>
+          </span>
+          <span>Admin</span>
+        </button>
+        <div class="admin-subtabs app-sidebar-subnav">
+        <button id="dataTabBtn" class="dashboard-subtab is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+            </svg>
+          </span>
+          <span>Data</span>
+        </button>
+        <button id="usersTabBtn" class="dashboard-subtab is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+          <span>Users</span>
+        </button>
+        <button id="modelsTabBtn" class="dashboard-subtab is-hidden" type="button">
+          <span class="tab-btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v4"></path>
+              <path d="M12 17v4"></path>
+              <path d="M3 12h4"></path>
+              <path d="M17 12h4"></path>
+              <circle cx="12" cy="12" r="5"></circle>
+              <path d="M8.5 8.5 6 6"></path>
+              <path d="m18 18-2.5-2.5"></path>
+            </svg>
+          </span>
+          <span>Models</span>
+        </button>
+        </div>
+        </div>
           </nav>
           <div class="app-sidebar-utility">
             <a class="app-sidebar-settings app-sidebar-help" href="{{ branding.help_url }}" target="_blank" rel="noopener noreferrer" title="Open {{ branding.name }} documentation.">
@@ -601,7 +636,7 @@
       <section id="usersTab" class="tab-panel">
         <div class="controls">
           <label>Users</label>
-          <div class="section-note">Create local users and manage application role, groups, password, and sign-in status. External providers can be added later without changing dataset authorization rules.</div>
+          <div class="section-note">Create local users and manage application role, groups, password, and sign-in status. External identity providers can be added later without changing dataset authorization rules.</div>
           <div id="usersCreateCard" class="dataset-picker-card">
             <div>
               <div class="dataset-picker-title">
@@ -655,7 +690,55 @@
       <section id="modelsTab" class="tab-panel">
         <div class="controls">
           <label>Model Administration</label>
-          <div class="section-note">Approved OpenAI-compatible LLM endpoints. Users can select one of these providers in Settings; dataset policy still controls whether LLM context is allowed.</div>
+          <div class="section-note">Manage approved OpenAI-compatible LLM endpoints. Users select a provider in Settings; dataset classification and provider boundary still control what model context is allowed.</div>
+          <div id="modelsCreateCard" class="dataset-picker-card">
+            <div>
+              <div class="dataset-picker-title">
+                <span>Add model provider</span>
+              </div>
+              <div class="query-grid query-grid-compact">
+                <div>
+                  <label for="modelCreateId">Provider ID</label>
+                  <input id="modelCreateId" type="text" placeholder="e.g. cnag-local" autocomplete="off">
+                </div>
+                <div>
+                  <label for="modelCreateLabel">Display name</label>
+                  <input id="modelCreateLabel" type="text" placeholder="e.g. CNAG local model">
+                </div>
+                <div class="query-grid-span-2">
+                  <label for="modelCreateBaseUrl">Base URL</label>
+                  <input id="modelCreateBaseUrl" type="url" placeholder="http://127.0.0.1:1234/v1">
+                </div>
+                <div>
+                  <label for="modelCreateModel">Model ID</label>
+                  <input id="modelCreateModel" type="text" placeholder="Optional; discover from provider">
+                </div>
+                <div>
+                  <label for="modelCreateTimeout">Timeout (seconds)</label>
+                  <input id="modelCreateTimeout" type="number" min="1" max="300" step="1" value="30">
+                </div>
+                <div>
+                  <label for="modelCreateBoundary">Data boundary</label>
+                  <select id="modelCreateBoundary">
+                    <option value="external" selected>External</option>
+                    <option value="local">Local</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="modelCreateApiKey">API key</label>
+                  <input id="modelCreateApiKey" type="password" placeholder="Optional for local providers" autocomplete="new-password">
+                </div>
+              </div>
+              <div class="section-note">Mark a provider as local only when it operates inside the deployment's approved private-data boundary. API keys are write-only.</div>
+              <div class="query-row">
+                <label class="dataset-picker-check">
+                  <input id="modelCreateEnabled" type="checkbox" checked>
+                  <span>Enabled</span>
+                </label>
+                <button id="modelCreateBtn" type="button">Add provider</button>
+              </div>
+            </div>
+          </div>
           <div id="modelsStatus" class="query-status">Loading model providers...</div>
           <div id="modelsList" class="dataset-picker-list">
             <div class="empty">No model providers configured.</div>
@@ -708,7 +791,7 @@
               <span>Query Thread</span>
             </div>
             <div class="query-thread-mode" aria-label="Query thread mode">
-              <span class="query-thread-mode-label">Workspace mode</span>
+              <span id="queryThreadModeLabel" class="query-thread-mode-label">Workspace mode</span>
               <span id="queryGranularityModeValue" class="query-thread-mode-value">Detailed</span>
               <button id="queryPolicyInfoBtn" type="button" class="query-policy-info is-hidden" aria-label="Workspace policy details" title="Workspace policy details">
                 <span class="button-icon" aria-hidden="true">
@@ -726,7 +809,23 @@
           </div>
           <div class="query-composer">
             <div class="query-composer-header">
-              <strong>Continue Query</strong>
+              <div class="composer-heading-group">
+                <strong id="queryComposerTitle">Continue Query</strong>
+                <div class="context-mode-switch" role="group" aria-label="Question context">
+                  <button id="queryContextWorkspaceBtn" type="button" class="context-mode-option is-active" aria-pressed="true" title="Use the active workspace and its governed dataset context.">
+                    <span class="button-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>
+                    </span>
+                    <span>Workspace</span>
+                  </button>
+                  <button id="queryContextGeneralBtn" type="button" class="context-mode-option" aria-pressed="false" title="Ask the model without workspace or dataset context.">
+                    <span class="button-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>
+                    </span>
+                    <span>General question</span>
+                  </button>
+                </div>
+              </div>
               <div class="query-composer-actions">
                 <button id="queryComposerExamplesBtn" type="button" class="query-chip" hidden aria-expanded="false">
                   <span class="button-icon" aria-hidden="true">
@@ -785,7 +884,7 @@
               <div id="queryDiseaseStatus" class="section-note">Click a disease to preload a deterministic workspace query.</div>
             </div>
             <div class="query-row">
-              <textarea id="question">How many patients have Ocrelizumab?</textarea>
+              <textarea id="question" aria-label="Query prompt"></textarea>
               <button id="askBtn" type="button">
                 <span class="button-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -796,10 +895,9 @@
                 <span>Ask</span>
               </button>
             </div>
-            <div id="queryStatus" class="query-status">Press Enter or click Ask.</div>
-            <div id="queryMeta" class="query-meta"></div>
+            <div id="queryStatus" class="query-status is-hidden" aria-live="polite"></div>
           </div>
-          <details class="query-section">
+          <details id="queryLatestDetails" class="query-section">
             <summary>Latest query details</summary>
             <div id="queryReply" class="is-hidden" aria-hidden="true">Ask about medications, diseases, or a patient timeline.</div>
             <div id="queryReason" class="empty">Run a query to see how the answer was produced.</div>
@@ -1149,7 +1247,7 @@
               </button>
             </div>
             <div id="analysisDatasetScope" class="section-note">Workspace dataset: current selection.</div>
-            <details class="analysis-setup-card">
+            <details id="analysisWorkspaceSetup" class="analysis-setup-card">
               <summary class="analysis-setup-summary">
                 <div class="analysis-setup-summary-copy">
                   <strong>Setup</strong>
@@ -1246,29 +1344,25 @@
                 </div>
               </div>
             </div>
-            <div id="analysisSessionDeleteDialog" class="analysis-session-delete-dialog is-hidden" aria-hidden="true">
-              <div class="analysis-session-delete-dialog-backdrop" data-analysis-session-delete-close="true"></div>
-              <div class="analysis-session-delete-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="analysisSessionDeleteTitle">
-                <div class="analysis-session-delete-dialog-header">
-                  <div>
-                    <strong id="analysisSessionDeleteTitle">Delete analysis session</strong>
-                    <div class="section-note">Choose whether to remove only the chat while keeping generated runs, or delete the generated results, logs, and artifacts too.</div>
-                  </div>
-                  <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip">Cancel</button>
-                </div>
-                <div class="analysis-session-delete-dialog-body">
-                  <div id="analysisSessionDeleteSummary" class="analysis-session-delete-summary">Delete this analysis session?</div>
-                  <div id="analysisSessionDeleteStatus" class="query-status is-hidden"></div>
-                </div>
-                <div class="analysis-session-delete-dialog-actions">
-                  <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip">Delete chat, keep runs</button>
-                  <button id="analysisSessionDeleteAllBtn" type="button" class="query-chip action">Delete chat and generated data</button>
-                </div>
-              </div>
-            </div>
-            <div class="analysis-composer">
+            <div id="analysisComposer" class="analysis-composer">
               <div class="analysis-composer-header">
-                <strong>Run Analysis</strong>
+                <div class="composer-heading-group">
+                  <strong id="analysisComposerTitle">Run Analysis</strong>
+                  <div class="context-mode-switch" role="group" aria-label="Analysis question context">
+                    <button id="analysisContextWorkspaceBtn" type="button" class="context-mode-option is-active" aria-pressed="true" title="Use the current Analysis scope and governed workspace context.">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>
+                      </span>
+                      <span>Workspace</span>
+                    </button>
+                    <button id="analysisContextGeneralBtn" type="button" class="context-mode-option" aria-pressed="false" title="Ask the model without workspace, cohort, assay, or analysis context.">
+                      <span class="button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>
+                      </span>
+                      <span>General question</span>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="analysis-flow-cue">Results and follow-up questions will appear below.</div>
               <div class="analysis-picker">
@@ -1308,7 +1402,7 @@
                       <path d="m5 3 14 9-14 9V3Z"></path>
                     </svg>
                   </span>
-                  <span>Run analysis</span>
+                  <span id="analysisRunBtnLabel">Run analysis</span>
                 </button>
               </div>
               <div id="analysisComposerStatus" class="query-status is-hidden"></div>

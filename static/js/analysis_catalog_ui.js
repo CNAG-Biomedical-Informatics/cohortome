@@ -46,6 +46,7 @@ export function createAnalysisCatalogUi(ctx) {
     currentDatasetSelectionKey,
     isWorkspaceAccessible,
     assayDatasetOverlap,
+    setAnalysisContextMode,
   } = callbacks;
 
   function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -124,6 +125,7 @@ export function createAnalysisCatalogUi(ctx) {
   }
 
   function renderQueryExecutionMode() {
+    const generalQuestion = state.queryContextMode === "general";
     if (queryPlannerBtnEl) {
       const active = state.queryExecutionMode === "planner_only";
       queryPlannerBtnEl.classList.toggle("is-active", active);
@@ -133,7 +135,7 @@ export function createAnalysisCatalogUi(ctx) {
         : "Skip deterministic matching for the next query and use the LLM planner first.";
     }
     if (queryMemoryBtnEl) {
-      const scopeAvailable = state.queryGranularityMode === "detailed";
+      const scopeAvailable = !generalQuestion && state.queryGranularityMode === "detailed";
       queryMemoryBtnEl.classList.toggle("is-active", state.queryFollowMemoryEnabled);
       queryMemoryBtnEl.setAttribute("aria-pressed", state.queryFollowMemoryEnabled ? "true" : "false");
       queryMemoryBtnEl.disabled = !scopeAvailable;
@@ -160,15 +162,19 @@ export function createAnalysisCatalogUi(ctx) {
       }
     }
     if (queryGranularityModeValueEl) {
-      queryGranularityModeValueEl.textContent = state.queryGranularityMode === "detailed" ? "Detailed" : "Summary";
-      queryGranularityModeValueEl.title = state.queryGranularityMode === "detailed"
+      queryGranularityModeValueEl.textContent = generalQuestion
+        ? "No workspace context"
+        : state.queryGranularityMode === "detailed" ? "Detailed" : "Summary";
+      queryGranularityModeValueEl.title = generalQuestion
+        ? "No workspace or dataset context will be sent to the model."
+        : state.queryGranularityMode === "detailed"
         ? "This workspace allows detailed in-app Query results."
         : "This workspace is limited to summary-level in-app Query results.";
     }
     if (queryPolicyInfoBtnEl) {
       const explanation = queryWorkspacePolicyExplanation();
-      queryPolicyInfoBtnEl.classList.toggle("is-hidden", !explanation);
-      queryPolicyInfoBtnEl.classList.toggle("is-warning", Boolean(explanation));
+      queryPolicyInfoBtnEl.classList.toggle("is-hidden", generalQuestion || !explanation);
+      queryPolicyInfoBtnEl.classList.toggle("is-warning", !generalQuestion && Boolean(explanation));
       queryPolicyInfoBtnEl.title = explanation || "Workspace policy details";
       queryPolicyInfoBtnEl.setAttribute("aria-label", explanation || "Workspace policy details");
     }
@@ -567,7 +573,7 @@ export function createAnalysisCatalogUi(ctx) {
       analysisCatalogSetupBadgesEl.innerHTML = badges.join("");
     }
     if (analysisRunBtnEl && !state.analysisInFlight) {
-      analysisRunBtnEl.disabled = !setupState.ready;
+      analysisRunBtnEl.disabled = state.analysisContextMode === "general" ? false : !setupState.ready;
     }
     [refs.analysisCatalogAssayDatasetListEl].filter(Boolean).forEach((listEl) => {
       listEl.classList.toggle("is-hidden", !requiresAssay);
@@ -1081,6 +1087,7 @@ export function createAnalysisCatalogUi(ctx) {
       }
       return;
     }
+    if (typeof setAnalysisContextMode === "function") setAnalysisContextMode("workspace");
     if (analysisCompareModeEl) {
       analysisCompareModeEl.checked = Boolean(item.default_compare_mode);
       renderAnalysisCompareMode();

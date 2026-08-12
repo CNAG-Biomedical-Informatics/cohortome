@@ -196,10 +196,32 @@
         margin-bottom: 0;
       }
       .query-thread-turn-user {
-        background: linear-gradient(145deg, rgba(207, 250, 254, 0.72), rgba(255, 255, 255, 0.9));
+        border-color: rgba(148, 163, 184, 0.28);
+        background: #f8fafc;
+        color: var(--ink);
+      }
+      .query-thread-turn-user > .analysis-turn-label {
+        color: #334155;
+        font-weight: 700;
       }
       .query-thread-turn-assistant {
-        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
+        border-color: rgba(100, 116, 139, 0.28);
+        border-left: 3px solid rgba(71, 85, 105, 0.55);
+        background: #ffffff;
+        color: var(--ink);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      }
+      .query-thread-turn-assistant > .analysis-turn-label {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .query-thread-turn-user .analysis-turn-body,
+      .query-thread-turn-assistant .analysis-turn-body {
+        color: var(--ink);
+      }
+      #question::placeholder {
+        color: #475569;
+        opacity: 1;
       }
       .query-thread-turn-error {
         background: linear-gradient(145deg, rgba(254, 226, 226, 0.82), rgba(255, 255, 255, 0.94));

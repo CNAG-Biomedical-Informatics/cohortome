@@ -50,8 +50,10 @@ This registry stores metadata such as:
 - name
 - root path
 - visibility
+- data classification (`public` or `private`)
 - allowed users
 - allowed groups
+- AI-provider access ceiling
 - enabled state
 
 ## Materialized workspace scopes
@@ -159,6 +161,7 @@ Current settings include:
 - start tab behavior
 - Query disclosure preference
 - Query execution preference
+- Latest query details visibility
 - Analysis job drawer behavior
 - Pheno-Ranker default metric and rendering toggles
 - Dashboard assay view preference
@@ -177,9 +180,20 @@ Current sources:
 - `LM_STUDIO_*` environment variables for `system-default`
 - `COHORTOME_LLM_PROVIDERS_JSON`
 - `COHORTOME_LLM_PROVIDERS_FILE`
+- `<runtime>/state/llm/providers.json` for providers created in `Admin > Models`
 
 The selected provider ID is stored per user, but provider endpoints and secrets
 remain deployment/admin configuration.
+
+Provider configuration includes an explicit `data_boundary` of `local` or
+`external`. `LM_STUDIO_DATA_BOUNDARY` supplies it for `system-default`; missing
+values are treated as external.
+
+Environment and configuration-file providers are read-only in the app.
+Runtime-managed providers use the same atomic-write and advisory-lock pattern
+as other shared registries. Their registry is written with mode `0600` because
+it may contain API keys. Provider responses expose only whether a key exists,
+never its value. An empty key in an update request means "keep the stored key."
 
 ## Why this split exists
 
