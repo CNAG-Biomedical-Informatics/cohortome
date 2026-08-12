@@ -47,6 +47,7 @@ export function createDashboardUi(ctx) {
     sendPromptToAnalysis,
     renderAnalysisCatalog,
     renderAnalysisCatalogAssayPanel,
+    setDashboardSubtab,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
@@ -59,6 +60,11 @@ export function createDashboardUi(ctx) {
     { key: "exposures", label: "Exposure", color: "#6d28d9", symbol: "x" },
     { key: "assay", label: "Assay", color: "#0891b2", symbol: "star" },
   ];
+
+  function isCurrentWorkspaceScope(scopeId) {
+    const normalized = String(scopeId || "").trim();
+    return Boolean(normalized && normalized === String(state.currentDatasetScopeId || "").trim());
+  }
 
   function clinicalRepresentation(payload = null) {
     const direct = String(payload && payload.clinical_representation ? payload.clinical_representation : "").trim().toLowerCase();
@@ -1049,6 +1055,11 @@ export function createDashboardUi(ctx) {
     const totals = summary && summary.totals ? summary.totals : {};
     const representation = clinicalRepresentation(summary);
     const snapshotRepresentation = representation === "snapshot";
+    const timelineButton = document.getElementById("dashboardTimelineBtn");
+    if (timelineButton) {
+      timelineButton.hidden = false;
+      timelineButton.setAttribute("aria-hidden", "false");
+    }
     const recordCount = Number(totals.clinical_records ?? totals.visits ?? summary.visits ?? 0);
     const extraPlotsMarkup = expanded ? `
           <div class="dashboard-plot-card">
@@ -1552,6 +1563,60 @@ export function createDashboardUi(ctx) {
     renderAssayExpressionResult(null);
   }
 
+  function clearDatasetWorkspaceViews(options = {}) {
+    const signedOut = options.signedOut === true;
+    const workspaceMessage = signedOut ? "Sign in to access shared assays." : "No workspace loaded.";
+    state.assayDatasetsState = [];
+    state.assayDatasetsScopeId = "";
+    state.assayDashboardModalityFilter = "all";
+    state.multimodalReadinessState = null;
+    state.multimodalMatrixState = null;
+    state.dicomStudiesState = [];
+    state.dicomStatus = null;
+    state.dashboardSummary = null;
+    clearAssayWorkspaceSelection();
+    if (analysisAssayGenesEl) analysisAssayGenesEl.innerHTML = "";
+    renderAssayDatasetSelector();
+    renderAssayDashboardCards([]);
+    if (analysisAssayStatusEl) {
+      analysisAssayStatusEl.className = "query-status";
+      analysisAssayStatusEl.textContent = workspaceMessage;
+    }
+    if (analysisCatalogAssayStatusEl) {
+      analysisCatalogAssayStatusEl.textContent = workspaceMessage;
+    }
+    if (assayDashboardStatusEl) {
+      assayDashboardStatusEl.className = "query-status";
+      assayDashboardStatusEl.textContent = workspaceMessage;
+    }
+    if (dicomDashboardHealthEl) {
+      dicomDashboardHealthEl.innerHTML = `<div class="empty">${escapeHtml(signedOut ? "Sign in to inspect DICOM viewer status." : "Load a workspace to inspect DICOM viewer status.")}</div>`;
+    }
+    if (dicomDashboardStatusEl) {
+      dicomDashboardStatusEl.className = "query-status";
+      dicomDashboardStatusEl.textContent = signedOut ? "Sign in to access DICOM studies." : "No workspace loaded.";
+    }
+    if (dicomDashboardStudiesEl) {
+      dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies loaded.</div>';
+    }
+    if (multimodalReadinessStatusEl) {
+      multimodalReadinessStatusEl.className = "query-status";
+      multimodalReadinessStatusEl.textContent = workspaceMessage;
+    }
+    if (multimodalReadinessContentEl) {
+      multimodalReadinessContentEl.innerHTML = '<div class="empty">Load a workspace to review multimodal readiness.</div>';
+    }
+    if (multimodalMatrixStatusEl) {
+      multimodalMatrixStatusEl.className = "query-status";
+      multimodalMatrixStatusEl.textContent = workspaceMessage;
+    }
+    if (multimodalMatrixContentEl) {
+      multimodalMatrixContentEl.innerHTML = '<div class="empty">Load a workspace to build a multimodal feature matrix.</div>';
+    }
+    if (typeof renderAnalysisCatalogAssayPanel === "function") renderAnalysisCatalogAssayPanel();
+    if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
+  }
+
   function assayDatasetOverlap(datasetName) {
     const normalizedName = String(datasetName || "").trim();
     if (!normalizedName) return null;
@@ -1699,6 +1764,7 @@ export function createDashboardUi(ctx) {
       fetch(`/dicom/studies?data_dir=${dataDir}`),
       fetch(`/dicom/status?data_dir=${dataDir}`),
     ]);
+    if (!isCurrentWorkspaceScope(scopeId)) return;
     if (studiesResult.status === "fulfilled" && studiesResult.value.ok) {
       renderDicomStudies(await studiesResult.value.json());
     } else {
@@ -2242,8 +2308,11 @@ export function createDashboardUi(ctx) {
     try {
       const response = await fetch(`/assays/readiness?data_dir=${dataDir}`);
       if (!response.ok) throw new Error("Unable to load multimodal readiness.");
-      renderMultimodalReadiness(await response.json());
+      const payload = await response.json();
+      if (!isCurrentWorkspaceScope(scopeId)) return;
+      renderMultimodalReadiness(payload);
     } catch (error) {
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       renderMultimodalReadinessError(error && error.message ? error.message : "Unable to load multimodal readiness.");
     }
   }
@@ -2258,8 +2327,11 @@ export function createDashboardUi(ctx) {
     try {
       const response = await fetch(`/assays/matrix?data_dir=${dataDir}&max_features_per_dataset=3&max_rows=12`);
       if (!response.ok) throw new Error("Unable to build multimodal feature matrix.");
-      renderMultimodalMatrix(await response.json());
+      const payload = await response.json();
+      if (!isCurrentWorkspaceScope(scopeId)) return;
+      renderMultimodalMatrix(payload);
     } catch (error) {
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       renderMultimodalMatrixError(error && error.message ? error.message : "Unable to build multimodal feature matrix.");
     }
   }
@@ -2272,7 +2344,8 @@ export function createDashboardUi(ctx) {
       return;
     }
     const query = encodeURIComponent(String(analysisAssayGeneEl && analysisAssayGeneEl.value ? analysisAssayGeneEl.value.trim() : ""));
-    const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
+    const scopeId = String((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()).trim();
+    const dataDir = encodeURIComponent(scopeId);
     try {
       const payloads = await Promise.all(datasetNames.map(async (datasetName) => {
         const dataset = encodeURIComponent(datasetName);
@@ -2285,6 +2358,7 @@ export function createDashboardUi(ctx) {
         const current = payload && payload.annotations && typeof payload.annotations === "object" ? payload.annotations : {};
         return { ...acc, ...current };
       }, {});
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       analysisAssayGenesEl.innerHTML = genes.map((geneId) => {
         const annotation = annotations[geneId] && typeof annotations[geneId] === "object" ? annotations[geneId] : {};
         const geneSymbol = String(annotation.gene_symbol || "").trim();
@@ -2294,6 +2368,7 @@ export function createDashboardUi(ctx) {
         return `<option value="${escapeHtml(geneId)}" label="${escapeHtml(label)}" title="${escapeHtml(title || geneId)}"></option>`;
       }).join("");
     } catch (_error) {
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       analysisAssayGenesEl.innerHTML = "";
     }
   }
@@ -2326,6 +2401,7 @@ export function createDashboardUi(ctx) {
           if (!response.ok) throw new Error("Unable to load assay datasets.");
           return response.json();
         })();
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
       state.assayDatasetsState = datasets;
       syncSelectedAssayDatasets();
@@ -2361,6 +2437,7 @@ export function createDashboardUi(ctx) {
       assayDashboardStatusEl.textContent = `Loaded ${datasets.length} assay dataset${datasets.length === 1 ? "" : "s"}.`;
       await loadAssayFeatureSuggestions();
     } catch (error) {
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       analysisAssayStatusEl.className = "query-status";
       analysisAssayStatusEl.textContent = error && error.message ? error.message : "Unable to load transcriptomics assays.";
       if (analysisCatalogAssayStatusEl) {
@@ -2392,6 +2469,7 @@ export function createDashboardUi(ctx) {
     }
     analysisAssayStatusEl.className = "query-status loading";
     analysisAssayStatusEl.textContent = "Fetching transcriptomics expression summary...";
+    const scopeId = String((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()).trim();
     try {
       const selectedCohortA = Array.isArray(state.savedCohorts)
         ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
@@ -2420,10 +2498,12 @@ export function createDashboardUi(ctx) {
         if (!response.ok) throw new Error("Unable to fetch transcriptomics expression.");
         return response.json();
       }));
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       renderAssayExpressionResult(payloads);
       analysisAssayStatusEl.className = "query-status";
       analysisAssayStatusEl.textContent = `Expression summary ready for ${geneId} across ${datasetNames.length} assay${datasetNames.length === 1 ? "" : "s"}.`;
     } catch (error) {
+      if (!isCurrentWorkspaceScope(scopeId)) return;
       renderAssayExpressionResult(null);
       analysisAssayStatusEl.className = "query-status";
       analysisAssayStatusEl.textContent = error && error.message ? error.message : "Unable to fetch transcriptomics expression.";
@@ -2461,6 +2541,7 @@ export function createDashboardUi(ctx) {
     renderAssayDashboardCards,
     handleAssayModalityFilter,
     renderDicomStudies,
+    clearDatasetWorkspaceViews,
     loadDicomStudies,
     loadAssayDatasets,
     runAssayExpressionAnalysis,

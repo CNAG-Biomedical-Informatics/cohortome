@@ -1,5 +1,6 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
@@ -32,6 +33,7 @@ import app.query_store as query_store_module
 import app.routes as routes_module
 import app.user_settings as user_settings_module
 import app.user_state as user_state_module
+import scripts.register_dataset as register_dataset_script
 from app.bff import (
     build_patient_workspace,
     dashboard_summary,
@@ -704,7 +706,7 @@ def test_answer_query_summary_granularity_disables_copy_patient_ids(tmp_path):
     }
 
 
-def test_query_post_accepts_granularity_mode_summary(tmp_path):
+def test_query_post_accepts_granularity_mode_summary(tmp_path, monkeypatch):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
     write_json(
@@ -716,12 +718,19 @@ def test_query_post_accepts_granularity_mode_summary(tmp_path):
         ],
     )
 
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, key="": ["test-dataset"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, key: str(tmp_path))
+    monkeypatch.setattr(
+        routes_module,
+        "_authorized_datasets_for_request",
+        lambda request: [{"dataset_id": "test-dataset", "name": "Test dataset"}],
+    )
     client = TestClient(app)
     response = client.post(
         "/query",
         json={
             "q": "Tell me the list of patients on the cohort",
-            "data_dir": str(tmp_path),
+            "dataset_id": "test-dataset",
             "granularity_mode": "summary",
         },
     )
@@ -730,6 +739,8 @@ def test_query_post_accepts_granularity_mode_summary(tmp_path):
     payload = response.json()
     assert payload["data"]["granularity_requested"] == "summary"
     assert payload["data"]["granularity_applied"] == "summary"
+    assert payload["data"]["dataset_id"] == "test-dataset"
+    assert payload["data"]["dataset_name"] == "Test dataset"
 
 
 def test_answer_query_summary_blocks_direct_patient_detail_lookup(tmp_path):
@@ -2153,16 +2164,25 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     listed = client.get("/datasets")
     assert listed.status_code == 200
     assert [item["dataset_id"] for item in listed.json()["datasets"]] == ["maria-dataset"]
-    assert listed.json()["current_dataset_id"] == "maria-dataset"
+    assert listed.json()["current_dataset_id"] == ""
+    assert listed.json()["current_dataset_ids"] == []
     assert listed.json()["datasets"][0]["root_path"] == ""
     assert listed.json()["datasets"][0]["clinical_representation"] == "person"
 
     denied = client.get("/patients?dataset_id=default")
     assert denied.status_code == 403
 
+    invalid = client.post("/datasets/select", json={"dataset_ids": [""]})
+    assert invalid.status_code == 400
+    assert client.get("/datasets").json()["current_dataset_ids"] == []
+
     selected = client.post("/datasets/select", json={"dataset_id": "maria-dataset"})
     assert selected.status_code == 200
     assert selected.json()["current_dataset_id"] == "maria-dataset"
+
+    invalid = client.post("/datasets/select", json={"dataset_ids": [""]})
+    assert invalid.status_code == 400
+    assert client.get("/datasets").json()["current_dataset_ids"] == ["maria-dataset"]
 
     patients = client.get("/patients")
     assert patients.status_code == 200
@@ -2170,6 +2190,13 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     assert patients.json()[0]["clinical_representation"] == "person"
     assert patients.json()[0]["source_files"] == ["maria-dataset:clinical/records.json"]
     assert str(tmp_path) not in json.dumps(patients.json())
+
+    unloaded = client.post("/datasets/select", json={"dataset_ids": []})
+    assert unloaded.status_code == 200
+    assert unloaded.json()["selected"] is False
+    assert unloaded.json()["current_dataset_ids"] == []
+    assert client.get("/datasets").json()["current_dataset_ids"] == []
+    assert client.get("/patients").status_code == 409
 
 
 def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeypatch):
@@ -2630,16 +2657,20 @@ def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
     client = TestClient(app)
     assert client.post("/auth/login", json={"username": "admin", "password": "secret"}).status_code == 200
     selected = client.post("/datasets/select", json={"dataset_id": "default"})
-    assert selected.status_code == 200
+    assert selected.status_code == 409
 
     listed = client.get("/datasets")
     assert listed.status_code == 200
     assert listed.json()["datasets"][0]["query_store_status"]["status"] == "not_built"
+    assert listed.json()["current_dataset_ids"] == []
 
     prepared = client.post("/datasets/default/prepare-store")
     assert prepared.status_code == 200
     assert prepared.json()["query_store_status"]["status"] == "ready"
     assert prepared.json()["query_store_status"]["ready"] is True
+
+    selected = client.post("/datasets/select", json={"dataset_id": "default"})
+    assert selected.status_code == 200
 
     patients = client.get("/patients", params={"dataset_id": "default"})
     assert patients.status_code == 200
@@ -2686,7 +2717,8 @@ def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypa
     client = TestClient(app)
     assert client.post("/auth/login", json={"username": "maria", "password": "demo"}).status_code == 200
     selected = client.post("/datasets/select", json={"dataset_id": "maria-dataset"})
-    assert selected.status_code == 200
+    assert selected.status_code == 409
+    assert client.get("/datasets").json()["current_dataset_ids"] == []
 
     blocked = client.get("/patients", params={"dataset_id": "maria-dataset"})
     assert blocked.status_code == 409
@@ -2694,9 +2726,93 @@ def test_dataset_routes_block_until_dataset_store_is_prepared(tmp_path, monkeypa
 
     query_store_module.prepare_dataset_query_store("maria-dataset")
 
-    patients = client.get("/patients", params={"dataset_id": "maria-dataset"})
+    selected = client.post("/datasets/select", json={"dataset_id": "maria-dataset"})
+    assert selected.status_code == 200
+
+    patients = client.get("/patients")
     assert patients.status_code == 200
     assert patients.json()[0]["patient_id"] == "M1"
+
+
+def test_failed_dataset_switch_preserves_active_workspace_and_stale_selection_is_cleared(tmp_path, monkeypatch):
+    isolate_auth_store(monkeypatch, tmp_path)
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
+    monkeypatch.setenv(
+        "COHORTOME_LOCAL_USERS_JSON",
+        json.dumps([{"username": "maria", "password": "demo", "role": "user", "display_name": "Maria"}]),
+    )
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+    monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    ready_root = tmp_path / "ready-dataset"
+    unready_root = tmp_path / "unready-dataset"
+    for root, patient_id in ((ready_root, "R1"), (unready_root, "U1")):
+        clinical_dir = root / "clinical"
+        clinical_dir.mkdir(parents=True)
+        write_json(clinical_dir, "records.json", [{"id": f"{patient_id}:baseline", "patient_id": patient_id}])
+
+    records = [
+        {
+            "dataset_id": "default",
+            "name": "Admin dataset",
+            "root_path": str(ready_root),
+            "enabled": True,
+            "visibility": "admin_only",
+        },
+    ]
+    for dataset_id, root in (("ready-dataset", ready_root), ("unready-dataset", unready_root)):
+        records.append(
+            {
+                "dataset_id": dataset_id,
+                "name": dataset_id,
+                "root_path": str(root),
+                "enabled": True,
+                "visibility": "restricted",
+                "allowed_users": ["maria"],
+                "created_by": "admin",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(records), encoding="utf-8")
+    query_store_module.prepare_dataset_query_store("ready-dataset")
+
+    client = TestClient(app)
+    assert client.post("/auth/login", json={"username": "maria", "password": "demo"}).status_code == 200
+    assert client.post("/datasets/select", json={"dataset_id": "ready-dataset"}).status_code == 200
+
+    failed_switch = client.post("/datasets/select", json={"dataset_id": "unready-dataset"})
+    assert failed_switch.status_code == 409
+    assert client.get("/datasets").json()["current_dataset_ids"] == ["ready-dataset"]
+    patients = client.get("/patients")
+    assert patients.status_code == 200
+    assert [item["patient_id"] for item in patients.json()] == ["R1"]
+
+    datasets_module.update_dataset("ready-dataset", enabled=False)
+    assert client.get("/datasets").json()["current_dataset_ids"] == []
+    assert datasets_module.current_dataset_ids("maria") == []
+
+    datasets_module.update_dataset("unready-dataset", enabled=False)
+    listed = client.get("/datasets")
+    assert listed.status_code == 200
+    assert listed.json()["datasets"] == []
+    assert listed.json()["current_dataset_ids"] == []
+
+
+def test_invalid_dataset_registry_is_not_silently_replaced(tmp_path, monkeypatch):
+    registry_path = tmp_path / "state" / "datasets" / "registry.json"
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", registry_path)
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text('{"truncated":', encoding="utf-8")
+    original = registry_path.read_bytes()
+
+    with pytest.raises(RuntimeError, match="registry is invalid"):
+        datasets_module.list_registered_datasets()
+
+    assert registry_path.read_bytes() == original
 
 
 def test_prepared_dataset_store_supports_concurrent_readers(tmp_path, monkeypatch):
@@ -2743,6 +2859,61 @@ def test_prepared_dataset_store_supports_concurrent_readers(tmp_path, monkeypatc
         results = list(executor.map(lambda _index: read_patients(), range(reader_count)))
 
     assert results == [["C1"]] * reader_count
+
+
+def test_dataset_store_supports_concurrent_rebuild_requests(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    dataset_root = tmp_path / "concurrent-rebuild-dataset"
+    clinical_dir = dataset_root / "clinical"
+    clinical_dir.mkdir(parents=True)
+    write_json(clinical_dir, "records.json", [{"id": "C1:baseline", "patient_id": "C1"}])
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(
+        json.dumps(
+            [
+                {
+                    "dataset_id": "default",
+                    "name": "Default dataset",
+                    "root_path": str(dataset_root),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                },
+                {
+                    "dataset_id": "concurrent-rebuild-dataset",
+                    "name": "Concurrent rebuild dataset",
+                    "root_path": str(dataset_root),
+                    "enabled": True,
+                    "visibility": "all_authenticated",
+                    "created_by": "admin",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    builder_count = 2
+    start = Barrier(builder_count)
+
+    def rebuild_store():
+        start.wait()
+        return query_store_module.prepare_dataset_query_store("concurrent-rebuild-dataset")
+
+    with ThreadPoolExecutor(max_workers=builder_count) as executor:
+        results = list(executor.map(lambda _index: rebuild_store(), range(builder_count)))
+
+    assert all(result["ready"] is True for result in results)
+    assert query_store_module.patient_inventory(str(dataset_root)) == ["C1"]
 
 
 def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_path, monkeypatch):
@@ -2794,6 +2965,100 @@ def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_pa
     assert (refreshed_root / "clinical" / "dataset-b__b_new_records.json").exists()
     manifest = json.loads((refreshed_root / "manifest.json").read_text(encoding="utf-8"))
     assert "dataset-b__b_new_records.json" in [item["target"] for item in manifest["clinical_files"]]
+
+
+def test_multi_dataset_scope_build_failure_preserves_previous_scope(tmp_path, monkeypatch):
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    registry = []
+    for dataset_id, patient_id in (("dataset-a", "A1"), ("dataset-b", "B1")):
+        root = tmp_path / dataset_id
+        (root / "clinical").mkdir(parents=True)
+        (root / "assays").mkdir()
+        write_json(root / "clinical", "records.json", [{"id": f"{patient_id}:baseline", "patient_id": patient_id}])
+        registry.append(
+            {
+                "dataset_id": dataset_id,
+                "name": dataset_id,
+                "root_path": str(root),
+                "enabled": True,
+                "visibility": "all_authenticated",
+                "created_by": "admin",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    scope_root = Path(datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"]))
+    original_manifest = (scope_root / "manifest.json").read_text(encoding="utf-8")
+    new_source = write_json(
+        tmp_path / "dataset-b" / "clinical",
+        "new_records.json",
+        [{"id": "B2:baseline", "patient_id": "B2"}],
+    )
+    original_symlink_to = Path.symlink_to
+
+    def fail_new_link(path, target, *args, **kwargs):
+        if Path(target) == new_source.resolve():
+            raise OSError("simulated scope publication failure")
+        return original_symlink_to(path, target, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "symlink_to", fail_new_link)
+    with pytest.raises(OSError, match="simulated scope publication failure"):
+        datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"])
+
+    assert (scope_root / "manifest.json").read_text(encoding="utf-8") == original_manifest
+    assert (scope_root / "clinical" / "dataset-a__records.json").exists()
+    assert (scope_root / "clinical" / "dataset-b__records.json").exists()
+    assert not (scope_root / "clinical" / "dataset-b__new_records.json").exists()
+
+
+def test_multi_dataset_scope_supports_concurrent_materialization(tmp_path, monkeypatch):
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", tmp_path / "state" / "datasets" / "registry.json")
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+    registry = []
+    for dataset_id, patient_id in (("dataset-a", "A1"), ("dataset-b", "B1")):
+        root = tmp_path / dataset_id
+        (root / "clinical").mkdir(parents=True)
+        (root / "assays").mkdir()
+        write_json(root / "clinical", "records.json", [{"id": f"{patient_id}:baseline", "patient_id": patient_id}])
+        registry.append(
+            {
+                "dataset_id": dataset_id,
+                "name": dataset_id,
+                "root_path": str(root),
+                "enabled": True,
+                "visibility": "all_authenticated",
+                "created_by": "admin",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        )
+    datasets_module.DATASET_REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    datasets_module.DATASET_REGISTRY_PATH.write_text(json.dumps(registry), encoding="utf-8")
+
+    builder_count = 4
+    start = Barrier(builder_count)
+
+    def materialize_scope():
+        start.wait()
+        return datasets_module.materialize_dataset_scope(["dataset-a", "dataset-b"])
+
+    with ThreadPoolExecutor(max_workers=builder_count) as executor:
+        roots = list(executor.map(lambda _index: materialize_scope(), range(builder_count)))
+
+    assert len(set(roots)) == 1
+    scope_root = Path(roots[0])
+    manifest = json.loads((scope_root / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["dataset_ids"] == ["dataset-a", "dataset-b"]
+    assert sorted(path.name for path in (scope_root / "clinical").glob("*.json")) == [
+        "dataset-a__records.json",
+        "dataset-b__records.json",
+    ]
 
 
 def test_federated_workspace_uses_prepared_dataset_stores_without_building_combined_db(tmp_path, monkeypatch):
@@ -3061,6 +3326,116 @@ def test_dataset_registration_requires_explicit_clinical_representation(tmp_path
 
     with pytest.raises(ValueError, match="clinical.representation"):
         datasets_module.register_dataset(name="Ambiguous", root_path=str(dataset_root))
+
+
+def test_register_dataset_script_enables_dataset_only_after_store_is_ready(monkeypatch, capsys):
+    calls = []
+    args = SimpleNamespace(
+        name="Private dataset",
+        root="/private/release",
+        description="",
+        visibility="restricted",
+        allowed_user=["maria"],
+        allowed_group=[],
+        query_detail="detailed",
+        ai_provider_access="blocked",
+        created_by="admin",
+        prepare_store=True,
+    )
+    monkeypatch.setattr(register_dataset_script, "_parser", lambda: SimpleNamespace(parse_args=lambda: args))
+
+    def fake_register_dataset(**kwargs):
+        calls.append(("register", kwargs["enabled"]))
+        return {
+            "dataset_id": "private-dataset",
+            "visibility": "restricted",
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "blocked",
+        }
+
+    monkeypatch.setattr(register_dataset_script, "register_dataset", fake_register_dataset)
+    monkeypatch.setattr(
+        register_dataset_script,
+        "prepare_dataset_query_store",
+        lambda dataset_id: calls.append(("prepare", dataset_id)) or {"status": "ready", "ready": True},
+    )
+    monkeypatch.setattr(
+        register_dataset_script,
+        "update_dataset",
+        lambda dataset_id, enabled: calls.append(("enable", dataset_id, enabled))
+        or {
+            "dataset_id": dataset_id,
+            "visibility": "restricted",
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "blocked",
+        },
+    )
+
+    assert register_dataset_script.main() == 0
+    assert calls == [
+        ("register", False),
+        ("prepare", "private-dataset"),
+        ("enable", "private-dataset", True),
+    ]
+    assert json.loads(capsys.readouterr().out)["query_store"] == {"status": "ready", "ready": True}
+
+
+def test_register_dataset_script_rolls_back_failed_store_preparation(monkeypatch):
+    calls = []
+    args = SimpleNamespace(
+        name="Private dataset",
+        root="/private/release",
+        description="",
+        visibility="restricted",
+        allowed_user=["maria"],
+        allowed_group=[],
+        query_detail="detailed",
+        ai_provider_access="blocked",
+        created_by="admin",
+        prepare_store=True,
+    )
+    monkeypatch.setattr(register_dataset_script, "_parser", lambda: SimpleNamespace(parse_args=lambda: args))
+    monkeypatch.setattr(
+        register_dataset_script,
+        "register_dataset",
+        lambda **kwargs: calls.append(("register", kwargs["enabled"]))
+        or {
+            "dataset_id": "private-dataset",
+            "visibility": "restricted",
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "blocked",
+        },
+    )
+
+    def fail_prepare(dataset_id):
+        calls.append(("prepare", dataset_id))
+        raise RuntimeError("simulated store failure")
+
+    monkeypatch.setattr(register_dataset_script, "prepare_dataset_query_store", fail_prepare)
+    monkeypatch.setattr(
+        register_dataset_script,
+        "remove_dataset_query_store",
+        lambda dataset_id: calls.append(("remove_store", dataset_id)),
+    )
+    monkeypatch.setattr(
+        register_dataset_script,
+        "unregister_dataset",
+        lambda dataset_id: calls.append(("unregister", dataset_id)),
+    )
+    monkeypatch.setattr(
+        register_dataset_script,
+        "update_dataset",
+        lambda *args, **kwargs: pytest.fail("A failed store must not enable the dataset."),
+    )
+
+    with pytest.raises(RuntimeError, match="simulated store failure"):
+        register_dataset_script.main()
+    assert calls == [
+        ("register", False),
+        ("prepare", "private-dataset"),
+        ("remove_store", "private-dataset"),
+        ("unregister", "private-dataset"),
+    ]
 
 
 def test_generate_mds_points_skips_oversized_matrix(tmp_path, monkeypatch):
@@ -3646,8 +4021,7 @@ def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkey
         encoding="utf-8",
     )
     signature_files = {Path(item["path"]).name for item in query_store_module._source_files_signature(str(tmp_path))["assay_files"]}
-    assert "manifest.json" in signature_files
-    assert "synthetic_imaging_derived_features.csv" in signature_files
+    assert signature_files == {"synthetic_transcriptome_raw_counts.csv"}
     query_store_module.ASSAY_DATA_DIR = transcriptomics_dir
     monkeypatch.setattr(
         analysis_external_module.shutil,
@@ -7781,6 +8155,93 @@ def test_query_store_ingests_assay_count_matrices(tmp_path):
     assert imaging["clinical_overlap_patient_count"] == 2
 
 
+def test_manifest_assay_stats_stream_header_and_use_declared_feature_count(tmp_path, monkeypatch):
+    assay_dir = tmp_path / "assays" / "methylation"
+    assay_dir.mkdir(parents=True)
+    matrix_path = assay_dir / "matrix.csv"
+    matrix_path.write_text(
+        "feature_id;SYN001;SYN002\nCpG001;0.1;0.2\nCpG002;0.3;0.4\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("matrix must be streamed")),
+    )
+    stats = query_store_module._assay_matrix_stats(
+        tmp_path,
+        {
+            "file": "assays/methylation/matrix.csv",
+            "feature_count": 368_607,
+        },
+    )
+
+    assert stats is not None
+    assert stats["sample_ids"] == ["SYN001", "SYN002"]
+    assert stats["feature_count"] == 368_607
+
+
+def test_assay_inventory_metadata_honors_manifest_capability_overrides():
+    metadata = query_store_module._assay_inventory_metadata(
+        "transcriptomics",
+        "expression_values",
+        {
+            "feature_namespace": "ensembl_gene_id",
+            "feature_label": "genes",
+            "value_kind": "preprocessing_unresolved_expression_values",
+            "patient_linkage": "exact_sample_id",
+            "supports_expression_summary": False,
+            "supports_differential_expression": False,
+            "compatible_analysis_levels": ["patient"],
+        },
+    )
+
+    assert metadata["feature_id_type"] == "ensembl_gene_id"
+    assert metadata["value_kind"] == "preprocessing_unresolved_expression_values"
+    assert metadata["patient_linkage"] == "exact_sample_id"
+    assert metadata["supports_expression_summary"] is False
+    assert metadata["supports_differential_expression"] is False
+    assert metadata["compatible_analysis_levels"] == ["patient"]
+
+
+def test_manifest_expression_values_are_not_coerced_into_raw_counts(tmp_path):
+    transcriptomics_dir = tmp_path / "assays" / "transcriptomics"
+    transcriptomics_dir.mkdir(parents=True)
+    raw_counts = transcriptomics_dir / "raw_counts.csv"
+    expression_values = transcriptomics_dir / "expression_values.csv"
+    sample_metadata = transcriptomics_dir / "sample_metadata.csv"
+    raw_counts.write_text("gene_id;SYN001\nENSG00000141510;10\n", encoding="utf-8")
+    expression_values.write_text("gene_id;SYN001\nENSG00000141510;10.75\n", encoding="utf-8")
+    sample_metadata.write_text("sample_id;batch\nSYN001;A\n", encoding="utf-8")
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "raw_counts",
+                        "modality": "transcriptomics",
+                        "data_type": "raw_counts",
+                        "file": "assays/transcriptomics/raw_counts.csv",
+                    },
+                    {
+                        "assay_id": "expression_values",
+                        "modality": "transcriptomics",
+                        "data_type": "expression_values",
+                        "file": "assays/transcriptomics/expression_values.csv",
+                        "sample_metadata_file": "assays/transcriptomics/sample_metadata.csv",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert query_store_module._assay_matrix_files(str(tmp_path)) == [raw_counts]
+    assert datasets_module.dataset_content_metadata(str(tmp_path))["assay_file_count"] == 2
+
+
 def test_query_store_summarizes_transcriptomics_expression_by_scope(tmp_path):
     if not duckdb_available():
         return
@@ -8255,6 +8716,67 @@ def test_auth_and_saved_cohort_route_wrappers_cover_common_error_paths(monkeypat
     assert missing_exc.value.status_code == 404
 
 
+def test_query_post_uses_active_workspace_and_returns_dataset_provenance(monkeypatch):
+    request = make_request({"username": "admin"})
+    captured = {}
+
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "admin"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "admin")
+    monkeypatch.setattr(routes_module, "current_dataset_ids", lambda user_id: ["private-v2"])
+
+    def fake_resolve_dataset_ids(req, key=""):
+        captured["dataset_key"] = key
+        return ["private-v2"]
+
+    def fake_resolve_dataset_dir(req, key):
+        captured["resolved_key"] = key
+        return "/protected/release"
+
+    def fake_answer_query(data_dir, *args, **kwargs):
+        captured["data_dir"] = data_dir
+        return {"intent": "disease_cohort", "reply": "No matching patients.", "data": {"patient_count": 0}}
+
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", fake_resolve_dataset_ids)
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", fake_resolve_dataset_dir)
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
+    monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "blocked")
+    monkeypatch.setattr(routes_module, "selected_lm_provider_id", lambda req: "")
+    monkeypatch.setattr(routes_module, "lm_provider_context", lambda provider_id: nullcontext())
+    monkeypatch.setattr(routes_module, "answer_query", fake_answer_query)
+    monkeypatch.setattr(
+        routes_module,
+        "_authorized_datasets_for_request",
+        lambda req: [{"dataset_id": "private-v2", "name": "Private cross-sectional v2"}],
+    )
+
+    payload = routes_module.query_app_post(
+        routes_module.QueryRequest(q="Which patients have COPD?", data_dir="default_dataset"),
+        request,
+    )
+
+    assert captured == {
+        "dataset_key": "private-v2",
+        "resolved_key": "private-v2",
+        "data_dir": "/protected/release",
+    }
+    assert payload["data"]["dataset_id"] == "private-v2"
+    assert payload["data"]["dataset_ids"] == ["private-v2"]
+    assert payload["data"]["dataset_name"] == "Private cross-sectional v2"
+    assert payload["data"]["dataset_names"] == ["Private cross-sectional v2"]
+
+
+def test_query_post_rejects_missing_active_workspace(monkeypatch):
+    request = make_request({"username": "admin"})
+    monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "admin"})
+    monkeypatch.setattr(routes_module, "request_user_id", lambda req: "admin")
+    monkeypatch.setattr(routes_module, "current_dataset_ids", lambda user_id: [])
+
+    with pytest.raises(HTTPException, match="No active workspace") as exc:
+        routes_module.query_app_post(routes_module.QueryRequest(q="Which patients have COPD?"), request)
+
+    assert exc.value.status_code == 409
+
+
 def test_query_analysis_and_dashboard_route_wrappers_map_file_not_found(monkeypatch):
     request = make_request({"username": "u1"})
     monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "u1"})
@@ -8270,7 +8792,7 @@ def test_query_analysis_and_dashboard_route_wrappers_map_file_not_found(monkeypa
     monkeypatch.setattr(routes_module, "dashboard_summary", lambda data_dir: (_ for _ in ()).throw(FileNotFoundError("missing dashboard data")))
     monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda request, dataset_id="", data_dir="": "/resolved/data")
 
-    query_payload = routes_module.QueryRequest(q="hello")
+    query_payload = routes_module.QueryRequest(q="hello", dataset_id="default")
     analysis_payload = routes_module.AnalysisRequest(prompt="explain")
     expression_payload = routes_module.AssayExpressionRequest(assay_id="rna", gene_id="TP53")
 
@@ -8303,6 +8825,8 @@ def test_analysis_session_and_pheno_route_wrappers_enforce_expected_guards(monke
     monkeypatch.setattr(routes_module, "rename_analysis_session", lambda session_id, title, user_id="": None)
     monkeypatch.setattr(routes_module, "delete_analysis_session", lambda session_id, user_id="": False)
     monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, key="": ["summary-dataset"])
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, key="": "/tmp/data")
+    monkeypatch.setattr(routes_module, "workspace_fingerprint_for_data_dir", lambda *args, **kwargs: {})
     monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "summary")
 
     session_payload = routes_module.AnalysisSessionRequest(id="s1", title="Test", messages=[])

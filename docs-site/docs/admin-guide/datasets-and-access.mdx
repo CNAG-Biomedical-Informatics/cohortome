@@ -84,6 +84,11 @@ The command prints the dataset ID and store status, but not the source path or
 record contents. Restart source services with the same
 `COHORTOME_RUNTIME_ROOT`; the web process and RQ worker must share it.
 
+With `--prepare-store`, the new registry entry remains disabled while DuckDB is
+being built. It is enabled only after the store is ready. A normal build
+failure removes the incomplete store and registration, so users never see a
+half-prepared dataset as available.
+
 :::warning Restricted data
 Do not place restricted releases under the repository, Docker build context, or
 a public volume. Start with `admin_only` and `blocked` AI access. Change those
@@ -127,6 +132,28 @@ absolute filesystem location.
 
   </TabItem>
 </Tabs>
+
+## Loading and unloading safely
+
+Checking datasets changes only the pending selection. The current workspace
+remains active until the user applies that selection and the server confirms
+that every selected dataset store is ready. COHORTome also checks the clinical
+and assay endpoints before replacing the browser workspace.
+
+If any check fails, the previous workspace and its Query and Analysis content
+remain in place. The error is shown beside the load control, and the user can
+correct the selection or ask an administrator to rebuild a stale store.
+
+To unload, clear every checked dataset and choose **Unload workspace**. The
+server first persists an empty selection; the browser then clears clinical,
+assay, multimodal, DICOM, cohort, Query, Pheno-Ranker, and Analysis state. The
+application does not silently select the first available dataset afterward.
+
+:::note Active versus pending
+An **Active** marker identifies the server-persisted workspace. Checked boxes
+identify the pending selection. They can differ while a change is being
+reviewed or after an attempted switch fails.
+:::
 
 ## Access model
 

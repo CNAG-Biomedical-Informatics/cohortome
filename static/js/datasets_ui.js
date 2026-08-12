@@ -78,19 +78,27 @@ export function createDatasetsUi(ctx) {
     const pendingIds = pendingDatasetSelectionIds();
     const hasPendingChange = activeIds.length !== pendingIds.length
       || activeIds.some((item, index) => item !== pendingIds[index]);
+    const isUnloading = activeIds.length > 0 && pendingIds.length === 0;
+    const hasNoWorkspaceSelection = activeIds.length === 0 && pendingIds.length === 0;
     const blockedByAuth = typeof isWorkspaceAccessible === "function" && !isWorkspaceAccessible();
     const storeBlocker = pendingWorkspaceStoreBlocker();
     refs.loadBtnEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     refs.loadBtnEl.classList.toggle("has-pending-change", Boolean(hasPendingChange && !state.loadInFlight));
-    refs.loadBtnEl.disabled = Boolean(state.loadInFlight || blockedByAuth || storeBlocker);
-    refs.loadBtnEl.title = storeBlocker ? storeBlocker.message : "";
+    refs.loadBtnEl.disabled = Boolean(state.loadInFlight || blockedByAuth || storeBlocker || hasNoWorkspaceSelection);
+    refs.loadBtnEl.title = storeBlocker
+      ? storeBlocker.message
+      : hasNoWorkspaceSelection
+        ? "Select at least one dataset to create a workspace."
+        : "";
     if (datasetPickerShellEl) {
       datasetPickerShellEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     }
     if (refs.loadBtnLabelEl) {
       refs.loadBtnLabelEl.textContent = state.loadInFlight
         ? "Applying..."
-        : hasPendingChange
+        : isUnloading
+          ? "Unload workspace"
+          : hasPendingChange
           ? "Apply workspace"
           : "Reload workspace";
     }
@@ -243,21 +251,7 @@ export function createDatasetsUi(ctx) {
   }
 
   function pendingDatasetSelectionIds() {
-    return state.pendingDatasetIds.length ? state.pendingDatasetIds.slice() : state.currentDatasetIds.slice();
-  }
-
-  function startupDefaultDatasetIds() {
-    if (!state.availableDatasets.length) {
-      return [];
-    }
-    const explicitDefault = state.availableDatasets.find((item) => String(item.dataset_id || "") === "default");
-    if (explicitDefault) {
-      return [String(explicitDefault.dataset_id || "default")];
-    }
-    const firstDataset = state.availableDatasets[0];
-    return firstDataset && firstDataset.dataset_id
-      ? [String(firstDataset.dataset_id)]
-      : [];
+    return state.pendingDatasetIds.slice();
   }
 
   function selectedDatasetRecords() {
@@ -413,9 +407,6 @@ export function createDatasetsUi(ctx) {
       }
       dataDirEl.appendChild(option);
     });
-    if (!selectedIds.size && state.availableDatasets[0]) {
-      dataDirEl.options[0].selected = true;
-    }
     dataDirEl.dataset.scopeId = currentDatasetSelectionKey();
     renderDatasetPicker();
     renderDatasetAdminList();
@@ -489,6 +480,11 @@ export function createDatasetsUi(ctx) {
       datasetAdminListEl.innerHTML = '<div class="empty">No dataset administration entries available.</div>';
       return;
     }
+    const expandedDatasetIds = new Set(
+      Array.from(datasetAdminListEl.querySelectorAll("[data-dataset-admin-card][open]"))
+        .map((item) => String(item.getAttribute("data-dataset-admin-card") || "").trim())
+        .filter(Boolean),
+    );
     datasetAdminListEl.innerHTML = state.availableDatasets.map((dataset) => {
       const datasetId = String(dataset.dataset_id || "");
       const visibility = String(dataset.visibility || "all_authenticated");
@@ -516,8 +512,18 @@ export function createDatasetsUi(ctx) {
       const storeDetail = String(storeStatus.last_error || "").trim()
         || (storeStatus.last_built_at ? `Last built: ${storeStatus.last_built_at}` : "No prepared DuckDB store is available yet.");
       return `
-        <div class="dataset-picker-card">
-          <div>
+        <details class="dataset-admin-card" data-dataset-admin-card="${escapeHtml(datasetId)}" ${expandedDatasetIds.has(datasetId) ? "open" : ""}>
+          <summary class="dataset-admin-summary">
+            <span class="dataset-admin-summary-main">
+              <span class="dataset-picker-title">${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
+              <span class="dataset-picker-meta">
+                <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
+                <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+              </span>
+            </span>
+            <span class="dataset-picker-tag ${storeReady ? "dataset-picker-tag-ready" : storeState === "failed" ? "dataset-picker-tag-danger" : "dataset-picker-tag-warning"}">${escapeHtml(storeLabel)}</span>
+          </summary>
+          <div class="dataset-admin-body">
             <div class="dataset-picker-title">
               <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
             </div>
@@ -610,7 +616,7 @@ export function createDatasetsUi(ctx) {
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
             </div>
           </div>
-        </div>
+        </details>
       `;
     }).join("");
   }
@@ -681,7 +687,7 @@ export function createDatasetsUi(ctx) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || "Unable to save dataset access.");
       }
-      await loadDatasets();
+      await loadDatasets({ preservePendingSelection: true });
       loadStatusEl.className = "load-status";
       loadStatusEl.textContent = `Updated settings for ${datasetId}.`;
       setDatasetAdminFeedback(datasetId, "Settings saved.", "success");
@@ -712,7 +718,7 @@ export function createDatasetsUi(ctx) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || "Unable to prepare dataset store.");
       }
-      await loadDatasets();
+      await loadDatasets({ preservePendingSelection: true });
       loadStatusEl.className = "load-status";
       loadStatusEl.textContent = `Prepared DuckDB store for ${datasetId}.`;
       setDatasetAdminFeedback(datasetId, "DuckDB store prepared.", "success");
@@ -746,10 +752,13 @@ export function createDatasetsUi(ctx) {
     updateLoadButtonAvailability();
   }
 
-  async function loadDatasets() {
+  async function loadDatasets(options = {}) {
     if (!dataDirEl) {
       return;
     }
+    const pendingBeforeRefresh = options.preservePendingSelection === true
+      ? state.pendingDatasetIds.slice()
+      : [];
     try {
       const response = await fetch("/datasets");
       if (!response.ok) {
@@ -758,7 +767,10 @@ export function createDatasetsUi(ctx) {
       const payload = await response.json();
       state.availableDatasets = Array.isArray(payload.datasets) ? payload.datasets : [];
       state.currentDatasetIds = Array.isArray(payload.current_dataset_ids) ? payload.current_dataset_ids : [];
-      state.pendingDatasetIds = state.currentDatasetIds.slice();
+      const availableIds = new Set(state.availableDatasets.map((item) => String(item.dataset_id || "")));
+      state.pendingDatasetIds = options.preservePendingSelection === true
+        ? pendingBeforeRefresh.filter((item) => availableIds.has(item))
+        : state.currentDatasetIds.slice();
       state.currentDatasetScopeId = String(payload.current_dataset_scope_id || "");
       renderDatasetSelect();
       if (dataDirEl) {
@@ -789,21 +801,6 @@ export function createDatasetsUi(ctx) {
     }
   }
 
-  function prepareStartupWorkspaceSelection() {
-    const startupIds = startupDefaultDatasetIds();
-    state.currentDatasetIds = [];
-    state.currentDatasetScopeId = "";
-    state.pendingDatasetIds = startupIds.slice();
-    renderDatasetSelect();
-    if (dataDirEl) {
-      dataDirEl.dataset.scopeId = "";
-    }
-    renderDatasetScopeSummary();
-    renderAnalysisDatasetScope();
-    renderLoadButtonState();
-    updateLoadButtonAvailability();
-  }
-
   return {
     renderLoadButtonState,
     selectedDatasetIdsFromUi,
@@ -817,7 +814,6 @@ export function createDatasetsUi(ctx) {
     queryWorkspacePolicyExplanation,
     syncQueryGranularityWithWorkspacePolicy,
     pendingDatasetSelectionIds,
-    startupDefaultDatasetIds,
     selectedDatasetRecords,
     pendingDatasetRecords,
     datasetScopeLabel,
@@ -835,6 +831,5 @@ export function createDatasetsUi(ctx) {
     prepareDatasetStore,
     syncDatasetSelectionFromPicker,
     loadDatasets,
-    prepareStartupWorkspaceSelection,
   };
 }

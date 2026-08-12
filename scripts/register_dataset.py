@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from contextlib import suppress
 
-from app.datasets import register_dataset
-from app.query_store import prepare_dataset_query_store
+from app.datasets import register_dataset, unregister_dataset, update_dataset
+from app.query_store import prepare_dataset_query_store, remove_dataset_query_store
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -48,11 +49,21 @@ def main() -> int:
         allowed_groups=args.allowed_group,
         query_granularity_ceiling=args.query_detail,
         ai_provider_access=args.ai_provider_access,
+        enabled=not args.prepare_store,
         created_by=args.created_by,
     )
     status = {"status": "not_built", "ready": False}
     if args.prepare_store:
-        status = prepare_dataset_query_store(str(dataset["dataset_id"]))
+        dataset_id = str(dataset["dataset_id"])
+        try:
+            status = prepare_dataset_query_store(dataset_id)
+            dataset = update_dataset(dataset_id, enabled=True)
+        except Exception:
+            with suppress(Exception):
+                remove_dataset_query_store(dataset_id)
+            with suppress(Exception):
+                unregister_dataset(dataset_id)
+            raise
     print(
         json.dumps(
             {

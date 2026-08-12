@@ -278,7 +278,7 @@
           <span>Dashboard</span>
         </button>
         <div class="dashboard-subtabs app-sidebar-subnav">
-          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab active">
+          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19h16"></path>
@@ -291,7 +291,7 @@
             </span>
             <span>Timeline</span>
           </button>
-          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab">
+          <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 3h6"></path>
@@ -439,7 +439,7 @@
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
-        <section id="dashboardTimelinePanel" class="dashboard-subpanel active">
+        <section id="dashboardTimelinePanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame dashboard-timeline-panel-frame">
             <div class="dashboard-timeline-main">
               <div id="dashboardTimeline" class="empty">Load dataset to build the patient timeline.</div>
@@ -451,14 +451,14 @@
                       <h3>Inspection</h3>
                     </div>
                   </div>
-                  <div class="section-note">Use the table inspect icon to review one timepoint.</div>
+                  <div class="section-note">Use the table inspect icon to review one clinical record or timepoint.</div>
                   <div id="detail" class="empty">Inspect a timeline event to review its evidence.</div>
                 </div>
               </div>
             </div>
           </div>
         </section>
-        <section id="dashboardClinicalPanel" class="dashboard-subpanel">
+        <section id="dashboardClinicalPanel" class="dashboard-subpanel active">
           <div class="controls dashboard-panel-frame">
             <div class="dashboard-clinical-stack">
               <section class="dashboard-section-card">

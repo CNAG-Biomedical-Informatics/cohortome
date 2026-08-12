@@ -93,6 +93,57 @@ function makeAnalysisSession(overrides = {}) {
   return createAnalysisSession(overrides, refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : "");
 }
 
+function clearDatasetScopedContent(options = {}) {
+  const signedOut = options.signedOut === true;
+  const clearSelection = options.clearSelection === true;
+  const nextScopeId = String(options.nextScopeId || "").trim();
+  state.workspaceRevision += 1;
+  stopQueryProgressUpdates();
+  stopAnalysisProgressUpdates();
+  state.queryInFlight = false;
+  state.analysisInFlight = false;
+  state.currentPatients = [];
+  state.selectedPatientId = null;
+  state.dashboardSummaryState = null;
+  state.dashboardSummary = null;
+  state.dashboardTimelineSelectedPatientIds = [];
+  state.dashboardTimelineInspectedEventKey = "";
+  state.savedCohorts = [];
+  state.phenoRankerPatientIds = [];
+  state.phenoReferenceFiles = [];
+  state.phenoSelectedSavedCohortIds = [];
+  state.analysisCatalogItems = [];
+  state.analysisCatalogWorkspace = null;
+  state.analysisSelectedCatalogItemId = "";
+  if (clearSelection) {
+    state.currentDatasetIds = [];
+    state.pendingDatasetIds = [];
+    state.currentDatasetScopeId = "";
+    state.availableDatasets = signedOut ? [] : state.availableDatasets;
+    if (refs.dataDirEl) refs.dataDirEl.dataset.scopeId = "";
+  }
+  if (refs.patientSearchEl) refs.patientSearchEl.value = "";
+  if (refs.askBtnEl) refs.askBtnEl.disabled = false;
+  if (refs.analysisRunBtnEl) refs.analysisRunBtnEl.disabled = false;
+  if (refs.phenoSelectedPatientIdsEl) refs.phenoSelectedPatientIdsEl.value = "";
+
+  if (queryUi) queryUi.resetQueryWorkspace();
+  if (phenoUi) phenoUi.clearDatasetWorkspace();
+  if (dashboardUi) dashboardUi.clearDatasetWorkspaceViews({ signedOut });
+  if (savedCohortsUi) savedCohortsUi.renderSavedCohorts();
+  if (analysisSessionsUi) analysisSessionsUi.prepareAnalysisSessionForDataDir(nextScopeId);
+  if (analysisCatalogUi) analysisCatalogUi.renderAnalysisCatalog();
+
+  const patientMessage = signedOut ? "Sign in to access the shared clinical workspace." : (nextScopeId ? "Loading selected workspace..." : "No dataset selected.");
+  const detailMessage = signedOut ? "Patient workspace hidden until you sign in." : (nextScopeId ? "Loading patient workspace..." : "Select a workspace to inspect the patient workspace.");
+  const dashboardMessage = signedOut ? "Clinical dashboard hidden until you sign in." : (nextScopeId ? "Loading dashboard..." : "Select a workspace to inspect the dashboard.");
+  const timelineMessage = signedOut ? "Timeline hidden until you sign in." : (nextScopeId ? "Loading timeline..." : "Select a workspace to inspect the timeline.");
+  if (refs.patientsEl) refs.patientsEl.innerHTML = `<div class="empty">${patientMessage}</div>`;
+  if (refs.detailEl) refs.detailEl.innerHTML = `<div class="empty">${detailMessage}</div>`;
+  if (refs.dashboardEl) refs.dashboardEl.innerHTML = `<div class="empty">${dashboardMessage}</div>`;
+  if (refs.dashboardTimelineEl) refs.dashboardTimelineEl.innerHTML = `<div class="empty">${timelineMessage}</div>`;
+}
+
 function setLatestQueryState(patch) {
   if (Object.prototype.hasOwnProperty.call(patch, "ids")) {
     state.latestQueryPatientIds = Array.isArray(patch.ids) ? patch.ids : [];
@@ -462,6 +513,7 @@ dashboardUi = createDashboardUi({
     sendPromptToAnalysis,
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderAnalysisCatalogAssayPanel: () => analysisCatalogUi.renderAnalysisCatalogAssayPanel(),
+    setDashboardSubtab: (subtabName) => navigationUi.setDashboardSubtab(subtabName),
   },
   state,
   constants: {
@@ -700,7 +752,7 @@ workspaceUi = createWorkspaceUi({
     currentDatasetRecord: () => datasetsUi.currentDatasetRecord(),
     datasetScopeLabel: () => datasetsUi.datasetScopeLabel(),
     pendingDatasetSelectionIds: () => datasetsUi.pendingDatasetSelectionIds(),
-    currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
+    currentDatasetSelectionKey: (datasetIds) => datasetsUi.currentDatasetSelectionKey(datasetIds),
     renderDatasetPicker: () => datasetsUi.renderDatasetPicker(),
     renderDatasetAdminList: () => datasetsUi.renderDatasetAdminList(),
     renderDatasetScopeSummary: () => datasetsUi.renderDatasetScopeSummary(),
@@ -711,7 +763,7 @@ workspaceUi = createWorkspaceUi({
     loadAnalysisCatalog: () => analysisCatalogUi.loadAnalysisCatalog(),
     loadSavedCohorts: () => savedCohortsUi.loadSavedCohorts(),
     loadQueryDiseaseOptions: () => queryUi.loadDiseaseOptions(),
-    loadAssayDatasets: () => dashboardUi.loadAssayDatasets(),
+    loadAssayDatasets: (options) => dashboardUi.loadAssayDatasets(options),
     loadPhenoRankerPatientIds: () => phenoUi.loadPhenoRankerPatientIds(),
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     renderPatientList: (items) => dashboardUi.renderPatientList(items),
@@ -720,6 +772,7 @@ workspaceUi = createWorkspaceUi({
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     updateLoadButtonAvailability: () => authUi.updateLoadButtonAvailability(),
     applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
+    clearDatasetScopedContent,
   },
 });
 
@@ -772,12 +825,11 @@ authUi = createAuthUi({
     loadAnalysisSessionsFromBackend: () => analysisSessionsUi.loadAnalysisSessionsFromBackend(),
     applyAnalysisSession: (session) => analysisSessionsUi.applyAnalysisSession(session),
     loadDatasets: () => datasetsUi.loadDatasets(),
-    prepareStartupWorkspaceSelection: () => datasetsUi.prepareStartupWorkspaceSelection(),
-    startupDefaultDatasetIds: () => datasetsUi.startupDefaultDatasetIds(),
     loadPatients: (options) => workspaceUi.loadPatients(options),
     loadUserSettings: (options) => userSettingsUi.loadUserSettings(options),
     applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
     loadLmStatus: () => workspaceUi.loadLmStatus(),
+    clearDatasetScopedContent,
   },
 });
 
@@ -1552,8 +1604,7 @@ async function bootstrap() {
   await userSettingsUi.loadUserSettings({ applyNavigation: false });
   await workspaceUi.loadLmStatus();
   await datasetsUi.loadDatasets();
-  datasetsUi.prepareStartupWorkspaceSelection();
-  await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: datasetsUi.startupDefaultDatasetIds() });
+  await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: state.currentDatasetIds.slice() });
   await authUi.refreshUserWorkspaceState();
   userSettingsUi.applyUserSettings({ applyNavigation: true });
 }

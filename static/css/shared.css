@@ -322,6 +322,9 @@
         font-weight: 750;
         text-align: left;
       }
+      .app-sidebar-subnav .dashboard-subtab[hidden] {
+        display: none !important;
+      }
       .app-sidebar-subnav .dashboard-subtab.active {
         background: rgba(37, 99, 235, 0.1);
         color: var(--accent-deep);

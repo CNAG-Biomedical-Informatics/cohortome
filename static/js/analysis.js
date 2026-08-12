@@ -1611,6 +1611,7 @@ export function createAnalysisUi(ctx) {
         return;
       }
     }
+    const workspaceRevision = state.workspaceRevision;
     state.analysisInFlight = true;
     analysisRunBtnEl.disabled = true;
     if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
@@ -1654,9 +1655,11 @@ export function createAnalysisUi(ctx) {
         } catch (_error) {
           message = raw || message;
         }
+        if (workspaceRevision !== state.workspaceRevision) return;
         throw new Error(message);
       }
       const payload = await response.json();
+      if (workspaceRevision !== state.workspaceRevision) return;
       const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
       stopAnalysisProgressUpdates();
       renderAnalysisMeta(payload);
@@ -1679,6 +1682,7 @@ export function createAnalysisUi(ctx) {
         handleAnalysisJobSubmission(payload);
       }
     } catch (error) {
+      if (workspaceRevision !== state.workspaceRevision) return;
       state.analysisTurns[state.analysisTurns.length - 1] = {
         role: "assistant",
         payload: {

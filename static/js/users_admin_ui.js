@@ -43,6 +43,11 @@ export function createUsersAdminUi(ctx) {
       usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
       return;
     }
+    const expandedUsernames = new Set(
+      Array.from(usersListEl.querySelectorAll("[data-auth-user-card][open]"))
+        .map((item) => String(item.getAttribute("data-auth-user-card") || "").trim())
+        .filter(Boolean),
+    );
     usersListEl.innerHTML = users.map((user) => {
       const username = String(user.username || "");
       const displayName = String(user.display_name || user.username || "");
@@ -52,17 +57,19 @@ export function createUsersAdminUi(ctx) {
       const authSource = String(user.auth_source || "local");
       const groups = Array.isArray(user.groups) ? user.groups : [];
       return `
-        <div class="dataset-picker-card" data-auth-user-card="${username.replace(/"/g, "&quot;")}">
-          <div>
-            <div class="dataset-picker-title">
-              <span>${displayName || username || "Unknown user"}</span>
-              <div class="dataset-picker-meta">
+        <details class="dataset-admin-card" data-auth-user-card="${username.replace(/"/g, "&quot;")}"${expandedUsernames.has(username) ? " open" : ""}>
+          <summary class="dataset-admin-summary">
+            <span class="dataset-admin-summary-main">
+              <span class="dataset-picker-title">${displayName || username || "Unknown user"}</span>
+              <span class="dataset-picker-meta">
                 <span class="dataset-picker-tag">${username}</span>
                 <span class="dataset-picker-tag">${role}</span>
-                <span class="dataset-picker-tag">${enabled ? "enabled" : "disabled"}</span>
                 <span class="dataset-picker-tag">auth: ${authSource}</span>
-              </div>
-            </div>
+              </span>
+            </span>
+            <span class="dataset-picker-tag ${enabled ? "dataset-picker-tag-ready" : "dataset-picker-tag-danger"}">${enabled ? "Enabled" : "Disabled"}</span>
+          </summary>
+          <div class="dataset-admin-body">
             <div class="query-grid query-grid-compact" style="margin-top:12px;">
               <div>
                 <label>Display name</label>
@@ -95,7 +102,7 @@ export function createUsersAdminUi(ctx) {
               <button type="button" class="query-chip query-chip-llm" data-auth-user-action="delete" data-auth-user="${username.replace(/"/g, "&quot;")}">Delete</button>
             </div>
           </div>
-        </div>
+        </details>
       `;
     }).join("");
   }

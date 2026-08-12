@@ -19,6 +19,7 @@ export function createAppState() {
     queryProgressTimer: null,
     analysisInFlight: false,
     loadInFlight: false,
+    workspaceRevision: 0,
     phenoPlanProgressTimer: null,
     phenoRunProgressTimer: null,
     latestQueryPatientIds: [],
@@ -93,6 +94,6 @@ export function createAppState() {
       dashboard_assays_open: false,
       dataset_compact_view: false,
     },
-    currentDashboardSubtab: "timeline",
+    currentDashboardSubtab: "clinical",
   };
 }

@@ -507,7 +507,16 @@ export function createAnalysisSessionsUi(ctx) {
     const normalizedNext = String(nextDataDir || "").trim();
     const normalizedCurrent = String(session.dataDir || "").trim();
     const hasWork = (session.turns || []).length > 0 || (session.history || []).length > 0;
-    if (normalizedCurrent && normalizedCurrent !== normalizedNext && hasWork) {
+    const hasDatasetScope = Boolean(
+      String(session.scope || "").trim()
+      || String(session.compareScope || "").trim()
+      || String(session.savedCohortIdA || "").trim()
+      || String(session.savedCohortIdB || "").trim()
+      || String(session.catalogItemId || "").trim()
+      || Object.keys(session.scopeMetadata || {}).length
+      || Object.keys(session.compareScopeMetadata || {}).length
+    );
+    if (normalizedCurrent !== normalizedNext && (hasWork || hasDatasetScope)) {
       createAndSelectAnalysisSession({ dataDir: normalizedNext, promptDraft: analysisPromptEl.value || "Summarize the main clinical patterns in this cohort and tell me what stands out." });
       return;
     }

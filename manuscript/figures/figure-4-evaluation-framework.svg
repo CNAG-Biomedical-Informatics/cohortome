@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">COHORTome evaluation framework</title>
+  <desc id="desc">Two complementary evidence tracks, public synthetic fixtures and restricted PRECISESADS data, support evaluation of functional correctness, reproducibility, performance, governed AI, and research utility while limiting claims to the evidence available.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#52636d"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g font-family="Inter, Arial, sans-serif" letter-spacing="0">
+    <text x="64" y="72" font-size="28" font-weight="700" fill="#1c2b33">COHORT</text>
+    <text x="178" y="72" font-size="28" font-weight="500" fill="#13847c">ome</text>
+    <text x="64" y="126" font-size="42" font-weight="700" fill="#1c2b33">Evaluation framework: evidence before claims</text>
+    <text x="64" y="166" font-size="26" fill="#52636d">Public software validation and restricted research validation answer different questions</text>
+
+    <rect x="64" y="218" width="430" height="220" rx="8" fill="#eef4f7" stroke="#adc1cd" stroke-width="2"/>
+    <rect x="64" y="218" width="430" height="58" rx="8" fill="#52758a"/>
+    <rect x="64" y="268" width="430" height="8" fill="#52758a"/>
+    <text x="92" y="256" font-size="27" font-weight="700" fill="#ffffff">Track A: Synthetic fixtures</text>
+    <text x="92" y="311" font-size="23" font-weight="700" fill="#1c2b33">Does the software behave</text>
+    <text x="92" y="340" font-size="23" font-weight="700" fill="#1c2b33">correctly?</text>
+    <circle cx="103" cy="354" r="7" fill="#52758a"/>
+    <text x="124" y="370" font-size="20" fill="#52636d">known query and workflow outputs</text>
+    <circle cx="103" cy="402" r="7" fill="#52758a"/>
+    <text x="124" y="407" font-size="20" fill="#52636d">shareable regression and</text>
+    <text x="124" y="431" font-size="20" fill="#52636d">deployment tests</text>
+
+    <rect x="1106" y="218" width="430" height="220" rx="8" fill="#edf8f6" stroke="#8ecac5" stroke-width="2"/>
+    <rect x="1106" y="218" width="430" height="58" rx="8" fill="#13847c"/>
+    <rect x="1106" y="268" width="430" height="8" fill="#13847c"/>
+    <text x="1134" y="256" font-size="27" font-weight="700" fill="#ffffff">Track B: Restricted case</text>
+    <text x="1134" y="311" font-size="23" font-weight="700" fill="#1c2b33">Does it support a real</text>
+    <text x="1134" y="340" font-size="23" font-weight="700" fill="#1c2b33">PRECISESADS research case?</text>
+    <circle cx="1145" cy="354" r="7" fill="#13847c"/>
+    <text x="1166" y="370" font-size="20" fill="#52636d">authorized computational reproduction</text>
+    <circle cx="1145" cy="402" r="7" fill="#13847c"/>
+    <text x="1166" y="407" font-size="20" fill="#52636d">collaborator-reviewed interpretation</text>
+    <text x="1166" y="431" font-size="20" fill="#52636d">and limits</text>
+
+    <path d="M494 328 H605" fill="none" stroke="#52758a" stroke-width="4" marker-end="url(#arrow)"/>
+    <path d="M1106 328 H995" fill="none" stroke="#13847c" stroke-width="4" marker-end="url(#arrow)"/>
+    <circle cx="800" cy="328" r="154" fill="#1c2b33"/>
+    <circle cx="800" cy="328" r="126" fill="none" stroke="#70d0c7" stroke-width="3" stroke-dasharray="9 8"/>
+    <text x="800" y="302" text-anchor="middle" font-size="25" font-weight="700" fill="#70d0c7">EVIDENCE PACKAGE</text>
+    <text x="800" y="337" text-anchor="middle" font-size="27" font-weight="700" fill="#ffffff">tests + manifests</text>
+    <text x="800" y="372" text-anchor="middle" font-size="27" font-weight="700" fill="#ffffff">outputs + logs</text>
+    <text x="800" y="407" text-anchor="middle" font-size="27" font-weight="700" fill="#ffffff">provenance</text>
+
+    <text x="64" y="504" font-size="23" font-weight="700" fill="#52636d">EVALUATION DOMAINS</text>
+    <line x1="118" y1="618" x2="1480" y2="618" stroke="#ccd5da" stroke-width="3"/>
+
+    <g transform="translate(64 538)">
+      <rect width="268" height="230" rx="8" fill="#f6f8fa" stroke="#ccd5da" stroke-width="2"/>
+      <circle cx="40" cy="42" r="22" fill="#52758a"/>
+      <path d="M29 43l8 8 16-19" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="75" y="51" font-size="27" font-weight="700" fill="#1c2b33">Correctness</text>
+      <text x="24" y="100" font-size="22" fill="#52636d">Known inputs produce</text>
+      <text x="24" y="130" font-size="22" fill="#52636d">known outputs across</text>
+      <text x="24" y="160" font-size="22" fill="#52636d">queries and workflows.</text>
+      <text x="24" y="205" font-size="20" font-weight="700" fill="#52758a">Artifact: test report</text>
+    </g>
+
+    <g transform="translate(365 538)">
+      <rect width="268" height="230" rx="8" fill="#edf8f6" stroke="#8ecac5" stroke-width="2"/>
+      <circle cx="40" cy="42" r="22" fill="#13847c"/>
+      <path d="M30 33c13-12 30 0 25 14M50 51c-13 12-30 0-25-14" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+      <path d="M53 29l3 18-17-4M27 55l-3-18 17 4" fill="#ffffff"/>
+      <text x="75" y="51" font-size="23" font-weight="700" fill="#1c2b33">Reproducibility</text>
+      <text x="24" y="100" font-size="22" fill="#52636d">Pinned inputs, code,</text>
+      <text x="24" y="130" font-size="22" fill="#52636d">configuration, and</text>
+      <text x="24" y="160" font-size="22" fill="#52636d">repeatable outputs.</text>
+      <text x="24" y="205" font-size="20" font-weight="700" fill="#13847c">Artifact: run manifest</text>
+    </g>
+
+    <g transform="translate(666 538)">
+      <rect width="268" height="230" rx="8" fill="#fff6e8" stroke="#d7a34c" stroke-width="2"/>
+      <circle cx="40" cy="42" r="22" fill="#d49b3d"/>
+      <path d="M40 29v14l10 7" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+      <text x="75" y="51" font-size="27" font-weight="700" fill="#1c2b33">Performance</text>
+      <text x="24" y="100" font-size="22" fill="#52636d">Latency and resource use</text>
+      <text x="24" y="130" font-size="22" fill="#52636d">at declared cohort and</text>
+      <text x="24" y="160" font-size="22" fill="#52636d">assay sizes.</text>
+      <text x="24" y="205" font-size="20" font-weight="700" fill="#9a6b22">Artifact: benchmark log</text>
+    </g>
+
+    <g transform="translate(967 538)">
+      <rect width="268" height="230" rx="8" fill="#eef1f7" stroke="#afb8cf" stroke-width="2"/>
+      <circle cx="40" cy="42" r="22" fill="#5f6f9b"/>
+      <path d="M40 27l14 6v12c0 11-6 18-14 23-8-5-14-12-14-23V33Z" fill="none" stroke="#ffffff" stroke-width="3"/>
+      <text x="75" y="51" font-size="27" font-weight="700" fill="#1c2b33">Governed AI</text>
+      <text x="24" y="100" font-size="22" fill="#52636d">Policy enforcement,</text>
+      <text x="24" y="130" font-size="22" fill="#52636d">traceability, failure,</text>
+      <text x="24" y="160" font-size="22" fill="#52636d">and fallback behavior.</text>
+      <text x="24" y="205" font-size="20" font-weight="700" fill="#5f6f9b">Artifact: audit record</text>
+    </g>
+
+    <g transform="translate(1268 538)">
+      <rect width="268" height="230" rx="8" fill="#eef7f2" stroke="#91c7aa" stroke-width="2"/>
+      <circle cx="40" cy="42" r="22" fill="#2f8f63"/>
+      <path d="M28 51c7-20 18-20 25 0M32 36a8 8 0 1 0 16 0a8 8 0 1 0-16 0" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <text x="75" y="51" font-size="24" font-weight="700" fill="#1c2b33">Research utility</text>
+      <text x="24" y="100" font-size="22" fill="#52636d">Task completion and</text>
+      <text x="24" y="130" font-size="22" fill="#52636d">published-result</text>
+      <text x="24" y="160" font-size="22" fill="#52636d">reproduction.</text>
+      <text x="24" y="205" font-size="20" font-weight="700" fill="#2f8f63">Artifact: case evidence</text>
+    </g>
+
+    <rect x="64" y="806" width="1472" height="50" rx="6" fill="#1c2b33"/>
+    <text x="800" y="839" text-anchor="middle" font-size="22" font-weight="700" fill="#ffffff">Synthetic data test software behavior; PRECISESADS tests real-case research utility.</text>
+  </g>
+</svg>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">COHORTome platform architecture and responsibility boundaries</title>
+  <desc id="desc">Authorized clinical, assay, and imaging sources connect to the COHORTome harmonization, governance, exploration, cohort, analysis, and evidence layers. Specialist systems remain external and source systems retain authoritative data.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#52636d"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#13847c"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g font-family="Inter, Arial, sans-serif" letter-spacing="0">
+    <text x="64" y="72" font-size="28" font-weight="700" fill="#1c2b33">COHORT</text>
+    <text x="178" y="72" font-size="28" font-weight="500" fill="#13847c">ome</text>
+    <text x="64" y="126" font-size="42" font-weight="700" fill="#1c2b33">Platform architecture and responsibility boundaries</text>
+    <text x="64" y="166" font-size="26" fill="#52636d">A governed layer between authoritative data sources, researchers, and specialist methods</text>
+
+    <text x="70" y="236" font-size="24" font-weight="700" fill="#52636d">AUTHORIZED SOURCES</text>
+    <rect x="64" y="258" width="330" height="438" rx="8" fill="#f6f8fa" stroke="#ccd5da" stroke-width="2"/>
+
+    <g transform="translate(92 294)">
+      <ellipse cx="30" cy="16" rx="25" ry="11" fill="#dfe9ef" stroke="#52758a" stroke-width="2"/>
+      <path d="M5 16v42c0 7 11 12 25 12s25-5 25-12V16" fill="#edf4f7" stroke="#52758a" stroke-width="2"/>
+      <path d="M5 36c0 7 11 12 25 12s25-5 25-12" fill="none" stroke="#52758a" stroke-width="2"/>
+      <text x="78" y="25" font-size="29" font-weight="700" fill="#1c2b33">Clinical data</text>
+      <text x="78" y="55" font-size="21" fill="#52636d">phenotypes and visits</text>
+      <text x="78" y="80" font-size="21" fill="#52636d">outcomes</text>
+    </g>
+    <line x1="92" y1="390" x2="366" y2="390" stroke="#d9e0e4" stroke-width="2"/>
+
+    <g transform="translate(92 420)">
+      <circle cx="16" cy="31" r="10" fill="#dff2ef" stroke="#13847c" stroke-width="3"/>
+      <circle cx="47" cy="13" r="10" fill="#dff2ef" stroke="#13847c" stroke-width="3"/>
+      <circle cx="47" cy="51" r="10" fill="#dff2ef" stroke="#13847c" stroke-width="3"/>
+      <line x1="25" y1="26" x2="38" y2="18" stroke="#13847c" stroke-width="3"/>
+      <line x1="25" y1="36" x2="38" y2="46" stroke="#13847c" stroke-width="3"/>
+      <text x="78" y="25" font-size="29" font-weight="700" fill="#1c2b33">Assay data</text>
+      <text x="78" y="55" font-size="21" fill="#52636d">omics and derived</text>
+      <text x="78" y="80" font-size="21" fill="#52636d">measures</text>
+    </g>
+    <line x1="92" y1="516" x2="366" y2="516" stroke="#d9e0e4" stroke-width="2"/>
+
+    <g transform="translate(92 546)">
+      <rect x="3" y="3" width="57" height="57" rx="5" fill="#eef1f7" stroke="#5f6f9b" stroke-width="3"/>
+      <circle cx="31.5" cy="31.5" r="18" fill="none" stroke="#5f6f9b" stroke-width="3"/>
+      <path d="M20 32c5-9 18-10 24 0-5 9-18 10-24 0Z" fill="#dfe3f0"/>
+      <text x="78" y="25" font-size="29" font-weight="700" fill="#1c2b33">Imaging links</text>
+      <text x="78" y="55" font-size="21" fill="#52636d">DICOMweb and derived</text>
+      <text x="78" y="80" font-size="21" fill="#52636d">imaging features</text>
+    </g>
+    <line x1="92" y1="642" x2="366" y2="642" stroke="#d9e0e4" stroke-width="2"/>
+    <text x="92" y="674" font-size="21" fill="#6e7d85">e.g. 3TR Omics DM Warehouse</text>
+
+    <path d="M412 477 H466" fill="none" stroke="#52636d" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="415" y="448" font-size="20" fill="#52636d">approved</text>
+    <text x="415" y="472" font-size="20" fill="#52636d">access</text>
+
+    <rect x="482" y="222" width="650" height="506" rx="8" fill="#fbfdfd" stroke="#13847c" stroke-width="3" stroke-dasharray="11 8"/>
+    <rect x="508" y="248" width="598" height="72" rx="6" fill="#1c2b33"/>
+    <text x="536" y="293" font-size="32" font-weight="700" fill="#ffffff">COHORT</text>
+    <text x="667" y="293" font-size="32" font-weight="500" fill="#70d0c7">ome</text>
+    <text x="735" y="293" font-size="32" font-weight="700" fill="#ffffff">governed research layer</text>
+
+    <rect x="508" y="342" width="285" height="132" rx="6" fill="#edf8f6" stroke="#8ecac5" stroke-width="2"/>
+    <circle cx="552" cy="384" r="20" fill="#13847c"/>
+    <path d="M542 384h20M552 374v20" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+    <text x="585" y="390" font-size="25" font-weight="700" fill="#1c2b33">Harmonize and link</text>
+    <text x="536" y="427" font-size="21" fill="#52636d">patient, sample, assay,</text>
+    <text x="536" y="453" font-size="21" fill="#52636d">and time-point identifiers</text>
+
+    <rect x="821" y="342" width="285" height="132" rx="6" fill="#eef3f6" stroke="#adc1cd" stroke-width="2"/>
+    <path d="M857 369l22 8v18c0 17-10 27-22 34-12-7-22-17-22-34v-18Z" fill="#52758a"/>
+    <path d="M847 397l7 7 14-17" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="893" y="390" font-size="25" font-weight="700" fill="#1c2b33">Govern access</text>
+    <text x="893" y="427" font-size="21" fill="#52636d">policy, audit,</text>
+    <text x="893" y="453" font-size="21" fill="#52636d">and provenance</text>
+
+    <path d="M652 489 H962" fill="none" stroke="#b6c3c9" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <rect x="508" y="506" width="180" height="158" rx="6" fill="#ffffff" stroke="#ccd5da" stroke-width="2"/>
+    <text x="532" y="548" font-size="27" font-weight="700" fill="#1c2b33">Explore</text>
+    <text x="532" y="584" font-size="23" fill="#52636d">longitudinal</text>
+    <text x="532" y="615" font-size="23" fill="#52636d">and multimodal</text>
+    <text x="532" y="646" font-size="23" fill="#52636d">workspace</text>
+
+    <rect x="708" y="506" width="180" height="158" rx="6" fill="#ffffff" stroke="#ccd5da" stroke-width="2"/>
+    <text x="732" y="548" font-size="27" font-weight="700" fill="#1c2b33">Construct</text>
+    <text x="732" y="584" font-size="23" fill="#52636d">governed,</text>
+    <text x="732" y="615" font-size="23" fill="#52636d">saved</text>
+    <text x="732" y="646" font-size="23" fill="#52636d">cohorts</text>
+
+    <rect x="908" y="506" width="198" height="158" rx="6" fill="#ffffff" stroke="#ccd5da" stroke-width="2"/>
+    <text x="932" y="548" font-size="27" font-weight="700" fill="#1c2b33">Analyze</text>
+    <text x="932" y="584" font-size="23" fill="#52636d">curated methods</text>
+    <text x="932" y="615" font-size="23" fill="#52636d">feature matrices</text>
+    <text x="932" y="646" font-size="23" fill="#52636d">and evidence</text>
+
+    <text x="506" y="705" font-size="21" font-weight="700" fill="#13847c">COHORTOME RESPONSIBILITY BOUNDARY</text>
+
+    <path d="M1148 477 H1202" fill="none" stroke="#52636d" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1150" y="448" font-size="20" fill="#52636d">governed</text>
+    <text x="1150" y="472" font-size="20" fill="#52636d">handoff</text>
+
+    <text x="1216" y="236" font-size="23" font-weight="700" fill="#52636d">OUTPUTS AND SPECIALISTS</text>
+    <rect x="1206" y="258" width="330" height="438" rx="8" fill="#f6f8fa" stroke="#ccd5da" stroke-width="2"/>
+
+    <rect x="1234" y="294" width="274" height="92" rx="6" fill="#eef4f7" stroke="#adc1cd" stroke-width="2"/>
+    <text x="1260" y="334" font-size="28" font-weight="700" fill="#1c2b33">Saved cohorts</text>
+    <text x="1260" y="366" font-size="23" fill="#52636d">definitions and membership</text>
+
+    <rect x="1234" y="407" width="274" height="116" rx="6" fill="#edf8f6" stroke="#8ecac5" stroke-width="2"/>
+    <text x="1260" y="447" font-size="28" font-weight="700" fill="#1c2b33">Evidence artifacts</text>
+    <text x="1260" y="480" font-size="23" fill="#52636d">outputs, logs, versions,</text>
+    <text x="1260" y="510" font-size="23" fill="#52636d">provenance</text>
+
+    <rect x="1234" y="544" width="274" height="122" rx="6" fill="#fff6e8" stroke="#d7a34c" stroke-width="2"/>
+    <text x="1260" y="584" font-size="25" font-weight="700" fill="#1c2b33">Specialist systems</text>
+    <text x="1260" y="617" font-size="23" fill="#52636d">imaging, statistics, ML,</text>
+    <text x="1260" y="647" font-size="23" fill="#52636d">policy-controlled LLMs</text>
+
+    <rect x="64" y="766" width="1472" height="82" rx="6" fill="#1c2b33"/>
+    <circle cx="105" cy="807" r="18" fill="#70d0c7"/>
+    <path d="M105 797v12M105 820v1" stroke="#1c2b33" stroke-width="4" stroke-linecap="round"/>
+    <text x="142" y="802" font-size="26" font-weight="700" fill="#ffffff">Boundary principle</text>
+    <text x="142" y="833" font-size="23" fill="#dce7eb">Source systems retain authoritative data; COHORTome adds governed interpretation, analysis coordination, and reproducible evidence.</text>
+  </g>
+</svg>

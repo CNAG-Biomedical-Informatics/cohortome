@@ -40,7 +40,7 @@ export function createNavigationUi(ctx) {
         clinical: "Browse patients and orient yourself in the loaded clinical dataset",
         assays: "Inspect assay modalities, DICOM viewer status, and transcriptomics quick summaries",
         multimodal: "Review cross-modal readiness, sample-level feature joins, missingness, and provenance",
-        timeline: "Review longitudinal timepoints, BFF event domains, and assay coverage",
+        timeline: "Review clinical records, BFF event domains, and assay coverage",
       };
       tabHelperTextEl.textContent = helperText[state.currentDashboardSubtab] || helperText.clinical;
       return;

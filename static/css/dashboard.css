@@ -93,6 +93,58 @@
       #datasetAdminList .dataset-picker-card {
         grid-template-columns: minmax(0, 1fr);
       }
+      .dataset-admin-card {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--line) 78%, white);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.96);
+      }
+      .dataset-admin-card[open] {
+        border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+      }
+      .dataset-admin-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+      }
+      .dataset-admin-summary::-webkit-details-marker {
+        display: none;
+      }
+      .dataset-admin-summary::after {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-right: 1.8px solid currentColor;
+        border-bottom: 1.8px solid currentColor;
+        color: var(--muted);
+        transform: rotate(45deg);
+        transition: transform 0.16s ease;
+      }
+      .dataset-admin-card[open] > .dataset-admin-summary::after {
+        transform: rotate(225deg);
+      }
+      .dataset-admin-summary-main {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        min-width: 0;
+      }
+      .dataset-admin-summary .dataset-picker-meta {
+        margin-top: 0;
+      }
+      .dataset-admin-body {
+        min-width: 0;
+        padding: 12px 14px 14px;
+        border-top: 1px solid color-mix(in srgb, var(--line) 82%, white);
+      }
       .dataset-picker-title {
         display: flex;
         align-items: center;

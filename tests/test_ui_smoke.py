@@ -62,9 +62,29 @@ def _spawn_live_server(extra_env: dict[str, str] | None = None):
     return process, base_url
 
 
+def _prepare_default_dataset_store(runtime_root: Path) -> None:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.getcwd()
+    env["COHORTOME_RUNTIME_ROOT"] = str(runtime_root)
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.query_store import prepare_dataset_query_store; prepare_dataset_query_store('default')",
+        ],
+        cwd=os.getcwd(),
+        env=env,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 @pytest.fixture(scope="session")
-def live_server() -> str:
-    process, base_url = _spawn_live_server()
+def live_server(tmp_path_factory) -> str:
+    runtime_root = tmp_path_factory.mktemp("cohortome-ui-runtime")
+    _prepare_default_dataset_store(runtime_root)
+    process, base_url = _spawn_live_server({"COHORTOME_RUNTIME_ROOT": str(runtime_root)})
     try:
         _wait_for_server(base_url)
         yield base_url
@@ -78,13 +98,12 @@ def live_server() -> str:
 
 
 @pytest.fixture
-def live_server_auth() -> str:
-    auth_path = Path(os.getcwd()) / "state" / "auth" / "users.json"
-    original_auth_text = auth_path.read_text(encoding="utf-8") if auth_path.exists() else None
-    if auth_path.exists():
-        auth_path.unlink()
+def live_server_auth(tmp_path) -> str:
+    runtime_root = tmp_path / "runtime"
+    _prepare_default_dataset_store(runtime_root)
     process, base_url = _spawn_live_server(
         {
+            "COHORTOME_RUNTIME_ROOT": str(runtime_root),
             "COHORTOME_AUTH_MODE": "local",
             "COHORTOME_SESSION_SECRET": "ui-smoke-test-session-secret",
             "COHORTOME_LOCAL_USERS_JSON": json.dumps(
@@ -109,12 +128,90 @@ def live_server_auth() -> str:
         except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
             process.kill()
             process.wait(timeout=5)
-        if original_auth_text is None:
-            if auth_path.exists():
-                auth_path.unlink()
-        else:
-            auth_path.parent.mkdir(parents=True, exist_ok=True)
-            auth_path.write_text(original_auth_text, encoding="utf-8")
+
+
+def _install_dataset_lifecycle_routes(page):
+    datasets = [
+        {
+            "dataset_id": "default",
+            "name": "Synthetic demo",
+            "description": "Synthetic UI fixture",
+            "enabled": True,
+            "visibility": "all_authenticated",
+            "allowed_users": [],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "detailed_allowed",
+            "clinical_representation": "snapshot",
+            "query_store_status": {"status": "ready", "ready": True, "last_error": ""},
+        },
+        {
+            "dataset_id": "secondary",
+            "name": "Secondary demo",
+            "description": "Secondary synthetic UI fixture",
+            "enabled": True,
+            "visibility": "all_authenticated",
+            "allowed_users": [],
+            "allowed_groups": [],
+            "query_granularity_ceiling": "detailed",
+            "ai_provider_access": "detailed_allowed",
+            "clinical_representation": "person",
+            "query_store_status": {"status": "ready", "ready": True, "last_error": ""},
+        },
+    ]
+    state = {"current_ids": ["default"], "select_requests": [], "fail_next_selection": ""}
+
+    def scope_id(dataset_ids):
+        normalized = sorted(set(dataset_ids))
+        if len(normalized) == 1:
+            return normalized[0]
+        return f"scope--{'--'.join(normalized)}" if normalized else ""
+
+    def list_handler(route):
+        current_ids = list(state["current_ids"])
+        current = next((item for item in datasets if item["dataset_id"] == current_ids[0]), None) if len(current_ids) == 1 else None
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": datasets,
+                    "current_dataset_id": current_ids[0] if len(current_ids) == 1 else "",
+                    "current_dataset_ids": current_ids,
+                    "current_dataset_scope_id": scope_id(current_ids),
+                    "current_dataset": current,
+                }
+            ),
+        )
+
+    def select_handler(route):
+        payload = json.loads(route.request.post_data or "{}")
+        selected_ids = payload.get("dataset_ids") or ([payload["dataset_id"]] if payload.get("dataset_id") else [])
+        selected_ids = [str(item) for item in selected_ids if str(item)]
+        state["select_requests"].append(selected_ids)
+        if state["fail_next_selection"]:
+            detail = state["fail_next_selection"]
+            state["fail_next_selection"] = ""
+            route.fulfill(status=409, content_type="application/json", body=json.dumps({"detail": detail}))
+            return
+        state["current_ids"] = selected_ids
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "selected": bool(selected_ids),
+                    "current_dataset_id": selected_ids[0] if len(selected_ids) == 1 else "",
+                    "current_dataset_ids": selected_ids,
+                    "current_dataset_scope_id": scope_id(selected_ids),
+                }
+            ),
+        )
+
+    page.route("**/datasets", list_handler)
+    page.route("**/datasets/select", select_handler)
+    page._cohortome_dataset_state = state
+    return state
 
 
 @pytest.fixture
@@ -145,6 +242,7 @@ window.Plotly = {
             )
 
             page = context.new_page()
+            _install_dataset_lifecycle_routes(page)
             page.goto(live_server, wait_until="networkidle")
             yield page
             context.close()
@@ -181,6 +279,7 @@ window.Plotly = {
             )
 
             page = context.new_page()
+            _install_dataset_lifecycle_routes(page)
             page.goto(live_server_auth, wait_until="networkidle")
             yield page
             context.close()
@@ -218,6 +317,7 @@ def _ensure_detailed_workspace(page) -> None:
     page.locator("#loadBtn").wait_for()
     page.locator("#loadBtn").click()
     playwright.expect(pheno_tab).not_to_have_attribute("aria-disabled", "true")
+    playwright.expect(page.locator("#loadBtn")).to_be_enabled()
 
 
 def _mock_pheno_reference_ids(
@@ -377,7 +477,7 @@ def _mock_patient_run(page) -> None:
     )
 
 
-def _mock_dashboard_load(page) -> None:
+def _mock_dashboard_load(page, clinical_representation: str = "snapshot") -> None:
     page.route(
         "**/patients?*",
         lambda route: route.fulfill(
@@ -412,11 +512,13 @@ def _mock_dashboard_load(page) -> None:
             content_type="application/json",
             body=json.dumps(
                 {
+                    "clinical_representation": clinical_representation,
                     "patients": 2,
                     "visits": 9,
                     "top_diseases": [["Crohn Disease", 2]],
                     "top_treatments": [["Infliximab", 1]],
                     "sex_counts": {"female": 1, "male": 1},
+                    "visit_distribution": {"4": 1, "5": 1},
                     "disease_medication_matrix": {
                         "diseases": ["Crohn Disease"],
                         "medications": ["Infliximab"],
@@ -939,6 +1041,10 @@ def _mock_query_reply(page) -> None:
                     "data": {
                         "source": "deterministic",
                         "execution": "deterministic",
+                        "dataset_id": "default",
+                        "dataset_ids": ["default"],
+                        "dataset_name": "Synthetic demo",
+                        "dataset_names": ["Synthetic demo"],
                         "granularity_requested": "detailed",
                         "granularity_applied": "detailed",
                         "ai_provider_access": "detailed_allowed",
@@ -1095,7 +1201,7 @@ def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
     expect(page.locator("#phenoOutputPreview")).to_contain_text("rank.txt loaded as TSV")
 
 
-def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
+def test_dashboard_load_renders_clinical_overview(page) -> None:
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
     expect = playwright.expect
@@ -1105,8 +1211,163 @@ def test_dashboard_load_renders_patients_and_dashboard_cards(page) -> None:
     page.locator("#dashboardTabBtn").click()
 
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
-    expect(page.locator("#patients")).to_contain_text("SYN001")
-    expect(page.locator("#patients")).to_contain_text("SYN002")
+    expect(page.locator("#dashboard")).to_contain_text("Patients2")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
+
+
+def test_applying_first_dataset_uses_pending_selection_key(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+    page._cohortome_dataset_state["current_ids"] = []
+    page.reload(wait_until="networkidle")
+    patient_request_urls = []
+    page.on(
+        "request",
+        lambda request: patient_request_urls.append(request.url)
+        if "/patients?" in request.url
+        else None,
+    )
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#datasetPicker [data-dataset-checkbox='secondary']").check()
+    expect(page.locator("#loadBtnLabel")).to_have_text("Apply workspace")
+    page.locator("#loadBtn").click()
+
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    expect(page.locator("#datasetScopeSummary")).to_contain_text("Active workspace: Secondary demo")
+    assert patient_request_urls[0].endswith("/patients?dataset_id=secondary")
+    assert page._cohortome_dataset_state["current_ids"] == ["secondary"]
+
+
+def test_workspace_unload_persists_empty_selection_and_clears_dataset_scoped_views(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_query_reply(page)
+    _mock_analysis_reply(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+
+    _open_query_tab(page)
+    page.locator("#question").fill("Which patients have Crohn disease?")
+    page.locator("#askBtn").click()
+    expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
+
+    _open_analysis_tab(page)
+    page.locator("#analysisPrompt").fill("Summarize this workspace")
+    page.locator("#analysisRunBtn").click()
+    expect(page.locator("#analysisThread")).to_contain_text("dominated by Crohn Disease")
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#datasetPicker [data-dataset-checkbox='default']").uncheck()
+    expect(page.locator("#loadBtnLabel")).to_have_text("Unload workspace")
+    page.locator("#loadBtn").click()
+
+    expect(page.locator("#loadStatus")).to_have_text("Workspace unloaded.")
+    expect(page.locator("#loadBtn")).to_be_disabled()
+    expect(page.locator("#dashboard")).to_contain_text("Select a workspace")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("No assays loaded")
+    expect(page.locator("#dicomDashboardStudies")).to_contain_text("No DICOM studies loaded")
+    expect(page.locator("#multimodalReadinessContent")).to_contain_text("Load a workspace")
+    expect(page.locator("#queryThread")).to_contain_text("Ask a query to start")
+    expect(page.locator("#analysisThread")).to_contain_text("Run an analysis prompt to start")
+    assert page._cohortome_dataset_state["current_ids"] == []
+    assert page._cohortome_dataset_state["select_requests"][-1] == []
+
+
+def test_late_dashboard_response_cannot_repopulate_unloaded_workspace(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+    pending_dashboard_routes = []
+    page.route("**/dashboard?*", lambda route: pending_dashboard_routes.append(route))
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    for _ in range(50):
+        if pending_dashboard_routes:
+            break
+        page.wait_for_timeout(20)
+    assert len(pending_dashboard_routes) == 1
+
+    page.locator("#datasetPicker [data-dataset-checkbox='default']").uncheck()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_have_text("Workspace unloaded.")
+    expect(page.locator("#dashboard")).to_contain_text("Select a workspace")
+
+    pending_dashboard_routes[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"patients": 999, "visits": 999}),
+    )
+    page.wait_for_timeout(100)
+    expect(page.locator("#dashboard")).to_contain_text("Select a workspace")
+    expect(page.locator("#dashboard")).not_to_contain_text("Patients999")
+
+
+def test_failed_workspace_switch_keeps_previous_workspace_and_query_state(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_query_reply(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    _open_query_tab(page)
+    page.locator("#question").fill("Which patients have Crohn disease?")
+    page.locator("#askBtn").click()
+    expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#datasetPicker [data-dataset-checkbox='default']").uncheck()
+    page.locator("#datasetPicker [data-dataset-checkbox='secondary']").check()
+    page._cohortome_dataset_state["fail_next_selection"] = "Secondary dataset store is not ready."
+    page.locator("#loadBtn").click()
+
+    expect(page.locator("#loadStatus")).to_have_text("Secondary dataset store is not ready.")
+    expect(page.locator("#datasetScopeSummary")).to_contain_text("Active workspace: Synthetic demo")
+    expect(page.locator("[data-dataset-card='default'] .dataset-picker-state-active")).to_have_text("Active")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
+    assert page._cohortome_dataset_state["current_ids"] == ["default"]
+    assert page._cohortome_dataset_state["select_requests"][-1] == ["secondary"]
+
+
+def test_failed_assay_preflight_does_not_commit_workspace_switch(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    committed_request_count = len(page._cohortome_dataset_state["select_requests"])
+
+    page.route(
+        "**/assays?*",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body=json.dumps({"detail": "Selected dataset assay store is unavailable."}),
+        ),
+    )
+    page.locator("#datasetPicker [data-dataset-checkbox='default']").uncheck()
+    page.locator("#datasetPicker [data-dataset-checkbox='secondary']").check()
+    page.locator("#loadBtn").click()
+
+    expect(page.locator("#loadStatus")).to_have_text("Selected dataset assay store is unavailable.")
+    expect(page.locator("#datasetScopeSummary")).to_contain_text("Active workspace: Synthetic demo")
+    expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    assert page._cohortome_dataset_state["current_ids"] == ["default"]
+    assert len(page._cohortome_dataset_state["select_requests"]) == committed_request_count
 
 
 def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
@@ -1120,6 +1381,7 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
 
     page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardAssaysBtn").click()
 
@@ -1152,6 +1414,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
 
     page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardAssaysBtn").click()
 
@@ -1213,6 +1476,7 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
 
     page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page.locator("#dashboardTabBtn").click()
 
     expect(page.locator("#dashboard-plot-sex")).to_have_attribute("data-plotly-ready", "true")
@@ -1228,6 +1492,7 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
 
     page.locator("#datasetsTabBtn").click()
     page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardTimelineBtn").click()
 
@@ -1258,6 +1523,25 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
 
 
+def test_dashboard_exposes_timeline_for_person_representation(page) -> None:
+    _mock_dashboard_load(page, clinical_representation="person")
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+
+    page.locator("#dashboardTimelineBtn").click()
+    expect(page.locator("#dashboardTimelinePanel")).to_have_class(re.compile(r".*active.*"))
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    page.locator("#dashboardTabBtn").click()
+
+    expect(page.locator("#dashboardTimelineBtn")).to_be_visible()
+    expect(page.locator("#dashboardTimelineBtn")).to_have_class(re.compile(r".*active.*"))
+    expect(page.locator("#dashboardTimelinePanel")).to_have_class(re.compile(r".*active.*"))
+    expect(page.locator("#dashboardTimeline")).to_contain_text("Clinical coverage")
+    expect(page.locator("#dashboardTimeline")).to_contain_text("Patient records")
+
+
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:
     _open_query_tab(page)
     _mock_query_reply(page)
@@ -1274,6 +1558,7 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     page.locator("#askBtn").click()
 
     expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
+    expect(page.locator("#queryThread")).to_contain_text("Dataset: Synthetic demo")
     assert captured["body"]["dataset_id"] == "default"
     assert "data_dir" not in captured["body"]
     expect(page.locator("#queryThread")).to_contain_text("Open in Analysis")
@@ -1779,6 +2064,24 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#dataTabBtn")).to_be_visible()
     expect(page_auth.locator("#usersTabBtn")).to_be_visible()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User (admin)")
+    expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    page_auth.wait_for_load_state("networkidle")
+
+    page_auth.locator("#dataTabBtn").click()
+    admin_card = page_auth.locator("#datasetAdminList [data-dataset-admin-card]").first
+    expect(admin_card).to_be_visible()
+    expect(admin_card).not_to_have_attribute("open", "")
+    expect(admin_card.locator(".dataset-admin-body")).to_be_hidden()
+    admin_card.locator("summary").click()
+    expect(admin_card.locator(".dataset-admin-body")).to_be_visible()
+
+    page_auth.locator("#usersTabBtn").click()
+    user_card = page_auth.locator("#usersList [data-auth-user-card]").first
+    expect(user_card).to_be_visible()
+    expect(user_card).not_to_have_attribute("open", "")
+    expect(user_card.locator(".dataset-admin-body")).to_be_hidden()
+    user_card.locator("summary").click()
+    expect(user_card.locator(".dataset-admin-body")).to_be_visible()
 
     page_auth.locator("#datasetsTabBtn").click()
     expect(page_auth.locator("#loadBtn")).to_be_visible()

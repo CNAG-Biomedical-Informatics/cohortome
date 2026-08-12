@@ -63,6 +63,7 @@ from app.datasets import (
     dataset_scope_id,
     effective_ai_provider_access,
     effective_query_granularity_ceiling,
+    normalize_dataset_id,
     register_dataset,
     resolve_dataset,
     resolve_dataset_dir,
@@ -104,7 +105,13 @@ from app.pheno import (
 )
 from app.env import app_env
 from app.query_store import assay_dataset_inventory, assay_expression_summary, assay_feature_annotations, assay_feature_inventory
-from app.query_store import QueryStoreNotReadyError, dataset_query_store_status, ensure_query_store, prepare_dataset_query_store
+from app.query_store import (
+    QueryStoreNotReadyError,
+    dataset_query_store_status,
+    ensure_dataset_query_stores_ready,
+    ensure_query_store,
+    prepare_dataset_query_store,
+)
 from app.user_settings import load_user_settings, update_user_settings as patch_user_settings
 from app.schemas import (
     AnalysisRequest,
@@ -367,7 +374,8 @@ def _resolve_route_dataset_dir(
 def get_datasets(request: Request) -> Dict:
     user = require_authenticated(request)
     datasets = []
-    for item in authorized_datasets_for_user(user):
+    authorized = authorized_datasets_for_user(user)
+    for item in authorized:
         payload = dict(item)
         payload["query_store_status"] = dataset_query_store_status(str(item.get("dataset_id") or ""))
         try:
@@ -375,7 +383,17 @@ def get_datasets(request: Request) -> Dict:
         except FileNotFoundError:
             payload.update({"content_tags": [], "content_summary": "Dataset files are not available."})
         datasets.append(_dataset_record_for_user(payload, user))
-    selected_ids = resolve_dataset_ids(request)
+    user_id = str(user.get("username") or "local")
+    stored_ids = current_dataset_ids(user_id)
+    authorized_ids = {str(item.get("dataset_id") or "") for item in authorized}
+    selected_ids = stored_ids if stored_ids and all(item in authorized_ids for item in stored_ids) else []
+    if selected_ids:
+        try:
+            ensure_dataset_query_stores_ready(selected_ids)
+        except QueryStoreNotReadyError:
+            selected_ids = []
+    if stored_ids and not selected_ids:
+        set_current_datasets(user_id, [])
     return {
         "datasets": datasets,
         "current_dataset_id": selected_ids[0] if len(selected_ids) == 1 else "",
@@ -388,7 +406,31 @@ def get_datasets(request: Request) -> Dict:
 def select_dataset(payload: DatasetSelectionRequest, request: Request) -> Dict:
     user = require_authenticated(request)
     requested_ids = payload.dataset_ids or ([payload.dataset_id] if payload.dataset_id else [])
-    resolved_ids = resolve_dataset_ids(request, dataset_scope_id(requested_ids))
+    if not requested_ids:
+        set_current_datasets(str(user.get("username") or "local"), [])
+        return {
+            "selected": False,
+            "current_dataset_id": "",
+            "current_dataset_ids": [],
+            "current_dataset_scope_id": "",
+        }
+    resolved_ids = []
+    for requested_id in requested_ids:
+        normalized = normalize_dataset_id(requested_id)
+        if not normalized:
+            raise HTTPException(status_code=400, detail="Dataset selection contains an invalid id.")
+        if normalized not in resolved_ids:
+            resolved_ids.append(normalized)
+    candidate_map = {
+        str(item.get("dataset_id") or ""): item
+        for item in authorized_datasets_for_user(user)
+    }
+    if any(dataset_id not in candidate_map for dataset_id in resolved_ids):
+        raise HTTPException(status_code=403, detail="Dataset access denied.")
+    try:
+        ensure_dataset_query_stores_ready(resolved_ids)
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     set_current_datasets(str(user.get("username") or "local"), resolved_ids)
     return {
         "selected": True,
@@ -988,12 +1030,16 @@ def delete_user_saved_cohorts(request: Request) -> Dict:
 
 def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    if str(request.dataset_id or "").strip():
-        selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
-        resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id)
+    requested_dataset_id = str(request.dataset_id or "").strip()
+    if requested_dataset_id:
+        selected_ids = resolve_dataset_ids(raw_request, requested_dataset_id)
     else:
-        selected_ids = []
-        resolved_dir = request.data_dir
+        active_ids = current_dataset_ids(request_user_id(raw_request))
+        if not active_ids:
+            raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset before running Query.")
+        selected_ids = resolve_dataset_ids(raw_request, dataset_scope_id(active_ids))
+    resolved_scope_id = dataset_scope_id(selected_ids)
+    resolved_dir = resolve_dataset_dir(raw_request, resolved_scope_id)
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
             payload = answer_query(
@@ -1006,6 +1052,21 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
                 ai_provider_access=effective_ai_provider_access(selected_ids),
             )
+            data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+            dataset_names_by_id = {
+                str(item.get("dataset_id") or "").strip(): str(item.get("name") or item.get("dataset_id") or "Dataset").strip()
+                for item in _authorized_datasets_for_request(raw_request)
+            }
+            dataset_names = [dataset_names_by_id.get(item, item) for item in selected_ids]
+            data.update(
+                {
+                    "dataset_id": resolved_scope_id,
+                    "dataset_ids": selected_ids,
+                    "dataset_name": dataset_names[0] if len(dataset_names) == 1 else "",
+                    "dataset_names": dataset_names,
+                }
+            )
+            payload["data"] = data
             return _sanitize_response_paths(payload, raw_request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

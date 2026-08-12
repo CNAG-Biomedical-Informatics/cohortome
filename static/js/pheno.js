@@ -102,6 +102,7 @@ export function createPhenoUi(ctx) {
     rankerPatientIds: [],
     rankerRecordIds: [],
     referenceFiles: [],
+    workspaceVersion: 0,
   };
 
   function currentActivePhenoBackgroundJob() {
@@ -757,6 +758,41 @@ export function createPhenoUi(ctx) {
     renderPhenoBackgroundJobBanner();
   }
 
+  function clearDatasetWorkspace() {
+    state.workspaceVersion += 1;
+    state.inFlight = false;
+    state.planInFlight = false;
+    state.explainInFlight = false;
+    state.explainLlmInFlight = false;
+    state.rankerPatientIds = [];
+    state.rankerRecordIds = [];
+    state.referenceFiles = [];
+    state.manualOverrides = false;
+    stopPhenoPlanProgressUpdates();
+    stopPhenoRunProgressUpdates();
+    onPatientIdsLoaded([]);
+    onReferenceFilesLoaded([]);
+    if (phenoPatientIdEl) phenoPatientIdEl.value = "";
+    if (phenoSelectedPatientIdsEl) phenoSelectedPatientIdsEl.value = "";
+    if (phenoReferenceFilesSummaryEl) {
+      phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">None</span>';
+    }
+    if (phenoPlanStatusEl) {
+      phenoPlanStatusEl.className = "pheno-status";
+      phenoPlanStatusEl.textContent = "Load a workspace before planning a Pheno-Ranker run.";
+    }
+    if (phenoPlanMetaEl) phenoPlanMetaEl.innerHTML = "";
+    if (phenoPlanEl) phenoPlanEl.innerHTML = '<div class="empty">No plan yet.</div>';
+    if (phenoPlanReasoningEl) phenoPlanReasoningEl.innerHTML = '<div class="empty">No planner reasoning yet.</div>';
+    if (phenoStatusEl) {
+      phenoStatusEl.className = "pheno-status";
+      phenoStatusEl.textContent = "No workspace loaded.";
+    }
+    resetPhenoRunWorkspace();
+    renderSelectedPatientIdsSummary();
+    updatePhenoRunAvailability();
+  }
+
   function renderPhenoNoPlanState(reasoning) {
     phenoPlanStatusEl.className = "pheno-status warning";
     phenoPlanStatusEl.textContent = "Planner did not find a runnable Pheno-Ranker request yet.";
@@ -877,6 +913,7 @@ export function createPhenoUi(ctx) {
       return renderPhenoManualSettingsPreview("Previewing current form settings. Run Pheno-Ranker will use these values.");
     }
 
+    const workspaceVersion = state.workspaceVersion;
     state.planInFlight = true;
     renderPhenoFlowBar();
     resetPhenoRunWorkspace();
@@ -893,6 +930,7 @@ export function createPhenoUi(ctx) {
     phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
     startPhenoPlanProgressUpdates();
     await nextFrame();
+    if (workspaceVersion !== state.workspaceVersion) return null;
 
     try {
       const response = await fetch("/pheno-ranker/plan", {
@@ -906,6 +944,7 @@ export function createPhenoUi(ctx) {
       });
       if (!response.ok) {
         const error = await response.json();
+        if (workspaceVersion !== state.workspaceVersion) return null;
         const detail = error.detail && typeof error.detail === "object" ? JSON.stringify(error.detail, null, 2) : String(error.detail || "Planner request failed.");
         stopPhenoPlanProgressUpdates();
         phenoPlanStatusEl.className = "pheno-status";
@@ -916,6 +955,7 @@ export function createPhenoUi(ctx) {
         return null;
       }
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return null;
       stopPhenoPlanProgressUpdates();
       renderPhenoPlanMeta(payload);
       if (!payload.plan || typeof payload.plan !== "object") {
@@ -933,6 +973,7 @@ export function createPhenoUi(ctx) {
       renderPhenoPlanState(payload.plan || {}, payload.reasoning || []);
       return payload;
     } catch (error) {
+      if (workspaceVersion !== state.workspaceVersion) return null;
       stopPhenoPlanProgressUpdates();
       phenoPlanStatusEl.className = "pheno-status";
       phenoPlanStatusEl.textContent = "Planner request failed.";
@@ -1296,6 +1337,7 @@ export function createPhenoUi(ctx) {
       renderPhenoExplainPlaceholder("Explain results currently supports patient-mode runs only.");
       return;
     }
+    const workspaceVersion = state.workspaceVersion;
     state.explainInFlight = true;
     updatePhenoExplainActions();
     phenoExplainDetailEl.innerHTML = renderActivityCard(
@@ -1306,12 +1348,15 @@ export function createPhenoUi(ctx) {
       const response = await fetch(`/pheno-ranker/explain/${encodeURIComponent(state.runState.jobId)}?top_n=3`);
       if (!response.ok) {
         const error = await response.json();
+        if (workspaceVersion !== state.workspaceVersion) return;
         renderPhenoExplainPlaceholder(error.detail || "Unable to explain these results.");
         return;
       }
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoExplainDetail(payload);
     } catch (error) {
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoExplainPlaceholder(error && error.message ? error.message : "Unable to explain these results.");
     } finally {
       state.explainInFlight = false;
@@ -1328,6 +1373,7 @@ export function createPhenoUi(ctx) {
       renderPhenoExplainPlaceholder("Explain with LLM currently supports patient-mode runs only.");
       return;
     }
+    const workspaceVersion = state.workspaceVersion;
     state.explainLlmInFlight = true;
     updatePhenoExplainActions();
     phenoExplainDetailEl.innerHTML = renderActivityCard(
@@ -1338,12 +1384,15 @@ export function createPhenoUi(ctx) {
       const response = await fetch(`/pheno-ranker/explain-llm/${encodeURIComponent(state.runState.jobId)}?top_n=3`);
       if (!response.ok) {
         const error = await response.json();
+        if (workspaceVersion !== state.workspaceVersion) return;
         renderPhenoExplainPlaceholder(error.detail || "Unable to explain these results with LM Studio.");
         return;
       }
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoExplainDetail(payload);
     } catch (error) {
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoExplainPlaceholder(error && error.message ? error.message : "Unable to explain these results with LM Studio.");
     } finally {
       state.explainLlmInFlight = false;
@@ -1357,6 +1406,7 @@ export function createPhenoUi(ctx) {
       return;
     }
     const selectionKey = `${referenceId}::${targetId}`;
+    const workspaceVersion = state.workspaceVersion;
     state.selectedAlignmentKey = selectionKey;
     renderSortablePhenoTable();
     phenoAlignmentDetailEl.innerHTML = "<div class=\"empty\">Loading alignment details...</div>";
@@ -1364,12 +1414,15 @@ export function createPhenoUi(ctx) {
       const response = await fetch(`/pheno-ranker/alignment/${encodeURIComponent(state.runState.jobId)}?reference_id=${encodeURIComponent(referenceId)}&target_id=${encodeURIComponent(targetId)}`);
       if (!response.ok) {
         const error = await response.json();
+        if (workspaceVersion !== state.workspaceVersion) return;
         renderPhenoAlignmentPlaceholder(error.detail || "Alignment details are unavailable for this pair.");
         return;
       }
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoAlignmentDetail(payload);
     } catch (error) {
+      if (workspaceVersion !== state.workspaceVersion) return;
       renderPhenoAlignmentPlaceholder(error && error.message ? error.message : "Unable to load alignment details.");
     }
   }
@@ -2537,6 +2590,7 @@ export function createPhenoUi(ctx) {
       }
     }
 
+    const workspaceVersion = state.workspaceVersion;
     state.inFlight = true;
     updatePhenoRunAvailability();
     renderPhenoFlowBar();
@@ -2557,6 +2611,7 @@ export function createPhenoUi(ctx) {
     phenoPreviewsEl.innerHTML = renderActivityCard("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.");
     startPhenoRunProgressUpdates();
     await nextFrame();
+    if (workspaceVersion !== state.workspaceVersion) return;
 
     try {
       const response = await fetch("/pheno-ranker/run", {
@@ -2585,6 +2640,7 @@ export function createPhenoUi(ctx) {
       });
 
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return;
       stopPhenoRunProgressUpdates();
       if (!response.ok) {
         const detailObject = payload && typeof payload.detail === "object" ? payload.detail : null;
@@ -2628,6 +2684,7 @@ export function createPhenoUi(ctx) {
       renderPhenoFlowBar();
       scrollPhenoResultIntoView();
     } catch (error) {
+      if (workspaceVersion !== state.workspaceVersion) return;
       stopPhenoRunProgressUpdates();
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = "Network error while running Pheno-Ranker. See Logs for details.";
@@ -2645,10 +2702,12 @@ export function createPhenoUi(ctx) {
   }
 
   async function loadPhenoRankerPatientIds() {
+    const workspaceVersion = state.workspaceVersion;
     try {
       const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
       const response = await fetch(`/pheno-ranker/patient-ids?data_dir=${dataDir}`);
       if (!response.ok) {
+        if (workspaceVersion !== state.workspaceVersion) return;
         state.rankerPatientIds = [];
         state.referenceFiles = [];
         phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
@@ -2657,6 +2716,7 @@ export function createPhenoUi(ctx) {
         return;
       }
       const payload = await response.json();
+      if (workspaceVersion !== state.workspaceVersion) return;
       state.rankerPatientIds = Array.isArray(payload.patient_ids) ? payload.patient_ids.filter(Boolean) : [];
       state.rankerRecordIds = Array.isArray(payload.record_ids) ? payload.record_ids.filter(Boolean) : [];
       state.referenceFiles = Array.isArray(payload.reference_files) ? payload.reference_files.filter(Boolean) : [];
@@ -2674,6 +2734,7 @@ export function createPhenoUi(ctx) {
         `;
       }
     } catch (_error) {
+      if (workspaceVersion !== state.workspaceVersion) return;
       state.rankerPatientIds = [];
       state.referenceFiles = [];
       phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
@@ -2737,6 +2798,7 @@ export function createPhenoUi(ctx) {
     renderPhenoFlowBar,
     setPhenoResultWorkspaceVisible,
     resetPhenoRunWorkspace,
+    clearDatasetWorkspace,
     planPhenoRanker,
     planAndRunPhenoRanker,
     runPhenoRanker,

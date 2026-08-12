@@ -391,6 +391,18 @@ export function createQueryUi(ctx) {
     const answeredByLmStudio = data.provider === "lm_studio";
     const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
     const chips = [renderQueryBadge(intentInfo.label, intentInfo.title, "summary")];
+    const datasetNames = Array.isArray(data.dataset_names)
+      ? data.dataset_names.map((item) => String(item || "").trim()).filter(Boolean)
+      : String(data.dataset_name || "").trim()
+        ? [String(data.dataset_name).trim()]
+        : [];
+    if (datasetNames.length) {
+      chips.push(renderQueryBadge(
+        `Dataset: ${datasetNames.join(", ")}`,
+        `This answer was computed from ${datasetNames.join(", ")}.`,
+        "summary",
+      ));
+    }
     if (data.granularity_applied) {
       const requested = data.granularity_requested && data.granularity_requested !== data.granularity_applied
         ? ` Requested: ${data.granularity_requested}.`
@@ -683,12 +695,21 @@ export function createQueryUi(ctx) {
       queryStatusEl.textContent = "Enter a question first.";
       return;
     }
+    const queryDatasetId = refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId
+      ? String(refs.dataDirEl.dataset.scopeId).trim()
+      : String(refs.dataDirEl.value || "").trim();
+    if (!queryDatasetId) {
+      queryStatusEl.className = "query-status";
+      queryStatusEl.textContent = "Select and apply a dataset before running Query.";
+      return;
+    }
     if (queryMode === "planner_only" && (!state.lmStatus || state.lmStatus.available !== true)) {
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "LLM planner unavailable. Start an LLM model or switch Query mode back to Auto.";
       renderQueryExecutionMode();
       return;
     }
+    const workspaceRevision = state.workspaceRevision;
     state.queryInFlight = true;
     askBtnEl.disabled = true;
     queryStatusEl.className = "query-status loading";
@@ -710,13 +731,14 @@ export function createQueryUi(ctx) {
     scrollQueryTurnIntoView(state.queryTurns.length - 1);
     startQueryProgressUpdates();
     await nextFrame();
+    if (workspaceRevision !== state.workspaceRevision) return;
     try {
       const response = await fetch("/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           q: question,
-          dataset_id: refs.dataDirEl.dataset && refs.dataDirEl.dataset.scopeId ? refs.dataDirEl.dataset.scopeId : refs.dataDirEl.value.trim(),
+          dataset_id: queryDatasetId,
           query_mode: queryMode,
           granularity_mode: granularityMode,
           history: state.queryHistory.slice(-6),
@@ -733,6 +755,7 @@ export function createQueryUi(ctx) {
       });
       if (!response.ok) {
         const error = await response.json();
+        if (workspaceRevision !== state.workspaceRevision) return;
         queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
         queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
         queryDataEl.textContent = "";
@@ -749,6 +772,7 @@ export function createQueryUi(ctx) {
         return;
       }
       const payload = await response.json();
+      if (workspaceRevision !== state.workspaceRevision) return;
       stopQueryProgressUpdates();
       state.queryTurns[state.queryTurns.length - 1] = { role: "assistant", payload };
       renderQueryThread();
@@ -768,6 +792,7 @@ export function createQueryUi(ctx) {
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Done.";
     } catch (error) {
+      if (workspaceRevision !== state.workspaceRevision) return;
       stopQueryProgressUpdates();
       queryReplyEl.innerHTML = `<p>${escapeHtml(error && error.message ? error.message : "Request failed.")}</p>`;
       queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";

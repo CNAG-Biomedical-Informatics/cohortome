@@ -121,6 +121,28 @@ items:
     analysis_level: sample
     tags: [transcriptomics, differential-expression, deseq2, background, rscript]
 
+  - id: transcriptomics-limma-voom-differential-expression
+    name: limma-voom differential expression
+    category: Assays
+    kind: differential_expression
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 3600
+    runner_type: rscript
+    runner_ref: transcriptomics_limma_voom_differential_expression
+    description: Run limma-voom differential expression on RSEM expected counts between Cohort A and Cohort B.
+    guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient.
+    default_prompt: Run limma-voom differential expression between Cohort A and Cohort B for the selected assay.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    requires_detailed_access: true
+    requires_assays: true
+    required_modalities: [transcriptomics]
+    required_data_types: [rsem_expected_counts]
+    analysis_level: sample
+    tags: [transcriptomics, differential-expression, limma, voom, rscript]
+
   - id: transcriptomics-hallmark-pathway-enrichment
     name: Hallmark pathway enrichment
     category: Assays

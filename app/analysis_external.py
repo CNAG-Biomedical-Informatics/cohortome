@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -12,7 +13,15 @@ from typing import Any, Dict, List
 
 import yaml
 
-from app.bff import ensure_data_dir, extract_event_date, extract_patient_id, extract_treatment_labels, normalize_value, read_bff_records
+from app.bff import (
+    ensure_data_dir,
+    extract_event_date,
+    extract_patient_id,
+    extract_treatment_labels,
+    normalize_value,
+    read_bff_records,
+    resolve_project_data_dir,
+)
 import app.query_store as query_store_module
 
 
@@ -22,6 +31,7 @@ RSCRIPT_RUNNERS = {
     "clinical_scope_profile": SCRIPTS_DIR / "analysis_r_clinical_profile.R",
     "dummy_long_job": SCRIPTS_DIR / "analysis_dummy_long_job.R",
     "transcriptomics_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
+    "transcriptomics_limma_voom_differential_expression": SCRIPTS_DIR / "analysis_r_limma_voom_differential_expression.R",
     "transcriptomics_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
 }
 SNAKEMAKE_RUNNERS = {
@@ -397,6 +407,119 @@ def _choose_transcriptomics_assay(data_dir: str, requested_name: str = "") -> Di
     return dict(inventory[0] or {})
 
 
+def _export_manifest_count_like_matrix(
+    data_dir: str,
+    *,
+    dataset_name: str,
+    cohort_a_scope: Dict[str, List[str]],
+    cohort_b_scope: Dict[str, List[str]],
+    output_path: Path,
+) -> Dict[str, Any]:
+    item = query_store_module._manifest_assay_item(data_dir, dataset_name)
+    if not item:
+        raise RuntimeError(f"Assay '{dataset_name}' is missing its declared matrix metadata.")
+    relative_file = str(item.get("file") or "").strip()
+    root = resolve_project_data_dir(data_dir).resolve()
+    matrix_path = (root / relative_file).resolve()
+    try:
+        matrix_path.relative_to(root)
+    except ValueError:
+        raise RuntimeError(f"Assay '{dataset_name}' uses an invalid matrix location.") from None
+    if not relative_file or not matrix_path.is_file():
+        raise RuntimeError(f"Assay '{dataset_name}' matrix is unavailable.")
+
+    with matrix_path.open("r", encoding="utf-8", newline="") as handle:
+        first_line = handle.readline()
+        if not first_line:
+            raise RuntimeError(f"Assay '{dataset_name}' matrix is empty.")
+        delimiter = query_store_module._detect_matrix_delimiter(first_line)
+        handle.seek(0)
+        reader = csv.reader(handle, delimiter=delimiter)
+        header = next(reader, [])
+
+    if len(header) < 2:
+        raise RuntimeError(f"Assay '{dataset_name}' matrix has no sample columns.")
+    source_sample_ids = [str(value or "").strip() for value in header[1:]]
+    if any(not sample_id for sample_id in source_sample_ids):
+        raise RuntimeError(f"Assay '{dataset_name}' matrix contains an empty sample identifier.")
+    if len(set(source_sample_ids)) != len(source_sample_ids):
+        raise RuntimeError(f"Assay '{dataset_name}' matrix contains duplicate sample identifiers.")
+
+    cohort_a_samples = set(cohort_a_scope["sample_ids"])
+    cohort_b_samples = set(cohort_b_scope["sample_ids"])
+    cohort_a_patients = set(cohort_a_scope["patient_ids"])
+    cohort_b_patients = set(cohort_b_scope["patient_ids"])
+    selected_columns: List[tuple[int, str]] = []
+    sample_table_rows: List[Dict[str, Any]] = []
+    for source_index, sample_id in enumerate(source_sample_ids, start=1):
+        patient_id = sample_id.split(":", 1)[0].strip()
+        belongs_to_a = sample_id in cohort_a_samples or patient_id in cohort_a_patients
+        belongs_to_b = sample_id in cohort_b_samples or patient_id in cohort_b_patients
+        if belongs_to_a and belongs_to_b:
+            raise RuntimeError("Differential expression requires disjoint sample selections across Cohort A and Cohort B.")
+        if not belongs_to_a and not belongs_to_b:
+            continue
+        cohort = "A" if belongs_to_a else "B"
+        selected_columns.append((source_index, sample_id))
+        sample_table_rows.append(
+            {
+                "sample_id": sample_id,
+                "patient_id": patient_id,
+                "cohort": cohort,
+                "group_label": "Cohort A" if cohort == "A" else "Cohort B",
+            }
+        )
+
+    if not selected_columns:
+        raise RuntimeError(f"No assay samples overlap the selected cohorts for dataset '{dataset_name}'.")
+    cohort_a_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "A")
+    cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
+    if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
+        raise RuntimeError(f"Dataset '{dataset_name}' must contain at least one sample in both Cohort A and Cohort B.")
+
+    feature_count = 0
+    seen_features: set[str] = set()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with matrix_path.open("r", encoding="utf-8", newline="") as source, output_path.open(
+        "w", encoding="utf-8", newline=""
+    ) as target:
+        reader = csv.reader(source, delimiter=delimiter)
+        next(reader, None)
+        writer = csv.writer(target, delimiter="\t", lineterminator="\n")
+        writer.writerow(["gene_id", *[sample_id for _, sample_id in selected_columns]])
+        for raw_row in reader:
+            if not raw_row:
+                continue
+            feature_id = str(raw_row[0] or "").strip()
+            if not feature_id:
+                continue
+            if feature_id in seen_features:
+                raise RuntimeError(f"Assay '{dataset_name}' matrix contains duplicate feature identifiers.")
+            seen_features.add(feature_id)
+            selected_values: List[str] = []
+            for source_index, _sample_id in selected_columns:
+                value = str(raw_row[source_index] if source_index < len(raw_row) else "").strip()
+                try:
+                    numeric_value = float(value)
+                except ValueError:
+                    raise RuntimeError(f"Assay '{dataset_name}' contains a non-numeric count-like value.") from None
+                if not math.isfinite(numeric_value) or numeric_value < 0:
+                    raise RuntimeError(f"Assay '{dataset_name}' contains an invalid count-like value.")
+                selected_values.append(value)
+            writer.writerow([feature_id, *selected_values])
+            feature_count += 1
+
+    if feature_count < 2:
+        raise RuntimeError(f"Assay '{dataset_name}' has too few features for differential expression.")
+    return {
+        "sample_ids": [sample_id for _, sample_id in selected_columns],
+        "sample_table_rows": sample_table_rows,
+        "cohort_a_sample_count": cohort_a_sample_count,
+        "cohort_b_sample_count": cohort_b_sample_count,
+        "gene_count": feature_count,
+    }
+
+
 def _prepare_transcriptomics_differential_expression_bundle(
     data_dir: str,
     *,
@@ -407,6 +530,7 @@ def _prepare_transcriptomics_differential_expression_bundle(
     output_dir: Path,
     method: str = "log2_cpm_welch",
     minimum_samples_per_group: int = 1,
+    required_data_type: str = "raw_counts",
 ) -> Dict[str, Any]:
     cohort_a_scope = _resolve_assay_scope(selected_patient_ids)
     cohort_b_scope = _resolve_assay_scope(compare_selected_patient_ids)
@@ -422,105 +546,126 @@ def _prepare_transcriptomics_differential_expression_bundle(
     dataset_name = str(dataset.get("dataset_name") or "").strip()
     if not dataset_name:
         raise RuntimeError("No valid assay name is available for differential expression.")
+    dataset_data_type = str(dataset.get("data_type") or "").strip()
+    expected_data_type = str(required_data_type or "").strip()
+    if expected_data_type and dataset_data_type != expected_data_type:
+        raise RuntimeError(
+            f"Differential expression method '{method}' requires assay data type "
+            f"'{expected_data_type}', not '{dataset_data_type or 'unspecified'}'."
+        )
 
-    query_store_module.ensure_query_store(data_dir)
-    con = query_store_module._connect(data_dir)
-    try:
-        where_clauses = ["dataset_name = ?"]
-        query_params: List[Any] = [dataset_name]
-        wanted_sample_ids = cohort_a_scope["sample_ids"] + cohort_b_scope["sample_ids"]
-        wanted_patient_ids = cohort_a_scope["patient_ids"] + cohort_b_scope["patient_ids"]
-        if wanted_sample_ids:
-            sample_placeholders = ",".join("?" for _ in wanted_sample_ids)
-            where_clauses.append(f"sample_id IN ({sample_placeholders})")
-            query_params.extend(wanted_sample_ids)
-        if wanted_patient_ids:
-            patient_placeholders = ",".join("?" for _ in wanted_patient_ids)
-            where_clauses.append(f"patient_id IN ({patient_placeholders})")
-            query_params.extend(wanted_patient_ids)
-        if len(where_clauses) == 1:
-            raise RuntimeError("Differential expression requires both Cohort A and Cohort B.")
-        sample_rows = con.execute(
-            f"""
-            SELECT sample_id, patient_id
-            FROM assay_samples
-            WHERE {" AND ".join([where_clauses[0], "(" + " OR ".join(where_clauses[1:]) + ")"])}
-            ORDER BY sample_id
-            """,
-            query_params,
-        ).fetchall()
-        if not sample_rows:
-            raise RuntimeError(f"No assay samples overlap the current Analysis scope for assay '{dataset_name}'.")
+    counts_matrix_path = output_dir / "counts_matrix.tsv"
+    if dataset_data_type == "raw_counts":
+        query_store_module.ensure_query_store(data_dir)
+        con = query_store_module._connect(data_dir)
+        try:
+            where_clauses = ["dataset_name = ?"]
+            query_params: List[Any] = [dataset_name]
+            wanted_sample_ids = cohort_a_scope["sample_ids"] + cohort_b_scope["sample_ids"]
+            wanted_patient_ids = cohort_a_scope["patient_ids"] + cohort_b_scope["patient_ids"]
+            if wanted_sample_ids:
+                sample_placeholders = ",".join("?" for _ in wanted_sample_ids)
+                where_clauses.append(f"sample_id IN ({sample_placeholders})")
+                query_params.extend(wanted_sample_ids)
+            if wanted_patient_ids:
+                patient_placeholders = ",".join("?" for _ in wanted_patient_ids)
+                where_clauses.append(f"patient_id IN ({patient_placeholders})")
+                query_params.extend(wanted_patient_ids)
+            sample_rows = con.execute(
+                f"""
+                SELECT sample_id, patient_id
+                FROM assay_samples
+                WHERE {" AND ".join([where_clauses[0], "(" + " OR ".join(where_clauses[1:]) + ")"])}
+                ORDER BY sample_id
+                """,
+                query_params,
+            ).fetchall()
+            if not sample_rows:
+                raise RuntimeError(f"No assay samples overlap the current Analysis scope for assay '{dataset_name}'.")
 
-        sample_table_rows: List[Dict[str, Any]] = []
-        sample_ids: List[str] = []
-        cohort_a_samples = set(cohort_a_scope["sample_ids"])
-        cohort_b_samples = set(cohort_b_scope["sample_ids"])
-        cohort_a_patients = set(cohort_a_scope["patient_ids"])
-        cohort_b_patients = set(cohort_b_scope["patient_ids"])
-        for sample_id, patient_id in sample_rows:
+            sample_table_rows = []
+            sample_ids = []
+            cohort_a_samples = set(cohort_a_scope["sample_ids"])
+            cohort_b_samples = set(cohort_b_scope["sample_ids"])
+            cohort_a_patients = set(cohort_a_scope["patient_ids"])
+            cohort_b_patients = set(cohort_b_scope["patient_ids"])
+            for sample_id, patient_id in sample_rows:
+                sample_text = str(sample_id or "").strip()
+                patient_text = str(patient_id or "").strip()
+                if not sample_text or not patient_text:
+                    continue
+                belongs_to_a = sample_text in cohort_a_samples or patient_text in cohort_a_patients
+                belongs_to_b = sample_text in cohort_b_samples or patient_text in cohort_b_patients
+                if belongs_to_a and belongs_to_b:
+                    raise RuntimeError(
+                        "Differential expression requires disjoint sample selections across Cohort A and Cohort B."
+                    )
+                if not belongs_to_a and not belongs_to_b:
+                    continue
+                cohort = "A" if belongs_to_a else "B"
+                sample_ids.append(sample_text)
+                sample_table_rows.append(
+                    {
+                        "sample_id": sample_text,
+                        "patient_id": patient_text,
+                        "cohort": cohort,
+                        "group_label": "Cohort A" if cohort == "A" else "Cohort B",
+                    }
+                )
+            cohort_a_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "A")
+            cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
+            if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
+                raise RuntimeError(
+                    f"Dataset '{dataset_name}' must contain at least one sample in both Cohort A and Cohort B."
+                )
+
+            sample_placeholders = ",".join("?" for _ in sample_ids)
+            count_rows = con.execute(
+                f"""
+                SELECT gene_id, sample_id, raw_count
+                FROM transcript_counts
+                WHERE dataset_name = ? AND sample_id IN ({sample_placeholders})
+                ORDER BY gene_id, sample_id
+                """,
+                [dataset_name, *sample_ids],
+            ).fetchall()
+        finally:
+            con.close()
+
+        matrix_values: Dict[str, Dict[str, int]] = defaultdict(dict)
+        for gene_id, sample_id, raw_count in count_rows:
+            gene_text = str(gene_id or "").strip()
             sample_text = str(sample_id or "").strip()
-            patient_text = str(patient_id or "").strip()
-            if not sample_text or not patient_text:
-                continue
-            belongs_to_a = sample_text in cohort_a_samples or patient_text in cohort_a_patients
-            belongs_to_b = sample_text in cohort_b_samples or patient_text in cohort_b_patients
-            if belongs_to_a and belongs_to_b:
-                raise RuntimeError("Differential expression requires disjoint sample selections across Cohort A and Cohort B.")
-            if belongs_to_a:
-                cohort = "A"
-            elif belongs_to_b:
-                cohort = "B"
-            else:
-                continue
-            sample_ids.append(sample_text)
-            sample_table_rows.append(
-                {
-                    "sample_id": sample_text,
-                    "patient_id": patient_text,
-                    "cohort": cohort,
-                    "group_label": "Cohort A" if cohort == "A" else "Cohort B",
-                }
-            )
-        if not sample_table_rows:
-            raise RuntimeError(f"No assay samples overlap the selected cohorts for dataset '{dataset_name}'.")
-        cohort_a_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "A")
-        cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
-        if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
+            if gene_text and sample_text:
+                matrix_values[gene_text][sample_text] = int(raw_count or 0)
+        counts_matrix_rows: List[Dict[str, Any]] = []
+        for gene_id in sorted(matrix_values):
+            row: Dict[str, Any] = {"gene_id": gene_id}
+            gene_counts = matrix_values[gene_id]
+            for sample_id in sample_ids:
+                row[sample_id] = gene_counts.get(sample_id, 0)
+            counts_matrix_rows.append(row)
+        if not counts_matrix_rows:
             raise RuntimeError(
-                f"Dataset '{dataset_name}' must contain at least one sample in both Cohort A and Cohort B."
+                f"No transcript count rows are available for dataset '{dataset_name}' in the selected cohorts."
             )
-
-        sample_placeholders = ",".join("?" for _ in sample_ids)
-        count_rows = con.execute(
-            f"""
-            SELECT gene_id, sample_id, raw_count
-            FROM transcript_counts
-            WHERE dataset_name = ? AND sample_id IN ({sample_placeholders})
-            ORDER BY gene_id, sample_id
-            """,
-            [dataset_name, *sample_ids],
-        ).fetchall()
-    finally:
-        con.close()
-
-    matrix_values: Dict[str, Dict[str, int]] = defaultdict(dict)
-    for gene_id, sample_id, raw_count in count_rows:
-        gene_text = str(gene_id or "").strip()
-        sample_text = str(sample_id or "").strip()
-        if not gene_text or not sample_text:
-            continue
-        matrix_values[gene_text][sample_text] = int(raw_count or 0)
-
-    counts_matrix_rows: List[Dict[str, Any]] = []
-    for gene_id in sorted(matrix_values):
-        row: Dict[str, Any] = {"gene_id": gene_id}
-        gene_counts = matrix_values[gene_id]
-        for sample_id in sample_ids:
-            row[sample_id] = gene_counts.get(sample_id, 0)
-        counts_matrix_rows.append(row)
-    if not counts_matrix_rows:
-        raise RuntimeError(f"No transcript count rows are available for dataset '{dataset_name}' in the selected cohorts.")
+        _write_tsv(counts_matrix_path, ["gene_id", *sample_ids], counts_matrix_rows)
+        gene_count = len(counts_matrix_rows)
+    elif dataset_data_type == "rsem_expected_counts":
+        exported = _export_manifest_count_like_matrix(
+            data_dir,
+            dataset_name=dataset_name,
+            cohort_a_scope=cohort_a_scope,
+            cohort_b_scope=cohort_b_scope,
+            output_path=counts_matrix_path,
+        )
+        sample_ids = list(exported["sample_ids"])
+        sample_table_rows = list(exported["sample_table_rows"])
+        cohort_a_sample_count = int(exported["cohort_a_sample_count"])
+        cohort_b_sample_count = int(exported["cohort_b_sample_count"])
+        gene_count = int(exported["gene_count"])
+    else:
+        raise RuntimeError(f"Assay data type '{dataset_data_type or 'unspecified'}' is not a supported count-like matrix.")
 
     cohort_a_rows = [
         {"patient_id": row["patient_id"], "sample_id": row["sample_id"], "cohort": row["cohort"]}
@@ -534,18 +679,17 @@ def _prepare_transcriptomics_differential_expression_bundle(
     ]
 
     sample_table_path = output_dir / "sample_table.tsv"
-    counts_matrix_path = output_dir / "counts_matrix.tsv"
     cohort_a_path = output_dir / "cohort_a.tsv"
     cohort_b_path = output_dir / "cohort_b.tsv"
     params_path = output_dir / "params.yaml"
     manifest_path = output_dir / "manifest.yaml"
     _write_tsv(sample_table_path, ["sample_id", "patient_id", "cohort", "group_label"], sample_table_rows)
-    _write_tsv(counts_matrix_path, ["gene_id", *sample_ids], counts_matrix_rows)
     _write_tsv(cohort_a_path, ["patient_id", "sample_id", "cohort"], cohort_a_rows)
     _write_tsv(cohort_b_path, ["patient_id", "sample_id", "cohort"], cohort_b_rows)
     params_payload = {
         "analysis_type": "differential_expression",
         "method": str(method or "log2_cpm_welch").strip(),
+        "input_data_type": dataset_data_type,
         "prompt": str(prompt or "").strip(),
         "dataset_name": dataset_name,
         "contrast": {"numerator": "Cohort A", "denominator": "Cohort B"},
@@ -556,6 +700,7 @@ def _prepare_transcriptomics_differential_expression_bundle(
         "version": 1,
         "analysis_type": "transcriptomics_differential_expression",
         "dataset_name": dataset_name,
+        "input_data_type": dataset_data_type,
         "prompt": str(prompt or "").strip(),
         "cohorts": {
             "A": {
@@ -595,7 +740,8 @@ def _prepare_transcriptomics_differential_expression_bundle(
         "cohort_a_sample_count": cohort_a_sample_count,
         "cohort_b_patient_count": manifest_payload["cohorts"]["B"]["patient_count"],
         "cohort_b_sample_count": cohort_b_sample_count,
-        "gene_count": len(counts_matrix_rows),
+        "gene_count": gene_count,
+        "data_type": dataset_data_type,
     }
 
 
@@ -611,6 +757,26 @@ def _validate_deseq2_bundle(bundle: Dict[str, Any]) -> None:
         raise RuntimeError(
             "DESeq2 differential expression v1 requires one sample per patient. "
             "Use a baseline-only dataset or choose one sample per patient before running."
+        )
+
+
+def _validate_limma_voom_bundle(bundle: Dict[str, Any]) -> None:
+    sample_rows = list(bundle.get("sample_table_rows") or [])
+    cohort_a_sample_count = int(bundle.get("cohort_a_sample_count") or 0)
+    cohort_b_sample_count = int(bundle.get("cohort_b_sample_count") or 0)
+    if cohort_a_sample_count < 2 or cohort_b_sample_count < 2:
+        raise RuntimeError(
+            "limma-voom differential expression requires at least two samples in Cohort A and two samples in Cohort B."
+        )
+    patient_counts = Counter(
+        str(row.get("patient_id") or "").strip()
+        for row in sample_rows
+        if str(row.get("patient_id") or "").strip()
+    )
+    if any(count > 1 for count in patient_counts.values()):
+        raise RuntimeError(
+            "limma-voom differential expression v1 requires one sample per patient. "
+            "Use a cross-sectional dataset or choose one sample per patient before running."
         )
 
 
@@ -745,6 +911,21 @@ def run_rscript_analysis(
                 "--heatmap-clustering",
                 str(temp_path / "top_genes_heatmap_clustering.json"),
             ]
+        elif runner_ref == "transcriptomics_limma_voom_differential_expression":
+            bundle = _prepare_transcriptomics_differential_expression_bundle(
+                data_dir, prompt=prompt, assay_id=assay_id,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path, method="limma_voom",
+                minimum_samples_per_group=2, required_data_type="rsem_expected_counts",
+            )
+            _validate_limma_voom_bundle(bundle)
+            command = [binary, str(script_path), "--job-dir", str(temp_path),
+                "--manifest", str(bundle["manifest_path"]), "--params", str(bundle["params_path"]),
+                "--prompt", str(prompt or ""), "--dataset-name", str(bundle["dataset_name"]),
+                "--sample-table", str(bundle["sample_table_path"]), "--counts-matrix", str(bundle["counts_matrix_path"]),
+                "--results-table", str(temp_path / "de_results.tsv"), "--volcano-table", str(temp_path / "volcano_points.tsv"),
+                "--summary-json", str(temp_path / "summary.json"), "--plot-file", str(temp_path / "volcano_plot.png")]
         elif runner_ref == "transcriptomics_hallmark_pathway_enrichment":
             bundle = _prepare_transcriptomics_differential_expression_bundle(
                 data_dir,

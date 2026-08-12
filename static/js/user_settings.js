@@ -230,7 +230,7 @@ export function createUserSettingsUi(ctx) {
     renderQueryExecutionMode();
 
     if (options.applyNavigation !== false && settings.landing_tab_mode === "fixed") {
-      setDashboardSubtab(settings.dashboard_assays_open ? "assays" : "timeline");
+      setDashboardSubtab(settings.dashboard_assays_open ? "assays" : "clinical");
       setActiveTab(settings.landing_tab);
     }
     renderUserSettingsForm();

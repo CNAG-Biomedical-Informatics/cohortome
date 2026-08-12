@@ -60,12 +60,11 @@ export function createAuthUi(ctx) {
     loadAnalysisSessionsFromBackend,
     applyAnalysisSession,
     loadDatasets,
-    prepareStartupWorkspaceSelection,
-    startupDefaultDatasetIds,
     loadPatients,
     loadUserSettings,
     applyUserSettings,
     loadLmStatus,
+    clearDatasetScopedContent,
   } = callbacks;
 
   function canManageDataset() {
@@ -142,31 +141,7 @@ export function createAuthUi(ctx) {
   }
 
   function clearLoadedWorkspaceForSignedOutState() {
-    state.currentPatients = [];
-    state.selectedPatientId = null;
-    state.dashboardSummaryState = null;
-    state.assayDatasetsState = [];
-    state.selectedAssayDatasets = [];
-    state.savedCohorts = [];
-    if (patientsEl) {
-      patientsEl.innerHTML = '<div class="empty">Sign in to access the shared clinical workspace.</div>';
-    }
-    if (detailEl) {
-      detailEl.innerHTML = '<div class="empty">Patient workspace hidden until you sign in.</div>';
-    }
-    if (dashboardEl) {
-      dashboardEl.innerHTML = '<div class="empty">Clinical dashboard hidden until you sign in.</div>';
-    }
-    if (dashboardTimelineEl) {
-      dashboardTimelineEl.innerHTML = '<div class="empty">Timeline hidden until you sign in.</div>';
-    }
-    if (assayDashboardCardsEl) {
-      assayDashboardCardsEl.innerHTML = '<div class="empty">Assays dashboard hidden until you sign in.</div>';
-    }
-    if (assayDashboardStatusEl) {
-      assayDashboardStatusEl.className = "query-status";
-      assayDashboardStatusEl.textContent = "Sign in to access shared assays.";
-    }
+    clearDatasetScopedContent({ signedOut: true, clearSelection: true, nextScopeId: "" });
   }
 
   function updateLoadButtonAvailability() {
@@ -374,8 +349,7 @@ export function createAuthUi(ctx) {
         await loadLmStatus();
       }
       await loadDatasets();
-      prepareStartupWorkspaceSelection();
-      await loadPatients({ respectAdminGate: false, targetDatasetIds: startupDefaultDatasetIds() });
+      await loadPatients({ respectAdminGate: false, targetDatasetIds: state.currentDatasetIds.slice() });
       await refreshUserWorkspaceState();
       if (typeof applyUserSettings === "function") {
         applyUserSettings({ applyNavigation: true });

@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
+from uuid import uuid4
 
 from app.config import BASE_DIR, CACHE_ROOT_DIR
 from app.bff import (
@@ -20,6 +21,7 @@ from app.bff import (
     resolve_project_data_dir,
 )
 from app.datasets import get_dataset, list_registered_datasets, normalize_dataset_id, parse_scope_dataset_ids
+from app.state_io import advisory_file_lock, atomic_write_json
 
 try:
     import duckdb
@@ -30,7 +32,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 QUERY_STORE_DIR = CACHE_ROOT_DIR / "query-store"
 GENE_ANNOTATION_PATH = BASE_DIR / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 ASSAY_DATA_DIR: Path | None = None
-QUERY_STORE_SCHEMA_VERSION = 3
+QUERY_STORE_SCHEMA_VERSION = 4
 
 
 class QueryStoreNotReadyError(RuntimeError):
@@ -201,11 +203,54 @@ def _assay_matrix_files(data_dir: str) -> List[Path]:
     assay_dir = _resolve_assay_transcriptomics_dir(data_dir)
     if assay_dir is None:
         return []
-    return [
-        path
-        for path in sorted(assay_dir.glob("*.csv"))
-        if path.is_file()
-    ]
+    discovered = [path for path in sorted(assay_dir.glob("*.csv")) if path.is_file()]
+    root = resolve_project_data_dir(data_dir)
+    manifest_path = root / "assays" / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        items = payload.get("assays") if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            return []
+        declared_count_paths: set[Path] = set()
+        excluded_paths: set[Path] = set()
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            modality = str(item.get("modality") or "").strip()
+            data_type = str(item.get("data_type") or "").strip()
+            relative_file = str(item.get("file") or "").strip()
+            if relative_file:
+                path = (root / relative_file).resolve()
+                try:
+                    path.relative_to(root.resolve())
+                except ValueError:
+                    path = None
+                if path is not None:
+                    if modality == "transcriptomics" and data_type == "raw_counts":
+                        declared_count_paths.add(path)
+                    else:
+                        excluded_paths.add(path)
+            for key, raw_value in item.items():
+                if key == "file" or not key.endswith("_file"):
+                    continue
+                auxiliary_file = str(raw_value or "").strip()
+                if not auxiliary_file:
+                    continue
+                auxiliary_path = (root / auxiliary_file).resolve()
+                try:
+                    auxiliary_path.relative_to(root.resolve())
+                except ValueError:
+                    continue
+                excluded_paths.add(auxiliary_path)
+        return [
+            path
+            for path in discovered
+            if path in declared_count_paths or path not in excluded_paths
+        ]
+    return discovered
 
 
 def _assay_source_files(root: Path) -> List[Path]:
@@ -334,7 +379,7 @@ def _load_json(path: Path) -> Dict[str, Any] | None:
 
 
 def _write_json(path: Path, payload: Dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(path, payload)
 
 
 def _signature_payload(payload: Dict[str, Any] | None) -> Dict[str, Any] | None:
@@ -473,55 +518,74 @@ def _store_ready_or_raise(dataset_id: str) -> None:
     raise QueryStoreNotReadyError(message)
 
 
+def ensure_dataset_query_stores_ready(dataset_ids: List[str]) -> None:
+    for dataset_id in dataset_ids:
+        _store_ready_or_raise(dataset_id)
+
+
+def remove_dataset_query_store(dataset_id: str) -> None:
+    normalized = normalize_dataset_id(dataset_id)
+    if not normalized:
+        raise ValueError("A dataset id is required.")
+    db_path, meta_path, status_path = _dataset_store_paths(normalized)
+    lock_path = status_path.with_name(f".{status_path.name}.lock")
+    with advisory_file_lock(lock_path):
+        db_path.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
+        status_path.unlink(missing_ok=True)
+
+
 def prepare_dataset_query_store(dataset_id: str) -> Dict[str, Any]:
     normalized = normalize_dataset_id(dataset_id)
     if not normalized:
         raise ValueError("A dataset id is required.")
-    dataset_root = _dataset_root_path(normalized)
     db_path, meta_path, status_path = _dataset_store_paths(normalized)
-    current_signature = _dataset_source_signature(normalized)
-    previous_status = _load_json(status_path) or {}
-    _write_json(
-        status_path,
-        {
-            "dataset_id": normalized,
-            "status": "building",
-            "last_built_at": str(previous_status.get("last_built_at") or ""),
-            "last_error": "",
-        },
-    )
-    temp_suffix = f".tmp.{normalized}"
-    temp_db = db_path.with_name(f"{db_path.stem}{temp_suffix}{db_path.suffix}")
-    temp_meta = meta_path.with_name(f"{meta_path.stem}{temp_suffix}{meta_path.suffix}")
-    try:
-        _build_query_store(str(dataset_root), temp_db, temp_meta, current_signature)
-        built_meta = _load_json(temp_meta) or dict(current_signature)
-        built_meta["built_at"] = built_meta.get("built_at") or str(Path(temp_db).stat().st_mtime_ns)
-        _write_json(temp_meta, built_meta)
-        temp_db.replace(db_path)
-        temp_meta.replace(meta_path)
+    lock_path = status_path.with_name(f".{status_path.name}.lock")
+    with advisory_file_lock(lock_path):
+        dataset_root = _dataset_root_path(normalized)
+        current_signature = _dataset_source_signature(normalized)
+        previous_status = _load_json(status_path) or {}
         _write_json(
             status_path,
             {
                 "dataset_id": normalized,
-                "status": "ready",
-                "last_built_at": str(built_meta.get("built_at") or ""),
+                "status": "building",
+                "last_built_at": str(previous_status.get("last_built_at") or ""),
                 "last_error": "",
             },
         )
-    except Exception as exc:
-        temp_db.unlink(missing_ok=True)
-        temp_meta.unlink(missing_ok=True)
-        _write_json(
-            status_path,
-            {
-                "dataset_id": normalized,
-                "status": "failed",
-                "last_built_at": str((_load_json(status_path) or {}).get("last_built_at") or ""),
-                "last_error": str(exc),
-            },
-        )
-        raise
+        temp_suffix = f".tmp.{normalized}.{uuid4().hex}"
+        temp_db = db_path.with_name(f"{db_path.stem}{temp_suffix}{db_path.suffix}")
+        temp_meta = meta_path.with_name(f"{meta_path.stem}{temp_suffix}{meta_path.suffix}")
+        try:
+            _build_query_store(str(dataset_root), temp_db, temp_meta, current_signature)
+            built_meta = _load_json(temp_meta) or dict(current_signature)
+            built_meta["built_at"] = built_meta.get("built_at") or str(Path(temp_db).stat().st_mtime_ns)
+            _write_json(temp_meta, built_meta)
+            temp_db.replace(db_path)
+            temp_meta.replace(meta_path)
+            _write_json(
+                status_path,
+                {
+                    "dataset_id": normalized,
+                    "status": "ready",
+                    "last_built_at": str(built_meta.get("built_at") or ""),
+                    "last_error": "",
+                },
+            )
+        except Exception as exc:
+            temp_db.unlink(missing_ok=True)
+            temp_meta.unlink(missing_ok=True)
+            _write_json(
+                status_path,
+                {
+                    "dataset_id": normalized,
+                    "status": "failed",
+                    "last_built_at": str(previous_status.get("last_built_at") or ""),
+                    "last_error": str(exc),
+                },
+            )
+            raise
     return dataset_query_store_status(normalized)
 
 
@@ -967,7 +1031,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         con.close()
 
     signature = {**signature, "built_at": str(int(Path(db_path).stat().st_mtime_ns))}
-    meta_path.write_text(json.dumps(signature, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_json(meta_path, signature)
 
 
 def patient_inventory(data_dir: str) -> List[str]:
@@ -1076,7 +1140,11 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
 
 
 
-def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
+def _assay_inventory_metadata(
+    modality: Any,
+    data_type: Any,
+    manifest_item: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     modality_text = str(modality or "").strip() or "assay"
     data_type_text = str(data_type or "").strip() or "feature_matrix"
     if modality_text == "transcriptomics":
@@ -1109,7 +1177,7 @@ def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
         value_kind = "feature_values"
         supports_expression_summary = False
         supports_differential_expression = False
-    return {
+    metadata = {
         "feature_id_type": feature_id_type,
         "feature_label": feature_label,
         "value_kind": value_kind,
@@ -1120,6 +1188,27 @@ def _assay_inventory_metadata(modality: Any, data_type: Any) -> Dict[str, Any]:
         "supports_differential_expression": supports_differential_expression,
         "compatible_analysis_levels": ["sample", "patient"],
     }
+    item = manifest_item if isinstance(manifest_item, dict) else {}
+    text_overrides = {
+        "feature_id_type": item.get("feature_namespace"),
+        "feature_label": item.get("feature_label"),
+        "value_kind": item.get("value_kind"),
+        "patient_linkage": item.get("patient_linkage"),
+        "analysis_level": item.get("analysis_level"),
+    }
+    for key, raw_value in text_overrides.items():
+        value = str(raw_value or "").strip()
+        if value:
+            metadata[key] = value
+    for key in ("supports_expression_summary", "supports_differential_expression"):
+        if isinstance(item.get(key), bool):
+            metadata[key] = item[key]
+    levels = item.get("compatible_analysis_levels")
+    if isinstance(levels, list):
+        normalized_levels = [str(value).strip() for value in levels if str(value or "").strip()]
+        if normalized_levels:
+            metadata["compatible_analysis_levels"] = normalized_levels
+    return metadata
 
 
 def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
@@ -1160,20 +1249,31 @@ def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | No
     if not path.exists() or not path.is_file():
         return None
     try:
-        first_line = path.read_text(encoding="utf-8").splitlines()[0]
-    except (OSError, IndexError, UnicodeDecodeError):
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            first_line = handle.readline()
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not first_line:
         return None
     delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
     sample_ids: List[str] = []
-    feature_count = 0
+    declared_feature_count: int | None = None
+    try:
+        declared_feature_count = int(item.get("feature_count"))
+    except (TypeError, ValueError):
+        pass
+    if declared_feature_count is not None and declared_feature_count < 0:
+        declared_feature_count = None
+    feature_count = declared_feature_count or 0
     try:
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.reader(handle, delimiter=delimiter)
             header = next(reader, [])
             sample_ids = [str(item or "").strip() for item in header[1:] if str(item or "").strip()]
-            for row in reader:
-                if row and str(row[0] or "").strip():
-                    feature_count += 1
+            if declared_feature_count is None:
+                for row in reader:
+                    if row and str(row[0] or "").strip():
+                        feature_count += 1
     except (OSError, UnicodeDecodeError):
         return None
     patient_ids = sorted({sample_id.split(":", 1)[0] for sample_id in sample_ids if sample_id.split(":", 1)[0]})
@@ -1217,7 +1317,7 @@ def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_
                 "patient_ids": patient_ids,
                 "top_genes": [],
                 "feature_count": int(stats["feature_count"]),
-                **_assay_inventory_metadata(modality, data_type),
+                **_assay_inventory_metadata(modality, data_type, item),
             }
         )
     return sorted(items, key=lambda value: str(value.get("dataset_name") or ""))
@@ -1480,7 +1580,7 @@ def _manifest_assay_matrix_preview(data_dir: str, dataset_name: str, feature_lim
         "features": features,
         "sample_ids": sample_ids,
         "sample_values": sample_values,
-        **_assay_inventory_metadata(modality, data_type),
+        **_assay_inventory_metadata(modality, data_type, item),
     }
 
 

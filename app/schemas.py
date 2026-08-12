@@ -226,7 +226,7 @@ class AuthPasswordResetResponse(BaseModel):
 
 class DatasetSelectionRequest(BaseModel):
     dataset_id: str = Field(default="", description="Single dataset ID for backward compatibility.")
-    dataset_ids: List[str] = Field(default_factory=list, description="One or more dataset IDs that define the active workspace.")
+    dataset_ids: List[str] = Field(default_factory=list, description="Dataset IDs that define the active workspace. An empty list unloads it.")
 
 
 class DatasetRegistrationRequest(BaseModel):

@@ -7,12 +7,14 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+from uuid import uuid4
 
 from fastapi import HTTPException, Request
 
 from app.auth import auth_enabled, require_authenticated, session_user
 from app.bff import extract_patient_id, resolve_project_data_dir
 from app.config import BASE_DIR, CONFIG_DIR, DEFAULT_DATA_DIR, STATE_ROOT_DIR
+from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import normalize_user_id, user_state_file
 
 
@@ -122,8 +124,32 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     assays_dir = root / "assays"
     transcriptomics_dir = assays_dir / "transcriptomics"
     clinical_files = sorted(path for path in (clinical_dir if clinical_dir.is_dir() else root).glob("*.json") if path.is_file())
-    assay_files = sorted(path for path in assays_dir.glob("*/*.csv") if path.is_file()) if assays_dir.is_dir() else []
-    transcriptomics_files = sorted(path for path in transcriptomics_dir.glob("*.csv") if path.is_file()) if transcriptomics_dir.is_dir() else []
+    discovered_assay_files = sorted(path for path in assays_dir.glob("*/*.csv") if path.is_file()) if assays_dir.is_dir() else []
+    assay_files = discovered_assay_files
+    assay_manifest_path = assays_dir / "manifest.json"
+    if assay_manifest_path.is_file():
+        try:
+            assay_manifest = json.loads(assay_manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            assay_manifest = None
+        manifest_items = assay_manifest.get("assays") if isinstance(assay_manifest, dict) else None
+        if isinstance(manifest_items, list):
+            declared_files: List[Path] = []
+            for item in manifest_items:
+                if not isinstance(item, dict):
+                    continue
+                relative_file = str(item.get("file") or "").strip()
+                if not relative_file:
+                    continue
+                path = (root / relative_file).resolve()
+                try:
+                    path.relative_to(root.resolve())
+                except ValueError:
+                    continue
+                if path.is_file():
+                    declared_files.append(path)
+            assay_files = sorted(dict.fromkeys(declared_files))
+    transcriptomics_files = [path for path in assay_files if path.parent == transcriptomics_dir.resolve()]
     representation = clinical_representation(str(root))
     patient_ids = set()
     clinical_record_count = 0
@@ -318,18 +344,27 @@ def _normalize_dataset_record(item: Dict[str, Any]) -> Dict[str, Any] | None:
     }
 
 
-def _read_registry() -> List[Dict[str, Any]]:
+def _registry_lock_path() -> Path:
+    path = _registry_path()
+    return path.with_name(f".{path.name}.lock")
+
+
+def _read_registry_unlocked() -> List[Dict[str, Any]]:
     path = _registry_path()
     if not path.exists():
         items = _seed_dataset_records()
-        _write_registry(items)
+        _write_registry_unlocked(items)
         return items
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        payload = []
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Dataset registry is invalid; refusing to replace it.") from exc
+    except OSError as exc:
+        raise RuntimeError("Dataset registry could not be read.") from exc
+    if not isinstance(payload, list):
+        raise RuntimeError("Dataset registry must contain a JSON array; refusing to replace it.")
     items: List[Dict[str, Any]] = []
-    for item in payload if isinstance(payload, list) else []:
+    for item in payload:
         normalized = _normalize_dataset_record(item)
         if normalized is not None:
             if str(normalized.get("dataset_id") or "") == DEFAULT_DATASET_ID:
@@ -337,13 +372,22 @@ def _read_registry() -> List[Dict[str, Any]]:
             items.append(normalized)
     if not any(str(item.get("dataset_id") or "") == DEFAULT_DATASET_ID for item in items):
         items.insert(0, _default_dataset_record())
-        _write_registry(items)
+        _write_registry_unlocked(items)
     return items
 
 
+def _read_registry() -> List[Dict[str, Any]]:
+    with advisory_file_lock(_registry_lock_path()):
+        return _read_registry_unlocked()
+
+
+def _write_registry_unlocked(items: List[Dict[str, Any]]) -> None:
+    atomic_write_json(_registry_path(), items)
+
+
 def _write_registry(items: List[Dict[str, Any]]) -> None:
-    path = _registry_path()
-    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    with advisory_file_lock(_registry_lock_path()):
+        _write_registry_unlocked(items)
 
 
 def list_registered_datasets() -> List[Dict[str, Any]]:
@@ -410,21 +454,14 @@ def authorized_datasets_for_user(user: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def current_dataset_id(user_id: str) -> str:
-    path = _selection_path(user_id)
-    if not path.exists():
-        return ""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return ""
-    return normalize_dataset_id(payload.get("dataset_id"))
+    selected = current_dataset_ids(user_id)
+    return selected[0] if selected else ""
 
 
 def current_dataset_ids(user_id: str) -> List[str]:
     path = _selection_path(user_id)
     if not path.exists():
-        single = current_dataset_id(user_id)
-        return [single] if single else []
+        return []
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -445,7 +482,10 @@ def current_dataset_ids(user_id: str) -> List[str]:
 
 
 def set_current_dataset(user_id: str, dataset_id: str) -> str:
-    return set_current_datasets(user_id, [dataset_id])[0]
+    selected = set_current_datasets(user_id, [dataset_id])
+    if not selected:
+        raise ValueError("A dataset id is required.")
+    return selected[0]
 
 
 def set_current_datasets(user_id: str, dataset_ids: List[str]) -> List[str]:
@@ -457,20 +497,16 @@ def set_current_datasets(user_id: str, dataset_ids: List[str]) -> List[str]:
         if value and value not in seen:
             seen.add(value)
             normalized_datasets.append(value)
-    if not normalized_datasets:
-        raise ValueError("At least one dataset id is required.")
     path = _selection_path(normalized_user)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
+    lock_path = path.with_name(f".{path.name}.lock")
+    with advisory_file_lock(lock_path):
+        atomic_write_json(
+            path,
             {
-                "dataset_id": normalized_datasets[0],
+                "dataset_id": normalized_datasets[0] if normalized_datasets else "",
                 "dataset_ids": normalized_datasets,
             },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+        )
     return normalized_datasets
 
 
@@ -534,8 +570,6 @@ def resolve_dataset(request: Request | None = None, dataset_id: str | None = Non
     user = _request_user(request)
     requested_id = normalize_dataset_id(dataset_id)
     candidates = authorized_datasets_for_user(user)
-    if not candidates:
-        raise HTTPException(status_code=404, detail="No authorized datasets are available.")
 
     if requested_id:
         dataset = get_dataset(requested_id)
@@ -545,17 +579,19 @@ def resolve_dataset(request: Request | None = None, dataset_id: str | None = Non
             raise HTTPException(status_code=404, detail="Dataset is disabled.")
         return dataset
 
-    selected_id = current_dataset_id(str(user.get("username") or "local"))
-    if selected_id:
-        dataset = get_dataset(selected_id)
-        if dataset is not None and user_can_access_dataset(user, dataset):
-            return dataset
-
-    return candidates[0]
+    selected_ids = resolve_dataset_ids(request)
+    if len(selected_ids) != 1:
+        return {}
+    return next(
+        (item for item in candidates if str(item.get("dataset_id") or "") == selected_ids[0]),
+        {},
+    )
 
 
 def resolve_dataset_dir(request: Request | None = None, dataset_id: str | None = None) -> str:
     dataset_ids = resolve_dataset_ids(request, dataset_id)
+    if not dataset_ids:
+        raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset first.")
     if len(dataset_ids) == 1:
         return str(resolve_dataset(request, dataset_ids[0]).get("root_path") or "")
     return materialize_dataset_scope(dataset_ids)
@@ -576,10 +612,12 @@ def resolve_dataset_ids(request: Request | None = None, dataset_id: str | None =
                 raise HTTPException(status_code=403, detail="Dataset access denied.")
             resolved.append(item)
         return resolved
-    selected_ids = [item for item in current_dataset_ids(str(user.get("username") or "local")) if item in candidate_map]
-    if selected_ids:
-        return selected_ids
-    return [str(candidates[0].get("dataset_id") or "")]
+    selected_ids = current_dataset_ids(str(user.get("username") or "local"))
+    if not selected_ids:
+        return []
+    if any(item not in candidate_map for item in selected_ids):
+        return []
+    return selected_ids
 
 
 def materialize_dataset_scope(dataset_ids: List[str]) -> str:
@@ -593,51 +631,63 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
         return str(dataset.get("root_path") or "")
     scope_id = dataset_scope_id(normalized)
     root = _scope_root() / scope_id
-    clinical_dir = root / "clinical"
-    assays_dir = root / "assays"
-    manifest_path = root / "manifest.json"
-    manifest = {
-        "schema_version": 1,
-        "dataset_ids": normalized,
-        "root_paths": [str(get_dataset(item).get("root_path") or "") for item in normalized if get_dataset(item)],
-        "clinical": {
-            "representation": combined_clinical_representation(
-                [
-                    clinical_representation(str(get_dataset(item).get("root_path") or ""))
-                    for item in normalized
-                    if get_dataset(item)
-                ]
-            )
-        },
-        **_scope_source_files_manifest(normalized),
-    }
-    if manifest_path.exists():
+    lock_path = root.with_name(f".{scope_id}.lock")
+    with advisory_file_lock(lock_path):
+        datasets = {dataset_id: get_dataset(dataset_id) for dataset_id in normalized}
+        missing = [dataset_id for dataset_id, dataset in datasets.items() if dataset is None]
+        if missing:
+            raise ValueError(f"Dataset not found: {missing[0]}")
+        manifest = {
+            "schema_version": 1,
+            "dataset_ids": normalized,
+            "root_paths": [str(datasets[item].get("root_path") or "") for item in normalized],
+            "clinical": {
+                "representation": combined_clinical_representation(
+                    [clinical_representation(str(datasets[item].get("root_path") or "")) for item in normalized]
+                )
+            },
+            **_scope_source_files_manifest(normalized),
+        }
+        manifest_path = root / "manifest.json"
+        if manifest_path.exists():
+            try:
+                stored = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                stored = None
+            if stored == manifest and (root / "clinical").is_dir() and (root / "assays").is_dir():
+                return str(root)
+
+        temporary_root = root.with_name(f".{scope_id}.{uuid4().hex}.tmp")
+        backup_root = root.with_name(f".{scope_id}.{uuid4().hex}.old")
         try:
-            stored = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            stored = None
-        if stored == manifest and clinical_dir.exists() and assays_dir.exists():
-            return str(root)
-        shutil.rmtree(root, ignore_errors=True)
-    clinical_dir.mkdir(parents=True, exist_ok=True)
-    assays_dir.mkdir(parents=True, exist_ok=True)
-    for dataset_id in normalized:
-        dataset = get_dataset(dataset_id)
-        if dataset is None:
-            continue
-        dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
-        for pattern in ("*.json", "*.json.gz"):
-            for path in sorted((dataset_root / "clinical").glob(pattern)):
-                target = clinical_dir / f"{dataset_id}__{path.name}"
-                if not target.exists():
-                    target.symlink_to(path.resolve())
-        for path in sorted((dataset_root / "assays").glob("*/*.csv")):
-            modality_dir = assays_dir / path.parent.name
-            modality_dir.mkdir(parents=True, exist_ok=True)
-            target = modality_dir / f"{dataset_id}__{path.name}"
-            if not target.exists():
-                target.symlink_to(path.resolve())
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            clinical_dir = temporary_root / "clinical"
+            assays_dir = temporary_root / "assays"
+            clinical_dir.mkdir(parents=True)
+            assays_dir.mkdir(parents=True)
+            for dataset_id in normalized:
+                dataset_root = Path(str(datasets[dataset_id].get("root_path") or "")).resolve()
+                for pattern in ("*.json", "*.json.gz"):
+                    for path in sorted((dataset_root / "clinical").glob(pattern)):
+                        (clinical_dir / f"{dataset_id}__{path.name}").symlink_to(path.resolve())
+                for path in sorted((dataset_root / "assays").glob("*/*.csv")):
+                    modality_dir = assays_dir / path.parent.name
+                    modality_dir.mkdir(parents=True, exist_ok=True)
+                    (modality_dir / f"{dataset_id}__{path.name}").symlink_to(path.resolve())
+            atomic_write_json(temporary_root / "manifest.json", manifest)
+
+            replaced_existing = root.exists()
+            if replaced_existing:
+                root.replace(backup_root)
+            try:
+                temporary_root.replace(root)
+            except Exception:
+                if replaced_existing and backup_root.exists():
+                    backup_root.replace(root)
+                raise
+            if replaced_existing:
+                shutil.rmtree(backup_root, ignore_errors=True)
+        finally:
+            shutil.rmtree(temporary_root, ignore_errors=True)
     return str(root)
 
 
@@ -692,17 +742,10 @@ def register_dataset(
     normalized_visibility = str(visibility or "all_authenticated").strip().lower()
     if normalized_visibility not in DATASET_VISIBILITIES:
         raise ValueError("Invalid dataset visibility.")
-    items = _read_registry()
     base_id = normalize_dataset_id(normalized_name) or "dataset"
-    dataset_id = base_id
-    suffix = 2
-    existing_ids = {str(item.get("dataset_id") or "") for item in items}
-    while dataset_id in existing_ids:
-        dataset_id = f"{base_id}-{suffix}"
-        suffix += 1
     now = _now_iso()
     item = {
-        "dataset_id": dataset_id,
+        "dataset_id": base_id,
         "name": normalized_name,
         "description": str(description or "").strip(),
         "root_path": resolved_root,
@@ -728,8 +771,17 @@ def register_dataset(
         "created_at": now,
         "updated_at": now,
     }
-    items.append(item)
-    _write_registry(items)
+    with advisory_file_lock(_registry_lock_path()):
+        items = _read_registry_unlocked()
+        dataset_id = base_id
+        suffix = 2
+        existing_ids = {str(existing.get("dataset_id") or "") for existing in items}
+        while dataset_id in existing_ids:
+            dataset_id = f"{base_id}-{suffix}"
+            suffix += 1
+        item["dataset_id"] = dataset_id
+        items.append(item)
+        _write_registry_unlocked(items)
     return item
 
 
@@ -747,50 +799,68 @@ def update_dataset(
     enabled: bool | None = None,
 ) -> Dict[str, Any]:
     needle = normalize_dataset_id(dataset_id)
-    items = _read_registry()
-    for index, item in enumerate(items):
-        if str(item.get("dataset_id") or "") != needle:
-            continue
-        updated = dict(item)
-        if name is not None:
-            updated["name"] = str(name).strip() or updated["name"]
-        if root_path is not None:
-            updated["root_path"] = str(validate_dataset_release_root(root_path))
-        if description is not None:
-            updated["description"] = str(description).strip()
-        if visibility is not None:
-            normalized_visibility = str(visibility or "").strip().lower()
-            if normalized_visibility not in DATASET_VISIBILITIES:
-                raise ValueError("Invalid dataset visibility.")
-            updated["visibility"] = normalized_visibility
-        if allowed_users is not None:
-            updated["allowed_users"] = sorted(
-                {
-                    normalize_user_id(value)
-                    for value in allowed_users
-                    if str(value or "").strip()
-                }
+    with advisory_file_lock(_registry_lock_path()):
+        items = _read_registry_unlocked()
+        for index, item in enumerate(items):
+            if str(item.get("dataset_id") or "") != needle:
+                continue
+            updated = dict(item)
+            if name is not None:
+                updated["name"] = str(name).strip() or updated["name"]
+            if root_path is not None:
+                updated["root_path"] = str(validate_dataset_release_root(root_path))
+            if description is not None:
+                updated["description"] = str(description).strip()
+            if visibility is not None:
+                normalized_visibility = str(visibility or "").strip().lower()
+                if normalized_visibility not in DATASET_VISIBILITIES:
+                    raise ValueError("Invalid dataset visibility.")
+                updated["visibility"] = normalized_visibility
+            if allowed_users is not None:
+                updated["allowed_users"] = sorted(
+                    {
+                        normalize_user_id(value)
+                        for value in allowed_users
+                        if str(value or "").strip()
+                    }
+                )
+            if allowed_groups is not None:
+                updated["allowed_groups"] = sorted(
+                    {
+                        str(value).strip()
+                        for value in allowed_groups
+                        if str(value).strip()
+                    }
+                )
+            if query_granularity_ceiling is not None:
+                updated["query_granularity_ceiling"] = normalize_query_granularity_ceiling(query_granularity_ceiling)
+            if ai_provider_access is not None:
+                updated["ai_provider_access"] = normalize_ai_provider_access(ai_provider_access)
+            updated["ai_provider_access"] = clamp_ai_provider_access_for_visibility(
+                updated.get("ai_provider_access"),
+                updated.get("visibility"),
             )
-        if allowed_groups is not None:
-            updated["allowed_groups"] = sorted(
-                {
-                    str(value).strip()
-                    for value in allowed_groups
-                    if str(value).strip()
-                }
-            )
-        if query_granularity_ceiling is not None:
-            updated["query_granularity_ceiling"] = normalize_query_granularity_ceiling(query_granularity_ceiling)
-        if ai_provider_access is not None:
-            updated["ai_provider_access"] = normalize_ai_provider_access(ai_provider_access)
-        updated["ai_provider_access"] = clamp_ai_provider_access_for_visibility(
-            updated.get("ai_provider_access"),
-            updated.get("visibility"),
-        )
-        if enabled is not None:
-            updated["enabled"] = bool(enabled)
-        updated["updated_at"] = _now_iso()
-        items[index] = updated
-        _write_registry(items)
-        return updated
+            if enabled is not None:
+                updated["enabled"] = bool(enabled)
+            updated["updated_at"] = _now_iso()
+            items[index] = updated
+            _write_registry_unlocked(items)
+            return updated
+    raise ValueError("Dataset not found.")
+
+
+def unregister_dataset(dataset_id: str) -> Dict[str, Any]:
+    needle = normalize_dataset_id(dataset_id)
+    if not needle:
+        raise ValueError("A dataset id is required.")
+    if needle == DEFAULT_DATASET_ID:
+        raise ValueError("The default dataset cannot be unregistered.")
+    with advisory_file_lock(_registry_lock_path()):
+        items = _read_registry_unlocked()
+        for index, item in enumerate(items):
+            if str(item.get("dataset_id") or "") != needle:
+                continue
+            removed = items.pop(index)
+            _write_registry_unlocked(items)
+            return removed
     raise ValueError("Dataset not found.")
