@@ -113,7 +113,13 @@ def live_server_auth(tmp_path) -> str:
                         "password": "secret",
                         "role": "admin",
                         "display_name": "Admin User",
-                    }
+                    },
+                    {
+                        "username": "researcher",
+                        "password": "secret",
+                        "role": "user",
+                        "display_name": "Researcher",
+                    },
                 ]
             ),
         }
@@ -135,7 +141,7 @@ def _install_dataset_lifecycle_routes(page):
         {
             "dataset_id": "default",
             "name": "Synthetic demo",
-            "description": "Synthetic UI fixture",
+            "description": "Public longitudinal clinical and assay demonstration with deliberately verbose explanatory copy for the dataset-card layout.",
             "enabled": True,
             "visibility": "all_authenticated",
             "data_classification": "public",
@@ -144,24 +150,30 @@ def _install_dataset_lifecycle_routes(page):
             "query_granularity_ceiling": "detailed",
             "ai_provider_access": "detailed_allowed",
             "clinical_representation": "snapshot",
+            "clinical_record_count": 4,
+            "assay_file_count": 2,
+            "content_tags": ["2 patients", "4 timepoints", "2 matrices"],
             "query_store_status": {"status": "ready", "ready": True, "last_error": ""},
         },
         {
             "dataset_id": "secondary",
             "name": "Secondary demo",
-            "description": "Secondary synthetic UI fixture",
+            "description": "Private cross-sectional clinical demonstration with deliberately verbose explanatory copy for the dataset-card layout.",
             "enabled": True,
             "visibility": "all_authenticated",
-            "data_classification": "public",
+            "data_classification": "private",
             "allowed_users": [],
             "allowed_groups": [],
             "query_granularity_ceiling": "detailed",
             "ai_provider_access": "detailed_allowed",
             "clinical_representation": "person",
+            "clinical_record_count": 2,
+            "assay_file_count": 0,
+            "content_tags": ["2 patients", "2 person records"],
             "query_store_status": {"status": "ready", "ready": True, "last_error": ""},
         },
     ]
-    state = {"current_ids": ["default"], "select_requests": [], "fail_next_selection": ""}
+    state = {"current_ids": ["default"], "select_requests": [], "fail_next_selection": "", "datasets": datasets}
 
     def scope_id(dataset_ids):
         normalized = sorted(set(dataset_ids))
@@ -216,6 +228,27 @@ def _install_dataset_lifecycle_routes(page):
     return state
 
 
+def _install_online_worker_route(page) -> None:
+    page.route(
+        "**/jobs/status",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "available": True,
+                    "dependencies_available": True,
+                    "redis_available": True,
+                    "queue_name": "analysis",
+                    "worker_count": 1,
+                    "busy_worker_count": 0,
+                    "activity": "idle",
+                }
+            ),
+        ),
+    )
+
+
 @pytest.fixture
 def page(live_server: str):
     try:
@@ -245,6 +278,7 @@ window.Plotly = {
 
             page = context.new_page()
             _install_dataset_lifecycle_routes(page)
+            _install_online_worker_route(page)
             page.goto(live_server, wait_until="networkidle")
             yield page
             context.close()
@@ -282,6 +316,7 @@ window.Plotly = {
 
             page = context.new_page()
             _install_dataset_lifecycle_routes(page)
+            _install_online_worker_route(page)
             page.goto(live_server_auth, wait_until="networkidle")
             yield page
             context.close()
@@ -626,8 +661,8 @@ def _mock_assay_datasets(page) -> None:
                         {
                             "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
                             "modality": "transcriptomics_raw_counts",
-                            "patient_ids": ["SYN001", "SYN002"],
-                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0", "SYN003:week_0", "SYN004:week_0"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -821,7 +856,7 @@ def _mock_multimodal_assay_datasets(page) -> None:
                             "data_type": "raw_counts",
                             "feature_label": "genes",
                             "feature_id_type": "ensembl_gene_id",
-                            "patient_ids": ["SYN001", "SYN002"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
                             "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
                             "sample_count": 25,
                             "patient_count": 5,
@@ -837,7 +872,7 @@ def _mock_multimodal_assay_datasets(page) -> None:
                             "data_type": "npX",
                             "feature_label": "proteins",
                             "feature_id_type": "uniprot_accession",
-                            "patient_ids": ["SYN001", "SYN002"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
                             "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
                             "sample_count": 12,
                             "patient_count": 2,
@@ -876,7 +911,7 @@ def _mock_assay_datasets_with_nonmatching_dataset(page) -> None:
                         {
                             "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
                             "modality": "transcriptomics_raw_counts",
-                            "patient_ids": ["SYN001", "SYN002"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -916,7 +951,7 @@ def _mock_assay_datasets_with_two_matching_datasets(page) -> None:
                         {
                             "dataset_name": "synthetic_transcriptome_raw_counts_infliximab",
                             "modality": "transcriptomics_raw_counts",
-                            "patient_ids": ["SYN001", "SYN002"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -928,7 +963,7 @@ def _mock_assay_datasets_with_two_matching_datasets(page) -> None:
                         {
                             "dataset_name": "synthetic_transcriptome_raw_counts_ustekinumab",
                             "modality": "transcriptomics_raw_counts",
-                            "patient_ids": ["SYN001", "SYN002"],
+                            "patient_ids": ["SYN001", "SYN002", "SYN003", "SYN004"],
                             "sample_count": 25,
                             "patient_count": 5,
                             "gene_count": 12,
@@ -938,6 +973,79 @@ def _mock_assay_datasets_with_two_matching_datasets(page) -> None:
                             "top_genes": [],
                         },
                     ]
+                }
+            ),
+        ),
+    )
+
+
+def _mock_methylation_catalog_and_assay(page) -> None:
+    page.route(
+        "**/assays?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_methylation_m_values",
+                            "modality": "methylation",
+                            "data_type": "m_values",
+                            "feature_label": "CpG probes",
+                            "feature_id_type": "illumina_cpg_probe_id",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "sample_count": 2,
+                            "patient_count": 2,
+                            "feature_count": 12,
+                            "clinical_overlap_patient_count": 2,
+                        }
+                    ]
+                }
+            ),
+        ),
+    )
+    page.route(
+        "**/analysis/catalog?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "items": [
+                        {
+                            "id": "methylation-qc-pca",
+                            "name": "Methylation QC and PCA",
+                            "category": "Assays",
+                            "kind": "methylation_qc_pca",
+                            "description": "Run processed-matrix QC and PCA.",
+                            "guidance": "Select one methylation M-value assay.",
+                            "default_prompt": "Run methylation QC and PCA for the selected assay in the current Analysis scope.",
+                            "execution_mode": "deterministic",
+                            "execution_backend": "job",
+                            "runner_type": "rscript",
+                            "runner_ref": "methylation_qc_pca",
+                            "default_compare_mode": False,
+                            "supports_compare_mode": False,
+                            "requires_detailed_access": True,
+                            "requires_assays": True,
+                            "required_modalities": ["methylation"],
+                            "required_data_types": ["m_values"],
+                            "analysis_level": "sample",
+                            "tags": ["methylation", "pca"],
+                            "available": True,
+                            "unavailable_reason": "",
+                            "workspace_requirements": ["Requires methylation assay data (m_values)."],
+                        }
+                    ],
+                    "workspace": {
+                        "granularity_ceiling": "detailed",
+                        "has_assay_datasets": True,
+                        "assay_dataset_count": 1,
+                        "assay_modalities": ["methylation"],
+                        "assay_data_types": ["m_values"],
+                    },
                 }
             ),
         ),
@@ -1081,7 +1189,24 @@ def _mock_query_reply(page) -> None:
                             "copy_patient_ids": True,
                             "use_in_pheno_ranker": False,
                         },
-                        "follow_up_suggestions": ["How many patients take Infliximab?"],
+                        "follow_up_suggestions": [
+                            "How many patients take Infliximab?",
+                            "What evidence supports the treatment pattern?",
+                        ],
+                        "follow_up_suggestion_metadata": [
+                            {
+                                "prompt": "How many patients take Infliximab?",
+                                "execution_kind": "deterministic",
+                                "execution_mode": "deterministic_only",
+                                "label": "Deterministic",
+                            },
+                            {
+                                "prompt": "What evidence supports the treatment pattern?",
+                                "execution_kind": "planner",
+                                "execution_mode": "planner_only",
+                                "label": "LLM-planned",
+                            },
+                        ],
                     },
                     "action_context": {
                         "patient_ids": ["SYN001", "SYN002"],
@@ -1111,6 +1236,14 @@ def _mock_saved_cohorts(page) -> None:
                             "patient_ids": ["SYN001", "SYN002"],
                             "id_type": "patient",
                             "source": {"kind": "query", "prompt": "Which patients take Infliximab?"},
+                        },
+                        {
+                            "id": "cohort-b",
+                            "name": "Comparator cohort",
+                            "data_dir": "data",
+                            "patient_ids": ["SYN003", "SYN004"],
+                            "id_type": "patient",
+                            "source": {"kind": "query", "prompt": "Which patients are comparators?"},
                         }
                     ]
                 }
@@ -1190,6 +1323,79 @@ def test_pheno_run_button_requires_prompt(page) -> None:
     expect(run_button).to_be_enabled()
 
 
+@pytest.mark.parametrize(
+    ("plan_source", "data_source", "expected_class", "expected_mode", "expected_label"),
+    [
+        ("deterministic", "deterministic", "query-chip-deterministic", "deterministic", "Deterministic"),
+        ("lm_studio", "llm", "query-chip-planner", "llm_planned", "LLM-planned"),
+    ],
+)
+def test_pheno_plan_followups_disclose_planning_path_before_click(
+    page,
+    plan_source: str,
+    data_source: str,
+    expected_class: str,
+    expected_mode: str,
+    expected_label: str,
+) -> None:
+    _mock_pheno_reference_ids(page)
+    _open_pheno_tab(page)
+    suggestion = "Compare all patients by diseases"
+    plan_calls = {"count": 0}
+
+    def plan_handler(route):
+        plan_calls["count"] += 1
+        data = {"source": data_source}
+        if data_source == "llm":
+            data["planner"] = {"provider": "lm_studio", "model": "test-model"}
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "source": plan_source,
+                    "data": data,
+                    "reasoning": ["Detected action: compare.", "Detected mode: cohort."],
+                    "follow_up_suggestions": [suggestion],
+                    "plan": {
+                        "action": "compare",
+                        "mode": "cohort",
+                        "data_dir": "data",
+                        "patient_id": "",
+                        "selected_patient_ids": "",
+                        "include_terms": ["diseases"],
+                        "exclude_terms": [],
+                        "max_out": 10,
+                        "align": False,
+                        "render_heatmap": True,
+                        "render_mds": True,
+                        "render_graph": True,
+                    },
+                }
+            ),
+        )
+
+    page.route("**/pheno-ranker/plan", plan_handler)
+    page.locator("#phenoPrompt").fill("Compare the current cohort")
+    page.locator("#phenoSetupDetails > summary").click()
+    page.locator("#phenoPlanBtn").click()
+
+    chip = page.locator("#phenoPlanFollowups [data-pheno-followup-prompt]")
+    playwright.expect(chip).to_be_visible()
+    playwright.expect(chip).to_have_class(re.compile(rf"\b{expected_class}\b"))
+    playwright.expect(chip.locator(".followup-mode-label")).to_have_text(expected_label)
+    playwright.expect(chip).to_have_attribute("data-followup-execution-mode", expected_mode)
+    playwright.expect(chip).to_have_attribute("title", re.compile("does not run it"))
+    playwright.expect(chip).to_have_attribute("aria-label", re.compile(expected_label))
+
+    chip.click()
+
+    playwright.expect(page.locator("#phenoPrompt")).to_have_value(suggestion)
+    playwright.expect(page.locator("#phenoPlanFollowups")).to_be_hidden()
+    playwright.expect(page.locator("#phenoPlanStatus")).to_contain_text(f"{expected_label} follow-up prepared")
+    assert plan_calls["count"] == 1
+
+
 def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(page) -> None:
     _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
@@ -1237,6 +1443,119 @@ def test_dashboard_load_renders_clinical_overview(page) -> None:
     expect(page.locator("#dashboard")).to_contain_text("Patients2")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
+
+
+def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) -> None:
+    expect = playwright.expect
+    page.locator("#datasetsTabBtn").click()
+
+    legend = page.locator("#datasetPickerLegend")
+    expect(legend).to_be_visible()
+    expect(legend.locator("[data-dataset-trait-legend]")).to_have_count(5)
+    expect(legend).to_contain_text("Private")
+    expect(legend).to_contain_text("Cross-sectional")
+    expect(legend).to_contain_text("Longitudinal")
+    expect(legend).to_contain_text("Clinical")
+    expect(legend).to_contain_text("Assay data")
+    expect(legend).not_to_contain_text("Public")
+    expect(legend).not_to_contain_text("Transcriptomics")
+
+    default_card = page.locator("[data-dataset-card='default']")
+    secondary_card = page.locator("[data-dataset-card='secondary']")
+    expect(default_card.locator("[data-dataset-trait='private']")).to_have_count(0)
+    expect(default_card.get_by_role("img", name="Longitudinal clinical records")).to_have_attribute(
+        "title", "Longitudinal clinical records"
+    )
+    expect(default_card.get_by_role("img", name="Clinical data")).to_be_visible()
+    expect(default_card.get_by_role("img", name="Assay data")).to_be_visible()
+    expect(default_card).to_contain_text("2 patients")
+    expect(default_card).to_contain_text("4 timepoints")
+
+    private_icon = secondary_card.get_by_role("img", name="Private data")
+    expect(private_icon).to_be_visible()
+    expect(private_icon).to_have_attribute("title", "Private data")
+    expect(secondary_card.get_by_role("img", name="Cross-sectional clinical records")).to_be_visible()
+    expect(secondary_card.get_by_role("img", name="Clinical data")).to_be_visible()
+    expect(secondary_card.get_by_role("img", name="Assay data")).to_have_count(0)
+
+    description = secondary_card.locator(".dataset-picker-description")
+    expect(description).to_have_attribute(
+        "title",
+        "Private cross-sectional clinical demonstration with deliberately verbose explanatory copy for the dataset-card layout.",
+    )
+    assert description.evaluate("(element) => getComputedStyle(element).webkitLineClamp") == "2"
+    assert description.evaluate("(element) => getComputedStyle(element).overflow") == "hidden"
+
+
+def test_dataset_picker_does_not_overflow_at_narrow_viewport(page) -> None:
+    page.set_viewport_size({"width": 760, "height": 900})
+    page.locator("#datasetsTabBtn").click()
+
+    measurements = page.locator("#datasetsTab").evaluate(
+        """
+        (tab) => {
+          const row = tab.querySelector(".dataset-loader-row");
+          const shell = tab.querySelector("#datasetPickerShell");
+          const button = tab.querySelector("#loadBtn");
+          const targets = [tab, row, shell, ...tab.querySelectorAll("[data-dataset-card]")];
+          const rowRect = row.getBoundingClientRect();
+          const buttonRect = button.getBoundingClientRect();
+          return {
+            overflow: targets.map((element) => ({
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+            })),
+            buttonInsideRow: buttonRect.left >= rowRect.left - 1 && buttonRect.right <= rowRect.right + 1,
+            buttonGridColumn: getComputedStyle(button).gridColumnStart,
+            shellGridColumn: getComputedStyle(shell).gridColumnStart,
+          };
+        }
+        """
+    )
+
+    assert all(item["scrollWidth"] <= item["clientWidth"] + 1 for item in measurements["overflow"])
+    assert measurements["buttonInsideRow"] is True
+    assert measurements["buttonGridColumn"] == "1"
+    assert measurements["shellGridColumn"] == "1"
+
+
+@pytest.mark.parametrize(
+    ("user_role", "expected_action"),
+    [
+        ("user", "Ask an admin to prepare it in Admin > Data."),
+        ("admin", "Prepare or rebuild it in Admin > Data."),
+    ],
+)
+def test_unready_dataset_selection_explains_disabled_apply_action(page_auth, user_role: str, expected_action: str) -> None:
+    expect = playwright.expect
+    state = page_auth._cohortome_dataset_state
+    state["current_ids"] = ["default"]
+    state["datasets"][1]["query_store_status"] = {"status": "stale", "ready": False, "last_error": ""}
+
+    username = "admin" if user_role == "admin" else "researcher"
+    page_auth.locator("#authUsername").fill(username)
+    page_auth.locator("#authPassword").fill("secret")
+    page_auth.locator("#authLoginBtn").click()
+    expect(page_auth.locator("#appShell")).to_be_visible()
+    expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded")
+
+    page_auth.locator("#datasetsTabBtn").click()
+    page_auth.locator("#datasetPicker [data-dataset-checkbox='default']").uncheck()
+    page_auth.locator("#datasetPicker [data-dataset-checkbox='secondary']").check()
+
+    expect(page_auth.locator("#loadBtn")).to_be_disabled()
+    assert page_auth.locator("#loadBtn").evaluate("(element) => getComputedStyle(element).cursor") == "not-allowed"
+    expect(page_auth.locator("#loadStatus")).to_have_attribute("role", "status")
+    expect(page_auth.locator("#loadStatus")).to_have_attribute("aria-live", "polite")
+    expect(page_auth.locator("#loadStatus")).to_have_text(
+        f'Cannot apply workspace: dataset store for "Secondary demo" is stale. {expected_action}'
+    )
+    expect(page_auth.locator("#loadStatus")).to_have_class(re.compile(r"\bwarning\b"))
+
+    page_auth.locator("#datasetPicker [data-dataset-checkbox='secondary']").uncheck()
+    page_auth.locator("#datasetPicker [data-dataset-checkbox='default']").check()
+    expect(page_auth.locator("#loadStatus")).to_contain_text("ready")
+    expect(page_auth.locator("#loadStatus")).not_to_have_class(re.compile(r"\bwarning\b"))
 
 
 def test_applying_first_dataset_uses_pending_selection_key(page) -> None:
@@ -1595,6 +1914,15 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-color", "rgb(255, 255, 255)")
     expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-image", "none")
     expect(page.locator("#queryThread .query-thread-turn-assistant .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
+    deterministic_followup = page.locator("#queryThread [data-query-followup-mode='deterministic_only']")
+    planner_followup = page.locator("#queryThread [data-query-followup-mode='planner_only']")
+    expect(deterministic_followup).to_have_class(re.compile(r".*query-chip-deterministic.*"))
+    expect(deterministic_followup).to_contain_text("Deterministic")
+    expect(planner_followup).to_have_class(re.compile(r".*query-chip-planner.*"))
+    expect(planner_followup).to_contain_text("LLM-planned")
+    planner_followup.click()
+    expect(page.locator("#question")).to_have_value("What evidence supports the treatment pattern?")
+    expect(page.locator("#queryPlannerBtn")).to_have_attribute("aria-pressed", "true")
     assert captured["body"]["dataset_id"] == "default"
     assert "data_dir" not in captured["body"]
     expect(page.locator("#queryThread")).to_contain_text("Open in Analysis")
@@ -1602,6 +1930,393 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+
+
+def test_query_large_patient_result_is_bounded_and_pages_by_handle(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    all_ids = [f"SYN{i:04d}" for i in range(1, 606)]
+    result_handle = "query-result-test-handle"
+    page_requests: list[str] = []
+    query_bodies: list[dict] = []
+    saved_cohort_bodies: list[dict] = []
+
+    def result_page(start: int) -> dict:
+        ids = all_ids[start : start + 50]
+        next_start = start + len(ids)
+        return {
+            "result_handle": result_handle,
+            "total_count": len(all_ids),
+            "returned_count": len(ids),
+            "page_size": 50,
+            "has_more": next_start < len(all_ids),
+            "next_cursor": f"cursor-{next_start}" if next_start < len(all_ids) else "",
+            "expires_at": "2099-01-01T00:00:00Z",
+            "patient_ids": ids,
+            "sample_ids": [],
+            "rows": [{"patient_id": patient_id, "sex": "", "visit_count": 1, "medication_count": 0} for patient_id in ids],
+        }
+
+    def query_handler(route):
+        query_bodies.append(route.request.post_data_json)
+        initial = result_page(0)
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "patient_inventory",
+                    "reply": "Patients: " + ", ".join(all_ids),
+                    "data": {
+                        "source": "deterministic",
+                        "execution": "deterministic",
+                        "patient_count": len(all_ids),
+                        "result_handle": result_handle,
+                        "result_page": initial,
+                        "available_actions": {
+                            "open_in_analysis": True,
+                            "save_cohort": True,
+                            "copy_patient_ids": True,
+                            "use_in_pheno_ranker": True,
+                        },
+                    },
+                    "action_context": {
+                        "result_handle": result_handle,
+                        "patient_ids": [],
+                        "record_ids": [],
+                        "id_type": "patient",
+                        "analysis_prompt": "Summarize this selected patient cohort.",
+                    },
+                }
+            ),
+        )
+
+    def page_handler(route):
+        page_requests.append(route.request.url)
+        match = re.search(r"cursor=cursor-(\d+)", route.request.url)
+        start = int(match.group(1)) if match else 0
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(result_page(start)))
+
+    def saved_cohort_handler(route):
+        saved_cohort_bodies.append(route.request.post_data_json)
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "id": "saved-large-query",
+                    "name": "Large Query cohort",
+                    "patient_ids": [],
+                    "sample_ids": [],
+                    "patient_count": len(all_ids),
+                    "sample_count": 0,
+                    "id_type": "patient",
+                    "source": {"kind": "query", "prompt": "List all patients in this workspace"},
+                }
+            ),
+        )
+
+    page.route("**/saved-cohorts", saved_cohort_handler)
+    _mock_analysis_reply(page)
+    page.route("**/query-results/query-result-test-handle?*", page_handler)
+    page.route("**/query", query_handler)
+    page.locator("#question").fill("List all patients in this workspace")
+    page.locator("#askBtn").click()
+
+    latest_turn = page.locator("#queryThread .query-thread-turn-assistant").last
+    expect(latest_turn.locator(".query-result-range")).to_have_text("Showing 1–50 of 605")
+    expect(latest_turn.locator(".query-result-table tbody tr")).to_have_count(50)
+    expect(latest_turn).to_contain_text("SYN0001")
+    expect(latest_turn).not_to_contain_text("SYN0051")
+    expect(latest_turn).not_to_contain_text("SYN0605")
+    expect(latest_turn.locator("[data-query-action][data-query-patient-ids]")).to_have_count(0)
+    expect(latest_turn.locator("[data-query-action][data-query-scope-ids]")).to_have_count(0)
+    expect(latest_turn.locator("[data-query-action='copy-ids']")).to_have_count(0)
+
+    page.once("dialog", lambda dialog: dialog.accept("Large Query cohort"))
+    with page.expect_request("**/saved-cohorts"):
+        latest_turn.locator("[data-query-action='save-cohort']").click()
+    expect(page.locator("#queryStatus")).to_contain_text('Saved cohort "Large Query cohort"')
+    assert saved_cohort_bodies[-1]["result_handle"] == result_handle
+    assert saved_cohort_bodies[-1]["patient_ids"] == []
+    assert saved_cohort_bodies[-1]["sample_ids"] == []
+
+    latest_turn.locator("[data-query-action='use-analysis']").click()
+    expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
+    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("")
+    expect(page.locator("#analysisSelectedPatientIdsSummary")).to_contain_text("identifiers remain server-side")
+    with page.expect_request("**/analysis") as analysis_request:
+        page.locator("#analysisRunBtn").click()
+    analysis_body = analysis_request.value.post_data_json
+    assert analysis_body["query_result_handle"] == result_handle
+    assert analysis_body["selected_patient_ids"] == ""
+    page.locator("#queryTabBtn").click()
+
+    latest_turn.get_by_role("button", name="Load more").click()
+    expect(latest_turn.locator(".query-result-range")).to_have_text("Showing 51–100 of 605")
+    expect(latest_turn.locator(".query-result-table tbody tr")).to_have_count(50)
+    expect(latest_turn).to_contain_text("SYN0051")
+    expect(latest_turn).not_to_contain_text("SYN0001")
+    assert page_requests and "cursor=cursor-50" in page_requests[-1]
+    assert "limit=50" in page_requests[-1]
+
+    latest_turn.get_by_role("button", name="Previous").click()
+    expect(latest_turn.locator(".query-result-range")).to_have_text("Showing 1–50 of 605")
+    expect(latest_turn).to_contain_text("SYN0001")
+    assert "cursor=" not in page_requests[-1]
+
+    expect(page.locator("#queryMemoryBtn")).to_have_attribute("aria-pressed", "false")
+    page.locator("#queryMemoryBtn").click()
+    expect(page.locator("#queryMemoryBtn")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#queryMemoryBtn")).to_contain_text("previous result (605 patients)")
+    page.locator("#question").fill("Which of those patients have more than one medication?")
+    with page.expect_request("**/query") as followup_request:
+        page.locator("#askBtn").click()
+    followup_body = followup_request.value.post_data_json
+    assert followup_body["scoped_result_handle"] == result_handle
+    assert followup_body["scoped_patient_ids"] == []
+    assert followup_body["history"][-1]["content"] == "Query result: 605 patients matched (patient_inventory)."
+
+
+def test_query_expired_result_retires_handle_actions_and_prompt_scope(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    patient_ids = [f"SYN{i:04d}" for i in range(1, 61)]
+    result_handle = "query-result-expired-handle"
+    query_bodies: list[dict] = []
+
+    def query_handler(route):
+        query_bodies.append(route.request.post_data_json)
+        if len(query_bodies) > 1:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {
+                        "intent": "patient_inventory",
+                        "reply": "60 patients are in the workspace.",
+                        "data": {
+                            "source": "deterministic",
+                            "patient_count": 60,
+                            "count_only": True,
+                            "available_actions": {
+                                "open_in_analysis": False,
+                                "save_cohort": False,
+                                "copy_patient_ids": False,
+                                "use_in_pheno_ranker": False,
+                            },
+                        },
+                        "action_context": {"patient_ids": [], "record_ids": [], "id_type": ""},
+                    }
+                ),
+            )
+            return
+        visible_ids = patient_ids[:50]
+        result_page = {
+            "result_handle": result_handle,
+            "total_count": len(patient_ids),
+            "returned_count": len(visible_ids),
+            "page_size": 50,
+            "has_more": True,
+            "next_cursor": "cursor-50",
+            "expires_at": "2000-01-01T00:00:00Z",
+            "patient_ids": visible_ids,
+            "sample_ids": [],
+            "rows": [{"patient_id": patient_id} for patient_id in visible_ids],
+        }
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "patient_inventory",
+                    "reply": "Patients: " + ", ".join(patient_ids),
+                    "data": {
+                        "source": "deterministic",
+                        "execution": "deterministic",
+                        "patient_count": len(patient_ids),
+                        "result_handle": result_handle,
+                        "result_page": result_page,
+                        "available_actions": {
+                            "open_in_analysis": True,
+                            "save_cohort": True,
+                            "copy_patient_ids": False,
+                            "use_in_pheno_ranker": False,
+                        },
+                    },
+                    "action_context": {
+                        "result_handle": result_handle,
+                        "patient_ids": [],
+                        "record_ids": [],
+                        "id_type": "patient",
+                    },
+                }
+            ),
+        )
+
+    page.route(
+        "**/query-results/query-result-expired-handle?*",
+        lambda route: route.fulfill(
+            status=410,
+            content_type="application/json",
+            body=json.dumps({"detail": "Query result has expired."}),
+        ),
+    )
+    page.route("**/query", query_handler)
+    page.evaluate(
+        """
+        () => {
+          const originalFetch = window.fetch.bind(window);
+          window.__queryResultFetchCacheModes = [];
+          window.fetch = (input, init = {}) => {
+            const url = typeof input === "string" ? input : String(input && input.url || input);
+            if (url.includes("/query-results/")) {
+              window.__queryResultFetchCacheModes.push(String(init.cache || ""));
+            }
+            return originalFetch(input, init);
+          };
+        }
+        """
+    )
+
+    page.locator("#question").fill("List all patients in this workspace")
+    page.locator("#askBtn").click()
+    latest_turn = page.locator("#queryThread .query-thread-turn-assistant").last
+    expect(latest_turn.locator("[data-query-action='save-cohort']")).to_have_count(1)
+    expect(latest_turn.locator("[data-query-action='use-analysis']")).to_have_count(1)
+    page.locator("#queryMemoryBtn").click()
+    expect(page.locator("#queryMemoryBtn")).to_have_attribute("aria-pressed", "true")
+
+    latest_turn.get_by_role("button", name="Load more").click()
+
+    expect(latest_turn.locator(".query-result-page-error")).to_contain_text(
+        "This Query result has expired. Run the query again to recreate it."
+    )
+    expect(latest_turn.locator(".query-result-table tbody tr")).to_have_count(50)
+    expect(latest_turn).to_contain_text("SYN0001")
+    expect(latest_turn.locator("[data-query-action]")).to_have_count(0)
+    expect(latest_turn.locator("[data-query-page-action]")).to_have_count(0)
+    expect(page.locator("#queryMemoryBtn")).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#queryMemoryBtn")).to_contain_text("Prompt scope: workspace")
+    assert page.evaluate("window.__queryResultFetchCacheModes") == ["no-store"]
+
+    page.locator("#queryMemoryBtn").click()
+    page.locator("#question").fill("How many of those patients are female?")
+    with page.expect_request("**/query") as followup_request:
+        page.locator("#askBtn").click()
+    assert followup_request.value.post_data_json["scoped_result_handle"] == ""
+
+
+def test_query_sample_result_uses_sample_table_and_sample_count(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    sample_ids = [f"SYN{i:03d}:week_0" for i in range(1, 51)]
+    page.route(
+        "**/query",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "sample_inventory",
+                    "reply": "Samples: " + ", ".join(sample_ids),
+                    "data": {
+                        "source": "deterministic",
+                        "sample_count": 120,
+                        "result_handle": "sample-result-handle",
+                        "result_page": {
+                            "result_handle": "sample-result-handle",
+                            "total_count": 120,
+                            "returned_count": 50,
+                            "page_size": 50,
+                            "has_more": True,
+                            "next_cursor": "sample-cursor-50",
+                            "sample_ids": sample_ids,
+                            "patient_ids": [],
+                            "rows": [{"sample_id": sample_id} for sample_id in sample_ids],
+                        },
+                        "available_actions": {"open_in_analysis": True, "save_cohort": True},
+                    },
+                    "action_context": {
+                        "result_handle": "sample-result-handle",
+                        "patient_ids": [],
+                        "record_ids": [],
+                        "id_type": "sample",
+                    },
+                }
+            ),
+        ),
+    )
+
+    page.locator("#question").fill("List all samples")
+    page.locator("#askBtn").click()
+    latest_turn = page.locator("#queryThread .query-thread-turn-assistant").last
+    expect(latest_turn).to_contain_text("120 samples match this query")
+    expect(latest_turn.locator(".query-result-range")).to_have_text("Showing 1–50 of 120")
+    expect(latest_turn.locator(".query-result-table thead")).to_have_text("Sample")
+    expect(latest_turn.locator(".query-result-table thead")).not_to_contain_text("Patient")
+    expect(latest_turn.locator(".query-result-table tbody tr")).to_have_count(50)
+
+
+def test_query_disease_cohort_keeps_patient_ids_visible_and_scrollable(page) -> None:
+    page.set_viewport_size({"width": 600, "height": 900})
+    _open_query_tab(page)
+    expect = playwright.expect
+    patient_ids = [f"SLE{i:04d}" for i in range(1, 51)]
+    page.route(
+        "**/query",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "disease_cohort",
+                    "reply": "Patients matching Systemic Lupus Erythematosus are shown below.",
+                    "data": {
+                        "source": "deterministic",
+                        "patient_count": 62,
+                        "result_handle": "disease-result-handle",
+                        "result_page": {
+                            "result_handle": "disease-result-handle",
+                            "total_count": 62,
+                            "returned_count": 50,
+                            "page_size": 50,
+                            "has_more": True,
+                            "next_cursor": "disease-cursor-50",
+                            "patient_ids": patient_ids,
+                            "sample_ids": [],
+                            # The identifier list is canonical even when optional row metadata omits it.
+                            "rows": [
+                                {"sex": "female", "visit_count": 1, "medication_count": 2}
+                                for _patient_id in patient_ids
+                            ],
+                        },
+                        "available_actions": {"open_in_analysis": True, "save_cohort": True},
+                    },
+                    "action_context": {
+                        "result_handle": "disease-result-handle",
+                        "patient_ids": [],
+                        "record_ids": [],
+                        "id_type": "patient",
+                    },
+                }
+            ),
+        ),
+    )
+
+    page.locator("#question").fill("Which patients have Systemic Lupus Erythematosus?")
+    page.locator("#askBtn").click()
+    latest_turn = page.locator("#queryThread .query-thread-turn-assistant").last
+    first_id = latest_turn.locator(".query-result-table tbody .query-result-id-cell").first
+    expect(first_id).to_have_text("SLE0001")
+    expect(first_id).to_be_visible()
+    table_scroll = latest_turn.locator(".query-result-table-scroll")
+    measurements = table_scroll.evaluate(
+        "element => ({clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, overflowX: getComputedStyle(element).overflowX})"
+    )
+    assert measurements["scrollWidth"] > measurements["clientWidth"]
+    assert measurements["overflowX"] == "auto"
+    assert first_id.evaluate("element => getComputedStyle(element).position") == "sticky"
 
 
 def test_query_provenance_separates_response_detail_from_model_context(page) -> None:
@@ -2058,6 +2773,44 @@ def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("External analysis done.")
 
 
+def test_run_history_shows_worker_online_but_idle(page) -> None:
+    expect = playwright.expect
+    page.route(
+        "**/jobs/status",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "available": True,
+                    "dependencies_available": True,
+                    "redis_available": True,
+                    "queue_name": "analysis",
+                    "worker_count": 1,
+                    "busy_worker_count": 0,
+                    "activity": "idle",
+                }
+            ),
+        ),
+    )
+    page.route(
+        "**/run-history",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"runs": [], "expired_deleted_count": 0}),
+        ),
+    )
+
+    page.locator("#runHistoryDrawerBtn").click()
+
+    expect(page.locator("#runHistoryWorkerStatus")).to_contain_text(
+        "Background workers: Online · 1 worker · idle"
+    )
+    expect(page.locator("#runHistoryWorkerStatus")).to_have_class(re.compile(r"is-online"))
+    expect(page.locator("#runHistoryWorkerStatus")).not_to_contain_text("working")
+
+
 def test_analysis_open_result_recovers_missing_session(page) -> None:
     _open_analysis_tab(page)
     expect = playwright.expect
@@ -2166,17 +2919,38 @@ def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
 
 def test_analysis_differential_expression_enables_after_saved_cohorts_selected(page) -> None:
     _mock_saved_cohorts(page)
+    _mock_assay_datasets(page)
     page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
 
-    page.locator("#analysisTab .analysis-setup-card > summary").click()
-    page.locator("#analysisCompareMode").check()
-    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
-    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
-    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
-
+    flow_labels = page.locator("#analysisFlowBar .analysis-flow-step-copy > span")
+    assert flow_labels.all_text_contents() == ["Analysis", "Setup", "Prompt", "Results"]
     page.locator("#analysisCatalogBrowseBtn").click()
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='transcriptomics-deseq2-differential-expression']").click()
+
+    checklist = page.locator("#analysisSetupChecklist")
+    expect(checklist.locator("[data-analysis-setup-step='workspace']")).to_contain_text("Done")
+    expect(checklist.locator("[data-analysis-setup-step='cohort-a']")).to_have_class(re.compile("is-current"))
+    expect(checklist.locator("[data-analysis-setup-step='cohort-a']")).to_contain_text("Next")
+    expect(checklist.locator("[data-analysis-setup-step='cohort-b']")).to_contain_text("Waiting")
+    expect(checklist.locator("[data-analysis-setup-step='assay']")).to_contain_text("Waiting")
+    expect(page.locator("#analysisRunBtn")).to_be_disabled()
+
+    checklist.locator("[data-analysis-setup-action='choose-cohort-a']").click()
+    expect(page.locator("#analysisWorkspaceSetup")).to_have_attribute("open", "")
+    expect(page.locator("#analysisTab .analysis-setup-saved-cohorts")).to_have_attribute("open", "")
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
+    expect(checklist.locator("[data-analysis-setup-step='cohort-a']")).to_contain_text("Done")
+    expect(checklist.locator("[data-analysis-setup-step='cohort-b']")).to_have_class(re.compile("is-current"))
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").nth(1).click()
+
+    expect(checklist.locator("[data-analysis-setup-step='cohort-b']")).to_contain_text("Done")
+    expect(checklist.locator("[data-analysis-setup-step='assay']")).to_contain_text("Done")
+    expect(checklist.locator("[data-analysis-setup-step='worker']")).to_contain_text("online")
+    expect(checklist.locator("[data-analysis-setup-step='prompt']")).to_contain_text("Done")
+    expect(page.locator("#analysisRunBtn")).to_be_enabled()
+    expect(page.locator("#analysisFlowBar [data-analysis-flow-target='requirements']")).to_contain_text("ready")
 
 
 def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
@@ -2190,7 +2964,7 @@ def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
     page.locator("#analysisCompareMode").check()
     page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
-    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").nth(1).click()
 
     page.locator("#analysisCatalogBrowseBtn").click()
     page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
@@ -2215,7 +2989,7 @@ def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> No
     page.locator("#analysisCompareMode").check()
     page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
     page.locator("#savedCohorts [data-saved-cohort-action='load-analysis']").first.click()
-    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").first.click()
+    page.locator("#savedCohorts [data-saved-cohort-action='load-analysis-b']").nth(1).click()
 
     page.locator("#analysisCatalogBrowseBtn").click()
     page.locator("#analysisCatalogDrawerFilters [data-analysis-catalog-filter='workflow']").click()
@@ -2231,6 +3005,278 @@ def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> No
     expect(page.locator("#analysisCatalogAssayStatus")).to_contain_text("Selected assay: synthetic_transcriptome_raw_counts_ustekinumab")
 
 
+def test_analysis_renders_completed_limma_voom_result(page) -> None:
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_external_rscript",
+                    "reply": "limma-voom differential expression completed.",
+                    "data": {
+                        "source": "deterministic",
+                        "execution": "external_runner",
+                        "runner_ref": "transcriptomics_limma_voom_differential_expression",
+                        "context": {
+                            "mode": "external_rscript_transcriptomics_limma_voom_differential_expression",
+                            "dataset_name": "synthetic_rsem_expected_counts",
+                            "cohort_a_sample_count": 12,
+                            "cohort_b_sample_count": 14,
+                            "tested_gene_count": 1200,
+                            "filtered_gene_count": 420,
+                            "significant_gene_count": 37,
+                            "top_gene": "ENSG000001",
+                            "top_log2_fold_change": 1.234,
+                            "top_adj_p_value": 0.000012,
+                            "method": "limma-voom",
+                        },
+                        "artifacts": [
+                            {"name": "volcano_plot.png", "url": "/jobs/limma/artifacts/volcano_plot.png"},
+                            {"name": "de_results.tsv", "url": "/jobs/limma/artifacts/de_results.tsv"},
+                            {"name": "volcano_points.tsv", "url": "/jobs/limma/artifacts/volcano_points.tsv"},
+                            {"name": "summary.json", "url": "/jobs/limma/artifacts/summary.json"},
+                        ],
+                    },
+                }
+            ),
+        ),
+    )
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Run the completed limma-voom comparison.")
+    page.locator("#analysisRunBtn").click()
+
+    summary = page.locator("[data-analysis-summary='differential-expression']")
+    expect(summary).to_contain_text("Cohort A samples")
+    expect(summary).to_contain_text("12")
+    expect(summary).to_contain_text("1,200")
+    expect(summary).to_contain_text("420")
+    expect(summary).to_contain_text("37")
+    result = page.locator("[data-analysis-result='differential-expression']")
+    expect(result).to_contain_text("RSEM expected counts")
+    expect(result).to_contain_text("filterByExpr")
+    expect(result).to_contain_text("TMM-normalized")
+    expect(result).to_contain_text("cohort-only and unadjusted")
+    expect(result).to_contain_text("Top-ranked gene: ENSG000001")
+    expect(result).to_contain_text("higher expression in Cohort A")
+    expect(result.locator("img[alt='Differential expression volcano plot']")).to_have_attribute(
+        "src", "/jobs/limma/artifacts/volcano_plot.png"
+    )
+    result.locator("details.analysis-artifact-downloads > summary").click()
+    expect(result).to_contain_text("de_results.tsv")
+    expect(result).to_contain_text("volcano_points.tsv")
+
+
+def test_analysis_setup_rechecks_background_worker(page) -> None:
+    _mock_methylation_catalog_and_assay(page)
+    worker_state = {"online": False}
+
+    def worker_status(route):
+        online = worker_state["online"]
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "available": online,
+                    "dependencies_available": True,
+                    "redis_available": online,
+                    "queue_name": "analysis",
+                    "worker_count": 1 if online else 0,
+                    "busy_worker_count": 0,
+                    "activity": "idle" if online else "offline",
+                }
+            ),
+        )
+
+    page.route("**/jobs/status", worker_status)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisCatalogBrowseBtn").click()
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='methylation-qc-pca']").click()
+    worker_step = page.locator("#analysisSetupChecklist [data-analysis-setup-step='worker']")
+    expect(worker_step).to_have_class(re.compile("is-current"))
+    expect(worker_step).to_contain_text("No background worker is online")
+    expect(page.locator("#analysisRunBtn")).to_be_disabled()
+
+    worker_state["online"] = True
+    worker_step.locator("[data-analysis-setup-action='check-worker']").click()
+    expect(worker_step).to_contain_text("worker is online")
+    expect(page.locator("#analysisRunBtn")).to_be_enabled()
+
+
+def test_analysis_methylation_catalog_keeps_selected_assay_in_run_request(page) -> None:
+    _mock_methylation_catalog_and_assay(page)
+    captured = {}
+
+    def analysis_handler(route):
+        captured["body"] = route.request.post_data_json
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_external_rscript",
+                    "reply": "Processed methylation matrix QC complete.",
+                    "data": {
+                        "execution": "external_runner",
+                        "runner_type": "rscript",
+                        "runner_ref": "methylation_qc_pca",
+                        "context": {
+                            "mode": "external_rscript_methylation_qc_pca",
+                            "dataset_name": "synthetic_methylation_m_values",
+                            "sample_count": 6,
+                            "patient_count": 6,
+                            "observed_feature_count": 8000,
+                            "variable_feature_count": 7200,
+                            "pca_feature_count": 1000,
+                            "pca_component_count": 5,
+                            "pc1_variance_fraction": 0.214,
+                            "pc2_variance_fraction": 0.103,
+                            "missing_fraction": 0.0012,
+                            "covariates_used": ["age", "plate"],
+                            "strongest_covariate": "plate",
+                            "strongest_covariate_component": "PC1",
+                            "strongest_covariate_p_value": 0.00042,
+                            "strongest_covariate_adj_p_value": 0.00168,
+                            "association_scope": "exploratory_one_covariate_at_a_time_bh_adjusted",
+                            "source_matrix_materialized_in_duckdb": False,
+                            "source_matrix_copied_to_job": False,
+                        },
+                        "artifacts": [
+                            {"name": "pca_plot.png", "url": "/jobs/methylation-qc/artifacts/pca_plot.png"},
+                            {"name": "sample_qc.tsv", "url": "/jobs/methylation-qc/artifacts/sample_qc.tsv"},
+                            {"name": "pca_scores.tsv", "url": "/jobs/methylation-qc/artifacts/pca_scores.tsv"},
+                            {"name": "pca_variance.tsv", "url": "/jobs/methylation-qc/artifacts/pca_variance.tsv"},
+                            {"name": "pca_covariate_associations.tsv", "url": "/jobs/methylation-qc/artifacts/pca_covariate_associations.tsv"},
+                            {"name": "summary.json", "url": "/jobs/methylation-qc/artifacts/summary.json"},
+                        ],
+                    },
+                }
+            ),
+        )
+
+    page.route("**/analysis", analysis_handler)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisCatalogBrowseBtn").click()
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Methylation QC and PCA")
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Requires DNA methylation")
+    expect(page.locator("#analysisCatalogDrawerList")).to_contain_text("Requires M-values")
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='methylation-qc-pca']").click()
+
+    methylation_assay = page.locator("#analysisCatalogAssayDatasetList input[value='synthetic_methylation_m_values']")
+    expect(methylation_assay).to_be_checked()
+    expect(page.locator("#analysisCatalogAssayStatus")).to_contain_text("Ready to run with synthetic_methylation_m_values")
+    expect(page.locator("#analysisCompareMode")).not_to_be_checked()
+    expect(page.locator("#analysisRunBtn")).to_be_enabled()
+
+    page.locator("#analysisPrompt").fill("Run methylation QC and retain this reviewer note.")
+    page.locator("#analysisRunBtn").click()
+
+    assert captured["body"]["catalog_item_id"] == "methylation-qc-pca"
+    assert captured["body"]["prompt"] == "Run methylation QC and retain this reviewer note."
+    assert captured["body"]["assay_id"] == "synthetic_methylation_m_values"
+    assert captured["body"]["compare_mode"] is False
+    summary = page.locator("[data-methylation-summary='qc']")
+    expect(summary).to_contain_text("CpGs scanned")
+    expect(summary).to_contain_text("8,000")
+    expect(summary).to_contain_text("PC1 variance")
+    expect(summary).to_contain_text("21.4%")
+    result = page.locator("[data-methylation-result='qc-pca']")
+    expect(result).to_contain_text("Covariates assessed against the leading components: age, plate")
+    expect(result).to_contain_text("Strongest exploratory association: plate with PC1")
+    expect(result).to_contain_text("BH-adjusted p = 0.00168")
+    expect(result).to_contain_text("remained external to DuckDB")
+    expect(result.locator("img[alt='Methylation PCA plot']")).to_have_attribute(
+        "src", "/jobs/methylation-qc/artifacts/pca_plot.png"
+    )
+    result.locator("details.analysis-artifact-downloads > summary").click()
+    expect(result).to_contain_text("sample_qc.tsv")
+    expect(result).to_contain_text("pca_covariate_associations.tsv")
+
+
+def test_analysis_renders_completed_differential_methylation_result(page) -> None:
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_external_rscript",
+                    "reply": "Differential methylation completed.",
+                    "data": {
+                        "source": "deterministic",
+                        "execution": "external_runner",
+                        "runner_type": "rscript",
+                        "runner_ref": "methylation_limma_differential_methylation",
+                        "context": {
+                            "mode": "external_rscript_methylation_limma_differential_methylation",
+                            "dataset_name": "synthetic_methylation_m_values",
+                            "cohort_a_sample_count": 12,
+                            "cohort_b_sample_count": 14,
+                            "patient_count": 26,
+                            "observed_feature_count": 8000,
+                            "analyzed_feature_count": 7200,
+                            "significant_cpg_count": 125,
+                            "hypermethylated_cpg_count": 73,
+                            "hypomethylated_cpg_count": 52,
+                            "top_cpg": "cg00000001",
+                            "top_m_value_difference": 0.8124,
+                            "top_adj_p_value": 2.4e-12,
+                            "covariates_used": ["age", "sex", "plate"],
+                            "design_rank": 6,
+                            "residual_degrees_of_freedom": 20,
+                            "contrast": "Cohort A - Cohort B",
+                            "source_matrix_materialized_in_duckdb": False,
+                            "source_matrix_copied_to_job": False,
+                        },
+                        "artifacts": [
+                            {"name": "volcano_plot.png", "url": "/jobs/methylation-dm/artifacts/volcano_plot.png"},
+                            {"name": "dm_results.tsv", "url": "/jobs/methylation-dm/artifacts/dm_results.tsv"},
+                            {"name": "volcano_points.tsv", "url": "/jobs/methylation-dm/artifacts/volcano_points.tsv"},
+                            {"name": "summary.json", "url": "/jobs/methylation-dm/artifacts/summary.json"},
+                            {"name": "manifest.yaml", "url": "/jobs/methylation-dm/artifacts/manifest.yaml"},
+                            {"name": "params.yaml", "url": "/jobs/methylation-dm/artifacts/params.yaml"},
+                        ],
+                    },
+                }
+            ),
+        ),
+    )
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Run differential methylation for the current comparison.")
+    page.locator("#analysisRunBtn").click()
+
+    summary = page.locator("[data-methylation-summary='differential']")
+    expect(summary).to_contain_text("CpGs analyzed")
+    expect(summary).to_contain_text("7,200")
+    expect(summary).to_contain_text("BH < 0.05")
+    expect(summary).to_contain_text("125")
+    result = page.locator("[data-methylation-result='differential']")
+    expect(result).to_contain_text("Adjusted for: age, sex, plate")
+    expect(result).to_contain_text("Top CpG: cg00000001")
+    expect(result).to_contain_text("Positive M-value differences indicate higher methylation in Cohort A")
+    expect(result.locator("img[alt='Differential methylation volcano plot']")).to_have_attribute(
+        "src", "/jobs/methylation-dm/artifacts/volcano_plot.png"
+    )
+    result.locator("details.analysis-artifact-downloads > summary").click()
+    expect(result).to_contain_text("dm_results.tsv")
+    expect(result).to_contain_text("volcano_points.tsv")
+    expect(result).to_contain_text("manifest.yaml")
+
+
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_trajectory_reply(page)
@@ -2244,6 +3290,12 @@ def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     expect(page.locator("#analysisThread")).to_contain_text("Trajectory analysis")
     expect(page.locator("[id$='-trajectory']")).to_have_attribute("data-plotly-ready", "true")
     expect(page.locator("[id$='-trajectory-coverage']")).to_have_attribute("data-plotly-ready", "true")
+    followup = page.locator("#analysisThread [data-analysis-followup-mode='llm_only']").first
+    expect(followup).to_have_class(re.compile(r".*query-chip-llm.*"))
+    expect(followup).to_contain_text("LLM interpretation")
+    followup.click()
+    expect(page.locator("#analysisPrompt")).to_have_value("Can you explain this response to Infliximab plot?")
+    expect(page.locator("#analysisStatus")).to_contain_text("LLM interpretation follow-up prepared")
 
 
 def test_analysis_transcriptomics_medication_compare_mounts_volcano_plot(page) -> None:

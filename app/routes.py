@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import (
@@ -52,7 +53,7 @@ from app.bff import (
     medication_cohort,
     medication_counts,
 )
-from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings
+from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings, private_artifact_runtime_is_safe
 from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort
 from app.datasets import (
     authorized_datasets_for_user,
@@ -63,8 +64,11 @@ from app.datasets import (
     dataset_content_metadata,
     dataset_scope_id,
     effective_ai_provider_access,
+    effective_data_classification,
     effective_query_granularity_ceiling,
     normalize_dataset_id,
+    normalize_query_granularity_ceiling,
+    parse_scope_dataset_ids,
     register_dataset,
     resolve_dataset,
     resolve_dataset_dir,
@@ -89,8 +93,10 @@ from app.lm import (
 )
 from app.multimodal import multimodal_feature_matrix, multimodal_readiness
 from app.jobs import (
+    _authorize_analysis_scope,
     active_feature_job,
     active_job_status,
+    analysis_worker_status,
     create_job_record,
     delete_expired_terminal_jobs,
     delete_job,
@@ -125,6 +131,19 @@ from app.query_store import (
     prepare_dataset_query_store,
 )
 from app.user_settings import load_user_settings, update_user_settings as patch_user_settings
+from app.query_results import (
+    QUERY_RESULT_DEFAULT_PAGE_SIZE,
+    QueryResultExpiredError,
+    QueryResultNotFoundError,
+    QueryResultStaleError,
+    create_query_result,
+    delete_query_results,
+    load_query_result,
+    query_result_membership,
+    query_result_page,
+    require_query_result_binding,
+)
+from app.query_policy import query_is_count_only, response_patient_ids, response_record_ids
 from app.schemas import (
     AnalysisRequest,
     AnalysisSessionRenameRequest,
@@ -158,6 +177,7 @@ from app.schemas import (
     PhenoRankerPlanRequest,
     PhenoRankerRequest,
     QueryRequest,
+    QueryTurn,
     SavedCohortRequest,
     SavedCohortResponse,
     SavedCohortsResponse,
@@ -246,7 +266,7 @@ def _analysis_session_workspace_status(session: Dict[str, Any], request: Request
         "added_files": added,
     }
 from app.query import disease_counts as query_disease_counts
-from app.user_state import request_user_id
+from app.user_state import request_user_id, request_user_identity
 
 
 templates: Jinja2Templates | None = None
@@ -285,8 +305,18 @@ def index(request: Request) -> HTMLResponse:
 
 def _dataset_record_for_user(item: Dict[str, Any], user: Dict[str, Any] | None) -> Dict[str, Any]:
     payload = dict(item)
+    store_status = payload.get("query_store_status")
+    if isinstance(store_status, dict):
+        payload["query_store_status"] = _public_dataset_store_status(store_status)
     if str((user or {}).get("role") or "user") != "admin":
         payload["root_path"] = ""
+    return payload
+
+
+def _public_dataset_store_status(status: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(status)
+    if str(payload.get("last_error") or "").strip():
+        payload["last_error"] = "Store preparation failed. Review server logs for technical details."
     return payload
 
 
@@ -388,6 +418,289 @@ def _resolve_route_dataset_dir(
     return resolve_dataset_dir(request, current_dataset_id(request_user_id(request)) or "")
 
 
+def _route_dataset_ids(
+    request: Request,
+    dataset_id: str = "",
+    data_dir: str = DEFAULT_DATA_DIR,
+) -> List[str]:
+    selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
+    if not selected_ids:
+        raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset first.")
+    return selected_ids
+
+
+def _require_detailed_assay_access(
+    request: Request,
+    dataset_id: str = "",
+    data_dir: str = DEFAULT_DATA_DIR,
+) -> List[str]:
+    selected_ids = _route_dataset_ids(request, dataset_id, data_dir)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(
+            status_code=403,
+            detail="Sample-level assay and imaging data require Detailed in-app access for the current dataset or workspace.",
+        )
+    return selected_ids
+
+
+def _summary_safe_assay_inventory(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    summary_items: List[Dict[str, Any]] = []
+    for raw_item in items:
+        item = dict(raw_item or {})
+        item.pop("sample_ids", None)
+        item.pop("patient_ids", None)
+        summary_items.append(item)
+    return summary_items
+
+
+def _query_result_policy_binding(dataset_ids: List[str], request: Request | None = None) -> Dict[str, Any]:
+    registry_records = {
+        str(item.get("dataset_id") or ""): item
+        for item in _authorized_datasets_for_request(request)
+    }
+    registry_binding = []
+    for dataset_id in sorted(set(dataset_ids)):
+        item = registry_records.get(dataset_id) or {}
+        registry_binding.append(
+            {
+                "dataset_id": dataset_id,
+                "root_path": str(item.get("root_path") or ""),
+                "updated_at": str(item.get("updated_at") or ""),
+                "data_classification": str(item.get("data_classification") or "private"),
+            }
+        )
+    return {
+        "granularity_ceiling": effective_query_granularity_ceiling(dataset_ids),
+        "data_classification": effective_data_classification(dataset_ids),
+        "registry": registry_binding,
+    }
+
+
+def _query_result_workspace(
+    request: Request,
+    dataset_id: str = "",
+) -> tuple[List[str], str, str, Dict[str, Any], Dict[str, Any]]:
+    selected_ids = resolve_dataset_ids(request, dataset_id)
+    if not selected_ids:
+        raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset first.")
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Query results require Detailed in-app access for the current workspace.")
+    scope_id = dataset_scope_id(selected_ids)
+    resolved_dir = resolve_dataset_dir(request, scope_id)
+    fingerprint = workspace_fingerprint_for_data_dir(
+        resolved_dir,
+        dataset_id=scope_id,
+        dataset_ids=selected_ids,
+    )
+    return selected_ids, scope_id, resolved_dir, fingerprint, _query_result_policy_binding(selected_ids, request)
+
+
+def _load_authorized_query_result(
+    request: Request,
+    handle: str,
+    *,
+    dataset_id: str = "",
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    user_id = request_user_identity(request)
+    try:
+        record = load_query_result(user_id, handle)
+    except QueryResultNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except QueryResultExpiredError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    stored_scope_id = str(record.get("dataset_id") or "").strip()
+    requested_scope_id = str(dataset_id or "").strip()
+    if requested_scope_id and requested_scope_id != stored_scope_id:
+        raise HTTPException(status_code=410, detail="Query result belongs to a different workspace.")
+    selected_ids, scope_id, _, fingerprint, policy_binding = _query_result_workspace(request, stored_scope_id)
+    if policy_binding.get("data_classification") == "private" and not private_artifact_runtime_is_safe():
+        raise HTTPException(
+            status_code=503,
+            detail="Private query-result state requires protected runtime storage.",
+        )
+    try:
+        require_query_result_binding(
+            record,
+            dataset_id=scope_id,
+            dataset_ids=selected_ids,
+            workspace_fingerprint=fingerprint,
+            policy_binding=policy_binding,
+        )
+    except QueryResultStaleError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    return record, query_result_membership(record)
+
+
+def _query_result_rows(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return []
+    patients = data.get("patients")
+    if isinstance(patients, list):
+        return [dict(item) for item in patients if isinstance(item, dict)]
+    return []
+
+
+def _bounded_query_data(
+    data: Dict[str, Any],
+    page: Dict[str, Any],
+    membership_ids: List[str],
+) -> Dict[str, Any]:
+    membership_keys = {
+        "patient_id",
+        "patient_ids",
+        "sample_id",
+        "sample_ids",
+        "original_id",
+        "original_record_ids",
+        "invalid_patient_ids",
+        "record_ids",
+        "scope_ids",
+        "patients",
+        "visits",
+        "timeline",
+        "patient_context",
+        "conversation_history",
+        "follow_up_suggestions",
+        "follow_up_suggestion_metadata",
+    }
+
+    def strip(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: strip(item) for key, item in value.items() if key not in membership_keys}
+        if isinstance(value, list):
+            return [strip(item) for item in value]
+        return value
+
+    shaped = strip(data)
+    shaped["result_handle"] = page["result_handle"]
+    shaped["result_page"] = page
+    shaped["patient_ids"] = page["patient_ids"]
+    shaped["sample_ids"] = page["sample_ids"]
+    shaped["patients"] = page["rows"] if page["id_type"] == "patient" else []
+    suggestions = data.get("follow_up_suggestions")
+    safe_suggestions = []
+    if isinstance(suggestions, list):
+        for item in suggestions:
+            text = str(item or "").strip()
+            if text and not any(identifier and identifier in text for identifier in membership_ids):
+                safe_suggestions.append(text)
+    if safe_suggestions:
+        shaped["follow_up_suggestions"] = safe_suggestions
+        safe_prompts = set(safe_suggestions)
+        metadata = data.get("follow_up_suggestion_metadata")
+        if isinstance(metadata, list):
+            shaped["follow_up_suggestion_metadata"] = [
+                dict(item)
+                for item in metadata
+                if isinstance(item, dict) and str(item.get("prompt") or "").strip() in safe_prompts
+            ]
+    return shaped
+
+
+def _safe_query_history(turns: List[QueryTurn]) -> List[Dict[str, str]]:
+    safe: List[Dict[str, str]] = []
+    for turn in turns:
+        role = str(turn.role or "user")
+        content = str(turn.content or "")
+        content = re.sub(r"\bqr_[A-Za-z0-9_-]{8,96}\b", "[query result]", content)
+        if role == "assistant":
+            content = "Previous workspace answer omitted; use the server-side Query result scope."
+        safe.append({"role": role, "content": content})
+    return safe
+
+
+def _materialize_query_response(
+    payload: Dict[str, Any],
+    request: Request,
+    *,
+    selected_ids: List[str],
+    scope_id: str,
+    resolved_dir: str,
+) -> Dict[str, Any]:
+    if query_is_count_only(payload):
+        return payload
+    intent = str(payload.get("intent") or "").strip()
+    if intent in {"patient_summary", "patient_timeline", "patient_visits", "patient_lookup"}:
+        return payload
+    data = payload.get("data")
+    if not isinstance(data, dict) or str(data.get("granularity_applied") or "") != "detailed":
+        return payload
+    patient_ids = response_patient_ids(payload)
+    sample_ids = response_record_ids(payload)
+    if intent == "sample_inventory" and not patient_ids:
+        patient_ids = [
+            str(item).split(":", 1)[0].strip()
+            for item in sample_ids
+            if str(item).split(":", 1)[0].strip()
+        ]
+    if not patient_ids and not sample_ids:
+        return payload
+    fingerprint = workspace_fingerprint_for_data_dir(
+        resolved_dir,
+        dataset_id=scope_id,
+        dataset_ids=selected_ids,
+    )
+    private_scope = any(
+        str(item.get("data_classification") or "private").strip().lower() == "private"
+        for item in _authorized_datasets_for_request(request)
+        if str(item.get("dataset_id") or "") in set(selected_ids)
+    )
+    record = create_query_result(
+        user_id=request_user_identity(request),
+        dataset_id=scope_id,
+        dataset_ids=selected_ids,
+        workspace_fingerprint=fingerprint,
+        policy_binding=_query_result_policy_binding(selected_ids, request),
+        patient_ids=patient_ids,
+        sample_ids=sample_ids,
+        rows=_query_result_rows(payload),
+        id_type="sample" if intent == "sample_inventory" and sample_ids else "patient",
+        private_scope=private_scope,
+    )
+    page = query_result_page(record, limit=QUERY_RESULT_DEFAULT_PAGE_SIZE)
+    shaped = dict(payload)
+    shaped_data = _bounded_query_data(data, page, patient_ids + sample_ids)
+    shaped["data"] = shaped_data
+    shaped["reply"] = (
+        f"Found {page['total_count']} {'patient' if page['total_count'] == 1 else 'patients'}. "
+        f"Showing {page['returned_count']} now; use Load more to continue."
+        if page["id_type"] == "patient"
+        else f"Found {page['total_count']} {'sample' if page['total_count'] == 1 else 'samples'}. Showing {page['returned_count']} now."
+    )
+    shaped["action_context"] = {
+        "result_handle": page["result_handle"],
+        "patient_ids": [],
+        "record_ids": [],
+        "id_type": page["id_type"],
+        "analysis_prompt": "Interpret this selected workspace subset and summarize the main clinical and treatment patterns.",
+    }
+    shaped_data["available_actions"] = {
+        "open_in_analysis": True,
+        "save_cohort": bool(patient_ids),
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
+    return shaped
+
+
+def get_query_result_page(
+    handle: str,
+    request: Request,
+    cursor: str = Query(default="", max_length=256),
+    limit: int = Query(default=QUERY_RESULT_DEFAULT_PAGE_SIZE, ge=1, le=100),
+) -> JSONResponse:
+    require_authenticated(request)
+    record, _ = _load_authorized_query_result(request, handle)
+    try:
+        page = query_result_page(record, cursor=cursor, limit=limit)
+        return JSONResponse(page, headers={"Cache-Control": "no-store"})
+    except QueryResultStaleError as exc:
+        if "cursor" in str(exc).lower():
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+
+
 def get_datasets(request: Request) -> Dict:
     user = require_authenticated(request)
     datasets = []
@@ -422,9 +735,11 @@ def get_datasets(request: Request) -> Dict:
 
 def select_dataset(payload: DatasetSelectionRequest, request: Request) -> Dict:
     user = require_authenticated(request)
+    user_id = str(user.get("username") or "local")
     requested_ids = payload.dataset_ids or ([payload.dataset_id] if payload.dataset_id else [])
     if not requested_ids:
-        set_current_datasets(str(user.get("username") or "local"), [])
+        delete_query_results(user_id)
+        set_current_datasets(user_id, [])
         return {
             "selected": False,
             "current_dataset_id": "",
@@ -447,8 +762,13 @@ def select_dataset(payload: DatasetSelectionRequest, request: Request) -> Dict:
     try:
         ensure_dataset_query_stores_ready(resolved_ids)
     except QueryStoreNotReadyError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    set_current_datasets(str(user.get("username") or "local"), resolved_ids)
+        raise HTTPException(
+            status_code=409,
+            detail="One or more selected dataset stores are not ready. Prepare or rebuild them in Admin > Data.",
+        ) from exc
+    if resolved_ids != current_dataset_ids(user_id):
+        delete_query_results(user_id)
+    set_current_datasets(user_id, resolved_ids)
     return {
         "selected": True,
         "current_dataset_id": resolved_ids[0] if len(resolved_ids) == 1 else "",
@@ -473,7 +793,9 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
             enabled=payload.enabled,
             created_by=str(user.get("username") or "admin"),
         )
-        dataset["query_store_status"] = dataset_query_store_status(str(dataset.get("dataset_id") or ""))
+        dataset["query_store_status"] = _public_dataset_store_status(
+            dataset_query_store_status(str(dataset.get("dataset_id") or ""))
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return dataset
@@ -495,7 +817,9 @@ def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request
             ai_provider_access=payload.ai_provider_access,
             enabled=payload.enabled,
         )
-        updated["query_store_status"] = dataset_query_store_status(str(updated.get("dataset_id") or ""))
+        updated["query_store_status"] = _public_dataset_store_status(
+            dataset_query_store_status(str(updated.get("dataset_id") or ""))
+        )
         return updated
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -507,7 +831,7 @@ def prepare_dataset_route(dataset_id: str, request: Request) -> Dict:
         status = prepare_dataset_query_store(dataset_id)
         dataset = resolve_dataset(request, dataset_id)
         payload = dict(dataset)
-        payload["query_store_status"] = status
+        payload["query_store_status"] = _public_dataset_store_status(status)
         return payload
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -620,20 +944,37 @@ def search_medication_cohort(medication: str, request: Request = None, dataset_i
 
 def query_app(q: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
+    if not str(q or "").strip() or len(str(q)) > 12000:
+        raise HTTPException(status_code=422, detail="Query must contain between 1 and 12000 characters.")
     try:
         selected_ids = resolve_dataset_ids(request, dataset_id or "")
+        if not selected_ids:
+            raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset first.")
+        scope_id = dataset_scope_id(selected_ids)
+        resolved_dir = resolve_dataset_dir(request, scope_id)
         with lm_provider_context(selected_lm_provider_id(request)):
             payload = answer_query(
-                _resolve_route_dataset_dir(request, dataset_id, data_dir),
+                resolved_dir,
                 q,
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
                 ai_provider_access=selected_ai_provider_access(request, selected_ids),
+            )
+            payload = _materialize_query_response(
+                payload,
+                request,
+                selected_ids=selected_ids,
+                scope_id=scope_id,
+                resolved_dir=resolved_dir,
             )
             return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if "Private query-result state requires" in str(exc):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise
 
 
 def selected_lm_provider_id(request: Request | None) -> str:
@@ -980,22 +1321,38 @@ def update_user_settings(request: UserSettingsUpdateRequest, raw_request: Reques
 def get_saved_cohorts(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Saved cohorts require Detailed in-app access for the current workspace.")
     return {"cohorts": list_saved_cohorts(dataset_scope_id(selected_ids), user_id=request_user_id(request))}
 
 
 def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or request.data_dir)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Saving a cohort requires Detailed in-app access for the current workspace.")
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
+    sample_ids = list(request.sample_ids)
+    patient_ids = list(request.patient_ids)
+    id_type = request.id_type
+    if str(request.result_handle or "").strip():
+        _, membership = _load_authorized_query_result(
+            raw_request,
+            request.result_handle,
+            dataset_id=dataset_scope_id(selected_ids),
+        )
+        sample_ids = list(membership["sample_ids"])
+        patient_ids = list(membership["patient_ids"])
+        id_type = str(membership["id_type"] or id_type)
     try:
         item = save_cohort(
             name=request.name,
             dataset_id=dataset_scope_id(selected_ids),
             dataset_ids=selected_ids,
             data_dir=resolved_dir,
-            sample_ids=request.sample_ids,
-            patient_ids=request.patient_ids,
-            id_type=request.id_type,
+            sample_ids=sample_ids,
+            patient_ids=patient_ids,
+            id_type=id_type,
             source_kind=request.source_kind,
             source_prompt=request.source_prompt,
             user_id=request_user_id(raw_request),
@@ -1117,14 +1474,22 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
         selected_ids = resolve_dataset_ids(raw_request, dataset_scope_id(active_ids))
     resolved_scope_id = dataset_scope_id(selected_ids)
     resolved_dir = resolve_dataset_dir(raw_request, resolved_scope_id)
+    scoped_patient_ids = list(request.scoped_patient_ids)
+    if str(request.scoped_result_handle or "").strip():
+        _, membership = _load_authorized_query_result(
+            raw_request,
+            request.scoped_result_handle,
+            dataset_id=resolved_scope_id,
+        )
+        scoped_patient_ids = list(membership["patient_ids"])
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
             payload = answer_query(
                 resolved_dir,
                 request.q,
                 query_mode=request.query_mode,
-                history=[turn.model_dump() for turn in request.history],
-                scoped_patient_ids=request.scoped_patient_ids,
+                history=_safe_query_history(request.history),
+                scoped_patient_ids=scoped_patient_ids,
                 granularity_mode=request.granularity_mode,
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
                 ai_provider_access=selected_ai_provider_access(raw_request, selected_ids),
@@ -1144,11 +1509,22 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
                 }
             )
             payload["data"] = data
+            payload = _materialize_query_response(
+                payload,
+                raw_request,
+                selected_ids=selected_ids,
+                scope_id=resolved_scope_id,
+                resolved_dir=resolved_dir,
+            )
             return _sanitize_response_paths(payload, raw_request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if "Private query-result state requires" in str(exc):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise
 
 
 def general_llm_app(request: GeneralLlmRequest, raw_request: Request) -> Dict:
@@ -1167,12 +1543,33 @@ def general_llm_app(request: GeneralLlmRequest, raw_request: Request) -> Dict:
 
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
-    if str(request.dataset_id or "").strip():
-        selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
-        resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id)
+    requested_dataset_id = str(request.dataset_id or "").strip()
+    if requested_dataset_id:
+        if not parse_scope_dataset_ids(requested_dataset_id):
+            raise HTTPException(status_code=403, detail="Dataset access denied.")
+        selected_ids = resolve_dataset_ids(raw_request, requested_dataset_id)
     else:
-        selected_ids = []
-        resolved_dir = request.data_dir
+        active_ids = current_dataset_ids(request_user_id(raw_request))
+        if not active_ids:
+            raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset before running Analysis.")
+        selected_ids = resolve_dataset_ids(raw_request, dataset_scope_id(active_ids))
+    resolved_scope_id = dataset_scope_id(selected_ids)
+    resolved_dir = resolve_dataset_dir(raw_request, resolved_scope_id)
+    selected_patient_ids = str(request.selected_patient_ids or "")
+    scope_metadata_handle = (
+        str(request.scope_metadata.get("query_result_handle") or "").strip()
+        if isinstance(request.scope_metadata, dict)
+        else ""
+    )
+    query_result_handle = str(request.query_result_handle or scope_metadata_handle).strip()
+    if query_result_handle:
+        _, membership = _load_authorized_query_result(
+            raw_request,
+            query_result_handle,
+            dataset_id=resolved_scope_id,
+        )
+        scope_ids = membership["sample_ids"] if membership["id_type"] == "sample" else membership["patient_ids"]
+        selected_patient_ids = ",".join(scope_ids)
     if str(request.analysis_session_id or "").strip():
         session = get_analysis_session(request.analysis_session_id, user_id=request_user_id(raw_request))
         if session:
@@ -1185,11 +1582,11 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
                 request.prompt,
                 resolved_dir,
                 catalog_item_id=request.catalog_item_id,
-                dataset_id=request.dataset_id or "",
+                dataset_id=resolved_scope_id,
                 assay_id=request.assay_id,
                 analysis_session_id=request.analysis_session_id,
                 user_id=request_user_id(raw_request),
-                selected_patient_ids=request.selected_patient_ids,
+                selected_patient_ids=selected_patient_ids,
                 compare_mode=request.compare_mode,
                 compare_selected_patient_ids=request.compare_selected_patient_ids,
                 llm_only=request.llm_only,
@@ -1209,14 +1606,25 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
 def get_jobs(request: Request) -> Dict:
     require_authenticated(request)
     user_id = request_user_id(request)
-    items = [
-        public_job_payload(item, user_id=user_id)
-        for item in list_job_records(user_id)
-        if str(item.get("execution_backend") or "").strip().lower() == "job"
-        or str(item.get("rq_job_id") or "").strip()
-        or active_job_status(item.get("status"))
-    ]
+    items = []
+    for item in list_job_records(user_id):
+        if not (
+            str(item.get("execution_backend") or "").strip().lower() == "job"
+            or str(item.get("rq_job_id") or "").strip()
+            or active_job_status(item.get("status"))
+        ):
+            continue
+        try:
+            _require_job_dataset_access(item, user_id)
+        except HTTPException:
+            continue
+        items.append(public_job_payload(item, user_id=user_id))
     return {"jobs": items}
+
+
+def get_jobs_status(request: Request) -> Dict:
+    require_authenticated(request)
+    return analysis_worker_status()
 
 
 def get_run_history(request: Request) -> Dict:
@@ -1225,12 +1633,37 @@ def get_run_history(request: Request) -> Dict:
     settings = load_user_settings(user_id)
     retention_days = int(settings.get("run_history_retention_days") or 0)
     expired_deleted_count = delete_expired_terminal_jobs(user_id, retention_days)
-    items = [public_job_payload(item, user_id=user_id) for item in list_job_records(user_id)]
+    items = []
+    for item in list_job_records(user_id):
+        try:
+            _require_job_dataset_access(item, user_id)
+        except HTTPException:
+            continue
+        items.append(public_job_payload(item, user_id=user_id))
     return {
         "runs": items,
         "expired_deleted_count": expired_deleted_count,
         "retention_days": retention_days,
     }
+
+
+def _require_job_dataset_access(record: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    stored_dataset_id = str(record.get("dataset_id") or "").strip()
+    if not stored_dataset_id:
+        raise HTTPException(status_code=403, detail="Job dataset scope is unavailable.")
+    try:
+        scope = _authorize_analysis_scope(user_id, stored_dataset_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=403, detail="Job dataset access denied.") from exc
+    if any(
+        normalize_query_granularity_ceiling(dataset.get("query_granularity_ceiling")) != "detailed"
+        for dataset in (scope.get("datasets") or [])
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Job results require Detailed in-app access for the stored dataset scope.",
+        )
+    return scope
 
 
 def remove_run_history_item(job_id: str, request: Request) -> Dict:
@@ -1245,12 +1678,16 @@ def get_job(job_id: str, request: Request) -> Dict:
     require_authenticated(request)
     user_id = request_user_id(request)
     record = load_job_record(job_id, user_id)
+    _require_job_dataset_access(record, user_id)
     return public_job_payload(record, include_result=True, user_id=user_id)
 
 
 def get_job_artifact(job_id: str, filename: str, request: Request) -> FileResponse:
     require_authenticated(request)
-    file_path = resolve_job_artifact_path(job_id, request_user_id(request), filename)
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    _require_job_dataset_access(record, user_id)
+    file_path = resolve_job_artifact_path(job_id, user_id, filename)
     return FileResponse(file_path)
 
 
@@ -1273,7 +1710,11 @@ def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str =
 def get_assay_datasets(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
-        return {"datasets": assay_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))}
+        selected_ids = _route_dataset_ids(request, dataset_id, data_dir)
+        items = assay_dataset_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir))
+        if effective_query_granularity_ceiling(selected_ids) != "detailed":
+            items = _summary_safe_assay_inventory(items)
+        return {"datasets": items}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -1282,6 +1723,7 @@ def get_assay_datasets(request: Request, dataset_id: str = "", data_dir: str = D
 
 def get_assay_readiness(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
+    _require_detailed_assay_access(request, dataset_id, data_dir)
     try:
         return multimodal_readiness(_resolve_route_dataset_dir(request, dataset_id, data_dir))
     except FileNotFoundError as exc:
@@ -1298,6 +1740,7 @@ def get_assay_feature_matrix(
     max_rows: int = 25,
 ) -> Dict:
     require_authenticated(request)
+    _require_detailed_assay_access(request, dataset_id, data_dir)
     try:
         return multimodal_feature_matrix(
             _resolve_route_dataset_dir(request, dataset_id, data_dir),
@@ -1327,6 +1770,7 @@ def get_assay_features(assay_id: str, request: Request, dataset_id: str = "", da
 
 def get_assay_expression(request: AssayExpressionRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    _require_detailed_assay_access(raw_request, request.dataset_id, request.data_dir)
     resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
     try:
         return assay_expression_summary(
@@ -1344,6 +1788,7 @@ def get_assay_expression(request: AssayExpressionRequest, raw_request: Request) 
 
 def get_dicom_studies(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
+    _require_detailed_assay_access(request, dataset_id, data_dir)
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         status = dicom_status(resolved_dir)
@@ -1661,26 +2106,48 @@ def get_pheno_ranker_patient_ids(request: Request, dataset_id: str = "", data_di
 
 def get_pheno_ranker_result(job_id: str, filename: str, request: Request) -> FileResponse:
     require_authenticated(request)
-    file_path = pheno_ranker_result_file_path(job_id, filename, user_id=request_user_id(request))
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    _require_job_dataset_access(record, user_id)
+    file_path = pheno_ranker_result_file_path(job_id, filename, user_id=user_id)
     return FileResponse(file_path)
 
 
 def get_pheno_ranker_alignment(job_id: str, reference_id: str, request: Request, target_id: str = "") -> Dict:
     require_authenticated(request)
-    return pheno_ranker_alignment_details(job_id, reference_id, target_id=target_id, user_id=request_user_id(request))
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    _require_job_dataset_access(record, user_id)
+    return pheno_ranker_alignment_details(job_id, reference_id, target_id=target_id, user_id=user_id)
 
 
 def explain_pheno_ranker_results(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
-    selected_ids = resolve_dataset_ids(request, "")
-    return pheno_ranker_explain(job_id, top_n=top_n, ai_provider_access=selected_ai_provider_access(request, selected_ids), user_id=request_user_id(request))
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    scope = _require_job_dataset_access(record, user_id)
+    selected_ids = list(scope.get("dataset_ids") or [])
+    return pheno_ranker_explain(
+        job_id,
+        top_n=top_n,
+        ai_provider_access=selected_ai_provider_access(request, selected_ids),
+        user_id=user_id,
+    )
 
 
 def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int = 3) -> Dict:
     require_authenticated(request)
-    selected_ids = resolve_dataset_ids(request, "")
+    user_id = request_user_id(request)
+    record = load_job_record(job_id, user_id)
+    scope = _require_job_dataset_access(record, user_id)
+    selected_ids = list(scope.get("dataset_ids") or [])
     with lm_provider_context(selected_lm_provider_id(request)):
-        return pheno_ranker_explain_llm(job_id, top_n=top_n, ai_provider_access=selected_ai_provider_access(request, selected_ids), user_id=request_user_id(request))
+        return pheno_ranker_explain_llm(
+            job_id,
+            top_n=top_n,
+            ai_provider_access=selected_ai_provider_access(request, selected_ids),
+            user_id=user_id,
+        )
 
 
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -1710,6 +2177,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/cohorts/diseases", get_disease_counts, methods=["GET"], tags=["patients"], summary="Count diseases in the workspace", description="Returns disease counts derived from the active workspace.")
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
     app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
+    app.add_api_route("/query-results/{handle}", get_query_result_page, methods=["GET"], tags=["query"], summary="Page through a Query result", description="Returns one bounded page from a short-lived, user-scoped Query result after rechecking workspace authorization and Detailed access.")
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.", response_model=LmProvidersResponse)
     app.add_api_route("/lm-providers", create_lm_provider, methods=["POST"], tags=["auth"], summary="Create a managed LLM provider", description="Persists an OpenAI-compatible provider in protected runtime state. The API key is write-only.", response_model=LmProviderResponse)
@@ -1748,6 +2216,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or assay analysis over the active workspace or selected saved cohorts.")
     app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")
+    app.add_api_route("/jobs/status", get_jobs_status, methods=["GET"], tags=["jobs"], summary="Inspect background-worker availability", description="Reports whether Redis and workers for the analysis queue are online, idle, or working without exposing worker host details.")
     app.add_api_route("/jobs/{job_id}", get_job, methods=["GET"], tags=["jobs"], summary="Get one background job", description="Returns detailed status plus the completed payload for one background job visible to the current user.")
     app.add_api_route("/jobs/{job_id}", remove_job, methods=["DELETE"], tags=["jobs"], summary="Delete one terminal job", description="Deletes one completed, failed, or cancelled job and its generated artifacts for the current user.", response_model=DeleteResponse)
     app.add_api_route("/jobs/{job_id}/artifacts/{filename:path}", get_job_artifact, methods=["GET"], tags=["jobs"], summary="Download one background job artifact", description="Returns one persisted artifact for a background job visible to the current user.")

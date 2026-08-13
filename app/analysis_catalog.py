@@ -81,6 +81,23 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
             f"Analysis catalog item '{item_id}' uses invalid required_clinical_representation "
             f"'{required_clinical_representation}'."
         )
+    minimum_samples_per_cohort_raw = raw.get("minimum_samples_per_cohort")
+    try:
+        minimum_samples_per_cohort = (
+            int(minimum_samples_per_cohort_raw)
+            if minimum_samples_per_cohort_raw not in (None, "")
+            else 0
+        )
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Analysis catalog item '{item_id}' uses invalid minimum_samples_per_cohort "
+            f"'{minimum_samples_per_cohort_raw}'."
+        ) from None
+    if minimum_samples_per_cohort < 0:
+        raise ValueError(
+            f"Analysis catalog item '{item_id}' uses invalid minimum_samples_per_cohort "
+            f"'{minimum_samples_per_cohort_raw}'."
+        )
     return {
         "id": item_id,
         "name": name,
@@ -106,6 +123,7 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "required_data_types": [str(item or "").strip() for item in raw.get("required_data_types", []) if str(item or "").strip()],
         "analysis_level": str(raw.get("analysis_level") or "patient").strip() or "patient",
         "required_clinical_representation": required_clinical_representation,
+        "minimum_samples_per_cohort": minimum_samples_per_cohort,
         "tags": tags,
     }
 

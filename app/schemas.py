@@ -13,20 +13,28 @@ class FlexibleModel(BaseModel):
 
 
 class QueryTurn(BaseModel):
-    role: str
-    content: str
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
 
 
 class QueryRequest(BaseModel):
-    q: str = Field(description="Natural-language workspace query.", examples=["How many patients take biologics in this workspace?"])
+    q: str = Field(min_length=1, max_length=12000, description="Natural-language workspace query.", examples=["How many patients take biologics in this workspace?"])
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID to query against.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
-    query_mode: str = Field(default="auto", description="Query execution mode. Supported values include auto and planner_only.")
+    query_mode: str = Field(default="auto", description="Query execution mode. Supported values include auto, deterministic_only, and planner_only.")
     granularity_mode: str = Field(default="detailed", description="Disclosure mode requested by the Query UI. Supported values currently include summary and detailed.")
-    history: List[QueryTurn] = Field(default_factory=list)
-    scoped_patient_ids: List[str] = Field(default_factory=list, description="Optional prior subset patient IDs carried as app-level conversational scope for follow-up queries.")
-    scoped_record_ids: List[str] = Field(default_factory=list, description="Optional prior subset sample or record IDs carried as app-level conversational scope.")
+    history: List[QueryTurn] = Field(default_factory=list, max_length=16)
+    scoped_patient_ids: List[str] = Field(default_factory=list, max_length=100, description="Legacy bounded prior-subset patient IDs. Prefer scoped_result_handle for paged Query results.")
+    scoped_record_ids: List[str] = Field(default_factory=list, max_length=100, description="Legacy bounded prior-subset sample or record IDs. Prefer scoped_result_handle for paged Query results.")
     scoped_id_type: str = Field(default="patient", description="The primary ID level used by the carried scoped context.")
+    scoped_result_handle: str = Field(default="", max_length=96, pattern=r"^(?:|qr_[A-Za-z0-9_-]+)$", description="Opaque user-scoped Query result handle used for follow-up filtering without resending identifiers.")
+
+    @field_validator("scoped_patient_ids", "scoped_record_ids")
+    @classmethod
+    def _bound_legacy_query_ids(cls, values):
+        if any(len(str(value or "")) > 256 for value in values or []):
+            raise ValueError("Query scope identifiers must be 256 characters or fewer.")
+        return values
 
 
 class GeneralLlmRequest(BaseModel):
@@ -84,6 +92,7 @@ class AnalysisRequest(BaseModel):
     assay_id: str = Field(default="", description="Selected assay identifier for curated analyses that require one explicit transcriptomics source.")
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
     selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort A. May contain sample or patient IDs depending on the source tab.")
+    query_result_handle: str = Field(default="", max_length=96, pattern=r"^(?:|qr_[A-Za-z0-9_-]+)$", description="Opaque Query result handle resolved server-side as cohort A.")
     scope_metadata: Dict[str, Any] = Field(default_factory=dict, description="Saved-cohort-shaped metadata for the Cohort A selection, including sample IDs, patient IDs, and source.")
     compare_mode: bool = Field(default=False, description="Whether to run a compare-mode analysis using cohort A vs cohort B.")
     compare_selected_patient_ids: str = Field(default="", description="Comma-separated scope IDs for cohort B when compare_mode is enabled.")
@@ -189,8 +198,9 @@ class SavedCohortRequest(BaseModel):
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID where the cohort was created.")
     dataset_ids: List[str] = Field(default_factory=list)
     data_dir: str = Field(default=DEFAULT_DATA_DIR, description="Manual dataset directory fallback. Prefer dataset_id.")
-    sample_ids: List[str] = Field(default_factory=list, description="Canonical sample/record IDs stored for the cohort.")
-    patient_ids: List[str] = Field(default_factory=list, description="Derived patient IDs stored alongside the cohort.")
+    sample_ids: List[str] = Field(default_factory=list, max_length=2500, description="Legacy bounded canonical sample/record IDs. Prefer result_handle for Query results.")
+    patient_ids: List[str] = Field(default_factory=list, max_length=2500, description="Legacy bounded derived patient IDs. Prefer result_handle for Query results.")
+    result_handle: str = Field(default="", max_length=96, pattern=r"^(?:|qr_[A-Za-z0-9_-]+)$", description="Opaque Query result handle resolved server-side when saving a Query cohort.")
     id_type: str = Field(default="sample", description="Canonical ID level used by the cohort payload.")
     source_kind: str = Field(default="manual", description="How the cohort was created, for example manual or query.")
     source_prompt: str = Field(default="", description="Source prompt when the cohort came from Query.")

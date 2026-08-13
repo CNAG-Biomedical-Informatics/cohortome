@@ -3,6 +3,7 @@ export function createDatasetsUi(ctx) {
   const {
     dataDirEl,
     datasetPickerShellEl,
+    datasetPickerLegendEl,
     datasetPickerEl,
     loadStatusEl,
     datasetScopeSummaryEl,
@@ -29,6 +30,35 @@ export function createDatasetsUi(ctx) {
     updateLoadButtonAvailability,
   } = callbacks;
 
+  const datasetTraitDefinitions = {
+    private: {
+      label: "Private data",
+      legendLabel: "Private",
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
+    },
+    cross_sectional: {
+      label: "Cross-sectional clinical records",
+      legendLabel: "Cross-sectional",
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3"></circle><path d="M6 20a6 6 0 0 1 12 0"></path></svg>',
+    },
+    longitudinal: {
+      label: "Longitudinal clinical records",
+      legendLabel: "Longitudinal",
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
+    },
+    clinical: {
+      label: "Clinical data",
+      legendLabel: "Clinical",
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4V2h6v2"></path><path d="M12 9v7"></path><path d="M8.5 12.5h7"></path></svg>',
+    },
+    assay: {
+      label: "Assay data",
+      legendLabel: "Assay data",
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
+    },
+  };
+  const datasetTraitOrder = ["private", "cross_sectional", "longitudinal", "clinical", "assay"];
+
   function normalizedDatasetStoreStatus(dataset) {
     const storeStatus = dataset && typeof dataset.query_store_status === "object" && dataset.query_store_status
       ? dataset.query_store_status
@@ -39,6 +69,55 @@ export function createDatasetsUi(ctx) {
       status: storeState,
       detail: String(storeStatus.last_error || "").trim(),
     };
+  }
+
+  function datasetTraitKeys(dataset) {
+    const keys = [];
+    if (normalizeDataClassification(dataset && dataset.data_classification) === "private") {
+      keys.push("private");
+    }
+    const representation = String(dataset && dataset.clinical_representation ? dataset.clinical_representation : "").trim().toLowerCase();
+    if (representation === "person") {
+      keys.push("cross_sectional");
+    } else if (representation === "snapshot") {
+      keys.push("longitudinal");
+    }
+    if (Number(dataset && dataset.clinical_record_count ? dataset.clinical_record_count : 0) > 0) {
+      keys.push("clinical");
+    }
+    if (Number(dataset && dataset.assay_file_count ? dataset.assay_file_count : 0) > 0) {
+      keys.push("assay");
+    }
+    return keys;
+  }
+
+  function renderDatasetTraitIcon(key, decorative = false) {
+    const definition = datasetTraitDefinitions[key];
+    if (!definition) {
+      return "";
+    }
+    const accessibility = decorative
+      ? 'aria-hidden="true"'
+      : `role="img" aria-label="${escapeHtml(definition.label)}" title="${escapeHtml(definition.label)}"`;
+    return `<span class="dataset-trait-icon dataset-trait-icon-${escapeHtml(key)}" data-dataset-trait="${escapeHtml(key)}" ${accessibility}>${definition.svg}</span>`;
+  }
+
+  function renderDatasetTraitLegend(datasets) {
+    if (!datasetPickerLegendEl) {
+      return;
+    }
+    const present = new Set();
+    (Array.isArray(datasets) ? datasets : []).forEach((dataset) => {
+      datasetTraitKeys(dataset).forEach((key) => present.add(key));
+    });
+    const keys = datasetTraitOrder.filter((key) => present.has(key));
+    datasetPickerLegendEl.classList.toggle("is-hidden", !keys.length);
+    datasetPickerLegendEl.innerHTML = keys.length
+      ? `<span class="dataset-trait-legend-title">Legend</span>${keys.map((key) => {
+          const definition = datasetTraitDefinitions[key];
+          return `<span class="dataset-trait-legend-item" data-dataset-trait-legend="${escapeHtml(key)}">${renderDatasetTraitIcon(key, true)}<span>${escapeHtml(definition.legendLabel)}</span></span>`;
+        }).join("")}`
+      : "";
   }
 
   function pendingWorkspaceStoreBlocker() {
@@ -90,6 +169,23 @@ export function createDatasetsUi(ctx) {
       : hasNoWorkspaceSelection
         ? "Select at least one dataset to create a workspace."
         : "";
+    if (loadStatusEl && !state.loadInFlight) {
+      if (storeBlocker) {
+        loadStatusEl.className = "load-status warning";
+        loadStatusEl.textContent = storeBlocker.message;
+        loadStatusEl.dataset.datasetStoreBlocker = "true";
+      } else if (loadStatusEl.dataset.datasetStoreBlocker === "true") {
+        loadStatusEl.className = "load-status";
+        loadStatusEl.textContent = hasPendingChange
+          ? "Workspace selection is ready. Click Apply workspace to switch."
+          : activeIds.length
+            ? "Active workspace is ready."
+            : "Select at least one dataset, then click Apply workspace.";
+        if (!hasPendingChange) {
+          delete loadStatusEl.dataset.datasetStoreBlocker;
+        }
+      }
+    }
     if (datasetPickerShellEl) {
       datasetPickerShellEl.classList.toggle("is-loading", Boolean(state.loadInFlight));
     }
@@ -435,6 +531,7 @@ export function createDatasetsUi(ctx) {
     }
     const selectedIds = new Set(pendingDatasetSelectionIds());
     const activeIds = new Set(state.currentDatasetIds);
+    renderDatasetTraitLegend(state.availableDatasets);
     if (!state.availableDatasets.length) {
       datasetPickerEl.innerHTML = '<div class="empty">No dataset available.</div>';
       return;
@@ -448,6 +545,7 @@ export function createDatasetsUi(ctx) {
       const contentTags = Array.isArray(dataset.content_tags) ? dataset.content_tags.map((item) => String(item || "").trim()).filter(Boolean) : [];
       const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
       const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
+      const traitKeys = datasetTraitKeys(dataset);
       const storeStatus = normalizedDatasetStoreStatus(dataset);
       const stateBadges = [];
       if (active) {
@@ -470,6 +568,7 @@ export function createDatasetsUi(ctx) {
               <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
               ${stateBadges.join("")}
             </div>
+            ${traitKeys.length ? `<div class="dataset-trait-icons">${traitKeys.map((key) => renderDatasetTraitIcon(key)).join("")}</div>` : ""}
             <div class="dataset-picker-meta">
               <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
               <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
@@ -477,7 +576,7 @@ export function createDatasetsUi(ctx) {
               ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
               ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
             </div>
-            ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
+            ${description ? `<div class="dataset-picker-description" title="${escapeHtml(description)}">${escapeHtml(description)}</div>` : ""}
           </div>
         </label>
       `;

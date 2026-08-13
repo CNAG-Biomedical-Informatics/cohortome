@@ -27,6 +27,7 @@ export function createSavedCohortsUi(ctx) {
     currentDatasetIds,
     setAnalysisScopeMetadataFromSelection,
     clearAnalysisScopeMetadata,
+    renderAnalysisCatalog,
   } = callbacks;
   let analysisNotice = "";
   let phenoNotice = "";
@@ -154,7 +155,8 @@ export function createSavedCohortsUi(ctx) {
   }
 
   async function saveLatestQueryAsCohort() {
-    if (!state.latestQueryPatientIds.length) return;
+    const resultHandle = String(state.latestQueryResultHandle || "").trim();
+    if (!state.latestQueryPatientIds.length && !resultHandle) return;
     const defaultName = state.latestQueryPrompt
       ? state.latestQueryPrompt.slice(0, 80)
       : `Saved cohort ${new Date().toLocaleString()}`;
@@ -168,6 +170,7 @@ export function createSavedCohortsUi(ctx) {
           name,
           data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
           dataset_ids: currentDatasetIds(),
+          result_handle: resultHandle,
           sample_ids: state.latestQueryRecordIds,
           patient_ids: state.latestQueryPatientIds,
           id_type: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,
@@ -308,6 +311,7 @@ export function createSavedCohortsUi(ctx) {
     analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
       ? `Loaded saved cohort "${item.name}" into Cohort A.`
       : `Loaded saved cohort "${item.name}" into the analysis scope.`;
+    if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
   }
 
   function useSavedCohortInAnalysisCompare(cohortId) {
@@ -331,6 +335,7 @@ export function createSavedCohortsUi(ctx) {
     setActiveTab("analysis");
     analysisStatusEl.className = "query-status";
     analysisStatusEl.textContent = `Loaded saved cohort "${item.name}" into Cohort B.`;
+    if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
   }
 
   function useSavedCohortInPheno(cohortId) {
@@ -367,6 +372,7 @@ export function createSavedCohortsUi(ctx) {
       analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
         ? "Cohort B cleared. Select a saved cohort to compare."
         : "Cohort B reverted to manual scope.";
+      if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
       return;
     }
     clearNoticeForMode("analysis");
@@ -378,6 +384,7 @@ export function createSavedCohortsUi(ctx) {
     analysisStatusEl.textContent = analysisCompareModeEl && analysisCompareModeEl.checked
       ? "Cohort A cleared. Select a saved cohort to compare."
       : "Cohort A reverted to manual scope.";
+    if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
   }
 
   function handleSavedCohortAction(button) {

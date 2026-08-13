@@ -151,6 +151,12 @@ function setLatestQueryState(patch) {
   if (Object.prototype.hasOwnProperty.call(patch, "recordIds")) {
     state.latestQueryRecordIds = Array.isArray(patch.recordIds) ? patch.recordIds : [];
   }
+  if (Object.prototype.hasOwnProperty.call(patch, "resultHandle")) {
+    state.latestQueryResultHandle = String(patch.resultHandle || "").trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "totalCount")) {
+    state.latestQueryTotalCount = Math.max(0, Number(patch.totalCount || 0));
+  }
   if (Object.prototype.hasOwnProperty.call(patch, "prompt")) {
     state.latestQueryPrompt = patch.prompt || "";
   }
@@ -166,6 +172,12 @@ function setLatestScopedContext(patch) {
   state.latestScopedContext = {
     patientIds: Array.isArray(patch && patch.patientIds) ? patch.patientIds : state.latestScopedContext.patientIds,
     recordIds: Array.isArray(patch && patch.recordIds) ? patch.recordIds : state.latestScopedContext.recordIds,
+    resultHandle: patch && Object.prototype.hasOwnProperty.call(patch, "resultHandle")
+      ? String(patch.resultHandle || "").trim()
+      : String(state.latestScopedContext.resultHandle || ""),
+    totalCount: patch && Object.prototype.hasOwnProperty.call(patch, "totalCount")
+      ? Math.max(0, Number(patch.totalCount || 0))
+      : Math.max(0, Number(state.latestScopedContext.totalCount || 0)),
     idType: patch && patch.idType ? patch.idType : state.latestScopedContext.idType,
     sourceTab: patch && patch.sourceTab ? patch.sourceTab : state.latestScopedContext.sourceTab,
     prompt: patch && typeof patch.prompt === "string" ? patch.prompt : state.latestScopedContext.prompt,
@@ -230,7 +242,8 @@ function sendPatientIdsToPhenoRanker() {
 
 function sendPatientIdsToAnalysis() {
   const scopeIds = state.latestQueryRecordIds.length ? state.latestQueryRecordIds : state.latestQueryPatientIds;
-  if (!scopeIds.length) {
+  const resultHandle = String(state.latestQueryResultHandle || "").trim();
+  if (!scopeIds.length && !resultHandle) {
     return;
   }
   state.analysisSelectedSavedCohortId = "";
@@ -239,6 +252,13 @@ function sendPatientIdsToAnalysis() {
   setAnalysisScopeMetadataFromSelection({
     sampleIds: state.latestQueryRecordIds,
     patientIds: state.latestQueryPatientIds,
+    queryResultHandle: resultHandle,
+    patientCount: state.latestQueryIdType === "sample"
+      ? 0
+      : state.latestQueryTotalCount || state.latestQueryPatientIds.length,
+    sampleCount: state.latestQueryIdType === "sample"
+      ? state.latestQueryTotalCount || state.latestQueryRecordIds.length
+      : state.latestQueryRecordIds.length,
     idType: state.latestQueryRecordIds.length ? "sample" : state.latestQueryIdType,
     sourceKind: "query",
     sourcePrompt: state.latestQueryPrompt,
@@ -250,7 +270,10 @@ function sendPatientIdsToAnalysis() {
   navigationUi.setActiveTab("analysis");
   analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   refs.analysisStatusEl.className = "query-status";
-  refs.analysisStatusEl.textContent = state.latestQueryRecordIds.length
+  const resultUnit = state.latestQueryIdType === "sample" ? "sample" : "patient";
+  refs.analysisStatusEl.textContent = resultHandle
+    ? `Loaded the ${state.latestQueryTotalCount}-${resultUnit} Query result into Analysis without expanding its identifiers in the browser. Run the analysis prompt to interpret this workspace.`
+    : state.latestQueryRecordIds.length
     ? `Loaded ${state.latestQueryRecordIds.length} sample IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`
     : `Loaded ${state.latestQueryPatientIds.length} patient IDs from Query into Analysis. Run the analysis prompt to interpret this workspace.`;
 }
@@ -298,7 +321,9 @@ function sendPromptToAnalysis(prompt, options) {
   refs.analysisStatusEl.className = "query-status";
   refs.analysisStatusEl.textContent = settings.statusMessage
     ? String(settings.statusMessage)
-    : (state.latestQueryPatientIds.length
+    : (state.latestQueryResultHandle
+      ? `Analysis prompt prepared for the ${state.latestQueryTotalCount}-${state.latestQueryIdType === "sample" ? "sample" : "patient"} Query result currently in scope.`
+      : state.latestQueryPatientIds.length
       ? `Analysis prompt prepared for the ${state.latestQueryPatientIds.length}-ID workspace currently loaded from Query.`
       : "Analysis prompt prepared. Select a scope or use the full workspace.");
   refs.analysisPromptEl.focus();
@@ -561,6 +586,11 @@ analysisCatalogUi = createAnalysisCatalogUi({
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     assayDatasetOverlap: (datasetName) => dashboardUi.assayDatasetOverlap(datasetName),
     setAnalysisContextMode: (value) => analysisUi.setContextMode(value),
+    refreshBackgroundWorkerStatus: async () => {
+      if (!jobsUi) return;
+      await jobsUi.loadBackgroundWorkerStatus();
+      analysisCatalogUi.renderAnalysisCatalog();
+    },
   },
 });
 
@@ -582,6 +612,7 @@ savedCohortsUi = createSavedCohortsUi({
     queryStatusEl: () => refs.queryStatusEl,
     setAnalysisScopeMetadataFromSelection,
     clearAnalysisScopeMetadata,
+    renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
   },
   state,
 });
@@ -750,6 +781,7 @@ jobsUi = createJobsUi({
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     loadCompletedPhenoJob: (jobPayload, resultPayload) => phenoUi.loadCompletedPhenoJob(jobPayload, resultPayload),
     renderPhenoBackgroundJobBanner: () => phenoUi.renderPhenoBackgroundJobBanner(),
+    onBackgroundWorkerStatusChanged: () => analysisCatalogUi.renderAnalysisCatalog(),
   },
 });
 
@@ -1065,11 +1097,7 @@ function bindEvents() {
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (target === "requirements") {
-      if (refs.analysisCatalogAssayPanelEl && !refs.analysisCatalogAssayPanelEl.classList.contains("is-hidden")) {
-        refs.analysisCatalogAssayPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else {
-        analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
-      }
+      analysisCatalogUi.focusFirstIncompleteAnalysisSetup();
     } else if (target === "run") {
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1277,8 +1305,9 @@ function bindEvents() {
     analysisCatalogUi.renderAnalysisCatalog();
   });
   refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("input", () => {
-    state.analysisExecutionMode = "auto";
-    state.analysisSelectedCatalogItemId = "";
+    if (!state.analysisSelectedCatalogItemId) {
+      state.analysisExecutionMode = "auto";
+    }
     analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
@@ -1300,6 +1329,11 @@ function bindEvents() {
   };
   refs.analysisAssayDatasetListEl && refs.analysisAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
   refs.analysisCatalogAssayDatasetListEl && refs.analysisCatalogAssayDatasetListEl.addEventListener("change", handleAssayDatasetListChange);
+  refs.analysisCatalogAssayPanelEl && refs.analysisCatalogAssayPanelEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-analysis-setup-action]");
+    if (!button || !refs.analysisCatalogAssayPanelEl.contains(button)) return;
+    void analysisCatalogUi.handleAnalysisSetupAction(button.dataset.analysisSetupAction || "");
+  });
   refs.assayModalityTabsEl && refs.assayModalityTabsEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-assay-modality-filter]");
     if (!button || !refs.assayModalityTabsEl.contains(button)) {
@@ -1508,6 +1542,9 @@ function bindEvents() {
     refs.phenoPromptEl.value = button.dataset.phenoPrompt || "";
     phenoUi.handlePhenoPromptEdited();
     refs.phenoPromptEl.focus();
+  });
+  refs.phenoPlanFollowupsEl && refs.phenoPlanFollowupsEl.addEventListener("click", (event) => {
+    phenoUi.handlePhenoPlanFollowUpsClick(event);
   });
   refs.phenoPromptEl && refs.phenoPromptEl.addEventListener("input", () => {
     phenoUi.handlePhenoPromptEdited();

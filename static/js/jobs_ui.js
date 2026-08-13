@@ -4,11 +4,13 @@ export function createJobsUi(ctx) {
     jobsDrawerBtnEl,
     jobsDrawerCountEl,
     jobsDrawerEl,
+    jobsWorkerStatusEl,
     jobsDrawerStatusEl,
     jobsDrawerListEl,
     runHistoryDrawerBtnEl,
     runHistoryDrawerCountEl,
     runHistoryDrawerEl,
+    runHistoryWorkerStatusEl,
     runHistoryDrawerStatusEl,
     runHistoryDrawerListEl,
     runHistoryDeleteAllBtnEl,
@@ -29,6 +31,7 @@ export function createJobsUi(ctx) {
     syncCurrentAnalysisSessionFromUi,
     loadCompletedPhenoJob,
     renderPhenoBackgroundJobBanner,
+    onBackgroundWorkerStatusChanged,
   } = callbacks;
 
   function setJobsDrawerOpen(open) {
@@ -109,6 +112,38 @@ export function createJobsUi(ctx) {
       ? `is-${status}`
       : "";
     return `<span class="job-status-chip ${css}">${escapeHtml(status)}</span>`;
+  }
+
+  function renderBackgroundWorkerStatus() {
+    const targets = [jobsWorkerStatusEl, runHistoryWorkerStatusEl].filter(Boolean);
+    const status = state.backgroundWorkerStatus && typeof state.backgroundWorkerStatus === "object"
+      ? state.backgroundWorkerStatus
+      : null;
+    targets.forEach((target) => {
+      target.classList.remove("is-online", "is-offline", "is-checking");
+      if (!status) {
+        target.classList.add("is-checking");
+        target.textContent = "Checking background workers…";
+        return;
+      }
+      const workerCount = Math.max(0, Number(status.worker_count || 0));
+      const busyCount = Math.max(0, Number(status.busy_worker_count || 0));
+      if (status.available) {
+        target.classList.add("is-online");
+        const activity = busyCount > 0
+          ? `${busyCount} working`
+          : "idle";
+        target.textContent = `Background workers: Online · ${workerCount} ${workerCount === 1 ? "worker" : "workers"} · ${activity}`;
+        return;
+      }
+      target.classList.add("is-offline");
+      const reason = status.redis_available
+        ? "no worker online"
+        : status.dependencies_available
+          ? "Redis unavailable"
+          : "RQ/Redis support unavailable";
+      target.textContent = `Background workers: Offline · ${reason}`;
+    });
   }
 
   function renderExecutionChip(item, surface) {
@@ -265,6 +300,7 @@ export function createJobsUi(ctx) {
 
   function renderJobsDrawer() {
     renderJobsButton();
+    renderBackgroundWorkerStatus();
     if (!jobsDrawerListEl) {
       return;
     }
@@ -294,6 +330,7 @@ export function createJobsUi(ctx) {
 
   function renderRunHistoryDrawer() {
     renderRunHistoryButton();
+    renderBackgroundWorkerStatus();
     if (!runHistoryDrawerListEl) {
       return;
     }
@@ -429,6 +466,7 @@ export function createJobsUi(ctx) {
       }
       return;
     }
+    void loadBackgroundWorkerStatus();
     if (!silent && jobsDrawerStatusEl) {
       jobsDrawerStatusEl.textContent = "Loading queue...";
     }
@@ -439,7 +477,7 @@ export function createJobsUi(ctx) {
       }
       const payload = await response.json();
       state.recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
-      void loadRunHistory({ silent: true });
+      void loadRunHistory({ silent: true, skipWorkerStatus: true });
       void hydrateCompletedAnalysisJobsForCurrentSession();
       renderJobsDrawer();
       if (typeof renderPhenoBackgroundJobBanner === "function") {
@@ -455,6 +493,9 @@ export function createJobsUi(ctx) {
 
   async function loadRunHistory(options = {}) {
     const silent = Boolean(options.silent);
+    if (!options.skipWorkerStatus) {
+      void loadBackgroundWorkerStatus();
+    }
     if (!state.authState || !state.authState.authenticated) {
       state.runHistory = [];
       renderRunHistoryDrawer();
@@ -479,6 +520,32 @@ export function createJobsUi(ctx) {
       if (!silent && runHistoryDrawerStatusEl) {
         runHistoryDrawerStatusEl.textContent = error && error.message ? error.message : "Unable to load run history.";
       }
+    }
+  }
+
+  async function loadBackgroundWorkerStatus() {
+    if (!state.authState || !state.authState.authenticated) {
+      state.backgroundWorkerStatus = null;
+      renderBackgroundWorkerStatus();
+      return;
+    }
+    try {
+      const response = await fetch("/jobs/status");
+      if (!response.ok) throw new Error("Unable to inspect background workers.");
+      state.backgroundWorkerStatus = await response.json();
+    } catch (_error) {
+      state.backgroundWorkerStatus = {
+        available: false,
+        dependencies_available: true,
+        redis_available: false,
+        worker_count: 0,
+        busy_worker_count: 0,
+        activity: "offline",
+      };
+    }
+    renderBackgroundWorkerStatus();
+    if (typeof onBackgroundWorkerStatusChanged === "function") {
+      onBackgroundWorkerStatusChanged(state.backgroundWorkerStatus);
     }
   }
 
@@ -636,6 +703,7 @@ export function createJobsUi(ctx) {
     renderJobsButton,
     renderRunHistoryButton,
     renderJobStatusChip,
+    renderBackgroundWorkerStatus,
     renderJobGroup,
     renderJobCard,
     renderJobsDrawer,
@@ -646,6 +714,7 @@ export function createJobsUi(ctx) {
     hydrateCompletedAnalysisJobsForCurrentSession,
     loadRecentJobs,
     loadRunHistory,
+    loadBackgroundWorkerStatus,
     openJobResult,
     deleteJob,
     deleteRunHistory,

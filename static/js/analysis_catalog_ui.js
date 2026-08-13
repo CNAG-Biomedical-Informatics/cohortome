@@ -24,6 +24,7 @@ export function createAnalysisCatalogUi(ctx) {
     analysisCatalogAssayPanelEl,
     analysisCatalogAssayStatusEl,
     analysisCatalogSetupBadgesEl,
+    analysisSetupChecklistEl,
     analysisCatalogAssayTitleEl,
     analysisCatalogAssayNoteEl,
     analysisFlowBarEl,
@@ -47,6 +48,7 @@ export function createAnalysisCatalogUi(ctx) {
     isWorkspaceAccessible,
     assayDatasetOverlap,
     setAnalysisContextMode,
+    refreshBackgroundWorkerStatus,
   } = callbacks;
 
   function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
@@ -148,12 +150,21 @@ export function createAnalysisCatalogUi(ctx) {
       const scopedPatientIds = state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
         ? state.latestScopedContext.patientIds
         : [];
+      const scopedResultHandle = state.latestScopedContext
+        ? String(state.latestScopedContext.resultHandle || "").trim()
+        : "";
+      const scopedTotalCount = state.latestScopedContext
+        ? Math.max(0, Number(state.latestScopedContext.totalCount || 0))
+        : 0;
       const labelEl = queryMemoryBtnEl.querySelector("span:last-child");
       if (labelEl) {
         if (!scopeAvailable) {
           labelEl.textContent = "Prompt scope";
         } else if (!state.queryFollowMemoryEnabled) {
           labelEl.textContent = "Prompt scope: workspace";
+        } else if (scopedResultHandle) {
+          const unit = state.latestScopedContext && state.latestScopedContext.idType === "sample" ? "samples" : "patients";
+          labelEl.textContent = `Prompt scope: previous result (${scopedTotalCount} ${unit})`;
         } else if (scopedPatientIds.length) {
           labelEl.textContent = `Prompt scope: previous result (${scopedPatientIds.length} patients)`;
         } else {
@@ -278,11 +289,13 @@ export function createAnalysisCatalogUi(ctx) {
     if (!normalized) return "";
     const labels = {
       transcriptomics: "Transcriptomics",
+      methylation: "DNA methylation",
       olink: "OLINK",
       proteomics: "Proteomics",
       genotyping: "Genotyping",
       imaging: "Imaging",
       raw_counts: "Raw counts",
+      m_values: "M-values",
       relative_abundance: "Relative abundance",
       protein_abundance: "Protein abundance",
       allele_dosage: "Allele dosage",
@@ -332,8 +345,11 @@ export function createAnalysisCatalogUi(ctx) {
   function requiresSingleSelectedAssayDataset(item) {
     const itemId = String(item && item.id ? item.id : "").trim();
     return itemId === "transcriptomics-deseq2-differential-expression"
+      || itemId === "transcriptomics-limma-voom-differential-expression"
       || itemId === "transcriptomics-hallmark-pathway-enrichment"
-      || itemId === "transcriptomics-signature-workflow";
+      || itemId === "transcriptomics-signature-workflow"
+      || itemId === "methylation-qc-pca"
+      || itemId === "methylation-limma-differential-methylation";
   }
 
   function analysisCatalogUsageStorageKey() {
@@ -474,6 +490,166 @@ export function createAnalysisCatalogUi(ctx) {
       .slice(0, 4);
   }
 
+  function analysisSetupSteps(item, options = {}) {
+    if (!item) return [];
+    const assumeCatalogSelection = Boolean(options.assumeCatalogSelection);
+    const availability = analysisCatalogUiAvailability(item);
+    const selectedDatasetNames = selectedAnalysisAssayDatasetNames();
+    const steps = [
+      {
+        key: "workspace",
+        label: "Workspace compatibility",
+        detail: availability.available
+          ? "Access, data representation, and required runner are available."
+          : (availability.unavailableReason || "This analysis is unavailable in the current workspace."),
+        complete: availability.available,
+      },
+    ];
+    if (item.default_compare_mode) {
+      const compareEnabled = assumeCatalogSelection || Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
+      const cohortA = Array.isArray(state.savedCohorts)
+        ? state.savedCohorts.find((entry) => String(entry && entry.id ? entry.id : "") === String(state.analysisSelectedSavedCohortId || ""))
+        : null;
+      const cohortB = Array.isArray(state.savedCohorts)
+        ? state.savedCohorts.find((entry) => String(entry && entry.id ? entry.id : "") === String(state.analysisCompareSavedCohortId || ""))
+        : null;
+      const cohortIds = (cohort) => {
+        const sampleIds = Array.isArray(cohort && cohort.sample_ids) ? cohort.sample_ids : [];
+        const patientIds = Array.isArray(cohort && cohort.patient_ids) ? cohort.patient_ids : [];
+        return (sampleIds.length ? sampleIds : patientIds).map((value) => String(value || "").trim()).filter(Boolean);
+      };
+      const cohortAIds = cohortIds(cohortA);
+      const cohortBIds = cohortIds(cohortB);
+      const cohortASet = new Set(cohortAIds);
+      const overlapCount = cohortBIds.filter((value) => cohortASet.has(value)).length;
+      const sameCohort = Boolean(state.analysisSelectedSavedCohortId)
+        && String(state.analysisSelectedSavedCohortId) === String(state.analysisCompareSavedCohortId || "");
+      const cohortBReady = compareEnabled && Boolean(state.analysisCompareSavedCohortId) && !sameCohort && overlapCount === 0;
+      const cohortBDetail = !state.analysisCompareSavedCohortId
+        ? "Attach a different saved cohort as the comparison group."
+        : sameCohort
+          ? "Cohort B must be different from Cohort A."
+          : overlapCount
+            ? `Cohort A and Cohort B overlap by ${overlapCount} ID${overlapCount === 1 ? "" : "s"}; choose disjoint cohorts.`
+            : "Saved Cohort B is attached and disjoint from Cohort A.";
+      steps.push(
+        {
+          key: "cohort-a",
+          label: "Choose Cohort A",
+          detail: state.analysisSelectedSavedCohortId
+            ? "Saved Cohort A is attached."
+            : "Attach a saved cohort as the primary group.",
+          complete: compareEnabled && Boolean(state.analysisSelectedSavedCohortId),
+          action: "choose-cohort-a",
+          actionLabel: "Choose Cohort A",
+        },
+        {
+          key: "cohort-b",
+          label: "Choose Cohort B",
+          detail: cohortBDetail,
+          complete: cohortBReady,
+          action: "choose-cohort-b",
+          actionLabel: "Choose Cohort B",
+        },
+      );
+    }
+    if (item.requires_assays) {
+      const singleAssay = requiresSingleSelectedAssayDataset(item);
+      const selectedCount = selectedDatasetNames.length;
+      let complete = singleAssay ? selectedCount === 1 : selectedCount > 0;
+      let detail = singleAssay
+        ? (selectedCount === 1 ? `Selected assay: ${selectedDatasetNames[0]}.` : selectedCount > 1 ? "Choose exactly one compatible assay." : "Choose one compatible assay.")
+        : (selectedCount ? `${selectedCount} compatible assays selected.` : "Choose at least one compatible assay.");
+      if (complete && singleAssay && item.default_compare_mode) {
+        const overlap = typeof assayDatasetOverlap === "function" ? assayDatasetOverlap(selectedDatasetNames[0]) : null;
+        const minimumOverlap = Math.max(1, Number(item.minimum_samples_per_cohort || 1));
+        if (overlap) {
+          complete = overlap.overlapA >= minimumOverlap && overlap.overlapB >= minimumOverlap;
+          detail = `Selected assay: ${selectedDatasetNames[0]}. Cohort A overlap: ${overlap.overlapA} · Cohort B overlap: ${overlap.overlapB}; ${minimumOverlap} per cohort required.`;
+        }
+      }
+      steps.push({
+        key: "assay",
+        label: singleAssay ? "Choose one assay" : "Choose assay data",
+        detail,
+        complete,
+        action: "choose-assay",
+        actionLabel: "Choose assay",
+      });
+    }
+    const executionMode = String(item.execution_mode || "deterministic").trim().toLowerCase();
+    if (executionMode === "llm_only" || executionMode === "auto") {
+      const lmReady = Boolean(state.lmStatus && state.lmStatus.available === true);
+      steps.push({
+        key: "model",
+        label: executionMode === "llm_only" ? "Language model" : "LLM planner",
+        detail: lmReady ? "The configured language model is available." : "Start or enable the configured language model.",
+        complete: lmReady,
+      });
+    }
+    if (String(item.execution_backend || "").trim().toLowerCase() === "job") {
+      const worker = state.backgroundWorkerStatus && typeof state.backgroundWorkerStatus === "object"
+        ? state.backgroundWorkerStatus
+        : null;
+      const workerCount = worker ? Math.max(0, Number(worker.worker_count || 0)) : 0;
+      steps.push({
+        key: "worker",
+        label: "Background worker",
+        detail: worker && worker.available
+          ? `${workerCount} background ${workerCount === 1 ? "worker is" : "workers are"} online.`
+          : worker
+            ? "No background worker is online. Start Redis and an Analysis worker, then check again."
+            : "Checking the Analysis queue and background worker.",
+        complete: Boolean(worker && worker.available),
+        action: "check-worker",
+        actionLabel: worker ? "Check again" : "Check worker",
+      });
+    }
+    const promptValue = String(
+      String(state.analysisSelectedCatalogItemId || "") === String(item.id || "")
+        ? (analysisPromptEl && analysisPromptEl.value ? analysisPromptEl.value : "")
+        : (item.default_prompt || "")
+    ).trim();
+    steps.push({
+      key: "prompt",
+      label: "Review configured prompt",
+      detail: promptValue ? "The curated prompt is ready for review." : "Add the prompt that describes this run.",
+      complete: Boolean(promptValue),
+      action: "review-prompt",
+      actionLabel: "Review prompt",
+    });
+    return steps;
+  }
+
+  function renderAnalysisSetupChecklist(setupState) {
+    if (!analysisSetupChecklistEl) return;
+    const steps = Array.isArray(setupState && setupState.steps) ? setupState.steps : [];
+    if (!steps.length) {
+      analysisSetupChecklistEl.innerHTML = "";
+      return;
+    }
+    const firstIncompleteIndex = steps.findIndex((step) => !step.complete);
+    analysisSetupChecklistEl.innerHTML = steps.map((step, index) => {
+      const current = index === firstIncompleteIndex;
+      const stateClass = step.complete ? "is-complete" : current ? "is-current" : "is-waiting";
+      const stateLabel = step.complete ? "Done" : current ? "Next" : "Waiting";
+      const action = current && step.action
+        ? `<button type="button" class="query-chip action" data-analysis-setup-action="${escapeHtml(step.action)}">${escapeHtml(step.actionLabel || "Continue")}</button>`
+        : "";
+      return `
+        <div class="analysis-setup-check ${stateClass}" data-analysis-setup-step="${escapeHtml(step.key)}">
+          <span class="analysis-setup-check-index" aria-hidden="true">${step.complete ? "✓" : index + 1}</span>
+          <span class="analysis-setup-check-copy">
+            <strong>${escapeHtml(step.label)}</strong>
+            <small>${escapeHtml(step.detail)}</small>
+          </span>
+          <span class="analysis-setup-check-state">${stateLabel}</span>
+          ${action}
+        </div>
+      `;
+    }).join("");
+  }
+
   function syncAnalysisCatalogControls() {
     const query = String(state.analysisCatalogQuery || "");
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
@@ -504,6 +680,7 @@ export function createAnalysisCatalogUi(ctx) {
       analysisComposerSetupEl.classList.toggle("is-hidden", !hasSelectedItem);
     }
     if (!hasSelectedItem) {
+      renderAnalysisSetupChecklist({ steps: [] });
       if (analysisCatalogSetupBadgesEl) {
         analysisCatalogSetupBadgesEl.innerHTML = "";
       }
@@ -528,6 +705,7 @@ export function createAnalysisCatalogUi(ctx) {
     const compareRequired = Boolean(item && item.default_compare_mode);
     const selectedDatasetNames = selectedAnalysisAssayDatasetNames();
     const setupState = selectedAnalysisSetupState(item);
+    renderAnalysisSetupChecklist(setupState);
     if (analysisCatalogAssayTitleEl) {
       analysisCatalogAssayTitleEl.textContent = item && item.name ? item.name : "Analysis setup";
     }
@@ -592,10 +770,11 @@ export function createAnalysisCatalogUi(ctx) {
           ? assayDatasetOverlap(selectedDatasetNames[0])
           : null;
         if (overlap && item && item.default_compare_mode) {
+          const minimumOverlap = Math.max(1, Number(item.minimum_samples_per_cohort || 1));
           const overlapMessage = `Cohort A overlap: ${overlap.overlapA}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` · Cohort B overlap: ${overlap.overlapB}` : ""}.`;
           const statusMessage = setupState.ready
             ? `Selected assay: ${selectedDatasetNames[0]}. ${overlapMessage} Ready to run.`
-            : `Selected assay: ${selectedDatasetNames[0]}. ${overlapMessage} This assay tool requires at least one sample in both cohorts.`;
+            : `Selected assay: ${selectedDatasetNames[0]}. ${overlapMessage} This assay tool requires at least ${minimumOverlap} samples in both cohorts.`;
           analysisCatalogAssayStatusEl.textContent = statusMessage;
           if (analysisComposerSetupStatusEl) {
             analysisComposerSetupStatusEl.textContent = statusMessage;
@@ -660,26 +839,32 @@ export function createAnalysisCatalogUi(ctx) {
     const item = currentAnalysisCatalogItem();
     const setupState = selectedAnalysisSetupState(item);
     const hasItem = Boolean(item);
-    const requirementsReady = hasItem ? setupState.ready : true;
-    const runBlocked = hasItem && !requirementsReady;
+    const setupSteps = Array.isArray(setupState.steps)
+      ? setupState.steps.filter((step) => step.key !== "prompt")
+      : [];
+    const incompleteSetupCount = setupSteps.filter((step) => !step.complete).length;
+    const requirementsReady = !hasItem || incompleteSetupCount === 0;
     const resultsLabel = analysisFlowResultsLabel();
     const hasPrompt = Boolean(analysisPromptEl && analysisPromptEl.value.trim());
     const activeTarget = state.analysisInFlight
-      ? "run"
+      ? "results"
       : resultsLabel === "Generated" || resultsLabel === "Job queued" || resultsLabel === "Error"
         ? "results"
-        : runBlocked
-          ? "catalog"
+        : !requirementsReady
+            ? "requirements"
           : "prompt";
     const steps = {
-      scope: { value: analysisFlowScopeLabel(), state: "is-ready" },
       catalog: {
-        value: hasItem ? (requirementsReady ? String(item.name || "Selected") : "Needs setup") : "Optional",
-        state: hasItem ? (requirementsReady ? "is-ready" : "is-blocked") : "is-neutral",
+        value: hasItem ? String(item.name || "Selected") : "Quick prompt",
+        state: hasItem ? "is-ready" : "is-neutral",
+      },
+      requirements: {
+        value: !hasItem ? "No extra setup" : requirementsReady ? `${analysisFlowScopeLabel()} ready` : `${incompleteSetupCount} step${incompleteSetupCount === 1 ? "" : "s"} remaining`,
+        state: requirementsReady ? "is-ready" : "is-blocked",
       },
       prompt: {
-        value: state.analysisInFlight ? "Running" : (runBlocked ? "Blocked" : (hasPrompt ? "Ready" : "Needs text")),
-        state: state.analysisInFlight ? "is-running" : (runBlocked || !hasPrompt ? "is-blocked" : "is-ready"),
+        value: state.analysisInFlight ? "Running" : (!requirementsReady ? "Waiting for setup" : (hasPrompt ? "Ready" : "Needs text")),
+        state: state.analysisInFlight ? "is-running" : (!requirementsReady ? "is-neutral" : (!hasPrompt ? "is-blocked" : "is-ready")),
       },
       results: {
         value: resultsLabel,
@@ -706,99 +891,78 @@ export function createAnalysisCatalogUi(ctx) {
   }
 
   function selectedAnalysisSetupState(item, options = {}) {
-    const assumeCatalogSelection = Boolean(options.assumeCatalogSelection);
     const availability = analysisCatalogUiAvailability(item);
     if (!item) {
-      return { ready: false, message: "", availability };
+      return { ready: false, message: "", availability, steps: [] };
     }
-    if (!availability.available) {
-      return {
-        ready: false,
-        message: availability.unavailableReason || "This analysis is unavailable in the current workspace.",
-        availability,
-      };
-    }
-    if (String(item.execution_mode || "auto").trim().toLowerCase() === "llm_only" && (!state.lmStatus || state.lmStatus.available !== true)) {
-      return {
-        ready: false,
-        message: "LLM is unavailable for this analysis.",
-        availability,
-      };
-    }
-    if (String(item.execution_mode || "auto").trim().toLowerCase() === "auto" && (!state.lmStatus || state.lmStatus.available !== true)) {
-      return {
-        ready: false,
-        message: "LLM planner is unavailable for this analysis.",
-        availability,
-      };
-    }
-    if (item.default_compare_mode) {
-      const compareModeWillBeEnabled = assumeCatalogSelection || (analysisCompareModeEl && analysisCompareModeEl.checked);
-      if (!compareModeWillBeEnabled) {
-        return {
-          ready: false,
-          message: "Enable compare mode for this analysis.",
-          availability,
-        };
-      }
-      if (!(state.analysisSelectedSavedCohortId && state.analysisCompareSavedCohortId)) {
-        return {
-          ready: false,
-          message: "Select saved Cohort A and saved Cohort B for this analysis.",
-          availability,
-        };
-      }
+    const steps = analysisSetupSteps(item, options);
+    const firstIncomplete = steps.find((step) => !step.complete);
+    if (firstIncomplete) {
+      return { ready: false, message: firstIncomplete.detail, availability, steps };
     }
     const selectedDatasetNames = selectedAnalysisAssayDatasetNames();
-    if (item.requires_assays) {
-      if (requiresSingleSelectedAssayDataset(item)) {
-        if (selectedDatasetNames.length !== 1) {
-          return {
-            ready: false,
-            message: selectedDatasetNames.length
-              ? "Choose exactly one assay for this analysis."
-              : "Choose one assay for this analysis.",
-            availability,
-          };
-        }
-        const overlap = typeof assayDatasetOverlap === "function"
-          ? assayDatasetOverlap(selectedDatasetNames[0])
-          : null;
-        if (overlap && item.default_compare_mode && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
-          return {
-            ready: false,
-            message: `Selected assay "${selectedDatasetNames[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}.`,
-            availability,
-          };
-        }
-        return {
-          ready: true,
-          message: overlap && item.default_compare_mode
-            ? `Ready to run with ${selectedDatasetNames[0]}. Cohort A overlap: ${overlap.overlapA} · Cohort B overlap: ${overlap.overlapB}.`
-            : `Ready to run with ${selectedDatasetNames[0]}.`,
-          availability,
-        };
-      }
-      if (!selectedDatasetNames.length) {
-        return {
-          ready: false,
-          message: "Choose at least one assay for this analysis.",
-          availability,
-        };
-      }
-      return {
-        ready: true,
-        message: `Ready to run with ${selectedDatasetNames.length} assay${selectedDatasetNames.length === 1 ? "" : "s"}.`,
-        availability,
-      };
-    }
+    const message = item.requires_assays
+      ? `Ready to run with ${requiresSingleSelectedAssayDataset(item) ? selectedDatasetNames[0] : `${selectedDatasetNames.length} assay${selectedDatasetNames.length === 1 ? "" : "s"}`}.`
+      : item.default_compare_mode
+        ? "Ready to run with the selected Cohort A and Cohort B."
+        : "Ready to run with the current Analysis scope.";
     return {
       ready: true,
-      message: item.default_compare_mode
-        ? "Ready to run with the selected Cohort A and Cohort B."
-        : "Ready to run with the current Analysis scope.",
+      message,
       availability,
+      steps,
     };
+  }
+
+  function focusFirstIncompleteAnalysisSetup() {
+    const current = analysisSetupChecklistEl
+      ? analysisSetupChecklistEl.querySelector(".analysis-setup-check.is-current")
+      : null;
+    const target = current || analysisCatalogAssayPanelEl;
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    const action = current ? current.querySelector("[data-analysis-setup-action]") : null;
+    if (action) action.focus({ preventScroll: true });
+  }
+
+  async function handleAnalysisSetupAction(actionName) {
+    const action = String(actionName || "").trim();
+    if (action === "choose-cohort-a" || action === "choose-cohort-b") {
+      const setup = document.getElementById("analysisWorkspaceSetup");
+      const saved = setup ? setup.querySelector(".analysis-setup-saved-cohorts") : null;
+      if (setup) setup.open = true;
+      if (saved) saved.open = true;
+      const selector = action === "choose-cohort-b"
+        ? "[data-saved-cohort-action='load-analysis-b']"
+        : "[data-saved-cohort-action='load-analysis']";
+      const target = saved || setup;
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.requestAnimationFrame(() => {
+        const choice = saved ? saved.querySelector(selector) : null;
+        if (choice) choice.focus({ preventScroll: true });
+        else if (saved) saved.querySelector("summary")?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    if (action === "choose-assay") {
+      if (analysisCatalogAssayDatasetListEl) {
+        analysisCatalogAssayDatasetListEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        const choice = analysisCatalogAssayDatasetListEl.querySelector("input[type='checkbox']");
+        if (choice) choice.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (action === "check-worker") {
+      if (typeof refreshBackgroundWorkerStatus === "function") {
+        await refreshBackgroundWorkerStatus();
+      }
+      renderAnalysisCatalog();
+      focusFirstIncompleteAnalysisSetup();
+      return;
+    }
+    if (action === "review-prompt" && analysisPromptEl) {
+      analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      analysisPromptEl.focus({ preventScroll: true });
+    }
   }
 
   function renderAnalysisCatalogCard(item, options = {}) {
@@ -1114,7 +1278,16 @@ export function createAnalysisCatalogUi(ctx) {
     }
     setAnalysisCatalogDrawerOpen(false);
     renderAnalysisCatalogDisclosureSummary();
-    analysisPromptEl && analysisPromptEl.focus();
+    if (String(item.execution_backend || "").trim().toLowerCase() === "job"
+      && !state.backgroundWorkerStatus
+      && typeof refreshBackgroundWorkerStatus === "function") {
+      void refreshBackgroundWorkerStatus();
+    }
+    if (setupState.ready) {
+      analysisPromptEl && analysisPromptEl.focus();
+    } else {
+      window.requestAnimationFrame(focusFirstIncompleteAnalysisSetup);
+    }
   }
 
   return {
@@ -1142,5 +1315,7 @@ export function createAnalysisCatalogUi(ctx) {
     setAnalysisCatalogFilter,
     loadAnalysisCatalog,
     applyAnalysisCatalogItemById,
+    focusFirstIncompleteAnalysisSetup,
+    handleAnalysisSetupAction,
   };
 }

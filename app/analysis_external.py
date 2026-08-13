@@ -33,6 +33,8 @@ RSCRIPT_RUNNERS = {
     "transcriptomics_deseq2_differential_expression": SCRIPTS_DIR / "analysis_r_deseq2_differential_expression.R",
     "transcriptomics_limma_voom_differential_expression": SCRIPTS_DIR / "analysis_r_limma_voom_differential_expression.R",
     "transcriptomics_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
+    "methylation_qc_pca": SCRIPTS_DIR / "analysis_r_methylation_qc_pca.R",
+    "methylation_limma_differential_methylation": SCRIPTS_DIR / "analysis_r_methylation_limma.R",
 }
 SNAKEMAKE_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
@@ -223,6 +225,38 @@ def _write_command_logs(
     (target_dir / "command.txt").write_text(" ".join(command), encoding="utf-8")
     (target_dir / "stdout.txt").write_text(stdout or "", encoding="utf-8")
     (target_dir / "stderr.txt").write_text(stderr or "", encoding="utf-8")
+
+
+def _redact_command_value(command: List[str], flag: str, replacement: str) -> List[str]:
+    """Return a persisted/public command with one sensitive argument hidden."""
+    redacted = list(command)
+    try:
+        index = redacted.index(flag)
+    except ValueError:
+        return redacted
+    if index + 1 < len(redacted):
+        redacted[index + 1] = replacement
+    return redacted
+
+
+def _redact_command_job_paths(command: List[str], job_root: Path) -> List[str]:
+    redacted: List[str] = []
+    root = job_root.resolve()
+    for raw_value in command:
+        value = str(raw_value)
+        try:
+            path = Path(value)
+            resolved = path.resolve() if path.is_absolute() else None
+            relative = resolved.relative_to(root) if resolved is not None else None
+        except (OSError, ValueError):
+            relative = None
+        if relative is None:
+            redacted.append(value)
+        elif str(relative) == ".":
+            redacted.append("[job artifacts]")
+        else:
+            redacted.append(f"[job artifacts]/{relative.as_posix()}")
+    return redacted
 
 
 def _write_workflow_manifest(path: Path, payload: Dict[str, Any]) -> None:
@@ -419,7 +453,7 @@ def _export_manifest_count_like_matrix(
     if not item:
         raise RuntimeError(f"Assay '{dataset_name}' is missing its declared matrix metadata.")
     relative_file = str(item.get("file") or "").strip()
-    root = resolve_project_data_dir(data_dir).resolve()
+    root = query_store_module._manifest_item_root(data_dir, item)
     matrix_path = (root / relative_file).resolve()
     try:
         matrix_path.relative_to(root)
@@ -745,6 +779,469 @@ def _prepare_transcriptomics_differential_expression_bundle(
     }
 
 
+def _tabular_delimiter(header_line: str) -> str:
+    candidates = ("\t", ";", ",")
+    parsed_widths = {
+        delimiter: len(next(csv.reader([str(header_line or "")], delimiter=delimiter), []))
+        for delimiter in candidates
+    }
+    return max(candidates, key=lambda value: parsed_widths[value])
+
+
+def _choose_methylation_assay(data_dir: str, requested_name: str = "") -> Dict[str, Any]:
+    compatible: List[Dict[str, Any]] = []
+    for raw_item in query_store_module._assay_manifest_items(data_dir):
+        item = dict(raw_item or {})
+        modality = str(item.get("modality") or "").strip().lower().replace("-", "_")
+        data_type = str(item.get("data_type") or "").strip().lower()
+        if modality not in {"methylation", "dna_methylation"} or data_type != "m_values":
+            continue
+        assay_id = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
+        if not assay_id:
+            continue
+        item["assay_id"] = assay_id
+        compatible.append(item)
+
+    wanted = str(requested_name or "").strip()
+    if wanted:
+        for item in compatible:
+            if item["assay_id"] == wanted:
+                return item
+        raise RuntimeError(f"Methylation M-value assay '{wanted}' is not available in the current workspace.")
+    if not compatible:
+        raise RuntimeError("No manifest-backed methylation M-value assay is available in the current workspace.")
+    if len(compatible) != 1:
+        raise RuntimeError("Methylation analysis requires one explicitly selected M-value assay.")
+    return compatible[0]
+
+
+def _resolve_assay_manifest_file(
+    data_dir: str,
+    item: Dict[str, Any],
+    field: str,
+    *,
+    required: bool,
+) -> Path | None:
+    relative_file = str(item.get(field) or "").strip()
+    if not relative_file:
+        if required:
+            raise RuntimeError(f"Assay '{item.get('assay_id') or 'selected assay'}' is missing its {field} declaration.")
+        return None
+    root = query_store_module._manifest_item_root(data_dir, item)
+    path = (root / relative_file).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        raise RuntimeError(f"Assay '{item.get('assay_id') or 'selected assay'}' uses an invalid {field} location.") from None
+    if not path.is_file():
+        raise RuntimeError(f"Assay '{item.get('assay_id') or 'selected assay'}' declared {field} is unavailable.")
+    return path
+
+
+def _methylation_matrix_header(matrix_path: Path, assay_id: str) -> List[str]:
+    try:
+        with matrix_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            first_line = handle.readline()
+            if not first_line:
+                raise RuntimeError(f"Methylation assay '{assay_id}' matrix is empty.")
+            delimiter = _tabular_delimiter(first_line)
+            handle.seek(0)
+            header = next(csv.reader(handle, delimiter=delimiter), [])
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"Methylation assay '{assay_id}' matrix header cannot be read.") from exc
+    if len(header) < 3:
+        raise RuntimeError(f"Methylation assay '{assay_id}' requires a feature column and at least two sample columns.")
+    sample_ids = [str(value or "").strip() for value in header[1:]]
+    if any(not value for value in sample_ids):
+        raise RuntimeError(f"Methylation assay '{assay_id}' matrix contains an empty sample identifier.")
+    if len(set(sample_ids)) != len(sample_ids):
+        raise RuntimeError(f"Methylation assay '{assay_id}' matrix contains duplicate sample identifiers.")
+    return sample_ids
+
+
+def _manifest_analysis_covariates(item: Dict[str, Any]) -> List[str]:
+    raw_covariates = item.get("analysis_covariates")
+    if raw_covariates is None:
+        return []
+    if not isinstance(raw_covariates, list):
+        raise RuntimeError("Methylation analysis_covariates must be a list.")
+    covariates: List[str] = []
+    reserved = {"sample_id", "patient_id", "cohort", "group_label"}
+    for raw_value in raw_covariates:
+        value = str(raw_value or "").strip()
+        if not value:
+            raise RuntimeError("Methylation analysis_covariates must not contain empty names.")
+        if value in reserved:
+            raise RuntimeError(f"Methylation analysis covariate '{value}' is reserved.")
+        if value in covariates:
+            raise RuntimeError(f"Methylation analysis covariate '{value}' is declared more than once.")
+        if "\n" in value or "\r" in value or "\t" in value or "," in value:
+            raise RuntimeError("Methylation analysis covariate names must not contain tabs, commas, or newlines.")
+        covariates.append(value)
+    return covariates
+
+
+def _manifest_analysis_covariate_types(item: Dict[str, Any], covariates: List[str]) -> Dict[str, str]:
+    raw_types = item.get("analysis_covariate_types")
+    if not covariates:
+        if raw_types not in (None, {}):
+            raise RuntimeError("Methylation analysis_covariate_types requires matching analysis_covariates.")
+        return {}
+    if not isinstance(raw_types, dict):
+        raise RuntimeError(
+            "Methylation analysis_covariate_types must declare numeric or categorical for every analysis covariate."
+        )
+    extra_names = sorted(str(value or "").strip() for value in raw_types if str(value or "").strip() not in covariates)
+    if extra_names:
+        raise RuntimeError(
+            "Methylation analysis_covariate_types includes undeclared covariates: " + ", ".join(extra_names) + "."
+        )
+    normalized: Dict[str, str] = {}
+    for covariate in covariates:
+        value = str(raw_types.get(covariate) or "").strip().lower()
+        if value not in {"numeric", "categorical"}:
+            raise RuntimeError(
+                f"Methylation analysis covariate '{covariate}' must have type numeric or categorical."
+            )
+        normalized[covariate] = value
+    return normalized
+
+
+def _read_manifest_sample_metadata(
+    data_dir: str,
+    item: Dict[str, Any],
+    covariates: List[str],
+) -> Dict[str, Dict[str, str]]:
+    metadata_path = _resolve_assay_manifest_file(
+        data_dir,
+        item,
+        "sample_metadata_file",
+        required=True,
+    )
+    assert metadata_path is not None
+    try:
+        with metadata_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            first_line = handle.readline()
+            if not first_line:
+                raise RuntimeError(f"Methylation assay '{item['assay_id']}' sample metadata is empty.")
+            delimiter = _tabular_delimiter(first_line)
+            handle.seek(0)
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            fieldnames = [str(value or "").strip() for value in (reader.fieldnames or [])]
+            if any(not value for value in fieldnames) or len(set(fieldnames)) != len(fieldnames):
+                raise RuntimeError("Methylation sample metadata contains empty or duplicate column names.")
+            required_columns = {"sample_id", "patient_id"}
+            if not required_columns.issubset(fieldnames):
+                raise RuntimeError("Methylation sample metadata must contain sample_id and patient_id columns.")
+            missing_covariates = [value for value in covariates if value not in fieldnames]
+            if missing_covariates:
+                raise RuntimeError(
+                    "Methylation sample metadata is missing declared analysis covariates: "
+                    + ", ".join(missing_covariates)
+                    + "."
+                )
+            rows: Dict[str, Dict[str, str]] = {}
+            for raw_row in reader:
+                if None in raw_row:
+                    raise RuntimeError("Methylation sample metadata contains an ambiguous row with extra fields.")
+                row = {str(key or "").strip(): str(value or "").strip() for key, value in raw_row.items()}
+                sample_id = row.get("sample_id", "")
+                if not sample_id:
+                    raise RuntimeError("Methylation sample metadata contains an empty sample identifier.")
+                if sample_id in rows:
+                    raise RuntimeError("Methylation sample metadata contains duplicate sample identifiers.")
+                if not row.get("patient_id", ""):
+                    raise RuntimeError("Methylation sample metadata contains an empty patient identifier.")
+                rows[sample_id] = row
+    except (OSError, UnicodeDecodeError, csv.Error) as exc:
+        raise RuntimeError(f"Methylation assay '{item['assay_id']}' sample metadata cannot be read.") from exc
+    return rows
+
+
+def _methylation_sample_rows(
+    sample_ids: List[str],
+    metadata: Dict[str, Dict[str, str]],
+    *,
+    covariates: List[str],
+    selected_patient_ids: str,
+    compare_selected_patient_ids: str,
+    require_compare: bool,
+) -> List[Dict[str, str]]:
+    cohort_a_tokens = set(_assay_scope_tokens(selected_patient_ids))
+    cohort_b_tokens = set(_assay_scope_tokens(compare_selected_patient_ids))
+    cohort_a_selected = bool(cohort_a_tokens)
+    cohort_b_selected = bool(cohort_b_tokens)
+    if require_compare and (not cohort_a_selected or not cohort_b_selected):
+        raise RuntimeError("Differential methylation requires both Cohort A and Cohort B.")
+
+    use_workspace = not cohort_a_selected and not cohort_b_selected
+    rows: List[Dict[str, str]] = []
+    for sample_id in sample_ids:
+        source = dict(metadata[sample_id])
+        patient_id = str(source["patient_id"]).strip()
+        belongs_to_a = sample_id in cohort_a_tokens or patient_id in cohort_a_tokens
+        belongs_to_b = sample_id in cohort_b_tokens or patient_id in cohort_b_tokens
+        if belongs_to_a and belongs_to_b:
+            raise RuntimeError("Methylation analysis requires disjoint sample selections across Cohort A and Cohort B.")
+        if use_workspace:
+            cohort = "Workspace"
+        elif belongs_to_a:
+            cohort = "A"
+        elif belongs_to_b:
+            cohort = "B"
+        else:
+            continue
+        row = {
+            "sample_id": sample_id,
+            "patient_id": patient_id,
+            "cohort": cohort,
+            "group_label": "Workspace" if cohort == "Workspace" else f"Cohort {cohort}",
+        }
+        for covariate in covariates:
+            row[covariate] = str(source.get(covariate) or "").strip()
+        rows.append(row)
+
+    if not rows:
+        raise RuntimeError("No methylation samples overlap the current Analysis scope.")
+    if require_compare:
+        cohort_a_count = sum(row["cohort"] == "A" for row in rows)
+        cohort_b_count = sum(row["cohort"] == "B" for row in rows)
+        if cohort_a_count < 2 or cohort_b_count < 2:
+            raise RuntimeError(
+                "Differential methylation requires at least two samples in Cohort A and two samples in Cohort B."
+            )
+        patient_counts = Counter(row["patient_id"] for row in rows)
+        if any(value > 1 for value in patient_counts.values()):
+            raise RuntimeError(
+                "Differential methylation v1 requires one sample per patient and cannot reuse a patient across cohorts."
+            )
+    elif len(rows) < 2:
+        raise RuntimeError("Methylation QC and PCA requires at least two samples in the current scope.")
+    return rows
+
+
+def _prepare_methylation_analysis_bundle(
+    data_dir: str,
+    *,
+    prompt: str,
+    assay_id: str,
+    selected_patient_ids: str,
+    compare_selected_patient_ids: str,
+    output_dir: Path,
+    analysis_type: str,
+) -> Dict[str, Any]:
+    if analysis_type not in {"qc_pca", "differential_methylation"}:
+        raise RuntimeError(f"Unsupported methylation analysis type '{analysis_type}'.")
+    if len(query_store_module._workspace_dataset_ids(data_dir)) > 1:
+        raise RuntimeError(
+            "Methylation analysis v1 supports single-dataset workspaces only; "
+            "select exactly one dataset before running this analysis."
+        )
+    item = _choose_methylation_assay(data_dir, assay_id)
+    dataset_name = str(item["assay_id"])
+    matrix_path = _resolve_assay_manifest_file(data_dir, item, "file", required=True)
+    assert matrix_path is not None
+    matrix_sample_ids = _methylation_matrix_header(matrix_path, dataset_name)
+    declared_covariates = _manifest_analysis_covariates(item)
+    covariate_types = _manifest_analysis_covariate_types(item, declared_covariates)
+    if not str(item.get("sample_metadata_file") or "").strip():
+        raise RuntimeError(
+            f"Assay '{dataset_name}' is missing its sample_metadata_file declaration; "
+            "methylation runners require explicit sample-to-patient linkage."
+        )
+    root = query_store_module._manifest_item_root(data_dir, item)
+    try:
+        linkage = query_store_module._manifest_assay_sample_patient_links(
+            root,
+            item,
+            matrix_sample_ids,
+            require_complete_metadata=True,
+        )
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    metadata = _read_manifest_sample_metadata(data_dir, item, declared_covariates)
+    explicit_links = dict(linkage.get("links") or {})
+    for sample_id, patient_id in explicit_links.items():
+        if str(metadata[sample_id].get("patient_id") or "").strip() != str(patient_id or "").strip():
+            raise RuntimeError("Methylation sample metadata produced ambiguous patient linkage.")
+    sample_rows = _methylation_sample_rows(
+        matrix_sample_ids,
+        metadata,
+        covariates=declared_covariates,
+        selected_patient_ids=selected_patient_ids,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+        require_compare=analysis_type == "differential_methylation",
+    )
+    clinical_patient_ids = set(query_store_module.patient_inventory(data_dir))
+    selected_patient_ids_set = {str(row.get("patient_id") or "").strip() for row in sample_rows}
+    selected_patient_ids_set.discard("")
+    missing_clinical_link_count = len(selected_patient_ids_set - clinical_patient_ids)
+    if not clinical_patient_ids or missing_clinical_link_count:
+        raise RuntimeError(
+            "Methylation analysis requires explicit clinical linkage for every selected patient; "
+            f"{missing_clinical_link_count or len(selected_patient_ids_set)} selected patient(s) are not linked."
+        )
+
+    invalid_numeric_covariates: List[str] = []
+    for covariate, covariate_type in covariate_types.items():
+        if covariate_type != "numeric":
+            continue
+        for row in sample_rows:
+            raw_value = str(row.get(covariate) or "").strip()
+            if not raw_value:
+                continue
+            try:
+                numeric_value = float(raw_value)
+            except ValueError:
+                invalid_numeric_covariates.append(covariate)
+                break
+            if not math.isfinite(numeric_value):
+                invalid_numeric_covariates.append(covariate)
+                break
+    if invalid_numeric_covariates:
+        raise RuntimeError(
+            "Methylation numeric covariates contain non-numeric or non-finite values: "
+            + ", ".join(sorted(set(invalid_numeric_covariates)))
+            + "."
+        )
+
+    incomplete_covariates = [
+        covariate
+        for covariate in declared_covariates
+        if any(not str(row.get(covariate) or "").strip() for row in sample_rows)
+    ]
+    if incomplete_covariates and analysis_type == "differential_methylation":
+        raise RuntimeError(
+            "Differential methylation requires complete declared covariates; missing values were found for: "
+            + ", ".join(incomplete_covariates)
+            + "."
+        )
+    usable_covariates: List[str] = []
+    dropped_covariates: List[Dict[str, str]] = []
+    for covariate in declared_covariates:
+        if covariate in incomplete_covariates:
+            dropped_covariates.append({"name": covariate, "reason": "incomplete"})
+            continue
+        levels = {str(row.get(covariate) or "").strip() for row in sample_rows}
+        if len(levels) < 2:
+            dropped_covariates.append({"name": covariate, "reason": "constant_in_scope"})
+            continue
+        usable_covariates.append(covariate)
+
+    try:
+        pca_feature_limit = int(item.get("pca_feature_limit") or 5_000)
+    except (TypeError, ValueError):
+        raise RuntimeError("Methylation pca_feature_limit must be an integer.") from None
+    if pca_feature_limit < 100 or pca_feature_limit > 50_000:
+        raise RuntimeError("Methylation pca_feature_limit must be between 100 and 50000.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    sample_table_path = output_dir / "sample_table.tsv"
+    covariates_path = output_dir / "analysis_covariates.tsv"
+    params_path = output_dir / "params.yaml"
+    manifest_path = output_dir / "manifest.yaml"
+    _write_tsv(
+        sample_table_path,
+        ["sample_id", "patient_id", "cohort", "group_label", *declared_covariates],
+        sample_rows,
+    )
+    _write_tsv(
+        covariates_path,
+        ["name", "type"],
+        [{"name": value, "type": covariate_types[value]} for value in usable_covariates],
+    )
+    cohort_counts = Counter(row["cohort"] for row in sample_rows)
+    source_sha256 = str(item.get("sha256") or item.get("checksum") or "").strip()
+    source_fingerprint_status = "declared_not_recomputed" if source_sha256 else "not_declared"
+    adjustment_status = "covariate_adjusted" if usable_covariates else "unadjusted_exploratory"
+    params_payload = {
+        "analysis_type": analysis_type,
+        "method": "streaming_sample_gram_pca" if analysis_type == "qc_pca" else "limma_m_values",
+        "input_data_type": "m_values",
+        "dataset_name": dataset_name,
+        "prompt": str(prompt or "").strip(),
+        "source_matrix": "manifest_backed_external_file",
+        "source_matrix_materialized_in_duckdb": False,
+        "source_matrix_copied_to_job": False,
+        "source_sha256": source_sha256,
+        "source_fingerprint_status": source_fingerprint_status,
+        "source_fingerprint_verified_for_run": False,
+        "declared_feature_count": int(item.get("feature_count") or 0),
+        "declared_covariates": declared_covariates,
+        "analysis_covariate_types": covariate_types,
+        "covariates_used": usable_covariates,
+        "covariates_dropped": dropped_covariates,
+        "adjustment_status": adjustment_status if analysis_type == "differential_methylation" else None,
+        "clinical_linkage_status": "complete_selected_scope",
+        "clinical_linked_patient_count": len(selected_patient_ids_set),
+        "pca_feature_limit": pca_feature_limit if analysis_type == "qc_pca" else None,
+        "missing_value_handling": (
+            "probe_mean_for_pca_and_explicit_sample_qc_counts"
+            if analysis_type == "qc_pca"
+            else "exclude_probes_with_any_missing_selected_sample_value"
+        ),
+        "contrast": {"numerator": "Cohort A", "denominator": "Cohort B"}
+        if analysis_type == "differential_methylation"
+        else None,
+    }
+    _write_yaml(params_path, params_payload)
+    outputs = {
+        "sample_qc": "sample_qc.tsv",
+        "pca_scores": "pca_scores.tsv",
+        "pca_variance": "pca_variance.tsv",
+        "covariate_associations": "pca_covariate_associations.tsv",
+        "summary": "summary.json",
+        "plot": "pca_plot.png",
+    } if analysis_type == "qc_pca" else {
+        "results_table": "dm_results.tsv",
+        "volcano_points": "volcano_points.tsv",
+        "summary": "summary.json",
+        "plot": "volcano_plot.png",
+    }
+    _write_yaml(
+        manifest_path,
+        {
+            "version": 1,
+            "analysis_type": f"methylation_{analysis_type}",
+            "dataset_name": dataset_name,
+            "input_data_type": "m_values",
+            "sample_count": len(sample_rows),
+            "patient_count": len({row["patient_id"] for row in sample_rows}),
+            "cohort_sample_counts": dict(cohort_counts),
+            "inputs": {
+                "matrix": "manifest-backed external assay (not copied)",
+                "sample_table": sample_table_path.name,
+                "analysis_covariates": covariates_path.name,
+                "params": params_path.name,
+            },
+            "outputs": outputs,
+        },
+    )
+    return {
+        "dataset_name": dataset_name,
+        "matrix_path": matrix_path,
+        "sample_table_path": sample_table_path,
+        "covariates_path": covariates_path,
+        "params_path": params_path,
+        "manifest_path": manifest_path,
+        "sample_rows": sample_rows,
+        "sample_count": len(sample_rows),
+        "patient_count": len({row["patient_id"] for row in sample_rows}),
+        "cohort_counts": dict(cohort_counts),
+        "declared_covariates": declared_covariates,
+        "analysis_covariate_types": covariate_types,
+        "covariates_used": usable_covariates,
+        "covariates_dropped": dropped_covariates,
+        "pca_feature_limit": pca_feature_limit,
+        "source_sha256": source_sha256,
+        "source_fingerprint_status": source_fingerprint_status,
+        "source_fingerprint_verified_for_run": False,
+        "adjustment_status": adjustment_status if analysis_type == "differential_methylation" else "not_applicable",
+        "clinical_linkage_status": "complete_selected_scope",
+        "clinical_linked_patient_count": len(selected_patient_ids_set),
+    }
+
+
 def _validate_deseq2_bundle(bundle: Dict[str, Any]) -> None:
     sample_rows = list(bundle.get("sample_table_rows") or [])
     cohort_a_sample_count = int(bundle.get("cohort_a_sample_count") or 0)
@@ -799,6 +1296,8 @@ def run_rscript_analysis(
         raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
     if not script_path.exists():
         raise RuntimeError(f"Configured Rscript analysis is missing: {script_path}")
+    sensitive_command_values: List[str] = []
+    methylation_bundle: Dict[str, Any] | None = None
     with tempfile.TemporaryDirectory(prefix="pn-analysis-rscript-") as temp_dir:
         temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
         temp_path.mkdir(parents=True, exist_ok=True)
@@ -964,27 +1463,151 @@ def run_rscript_analysis(
                 "--plot-file",
                 str(temp_path / "pathway_plot.png"),
             ]
+        elif runner_ref == "methylation_qc_pca":
+            bundle = _prepare_methylation_analysis_bundle(
+                data_dir,
+                prompt=prompt,
+                assay_id=assay_id,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+                analysis_type="qc_pca",
+            )
+            methylation_bundle = bundle
+            matrix_path = str(bundle["matrix_path"])
+            sensitive_command_values.append(matrix_path)
+            command = [
+                binary,
+                str(script_path),
+                "--job-dir",
+                str(temp_path),
+                "--manifest",
+                str(bundle["manifest_path"]),
+                "--params",
+                str(bundle["params_path"]),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--matrix",
+                matrix_path,
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--covariates-file",
+                str(bundle["covariates_path"]),
+                "--feature-limit",
+                str(bundle["pca_feature_limit"]),
+                "--sample-qc",
+                str(temp_path / "sample_qc.tsv"),
+                "--pca-scores",
+                str(temp_path / "pca_scores.tsv"),
+                "--pca-variance",
+                str(temp_path / "pca_variance.tsv"),
+                "--covariate-associations",
+                str(temp_path / "pca_covariate_associations.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "pca_plot.png"),
+            ]
+        elif runner_ref == "methylation_limma_differential_methylation":
+            bundle = _prepare_methylation_analysis_bundle(
+                data_dir,
+                prompt=prompt,
+                assay_id=assay_id,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+                analysis_type="differential_methylation",
+            )
+            methylation_bundle = bundle
+            matrix_path = str(bundle["matrix_path"])
+            sensitive_command_values.append(matrix_path)
+            command = [
+                binary,
+                str(script_path),
+                "--job-dir",
+                str(temp_path),
+                "--manifest",
+                str(bundle["manifest_path"]),
+                "--params",
+                str(bundle["params_path"]),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--matrix",
+                matrix_path,
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--covariates-file",
+                str(bundle["covariates_path"]),
+                "--results-table",
+                str(temp_path / "dm_results.tsv"),
+                "--volcano-table",
+                str(temp_path / "volcano_points.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "volcano_plot.png"),
+            ]
         else:
             raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=max(1, int(timeout_seconds or 30)),
-        )
-    if isinstance(job_dir, Path):
-        (job_dir / "command.txt").write_text(" ".join(command), encoding="utf-8")
-        (job_dir / "stdout.txt").write_text(result.stdout or "", encoding="utf-8")
-        (job_dir / "stderr.txt").write_text(result.stderr or "", encoding="utf-8")
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=max(1, int(timeout_seconds or 30)),
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("External Rscript analysis exceeded its configured time limit.") from None
+        except OSError:
+            raise RuntimeError("External Rscript analysis could not be started.") from None
+    public_command = list(command)
+    public_stdout = result.stdout or ""
+    public_stderr = result.stderr or ""
+    if methylation_bundle is not None:
+        public_command = _redact_command_job_paths(public_command, temp_path)
+        public_stdout = public_stdout.replace(str(temp_path), "[job artifacts]")
+        public_stderr = public_stderr.replace(str(temp_path), "[job artifacts]")
+    for sensitive_value in sensitive_command_values:
+        public_command = _redact_command_value(public_command, "--matrix", "[protected assay matrix]")
+        public_stdout = public_stdout.replace(sensitive_value, "[protected assay matrix]")
+        public_stderr = public_stderr.replace(sensitive_value, "[protected assay matrix]")
+    _write_command_logs(
+        target_dir=job_dir,
+        command=public_command,
+        stdout=public_stdout,
+        stderr=public_stderr,
+    )
     if result.returncode != 0:
-        raise RuntimeError((result.stderr or result.stdout or "External Rscript analysis failed.").strip())
+        raise RuntimeError((public_stderr or public_stdout or "External Rscript analysis failed.").strip())
     try:
-        payload = json.loads(result.stdout)
+        payload = json.loads(public_stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError("External Rscript analysis returned invalid JSON.") from exc
     reply = str(payload.get("reply") or "").strip()
     context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+    if methylation_bundle is not None:
+        context["declared_covariates"] = list(methylation_bundle.get("declared_covariates") or [])
+        context["analysis_covariate_types"] = dict(methylation_bundle.get("analysis_covariate_types") or {})
+        context["covariates_used"] = list(methylation_bundle.get("covariates_used") or [])
+        context["covariates_dropped"] = list(methylation_bundle.get("covariates_dropped") or [])
+        context["source_matrix_copied_to_job"] = False
+        context["source_sha256"] = str(methylation_bundle.get("source_sha256") or "")
+        context["source_fingerprint_status"] = str(
+            methylation_bundle.get("source_fingerprint_status") or "not_declared"
+        )
+        context["source_fingerprint_verified_for_run"] = bool(
+            methylation_bundle.get("source_fingerprint_verified_for_run")
+        )
+        context["adjustment_status"] = str(methylation_bundle.get("adjustment_status") or "not_applicable")
+        context["clinical_linkage_status"] = str(methylation_bundle.get("clinical_linkage_status") or "")
+        context["clinical_linked_patient_count"] = int(
+            methylation_bundle.get("clinical_linked_patient_count") or 0
+        )
     if not reply:
         raise RuntimeError("External Rscript analysis returned an empty reply.")
     return {
@@ -998,7 +1621,7 @@ def run_rscript_analysis(
             "base_url": "",
             "runner_type": "rscript",
             "runner_ref": str(runner_ref or "").strip(),
-            "runner_command": command,
+            "runner_command": public_command,
         },
     }
 

@@ -13,6 +13,14 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.analysis_sessions import get_analysis_session
+from app.auth import auth_enabled, local_users
+from app.config import private_artifact_runtime_is_safe
+from app.datasets import (
+    authorized_datasets_for_user,
+    dataset_scope_id,
+    materialize_dataset_scope,
+    parse_scope_dataset_ids,
+)
 from app.user_state import normalize_user_id, user_state_dir
 from app.env import app_env
 
@@ -26,6 +34,10 @@ JOB_LOG_FILENAMES = {
     "error": "error.txt",
 }
 JOB_STATUS_PRECEDENCE = {"queued": 0, "running": 1, "completed": 2, "failed": 3, "cancelled": 4}
+PRIVATE_METHYLATION_RUNNERS = {
+    "methylation_qc_pca",
+    "methylation_limma_differential_methylation",
+}
 
 
 def _now_iso() -> str:
@@ -57,10 +69,98 @@ def jobs_default_timeout_seconds() -> int:
         return 1800
 
 
+def _analysis_job_user(user_id: str) -> Dict[str, Any]:
+    normalized_user_id = normalize_user_id(user_id)
+    if not auth_enabled():
+        return {
+            "username": normalized_user_id,
+            "role": "admin",
+            "display_name": "Local user",
+            "groups": [],
+            "enabled": True,
+        }
+    matches = [
+        item
+        for item in local_users()
+        if normalize_user_id(str(item.get("username") or "")) == normalized_user_id
+    ]
+    if len(matches) != 1 or not bool(matches[0].get("enabled", True)):
+        raise RuntimeError("Analysis job authorization is no longer valid for this user.")
+    user = matches[0]
+    return {
+        "username": str(user.get("username") or normalized_user_id),
+        "role": str(user.get("role") or "user"),
+        "display_name": str(user.get("display_name") or normalized_user_id),
+        "groups": list(user.get("groups") or []),
+        "enabled": True,
+        "auth_source": str(user.get("auth_source") or "local"),
+    }
+
+
+def _authorize_analysis_scope(user_id: str, stored_dataset_id: str) -> Dict[str, Any]:
+    requested_ids = parse_scope_dataset_ids(stored_dataset_id)
+    if not requested_ids:
+        raise RuntimeError("Analysis job has no valid registered dataset scope.")
+    user = _analysis_job_user(user_id)
+    candidate_map = {
+        str(item.get("dataset_id") or "").strip(): item
+        for item in authorized_datasets_for_user(user)
+    }
+    if any(dataset_id not in candidate_map for dataset_id in requested_ids):
+        raise RuntimeError("Analysis job dataset access was revoked or the dataset is no longer available.")
+    canonical_id = dataset_scope_id(requested_ids)
+    return {
+        "dataset_id": canonical_id,
+        "dataset_ids": parse_scope_dataset_ids(canonical_id),
+        "datasets": [candidate_map[dataset_id] for dataset_id in parse_scope_dataset_ids(canonical_id)],
+    }
+
+
+def _analysis_scope_data_dir(scope: Dict[str, Any]) -> str:
+    dataset_ids = list(scope.get("dataset_ids") or [])
+    datasets = list(scope.get("datasets") or [])
+    if len(dataset_ids) == 1 and len(datasets) == 1:
+        root_path = str(datasets[0].get("root_path") or "").strip()
+        if not root_path:
+            raise RuntimeError("Analysis job dataset files are no longer available.")
+        return str(Path(root_path).expanduser().resolve())
+    if len(dataset_ids) > 1:
+        return materialize_dataset_scope(dataset_ids)
+    raise RuntimeError("Analysis job has no valid registered dataset scope.")
+
+
+def _require_private_methylation_runtime(catalog_item: Dict[str, Any], scope: Dict[str, Any]) -> None:
+    runner_ref = str(catalog_item.get("runner_ref") or "").strip()
+    if runner_ref not in PRIVATE_METHYLATION_RUNNERS:
+        return
+    has_private_dataset = any(
+        str(item.get("data_classification") or "private").strip().lower() == "private"
+        for item in (scope.get("datasets") or [])
+    )
+    if has_private_dataset and not private_artifact_runtime_is_safe():
+        raise RuntimeError(
+            "Private methylation jobs require COHORTOME_RUNTIME_ROOT to be an absolute path "
+            "on protected storage outside the Git checkout."
+        )
+
+
+def _ensure_private_directory(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.chmod(0o700)
+    return path
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    _ensure_private_directory(path.parent)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    path.chmod(0o600)
+
+
 def user_jobs_root(user_id: str) -> Path:
     path = user_state_dir(user_id) / "jobs"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return _ensure_private_directory(path)
 
 
 def job_dir(job_id: str, user_id: str, *, create: bool = False) -> Path:
@@ -71,7 +171,7 @@ def job_dir(job_id: str, user_id: str, *, create: bool = False) -> Path:
     if path != root and root not in path.parents:
         raise HTTPException(status_code=404, detail="Job not found.")
     if create:
-        path.mkdir(parents=True, exist_ok=True)
+        _ensure_private_directory(path)
     return path
 
 
@@ -97,8 +197,7 @@ def _read_json(path: Path) -> Dict[str, Any]:
 
 
 def _write_json(path: Path, payload: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_private_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def _artifact_inventory(path: Path) -> List[Dict[str, Any]]:
@@ -538,15 +637,25 @@ def _rq_queue():
     return Queue(jobs_queue_name(), connection=_rq_connection())
 
 
-def analysis_worker_available() -> bool:
-    if not jobs_enabled():
-        return False
+def analysis_worker_status() -> Dict[str, Any]:
+    status: Dict[str, Any] = {
+        "available": False,
+        "dependencies_available": jobs_enabled(),
+        "redis_available": False,
+        "queue_name": jobs_queue_name(),
+        "worker_count": 0,
+        "busy_worker_count": 0,
+        "activity": "offline",
+    }
+    if not status["dependencies_available"]:
+        return status
     try:
         from rq import Worker
 
         connection = _rq_connection()
         connection.ping()
-        wanted_queue = jobs_queue_name()
+        status["redis_available"] = True
+        wanted_queue = str(status["queue_name"])
         for worker in Worker.all(connection=connection):
             queue_names: List[str] = []
             queue_names_method = getattr(worker, "queue_names", None)
@@ -558,11 +667,30 @@ def analysis_worker_available() -> bool:
             if not queue_names:
                 queue_objects = getattr(worker, "queues", None) or []
                 queue_names = [str(getattr(queue, "name", "") or "").strip() for queue in queue_objects]
-            if wanted_queue in queue_names:
-                return True
+            if wanted_queue not in queue_names:
+                continue
+            status["worker_count"] += 1
+            try:
+                worker_state = str(worker.get_state() or "").strip().lower()
+            except Exception:
+                worker_state = str(getattr(worker, "state", "") or "").strip().lower()
+            if worker_state == "busy":
+                status["busy_worker_count"] += 1
     except Exception:
-        return False
-    return False
+        return status
+    status["available"] = status["worker_count"] > 0
+    status["activity"] = (
+        "working"
+        if status["busy_worker_count"] > 0
+        else "idle"
+        if status["available"]
+        else "offline"
+    )
+    return status
+
+
+def analysis_worker_available() -> bool:
+    return bool(analysis_worker_status()["available"])
 
 
 def enqueue_analysis_job(job_id: str, user_id: str, timeout_seconds: int) -> str:
@@ -604,6 +732,8 @@ def submit_analysis_job(
     compare_selected_patient_ids: str = "",
     compare_mode: bool = False,
 ) -> Dict[str, Any]:
+    scope = _authorize_analysis_scope(user_id, dataset_id)
+    _require_private_methylation_runtime(catalog_item, scope)
     if not jobs_enabled():
         raise RuntimeError("Background jobs require RQ and Redis to be installed and configured.")
     if not analysis_worker_available():
@@ -620,7 +750,7 @@ def submit_analysis_job(
             "feature": "analysis",
             "name": str(catalog_item.get("name") or "").strip() or "Analysis job",
             "prompt": str(prompt or "").strip(),
-            "dataset_id": str(dataset_id or "").strip(),
+            "dataset_id": str(scope.get("dataset_id") or "").strip(),
             "assay_id": str(assay_id or "").strip(),
             "data_dir": str(data_dir or "").strip(),
             "analysis_session_id": normalized_session_id,
@@ -721,11 +851,14 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         runner_type = str(item.get("runner_type") or "").strip().lower()
         if runner_type not in {"rscript", "snakemake", "nextflow", "workflow"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
+        scope = _authorize_analysis_scope(user_id, str(record.get("dataset_id") or ""))
+        _require_private_methylation_runtime(item, scope)
+        resolved_data_dir = _analysis_scope_data_dir(scope)
         payload = run_external_analysis(
             runner_type,
             str(item.get("runner_ref") or "").strip(),
             prompt=str(record.get("prompt") or ""),
-            data_dir=str(record.get("data_dir") or ""),
+            data_dir=resolved_data_dir,
             assay_id=str(record.get("assay_id") or ""),
             selected_patient_ids=str(record.get("selected_patient_ids") or ""),
             compare_selected_patient_ids=str(record.get("compare_selected_patient_ids") or ""),
@@ -751,7 +884,7 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
     except Exception as exc:
         error_text = str(exc).strip() or "Background analysis job failed."
         path = job_dir(job_id, user_id, create=True) / JOB_LOG_FILENAMES["error"]
-        path.write_text(error_text + "\n\n" + traceback.format_exc(), encoding="utf-8")
+        _write_private_text(path, error_text + "\n\n" + traceback.format_exc())
         record = update_job_record(
             job_id,
             user_id,

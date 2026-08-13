@@ -21,6 +21,8 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - Kaplan-Meier curves
 - transcriptomics expression summaries
 - DESeq2 differential expression on one raw-count dataset
+- methylation matrix QC and PCA on one processed M-value dataset
+- limma differential methylation between two cohorts
 - Hallmark pathway enrichment from a DESeq2-ranked comparison
 - curated external analyses through reviewed runners
 
@@ -143,6 +145,20 @@ Selecting a catalog item does not create a separate execution system. It preconf
 - compare-mode defaults when needed
 - the preferred execution mode
 
+For a curated tool, follow the workflow bar in order:
+
+1. choose the analysis
+2. complete its setup checklist
+3. review the configured prompt
+4. run it and inspect the result
+
+The checklist shows only requirements that apply to that tool, such as Cohort A,
+Cohort B, one compatible assay, minimum cohort overlap, a language model, or a
+background worker. `Next` marks the first incomplete requirement and provides a
+button that opens the relevant control. Completed requirements remain visible
+as `Done`; later requirements wait until the preceding step is complete. Quick
+prompts that do not select a curated tool continue to need no extra setup.
+
 The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
 
 ## Analysis workflows
@@ -174,10 +190,12 @@ Examples:
 
 - `DESeq2 differential expression`
 - `Hallmark pathway enrichment`
+- `Methylation QC and PCA`
+- `limma differential methylation`
 
 These tools do not compare two transcriptomics assays against each other.
 
-They use:
+The transcriptomics comparison tools use:
 
 - one selected raw-count transcriptomics assay
 - `Cohort A`
@@ -199,6 +217,10 @@ For the current `DESeq2` and Hallmark pathway tools, the first-version constrain
 In practice, that means baseline-only transcriptomics datasets are the safest first choice.
 
 For the synthetic large transcriptome fixtures, remember that treatment-specific matrices only contain their own patient subset. For example, an `infliximab` matrix does not contain `vedolizumab` patients. If you want a broad split across many synthetic patients, use the baseline matrix for that workspace.
+
+The methylation tools use one selected processed M-value assay. The complete probe matrix remains in its governed dataset release and is read by the curated runner; COHORTome does not materialize all CpG-by-sample values in DuckDB.
+
+`Methylation QC and PCA` checks the supplied matrix and sample linkage in the current Analysis scope. It does not repeat raw-array preprocessing or probe filtering from IDAT files. `limma differential methylation` uses Cohort A and Cohort B as the comparison groups and requires both cohorts to overlap the same selected methylation assay.
 
 
 ## Catalog search, filters, and suggestions
@@ -257,6 +279,8 @@ These labels reflect how the request is routed.
 For `LLM interpretation` prompts, the app no longer silently falls back to a deterministic clinical summary when the provider cannot be used.
 
 Instead, Analysis returns an explicit provider-policy or provider-unavailable message.
+
+Follow-up questions generated beneath an Analysis result are amber and labeled `LLM interpretation`. Selecting one prepares an LLM-only follow-up for the next run; it does not silently switch back to a deterministic analysis route.
 
 ## Compare mode
 

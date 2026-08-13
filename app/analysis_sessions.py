@@ -94,7 +94,8 @@ def _normalize_scope_metadata(value: Any) -> Dict[str, Any]:
         return {}
     sample_ids = _normalize_id_list(value.get("sample_ids"))
     patient_ids = _normalize_id_list(value.get("patient_ids"))
-    if not sample_ids and not patient_ids:
+    query_result_handle = str(value.get("query_result_handle") or "").strip()
+    if not sample_ids and not patient_ids and not query_result_handle:
         return {}
     if not patient_ids and sample_ids:
         patient_ids = sorted({item.split(":", 1)[0].strip() for item in sample_ids if item.split(":", 1)[0].strip()})
@@ -108,6 +109,7 @@ def _normalize_scope_metadata(value: Any) -> Dict[str, Any]:
         "dataset_ids": _normalize_id_list(value.get("dataset_ids")),
         "data_dir": str(value.get("data_dir") or "").strip(),
         "id_type": str(value.get("id_type") or ("sample" if sample_ids and any(":" in item for item in sample_ids) else "patient")).strip(),
+        "query_result_handle": query_result_handle,
         "sample_ids": sample_ids,
         "patient_ids": patient_ids,
         "sample_count": len(sample_ids),

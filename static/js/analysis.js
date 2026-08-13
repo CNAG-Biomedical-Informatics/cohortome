@@ -95,17 +95,29 @@ export function createAnalysisUi(ctx) {
   function requiresSingleSelectedAssayDataset(itemId) {
     const normalized = String(itemId || "").trim();
     return normalized === "transcriptomics-deseq2-differential-expression"
+      || normalized === "transcriptomics-limma-voom-differential-expression"
       || normalized === "transcriptomics-hallmark-pathway-enrichment"
-      || normalized === "transcriptomics-signature-workflow";
+      || normalized === "transcriptomics-signature-workflow"
+      || normalized === "methylation-qc-pca"
+      || normalized === "methylation-limma-differential-methylation";
   }
 
   function isDifferentialExpressionContextMode(mode) {
     const normalized = String(mode || "").trim();
-    return normalized === "external_rscript_transcriptomics_deseq2_differential_expression";
+    return normalized === "external_rscript_transcriptomics_deseq2_differential_expression"
+      || normalized === "external_rscript_transcriptomics_limma_voom_differential_expression";
   }
 
   function isPathwayEnrichmentContextMode(mode) {
     return String(mode || "").trim() === "external_rscript_transcriptomics_hallmark_pathway_enrichment";
+  }
+
+  function isMethylationQcContextMode(mode) {
+    return String(mode || "").trim() === "external_rscript_methylation_qc_pca";
+  }
+
+  function isDifferentialMethylationContextMode(mode) {
+    return String(mode || "").trim() === "external_rscript_methylation_limma_differential_methylation";
   }
 
   function prettyHallmarkLabel(value) {
@@ -194,6 +206,34 @@ export function createAnalysisUi(ctx) {
   function renderBarChartCard(id, title, items, labelKey, valueKey) {
     if (!items.length) return `<div class="viz-card"><h3>${escapeHtml(title)}</h3><div class="empty">No data.</div></div>`;
     return `<div class="viz-card"><h3>${escapeHtml(title)}</h3>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div>`;
+  }
+
+  function formatAnalysisCount(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number).toLocaleString("en-US") : "n/a";
+  }
+
+  function formatAnalysisPercent(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : "n/a";
+  }
+
+  function formatAnalysisPValue(value) {
+    if (value === null || value === undefined || value === "") return "n/a";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "n/a";
+    if (number === 0) return "< 1e-300";
+    return number < 0.001 ? number.toExponential(2) : number.toPrecision(3);
+  }
+
+  function renderAnalysisMetricCards(kind, items) {
+    const cards = (Array.isArray(items) ? items : []).map((item) => `
+      <div class="metric-card">
+        <span>${escapeHtml(String(item && item.label ? item.label : "Metric"))}</span>
+        <strong>${escapeHtml(String(item && item.value !== undefined ? item.value : "n/a"))}</strong>
+      </div>
+    `).join("");
+    return `<div class="metrics-grid" data-analysis-summary="${escapeHtml(kind)}" data-methylation-summary="${escapeHtml(kind)}" style="grid-column: 1 / -1; margin-bottom: 0;">${cards}</div>`;
   }
 
   function renderArtifactDownloads(title, artifacts) {
@@ -302,7 +342,122 @@ export function createAnalysisUi(ctx) {
         ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-pathway-summary`, "Hallmark Summary", pathwaySummaryItems, "label", "value")}
       `;
     }
+    if (isMethylationQcContextMode(context.mode)) {
+      const findArtifact = (name) => artifacts.find((item) => {
+        const artifactName = String(item && item.name ? item.name : "");
+        return artifactName === name || artifactName.endsWith(`/${name}`);
+      });
+      const plotArtifact = findArtifact("pca_plot.png");
+      const sampleQcArtifact = findArtifact("sample_qc.tsv");
+      const scoresArtifact = findArtifact("pca_scores.tsv");
+      const varianceArtifact = findArtifact("pca_variance.tsv");
+      const associationsArtifact = findArtifact("pca_covariate_associations.tsv");
+      const summaryArtifact = findArtifact("summary.json");
+      const manifestArtifact = findArtifact("manifest.yaml");
+      const paramsArtifact = findArtifact("params.yaml");
+      const downloads = renderArtifactDownloads("Result files", [
+        plotArtifact,
+        sampleQcArtifact,
+        scoresArtifact,
+        varianceArtifact,
+        associationsArtifact,
+        summaryArtifact,
+        manifestArtifact,
+        paramsArtifact,
+      ]);
+      const covariates = Array.isArray(context.covariates_used)
+        ? context.covariates_used.map((item) => String(item || "").trim()).filter(Boolean)
+        : [];
+      const covariateText = covariates.length
+        ? `Covariates assessed against the leading components: ${covariates.join(", ")}.`
+        : "No varying declared covariates were available for PCA association checks in this scope.";
+      const strongestCovariate = String(context.strongest_covariate || "").trim();
+      const strongestAdjustedP = context.strongest_covariate_adj_p_value;
+      const strongestAssociation = strongestCovariate
+        ? ` Strongest exploratory association: ${strongestCovariate} with ${String(context.strongest_covariate_component || "a leading component")} (BH-adjusted p = ${formatAnalysisPValue(strongestAdjustedP)}; raw p = ${formatAnalysisPValue(context.strongest_covariate_p_value)}).`
+        : "";
+      const pcaDetails = `${formatAnalysisCount(context.variable_feature_count)} variable CpGs were observed; ${formatAnalysisCount(context.pca_component_count)} principal components were retained.`;
+      const externalMatrixNote = context.source_matrix_materialized_in_duckdb === false
+        ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
+        : "";
+      return `
+        ${renderAnalysisMetricCards("qc", [
+          { label: "Samples", value: formatAnalysisCount(context.sample_count) },
+          { label: "Patients", value: formatAnalysisCount(context.patient_count) },
+          { label: "CpGs scanned", value: formatAnalysisCount(context.observed_feature_count) },
+          { label: "CpGs in PCA", value: formatAnalysisCount(context.pca_feature_count) },
+          { label: "PC1 variance", value: formatAnalysisPercent(context.pc1_variance_fraction) },
+          { label: "PC2 variance", value: formatAnalysisPercent(context.pc2_variance_fraction) },
+          { label: "Missingness", value: formatAnalysisPercent(context.missing_fraction) },
+        ])}
+        <div class="viz-card" data-methylation-result="qc-pca" style="grid-column: 1 / -1;">
+          <h3>Methylation QC and PCA</h3>
+          <p class="section-note">Processed-matrix QC for ${escapeHtml(String(context.dataset_name || "the selected M-value assay"))}. ${escapeHtml(pcaDetails)}</p>
+          <p class="section-note">${escapeHtml(covariateText + strongestAssociation)}</p>
+          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
+          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Methylation PCA plot"></div>` : '<div class="empty">Methylation PCA preview unavailable.</div>'}
+          ${downloads}
+        </div>
+      `;
+    }
+    if (isDifferentialMethylationContextMode(context.mode)) {
+      const findArtifact = (name) => artifacts.find((item) => {
+        const artifactName = String(item && item.name ? item.name : "");
+        return artifactName === name || artifactName.endsWith(`/${name}`);
+      });
+      const plotArtifact = findArtifact("volcano_plot.png");
+      const resultsArtifact = findArtifact("dm_results.tsv");
+      const volcanoArtifact = findArtifact("volcano_points.tsv");
+      const summaryArtifact = findArtifact("summary.json");
+      const manifestArtifact = findArtifact("manifest.yaml");
+      const paramsArtifact = findArtifact("params.yaml");
+      const downloads = renderArtifactDownloads("Result files", [
+        plotArtifact,
+        resultsArtifact,
+        volcanoArtifact,
+        summaryArtifact,
+        manifestArtifact,
+        paramsArtifact,
+      ]);
+      const covariates = Array.isArray(context.covariates_used)
+        ? context.covariates_used.map((item) => String(item || "").trim()).filter(Boolean)
+        : [];
+      const covariateText = covariates.length
+        ? `Adjusted for: ${covariates.join(", ")}.`
+        : "Unadjusted exploratory model: no varying declared covariates were included. Do not interpret disease effects as independent of demographic, cell-composition, or technical confounding.";
+      const topCpg = String(context.top_cpg || "").trim();
+      const topEffectValue = context.top_m_value_difference === null || context.top_m_value_difference === undefined
+        ? NaN
+        : Number(context.top_m_value_difference);
+      const topHitText = topCpg
+        ? `Top CpG: ${topCpg}; M-value difference ${Number.isFinite(topEffectValue) ? topEffectValue.toFixed(3) : "n/a"}; adjusted p = ${formatAnalysisPValue(context.top_adj_p_value)}.`
+        : "No top CpG was reported.";
+      const designText = `Contrast: ${String(context.contrast || "Cohort A - Cohort B")}. Design rank ${formatAnalysisCount(context.design_rank)} with ${formatAnalysisCount(context.residual_degrees_of_freedom)} residual degrees of freedom.`;
+      const externalMatrixNote = context.source_matrix_materialized_in_duckdb === false
+        ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
+        : "";
+      return `
+        ${renderAnalysisMetricCards("differential", [
+          { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
+          { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
+          { label: "CpGs analyzed", value: formatAnalysisCount(context.analyzed_feature_count) },
+          { label: "BH < 0.05", value: formatAnalysisCount(context.significant_cpg_count) },
+          { label: "Higher M in A", value: formatAnalysisCount(context.hypermethylated_cpg_count) },
+          { label: "Lower M in A", value: formatAnalysisCount(context.hypomethylated_cpg_count) },
+        ])}
+        <div class="viz-card" data-methylation-result="differential" style="grid-column: 1 / -1;">
+          <h3>Differential Methylation Volcano Plot</h3>
+          <p class="section-note">limma analysis of supplied processed M-values for ${escapeHtml(String(context.dataset_name || "the selected assay"))}. Positive M-value differences indicate higher methylation in Cohort A.</p>
+          <p class="section-note">${escapeHtml(covariateText)} ${escapeHtml(designText)}</p>
+          <p class="section-note">${escapeHtml(topHitText)}</p>
+          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
+          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Differential methylation volcano plot"></div>` : '<div class="empty">Differential methylation volcano plot preview unavailable.</div>'}
+          ${downloads}
+        </div>
+      `;
+    }
     if (isDifferentialExpressionContextMode(context.mode)) {
+      const isLimmaVoom = String(context.mode || "") === "external_rscript_transcriptomics_limma_voom_differential_expression";
       const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_plot.png");
       const heatmapArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap.png");
       const heatmapTableArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "top_genes_heatmap.tsv");
@@ -312,16 +467,26 @@ export function createAnalysisUi(ctx) {
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
       const downloads = renderArtifactDownloads("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]);
       const summaryItems = [
-        { label: "Dataset", value: String(context.dataset_name || "n/a") },
-        { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
-        { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
-        { label: "Genes tested", value: Number(context.gene_count || 0) },
-        { label: "Significant genes", value: Number(context.significant_gene_count || 0) },
+        { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
+        { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
+        { label: "Input genes", value: formatAnalysisCount(context.tested_gene_count ?? context.gene_count) },
+        { label: "Retained after filtering", value: formatAnalysisCount(context.filtered_gene_count ?? context.gene_count) },
+        { label: "BH < 0.05", value: formatAnalysisCount(context.significant_gene_count) },
       ];
+      const topGene = String(context.top_gene || "").trim();
+      const topLogFc = Number(context.top_log2_fold_change);
+      const topHitText = topGene && topGene !== "n/a"
+        ? `Top-ranked gene: ${topGene}; log2 fold change ${Number.isFinite(topLogFc) ? topLogFc.toFixed(3) : "n/a"}; adjusted p = ${formatAnalysisPValue(context.top_adj_p_value)}. ${Number.isFinite(topLogFc) && topLogFc >= 0 ? "Positive" : "Negative"} values mean higher expression in Cohort ${Number.isFinite(topLogFc) && topLogFc >= 0 ? "A" : "B"}.`
+        : "No top-ranked gene was reported.";
+      const methodText = isLimmaVoom
+        ? "RSEM expected counts are filtered with edgeR filterByExpr, TMM-normalized, transformed to log2-CPM with voom precision weights, then tested with limma empirical Bayes and BH correction. The current model is cohort-only and unadjusted."
+        : "Raw counts are analyzed with DESeq2. Positive log2 fold change means higher expression in Cohort A; negative means higher in Cohort B.";
       return `
-        <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Differential Expression Volcano Plot</h3>
-          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected assay"))}.</p>
+        ${renderAnalysisMetricCards("differential-expression", summaryItems)}
+        <div class="viz-card" data-analysis-result="differential-expression" style="grid-column: 1 / -1;">
+          <h3>${isLimmaVoom ? "limma-voom" : "DESeq2"} Differential Expression</h3>
+          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected assay"))}. ${escapeHtml(methodText)}</p>
+          <p class="section-note">${escapeHtml(topHitText)}</p>
           <div class="analysis-view-tabs" role="tablist" aria-label="Differential expression plot views">
             <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
             <button type="button" class="analysis-view-tab${volcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}" role="tab" aria-selected="false"${volcanoArtifact ? "" : " disabled"}>Interactive plot</button>
@@ -335,7 +500,6 @@ export function createAnalysisUi(ctx) {
           ${downloads}
         </div>
         ${heatmapArtifact ? `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Top Differentially Expressed Genes Heatmap</h3><p class="section-note">Standardized expression heatmap for the top DESeq2-ranked genes across both cohorts.</p><div class="analysis-heatmap-legend" aria-label="Heatmap legend"><span class="analysis-heatmap-legend-label">Lower expression</span><span class="analysis-heatmap-legend-scale" aria-hidden="true"></span><span class="analysis-heatmap-legend-label">Higher expression</span></div><p class="section-note">Blue means lower relative expression for that gene, white is near the gene-level average, and red means higher relative expression.</p><div class="analysis-view-tabs" role="tablist" aria-label="Differential expression heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${heatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${heatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(heatmapArtifact.url || ""))}" alt="Top differentially expressed genes heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}">${heatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>top_genes_heatmap.tsv</code>. The canonical artifact remains <code>top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div>` : ""}
-        ${renderBarChartCard(`analysis-plot-${turnIndex}-de-summary`, "Differential Expression Summary", summaryItems, "label", "value")}
       `;
     }
     if (isPathwayEnrichmentContextMode(context.mode)) {
@@ -1461,7 +1625,10 @@ export function createAnalysisUi(ctx) {
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
       "external_rscript_transcriptomics_deseq2_differential_expression",
+      "external_rscript_transcriptomics_limma_voom_differential_expression",
       "external_rscript_transcriptomics_hallmark_pathway_enrichment",
+      "external_rscript_methylation_qc_pca",
+      "external_rscript_methylation_limma_differential_methylation",
       "workflow_transcriptomics_signature",
       "transcriptomics_medication_compare",
       "trajectory",
@@ -1486,7 +1653,8 @@ export function createAnalysisUi(ctx) {
   function renderAnalysisFollowUps(prompts) {
     const followUps = uniquePrompts(prompts).slice(0, 4);
     if (!followUps.length) return "";
-    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label analysis-section-label">${renderAnalysisIcon("followup")}<span>Suggested follow-up queries</span></div><div class="query-followups-list">${followUps.map((item) => `<button type="button" class="query-chip" data-analysis-followup-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
+    const title = "Uses the LLM to interpret the completed analysis and its workspace context.";
+    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label analysis-section-label">${renderAnalysisIcon("followup")}<span>Suggested follow-up queries</span></div><div class="query-followups-list">${followUps.map((item) => `<button type="button" class="query-chip query-chip-llm" data-analysis-followup-prompt="${escapeHtml(item)}" data-analysis-followup-mode="llm_only" title="${escapeHtml(title)}"><span>${escapeHtml(item)}</span><span class="followup-mode-label">LLM interpretation</span></button>`).join("")}</div></div>`;
   }
 
   function getAnalysisFollowUpPrompts(payload, showPlots) {
@@ -1682,9 +1850,11 @@ export function createAnalysisUi(ctx) {
     }
     if (!generalQuestion && compareMode && requiresSingleSelectedAssayDataset(state.analysisSelectedCatalogItemId) && selectedAssayDatasets.length === 1 && typeof assayDatasetOverlap === "function") {
       const overlap = assayDatasetOverlap(selectedAssayDatasets[0]);
-      if (overlap && (overlap.overlapA < 1 || overlap.overlapB < 1)) {
+      const selectedCatalogItem = typeof currentAnalysisCatalogItem === "function" ? currentAnalysisCatalogItem() : null;
+      const minimumOverlap = Math.max(1, Number(selectedCatalogItem && selectedCatalogItem.minimum_samples_per_cohort ? selectedCatalogItem.minimum_samples_per_cohort : 1));
+      if (overlap && (overlap.overlapA < minimumOverlap || overlap.overlapB < minimumOverlap)) {
         analysisStatusEl.className = "query-status";
-        analysisStatusEl.textContent = `Selected assay "${selectedAssayDatasets[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}. Choose an assay with at least one sample in both cohorts.`;
+        analysisStatusEl.textContent = `Selected assay "${selectedAssayDatasets[0]}" overlaps Cohort A by ${overlap.overlapA} and Cohort B by ${overlap.overlapB}. Choose an assay with at least ${minimumOverlap} samples in both cohorts.`;
         state.analysisExecutionMode = "auto";
         return;
       }
@@ -1726,6 +1896,9 @@ export function createAnalysisUi(ctx) {
             assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
             dataset_id: analysisWorkspaceKey(),
             selected_patient_ids: currentScope,
+            query_result_handle: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object"
+              ? String(state.analysisScopeMetadata.query_result_handle || "")
+              : "",
             scope_metadata: state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {},
             compare_mode: compareMode,
             compare_selected_patient_ids: compareScope,
@@ -1885,8 +2058,11 @@ export function createAnalysisUi(ctx) {
       const button = event.target.closest("[data-analysis-followup-prompt]");
       if (!button || !analysisThreadEl.contains(button)) return;
       analysisPromptEl.value = button.dataset.analysisFollowupPrompt || "";
+      state.analysisSelectedCatalogItemId = "";
+      state.analysisExecutionMode = button.dataset.analysisFollowupMode === "llm_only" ? "llm_only" : "auto";
+      if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       analysisStatusEl.className = "query-status";
-      analysisStatusEl.textContent = "Analysis follow-up prompt prepared. Press Enter or click Run analysis.";
+      analysisStatusEl.textContent = "LLM interpretation follow-up prepared. Press Enter or click Run analysis.";
       analysisPromptEl.focus();
     },
     handleAnalysisResultBoardClick(event) {

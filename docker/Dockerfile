@@ -38,7 +38,7 @@ RUN apt-get update \
 RUN mkdir -p /root/.R \
     && printf "CXX11STD = -std=gnu++14\n" > /root/.R/Makevars \
     && Rscript -e "cran <- c('BiocManager', 'jsonlite', 'ggplot2', 'msigdbr'); install.packages(cran, repos='https://cloud.r-project.org'); missing <- cran[!vapply(cran, requireNamespace, logical(1), quietly=TRUE)]; if (length(missing)) stop('Missing CRAN packages: ', paste(missing, collapse=', '))" \
-    && Rscript -e "bioc <- c('DESeq2', 'apeglm', 'fgsea'); BiocManager::install(bioc, ask=FALSE, update=FALSE); missing <- bioc[!vapply(bioc, requireNamespace, logical(1), quietly=TRUE)]; if (length(missing)) stop('Missing Bioconductor packages: ', paste(missing, collapse=', '))"
+    && Rscript -e "bioc <- c('DESeq2', 'apeglm', 'fgsea', 'limma', 'edgeR'); BiocManager::install(bioc, ask=FALSE, update=FALSE); missing <- bioc[!vapply(bioc, requireNamespace, logical(1), quietly=TRUE)]; if (length(missing)) stop('Missing Bioconductor packages: ', paste(missing, collapse=', '))"
 
 RUN cpanm --notest "$PHENO_RANKER_SPEC" \
     && test -x /usr/local/bin/pheno-ranker \

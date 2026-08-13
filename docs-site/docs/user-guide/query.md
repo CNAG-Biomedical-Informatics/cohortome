@@ -62,6 +62,22 @@ Query can return:
 - counts
 - deterministic summaries
 
+### Large lists
+
+Large patient or sample lists are paged. Query shows the first 50 matches and
+the total result size, then offers `Load more` when additional rows are
+available. It does not place the complete list in the chat reply.
+
+The complete ordered membership stays temporarily on the COHORTome server
+behind an opaque result handle. The handle lasts for one hour and remains bound
+to the user, workspace, and current access policy. COHORTome rechecks those
+conditions when another page is requested or the result is handed to another
+tool.
+
+Count questions are intentionally smaller: `How many ...?` returns the count,
+not a hidden patient list or a reusable result handle. Ask `Which patients ...?`
+when you need a subset that can be inspected, refined, saved, or analyzed.
+
 The wording matters:
 
 - `patients`
@@ -168,7 +184,7 @@ The top `Scope` pill still refers to the real loaded workspace.
 
 By default, Query runs on the current workspace.
 
-If the user enables `Prompt scope: previous result`, follow-up Query prompts can reuse the last Query subset instead.
+If the user enables `Prompt scope: previous result`, follow-up Query prompts can reuse the last Query subset instead. For a paged result, the backend applies the complete result membership, not only the visible page.
 
 Example:
 
@@ -187,7 +203,8 @@ The app does not silently narrow follow-up prompts unless the user enables the p
 :::note
 `Prompt scope` is currently available only when the active workspace is in `Detailed`.
 
-It is hidden in `Summary` because `Summary` does not expose the patient/record identifiers needed for client-side follow-up scope reuse.
+It is hidden in `Summary` because aggregate-only results do not create the
+member-level result handle needed for follow-up scope reuse.
 :::
 
 ## Full-workspace override
@@ -217,6 +234,13 @@ In practice:
 - exact disease or medication filters often behave deterministically
 - more natural phrasing and mixed conditions often benefit from `Use LLM planner`
 - LLM fallback still uses the current Query prompt scope when one is active
+
+Suggested follow-up questions use the same disclosure before you click them:
+
+- blue `Deterministic` follow-ups run only through deterministic Query logic
+- green `LLM-planned` follow-ups ask the model to create a structured plan, which the app then executes
+
+The text label is always shown alongside the color, and selecting a follow-up pins that execution path for the next query.
 
 :::note
 `Use LLM planner` here describes execution behavior, not a permanent user-facing mode switch. The current Query tab applies in-app disclosure automatically from workspace policy.
@@ -304,6 +328,10 @@ Query results can be reused through the action buttons:
 - `More actions`
 
 These are available only when the current Query thread and current result allow them.
+
+For a paged result, `Save cohort` and `Open in Analysis` use the server-held
+result directly. Saving promotes the temporary result to a durable saved
+cohort; the browser does not have to send hundreds of IDs back to the server.
 
 :::note
 In current Query behavior, `Summary` does not offer handoff actions.

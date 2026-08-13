@@ -61,7 +61,8 @@ export function normalizeSelectionMetadata(source = {}) {
   const item = source && typeof source === "object" ? source : {};
   const sampleIds = normalizeIdList(item.sample_ids || item.sampleIds || []);
   const patientIds = normalizeIdList(item.patient_ids || item.patientIds || []);
-  if (!sampleIds.length && !patientIds.length) {
+  const queryResultHandle = String(item.query_result_handle || item.result_handle || item.queryResultHandle || item.resultHandle || "").trim();
+  if (!sampleIds.length && !patientIds.length && !queryResultHandle) {
     return {};
   }
   const derivedPatientIds = patientIds.length
@@ -77,10 +78,11 @@ export function normalizeSelectionMetadata(source = {}) {
     dataset_ids: datasetIds,
     data_dir: typeof item.data_dir === "string" ? item.data_dir : (typeof item.dataDir === "string" ? item.dataDir : ""),
     id_type: typeof item.id_type === "string" ? item.id_type : (typeof item.idType === "string" ? item.idType : (sampleIds.length ? "sample" : "patient")),
+    query_result_handle: queryResultHandle,
     sample_ids: normalizedSampleIds,
     patient_ids: derivedPatientIds,
-    sample_count: normalizedSampleIds.length,
-    patient_count: derivedPatientIds.length,
+    sample_count: Number.isFinite(Number(item.sample_count ?? item.sampleCount)) ? Number(item.sample_count ?? item.sampleCount) : normalizedSampleIds.length,
+    patient_count: Number.isFinite(Number(item.patient_count ?? item.patientCount)) ? Number(item.patient_count ?? item.patientCount) : derivedPatientIds.length,
     is_full_dataset: Boolean(item.is_full_dataset || item.isFullDataset),
     source: {
       kind: typeof sourceInfo.kind === "string" ? sourceInfo.kind : (typeof item.source_kind === "string" ? item.source_kind : (typeof item.sourceKind === "string" ? item.sourceKind : "")),
@@ -98,8 +100,11 @@ export function createSelectionMetadata(options = {}) {
     dataset_ids: source.datasetIds || source.dataset_ids || [],
     data_dir: source.dataDir || source.data_dir || "",
     id_type: source.idType || source.id_type || "",
+    query_result_handle: source.queryResultHandle || source.query_result_handle || source.resultHandle || source.result_handle || "",
     sample_ids: source.sampleIds || source.sample_ids || [],
     patient_ids: source.patientIds || source.patient_ids || [],
+    sample_count: source.sampleCount ?? source.sample_count,
+    patient_count: source.patientCount ?? source.patient_count,
     source: {
       kind: source.sourceKind || source.source_kind || "",
       prompt: source.sourcePrompt || source.source_prompt || "",
@@ -142,11 +147,17 @@ export function analysisSessionScopeSummary(session) {
   const compareCount = compareIds.length;
   const scopeUnit = scopeIds.some((item) => item.includes(":")) ? "sample IDs" : "patient IDs";
   const compareUnit = compareIds.some((item) => item.includes(":")) ? "sample IDs" : "patient IDs";
+  const scopeMetadata = session && session.scopeMetadata && typeof session.scopeMetadata === "object" ? session.scopeMetadata : {};
+  const handledScopeCount = scopeMetadata.query_result_handle
+    ? Number(scopeMetadata.id_type === "sample" ? scopeMetadata.sample_count || 0 : scopeMetadata.patient_count || 0)
+    : 0;
+  const handledScopeUnit = scopeMetadata.id_type === "sample" ? "samples" : "patients";
   if (session && session.compareMode) {
     const aLabel = scopeCount ? `${scopeCount} ${scopeUnit} in A` : "full workspace in A";
     const bLabel = compareCount ? `${compareCount} ${compareUnit} in B` : "full workspace in B";
     return `${aLabel} vs ${bLabel}`;
   }
+  if (handledScopeCount) return `${handledScopeCount} ${handledScopeUnit} in scoped Query result`;
   return scopeCount ? `${scopeCount} ${scopeUnit} in scope` : "Full workspace";
 }
 

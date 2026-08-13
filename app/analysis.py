@@ -160,12 +160,11 @@ def _analysis_catalog_dispatch(
     if not item:
         return None
     normalized_prompt = str(prompt or "").strip()
-    default_prompt = str(item.get("default_prompt") or "").strip()
-    # Treat the catalog item as a launch hint, not as a hard override. If the
-    # current prompt no longer matches the selected catalog item, fall back to
-    # normal Analysis routing.
-    if not normalized_prompt or not default_prompt or normalized_prompt != default_prompt:
-        return None
+    if not normalized_prompt:
+        raise RuntimeError("A prompt is required for the selected analysis.")
+    # An explicit catalog id selects the reviewed runner. The prompt remains
+    # editable context for that runner; server-side catalog, assay, scope, and
+    # access checks remain authoritative.
     if item.get("debug_only") and not analysis_catalog_debug_enabled():
         raise RuntimeError("This analysis is not available in the current catalog.")
     if item.get("requires_detailed_access") and granularity_applied != "detailed":
@@ -173,8 +172,81 @@ def _analysis_catalog_dispatch(
     required_representation = str(item.get("required_clinical_representation") or "").strip().lower()
     if required_representation and clinical_representation(data_dir) != required_representation:
         raise RuntimeError("This analysis requires longitudinal visit or timepoint records.")
-    if item.get("requires_assays") and not store_assay_dataset_inventory(data_dir):
-        raise RuntimeError("This analysis requires at least one assay in the active workspace.")
+    if item.get("requires_assays"):
+        assay_inventory = store_assay_dataset_inventory(data_dir)
+        required_modalities = {
+            str(value or "").strip()
+            for value in item.get("required_modalities", [])
+            if str(value or "").strip()
+        }
+        required_data_types = {
+            str(value or "").strip()
+            for value in item.get("required_data_types", [])
+            if str(value or "").strip()
+        }
+        compatible_assays = [
+            assay
+            for assay in assay_inventory
+            if (
+                not required_modalities
+                or str(assay.get("modality") or "").strip() in required_modalities
+            )
+            and (
+                not required_data_types
+                or str(assay.get("data_type") or "").strip() in required_data_types
+            )
+        ]
+        if not compatible_assays:
+            raise RuntimeError("This analysis requires a compatible assay in the active workspace.")
+        selected_assay = str(assay_id or "").strip()
+        if selected_assay and not any(
+            selected_assay
+            in {
+                str(assay.get("assay_id") or "").strip(),
+                str(assay.get("dataset_name") or "").strip(),
+            }
+            for assay in compatible_assays
+        ):
+            raise RuntimeError("The selected assay is not compatible with this analysis.")
+        selected_item = next(
+            (
+                assay
+                for assay in compatible_assays
+                if selected_assay
+                in {
+                    str(assay.get("assay_id") or "").strip(),
+                    str(assay.get("dataset_name") or "").strip(),
+                }
+            ),
+            compatible_assays[0] if not selected_assay and len(compatible_assays) == 1 else None,
+        )
+        minimum_samples = max(0, int(item.get("minimum_samples_per_cohort") or 0))
+        if minimum_samples and item.get("default_compare_mode"):
+            if selected_item is None:
+                raise RuntimeError("This analysis requires one explicitly selected compatible assay.")
+            assay_scope_ids = {
+                str(value or "").strip()
+                for key in ("sample_ids", "patient_ids")
+                for value in selected_item.get(key, [])
+                if str(value or "").strip()
+            }
+            cohort_a_ids = {
+                value.strip()
+                for value in str(selected_patient_ids or "").split(",")
+                if value.strip()
+            }
+            cohort_b_ids = {
+                value.strip()
+                for value in str(compare_selected_patient_ids or "").split(",")
+                if value.strip()
+            }
+            if (
+                len(assay_scope_ids.intersection(cohort_a_ids)) < minimum_samples
+                or len(assay_scope_ids.intersection(cohort_b_ids)) < minimum_samples
+            ):
+                raise RuntimeError(
+                    f"This analysis requires at least {minimum_samples} assay-linked samples in each cohort."
+                )
     runner_type = str(item.get("runner_type") or "builtin").strip().lower()
     execution_backend = str(item.get("execution_backend") or "sync").strip().lower()
     if runner_type == "builtin":
@@ -1997,21 +2069,22 @@ def _analysis_llm_reply_impl(
     granularity_applied: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
-    catalog_payload = _analysis_catalog_dispatch(
-        prompt,
-        catalog_item_id=catalog_item_id,
-        data_dir=data_dir,
-        dataset_id=dataset_id,
-        assay_id=assay_id,
-        analysis_session_id=analysis_session_id,
-        user_id=user_id,
-        selected_patient_ids=selected_patient_ids,
-        compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
-        granularity_applied=granularity_applied,
-    )
-    if catalog_payload is not None:
-        return catalog_payload
-    if _parse_measure_inventory_request(prompt):
+    if not llm_only:
+        catalog_payload = _analysis_catalog_dispatch(
+            prompt,
+            catalog_item_id=catalog_item_id,
+            data_dir=data_dir,
+            dataset_id=dataset_id,
+            assay_id=assay_id,
+            analysis_session_id=analysis_session_id,
+            user_id=user_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids if compare_mode else "",
+            granularity_applied=granularity_applied,
+        )
+        if catalog_payload is not None:
+            return catalog_payload
+    if not llm_only and _parse_measure_inventory_request(prompt):
         if compare_mode:
             context = compare_measure_inventory_context(data_dir, selected_patient_ids, compare_selected_patient_ids)
             intent = "analysis_measure_inventory_compare"
@@ -2028,7 +2101,7 @@ def _analysis_llm_reply_impl(
                 "base_url": lm_studio_base_url(),
             },
         }
-    if _parse_transcriptomics_medication_request(prompt):
+    if not llm_only and _parse_transcriptomics_medication_request(prompt):
         context = transcriptomics_expression_by_medication_context(
             data_dir,
             selected_patient_ids=selected_patient_ids,
@@ -2045,7 +2118,7 @@ def _analysis_llm_reply_impl(
             },
         }
     assay_request = _parse_transcriptomics_expression_request(prompt)
-    if assay_request is not None:
+    if not llm_only and assay_request is not None:
         context = transcriptomics_expression_context(
             data_dir,
             assay_request["gene_id"],
@@ -2063,7 +2136,7 @@ def _analysis_llm_reply_impl(
             },
         }
     survival_request = _parse_survival_request(prompt)
-    if survival_request is not None:
+    if not llm_only and survival_request is not None:
         if compare_mode:
             context = compare_survival_analysis_context(
                 data_dir,
@@ -2094,7 +2167,7 @@ def _analysis_llm_reply_impl(
             },
         }
     trajectory_request = _parse_trajectory_request(prompt)
-    if trajectory_request is not None:
+    if not llm_only and trajectory_request is not None:
         if compare_mode:
             context = compare_trajectory_context(
                 data_dir,

@@ -1134,6 +1134,99 @@ def _follow_up_suggestions(query: str) -> List[str]:
     ]
 
 
+def _follow_up_execution_kind(prompt: str) -> str:
+    """Describe the route a suggested Query prompt is expected to take.
+
+    Follow-up buttons use this metadata to disclose their execution path before
+    a user selects one. Keep this intentionally conservative: prompts that are
+    not covered by a deterministic Query route are sent to the semantic planner.
+    """
+    text = str(prompt or "").strip()
+    lowered = text.lower().rstrip("?.")
+    if not lowered:
+        return "planner"
+
+    if _extract_patient_id(text) is not None:
+        return "deterministic"
+    if _is_patient_list_query(text) or _is_patient_count_query(text) or _is_sample_list_query(text):
+        return "deterministic"
+    if _medication_count_constraint(text) is not None or _visit_count_constraint(text) is not None:
+        return "deterministic"
+    if _sex_constraint(text) is not None and any(
+        lowered.startswith(prefix)
+        for prefix in ("how many", "which", "list patients", "show patients")
+    ):
+        return "deterministic"
+    if any(
+        phrase in lowered
+        for phrase in (
+            "what happened to this cohort over time",
+            "what happened to this workspace over time",
+            "cohort over time",
+            "workspace over time",
+            "timeline of this cohort",
+            "timeline of this workspace",
+        )
+    ):
+        return "deterministic"
+    if "what medications" in lowered or "list medications" in lowered:
+        return "deterministic"
+    if "what diseases" in lowered or "list diseases" in lowered:
+        return "deterministic"
+    if _transition_query(text) is not None or _start_after_query(text) is not None or _temporal_order_query(text) is not None:
+        return "deterministic"
+
+    explicit_medication_match = re.match(
+        r"^(how many|which)\s+patients?\s+(?:take|takes|are taking|receive|receives|received|are on|on|use|uses|using|treated with)\s+(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if explicit_medication_match:
+        term = explicit_medication_match.group(2).strip(" ?.")
+        return "planner" if _looks_like_treatment_category_candidate(term) else "deterministic"
+
+    simple_filter_match = re.match(
+        r"^(?:how many patients have|which patients have)\s+(.+)$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if simple_filter_match:
+        term = simple_filter_match.group(1).strip(" ?.")
+        broad_treatment_terms = {
+            "anti-tnf treatments",
+            "biologic treatments",
+            "biologics",
+            "corticosteroids",
+            "immunosuppressants",
+            "steroids",
+        }
+        return "planner" if term.lower() in broad_treatment_terms else "deterministic"
+
+    if re.match(r"^(?:select|find|show|list)\s+patients?\s+(?:that|who)\s+", text, flags=re.IGNORECASE):
+        return "deterministic"
+    return "planner"
+
+
+def _follow_up_suggestion_metadata(items: Any) -> List[Dict[str, str]]:
+    metadata: List[Dict[str, str]] = []
+    if not isinstance(items, list):
+        return metadata
+    for item in items:
+        prompt = str(item or "").strip()
+        if not prompt:
+            continue
+        kind = _follow_up_execution_kind(prompt)
+        metadata.append(
+            {
+                "prompt": prompt,
+                "execution_kind": kind,
+                "execution_mode": "deterministic_only" if kind == "deterministic" else "planner_only",
+                "label": "Deterministic" if kind == "deterministic" else "LLM-planned",
+            }
+        )
+    return metadata
+
+
 def _needs_clarification(query: str) -> bool:
     lowered = query.strip().lower()
     if not lowered:
@@ -2016,15 +2109,19 @@ def _answer_query_impl(
 
     if _is_sample_list_query(text):
         sample_ids = scope_context.sample_ids
-        reply_lines = ["Samples in the workspace (%s):" % len(sample_ids)]
-        reply_lines.extend("- %s" % sample_id for sample_id in sample_ids)
         return {
             "query": query,
             "intent": "sample_inventory",
-            "reply": "\n".join(reply_lines),
+            "reply": "Found %s %s in this workspace. Browse the bounded result below." % (
+                len(sample_ids),
+                "sample" if len(sample_ids) == 1 else "samples",
+            ),
             "data": {
                 "sample_count": len(sample_ids),
                 "sample_ids": sample_ids,
+                # Keep the linked patient scope server-side when the paged
+                # result is materialized. Only sample IDs are exposed per page.
+                "patient_ids": scope_context.patient_ids,
                 "follow_up_suggestions": [
                     "How many timepoints are in this workspace?",
                     "Tell me the list of patients in the workspace",
@@ -2100,12 +2197,13 @@ def _answer_query_impl(
     if _is_patient_list_query(text):
         patient_ids = scope_context.patient_ids
         sample_ids = scope_context.sample_ids
-        reply_lines = ["Patients in the workspace (%s):" % len(patient_ids)]
-        reply_lines.extend("- %s" % patient_id for patient_id in patient_ids)
         return {
             "query": query,
             "intent": "patient_inventory",
-            "reply": "\n".join(reply_lines),
+            "reply": "Found %s %s in this workspace. Browse the bounded result below." % (
+                len(patient_ids),
+                "patient" if len(patient_ids) == 1 else "patients",
+            ),
             "data": {
                 "patient_count": len(patient_ids),
                 "patient_ids": patient_ids,
@@ -2535,12 +2633,16 @@ def _answer_query_impl(
     if "what medications" in lowered or "list medications" in lowered:
         counts = scope_context.medication_counts
         meds = [item["medication"] for item in counts[:20]]
+        public_counts = [
+            {"medication": item.get("medication"), "patient_count": item.get("patient_count", 0)}
+            for item in counts
+        ]
         return {
             "query": query,
             "intent": "medication_inventory",
             "reply": "Known medications: %s." % (", ".join(meds) if meds else "none"),
             "data": {
-                "medications": counts,
+                "medications": public_counts,
                 "follow_up_suggestions": [
                     "How many patients have Infliximab?",
                     "Which patients have Prednisolone?",
@@ -2552,12 +2654,16 @@ def _answer_query_impl(
     if "what diseases" in lowered or "list diseases" in lowered:
         counts = scope_context.disease_counts
         labels = [item["disease"] for item in counts[:20]]
+        public_counts = [
+            {"disease": item.get("disease"), "patient_count": item.get("patient_count", 0)}
+            for item in counts
+        ]
         return {
             "query": query,
             "intent": "disease_inventory",
             "reply": "Known diseases: %s." % (", ".join(labels) if labels else "none"),
             "data": {
-                "diseases": counts,
+                "diseases": public_counts,
                 "follow_up_suggestions": [
                     "How many patients have Crohn Disease?",
                     "Which patients have Ulcerative Colitis?",
@@ -2675,7 +2781,7 @@ def _answer_query_impl(
             },
         }
 
-    if normalized_ai_provider_access != "blocked":
+    if mode != "deterministic_only" and normalized_ai_provider_access != "blocked":
         semantic_fallback = _semantic_query_plan(
             data_dir,
             query,
@@ -2700,19 +2806,23 @@ def _answer_query_impl(
         if fallback is not None:
             return fallback
 
-    if normalized_ai_provider_access == "blocked":
+    if mode != "deterministic_only" and normalized_ai_provider_access == "blocked":
         return _ai_provider_blocked_response(query, history=history)
 
+    deterministic_only = mode == "deterministic_only"
     return {
         "query": query,
         "intent": "unsupported",
         "reply": (
-            "I can answer common questions about medications, diseases, patient summaries, "
+            "The deterministic router did not recognize this follow-up. Choose an LLM-planned suggestion or rephrase it."
+            if deterministic_only
+            else "I can answer common questions about medications, diseases, patient summaries, "
             "and visit timelines. LM Studio fallback is currently unavailable. "
             "Examples: 'How many patients have Prednisolone?', "
             "'Which patients have Crohn Disease?', 'Show patient 107', 'List visits for patient 107'."
         ),
         "data": {
+            "source": "deterministic" if deterministic_only else "provider_unavailable",
             "follow_up_suggestions": _follow_up_suggestions(text),
             "conversation_history": history[-8:] if history else [],
         },
@@ -2742,4 +2852,11 @@ def answer_query(
         granularity_mode=applied_mode,
         ai_provider_access=normalized_ai_provider_access,
     )
-    return _finalize_query_response(payload, normalized_mode, applied_mode, normalized_ai_provider_access)
+    finalized = _finalize_query_response(payload, normalized_mode, applied_mode, normalized_ai_provider_access)
+    finalized_data = finalized.get("data")
+    if isinstance(finalized_data, dict):
+        suggestions = finalized_data.get("follow_up_suggestions")
+        metadata = _follow_up_suggestion_metadata(suggestions)
+        if metadata:
+            finalized_data["follow_up_suggestion_metadata"] = metadata
+    return finalized

@@ -28,6 +28,22 @@
       "file": "assays/imaging/synthetic_imaging_derived_features.csv"
     },
     {
+      "assay_id": "synthetic_methylation_m_values",
+      "label": "synthetic methylation M-values",
+      "modality": "methylation",
+      "data_type": "m_values",
+      "level": "sample",
+      "feature_namespace": "illumina_cpg_probe_id",
+      "feature_label": "CpG probes",
+      "value_kind": "m_values",
+      "feature_id_column": "feature_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "derived_from_sample_id_prefix",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/methylation/synthetic_methylation_m_values.csv",
+      "sample_metadata_file": "assays/methylation/synthetic_methylation_sample_metadata.tsv"
+    },
+    {
       "assay_id": "synthetic_olink_inflammation_panel",
       "label": "synthetic olink inflammation panel",
       "modality": "olink",

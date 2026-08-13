@@ -69,9 +69,9 @@ Typical responses may include:
 
 Current Query behavior in `Detailed`:
 
-- patient-level and record-level answers can be returned to the authorized client
+- patient-level and record-level answers can be returned to the authorized client in bounded pages
 - Query handoff actions can be enabled when scope exists
-- `Prompt scope` follow-up memory can reuse the previous Query result
+- `Prompt scope` follow-up memory can reuse the complete previous Query result through a server-side handle
 
 ## Internal Model
 
@@ -206,9 +206,16 @@ Instead:
 Current Query implementation is stricter than the original idea:
 
 - a `Summary` result does not allow local handoff actions
-- a `Detailed` result may expose row-level data and ID-based follow-up actions
+- a `Detailed` list result exposes at most one bounded page at a time
+- the complete ordered result is stored behind an opaque, user-scoped handle
+- count intents return no member IDs, result handle, or cohort actions
+- paging and handle-backed actions reauthorize the stored workspace and require
+  its current policy to allow `Detailed`
 
-The app does not yet use opaque backend `result_handle`s for Query follow-up scope. That remains the preferred future hardening step if frontend/service boundaries become stricter.
+The initial page size is 50 and the API hard maximum is 100. A handle expires
+after one hour. It is invalidated when its workspace binding becomes stale and
+cannot be used by another user. `Save cohort`, `Open in Analysis`, and Query
+follow-up scope pass the handle rather than a client-supplied bulk ID array.
 
 ## V1 Scope
 
@@ -221,6 +228,7 @@ Included:
 - response badge showing the applied response-detail mode
 - output shaping for a small set of common query intents
 - backend-declared action capabilities
+- bounded Detailed result pages and transient, authorized result handles
 - dataset-level policy ceilings for:
   - in-app Query detail
   - AI-provider access
@@ -228,9 +236,7 @@ Included:
 Not included:
 
 - MCP implementation
-- full Analysis rollout
 - full Pheno-Ranker rollout
-- opaque backend result handles for Summary-mode follow-up scope
 - full privacy or compliance framework
 
 ## Why MCP Is Out Of Scope For V1
@@ -300,8 +306,9 @@ In current Query behavior, safe-summary mode means:
 
 If a prompt needs private clinical context, the provider should answer that it does not have enough permitted context.
 
-## Open Questions
+## Remaining Questions
 
-- Should future Query follow-up scope use opaque backend handles so that even `Detailed` no longer sends raw IDs to the client?
+- Should Pheno-Ranker accept transient Query handles directly, or require the
+  user to promote them to saved cohorts first?
 - Should Analysis adopt the same split between in-app disclosure and AI-provider exposure?
 - Should a future `Local only` mode be exposed in the UI, or remain an internal execution policy?

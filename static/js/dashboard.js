@@ -1165,8 +1165,9 @@ export function createDashboardUi(ctx) {
     const metadata = !selectedCohort && state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object"
       ? state.analysisScopeMetadata
       : {};
+    const queryResultHandle = String(metadata.query_result_handle || "").trim();
     const compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
-    analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort);
+    analysisSelectedPatientIdsEl.disabled = compareMode || Boolean(selectedCohort) || Boolean(queryResultHandle);
     const selectedCohortUsesSampleIds = Boolean(
       selectedCohort
       && Array.isArray(selectedCohort.sample_ids)
@@ -1196,6 +1197,8 @@ export function createDashboardUi(ctx) {
         : "Cohort A: select a saved cohort from Saved Cohorts to compare.")
       : (selectedCohort
         ? `Scope: using saved cohort "${selectedCohort.name}" (${countLabel}; ${ids.length} ${selectedCohortUsesSampleIds ? "sample IDs" : "patient IDs"} loaded).`
+        : queryResultHandle
+          ? `Scope: ${metadata.id_type === "sample" ? metadata.sample_count || 0 : metadata.patient_count || 0} ${metadata.id_type === "sample" ? "samples" : "patients"} from the Query result; identifiers remain server-side.`
         : ids.length
           ? `Scope: ${countLabel} in scope${metadataSource ? ` from ${metadataSource}` : ""}.`
           : "Scope: full workspace.");
@@ -1362,12 +1365,19 @@ export function createDashboardUi(ctx) {
   }
 
   function selectedAssayDatasetNames() {
+    const knownNames = new Set(
+      state.assayDatasetsState.map((dataset) => String(dataset && dataset.dataset_name ? dataset.dataset_name : "").trim()).filter(Boolean)
+    );
+    return state.selectedAssayDatasets.filter((datasetName) => knownNames.has(datasetName));
+  }
+
+  function selectedTranscriptomicsAssayDatasetNames() {
     const transcriptomicsNames = new Set(
       state.assayDatasetsState
         .filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics")
         .map((dataset) => dataset.dataset_name)
     );
-    return state.selectedAssayDatasets.filter((datasetName) => transcriptomicsNames.has(datasetName));
+    return selectedAssayDatasetNames().filter((datasetName) => transcriptomicsNames.has(datasetName));
   }
 
   function assayDatasetListElements() {
@@ -1383,8 +1393,11 @@ export function createDashboardUi(ctx) {
   function requiresSingleSelectedAssayDataset(item) {
     const itemId = String(item && item.id ? item.id : "").trim();
     return itemId === "transcriptomics-deseq2-differential-expression"
+      || itemId === "transcriptomics-limma-voom-differential-expression"
       || itemId === "transcriptomics-hallmark-pathway-enrichment"
-      || itemId === "transcriptomics-signature-workflow";
+      || itemId === "transcriptomics-signature-workflow"
+      || itemId === "methylation-qc-pca"
+      || itemId === "methylation-limma-differential-methylation";
   }
 
   function formatAssayModality(value) {
@@ -1392,6 +1405,7 @@ export function createDashboardUi(ctx) {
     if (!text) return "Assays";
     const labels = {
       transcriptomics: "Transcriptomics",
+      methylation: "DNA methylation",
       olink: "OLINK",
       proteomics: "Proteomics",
       genotyping: "Genotyping",
@@ -1405,6 +1419,7 @@ export function createDashboardUi(ctx) {
     if (!text) return "Feature matrix";
     const labels = {
       raw_counts: "Raw counts",
+      m_values: "M-values",
       relative_abundance: "Relative abundance",
       protein_abundance: "Protein abundance",
       allele_dosage: "Allele dosage",
@@ -1454,6 +1469,7 @@ export function createDashboardUi(ctx) {
       return [];
     }
     const compareRequired = Boolean(item.default_compare_mode);
+    const minimumOverlap = Math.max(1, Number(item.minimum_samples_per_cohort || 1));
     const compatibleDatasets = state.assayDatasetsState.filter((dataset) => {
       if (!assayMatchesCatalogRequirement(dataset, item)) {
         return false;
@@ -1464,7 +1480,7 @@ export function createDashboardUi(ctx) {
       }
       const overlap = currentAssayScopeOverlap(patientIds);
       if (compareRequired) {
-        return overlap.overlapA > 0 && overlap.overlapB > 0;
+        return overlap.overlapA >= minimumOverlap && overlap.overlapB >= minimumOverlap;
       }
       if (overlap.scopeASize || overlap.scopeBSize) {
         return overlap.overlapA > 0 || overlap.overlapB > 0;
@@ -2338,7 +2354,7 @@ export function createDashboardUi(ctx) {
 
   async function loadAssayFeatureSuggestions() {
     if (!analysisAssayGenesEl) return;
-    const datasetNames = selectedAssayDatasetNames();
+    const datasetNames = selectedTranscriptomicsAssayDatasetNames();
     if (!datasetNames.length) {
       analysisAssayGenesEl.innerHTML = "";
       return;
@@ -2460,7 +2476,7 @@ export function createDashboardUi(ctx) {
 
   async function runAssayExpressionAnalysis() {
     if (!analysisAssayGeneEl || !analysisAssayStatusEl) return;
-    const datasetNames = selectedAssayDatasetNames();
+    const datasetNames = selectedTranscriptomicsAssayDatasetNames();
     const geneId = String(analysisAssayGeneEl.value || "").trim();
     if (!datasetNames.length || !geneId) {
       analysisAssayStatusEl.className = "query-status";

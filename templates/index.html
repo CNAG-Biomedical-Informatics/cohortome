@@ -601,6 +601,7 @@
               <option value="{{ dataset.dataset_id }}" {% if dataset.dataset_id == current_dataset_id %}selected{% endif %}>{{ dataset.name }}</option>
               {% endfor %}
               </select>
+              <div id="datasetPickerLegend" class="dataset-trait-legend is-hidden" aria-label="Dataset trait legend"></div>
               <div id="datasetPicker" class="dataset-picker-list">
                 <div class="empty">No dataset available.</div>
               </div>
@@ -616,7 +617,7 @@
               <span id="loadBtnLabel">Load dataset</span>
             </button>
           </div>
-          <div id="loadStatus" class="load-status">Select at least one dataset, then click Apply workspace.</div>
+          <div id="loadStatus" class="load-status" role="status" aria-live="polite">Select at least one dataset, then click Apply workspace.</div>
           <div id="datasetScopeSummary" class="section-note">Active workspace: no dataset loaded yet.</div>
           <div class="section-note">Dataset selection defines the current workspace scope for Query, Analysis, Dashboard, and Pheno-Ranker.</div>
         </div>
@@ -1075,6 +1076,7 @@
                       <div id="phenoPlanReasoning" class="empty">No planner reasoning yet.</div>
                     </div>
                   </div>
+                  <div id="phenoPlanFollowups" class="query-followups is-hidden" aria-live="polite"></div>
                 </details>
               </div>
             </div>
@@ -1229,13 +1231,13 @@
               <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>
             </div>
             <div id="analysisFlowBar" class="analysis-flow-bar" aria-label="Analysis workflow">
-              <button type="button" class="analysis-flow-step" data-analysis-flow-target="scope">
-                <span class="analysis-flow-step-index">1</span>
-                <span class="analysis-flow-step-copy"><span>Scope</span><strong>Full workspace</strong></span>
-              </button>
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="catalog">
+                <span class="analysis-flow-step-index">1</span>
+                <span class="analysis-flow-step-copy"><span>Analysis</span><strong>Choose analysis</strong></span>
+              </button>
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="requirements">
                 <span class="analysis-flow-step-index">2</span>
-                <span class="analysis-flow-step-copy"><span>Catalog</span><strong>Optional</strong></span>
+                <span class="analysis-flow-step-copy"><span>Setup</span><strong>Full workspace</strong></span>
               </button>
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="prompt">
                 <span class="analysis-flow-step-index">3</span>
@@ -1387,6 +1389,7 @@
                     </div>
                     <div id="analysisCatalogAssayNote" class="analysis-assay-panel-note">Select an analysis to see its required inputs.</div>
                     <div id="analysisCatalogSetupBadges" class="analysis-catalog-tags"></div>
+                    <div id="analysisSetupChecklist" class="analysis-setup-checklist" aria-live="polite"></div>
                     <div id="analysisCatalogAssayStatus" class="analysis-setup-status">Checking transcriptomics assays...</div>
                     <div id="analysisCatalogAssayDatasetList" class="assay-dataset-select">
                       <div class="empty">No assay loaded</div>
@@ -1436,6 +1439,9 @@
               </svg>
             </button>
           </div>
+          <div id="jobsWorkerStatus" class="background-worker-status is-checking" role="status" aria-live="polite">
+            Checking background workers…
+          </div>
           <div id="jobsDrawerStatus" class="query-status">Loading queue...</div>
           <div id="jobsDrawerList" class="jobs-drawer-list">
             <div class="empty">Loading queue...</div>
@@ -1467,6 +1473,9 @@
                 </svg>
               </button>
             </div>
+          </div>
+          <div id="runHistoryWorkerStatus" class="background-worker-status is-checking" role="status" aria-live="polite">
+            Checking background workers…
           </div>
           <div id="runHistoryDrawerStatus" class="query-status">Loading run history...</div>
           <div id="runHistoryDrawerList" class="jobs-drawer-list">

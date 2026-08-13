@@ -56,6 +56,21 @@ COHORTOME_AUTH_MODE=none uvicorn app.main:app --host 127.0.0.1 --port 8000 --rel
 Open <http://127.0.0.1:8000>. On a fresh checkout, prepare the default
 dataset store from **Admin > Data** before applying it in **Datasets**.
 
+Analyses marked **Background** also need Redis and one RQ worker. In two
+additional terminals, run:
+
+```bash
+redis-server --bind 127.0.0.1 --port 6379
+make worker
+```
+
+If Redis already runs as a system service, leave it running and start only
+`make worker`. The worker target uses the same `.deps` environment as the app
+and automatically activates a conventional `~/perl5` `local::lib` when it is
+present, which is required by a source-installed Pheno-Ranker. Keep the worker
+terminal open; the app reports worker availability in Queue, Run history, and
+the setup checklist for background analyses.
+
 For shared deployments, authentication, Docker, DICOM, and model-provider
 configuration, use the documentation below rather than this quick development
 path.

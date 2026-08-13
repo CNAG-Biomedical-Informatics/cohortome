@@ -122,6 +122,13 @@ def redact_action_context(action_context: Dict[str, Any], granularity_applied: s
 
 
 def query_available_actions(payload: Dict[str, Any], granularity_applied: str) -> Dict[str, bool]:
+    if query_is_count_only(payload):
+        return {
+            "open_in_analysis": False,
+            "save_cohort": False,
+            "copy_patient_ids": False,
+            "use_in_pheno_ranker": False,
+        }
     action_context = query_action_context(payload)
     patient_ids = action_context["patient_ids"]
     record_ids = action_context["record_ids"]
@@ -132,6 +139,67 @@ def query_available_actions(payload: Dict[str, Any], granularity_applied: str) -
         "copy_patient_ids": bool(patient_ids) and granularity_applied == "detailed",
         "use_in_pheno_ranker": bool(record_ids) and granularity_applied == "detailed",
     }
+
+
+def query_is_count_only(payload: Dict[str, Any]) -> bool:
+    data = payload.get("data")
+    if isinstance(data, dict):
+        semantic_plan = data.get("semantic_plan")
+        if isinstance(semantic_plan, dict) and str(semantic_plan.get("output") or "").strip().lower() == "count":
+            return True
+        if data.get("count_only") is True:
+            return True
+    query = str(payload.get("query") or "").strip().lower()
+    return bool(
+        query.startswith("how many")
+        or query.startswith("count ")
+        or query.startswith("what is the number of")
+        or query.startswith("what's the number of")
+    )
+
+
+def _strip_identifier_fields(value: Any) -> Any:
+    identifier_keys = {
+        "patient_id",
+        "patient_ids",
+        "sample_id",
+        "sample_ids",
+        "original_id",
+        "original_record_ids",
+        "record_id",
+        "record_ids",
+        "subject_id",
+        "subject_ids",
+        "patients",
+        "visits",
+        "timeline",
+        "patient_context",
+        "conversation_history",
+    }
+    if isinstance(value, dict):
+        return {
+            key: _strip_identifier_fields(item)
+            for key, item in value.items()
+            if key not in identifier_keys
+        }
+    if isinstance(value, list):
+        return [_strip_identifier_fields(item) for item in value]
+    return value
+
+
+def shape_count_only_response(payload: Dict[str, Any]) -> Dict[str, Any]:
+    shaped = dict(payload)
+    data = shaped.get("data")
+    shaped["data"] = _strip_identifier_fields(data) if isinstance(data, dict) else {}
+    shaped["data"].pop("follow_up_suggestions", None)
+    shaped["data"].pop("follow_up_suggestion_metadata", None)
+    shaped["data"]["count_only"] = True
+    shaped["reply"] = shape_summary_reply(
+        str(shaped.get("intent") or ""),
+        data if isinstance(data, dict) else {},
+        "Count completed.",
+    )
+    return shaped
 
 
 def patient_count_from_data(data: Dict[str, Any]) -> Optional[int]:
@@ -166,6 +234,9 @@ def shape_summary_reply(intent: str, data: Dict[str, Any], original_reply: str) 
     if intent == "sample_inventory" and sample_count is not None:
         noun = "sample" if sample_count == 1 else "samples"
         return "This workspace contains %s %s." % (sample_count, noun)
+    if intent == "timepoint_inventory" and isinstance(data.get("timepoint_count"), int):
+        noun = "timepoint" if data["timepoint_count"] == 1 else "timepoints"
+        return "This workspace contains %s %s." % (data["timepoint_count"], noun)
     if patient_count is not None and (
         intent in {
             "medication_cohort",
@@ -185,7 +256,13 @@ def shape_summary_reply(intent: str, data: Dict[str, Any], original_reply: str) 
     ):
         noun = "patient" if patient_count == 1 else "patients"
         return "%s %s match this query." % (patient_count, noun)
-    return original_reply
+    if patient_count is not None:
+        noun = "patient" if patient_count == 1 else "patients"
+        return "%s %s match this query." % (patient_count, noun)
+    if sample_count is not None:
+        noun = "sample" if sample_count == 1 else "samples"
+        return "%s %s match this query." % (sample_count, noun)
+    return "A summary is available for this query."
 
 
 def shape_summary_response(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -221,10 +298,14 @@ def shape_summary_response(payload: Dict[str, Any]) -> Dict[str, Any]:
         "sample_ids",
         "original_record_ids",
         "patient_context",
+        "conversation_history",
         "timeline",
         "visits",
     ):
         summary_data.pop(key, None)
+    summary_data = _strip_identifier_fields(summary_data)
+    summary_data.pop("follow_up_suggestions", None)
+    summary_data.pop("follow_up_suggestion_metadata", None)
 
     shaped = dict(payload)
     shaped["reply"] = shape_summary_reply(intent, data, str(payload.get("reply") or ""))
@@ -238,9 +319,14 @@ def finalize_query_response(
     granularity_applied: str,
     ai_provider_access: str,
 ) -> Dict[str, Any]:
+    count_only = query_is_count_only(payload)
     action_context = redact_action_context(query_action_context(payload), granularity_applied)
+    if count_only:
+        action_context = {"patient_ids": [], "record_ids": [], "id_type": "", "analysis_prompt": ""}
     available_actions = query_available_actions(payload, granularity_applied)
     finalized = shape_summary_response(payload) if granularity_applied == "summary" else dict(payload)
+    if count_only:
+        finalized = shape_count_only_response(finalized)
     data = finalized.get("data")
     finalized_data: Dict[str, Any] = dict(data) if isinstance(data, dict) else {}
     finalized_data["granularity_requested"] = granularity_requested

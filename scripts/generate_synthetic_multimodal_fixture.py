@@ -874,6 +874,25 @@ def write_transcriptomics_readme(
 
 
 PLACEHOLDER_ASSAYS = {
+    "methylation": {
+        "filename": "synthetic_methylation_m_values.csv",
+        "sample_metadata_filename": "synthetic_methylation_sample_metadata.tsv",
+        "label": "synthetic methylation M-values",
+        "features": [
+            ("cg00000029", [-1.42, -1.10, -0.88, -1.31, -0.52, -1.20, -0.73, -0.61]),
+            ("cg00000108", [0.34, 0.55, 0.18, 0.46, 0.71, 0.29, 0.62, 0.77]),
+            ("cg00000165", [2.10, 1.92, 2.23, 1.85, 2.41, 2.04, 2.32, 2.28]),
+            ("cg00000236", [-0.16, -0.28, -0.05, -0.22, 0.11, -0.31, 0.08, 0.17]),
+            ("cg00000289", [1.04, 0.91, 1.16, 0.84, 1.31, 0.98, 1.24, 1.37]),
+            ("cg00000292", [-2.06, -1.84, -2.21, -1.73, -1.52, -1.96, -1.61, -1.45]),
+            ("cg00000321", [0.08, -0.03, 0.21, -0.11, 0.38, 0.02, 0.29, 0.42]),
+            ("cg00000363", [1.68, 1.54, 1.79, 1.47, 1.95, 1.61, 1.88, 2.02]),
+        ],
+        "data_type": "m_values",
+        "feature_namespace": "illumina_cpg_probe_id",
+        "feature_label": "CpG probes",
+        "value_kind": "m_values",
+    },
     "olink": {
         "filename": "synthetic_olink_inflammation_panel.csv",
         "features": [
@@ -979,6 +998,14 @@ def write_placeholder_assay_matrices(dataset_root: Path, clinical_records: list[
                 if len(row_values) < len(sample_ids):
                     row_values.extend([row_values[-1] if row_values else 0] * (len(sample_ids) - len(row_values)))
                 writer.writerow([feature_id, *row_values])
+        sample_metadata_filename = str(spec.get("sample_metadata_filename") or "").strip()
+        if sample_metadata_filename:
+            metadata_path = out_dir / sample_metadata_filename
+            with metadata_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+                writer.writerow(["sample_id", "patient_id"])
+                for sample_id in sample_ids:
+                    writer.writerow([sample_id, sample_id.split(":", 1)[0]])
 
 
 def write_assay_manifest(dataset_root: Path) -> None:
@@ -988,21 +1015,30 @@ def write_assay_manifest(dataset_root: Path) -> None:
         modality = path.parent.name
         data_type = "raw_counts" if modality == "transcriptomics" else str(PLACEHOLDER_ASSAYS.get(modality, {}).get("data_type") or "feature_matrix")
         feature_namespace = "ensembl_gene_id" if modality == "transcriptomics" else str(PLACEHOLDER_ASSAYS.get(modality, {}).get("feature_namespace") or "feature_id")
-        resources.append(
-            {
-                "assay_id": path.stem,
-                "label": path.stem.replace("_", " "),
-                "modality": modality,
-                "data_type": data_type,
-                "level": "sample",
-                "feature_namespace": feature_namespace,
-                "feature_id_column": "gene_id" if modality == "transcriptomics" else "feature_id",
-                "sample_id_column": "matrix_columns",
-                "patient_id_column": "derived_from_sample_id_prefix",
-                "timepoint_column": "derived_from_sample_id_suffix",
-                "file": str(path.relative_to(assays_root.parent)),
-            }
-        )
+        spec = PLACEHOLDER_ASSAYS.get(modality, {})
+        resource = {
+            "assay_id": path.stem,
+            "label": str(spec.get("label") or path.stem.replace("_", " ")),
+            "modality": modality,
+            "data_type": data_type,
+            "level": "sample",
+            "feature_namespace": feature_namespace,
+            "feature_id_column": "gene_id" if modality == "transcriptomics" else "feature_id",
+            "sample_id_column": "matrix_columns",
+            "patient_id_column": "derived_from_sample_id_prefix",
+            "timepoint_column": "derived_from_sample_id_suffix",
+            "file": str(path.relative_to(assays_root.parent)),
+        }
+        for key in ("feature_label", "value_kind"):
+            value = str(spec.get(key) or "").strip()
+            if value:
+                resource[key] = value
+        sample_metadata_filename = str(spec.get("sample_metadata_filename") or "").strip()
+        if sample_metadata_filename:
+            resource["sample_metadata_file"] = str(
+                (path.parent / sample_metadata_filename).relative_to(assays_root.parent)
+            )
+        resources.append(resource)
     manifest = {"version": 1, "assays": resources}
     (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 

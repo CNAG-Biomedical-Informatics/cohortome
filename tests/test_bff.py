@@ -400,7 +400,7 @@ def test_query_follow_up_can_refine_previous_subset_by_sex(tmp_path):
     )
 
     assert payload["intent"] == "patient_sex_cohort"
-    assert payload["data"]["patient_ids"] == ["P2"]
+    assert "patient_ids" not in payload["data"]
     assert payload["data"]["patient_count"] == 1
     assert "1 patient" in payload["reply"]
 
@@ -430,9 +430,9 @@ def test_query_follow_up_can_refine_previous_subset_by_plural_sex_shorthand(tmp_
     )
 
     assert payload["intent"] == "patient_sex_cohort"
-    assert payload["data"]["patient_ids"] == ["P1", "P3"]
+    assert "patient_ids" not in payload["data"]
     assert payload["data"]["patient_count"] == 2
-    assert "2 patients are female" in payload["reply"]
+    assert payload["reply"] == "2 patients match this query."
 
 
 def test_query_full_workspace_override_ignores_memory_for_adjective_style_sex_prompt(tmp_path):
@@ -460,7 +460,7 @@ def test_query_full_workspace_override_ignores_memory_for_adjective_style_sex_pr
     )
 
     assert payload["intent"] == "patient_sex_cohort"
-    assert payload["data"]["patient_ids"] == ["P1", "P3", "P4"]
+    assert "patient_ids" not in payload["data"]
     assert payload["data"]["patient_count"] == 3
     assert payload["data"]["scoped_follow_up"] is False
 
@@ -518,7 +518,7 @@ def test_query_semantic_follow_up_respects_previous_subset_scope(tmp_path, monke
     )
 
     assert payload["intent"] == "semantic_cohort_query"
-    assert payload["data"]["patient_ids"] == ["SYN014", "SYN015"]
+    assert "patient_ids" not in payload["data"]
     assert payload["data"]["patient_count"] == 2
     assert payload["data"]["scoped_follow_up"] is True
 
@@ -602,7 +602,7 @@ def test_query_follow_up_scopes_disease_match_to_previous_subset(tmp_path):
     )
 
     assert payload["intent"] == "disease_cohort"
-    assert payload["data"]["patient_ids"] == ["P2", "P3"]
+    assert "patient_ids" not in payload["data"]
     assert payload["data"]["patient_count"] == 2
 
 
@@ -1067,6 +1067,25 @@ def test_analysis_session_persists_scope_metadata(tmp_path, monkeypatch):
     assert saved["scope_metadata"]["source"]["kind"] == "dashboard_timeline"
     assert saved["context_mode"] == "general"
     assert analysis_sessions_module.get_analysis_session("session-metadata")["scope_metadata"]["sample_ids"] == ["SYN001:week_0", "SYN002:week_0"]
+
+
+def test_analysis_session_preserves_handle_only_scope_metadata(tmp_path, monkeypatch):
+    monkeypatch.setattr(analysis_sessions_module, "USER_STATE_ROOT", tmp_path / "users")
+
+    saved = analysis_sessions_module.save_analysis_session({
+        "id": "session-handle-scope",
+        "data_dir": "/data/a",
+        "scope": "",
+        "scope_metadata": {
+            "query_result_handle": "qr_handle_only_scope",
+            "id_type": "patient",
+            "source": {"kind": "query", "prompt": "List all patients"},
+        },
+    })
+
+    assert saved["scope_metadata"]["query_result_handle"] == "qr_handle_only_scope"
+    assert saved["scope_metadata"]["patient_ids"] == []
+    assert analysis_sessions_module.get_analysis_session("session-handle-scope")["scope_metadata"]["query_result_handle"] == "qr_handle_only_scope"
 
 
 def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path, monkeypatch):
@@ -2435,6 +2454,8 @@ def test_dicom_studies_route_lists_authorized_dataset_manifest(tmp_path, monkeyp
         encoding="utf-8",
     )
     monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda request, dataset_id, data_dir: str(dataset_root))
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, dataset_id="": ["dicom-dataset"])
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")
 
     payload = routes_module.get_dicom_studies(make_request({"user": {"username": "maria"}}), dataset_id="dicom-dataset")
 
@@ -2550,6 +2571,8 @@ def test_multimodal_readiness_reports_overlap_and_linkage_issues(tmp_path, monke
 
     isolate_query_store(monkeypatch, tmp_path)
     monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda _request, _dataset_id, data_dir: data_dir)
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda _request, _dataset_id="": ["synthetic"])
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda _dataset_ids: "detailed")
     write_json(
         tmp_path,
         "records.json",
@@ -2655,6 +2678,8 @@ def test_multimodal_feature_matrix_joins_clinical_assays_and_dicom(tmp_path, mon
 
     isolate_query_store(monkeypatch, tmp_path)
     monkeypatch.setattr(routes_module, "_resolve_route_dataset_dir", lambda _request, _dataset_id, data_dir: data_dir)
+    monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda _request, _dataset_id="": ["synthetic"])
+    monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda _dataset_ids: "detailed")
     write_json(
         tmp_path,
         "records.json",
@@ -2833,6 +2858,27 @@ def test_dataset_registry_allows_group_based_access(tmp_path, monkeypatch):
     outsider_listed = client.get("/datasets")
     assert outsider_listed.status_code == 200
     assert "cnag-dataset" not in [item["dataset_id"] for item in outsider_listed.json()["datasets"]]
+
+
+def test_dataset_api_record_redacts_query_store_error_details():
+    payload = routes_module._dataset_record_for_user(
+        {
+            "dataset_id": "private-demo",
+            "root_path": "/protected/release",
+            "query_store_status": {
+                "status": "failed",
+                "ready": False,
+                "last_error": "Unable to read /protected/release/private-source.csv",
+            },
+        },
+        {"username": "researcher", "role": "user"},
+    )
+
+    assert payload["root_path"] == ""
+    assert payload["query_store_status"]["last_error"] == (
+        "Store preparation failed. Review server logs for technical details."
+    )
+    assert "/protected" not in json.dumps(payload)
 
 
 def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
@@ -3153,6 +3199,7 @@ def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_pa
             "root_path": str(dataset_a),
             "enabled": True,
             "visibility": "all_authenticated",
+            "data_classification": "public",
             "created_by": "admin",
             "created_at": "2026-01-01T00:00:00+00:00",
             "updated_at": "2026-01-01T00:00:00+00:00",
@@ -3163,6 +3210,7 @@ def test_multi_dataset_scope_refreshes_when_source_file_inventory_changes(tmp_pa
             "root_path": str(dataset_b),
             "enabled": True,
             "visibility": "all_authenticated",
+            "data_classification": "public",
             "created_by": "admin",
             "created_at": "2026-01-01T00:00:00+00:00",
             "updated_at": "2026-01-01T00:00:00+00:00",
@@ -3201,6 +3249,7 @@ def test_multi_dataset_scope_build_failure_preserves_previous_scope(tmp_path, mo
                 "root_path": str(root),
                 "enabled": True,
                 "visibility": "all_authenticated",
+                "data_classification": "public",
                 "created_by": "admin",
                 "created_at": "2026-01-01T00:00:00+00:00",
                 "updated_at": "2026-01-01T00:00:00+00:00",
@@ -3250,6 +3299,7 @@ def test_multi_dataset_scope_supports_concurrent_materialization(tmp_path, monke
                 "root_path": str(root),
                 "enabled": True,
                 "visibility": "all_authenticated",
+                "data_classification": "public",
                 "created_by": "admin",
                 "created_at": "2026-01-01T00:00:00+00:00",
                 "updated_at": "2026-01-01T00:00:00+00:00",
@@ -3318,6 +3368,7 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
                     "root_path": str(dataset_a),
                     "enabled": True,
                     "visibility": "all_authenticated",
+                    "data_classification": "public",
                     "created_by": "admin",
                     "created_at": "2026-01-01T00:00:00+00:00",
                     "updated_at": "2026-01-01T00:00:00+00:00",
@@ -3328,6 +3379,7 @@ def test_federated_workspace_uses_prepared_dataset_stores_without_building_combi
                     "root_path": str(dataset_b),
                     "enabled": True,
                     "visibility": "all_authenticated",
+                    "data_classification": "public",
                     "created_by": "admin",
                     "created_at": "2026-01-01T00:00:00+00:00",
                     "updated_at": "2026-01-01T00:00:00+00:00",
@@ -4054,7 +4106,7 @@ def test_analysis_catalog_blocks_longitudinal_item_for_person_representation():
     assert "longitudinal visit or timepoint records" in availability["unavailable_reason"]
 
 
-def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_path):
+def test_analysis_prompt_without_catalog_selection_uses_normal_routing(tmp_path):
     write_json(
         tmp_path,
         "records.json",
@@ -4071,7 +4123,7 @@ def test_analysis_stale_catalog_item_does_not_override_nonmatching_prompt(tmp_pa
     payload = analysis_module.analysis_llm_reply(
         "Summarize the main clinical patterns in this workspace and tell me what stands out.",
         str(tmp_path),
-        catalog_item_id="external-r-scope-snapshot",
+        catalog_item_id="",
         deterministic_only=True,
     )
 
@@ -4248,6 +4300,507 @@ def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
     assert payload["data"]["context"]["cohort_a_top_disease"] == "Multiple Sclerosis"
     assert payload["data"]["context"]["cohort_a_top_medication"] == "Ocrelizumab"
     assert payload["data"]["context"]["cohort_a_patient_count"] == 1
+
+
+def _write_synthetic_methylation_runner_fixture(tmp_path):
+    assay_dir = tmp_path / "assays" / "methylation"
+    assay_dir.mkdir(parents=True)
+    sample_ids = ["METH001", "METH002", "METH003", "METH004", "METH005", "METH006"]
+    write_json(
+        tmp_path,
+        "records.json",
+        [{"id": sample_id, "patient_id": sample_id} for sample_id in sample_ids],
+    )
+    matrix_path = assay_dir / "synthetic_m_values.csv"
+    matrix_path.write_text(
+        "feature_id;" + ";".join(sample_ids) + "\n"
+        "cg00000001;2.2;2.0;2.4;-1.8;-2.0;-1.7\n"
+        "cg00000002;1.4;1.2;1.5;-1.1;-1.3;-1.0\n"
+        "cg00000003;-2.1;-1.9;-2.2;1.7;1.9;1.6\n"
+        "cg00000004;0.3;0.2;0.4;0.1;0.0;0.2\n"
+        "cg00000005;1.0;0.8;1.1;0.9;0.7;1.0\n"
+        "cg00000006;-0.5;-0.7;-0.4;-0.6;-0.8;-0.5\n",
+        encoding="utf-8",
+    )
+    metadata_path = assay_dir / "sample_metadata.csv"
+    metadata_path.write_text(
+        "sample_id;patient_id;age;plate\n"
+        "METH001;METH001;41;101\n"
+        "METH002;METH002;47;102\n"
+        "METH003;METH003;53;101\n"
+        "METH004;METH004;43;102\n"
+        "METH005;METH005;49;101\n"
+        "METH006;METH006;55;102\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_methylation_m_values",
+                        "modality": "methylation",
+                        "data_type": "m_values",
+                        "feature_namespace": "illumina_cpg_probe_id",
+                        "file": "assays/methylation/synthetic_m_values.csv",
+                        "sample_metadata_file": "assays/methylation/sample_metadata.csv",
+                        "analysis_covariates": ["age", "plate"],
+                        "analysis_covariate_types": {"age": "numeric", "plate": "categorical"},
+                        "feature_count": 6,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return matrix_path
+
+
+@pytest.mark.parametrize(
+    "runner_ref",
+    [
+        "methylation_qc_pca",
+        "methylation_limma_differential_methylation",
+    ],
+)
+def test_methylation_runners_reject_multi_dataset_workspace_before_assay_resolution(
+    tmp_path,
+    monkeypatch,
+    runner_ref,
+):
+    workspace_root = tmp_path / "multi-dataset-scope"
+    workspace_root.mkdir()
+    (workspace_root / "manifest.json").write_text(
+        json.dumps({"dataset_ids": ["dataset-a", "dataset-b"]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    def unexpected_assay_resolution(*_args, **_kwargs):
+        raise AssertionError("multi-dataset guard must run before assay resolution")
+
+    monkeypatch.setattr(
+        analysis_external_module,
+        "_choose_methylation_assay",
+        unexpected_assay_resolution,
+    )
+
+    with pytest.raises(RuntimeError, match="single-dataset workspaces only"):
+        analysis_external_module.run_rscript_analysis(
+            runner_ref,
+            prompt="Run methylation analysis.",
+            data_dir=str(workspace_root),
+            assay_id="dataset-a::methylation",
+            selected_patient_ids="A1,A2",
+            compare_selected_patient_ids="B1,B2",
+            job_dir=tmp_path / f"{runner_ref}-job",
+        )
+
+
+def test_analysis_external_methylation_qc_reads_manifest_matrix_without_copying_it(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+    matrix_path = _write_synthetic_methylation_runner_fixture(tmp_path)
+    job_dir = tmp_path / "methylation-qc-job"
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "methylation_qc_pca",
+        prompt="Run methylation QC and PCA for the selected assay.",
+        data_dir=str(tmp_path),
+        assay_id="synthetic_methylation_m_values",
+        selected_patient_ids="METH001,METH002,METH003",
+        compare_selected_patient_ids="METH004,METH005,METH006",
+        job_dir=job_dir,
+        timeout_seconds=60,
+    )
+
+    assert payload["data"]["context"]["mode"] == "external_rscript_methylation_qc_pca"
+    assert payload["data"]["context"]["observed_feature_count"] == 6
+    assert payload["data"]["context"]["pca_feature_count"] == 6
+    assert payload["data"]["context"]["sample_count"] == 6
+    assert payload["data"]["context"]["association_scope"] == "exploratory_one_covariate_at_a_time_bh_adjusted"
+    assert "strongest_covariate_adj_p_value" in payload["data"]["context"]
+    assert payload["data"]["context"]["r_version"].startswith("R version")
+    association_header = (job_dir / "pca_covariate_associations.tsv").read_text(encoding="utf-8").splitlines()[0]
+    assert association_header.endswith("\tadj_p_value")
+    assert payload["data"]["context"]["source_matrix_materialized_in_duckdb"] is False
+    assert (job_dir / "sample_qc.tsv").is_file()
+    assert (job_dir / "pca_scores.tsv").is_file()
+    assert (job_dir / "pca_variance.tsv").is_file()
+    assert (job_dir / "pca_covariate_associations.tsv").is_file()
+    assert (job_dir / "pca_plot.png").is_file()
+    assert not (job_dir / "m_values.tsv").exists()
+    assert not (job_dir / matrix_path.name).exists()
+    command_text = (job_dir / "command.txt").read_text(encoding="utf-8")
+    assert "[protected assay matrix]" in command_text
+    assert str(matrix_path) not in command_text
+    assert str(job_dir) not in command_text
+    assert str(matrix_path) not in json.dumps(payload)
+    assert str(job_dir) not in json.dumps(payload["data"]["runner_command"])
+
+
+def test_analysis_external_methylation_qc_accepts_quoted_semicolon_header(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+    matrix_path = _write_synthetic_methylation_runner_fixture(tmp_path)
+    lines = matrix_path.read_text(encoding="utf-8").splitlines()
+    header_values = lines[0].split(";")
+    lines[0] = ";".join(['"feature;identifier"', *[f'"{value}"' for value in header_values[1:]]])
+    matrix_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "methylation_qc_pca",
+        prompt="Run methylation QC and PCA for the quoted-header assay.",
+        data_dir=str(tmp_path),
+        assay_id="synthetic_methylation_m_values",
+        job_dir=tmp_path / "quoted-methylation-qc-job",
+        timeout_seconds=60,
+    )
+
+    assert payload["data"]["context"]["observed_feature_count"] == 6
+    assert payload["data"]["context"]["sample_count"] == 6
+
+
+def test_analysis_external_methylation_limma_uses_declared_covariates(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+    try:
+        has_limma = subprocess.run(
+            ["Rscript", "-e", "quit(status=ifelse(requireNamespace('limma', quietly=TRUE), 0, 1))"],
+            check=False,
+            capture_output=True,
+            timeout=20,
+        ).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        has_limma = False
+    if not has_limma:
+        pytest.skip("limma is not available")
+    matrix_path = _write_synthetic_methylation_runner_fixture(tmp_path)
+    job_dir = tmp_path / "methylation-limma-job"
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "methylation_limma_differential_methylation",
+        prompt="Run limma differential methylation between Cohort A and Cohort B.",
+        data_dir=str(tmp_path),
+        assay_id="synthetic_methylation_m_values",
+        selected_patient_ids="METH001,METH002,METH003",
+        compare_selected_patient_ids="METH004,METH005,METH006",
+        job_dir=job_dir,
+        timeout_seconds=60,
+    )
+
+    context = payload["data"]["context"]
+    assert context["mode"] == "external_rscript_methylation_limma_differential_methylation"
+    assert context["observed_feature_count"] == 6
+    assert context["analyzed_feature_count"] == 6
+    assert context["plotted_point_count"] == 6
+    assert context["volcano_point_limit"] == 50_000
+    assert context["covariates_used"] == ["age", "plate"]
+    assert context["analysis_covariate_types"] == {"age": "numeric", "plate": "categorical"}
+    assert "age" in context["design_columns"]
+    assert "plate102" in context["design_columns"]
+    assert context["contrast"] == "Cohort A - Cohort B"
+    assert context["source_matrix_materialized_in_duckdb"] is False
+    assert context["adjustment_status"] == "covariate_adjusted"
+    assert context["r_version"].startswith("R version")
+    assert context["limma_version"]
+    assert context["clinical_linkage_status"] == "complete_selected_scope"
+    assert (job_dir / "dm_results.tsv").is_file()
+    assert (job_dir / "volcano_points.tsv").is_file()
+    assert (job_dir / "volcano_plot.png").is_file()
+    assert str(matrix_path) not in (job_dir / "command.txt").read_text(encoding="utf-8")
+    assert str(job_dir) not in (job_dir / "command.txt").read_text(encoding="utf-8")
+    assert str(matrix_path) not in json.dumps(payload)
+
+
+def test_analysis_external_methylation_limma_marks_unadjusted_run_exploratory(tmp_path):
+    if shutil.which("Rscript") is None:
+        pytest.skip("Rscript is not available")
+    try:
+        has_limma = subprocess.run(
+            ["Rscript", "-e", "quit(status=ifelse(requireNamespace('limma', quietly=TRUE), 0, 1))"],
+            check=False,
+            capture_output=True,
+            timeout=20,
+        ).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        has_limma = False
+    if not has_limma:
+        pytest.skip("limma is not available")
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    manifest_path = tmp_path / "assays" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["assays"][0]["analysis_covariates"] = []
+    manifest["assays"][0]["analysis_covariate_types"] = {}
+    manifest["assays"][0]["sha256"] = "synthetic-declared-fingerprint"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "methylation_limma_differential_methylation",
+        prompt="Run exploratory limma differential methylation.",
+        data_dir=str(tmp_path),
+        assay_id="synthetic_methylation_m_values",
+        selected_patient_ids="METH001,METH002,METH003",
+        compare_selected_patient_ids="METH004,METH005,METH006",
+        job_dir=tmp_path / "methylation-unadjusted-job",
+        timeout_seconds=60,
+    )
+
+    context = payload["data"]["context"]
+    assert context["adjustment_status"] == "unadjusted_exploratory"
+    assert "unadjusted and exploratory" in payload["reply"]
+    assert context["source_fingerprint_status"] == "declared_not_recomputed"
+    assert context["source_fingerprint_verified_for_run"] is False
+    assert context["source_sha256"] == "synthetic-declared-fingerprint"
+    params = (tmp_path / "methylation-unadjusted-job" / "params.yaml").read_text(encoding="utf-8")
+    assert "adjustment_status: unadjusted_exploratory" in params
+    assert "source_fingerprint_status: declared_not_recomputed" in params
+
+
+def test_methylation_limma_rejects_incomplete_declared_covariates_before_r(tmp_path, monkeypatch):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    metadata_path = tmp_path / "assays" / "methylation" / "sample_metadata.csv"
+    metadata_path.write_text(
+        metadata_path.read_text(encoding="utf-8").replace("METH003;METH003;53;101", "METH003;METH003;;101"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="complete declared covariates"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_limma_differential_methylation",
+            prompt="Run limma differential methylation.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            selected_patient_ids="METH001,METH002,METH003",
+            compare_selected_patient_ids="METH004,METH005,METH006",
+            job_dir=tmp_path / "methylation-invalid-job",
+            timeout_seconds=60,
+        )
+
+
+@pytest.mark.parametrize("invalid_type", [None, "factor"])
+def test_methylation_runner_requires_explicit_valid_covariate_types(tmp_path, monkeypatch, invalid_type):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    manifest_path = tmp_path / "assays" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if invalid_type is None:
+        manifest["assays"][0]["analysis_covariate_types"].pop("plate")
+    else:
+        manifest["assays"][0]["analysis_covariate_types"]["plate"] = invalid_type
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="plate.*numeric or categorical"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            job_dir=tmp_path / "invalid-covariate-type-job",
+        )
+
+
+@pytest.mark.parametrize(
+    ("metadata_problem", "error_pattern"),
+    [
+        ("missing", "Every selected methylation matrix sample must have explicit patient linkage metadata"),
+        ("duplicate", "duplicate sample identifiers"),
+        ("ambiguous", "ambiguous row with extra fields"),
+    ],
+)
+def test_methylation_runner_rejects_invalid_explicit_linkage(
+    tmp_path,
+    monkeypatch,
+    metadata_problem,
+    error_pattern,
+):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    metadata_path = tmp_path / "assays" / "methylation" / "sample_metadata.csv"
+    lines = metadata_path.read_text(encoding="utf-8").splitlines()
+    if metadata_problem == "missing":
+        lines = [line for line in lines if not line.startswith("METH006;")]
+    elif metadata_problem == "duplicate":
+        lines.append("METH001;OTHER;61;103")
+    else:
+        lines[1] += ";unexpected"
+    metadata_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match=error_pattern):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            job_dir=tmp_path / f"invalid-linkage-{metadata_problem}-job",
+        )
+
+
+def test_methylation_runner_requires_explicit_sample_metadata(tmp_path, monkeypatch):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    manifest_path = tmp_path / "assays" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["assays"][0].pop("sample_metadata_file")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="missing its sample_metadata_file declaration"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            job_dir=tmp_path / "missing-sample-metadata-job",
+        )
+
+
+def test_methylation_runner_rejects_exact_linkage_without_patient_column(tmp_path, monkeypatch):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    manifest_path = tmp_path / "assays" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["assays"][0]["patient_linkage"] = "exact_sample_id"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    metadata_path = tmp_path / "assays" / "methylation" / "sample_metadata.csv"
+    metadata_path.write_text(
+        "sample_id;age;plate\n"
+        "METH001;41;101\n"
+        "METH002;47;102\n"
+        "METH003;53;101\n"
+        "METH004;43;102\n"
+        "METH005;49;101\n"
+        "METH006;55;102\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="must contain sample_id and patient_id columns"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            job_dir=tmp_path / "exact-linkage-without-patient-job",
+        )
+
+
+def test_methylation_runner_rejects_selected_patient_missing_from_clinical_workspace(tmp_path, monkeypatch):
+    _write_synthetic_methylation_runner_fixture(tmp_path)
+    metadata_path = tmp_path / "assays" / "methylation" / "sample_metadata.csv"
+    metadata_path.write_text(
+        metadata_path.read_text(encoding="utf-8").replace("METH006;METH006;", "METH006;NOT_CLINICALLY_LINKED;"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="explicit clinical linkage.*1 selected patient"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="synthetic_methylation_m_values",
+            job_dir=tmp_path / "missing-clinical-linkage-job",
+        )
+
+
+def test_methylation_runner_rejects_matrix_location_outside_release(tmp_path, monkeypatch):
+    assay_dir = tmp_path / "assays"
+    assay_dir.mkdir()
+    outside_matrix = tmp_path.parent / f"{tmp_path.name}-outside-methylation-matrix.csv"
+    outside_matrix.write_text("feature_id;METH001;METH002\ncg00000001;0.1;0.2\n", encoding="utf-8")
+    (assay_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "invalid_methylation",
+                        "modality": "methylation",
+                        "data_type": "m_values",
+                        "file": f"../{outside_matrix.name}",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        analysis_external_module.shutil,
+        "which",
+        lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
+    )
+
+    with pytest.raises(RuntimeError, match="invalid file location"):
+        analysis_external_module.run_rscript_analysis(
+            "methylation_qc_pca",
+            prompt="Run methylation QC.",
+            data_dir=str(tmp_path),
+            assay_id="invalid_methylation",
+            job_dir=tmp_path / "invalid-methylation-job",
+        )
+
+
+def test_methylation_bundle_resolves_matrix_and_metadata_from_authorized_source_root(tmp_path, monkeypatch):
+    source_root = tmp_path / "authorized-release"
+    workspace_root = tmp_path / "workspace-scope"
+    workspace_root.mkdir()
+    _write_synthetic_methylation_runner_fixture(source_root)
+    manifest = json.loads((source_root / "assays" / "manifest.json").read_text(encoding="utf-8"))
+    item = dict(manifest["assays"][0])
+    item["_release_root"] = str(source_root)
+    item["assay_id"] = "authorized::synthetic_methylation_m_values"
+    monkeypatch.setattr(
+        analysis_external_module,
+        "_choose_methylation_assay",
+        lambda *_args, **_kwargs: item,
+    )
+    monkeypatch.setattr(
+        query_store_module,
+        "patient_inventory",
+        lambda _data_dir: [f"METH00{index}" for index in range(1, 7)],
+    )
+
+    bundle = analysis_external_module._prepare_methylation_analysis_bundle(
+        str(workspace_root),
+        prompt="Run methylation QC.",
+        assay_id=item["assay_id"],
+        selected_patient_ids="",
+        compare_selected_patient_ids="",
+        output_dir=tmp_path / "authorized-root-job",
+        analysis_type="qc_pca",
+    )
+
+    assert bundle["matrix_path"] == source_root / "assays" / "methylation" / "synthetic_m_values.csv"
+    assert bundle["clinical_linkage_status"] == "complete_selected_scope"
 
 
 def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkeypatch):
@@ -4854,7 +5407,7 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
     response = client.post(
         "/analysis",
         json={
-            "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "prompt": "Run the clinical scope profile and retain this reviewer note.",
             "catalog_item_id": "external-r-clinical-profile",
             "analysis_session_id": "session-1",
             "dataset_id": "default",
@@ -4877,6 +5430,7 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
     assert record["analysis_session_title"] == "Scoped analysis"
     assert record["run_number"] == 1
     assert record["catalog_item_id"] == "external-r-clinical-profile"
+    assert record["prompt"] == "Run the clinical scope profile and retain this reviewer note."
     assert record["status"] == "queued"
 
 
@@ -4928,6 +5482,54 @@ def test_analysis_job_submission_requires_live_worker(tmp_path, monkeypatch):
     assert response.status_code == 400
     assert "no background worker is running" in response.json()["detail"].lower()
     assert jobs_module.list_job_records("alice") == []
+
+
+@pytest.mark.parametrize(
+    ("worker_states", "expected_activity", "expected_busy"),
+    [
+        (["idle"], "idle", 0),
+        (["busy", "idle"], "working", 1),
+    ],
+)
+def test_analysis_worker_status_distinguishes_online_from_working(
+    monkeypatch,
+    worker_states,
+    expected_activity,
+    expected_busy,
+):
+    class FakeConnection:
+        def ping(self):
+            return True
+
+    class FakeWorker:
+        def __init__(self, state):
+            self._state = state
+
+        def queue_names(self):
+            return ["analysis"]
+
+        def get_state(self):
+            return self._state
+
+        @classmethod
+        def all(cls, connection):
+            assert isinstance(connection, FakeConnection)
+            return [cls(state) for state in worker_states]
+
+    import rq
+
+    monkeypatch.setattr(jobs_module, "jobs_enabled", lambda: True)
+    monkeypatch.setattr(jobs_module, "jobs_queue_name", lambda: "analysis")
+    monkeypatch.setattr(jobs_module, "_rq_connection", lambda: FakeConnection())
+    monkeypatch.setattr(rq, "Worker", FakeWorker)
+
+    status = jobs_module.analysis_worker_status()
+
+    assert status["available"] is True
+    assert status["redis_available"] is True
+    assert status["worker_count"] == len(worker_states)
+    assert status["busy_worker_count"] == expected_busy
+    assert status["activity"] == expected_activity
 
 
 def test_submit_pheno_job_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
@@ -5335,7 +5937,13 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     alice_job = jobs_module.create_job_record(
         job_type="analysis",
         user_id="alice",
-        data={"feature": "analysis", "name": "Alice job", "catalog_item_id": "external-r-clinical-profile", "execution_backend": "job"},
+        data={
+            "feature": "analysis",
+            "name": "Alice job",
+            "dataset_id": "default",
+            "catalog_item_id": "external-r-clinical-profile",
+            "execution_backend": "job",
+        },
     )
     alice_dir = jobs_module.job_dir(alice_job["job_id"], "alice")
     (alice_dir / "stdout.txt").write_text("hello", encoding="utf-8")
@@ -5358,7 +5966,13 @@ def test_jobs_routes_are_user_scoped_and_return_completed_payload(tmp_path, monk
     bob_job = jobs_module.create_job_record(
         job_type="analysis",
         user_id="bob",
-        data={"feature": "analysis", "name": "Bob job", "catalog_item_id": "other", "execution_backend": "job"},
+        data={
+            "feature": "analysis",
+            "name": "Bob job",
+            "dataset_id": "default",
+            "catalog_item_id": "other",
+            "execution_backend": "job",
+        },
     )
 
     client = TestClient(app)
@@ -5675,6 +6289,7 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
             "feature": "analysis",
             "name": "Queued external R",
             "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
+            "dataset_id": "default",
             "data_dir": str(tmp_path),
             "catalog_item_id": "external-r-clinical-profile",
             "runner_type": "rscript",
@@ -5727,6 +6342,7 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
             "feature": "analysis",
             "name": "Queued workflow",
             "prompt": "Run the assay signature workflow between Cohort A and Cohort B for the selected assay.",
+            "dataset_id": "default",
             "data_dir": str(tmp_path),
             "catalog_item_id": "transcriptomics-signature-workflow",
             "runner_type": "workflow",
@@ -6267,6 +6883,41 @@ def test_analysis_llm_only_skips_planner(tmp_path, monkeypatch):
 
     assert payload["intent"] == "analysis_llm"
     assert payload["reply"] == "Narrative analysis"
+    assert calls == ["analysis_llm"]
+
+
+def test_analysis_llm_only_skips_matching_deterministic_router(tmp_path, monkeypatch):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "P1:baseline",
+                "event_date": "2024-01-01",
+                "measures": [{"assayCode": {"label": "CRP"}, "measurementValue": {"quantity": {"value": 10.0}}}],
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LM_STUDIO_ENABLED", "true")
+    monkeypatch.setenv("LM_STUDIO_MODEL", "local-model")
+    calls = []
+
+    def fake_http_json(url, payload=None, log_kind="generic"):
+        calls.append(log_kind)
+        return {"choices": [{"message": {"content": "LLM interpretation"}}]}
+
+    monkeypatch.setattr(analysis_module, "http_json", fake_http_json)
+
+    payload = analysis_module.analysis_llm_reply(
+        "Show response to Infliximab using CRP",
+        str(tmp_path),
+        llm_only=True,
+    )
+
+    assert payload["intent"] == "analysis_llm"
+    assert payload["reply"] == "LLM interpretation"
+    assert payload["data"]["source"] == "llm"
     assert calls == ["analysis_llm"]
 
 
@@ -6977,6 +7628,11 @@ def test_query_needs_clarification_for_short_prompt(tmp_path):
     assert payload["intent"] == "needs_clarification"
     assert "too short" in payload["reply"].lower()
     assert payload["data"]["follow_up_suggestions"]
+    assert len(payload["data"]["follow_up_suggestion_metadata"]) == len(payload["data"]["follow_up_suggestions"])
+    assert {item["execution_mode"] for item in payload["data"]["follow_up_suggestion_metadata"]} <= {
+        "deterministic_only",
+        "planner_only",
+    }
 
 
 def test_follow_up_suggestions_normalize_question_shaped_terms():
@@ -6995,6 +7651,58 @@ def test_follow_up_suggestions_normalize_take_style_medication_questions():
         "Which patients have esteroids?",
         "Show the visits mentioning esteroids.",
     ]
+
+
+def test_follow_up_metadata_discloses_and_pins_query_execution_mode():
+    metadata = query_module._follow_up_suggestion_metadata(
+        [
+            "How many patients take Infliximab?",
+            "How many patients take biologics?",
+            "What evidence supports the main cohort summary?",
+        ]
+    )
+
+    assert metadata == [
+        {
+            "prompt": "How many patients take Infliximab?",
+            "execution_kind": "deterministic",
+            "execution_mode": "deterministic_only",
+            "label": "Deterministic",
+        },
+        {
+            "prompt": "How many patients take biologics?",
+            "execution_kind": "planner",
+            "execution_mode": "planner_only",
+            "label": "LLM-planned",
+        },
+        {
+            "prompt": "What evidence supports the main cohort summary?",
+            "execution_kind": "planner",
+            "execution_mode": "planner_only",
+            "label": "LLM-planned",
+        },
+    ]
+
+
+def test_query_deterministic_only_does_not_call_ai_fallback(tmp_path, monkeypatch):
+    write_json(tmp_path, "records.json", [])
+
+    monkeypatch.setattr(
+        query_module,
+        "_semantic_query_plan",
+        lambda *_args, **_kwargs: pytest.fail("deterministic-only query called the semantic planner"),
+    )
+    monkeypatch.setattr(
+        query_module,
+        "_lm_studio_reply",
+        lambda *_args, **_kwargs: pytest.fail("deterministic-only query called the LLM fallback"),
+    )
+
+    payload = answer_query(str(tmp_path), "Explain the hidden pattern", query_mode="deterministic_only")
+
+    assert payload["intent"] == "unsupported"
+    assert payload["data"]["source"] == "deterministic"
+    assert "deterministic router" in payload["reply"].lower()
 
 
 def test_query_passes_history_into_lm_studio_context(tmp_path, monkeypatch):
@@ -7593,7 +8301,7 @@ def test_query_semantic_planner_respects_how_many_vs_which_wording(tmp_path, mon
     assert count_payload["intent"] == "semantic_cohort_query"
     assert count_payload["data"]["patient_count"] == 2
     assert count_payload["data"]["semantic_plan"]["output"] == "count"
-    assert count_payload["reply"].startswith("2 patients match:")
+    assert count_payload["reply"] == "2 patients match this query."
 
     list_payload = answer_query(str(tmp_path), "Which patients take biologics?")
     assert list_payload["intent"] == "semantic_cohort_query"
@@ -7716,8 +8424,8 @@ def test_query_counts_patients_with_exactly_one_medication(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients take exactly 1 medication?")
     assert payload["intent"] == "patient_medication_count_cohort"
     assert payload["data"]["patient_count"] == 1
-    assert payload["data"]["patients"][0]["patient_id"] == "202"
-    assert payload["reply"] == "1 patient has exactly 1 medication."
+    assert "patients" not in payload["data"]
+    assert payload["reply"] == "1 patient match this query."
 
 
 def test_query_lists_patients_with_no_medications(tmp_path):
@@ -7795,11 +8503,15 @@ def test_query_counts_patients_in_workspace_with_colloquial_prompt(tmp_path):
 
     assert payload["intent"] == "patient_inventory"
     assert payload["data"]["patient_count"] == 3
-    assert payload["data"]["patient_ids"] == [
-        "101:week_0_arm_1",
-        "102:week_0_arm_1",
-        "103:week_0_arm_1",
-    ]
+    assert "patient_ids" not in payload["data"]
+    assert "sample_ids" not in payload["data"]
+    assert "result_handle" not in payload["data"]
+    assert payload["data"]["available_actions"] == {
+        "open_in_analysis": False,
+        "save_cohort": False,
+        "copy_patient_ids": False,
+        "use_in_pheno_ranker": False,
+    }
     assert payload["reply"] == "This workspace contains 3 patients."
 
 
@@ -7889,8 +8601,8 @@ def test_query_counts_mixed_include_exclude_patient_filters(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients have Ulcerative Colitis but do not take Mesalamine?")
     assert payload["intent"] == "patient_filter_cohort"
     assert payload["data"]["patient_count"] == 1
-    assert payload["data"]["patient_ids"] == ["202"]
-    assert payload["reply"] == "1 patient match: has 'Ulcerative Colitis' and does not take 'Mesalamine'."
+    assert "patient_ids" not in payload["data"]
+    assert payload["reply"] == "1 patient match this query."
 
 
 def test_query_supports_temporal_compound_filters(tmp_path):
@@ -7987,8 +8699,8 @@ def test_query_counts_temporal_compound_filters(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients have at least 2 timepoints with Prednisolone and have Ulcerative Colitis?")
     assert payload["intent"] == "patient_filter_cohort"
     assert payload["data"]["patient_count"] == 1
-    assert payload["data"]["patient_ids"] == ["202"]
-    assert payload["reply"] == "1 patient match: has at least 2 timepoints with 'Prednisolone' and has 'Ulcerative Colitis'."
+    assert "patient_ids" not in payload["data"]
+    assert payload["reply"] == "1 patient match this query."
 
 
 def test_query_supports_before_temporal_order_filters(tmp_path):
@@ -8057,8 +8769,8 @@ def test_query_supports_after_temporal_order_filters(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients had Infliximab after Crohn Disease?")
     assert payload["intent"] == "patient_temporal_order_cohort"
     assert payload["data"]["patient_count"] == 1
-    assert payload["data"]["patient_ids"] == ["101"]
-    assert payload["reply"] == "1 patient had 'Infliximab' after 'Crohn Disease'."
+    assert "patient_ids" not in payload["data"]
+    assert payload["reply"] == "1 patient match this query."
 
 
 def test_query_supports_transition_filters(tmp_path):
@@ -8127,8 +8839,8 @@ def test_query_supports_started_after_filters(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients started Infliximab after Crohn Disease?")
     assert payload["intent"] == "patient_started_after_cohort"
     assert payload["data"]["patient_count"] == 1
-    assert payload["data"]["patient_ids"] == ["101"]
-    assert payload["reply"] == "1 patient started 'Infliximab' after 'Crohn Disease'."
+    assert "patient_ids" not in payload["data"]
+    assert payload["reply"] == "1 patient match this query."
 
 
 def test_duckdb_query_store_indexes_multiple_files(tmp_path):
@@ -8437,6 +9149,198 @@ def test_manifest_assay_stats_stream_header_and_use_declared_feature_count(tmp_p
     assert stats is not None
     assert stats["sample_ids"] == ["SYN001", "SYN002"]
     assert stats["feature_count"] == 368_607
+
+
+def test_manifest_assay_stats_uses_explicit_metadata_linkage_for_tsv_matrix(tmp_path):
+    assay_dir = tmp_path / "assays" / "methylation"
+    assay_dir.mkdir(parents=True)
+    (assay_dir / "matrix.tsv").write_text(
+        "feature_id\tARRAY_A\tARRAY_B\n"
+        "cg00000001\t0.1\t0.2\n",
+        encoding="utf-8",
+    )
+    (assay_dir / "samples.tsv").write_text(
+        "sample_id\tpatient_id\n"
+        "ARRAY_A\tPATIENT_1\n"
+        "ARRAY_B\tPATIENT_2\n",
+        encoding="utf-8",
+    )
+
+    stats = query_store_module._assay_matrix_stats(
+        tmp_path,
+        {
+            "file": "assays/methylation/matrix.tsv",
+            "sample_metadata_file": "assays/methylation/samples.tsv",
+        },
+    )
+
+    assert stats is not None
+    assert stats["sample_ids"] == ["ARRAY_A", "ARRAY_B"]
+    assert stats["patient_ids"] == ["PATIENT_1", "PATIENT_2"]
+    assert stats["linkage_source"] == "sample_metadata_file"
+    assert stats["linked_sample_count"] == 2
+    assert stats["unlinked_sample_count"] == 0
+
+
+def test_manifest_assay_inventory_honors_exact_sample_id_with_technical_metadata(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(
+        tmp_path,
+        "records.json",
+        [{"id": "SYN001"}, {"id": "SYN002"}],
+    )
+    assay_dir = tmp_path / "assays" / "transcriptomics"
+    assay_dir.mkdir(parents=True)
+    (assay_dir / "matrix.csv").write_text(
+        "feature_id;SYN001;SYN002\n"
+        "ENSG00000141510;10.5;12.25\n",
+        encoding="utf-8",
+    )
+    (assay_dir / "technical.csv").write_text(
+        "sample_id;batch\n"
+        "SYN001;A\n"
+        "SYN002;B\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_rsem_expected_counts",
+                        "modality": "transcriptomics",
+                        "data_type": "rsem_expected_counts",
+                        "file": "assays/transcriptomics/matrix.csv",
+                        "sample_metadata_file": "assays/transcriptomics/technical.csv",
+                        "patient_linkage": "exact_sample_id",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    inventory = store_assay_dataset_inventory(str(tmp_path))
+
+    assert len(inventory) == 1
+    item = inventory[0]
+    assert item["dataset_name"] == "synthetic_rsem_expected_counts"
+    assert item["sample_ids"] == ["SYN001", "SYN002"]
+    assert item["patient_ids"] == ["SYN001", "SYN002"]
+    assert item["clinical_overlap_patient_count"] == 2
+    assert item["linkage_source"] == "exact_sample_id"
+    assert item["linked_sample_count"] == 2
+    assert item["unlinked_sample_count"] == 0
+
+
+def test_methylation_manifest_is_registered_without_materializing_values(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001", "diseases": [{"diseaseCode": {"label": "Rheumatoid Arthritis"}}]},
+            {"id": "SYN002", "diseases": [{"diseaseCode": {"label": "Healthy Control"}}]},
+        ],
+    )
+    assay_dir = tmp_path / "assays" / "methylation"
+    assay_dir.mkdir(parents=True)
+    matrix_path = assay_dir / "synthetic_m_values.csv"
+    matrix_path.write_text(
+        "feature_id;SYN001;SYN002\n"
+        "cg00000029;-1.42;-1.10\n"
+        "cg00000108;0.34;0.55\n"
+        "cg00000165;2.10;1.92\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_m_values",
+                        "label": "Synthetic methylation M-values",
+                        "modality": "methylation",
+                        "data_type": "m_values",
+                        "feature_namespace": "illumina_cpg_probe_id",
+                        "feature_label": "CpG probes",
+                        "value_kind": "m_values",
+                        "file": "assays/methylation/synthetic_m_values.csv",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert query_store_module._assay_matrix_files(str(tmp_path)) == []
+    inventory = store_assay_dataset_inventory(str(tmp_path))
+    item = next(value for value in inventory if value["dataset_name"] == "synthetic_m_values")
+    searchable_features = store_assay_feature_inventory(str(tmp_path), "synthetic_m_values")
+    preview = query_store_module.assay_dataset_matrix_preview(
+        str(tmp_path),
+        "synthetic_m_values",
+        feature_limit=2,
+    )
+    con = query_store_module._connect(str(tmp_path))
+    try:
+        materialized_value_count = con.execute("SELECT count(*) FROM transcript_counts").fetchone()[0]
+    finally:
+        con.close()
+
+    assert item["modality"] == "methylation"
+    assert item["data_type"] == "m_values"
+    assert item["feature_id_type"] == "illumina_cpg_probe_id"
+    assert item["feature_label"] == "CpG probes"
+    assert item["value_kind"] == "m_values"
+    assert item["feature_count"] == 3
+    assert item["sample_count"] == 2
+    assert item["clinical_overlap_patient_count"] == 2
+    assert item["supports_expression_summary"] is False
+    assert item["supports_differential_expression"] is False
+    assert searchable_features == []
+    assert preview is not None
+    assert preview["features"] == [
+        {"feature_id": "cg00000029", "label": "cg00000029"},
+        {"feature_id": "cg00000108", "label": "cg00000108"},
+    ]
+    assert preview["sample_values"]["SYN001"]["cg00000029"] == -1.42
+    assert materialized_value_count == 0
+
+
+def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
+    matrices = []
+    for dataset_root in (Path("default_dataset"), Path("dataset-large")):
+        manifest = json.loads((dataset_root / "assays" / "manifest.json").read_text(encoding="utf-8"))
+        item = next(
+            value
+            for value in manifest["assays"]
+            if value.get("assay_id") == "synthetic_methylation_m_values"
+        )
+        matrix_path = dataset_root / item["file"]
+
+        assert item["modality"] == "methylation"
+        assert item["data_type"] == "m_values"
+        assert item["feature_namespace"] == "illumina_cpg_probe_id"
+        assert item["feature_label"] == "CpG probes"
+        assert item["value_kind"] == "m_values"
+        assert item["sample_metadata_file"] == "assays/methylation/synthetic_methylation_sample_metadata.tsv"
+        assert matrix_path.is_file()
+        metadata_path = dataset_root / item["sample_metadata_file"]
+        assert metadata_path.is_file()
+        assert metadata_path.read_text(encoding="utf-8").splitlines()[0] == "sample_id\tpatient_id"
+        matrices.append(matrix_path.read_text(encoding="utf-8"))
+
+    assert matrices[0] == matrices[1]
+    assert matrices[0].splitlines()[1].startswith("cg00000029;")
 
 
 def test_assay_inventory_metadata_honors_manifest_capability_overrides():
@@ -9037,6 +9941,7 @@ def test_query_post_rejects_missing_active_workspace(monkeypatch):
 def test_query_analysis_and_dashboard_route_wrappers_map_file_not_found(monkeypatch):
     request = make_request({"username": "u1"})
     monkeypatch.setattr(routes_module, "require_authenticated", lambda req: {"username": "u1"})
+    monkeypatch.setattr(routes_module, "current_dataset_ids", lambda user_id: ["default"])
     monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda request, key="": ["default"])
     monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda request, key: "/resolved/data")
     monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda dataset_ids: "detailed")

@@ -15,7 +15,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ../runtime:/var/lib/cohortome
+      - cohortome-runtime:/var/lib/cohortome
       - ../default_dataset:/app/default_dataset:ro
       - ../private_dataset:/app/private_dataset:ro
       - ../dataset-large:/app/dataset-large:ro
@@ -36,7 +36,7 @@ services:
       COHORTOME_RUNTIME_ROOT: /var/lib/cohortome
     command: ["rq", "worker", "analysis", "--url", "redis://redis:6379/0"]
     volumes:
-      - ../runtime:/var/lib/cohortome
+      - cohortome-runtime:/var/lib/cohortome
       - ../default_dataset:/app/default_dataset:ro
       - ../private_dataset:/app/private_dataset:ro
       - ../dataset-large:/app/dataset-large:ro
@@ -79,5 +79,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  cohortome-runtime:
   redis-data:
   orthanc-data:

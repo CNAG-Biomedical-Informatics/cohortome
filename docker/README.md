@@ -33,6 +33,10 @@ Edit `docker/.env` before starting:
 - decide whether to keep the bootstrap users
 - configure the `LM_STUDIO_*` system default or add an endpoint later in `Admin > Models`
 
+Compose stores mutable application state in a Docker-managed named volume. Do
+not replace it with a bind mount below the repository when private datasets or
+sample-level artifacts are in scope.
+
 Start the stack:
 
 ```bash
@@ -57,21 +61,25 @@ Stop:
 docker compose -f docker/docker-compose.yml --env-file docker/.env down
 ```
 
-## Persistent Paths
+## Persistent Storage
 
-The Compose file mounts one mutable host directory into the containers:
+The Compose file mounts one Docker-managed named volume and three read-only
+dataset directories into the containers:
 
-- `runtime/` -> local users, settings, dataset registry, DuckDB stores, and generated runs
+- `cohortome-runtime` -> local users, settings, dataset registry, DuckDB stores, and generated runs
 - `default_dataset/`, `private_dataset/`, `dataset-large/` -> read-only datasets
 
-Back up:
+List the deployment's resolved volume name before backing it up:
 
-```text
-runtime/
+```bash
+docker volume ls --filter name=cohortome-runtime
 ```
 
 Inside the container, `COHORTOME_RUNTIME_ROOT=/var/lib/cohortome`. Both the web
-process and worker use that same root.
+process and worker use that same root. The named volume keeps generated state
+outside the Git checkout on the host. If deployment policy requires a bind
+mount instead, its host source must be an absolute protected path outside the
+checkout.
 
 ## Dataset Stores
 
@@ -165,7 +173,7 @@ Start COHORTome from source. Because COHORTome is running on the host, use
 ```bash
 export COHORTOME_AUTH_MODE=local
 export COHORTOME_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-export COHORTOME_RUNTIME_ROOT="$PWD/runtime"
+export COHORTOME_RUNTIME_ROOT=/absolute/protected/path/outside-the-checkout/cohortome-runtime
 
 export COHORTOME_DICOM_ENABLED=true
 export COHORTOME_OHIF_PUBLIC_URL=http://127.0.0.1:3000

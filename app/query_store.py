@@ -261,6 +261,26 @@ def _assay_source_files(root: Path) -> List[Path]:
     manifest_path = assays_root / "manifest.json"
     if manifest_path.is_file():
         paths.append(manifest_path)
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        for item in payload.get("assays", []) if isinstance(payload, dict) else []:
+            if not isinstance(item, dict):
+                continue
+            for key, raw_value in item.items():
+                if key != "file" and not str(key).endswith("_file"):
+                    continue
+                relative_file = str(raw_value or "").strip()
+                if not relative_file:
+                    continue
+                candidate = (root / relative_file).resolve()
+                try:
+                    candidate.relative_to(root.resolve())
+                except ValueError:
+                    continue
+                if candidate.is_file():
+                    paths.append(candidate)
     paths.extend(path for path in sorted(assays_root.glob("*/*.csv")) if path.is_file())
     return sorted(dict.fromkeys(paths))
 
@@ -299,7 +319,12 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
 
 
 def _detect_matrix_delimiter(header_line: str) -> str:
-    return ";" if header_line.count(";") >= header_line.count(",") else ","
+    candidates = ("\t", ";", ",")
+    parsed_widths = {
+        delimiter: len(next(csv.reader([str(header_line or "")], delimiter=delimiter), []))
+        for delimiter in candidates
+    }
+    return max(candidates, key=lambda delimiter: parsed_widths[delimiter])
 
 
 def _read_transcriptomics_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, List[int]]]]:
@@ -1153,6 +1178,12 @@ def _assay_inventory_metadata(
         value_kind = "integer_counts" if data_type_text == "raw_counts" else "expression_values"
         supports_expression_summary = True
         supports_differential_expression = data_type_text == "raw_counts"
+    elif modality_text == "methylation":
+        feature_id_type = "illumina_cpg_probe_id"
+        feature_label = "CpG probes"
+        value_kind = "m_values" if data_type_text == "m_values" else "methylation_values"
+        supports_expression_summary = False
+        supports_differential_expression = False
     elif modality_text in {"olink", "proteomics"}:
         feature_id_type = "protein_id"
         feature_label = "proteins"
@@ -1211,8 +1242,7 @@ def _assay_inventory_metadata(
     return metadata
 
 
-def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
-    root = resolve_project_data_dir(data_dir)
+def _assay_manifest_items_for_root(root: Path) -> List[Dict[str, Any]]:
     manifest_path = root / "assays" / "manifest.json"
     if manifest_path.exists():
         try:
@@ -1221,7 +1251,11 @@ def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
             payload = {}
         items = payload.get("assays") if isinstance(payload, dict) else []
         if isinstance(items, list):
-            return [item for item in items if isinstance(item, dict)]
+            return [
+                {key: value for key, value in item.items() if not str(key).startswith("_")}
+                for item in items
+                if isinstance(item, dict)
+            ]
     items: List[Dict[str, Any]] = []
     assays_root = root / "assays"
     for path in sorted(assays_root.glob("*/*.csv")) if assays_root.exists() else []:
@@ -1235,6 +1269,137 @@ def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
             }
         )
     return items
+
+
+def _assay_manifest_items(data_dir: str) -> List[Dict[str, Any]]:
+    root = resolve_project_data_dir(data_dir)
+    dataset_ids = _workspace_dataset_ids(data_dir)
+    if len(dataset_ids) <= 1:
+        source_root = _dataset_root_path(dataset_ids[0]) if dataset_ids else root
+        return _assay_manifest_items_for_root(source_root)
+
+    items: List[Dict[str, Any]] = []
+    for dataset_id in dataset_ids:
+        source_root = _dataset_root_path(dataset_id)
+        for raw_item in _assay_manifest_items_for_root(source_root):
+            item = dict(raw_item)
+            source_assay_id = str(
+                item.get("assay_id") or Path(str(item.get("file") or "")).stem
+            ).strip()
+            if not source_assay_id:
+                continue
+            if (
+                str(item.get("modality") or "").strip() == "transcriptomics"
+                and str(item.get("data_type") or "").strip() == "raw_counts"
+            ):
+                item["assay_id"] = f"{dataset_id}__{source_assay_id}"
+            else:
+                item["assay_id"] = f"{dataset_id}::{source_assay_id}"
+            item["label"] = (
+                f"{dataset_id} — {str(item.get('label') or source_assay_id).strip()}"
+            )
+            # Internal-only provenance used to validate and open files from the
+            # authorized source release. Inventory responses do not expose it.
+            item["_release_root"] = str(source_root)
+            item["_source_dataset_id"] = dataset_id
+            item["_source_assay_id"] = source_assay_id
+            items.append(item)
+    return items
+
+
+def _manifest_item_root(data_dir: str, item: Dict[str, Any]) -> Path:
+    internal_root = str(item.get("_release_root") or "").strip()
+    return Path(internal_root).resolve() if internal_root else resolve_project_data_dir(data_dir).resolve()
+
+
+def _manifest_assay_sample_patient_links(
+    root: Path,
+    item: Dict[str, Any],
+    sample_ids: List[str],
+    *,
+    require_complete_metadata: bool = False,
+) -> Dict[str, Any]:
+    """Resolve matrix sample IDs to patient IDs using the assay manifest contract.
+
+    An explicit exact-sample linkage remains authoritative for non-methylation
+    assays even when their sample metadata contains technical fields only.
+    Methylation assays and callers requesting complete metadata require an
+    explicit sample-to-patient table. Other manifests without a metadata table
+    retain the established sample-prefix convention.
+    """
+    normalized_samples = [str(value or "").strip() for value in sample_ids if str(value or "").strip()]
+    modality = str(item.get("modality") or "").strip().lower()
+    patient_linkage = str(item.get("patient_linkage") or "").strip().lower()
+    strict_metadata_linkage = require_complete_metadata or modality == "methylation"
+    if patient_linkage == "exact_sample_id" and not strict_metadata_linkage:
+        return {
+            "links": {sample_id: sample_id for sample_id in normalized_samples},
+            "linkage_source": "exact_sample_id",
+            "unlinked_sample_ids": [],
+        }
+
+    metadata_file = str(item.get("sample_metadata_file") or "").strip()
+    if not metadata_file:
+        links = {
+            sample_id: _patient_id_from_assay_sample(sample_id)
+            for sample_id in normalized_samples
+        }
+        return {
+            "links": links,
+            "linkage_source": "sample_id_prefix",
+            "unlinked_sample_ids": [],
+        }
+
+    resolved_root = root.resolve()
+    metadata_path = (resolved_root / metadata_file).resolve()
+    try:
+        metadata_path.relative_to(resolved_root)
+    except ValueError:
+        raise ValueError("Assay sample metadata must remain inside the dataset release.") from None
+    if not metadata_path.is_file():
+        raise ValueError("Assay sample metadata is unavailable.")
+
+    try:
+        with metadata_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            first_line = handle.readline()
+            if not first_line:
+                raise ValueError("Assay sample metadata is empty.")
+            delimiter = _detect_matrix_delimiter(first_line)
+            if "\t" in first_line and first_line.count("\t") > max(first_line.count(";"), first_line.count(",")):
+                delimiter = "\t"
+            handle.seek(0)
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            fieldnames = [str(value or "").strip() for value in (reader.fieldnames or [])]
+            if "sample_id" not in fieldnames or "patient_id" not in fieldnames:
+                raise ValueError("Assay sample metadata must contain sample_id and patient_id columns.")
+            metadata_links: Dict[str, str] = {}
+            for raw_row in reader:
+                row = {
+                    str(key or "").strip(): str(value or "").strip()
+                    for key, value in raw_row.items()
+                }
+                sample_id = row.get("sample_id", "")
+                if not sample_id:
+                    continue
+                if sample_id in metadata_links:
+                    raise ValueError("Assay sample metadata contains duplicate sample identifiers.")
+                metadata_links[sample_id] = row.get("patient_id", "")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError("Assay sample metadata cannot be read.") from exc
+
+    links = {
+        sample_id: metadata_links[sample_id]
+        for sample_id in normalized_samples
+        if metadata_links.get(sample_id)
+    }
+    unlinked = [sample_id for sample_id in normalized_samples if sample_id not in links]
+    if require_complete_metadata and unlinked:
+        raise ValueError("Every selected methylation matrix sample must have explicit patient linkage metadata.")
+    return {
+        "links": links,
+        "linkage_source": "sample_metadata_file",
+        "unlinked_sample_ids": unlinked,
+    }
 
 
 def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | None:
@@ -1255,7 +1420,7 @@ def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | No
         return None
     if not first_line:
         return None
-    delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
+    delimiter = _detect_matrix_delimiter(first_line)
     sample_ids: List[str] = []
     declared_feature_count: int | None = None
     try:
@@ -1276,24 +1441,31 @@ def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | No
                         feature_count += 1
     except (OSError, UnicodeDecodeError):
         return None
-    patient_ids = sorted({sample_id.split(":", 1)[0] for sample_id in sample_ids if sample_id.split(":", 1)[0]})
+    try:
+        linkage = _manifest_assay_sample_patient_links(root, item, sample_ids)
+    except ValueError:
+        return None
+    links = dict(linkage.get("links") or {})
+    patient_ids = sorted({str(value or "").strip() for value in links.values() if str(value or "").strip()})
     return {
         "sample_ids": sample_ids,
         "patient_ids": patient_ids,
         "sample_count": len(sample_ids),
         "patient_count": len(patient_ids),
         "feature_count": feature_count,
+        "linked_sample_count": len(links),
+        "unlinked_sample_count": len(linkage.get("unlinked_sample_ids") or []),
+        "linkage_source": str(linkage.get("linkage_source") or ""),
     }
 
 
 def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_patient_ids: set[str]) -> List[Dict[str, Any]]:
-    root = resolve_project_data_dir(data_dir)
     items: List[Dict[str, Any]] = []
     for item in _assay_manifest_items(data_dir):
         dataset_name = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
         if not dataset_name or dataset_name in existing_names:
             continue
-        stats = _assay_matrix_stats(root, item)
+        stats = _assay_matrix_stats(_manifest_item_root(data_dir, item), item)
         if not stats:
             continue
         modality = str(item.get("modality") or "assay").strip() or "assay"
@@ -1317,6 +1489,9 @@ def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_
                 "patient_ids": patient_ids,
                 "top_genes": [],
                 "feature_count": int(stats["feature_count"]),
+                "linked_sample_count": int(stats.get("linked_sample_count") or 0),
+                "unlinked_sample_count": int(stats.get("unlinked_sample_count") or 0),
+                "linkage_source": str(stats.get("linkage_source") or ""),
                 **_assay_inventory_metadata(modality, data_type, item),
             }
         )
@@ -1534,7 +1709,7 @@ def _manifest_assay_matrix_preview(data_dir: str, dataset_name: str, feature_lim
     item = _manifest_assay_item(data_dir, dataset_name)
     if not item:
         return None
-    root = resolve_project_data_dir(data_dir)
+    root = _manifest_item_root(data_dir, item)
     relative_file = str(item.get("file") or "").strip()
     if not relative_file:
         return None

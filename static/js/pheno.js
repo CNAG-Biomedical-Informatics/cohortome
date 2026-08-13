@@ -19,6 +19,7 @@ export function createPhenoUi(ctx) {
     phenoPlanDetailsEl,
     phenoPlanEl,
     phenoPlanReasoningEl,
+    phenoPlanFollowupsEl,
     phenoReferenceFilesSummaryEl,
     phenoBackgroundJobBannerEl,
     phenoSetupDetailsEl,
@@ -297,6 +298,77 @@ export function createPhenoUi(ctx) {
     `;
   }
 
+  function renderPhenoPlanFollowUps(source = null) {
+    if (!phenoPlanFollowupsEl) {
+      return;
+    }
+    const payload = source && typeof source === "object" ? source : {};
+    const suggestions = Array.isArray(payload.follow_up_suggestions)
+      ? Array.from(new Set(payload.follow_up_suggestions
+        .map((item) => String(item || "").trim())
+        .filter(Boolean))).slice(0, 4)
+      : [];
+    if (!suggestions.length) {
+      phenoPlanFollowupsEl.innerHTML = "";
+      phenoPlanFollowupsEl.classList.add("is-hidden");
+      return;
+    }
+
+    const data = payload.data && typeof payload.data === "object" ? payload.data : {};
+    const planner = data.planner && typeof data.planner === "object" ? data.planner : {};
+    const llmPlanned = (
+      ["llm", "lm_studio"].includes(String(payload.source || "").trim().toLowerCase())
+      || String(data.source || "").trim().toLowerCase() === "llm"
+      || String(planner.provider || "").trim().toLowerCase() === "lm_studio"
+    );
+    const chipClass = llmPlanned ? "query-chip-planner" : "query-chip-deterministic";
+    const mode = llmPlanned ? "llm_planned" : "deterministic";
+    const label = llmPlanned ? "LLM-planned" : "Deterministic";
+    const title = llmPlanned
+      ? "This follow-up was suggested by the LLM planner. Clicking prepares it for review and does not run it."
+      : "This follow-up is supported by deterministic Pheno-Ranker planning. Clicking prepares it for review and does not run it.";
+
+    phenoPlanFollowupsEl.innerHTML = `
+      <div class="query-followups-label">Suggested follow-up questions</div>
+      <div class="query-followups-list">
+        ${suggestions.map((prompt) => `
+          <button
+            type="button"
+            class="query-chip ${chipClass}"
+            data-pheno-followup-prompt="${escapeHtml(prompt)}"
+            data-followup-execution-mode="${mode}"
+            title="${escapeHtml(title)}"
+            aria-label="${escapeHtml(`${prompt}. ${label} planning; prepares the prompt without running it.`)}"
+          >
+            <span>${escapeHtml(prompt)}</span>
+            <span class="followup-mode-label">${label}</span>
+          </button>
+        `).join("")}
+      </div>
+    `;
+    phenoPlanFollowupsEl.classList.remove("is-hidden");
+  }
+
+  function handlePhenoPlanFollowUpsClick(event) {
+    const button = event.target.closest("[data-pheno-followup-prompt]");
+    if (!button || !phenoPlanFollowupsEl || !phenoPlanFollowupsEl.contains(button)) {
+      return;
+    }
+    const prompt = String(button.dataset.phenoFollowupPrompt || "").trim();
+    if (!prompt) {
+      return;
+    }
+    const mode = String(button.dataset.followupExecutionMode || "deterministic");
+    phenoPromptEl.value = prompt;
+    handlePhenoPromptEdited();
+    if (phenoPlanStatusEl && phenoPlanStatusEl.dataset.backgroundBlocked !== "true") {
+      phenoPlanStatusEl.textContent = mode === "llm_planned"
+        ? "LLM-planned follow-up prepared. Preview or run it to confirm the actual planning path."
+        : "Deterministic follow-up prepared. Preview the plan or run it when ready.";
+    }
+    phenoPromptEl.focus();
+  }
+
   function getPhenoPlanBlockingIssues(plan) {
     const normalized = plan || {};
     const action = String(normalized.action || "compare");
@@ -531,6 +603,7 @@ export function createPhenoUi(ctx) {
       phenoPlanStatusEl.textContent = statusText || "Settings changed after preview. The panel now shows the current form settings.";
     }
     renderPhenoPlanMeta("");
+    renderPhenoPlanFollowUps();
     return {
       source: "manual",
       reasoning: ["Using current form settings."],
@@ -565,6 +638,7 @@ export function createPhenoUi(ctx) {
       phenoPlanStatusEl.textContent = "Prompt changed. Preview plan or run Pheno-Ranker to interpret the new prompt.";
     }
     renderPhenoPlanMeta("");
+    renderPhenoPlanFollowUps();
     updatePhenoRunAvailability();
   }
 
@@ -787,6 +861,7 @@ export function createPhenoUi(ctx) {
     if (phenoPlanMetaEl) phenoPlanMetaEl.innerHTML = "";
     if (phenoPlanEl) phenoPlanEl.innerHTML = '<div class="empty">No plan yet.</div>';
     if (phenoPlanReasoningEl) phenoPlanReasoningEl.innerHTML = '<div class="empty">No planner reasoning yet.</div>';
+    renderPhenoPlanFollowUps();
     if (phenoStatusEl) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = "No workspace loaded.";
@@ -929,6 +1004,7 @@ export function createPhenoUi(ctx) {
     phenoPlanStatusEl.className = "pheno-status loading";
     phenoPlanStatusEl.textContent = "Interpreting request...";
     renderPhenoPlanMeta("");
+    renderPhenoPlanFollowUps();
     phenoPlanEl.innerHTML = renderActivityCard("Interpreting request", "Reading the natural-language request and extracting a runnable plan.");
     phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
     startPhenoPlanProgressUpdates();
@@ -955,12 +1031,14 @@ export function createPhenoUi(ctx) {
         renderPhenoPlanMeta("");
         phenoPlanEl.textContent = detail;
         renderPhenoPlanReasoning([], null);
+        renderPhenoPlanFollowUps();
         return null;
       }
       const payload = await response.json();
       if (workspaceVersion !== state.workspaceVersion) return null;
       stopPhenoPlanProgressUpdates();
       renderPhenoPlanMeta(payload);
+      renderPhenoPlanFollowUps(payload);
       if (!payload.plan || typeof payload.plan !== "object") {
         renderPhenoNoPlanState(payload.reasoning || []);
         return payload;
@@ -983,6 +1061,7 @@ export function createPhenoUi(ctx) {
       renderPhenoPlanMeta("");
       phenoPlanEl.textContent = error && error.message ? error.message : "Unexpected planner failure.";
       renderPhenoPlanReasoning([], null);
+      renderPhenoPlanFollowUps();
       return null;
     } finally {
       stopPhenoPlanProgressUpdates();
@@ -2816,6 +2895,7 @@ export function createPhenoUi(ctx) {
     markPhenoManualOverride,
     setPhenoManualOverrides,
     handlePhenoPromptEdited,
+    handlePhenoPlanFollowUpsClick,
     handleOutputPreviewClick,
     handlePreviewsClick,
     renderPhenoAlignmentPlaceholder,

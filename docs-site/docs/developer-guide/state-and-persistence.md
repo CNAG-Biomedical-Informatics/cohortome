@@ -19,6 +19,11 @@ All mutable backend files live below one directory selected with
 restricted or shared deployment should set an absolute path on protected
 storage outside the Git checkout.
 
+For private methylation jobs and multi-dataset workspaces containing a private
+dataset, that external absolute configuration is mandatory rather than
+advisory. COHORTome validates it before writing sample-level artifacts or a
+materialized workspace scope.
+
 ```bash
 export COHORTOME_RUNTIME_ROOT=/srv/cohortome/runtime
 ```
@@ -35,6 +40,11 @@ runtime/
 Checked-in defaults are immutable application configuration under `config/`.
 For example, `config/datasets/registry.json` seeds a new runtime registry; it is
 not the live registry.
+
+The supplied Docker Compose deployment mounts a Docker-managed named volume at
+`/var/lib/cohortome`. A custom bind mount must use a protected host path outside
+the checkout; container code can validate the container-visible path but cannot
+discover whether a host bind source is repository-local.
 
 ## Dataset registry
 
@@ -81,6 +91,17 @@ Important stored fields include:
 - source metadata
 
 These are application objects, not just temporary UI selections.
+
+## Transient Query results
+
+Detailed list queries keep complete ordered membership in user-scoped runtime
+state for one hour. The browser receives an opaque result handle and one
+bounded page, with 50 rows by default and 100 as the API maximum.
+
+These transient results are not saved cohorts. Every page or handoff request
+rechecks the current user, dataset authorization, workspace binding, source
+fingerprint, and `Detailed` disclosure ceiling. `Save cohort` explicitly
+promotes the full membership into the durable saved-cohort store.
 
 ## Analysis sessions
 
@@ -225,6 +246,12 @@ Typical contents include:
 - `command.txt`
 
 These records back the in-app `Jobs` drawer and let completed results be reopened into `Analysis`.
+
+Job directories are created with mode `0700`, and COHORTome-owned JSON and log
+files use mode `0600`. Before a queued analysis executes, the worker reloads the
+submitting user, rechecks access to the stored dataset scope, and resolves the
+current registered dataset root. A queued job never treats its stored
+`data_dir` value as an authorization source.
 
 Workflow jobs keep one top-level job record and write step-level artifacts beneath the job directory, for example:
 

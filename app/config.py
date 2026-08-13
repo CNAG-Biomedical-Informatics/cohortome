@@ -31,6 +31,22 @@ DEFAULT_LOCAL_USER_ID = "local"
 DEFAULT_HELP_URL = "https://mrueda.github.io/cohortome/"
 
 
+def private_artifact_runtime_is_safe() -> bool:
+    """Return whether private artifacts and workspace state have an explicit external root."""
+    configured = app_env("COHORTOME_RUNTIME_ROOT", "").strip()
+    if not configured:
+        return False
+    configured_path = Path(configured).expanduser()
+    if not configured_path.is_absolute():
+        return False
+    configured_root = configured_path.resolve()
+    active_root = RUNTIME_ROOT_DIR.resolve()
+    checkout_root = BASE_DIR.resolve()
+    if active_root != configured_root:
+        return False
+    return active_root != checkout_root and checkout_root not in active_root.parents
+
+
 def branding_logo_path() -> Path | None:
     configured = app_env("COHORTOME_BRAND_LOGO_PATH", "").strip()
     if configured:

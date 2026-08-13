@@ -256,6 +256,9 @@ export function createWorkspaceUi(ctx) {
       return;
     }
     state.loadInFlight = true;
+    if (loadStatusEl) {
+      delete loadStatusEl.dataset.datasetStoreBlocker;
+    }
     renderGlobalContext();
     renderLoadButtonState();
     updateLoadButtonAvailability();

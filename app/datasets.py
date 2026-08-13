@@ -13,7 +13,13 @@ from fastapi import HTTPException, Request
 
 from app.auth import auth_enabled, require_authenticated, session_user
 from app.bff import extract_patient_id, resolve_project_data_dir
-from app.config import BASE_DIR, CONFIG_DIR, DEFAULT_DATA_DIR, STATE_ROOT_DIR
+from app.config import (
+    BASE_DIR,
+    CONFIG_DIR,
+    DEFAULT_DATA_DIR,
+    STATE_ROOT_DIR,
+    private_artifact_runtime_is_safe,
+)
 from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import normalize_user_id, user_state_file
 
@@ -543,29 +549,22 @@ def _scope_source_files_manifest(dataset_ids: List[str]) -> Dict[str, List[Dict[
         if dataset is None:
             continue
         dataset_root = Path(str(dataset.get("root_path") or "")).resolve()
-        for key, directory, patterns in (
-            ("clinical_files", dataset_root / "clinical", ("*.json", "*.json.gz")),
-            ("assay_files", dataset_root / "assays", ("*/*.csv",)),
-        ):
-            seen_paths = set()
-            for pattern in patterns:
-                for path in sorted(directory.glob(pattern)):
-                    if not path.is_file() or path in seen_paths:
-                        continue
-                    seen_paths.add(path)
-                    stat = path.stat()
-                    target_name = f"{dataset_id}__{path.name}"
-                    if key == "assay_files":
-                        target_name = f"{dataset_id}__{path.parent.name}__{path.name}"
-                    manifest[key].append(
-                        {
-                            "dataset_id": dataset_id,
-                            "source": str(path.resolve()),
-                            "target": target_name,
-                            "size": int(stat.st_size),
-                            "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
-                        }
-                    )
+        seen_paths = set()
+        for pattern in ("*.json", "*.json.gz"):
+            for path in sorted((dataset_root / "clinical").glob(pattern)):
+                if not path.is_file() or path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                stat = path.stat()
+                manifest["clinical_files"].append(
+                    {
+                        "dataset_id": dataset_id,
+                        "source": str(path.resolve()),
+                        "target": f"{dataset_id}__{path.name}",
+                        "size": int(stat.st_size),
+                        "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+                    }
+                )
     return manifest
 
 
@@ -632,14 +631,24 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
         if dataset is None:
             raise ValueError("Dataset not found.")
         return str(dataset.get("root_path") or "")
+    datasets = {dataset_id: get_dataset(dataset_id) for dataset_id in normalized}
+    missing = [dataset_id for dataset_id, dataset in datasets.items() if dataset is None]
+    if missing:
+        raise ValueError(f"Dataset not found: {missing[0]}")
+    has_private_dataset = any(
+        normalize_data_classification(dataset.get("data_classification")) == "private"
+        for dataset in datasets.values()
+        if dataset is not None
+    )
+    if has_private_dataset and not private_artifact_runtime_is_safe():
+        raise RuntimeError(
+            "Private multi-dataset workspaces require COHORTOME_RUNTIME_ROOT to be an absolute path "
+            "on protected storage outside the Git checkout."
+        )
     scope_id = dataset_scope_id(normalized)
     root = _scope_root() / scope_id
     lock_path = root.with_name(f".{scope_id}.lock")
     with advisory_file_lock(lock_path):
-        datasets = {dataset_id: get_dataset(dataset_id) for dataset_id in normalized}
-        missing = [dataset_id for dataset_id, dataset in datasets.items() if dataset is None]
-        if missing:
-            raise ValueError(f"Dataset not found: {missing[0]}")
         manifest = {
             "schema_version": 1,
             "dataset_ids": normalized,
@@ -672,10 +681,6 @@ def materialize_dataset_scope(dataset_ids: List[str]) -> str:
                 for pattern in ("*.json", "*.json.gz"):
                     for path in sorted((dataset_root / "clinical").glob(pattern)):
                         (clinical_dir / f"{dataset_id}__{path.name}").symlink_to(path.resolve())
-                for path in sorted((dataset_root / "assays").glob("*/*.csv")):
-                    modality_dir = assays_dir / path.parent.name
-                    modality_dir.mkdir(parents=True, exist_ok=True)
-                    (modality_dir / f"{dataset_id}__{path.name}").symlink_to(path.resolve())
             atomic_write_json(temporary_root / "manifest.json", manifest)
 
             replaced_existing = root.exists()

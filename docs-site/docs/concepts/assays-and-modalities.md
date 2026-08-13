@@ -11,16 +11,20 @@ COHORTome workspaces combine clinical records with assay data. Clinical data des
 Each assay dataset is identified by stable metadata:
 
 - `assay_id`: stable identifier for the matrix or resource.
-- `modality`: the measurement family, such as transcriptomics, OLINK, proteomics, genotyping, or imaging.
-- `data_type`: the value shape, such as raw counts, relative abundance, protein abundance, allele dosage, or DICOM-derived measurements.
-- `feature_namespace`: the feature identifier system, such as Ensembl gene IDs, protein symbols, UniProt-backed protein IDs, dbSNP rsIDs, or DICOM standard tags.
+- `modality`: the measurement family, such as transcriptomics, DNA methylation, OLINK, proteomics, genotyping, or imaging.
+- `data_type`: the value shape, such as raw counts, processed methylation M-values, relative abundance, protein abundance, allele dosage, or DICOM-derived measurements.
+- `feature_namespace`: the feature identifier system, such as Ensembl gene IDs, Illumina CpG probe IDs, protein symbols, UniProt-backed protein IDs, dbSNP rsIDs, or DICOM standard tags.
 - `level`: whether analysis is patient-level or sample-level.
 
-Transcriptomics raw-count matrices are the active assay modality for the current curated Analysis tools. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
+Curated Analysis tools currently support transcriptomics and externally stored processed methylation M-value matrices. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
+
+Methylation follows a deliberately thin integration boundary. The complete high-dimensional probe matrix remains in the governed release rather than being materialized in DuckDB. COHORTome registers its assay metadata and sample linkage, then a curated runner reads the selected external matrix and returns compact quality-control, principal-component, and differential-methylation results. These analyses operate on supplied processed M-values; they do not claim to repeat bisulfite-array preprocessing or probe filtering from raw IDAT files.
 
 ## Patient and sample linkage
 
-Assay columns use sample IDs. In the synthetic fixtures, sample IDs follow the `patient:visit` pattern, which lets the workspace derive patient and timepoint linkage for sample-level analyses. Cohort tools can therefore check whether a selected assay overlaps the current workspace scope, Cohort A, and Cohort B.
+Assay columns use sample IDs. General synthetic matrices use the explicit manifest convention `patient_id_column: derived_from_sample_id_prefix`. Methylation runners use the stricter `sample_metadata_file` contract: the table must contain unique, complete `sample_id` and `patient_id` columns, and every selected matrix column must link to a clinical patient. Cohort tools use the same metadata mapping for inventory and overlap checks, so assay selection and execution agree even when sample IDs do not resemble patient IDs.
+
+Optional methylation model covariates also live in this protected sample metadata table. The manifest declares them with `analysis_covariates` and must type each one in `analysis_covariate_types` as `numeric` or `categorical`; numeric-looking plate, chip, or position codes should be categorical. A run with no varying declared covariates is labeled unadjusted and exploratory.
 
 ## DICOM imaging
 
@@ -93,3 +97,11 @@ Curated Analysis tools declare their assay capabilities explicitly. For example,
 - one selected compatible assay dataset.
 
 The Analysis Catalog surfaces these requirements as capability labels so users can distinguish clinical-only tools from assay-specific tools before configuring a run.
+
+The methylation catalog tools similarly require one sample-level assay declared with:
+
+- `modality: methylation`;
+- `data_type: m_values`;
+- complete sample-to-patient linkage for the selected scope.
+
+`Methylation QC and PCA` runs over one Analysis scope. `limma differential methylation` additionally requires disjoint saved Cohort A and Cohort B selections that both overlap the same assay.

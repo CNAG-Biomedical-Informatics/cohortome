@@ -29,6 +29,14 @@
         .assay-overview-summary, .assay-workspace-summary { grid-template-columns: 1fr; }
         .assay-kpi-grid, .assay-summary-grid, .assay-workspace-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .dashboard-loader-row { grid-template-columns: 1fr; align-items: stretch; }
+        .dataset-loader-row > button,
+        .dataset-picker-shell {
+          grid-column: 1;
+          grid-row: auto;
+        }
+        .dataset-loader-row > button {
+          justify-self: start;
+        }
         .analysis-shell { grid-template-columns: 1fr; }
         .analysis-chats-drawer-panel {
           position: absolute;

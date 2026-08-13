@@ -114,6 +114,7 @@ items:
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
+    minimum_samples_per_cohort: 2
     requires_detailed_access: true
     requires_assays: true
     required_modalities: [transcriptomics]
@@ -142,6 +143,49 @@ items:
     required_data_types: [rsem_expected_counts]
     analysis_level: sample
     tags: [transcriptomics, differential-expression, limma, voom, rscript]
+
+  - id: methylation-qc-pca
+    name: Methylation QC and PCA
+    category: Assays
+    kind: methylation_qc_pca
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 3600
+    runner_type: rscript
+    runner_ref: methylation_qc_pca
+    description: Run matrix-level quality checks and principal component analysis on one externally stored processed M-value assay without loading all probe values into DuckDB.
+    guidance: Select one methylation M-value assay. This analysis checks the supplied processed matrix and sample linkage; it does not repeat raw-array preprocessing from IDAT files.
+    default_prompt: Run methylation QC and PCA for the selected assay in the current Analysis scope.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    requires_assays: true
+    required_modalities: [methylation]
+    required_data_types: [m_values]
+    analysis_level: sample
+    tags: [methylation, quality-control, pca, m-values, background, rscript]
+
+  - id: methylation-limma-differential-methylation
+    name: limma differential methylation
+    category: Assays
+    kind: differential_methylation
+    execution_backend: job
+    expected_runtime: long
+    job_timeout_seconds: 7200
+    runner_type: rscript
+    runner_ref: methylation_limma_differential_methylation
+    description: Run curated limma differential methylation on processed M-values between Cohort A and Cohort B without importing the complete probe matrix into DuckDB.
+    guidance: Select Cohort A and Cohort B plus one methylation M-value assay. This first version requires at least two samples per cohort and one sample per patient.
+    default_prompt: Run limma differential methylation between Cohort A and Cohort B for the selected assay.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    minimum_samples_per_cohort: 2
+    requires_detailed_access: true
+    requires_assays: true
+    required_modalities: [methylation]
+    required_data_types: [m_values]
+    analysis_level: sample
+    tags: [methylation, differential-methylation, limma, m-values, background, rscript]
 
   - id: transcriptomics-hallmark-pathway-enrichment
     name: Hallmark pathway enrichment

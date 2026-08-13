@@ -40,6 +40,7 @@ export function createQueryUi(ctx) {
     setLatestQueryState,
     setLatestScopedContext,
   } = callbacks;
+  const QUERY_RESULT_PAGE_SIZE = 50;
   let diseaseOptions = [];
   let queryPromptLibraryOpen = true;
 
@@ -52,6 +53,128 @@ export function createQueryUi(ctx) {
       .filter((turn) => mode === "general" ? turn.context_mode === "general" : turn.context_mode !== "general")
       .slice(-6)
       .map((turn) => ({ role: turn.role, content: turn.content }));
+  }
+
+  function queryResultPage(payload) {
+    const data = payload && payload.data && typeof payload.data === "object" ? payload.data : {};
+    const page = data.result_page && typeof data.result_page === "object" ? data.result_page : {};
+    const resultHandle = String(page.result_handle || data.result_handle || "").trim();
+    const patientIds = Array.isArray(page.patient_ids)
+      ? page.patient_ids.slice(0, QUERY_RESULT_PAGE_SIZE)
+      : Array.isArray(data.patient_ids)
+        ? data.patient_ids.slice(0, QUERY_RESULT_PAGE_SIZE)
+        : [];
+    const sampleIds = Array.isArray(page.sample_ids)
+      ? page.sample_ids.slice(0, QUERY_RESULT_PAGE_SIZE)
+      : Array.isArray(data.sample_ids)
+        ? data.sample_ids.slice(0, QUERY_RESULT_PAGE_SIZE)
+        : [];
+    const rows = Array.isArray(page.rows)
+      ? page.rows.slice(0, QUERY_RESULT_PAGE_SIZE)
+      : Array.isArray(data.patients)
+        ? data.patients.slice(0, QUERY_RESULT_PAGE_SIZE)
+        : [];
+    const visibleCount = Math.max(rows.length, patientIds.length, sampleIds.length);
+    const totalCount = Math.max(0, Number(page.total_count ?? data.total_count ?? data.patient_count ?? data.sample_count ?? visibleCount));
+    const returnedCount = Math.min(
+      QUERY_RESULT_PAGE_SIZE,
+      Math.max(0, Number(page.returned_count ?? data.returned_count ?? visibleCount)),
+    );
+    return {
+      resultHandle,
+      totalCount,
+      returnedCount,
+      pageSize: Math.min(QUERY_RESULT_PAGE_SIZE, Math.max(1, Number(page.page_size ?? data.page_size ?? QUERY_RESULT_PAGE_SIZE))),
+      hasMore: Boolean(page.has_more ?? data.has_more),
+      nextCursor: String(page.next_cursor || data.next_cursor || "").trim(),
+      expiresAt: String(page.expires_at || data.expires_at || "").trim(),
+      patientIds,
+      sampleIds,
+      rows,
+    };
+  }
+
+  function boundQueryPayload(payload) {
+    if (!payload || typeof payload !== "object") return payload;
+    const data = payload.data && typeof payload.data === "object" ? payload.data : {};
+    const page = queryResultPage(payload);
+    if (Array.isArray(data.patient_ids)) data.patient_ids = data.patient_ids.slice(0, QUERY_RESULT_PAGE_SIZE);
+    if (Array.isArray(data.sample_ids)) data.sample_ids = data.sample_ids.slice(0, QUERY_RESULT_PAGE_SIZE);
+    if (Array.isArray(data.patients)) data.patients = data.patients.slice(0, QUERY_RESULT_PAGE_SIZE);
+    if (data.result_page && typeof data.result_page === "object") {
+      data.result_page = {
+        ...data.result_page,
+        patient_ids: page.patientIds,
+        sample_ids: page.sampleIds,
+        rows: page.rows,
+      };
+    }
+    const context = payload.action_context && typeof payload.action_context === "object" ? payload.action_context : {};
+    if (page.resultHandle) {
+      payload.action_context = {
+        ...context,
+        result_handle: page.resultHandle,
+        patient_ids: [],
+        record_ids: [],
+      };
+    } else {
+      if (Array.isArray(context.patient_ids)) context.patient_ids = context.patient_ids.slice(0, QUERY_RESULT_PAGE_SIZE);
+      if (Array.isArray(context.record_ids)) context.record_ids = context.record_ids.slice(0, QUERY_RESULT_PAGE_SIZE);
+      payload.action_context = context;
+    }
+    payload.data = data;
+    if (page.resultHandle) payload.reply = queryDisplayReply(payload);
+    return payload;
+  }
+
+  function compactQueryHistoryReply(payload) {
+    if (!payload || typeof payload !== "object") return "Query completed.";
+    if (payload.intent === "general_llm") return String(payload.reply || "").trim();
+    const page = queryResultPage(payload);
+    const count = page.totalCount || Number(payload.data && (payload.data.patient_count ?? payload.data.sample_count) || 0);
+    if (count || page.resultHandle) {
+      const context = payload.action_context && typeof payload.action_context === "object" ? payload.action_context : {};
+      const sampleLevel = String(context.id_type || "patient") === "sample";
+      const unit = sampleLevel ? (count === 1 ? "sample" : "samples") : (count === 1 ? "patient" : "patients");
+      return `Query result: ${count} ${unit} matched (${String(payload.intent || "workspace_query")}).`;
+    }
+    const reply = String(payload.reply || "Query completed.").trim();
+    return reply.length > 360 ? `${reply.slice(0, 357)}...` : reply;
+  }
+
+  function queryDisplayReply(payload) {
+    const page = queryResultPage(payload);
+    const context = payload.action_context && typeof payload.action_context === "object" ? payload.action_context : {};
+    const sampleLevel = String(context.id_type || "patient") === "sample";
+    if (!page.resultHandle) {
+      const inventoryIntent = payload && (payload.intent === "patient_inventory" || payload.intent === "sample_inventory");
+      const hasStructuredIds = page.patientIds.length > 0 || page.sampleIds.length > 0 || page.rows.length > 0;
+      if (inventoryIntent && hasStructuredIds) {
+        const count = page.totalCount || Math.max(page.patientIds.length, page.sampleIds.length, page.rows.length);
+        const unit = sampleLevel ? (count === 1 ? "sample" : "samples") : (count === 1 ? "patient" : "patients");
+        return `Found ${count} ${unit}. The bounded result is shown below.`;
+      }
+      return payload && payload.reply !== undefined ? payload.reply : payload;
+    }
+    const unit = sampleLevel
+      ? (page.totalCount === 1 ? "sample matches" : "samples match")
+      : (page.totalCount === 1 ? "patient matches" : "patients match");
+    return `${page.totalCount} ${unit} this query. Browse the result below in bounded pages.`;
+  }
+
+  function queryDetailsData(data) {
+    if (!data || typeof data !== "object") return {};
+    const safe = { ...data };
+    delete safe.patient_ids;
+    delete safe.sample_ids;
+    delete safe.patients;
+    if (safe.result_page && typeof safe.result_page === "object") {
+      safe.result_page = { ...safe.result_page };
+      delete safe.result_page.patient_ids;
+      delete safe.result_page.sample_ids;
+      delete safe.result_page.rows;
+    }
+    return safe;
   }
 
   function renderQueryContextMode() {
@@ -204,33 +327,69 @@ export function createQueryUi(ctx) {
     }).join("");
   }
 
-  function renderQueryStructuredTable(payload) {
+  function renderQueryStructuredTable(payload, navigation = {}) {
     const data = payload && payload.data ? payload.data : {};
     if (!data || typeof data !== "object") {
       return "";
     }
-    if (Array.isArray(data.patients) && data.patients.length) {
+    const resultPage = queryResultPage(payload);
+    const actionContext = payload && payload.action_context && typeof payload.action_context === "object"
+      ? payload.action_context
+      : {};
+    const sampleLevel = String(actionContext.id_type || "patient") === "sample";
+    const resultRows = resultPage.rows.length
+      ? resultPage.rows
+      : sampleLevel
+        ? resultPage.sampleIds.map((sampleId) => ({ sample_id: sampleId }))
+        : resultPage.patientIds.map((patientId) => ({ patient_id: patientId }));
+    if (resultRows.length) {
       const currentPatients = Array.isArray(currentPatientsProvider()) ? currentPatientsProvider() : [];
       const provenanceByPatientId = new Map(currentPatients.map((item) => [
         String(item.patient_id || ""),
         Array.isArray(item.dataset_names) ? item.dataset_names : [],
       ]));
       const showDataset = isMultiDatasetWorkspace();
-      const rows = data.patients.slice(0, 100).map((item) => `
+      const rows = resultRows.slice(0, QUERY_RESULT_PAGE_SIZE).map((item, index) => sampleLevel ? `
+        <tr><td class="query-result-id-cell">${escapeHtml(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td></tr>
+      ` : `
         <tr>
-          <td>${escapeHtml(String(item.patient_id || ""))}</td>
+          <td class="query-result-id-cell">${escapeHtml(String(item.patient_id || resultPage.patientIds[index] || ""))}</td>
           ${showDataset ? `<td>${escapeHtml((provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
           <td>${escapeHtml(String(item.sex || ""))}</td>
           <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
           <td>${escapeHtml(String(item.medication_count ?? ""))}</td>
         </tr>
       `).join("");
+      const startOffset = Math.max(0, Number(navigation.start || 0));
+      const pageCount = Math.max(resultRows.length, resultPage.returnedCount);
+      const start = pageCount ? startOffset + 1 : 0;
+      const end = Math.min(resultPage.totalCount || startOffset + pageCount, startOffset + pageCount);
+      const total = resultPage.totalCount || end;
+      const hasPrevious = Array.isArray(navigation.previous) && navigation.previous.length > 0;
+      const navigationError = String(navigation.error || "").trim();
+      const terminalResult = Boolean(navigation.terminal);
+      const loading = Boolean(navigation.loading);
+      const paging = resultPage.resultHandle || terminalResult ? `
+        <div class="query-result-pagination" aria-live="polite">
+          <span class="query-result-range">Showing ${escapeHtml(String(start))}–${escapeHtml(String(end))} of ${escapeHtml(String(total))}</span>
+          <span class="query-result-boundary-note">${terminalResult ? "This bounded page remains visible, but the server-side result is no longer active." : "Only this page is kept in the browser."}</span>
+          <span class="query-result-page-actions">
+            ${resultPage.resultHandle && hasPrevious ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="previous" ${loading ? "disabled" : ""}>Previous</button>` : ""}
+            ${resultPage.resultHandle && resultPage.hasMore && resultPage.nextCursor ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="next" ${loading ? "disabled" : ""}>${loading ? "Loading…" : "Load more"}</button>` : ""}
+          </span>
+        </div>
+        ${navigationError ? `<div class="query-result-page-error" role="status">${escapeHtml(navigationError)}</div>` : ""}
+      ` : `<div class="section-note">Matching ${sampleLevel ? "samples" : "patients"} (${escapeHtml(String(total))}).</div>`;
       return `
-        <div class="section-note">Matching patients (${data.patients.length}).</div>
-        <table>
-          <thead><tr><th>Patient</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr></thead>
+        ${paging}
+        <div class="query-result-table-scroll">
+        <table class="query-result-table">
+          <thead>${sampleLevel
+            ? "<tr><th>Sample</th></tr>"
+            : `<tr><th>Patient</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr>`}</thead>
           <tbody>${rows}</tbody>
         </table>
+        </div>
       `;
     }
     if (Array.isArray(data.medications) && data.medications.length) {
@@ -266,8 +425,8 @@ export function createQueryUi(ctx) {
     return "";
   }
 
-  function renderQueryReply(payloadOrValue) {
-    const value = typeof payloadOrValue === "object" && payloadOrValue ? payloadOrValue.reply : payloadOrValue;
+  function renderQueryReply(payloadOrValue, navigation = {}) {
+    const value = typeof payloadOrValue === "object" && payloadOrValue ? queryDisplayReply(payloadOrValue) : payloadOrValue;
     const lines = String(value || "").split("\r\n").join("\n").split("\n");
     const blocks = [];
     let paragraphLines = [];
@@ -380,7 +539,7 @@ export function createQueryUi(ctx) {
     flushTable();
     if (inCodeBlock) flushCodeBlock();
     const textMarkup = blocks.join("") || "<p>No answer returned.</p>";
-    const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue) : "";
+    const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue, navigation) : "";
     return structured ? `${textMarkup}${structured}` : textMarkup;
   }
 
@@ -552,8 +711,8 @@ export function createQueryUi(ctx) {
     if (questionEl) questionEl.value = "";
     renderTopDiseaseChips();
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
-    setLatestQueryState({ ids: [], prompt: "", analysisPrompt: "", idType: "patient" });
-    setLatestScopedContext({ patientIds: [], recordIds: [], idType: "patient", sourceTab: "", prompt: "" });
+    setLatestQueryState({ ids: [], recordIds: [], resultHandle: "", totalCount: 0, prompt: "", analysisPrompt: "", idType: "patient" });
+    setLatestScopedContext({ patientIds: [], recordIds: [], resultHandle: "", totalCount: 0, idType: "patient", sourceTab: "", prompt: "" });
     queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
     queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
     if (queryActionsEl) queryActionsEl.innerHTML = "";
@@ -603,9 +762,9 @@ export function createQueryUi(ctx) {
           <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
           ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
-            ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload)}
+            ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}
             ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
-            ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(payload.data && payload.data.follow_up_suggestions) : ""}
+            ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(data.follow_up_suggestions, data.follow_up_suggestion_metadata) : ""}
           </div>
         </article>
       `;
@@ -648,10 +807,27 @@ export function createQueryUi(ctx) {
     queryFollowupsEl.innerHTML = "";
   }
 
-  function renderFollowupButtonsMarkup(items) {
+  function renderFollowupButtonsMarkup(items, metadataItems) {
     const followups = Array.isArray(items) ? items.slice(0, 4) : [];
     if (!followups.length) return "";
-    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${followups.map((item) => `<button type="button" class="query-chip" data-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}</div></div>`;
+    const metadataByPrompt = new Map(
+      (Array.isArray(metadataItems) ? metadataItems : [])
+        .filter((item) => item && typeof item === "object" && String(item.prompt || "").trim())
+        .map((item) => [String(item.prompt).trim(), item]),
+    );
+    const buttons = followups.map((item) => {
+      const prompt = String(item || "").trim();
+      const metadata = metadataByPrompt.get(prompt) || {};
+      const deterministic = metadata.execution_kind === "deterministic" || metadata.execution_mode === "deterministic_only";
+      const executionMode = deterministic ? "deterministic_only" : "planner_only";
+      const cssClass = deterministic ? "query-chip-deterministic" : "query-chip-planner";
+      const label = deterministic ? "Deterministic" : "LLM-planned";
+      const title = deterministic
+        ? "Runs with deterministic dataset logic; no LLM planning is requested."
+        : "Uses the LLM semantic planner, then executes the resulting dataset query deterministically.";
+      return `<button type="button" class="query-chip ${cssClass}" data-prompt="${escapeHtml(prompt)}" data-query-followup-mode="${executionMode}" title="${escapeHtml(title)}"><span>${escapeHtml(prompt)}</span><span class="followup-mode-label">${label}</span></button>`;
+    }).join("");
+    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${buttons}</div></div>`;
   }
 
   function queryActionContext(payload) {
@@ -660,9 +836,13 @@ export function createQueryUi(ctx) {
       : {};
     const patientIds = Array.isArray(context.patient_ids) ? context.patient_ids.filter(Boolean) : [];
     const recordIds = Array.isArray(context.record_ids) ? context.record_ids.filter(Boolean) : [];
+    const page = queryResultPage(payload);
+    const resultHandle = String(context.result_handle || page.resultHandle || "").trim();
     return {
-      patientIds,
-      recordIds,
+      patientIds: resultHandle ? [] : patientIds.slice(0, QUERY_RESULT_PAGE_SIZE),
+      recordIds: resultHandle ? [] : recordIds.slice(0, QUERY_RESULT_PAGE_SIZE),
+      resultHandle,
+      totalCount: page.totalCount || Math.max(patientIds.length, recordIds.length),
       idType: context.id_type || (recordIds.length ? "sample" : "patient"),
       analysisPrompt: typeof context.analysis_prompt === "string" ? context.analysis_prompt : "",
     };
@@ -670,24 +850,30 @@ export function createQueryUi(ctx) {
 
   function queryActionsMarkup(payload, sourcePrompt = "") {
     if (payload && payload.intent === "general_llm") return "";
+    if (payload && payload.data && payload.data.result_handle_unavailable === true) return "";
     const submittedPrompt = String(sourcePrompt || "").trim();
     const actionContext = queryActionContext(payload);
     const patientIds = actionContext.patientIds;
     const recordIds = actionContext.recordIds;
+    const resultHandle = actionContext.resultHandle;
     const availableActions = payload && payload.data && payload.data.available_actions && typeof payload.data.available_actions === "object"
       ? payload.data.available_actions
       : {};
     setLatestQueryState({
       ids: patientIds,
       recordIds,
+      resultHandle,
+      totalCount: actionContext.totalCount,
       prompt: submittedPrompt,
       analysisPrompt: actionContext.analysisPrompt,
       idType: actionContext.idType,
     });
-    if (patientIds.length || recordIds.length) {
+    if (patientIds.length || recordIds.length || resultHandle) {
       setLatestScopedContext({
         patientIds,
         recordIds,
+        resultHandle,
+        totalCount: actionContext.totalCount,
         idType: actionContext.idType,
         sourceTab: "query",
         prompt: submittedPrompt,
@@ -698,22 +884,22 @@ export function createQueryUi(ctx) {
     const phenoRankerPatientIds = phenoRankerPatientIdsProvider();
     const compatibleIds = phenoRankerPatientIds.length ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId)) : [];
     const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
-    const canUsePheno = availableActions.use_in_pheno_ranker && (recordIds.length > 0 || allCompatible);
-    const idsPayload = escapeHtml(patientIds.join(","));
-    const scopeIds = recordIds.length ? recordIds : patientIds;
-    const scopePayload = escapeHtml(scopeIds.join(","));
+    const canUsePheno = !resultHandle && availableActions.use_in_pheno_ranker && (recordIds.length > 0 || allCompatible);
+    const canCopyIds = !resultHandle && availableActions.copy_patient_ids && patientIds.length > 0;
+    const incompatiblePheno = !resultHandle && availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible;
+    const moreActions = canCopyIds || canUsePheno || incompatiblePheno;
     return `
       <div class="query-actions query-actions-inline" style="margin-top:12px;">
-        ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis" data-query-patient-ids="${idsPayload}" data-query-scope-ids="${scopePayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
-        ${availableActions.save_cohort ? `<button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>` : ""}
-        <details class="query-inline-actions">
+        ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
+        ${availableActions.save_cohort ? `<button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>` : ""}
+        ${moreActions ? `<details class="query-inline-actions">
           <summary><span class="query-inline-actions-more">More actions</span><span class="query-inline-actions-less">Less actions</span></summary>
           <div class="query-actions">
-            ${availableActions.copy_patient_ids ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
-            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno" data-query-patient-ids="${idsPayload}"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
-            ${availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
+            ${canCopyIds ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
+            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
+            ${incompatiblePheno ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
           </div>
-        </details>
+        </details>` : (resultHandle && availableActions.save_cohort ? '<span class="section-note-inline">Save this result as a cohort before using it in Pheno-Ranker.</span>' : "")}
       </div>
     `;
   }
@@ -788,6 +974,14 @@ export function createQueryUi(ctx) {
       renderQueryExecutionMode();
       return;
     }
+    const submittedScope = !generalQuestion && state.queryFollowMemoryEnabled && state.latestScopedContext
+      ? {
+        patientIds: Array.isArray(state.latestScopedContext.patientIds) ? state.latestScopedContext.patientIds.slice(0, QUERY_RESULT_PAGE_SIZE) : [],
+        recordIds: Array.isArray(state.latestScopedContext.recordIds) ? state.latestScopedContext.recordIds.slice(0, QUERY_RESULT_PAGE_SIZE) : [],
+        resultHandle: String(state.latestScopedContext.resultHandle || "").trim(),
+        idType: String(state.latestScopedContext.idType || "patient"),
+      }
+      : { patientIds: [], recordIds: [], resultHandle: "", idType: "patient" };
     const workspaceRevision = state.workspaceRevision;
     const requestIsStale = () => !generalQuestion && workspaceRevision !== state.workspaceRevision;
     state.queryInFlight = true;
@@ -811,6 +1005,7 @@ export function createQueryUi(ctx) {
         : "Interpreting the cohort question and selecting the right query path.",
       payload: { reply: "Running query..." },
     });
+    state.queryTurns = state.queryTurns.slice(-16);
     questionEl.value = "";
     renderTopDiseaseChips();
     renderQueryThread();
@@ -830,20 +1025,27 @@ export function createQueryUi(ctx) {
             query_mode: queryMode,
             granularity_mode: granularityMode,
             history: historyForContext("workspace"),
-            scoped_patient_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.patientIds)
-              ? state.latestScopedContext.patientIds
+            scoped_patient_ids: !submittedScope.resultHandle
+              ? submittedScope.patientIds
               : [],
-            scoped_record_ids: state.queryFollowMemoryEnabled && state.latestScopedContext && Array.isArray(state.latestScopedContext.recordIds)
-              ? state.latestScopedContext.recordIds
+            scoped_record_ids: !submittedScope.resultHandle
+              ? submittedScope.recordIds
               : [],
-            scoped_id_type: state.queryFollowMemoryEnabled && state.latestScopedContext && state.latestScopedContext.idType
-              ? state.latestScopedContext.idType
-              : "patient",
+            scoped_result_handle: submittedScope.resultHandle,
+            scoped_id_type: submittedScope.idType,
           }),
       });
       if (!response.ok) {
         const error = await response.json();
         if (requestIsStale()) return;
+        const terminalScopedResult = !generalQuestion
+          && Boolean(submittedScope.resultHandle)
+          && (response.status === 404 || response.status === 410);
+        if (terminalScopedResult) {
+          const message = terminalQueryResultMessage(response.status);
+          invalidateQueryResultHandle(submittedScope.resultHandle, message);
+          error.detail = message;
+        }
         queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
         queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
         queryDataEl.textContent = "";
@@ -859,21 +1061,26 @@ export function createQueryUi(ctx) {
         queryStatusEl.textContent = "Query failed.";
         return;
       }
-      const payload = await response.json();
+      const payload = boundQueryPayload(await response.json());
       if (requestIsStale()) return;
       stopQueryProgressUpdates();
-      state.queryTurns[state.queryTurns.length - 1] = { role: "assistant", payload, contextMode: generalQuestion ? "general" : "workspace" };
+      state.queryTurns[state.queryTurns.length - 1] = {
+        role: "assistant",
+        payload,
+        contextMode: generalQuestion ? "general" : "workspace",
+        resultNavigation: { cursor: "", start: 0, previous: [], loading: false, error: "" },
+      };
       renderQueryThread();
       scrollQueryTurnIntoView(state.queryTurns.length - 1);
       queryReplyEl.innerHTML = renderQueryReply(payload);
       renderQueryReason(payload);
       renderQueryActions(payload, question);
       renderFollowupButtons(payload.data && payload.data.follow_up_suggestions);
-      queryDataEl.textContent = JSON.stringify(payload.data, null, 2);
+      queryDataEl.textContent = JSON.stringify(queryDetailsData(payload.data), null, 2);
       queryDetailsEl.open = false;
       const contextMode = generalQuestion ? "general" : "workspace";
       state.queryHistory.push({ role: "user", content: question, context_mode: contextMode });
-      state.queryHistory.push({ role: "assistant", content: payload.reply || "", context_mode: contextMode });
+      state.queryHistory.push({ role: "assistant", content: compactQueryHistoryReply(payload), context_mode: contextMode });
       state.queryHistory = state.queryHistory.slice(-16);
       state.queryExecutionMode = defaultQueryExecutionMode();
       renderQueryExecutionMode();
@@ -915,7 +1122,7 @@ export function createQueryUi(ctx) {
     }
     const analysisButton = event.target.closest("[data-analysis-prompt]");
     if (analysisButton && queryExamplesEl.contains(analysisButton)) {
-      if (state.latestQueryPatientIds.length) {
+      if (state.latestQueryPatientIds.length || state.latestQueryResultHandle) {
         sendPatientIdsToAnalysis();
       }
       sendPromptToAnalysis(analysisButton.dataset.analysisPrompt, {
@@ -941,9 +1148,192 @@ export function createQueryUi(ctx) {
     const button = event.target.closest("[data-prompt]");
     if (!button || !queryFollowupsEl.contains(button)) return;
     questionEl.value = button.dataset.prompt;
-    state.queryExecutionMode = defaultQueryExecutionMode();
+    state.queryExecutionMode = button.dataset.queryFollowupMode === "planner_only" ? "planner_only" : "deterministic_only";
     renderQueryExecutionMode();
     questionEl.focus();
+  }
+
+  function replaceQueryResultPage(payload, responsePage) {
+    const data = payload && payload.data && typeof payload.data === "object" ? payload.data : {};
+    const nextPayload = { ...payload, data };
+    data.result_handle = String(responsePage && responsePage.result_handle || data.result_handle || "").trim();
+    data.result_page = responsePage && typeof responsePage === "object" ? { ...responsePage } : {};
+    data.patient_ids = Array.isArray(data.result_page.patient_ids) ? data.result_page.patient_ids : [];
+    data.sample_ids = Array.isArray(data.result_page.sample_ids) ? data.result_page.sample_ids : [];
+    data.patients = Array.isArray(data.result_page.rows) ? data.result_page.rows : [];
+    return boundQueryPayload(nextPayload);
+  }
+
+  function terminalQueryResultMessage(status) {
+    return Number(status) === 410
+      ? "This Query result has expired. Run the query again to recreate it."
+      : "This Query result is no longer available. Run the query again to recreate it.";
+  }
+
+  function payloadWithoutQueryResultHandle(payload, handle) {
+    if (!payload || typeof payload !== "object") return payload;
+    const current = queryResultPage(payload);
+    if (!handle || current.resultHandle !== handle) return payload;
+    const data = payload.data && typeof payload.data === "object" ? { ...payload.data } : {};
+    const resultPage = data.result_page && typeof data.result_page === "object"
+      ? { ...data.result_page, result_handle: "", has_more: false, next_cursor: "" }
+      : {};
+    const availableActions = data.available_actions && typeof data.available_actions === "object"
+      ? data.available_actions
+      : {};
+    data.result_handle = "";
+    data.result_handle_unavailable = true;
+    data.result_page = resultPage;
+    data.available_actions = Object.fromEntries(
+      Object.keys(availableActions).map((key) => [key, false]),
+    );
+    const actionContext = payload.action_context && typeof payload.action_context === "object"
+      ? payload.action_context
+      : {};
+    return {
+      ...payload,
+      data,
+      action_context: {
+        ...actionContext,
+        result_handle: "",
+        patient_ids: [],
+        record_ids: [],
+      },
+    };
+  }
+
+  function invalidateQueryResultHandle(handle, message) {
+    const normalizedHandle = String(handle || "").trim();
+    if (!normalizedHandle) return;
+    state.queryTurns.forEach((turn) => {
+      if (!turn || !turn.payload || queryResultPage(turn.payload).resultHandle !== normalizedHandle) return;
+      turn.payload = payloadWithoutQueryResultHandle(turn.payload, normalizedHandle);
+      turn.resultNavigation = {
+        ...(turn.resultNavigation && typeof turn.resultNavigation === "object" ? turn.resultNavigation : {}),
+        loading: false,
+        error: String(message || terminalQueryResultMessage(404)),
+        terminal: true,
+      };
+    });
+    if (String(state.latestQueryResultHandle || "").trim() === normalizedHandle) {
+      setLatestQueryState({
+        ids: [],
+        recordIds: [],
+        resultHandle: "",
+        totalCount: 0,
+        prompt: "",
+        analysisPrompt: "",
+        idType: "patient",
+      });
+    }
+    if (state.latestScopedContext && String(state.latestScopedContext.resultHandle || "").trim() === normalizedHandle) {
+      setLatestScopedContext({
+        patientIds: [],
+        recordIds: [],
+        resultHandle: "",
+        totalCount: 0,
+        idType: "patient",
+        sourceTab: "",
+        prompt: "",
+      });
+      state.latestScopedContext.sourceTab = "";
+      state.latestScopedContext.prompt = "";
+      state.queryFollowMemoryEnabled = false;
+      renderQueryExecutionMode();
+    }
+  }
+
+  async function loadQueryResultPage(turnIndex, direction) {
+    const index = Number(turnIndex);
+    const turn = Number.isInteger(index) ? state.queryTurns[index] : null;
+    if (!turn || !turn.payload || turn.pending) return;
+    const currentPage = queryResultPage(turn.payload);
+    if (!currentPage.resultHandle) return;
+    const currentNavigation = turn.resultNavigation && typeof turn.resultNavigation === "object"
+      ? turn.resultNavigation
+      : { cursor: "", start: 0, previous: [], loading: false, error: "" };
+    const previous = Array.isArray(currentNavigation.previous) ? currentNavigation.previous.slice() : [];
+    let targetCursor = "";
+    let targetStart = 0;
+    let nextPrevious = previous;
+    if (direction === "next") {
+      if (!currentPage.hasMore || !currentPage.nextCursor) return;
+      targetCursor = currentPage.nextCursor;
+      targetStart = Math.max(0, Number(currentNavigation.start || 0)) + currentPage.returnedCount;
+      nextPrevious = previous.concat([{
+        cursor: String(currentNavigation.cursor || ""),
+        start: Math.max(0, Number(currentNavigation.start || 0)),
+      }]);
+    } else if (direction === "previous") {
+      const target = previous[previous.length - 1];
+      if (!target) return;
+      targetCursor = String(target.cursor || "");
+      targetStart = Math.max(0, Number(target.start || 0));
+      nextPrevious = previous.slice(0, -1);
+    } else {
+      return;
+    }
+
+    turn.resultNavigation = { ...currentNavigation, loading: true, error: "" };
+    renderQueryThread();
+    try {
+      const parameters = new URLSearchParams({ limit: String(QUERY_RESULT_PAGE_SIZE) });
+      if (targetCursor) parameters.set("cursor", targetCursor);
+      const response = await fetch(
+        `/query-results/${encodeURIComponent(currentPage.resultHandle)}?${parameters.toString()}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        const terminalResponse = response.status === 404 || response.status === 410;
+        let message = terminalResponse
+          ? terminalQueryResultMessage(response.status)
+          : "Unable to load this result page.";
+        try {
+          const error = await response.json();
+          if (!terminalResponse && error && error.detail) message = String(error.detail);
+        } catch (_error) {
+          // Keep the safe status-based message.
+        }
+        if (terminalResponse) {
+          invalidateQueryResultHandle(currentPage.resultHandle, message);
+          renderQueryThread();
+          if (index === state.queryTurns.length - 1) {
+            queryReplyEl.innerHTML = renderQueryReply(turn.payload, turn.resultNavigation || {});
+            queryDataEl.textContent = JSON.stringify(queryDetailsData(turn.payload.data), null, 2);
+          }
+          return;
+        }
+        throw new Error(message);
+      }
+      const responsePage = await response.json();
+      if (String(responsePage.result_handle || "").trim() !== currentPage.resultHandle) {
+        throw new Error("The result page did not match this Query result.");
+      }
+      turn.payload = replaceQueryResultPage(turn.payload, responsePage);
+      turn.resultNavigation = {
+        cursor: targetCursor,
+        start: targetStart,
+        previous: nextPrevious,
+        loading: false,
+        error: "",
+      };
+      renderQueryThread();
+      if (index === state.queryTurns.length - 1) {
+        queryReplyEl.innerHTML = renderQueryReply(turn.payload, turn.resultNavigation);
+        queryDataEl.textContent = JSON.stringify(queryDetailsData(turn.payload.data), null, 2);
+      }
+      const renderedTurn = queryThreadEl && queryThreadEl.querySelector(`[data-query-turn-index="${index}"]`);
+      if (renderedTurn && typeof renderedTurn.scrollIntoView === "function") {
+        renderedTurn.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (error) {
+      turn.resultNavigation = {
+        ...currentNavigation,
+        loading: false,
+        error: error && error.message ? error.message : "Unable to load this result page.",
+      };
+      renderQueryThread();
+    }
   }
 
   function handleDocumentClick(event) {
@@ -952,27 +1342,25 @@ export function createQueryUi(ctx) {
       preloadDiseaseCohort(diseaseChip.dataset.queryDiseaseChip || "");
       return;
     }
+    const pageButton = event.target.closest("[data-query-page-action]");
+    if (pageButton && queryThreadEl && queryThreadEl.contains(pageButton)) {
+      const turnElement = pageButton.closest("[data-query-turn-index]");
+      const turnIndex = turnElement ? turnElement.dataset.queryTurnIndex : "";
+      void loadQueryResultPage(turnIndex, pageButton.dataset.queryPageAction || "");
+      return;
+    }
     const queryActionButton = event.target.closest("[data-query-action]");
     if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
-      const ids = String(queryActionButton.dataset.queryPatientIds || "").split(",").map((item) => item.trim()).filter(Boolean);
       if (queryActionButton.dataset.queryAction === "use-pheno") {
         sendPatientIdsToPhenoRanker();
         return;
       }
       if (queryActionButton.dataset.queryAction === "use-analysis") {
-        const scopeIds = String(queryActionButton.dataset.queryScopeIds || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-        setLatestQueryState({
-          ids,
-          recordIds: scopeIds.some((item) => item.includes(":")) ? scopeIds : [],
-        });
         sendPatientIdsToAnalysis();
         return;
       }
       if (queryActionButton.dataset.queryAction === "copy-ids") {
-        copyPatientIdsFromQuery(ids, queryActionButton);
+        copyPatientIdsFromQuery(state.latestQueryPatientIds, queryActionButton);
         return;
       }
       if (queryActionButton.dataset.queryAction === "save-cohort") {
@@ -983,7 +1371,7 @@ export function createQueryUi(ctx) {
     const queryPromptButton = event.target.closest("[data-prompt]");
     if (queryPromptButton && queryThreadEl && queryThreadEl.contains(queryPromptButton)) {
       questionEl.value = queryPromptButton.dataset.prompt;
-      state.queryExecutionMode = defaultQueryExecutionMode();
+      state.queryExecutionMode = queryPromptButton.dataset.queryFollowupMode === "planner_only" ? "planner_only" : "deterministic_only";
       renderQueryExecutionMode();
       questionEl.focus();
     }

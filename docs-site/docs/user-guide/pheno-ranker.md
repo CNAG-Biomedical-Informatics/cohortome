@@ -167,3 +167,12 @@ The intent is:
 :::note
 The explanation cards are meant to complement the ranked output, not replace it. Deterministic evidence remains the grounding layer.
 :::
+
+## Planner follow-up questions
+
+After previewing a plan, Pheno-Ranker can show suggested follow-up questions. Their routing is disclosed before selection:
+
+- blue `Deterministic` means the suggestion came from deterministic planning
+- green `LLM-planned` means the suggestion came from the model planner
+
+Selecting one only places it in the prompt editor for review. It does not automatically preview or run a new Pheno-Ranker job.

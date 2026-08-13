@@ -382,7 +382,7 @@
       }
       .brand-wordmark-primary {
         color: var(--ink);
-        font-weight: 700;
+        font-weight: 650;
       }
       .brand-wordmark-secondary {
         color: var(--handoff);
