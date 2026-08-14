@@ -892,6 +892,32 @@ def _mock_multimodal_assay_datasets(page) -> None:
                             "clinical_overlap_patient_count": 2,
                         },
                         {
+                            "dataset_name": "synthetic_immune_cell_abundance",
+                            "modality": "flow_cytometry",
+                            "data_type": "cell_population_abundance",
+                            "feature_label": "immune-cell populations",
+                            "feature_id_type": "immune_cell_population",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "sample_count": 2,
+                            "patient_count": 2,
+                            "feature_count": 8,
+                            "clinical_overlap_patient_count": 2,
+                        },
+                        {
+                            "dataset_name": "synthetic_quantitative_serology",
+                            "modality": "serology",
+                            "data_type": "quantitative_measurement",
+                            "feature_label": "serology markers",
+                            "feature_id_type": "serology_marker",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001:week_0", "SYN002:week_0"],
+                            "sample_count": 2,
+                            "patient_count": 2,
+                            "feature_count": 6,
+                            "clinical_overlap_patient_count": 2,
+                        },
+                        {
                             "dataset_name": "synthetic_mri_derived_measurements",
                             "modality": "imaging",
                             "data_type": "derived_measurements",
@@ -1775,6 +1801,8 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#assayDashboardOverview")).to_contain_text("Datasets")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Transcriptomics")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
+    expect(page.locator("#assayModalityTabs")).to_contain_text("Immune-cell abundance")
+    expect(page.locator("#assayModalityTabs")).to_contain_text("Serology")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
     expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()

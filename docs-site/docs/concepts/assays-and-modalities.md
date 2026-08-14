@@ -16,9 +16,15 @@ Each assay dataset is identified by stable metadata:
 - `feature_namespace`: the feature identifier system, such as Ensembl gene IDs, Illumina CpG probe IDs, protein symbols, UniProt-backed protein IDs, dbSNP rsIDs, or DICOM standard tags.
 - `level`: whether analysis is patient-level or sample-level.
 
-Curated Analysis tools currently support transcriptomics and externally stored processed methylation M-value matrices. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
+Curated Analysis tools currently support transcriptomics and externally stored processed methylation M-value matrices. Flow-cytometry immune-cell abundance and quantitative serology are supported as manifest-backed exploratory assays. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
 
 Methylation follows a deliberately thin integration boundary. The complete high-dimensional probe matrix remains in the governed release rather than being materialized in DuckDB. COHORTome registers its assay metadata and sample linkage, then a curated runner reads the selected external matrix and returns compact quality-control, principal-component, and differential-methylation results. These analyses operate on supplied processed M-values; they do not claim to repeat bisulfite-array preprocessing or probe filtering from raw IDAT files.
+
+Publication and interactive workflows may use versioned, replaceable CpG
+feature panels over that complete external assay. See
+[Methylation feature panels](../developer-guide/methylation-feature-panels.md)
+for the scientific boundary, provenance contract, and efficient extraction
+strategy.
 
 ## Patient and sample linkage
 

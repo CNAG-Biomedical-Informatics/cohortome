@@ -1528,6 +1528,18 @@ def _assay_inventory_metadata(
         value_kind = "abundance"
         supports_expression_summary = False
         supports_differential_expression = False
+    elif modality_text == "flow_cytometry":
+        feature_id_type = "immune_cell_population"
+        feature_label = "immune-cell populations"
+        value_kind = "cell_population_abundance"
+        supports_expression_summary = False
+        supports_differential_expression = False
+    elif modality_text == "serology":
+        feature_id_type = "serology_marker"
+        feature_label = "serology markers"
+        value_kind = "quantitative_measurement"
+        supports_expression_summary = False
+        supports_differential_expression = False
     elif modality_text == "genotyping":
         feature_id_type = "variant_id"
         feature_label = "variants"

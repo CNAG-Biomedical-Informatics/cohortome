@@ -9520,6 +9520,83 @@ def test_methylation_manifest_is_registered_without_materializing_values(tmp_pat
     assert materialized_value_count == 0
 
 
+def test_flow_cytometry_and_serology_manifests_are_first_class_external_assays(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001", "diseases": [{"diseaseCode": {"label": "Condition A"}}]},
+            {"id": "SYN002", "diseases": [{"diseaseCode": {"label": "Healthy Control"}}]},
+        ],
+    )
+    assays_dir = tmp_path / "assays"
+    immune_dir = assays_dir / "flow_cytometry"
+    serology_dir = assays_dir / "serology"
+    immune_dir.mkdir(parents=True)
+    serology_dir.mkdir(parents=True)
+    (immune_dir / "immune_cells.csv").write_text(
+        "feature_id,SYN001,SYN002\nCD4_T_cells,0.31,0.28\nMonocytes,0.12,0.09\n",
+        encoding="utf-8",
+    )
+    (serology_dir / "markers.csv").write_text(
+        "feature_id,SYN001,SYN002\nMarker_A,4.2,3.8\nMarker_B,11.0,9.5\n",
+        encoding="utf-8",
+    )
+    (assays_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "immune_cells",
+                        "label": "Immune-cell abundance",
+                        "modality": "flow_cytometry",
+                        "data_type": "cell_population_abundance",
+                        "patient_linkage": "exact_sample_id",
+                        "file": "assays/flow_cytometry/immune_cells.csv",
+                    },
+                    {
+                        "assay_id": "quantitative_serology",
+                        "label": "Quantitative serology",
+                        "modality": "serology",
+                        "data_type": "quantitative_measurement",
+                        "patient_linkage": "exact_sample_id",
+                        "file": "assays/serology/markers.csv",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert query_store_module._assay_matrix_files(str(tmp_path)) == []
+    inventory = {item["dataset_name"]: item for item in store_assay_dataset_inventory(str(tmp_path))}
+
+    immune = inventory["immune_cells"]
+    assert immune["feature_id_type"] == "immune_cell_population"
+    assert immune["feature_label"] == "immune-cell populations"
+    assert immune["value_kind"] == "cell_population_abundance"
+    assert immune["sample_count"] == 2
+    assert immune["clinical_overlap_patient_count"] == 2
+
+    serology = inventory["quantitative_serology"]
+    assert serology["feature_id_type"] == "serology_marker"
+    assert serology["feature_label"] == "serology markers"
+    assert serology["value_kind"] == "quantitative_measurement"
+    assert serology["sample_count"] == 2
+    assert serology["clinical_overlap_patient_count"] == 2
+
+    con = query_store_module._connect(str(tmp_path))
+    try:
+        assert con.execute("SELECT count(*) FROM transcript_counts").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
 def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
     matrices = []
     for dataset_root in (Path("default_dataset"), Path("dataset-large")):

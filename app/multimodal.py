@@ -21,6 +21,10 @@ def _normalize_modality(value: Any) -> str:
         return "olink"
     if text.startswith("proteomics"):
         return "proteomics"
+    if text.startswith("flow_cytometry") or text.startswith("immune_cell"):
+        return "flow_cytometry"
+    if text.startswith("serology"):
+        return "serology"
     if text.startswith("genotyping") or text.startswith("variant"):
         return "genotyping"
     return text or "assay"
@@ -34,6 +38,8 @@ def _label_for_modality(key: str) -> str:
         "dicom": "DICOM studies",
         "olink": "OLINK",
         "proteomics": "Proteomics",
+        "flow_cytometry": "Immune-cell abundance",
+        "serology": "Serology",
         "genotyping": "Genotyping",
     }
     return labels.get(key, key.replace("_", " ").title())

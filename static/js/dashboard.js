@@ -206,7 +206,7 @@ export function createDashboardUi(ctx) {
     return `
       <span class="clarid-identity${compact ? " is-compact" : ""}">
         <button type="button" class="clarid-badge" data-clarid-toggle aria-expanded="false" title="Show decoded ClarID metadata">
-          <span aria-hidden="true">ID</span> ClarID
+          ClarID
         </button>
         <span class="clarid-popover" role="dialog" aria-label="Decoded ClarID metadata">
           <strong>ClarID subject${subjectId ? ` ${escapeHtml(subjectId)}` : ""}</strong>
@@ -1488,6 +1488,8 @@ export function createDashboardUi(ctx) {
       methylation: "DNA methylation",
       olink: "OLINK",
       proteomics: "Proteomics",
+      flow_cytometry: "Immune-cell abundance",
+      serology: "Serology",
       genotyping: "Genotyping",
       imaging: "Imaging",
     };
@@ -1502,6 +1504,8 @@ export function createDashboardUi(ctx) {
       m_values: "M-values",
       relative_abundance: "Relative abundance",
       protein_abundance: "Protein abundance",
+      cell_population_abundance: "Cell-population abundance",
+      quantitative_measurement: "Quantitative measurement",
       allele_dosage: "Allele dosage",
       dicom_derived_measurements: "DICOM-derived measurements",
     };
@@ -1515,6 +1519,8 @@ export function createDashboardUi(ctx) {
     if (modality.endsWith("_raw_counts")) return "raw_counts";
     if (modality.endsWith("_relative_abundance")) return "relative_abundance";
     if (modality.endsWith("_protein_abundance")) return "protein_abundance";
+    if (modality.endsWith("_cell_population_abundance")) return "cell_population_abundance";
+    if (modality.endsWith("_quantitative_measurement")) return "quantitative_measurement";
     return "";
   }
 
@@ -1883,6 +1889,8 @@ export function createDashboardUi(ctx) {
     if (normalized.startsWith("transcriptomics")) return "transcriptomics";
     if (normalized.startsWith("proteomics")) return "proteomics";
     if (normalized.startsWith("olink")) return "olink";
+    if (normalized.startsWith("flow_cytometry") || normalized.startsWith("immune_cell")) return "flow_cytometry";
+    if (normalized.startsWith("serology")) return "serology";
     if (normalized.startsWith("genotyping") || normalized.startsWith("variant")) return "genotyping";
     if (normalized.startsWith("imaging") || normalized === "dicom") return "imaging";
     return normalized;
