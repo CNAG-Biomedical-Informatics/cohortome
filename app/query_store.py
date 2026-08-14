@@ -285,6 +285,42 @@ def _assay_source_files(root: Path) -> List[Path]:
     return sorted(dict.fromkeys(paths))
 
 
+def _clarid_subject_config(root: Path) -> Tuple[Dict[str, Any], Path] | None:
+    manifest_path = root / "manifest.json"
+    manifest = _load_json(manifest_path)
+    identifiers = manifest.get("identifiers") if isinstance(manifest, dict) else None
+    config = identifiers.get("clarid_subjects") if isinstance(identifiers, dict) else None
+    if config is None:
+        return None
+    if not isinstance(config, dict):
+        raise ValueError("Dataset identifiers.clarid_subjects must be an object.")
+    relative_file = str(config.get("file") or "").strip()
+    if not relative_file:
+        raise ValueError("Dataset identifiers.clarid_subjects.file is required.")
+    root_resolved = root.resolve()
+    path = (root_resolved / relative_file).resolve()
+    try:
+        path.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError("ClarID subject data must resolve inside the dataset release.") from exc
+    if not path.is_file():
+        raise ValueError("ClarID subject data file is missing from the dataset release.")
+    if str(config.get("entity") or "subject").strip().lower() != "subject":
+        raise ValueError("Dataset identifiers.clarid_subjects.entity must be subject.")
+    if not str(config.get("codebook_version") or "").strip():
+        raise ValueError("Dataset identifiers.clarid_subjects.codebook_version is required.")
+    if not str(config.get("tools_version") or "").strip():
+        raise ValueError("Dataset identifiers.clarid_subjects.tools_version is required.")
+    return config, path
+
+
+def _identifier_source_files(root: Path) -> List[Path]:
+    configured = _clarid_subject_config(root)
+    if configured is None:
+        return []
+    return [root / "manifest.json", configured[1]]
+
+
 def _source_files_signature(data_dir: str) -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
     project_root = resolve_project_data_dir(data_dir)
@@ -310,12 +346,25 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
             }
         )
-    return {
+    identifier_files = []
+    for path in _identifier_source_files(project_root):
+        stat = path.stat()
+        identifier_files.append(
+            {
+                "path": str(path.resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    payload = {
         "schema_version": QUERY_STORE_SCHEMA_VERSION,
         "data_dir": str(resolved_dir),
         "files": files,
         "assay_files": assay_files,
     }
+    if identifier_files:
+        payload["identifier_files"] = identifier_files
+    return payload
 
 
 def _detect_matrix_delimiter(header_line: str) -> str:
@@ -325,6 +374,95 @@ def _detect_matrix_delimiter(header_line: str) -> str:
         for delimiter in candidates
     }
     return max(candidates, key=lambda delimiter: parsed_widths[delimiter])
+
+
+def _read_subject_clarid_rows(root: Path, patient_ids: set[str]) -> List[Tuple[Any, ...]]:
+    configured = _clarid_subject_config(root)
+    if configured is None:
+        return []
+    config, path = configured
+    required_columns = {
+        "unique_id",
+        "subject_id",
+        "study",
+        "type",
+        "condition",
+        "sex",
+        "age_group",
+        "clar_id",
+        "stub_id",
+    }
+    codebook_version = str(config.get("codebook_version") or "").strip()
+    tools_version = str(config.get("tools_version") or "").strip()
+    delimiter = str(config.get("delimiter") or ",")
+    if delimiter == "\\t":
+        delimiter = "\t"
+    if len(delimiter) != 1:
+        raise ValueError("ClarID subject delimiter must be one character.")
+
+    rows: List[Tuple[Any, ...]] = []
+    seen_patient_ids: set[str] = set()
+    seen_subject_ids: set[int] = set()
+    seen_human_ids: set[str] = set()
+    seen_stub_ids: set[str] = set()
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        fieldnames = {str(item or "").strip() for item in (reader.fieldnames or [])}
+        missing_columns = sorted(required_columns - fieldnames)
+        if missing_columns:
+            raise ValueError(
+                "ClarID subject data is missing required columns: " + ", ".join(missing_columns)
+            )
+        for row_number, raw in enumerate(reader, start=2):
+            values = {key: str(raw.get(key) or "").strip() for key in required_columns}
+            missing_values = sorted(key for key, value in values.items() if not value)
+            if missing_values:
+                raise ValueError(
+                    f"ClarID subject row {row_number} has empty required values: "
+                    + ", ".join(missing_values)
+                )
+            patient_id = values["unique_id"]
+            try:
+                subject_id = int(values["subject_id"])
+            except ValueError as exc:
+                raise ValueError(f"ClarID subject row {row_number} has a non-numeric subject_id.") from exc
+            if subject_id < 0:
+                raise ValueError(f"ClarID subject row {row_number} has a negative subject_id.")
+            if patient_id in seen_patient_ids:
+                raise ValueError("ClarID subject data contains duplicate unique_id values.")
+            if subject_id in seen_subject_ids:
+                raise ValueError("ClarID subject data contains duplicate numeric subject_id values.")
+            if values["clar_id"] in seen_human_ids:
+                raise ValueError("ClarID subject data contains duplicate human-readable identifiers.")
+            if values["stub_id"] in seen_stub_ids:
+                raise ValueError("ClarID subject data contains duplicate stub identifiers.")
+            seen_patient_ids.add(patient_id)
+            seen_subject_ids.add(subject_id)
+            seen_human_ids.add(values["clar_id"])
+            seen_stub_ids.add(values["stub_id"])
+            rows.append(
+                (
+                    patient_id,
+                    subject_id,
+                    values["clar_id"],
+                    values["stub_id"],
+                    values["study"],
+                    values["type"],
+                    values["condition"],
+                    values["sex"],
+                    values["age_group"],
+                    codebook_version,
+                    tools_version,
+                )
+            )
+    missing_patients = patient_ids - seen_patient_ids
+    unknown_patients = seen_patient_ids - patient_ids
+    if missing_patients or unknown_patients:
+        raise ValueError(
+            "ClarID subject coverage must exactly match the clinical patient inventory "
+            f"(missing={len(missing_patients)}, unknown={len(unknown_patients)})."
+        )
+    return rows
 
 
 def _read_transcriptomics_matrix(path: Path) -> Tuple[str, List[str], List[Tuple[str, List[int]]]]:
@@ -462,13 +600,26 @@ def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
                 "mtime_ns": stat.st_mtime_ns,
             }
         )
-    return {
+    identifier_files = []
+    for path in _identifier_source_files(dataset_root):
+        stat = path.stat()
+        identifier_files.append(
+            {
+                "path": str(path.resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    payload = {
         "schema_version": QUERY_STORE_SCHEMA_VERSION,
         "dataset_id": normalize_dataset_id(dataset_id),
         "root_path": str(dataset_root),
         "files": files,
         "assay_files": assay_files,
     }
+    if identifier_files:
+        payload["identifier_files"] = identifier_files
+    return payload
 
 
 def dataset_query_store_status(dataset_id: str) -> Dict[str, Any]:
@@ -622,6 +773,14 @@ def _sql_identifier(value: str) -> str:
     return '"' + str(value).replace('"', '""') + '"'
 
 
+def _relation_exists(con: Any, relation: str) -> bool:
+    try:
+        con.execute(f"SELECT 1 FROM {relation} LIMIT 0")
+    except Exception:
+        return False
+    return True
+
+
 def _union_select(aliases: List[str], expression: str) -> str:
     return " UNION ALL ".join(expression.format(alias=alias) for alias in aliases)
 
@@ -699,6 +858,32 @@ def _connect_workspace(dataset_ids: List[str]):
     )
     patient_diseases_sql = _union_select(aliases, "SELECT patient_id, disease FROM {alias}.patient_diseases")
     patient_medications_sql = _union_select(aliases, "SELECT patient_id, medication FROM {alias}.patient_medications")
+    patient_clarids_parts = []
+    for alias in aliases:
+        if _relation_exists(con, f"{alias}.patient_clarids"):
+            patient_clarids_parts.append(
+                f"""
+                SELECT
+                    patient_id, subject_id, human_id, stub_id, study, subject_type,
+                    condition, sex, age_group, codebook_version, tools_version
+                FROM {alias}.patient_clarids
+                """
+            )
+    patient_clarids_sql = " UNION ALL ".join(patient_clarids_parts) or """
+        SELECT
+            CAST(NULL AS VARCHAR) AS patient_id,
+            CAST(NULL AS BIGINT) AS subject_id,
+            CAST(NULL AS VARCHAR) AS human_id,
+            CAST(NULL AS VARCHAR) AS stub_id,
+            CAST(NULL AS VARCHAR) AS study,
+            CAST(NULL AS VARCHAR) AS subject_type,
+            CAST(NULL AS VARCHAR) AS condition,
+            CAST(NULL AS VARCHAR) AS sex,
+            CAST(NULL AS VARCHAR) AS age_group,
+            CAST(NULL AS VARCHAR) AS codebook_version,
+            CAST(NULL AS VARCHAR) AS tools_version
+        WHERE false
+    """
     timepoints_sql = _union_select(
         aliases,
         """
@@ -776,6 +961,7 @@ def _connect_workspace(dataset_ids: List[str]):
     con.execute(f"CREATE TEMP VIEW medication_events AS {medication_events_sql}")
     con.execute(f"CREATE TEMP VIEW patient_diseases AS SELECT DISTINCT patient_id, disease FROM ({patient_diseases_sql})")
     con.execute(f"CREATE TEMP VIEW patient_medications AS SELECT DISTINCT patient_id, medication FROM ({patient_medications_sql})")
+    con.execute(f"CREATE TEMP VIEW patient_clarids AS {patient_clarids_sql}")
     con.execute(f"CREATE TEMP VIEW assay_samples AS {' UNION ALL '.join(assay_samples_parts)}")
     con.execute(f"CREATE TEMP VIEW transcript_counts AS {' UNION ALL '.join(transcript_counts_parts)}")
     con.execute(
@@ -847,6 +1033,23 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                 first_event_date TEXT,
                 last_event_date TEXT,
                 source_file_count INTEGER
+            );
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE patient_clarids (
+                patient_id TEXT PRIMARY KEY,
+                subject_id BIGINT UNIQUE,
+                human_id TEXT UNIQUE,
+                stub_id TEXT UNIQUE,
+                study TEXT,
+                subject_type TEXT,
+                condition TEXT,
+                sex TEXT,
+                age_group TEXT,
+                codebook_version TEXT,
+                tools_version TEXT
             );
             """
         )
@@ -1031,6 +1234,12 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
 
         if patient_rows:
             con.executemany("INSERT INTO patients VALUES (?, ?, ?, ?, ?, ?, ?, ?)", patient_rows)
+        clarid_rows = _read_subject_clarid_rows(resolve_project_data_dir(data_dir), set(patient_stats))
+        if clarid_rows:
+            con.executemany(
+                "INSERT INTO patient_clarids VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                clarid_rows,
+            )
         if timepoint_rows:
             con.executemany("INSERT INTO timepoints VALUES (?, ?, ?, ?, ?, ?, ?, ?)", timepoint_rows)
         if patient_disease_rows:
@@ -1045,6 +1254,8 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
             con.executemany("INSERT INTO assay_samples VALUES (?, ?, ?, ?, ?)", assay_sample_rows)
 
         con.execute("CREATE INDEX idx_patients_patient_id ON patients(patient_id)")
+        con.execute("CREATE INDEX idx_patient_clarids_human_id ON patient_clarids(human_id)")
+        con.execute("CREATE INDEX idx_patient_clarids_stub_id ON patient_clarids(stub_id)")
         con.execute("CREATE INDEX idx_timepoints_patient_id ON timepoints(patient_id)")
         con.execute("CREATE INDEX idx_disease_events_disease ON disease_events(disease)")
         con.execute("CREATE INDEX idx_medication_events_medication ON medication_events(medication)")
@@ -1067,6 +1278,111 @@ def patient_inventory(data_dir: str) -> List[str]:
     finally:
         con.close()
     return [row[0] for row in rows]
+
+
+def _clarid_payload(row: Tuple[Any, ...]) -> Dict[str, Any]:
+    return {
+        "subject_id": int(row[1]),
+        "human_id": str(row[2] or ""),
+        "stub_id": str(row[3] or ""),
+        "study": str(row[4] or ""),
+        "type": str(row[5] or ""),
+        "condition": str(row[6] or ""),
+        "sex": str(row[7] or ""),
+        "age_group": str(row[8] or ""),
+        "codebook_version": str(row[9] or ""),
+        "tools_version": str(row[10] or ""),
+    }
+
+
+def patient_clarid_inventory(data_dir: str) -> Dict[str, Dict[str, Any]]:
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        if not _relation_exists(con, "patient_clarids"):
+            return {}
+        rows = con.execute(
+            """
+            SELECT
+                patient_id,
+                subject_id,
+                human_id,
+                stub_id,
+                study,
+                subject_type,
+                condition,
+                sex,
+                age_group,
+                codebook_version,
+                tools_version
+            FROM patient_clarids
+            ORDER BY patient_id, human_id, stub_id
+            """
+        ).fetchall()
+    finally:
+        con.close()
+    grouped: Dict[str, List[Tuple[Any, ...]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row[0] or ""), []).append(row)
+    payload: Dict[str, Dict[str, Any]] = {}
+    for patient_id, candidates in grouped.items():
+        distinct = {tuple(candidate[1:]) for candidate in candidates}
+        if patient_id and len(distinct) == 1:
+            payload[patient_id] = _clarid_payload(candidates[0])
+    return payload
+
+
+def patient_clarid(data_dir: str, patient_id: str) -> Dict[str, Any] | None:
+    return patient_clarid_inventory(data_dir).get(str(patient_id or "").strip())
+
+
+def resolve_patient_identifier(data_dir: str, identifier: str) -> Dict[str, Any] | None:
+    normalized = str(identifier or "").strip()
+    if not normalized:
+        return None
+    ensure_query_store(data_dir)
+    con = _connect(data_dir)
+    try:
+        if not _relation_exists(con, "patient_clarids"):
+            row = con.execute(
+                "SELECT patient_id FROM patients WHERE lower(patient_id) = lower(?)",
+                [normalized],
+            ).fetchone()
+            return {"patient_id": str(row[0]), "clarid": None} if row else None
+        rows = con.execute(
+            """
+            SELECT
+                p.patient_id,
+                c.subject_id,
+                c.human_id,
+                c.stub_id,
+                c.study,
+                c.subject_type,
+                c.condition,
+                c.sex,
+                c.age_group,
+                c.codebook_version,
+                c.tools_version
+            FROM patients p
+            LEFT JOIN patient_clarids c ON c.patient_id = p.patient_id
+            WHERE lower(p.patient_id) = lower(?)
+               OR lower(coalesce(c.human_id, '')) = lower(?)
+               OR lower(coalesce(c.stub_id, '')) = lower(?)
+            ORDER BY p.patient_id
+            """,
+            [normalized, normalized, normalized],
+        ).fetchall()
+    finally:
+        con.close()
+    patient_ids = {str(row[0] or "").strip() for row in rows if str(row[0] or "").strip()}
+    if len(patient_ids) != 1:
+        return None
+    patient_id = next(iter(patient_ids))
+    candidates = [row for row in rows if str(row[0] or "").strip() == patient_id]
+    clarid_candidates = [row for row in candidates if row[1] is not None]
+    clarid_values = {tuple(row[1:]) for row in clarid_candidates}
+    clarid = _clarid_payload(clarid_candidates[0]) if len(clarid_values) == 1 else None
+    return {"patient_id": patient_id, "clarid": clarid}
 
 
 def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
@@ -1108,6 +1424,19 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
             ORDER BY patient_id, medication
             """
         ).fetchall()
+        clarid_rows = (
+            con.execute(
+                """
+                SELECT
+                    patient_id, subject_id, human_id, stub_id, study, subject_type,
+                    condition, sex, age_group, codebook_version, tools_version
+                FROM patient_clarids
+                ORDER BY patient_id, human_id, stub_id
+                """
+            ).fetchall()
+            if _relation_exists(con, "patient_clarids")
+            else []
+        )
     finally:
         con.close()
 
@@ -1125,6 +1454,14 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
         if patient_key and medication_label:
             medications_by_patient.setdefault(patient_key, []).append(medication_label)
 
+    clarids_by_patient: Dict[str, Dict[str, Any]] = {}
+    clarid_candidates: Dict[str, List[Tuple[Any, ...]]] = {}
+    for row in clarid_rows:
+        clarid_candidates.setdefault(str(row[0] or "").strip(), []).append(row)
+    for patient_key, candidates in clarid_candidates.items():
+        if patient_key and len({tuple(item[1:]) for item in candidates}) == 1:
+            clarids_by_patient[patient_key] = _clarid_payload(candidates[0])
+
     patients = []
     for patient_id, sex, visit_count, medication_count, disease_count, first_event_date, last_event_date in patient_rows:
         patient_key = str(patient_id or "").strip()
@@ -1139,6 +1476,7 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
                 "disease_count": int(disease_count or 0),
                 "first_event_date": str(first_event_date or "").strip(),
                 "last_event_date": str(last_event_date or "").strip(),
+                "clarid": clarids_by_patient.get(patient_key),
             }
         )
 
@@ -2210,8 +2548,29 @@ def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
                 """
             ).fetchall()
         }
+        clarid_rows = (
+            con.execute(
+                """
+                SELECT
+                    patient_id, subject_id, human_id, stub_id, study, subject_type,
+                    condition, sex, age_group, codebook_version, tools_version
+                FROM patient_clarids
+                ORDER BY patient_id, human_id, stub_id
+                """
+            ).fetchall()
+            if _relation_exists(con, "patient_clarids")
+            else []
+        )
     finally:
         con.close()
+
+    clarid_candidates: Dict[str, List[Tuple[Any, ...]]] = {}
+    for row in clarid_rows:
+        clarid_candidates.setdefault(str(row[0] or "").strip(), []).append(row)
+    clarids: Dict[str, Dict[str, Any]] = {}
+    for patient_key, candidates in clarid_candidates.items():
+        if patient_key and len({tuple(item[1:]) for item in candidates}) == 1:
+            clarids[patient_key] = _clarid_payload(candidates[0])
 
     payload: List[Dict[str, Any]] = []
     for patient_id, sex, visit_count, medication_count, disease_count in rows:
@@ -2225,6 +2584,7 @@ def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
                 "diseases": list(diseases.get(patient_id) or []),
                 "disease_count": disease_count,
                 "original_record_ids": list(original_ids.get(patient_id) or []),
+                "clarid": clarids.get(str(patient_id)),
             }
         )
     return payload

@@ -230,7 +230,11 @@ export function createWorkspaceUi(ctx) {
   function filterPatients(query) {
     const value = String(query || "").trim().toLowerCase();
     if (!value) return state.currentPatients;
-    return state.currentPatients.filter((patient) => String(patient.patient_id || "").toLowerCase().includes(value));
+    return state.currentPatients.filter((patient) => {
+      const clarid = patient && patient.clarid && typeof patient.clarid === "object" ? patient.clarid : {};
+      return [patient && patient.patient_id, clarid.human_id, clarid.stub_id]
+        .some((candidate) => String(candidate || "").toLowerCase().includes(value));
+    });
   }
 
   async function persistDatasetSelection(datasetIds) {

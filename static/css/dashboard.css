@@ -639,6 +639,132 @@
         font-size: 1.1rem;
         margin-bottom: 8px;
       }
+      .patient-card-identity,
+      .patient-detail-identity {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-width: 0;
+      }
+      .patient-card-identity > strong,
+      .patient-detail-identity > p {
+        margin: 0;
+      }
+      .clarid-identity {
+        position: relative;
+        display: inline-flex;
+        z-index: 2;
+      }
+      .clarid-identity.is-open {
+        z-index: 80;
+      }
+      .clarid-badge {
+        border: 1px solid #7c3aed;
+        border-radius: 999px;
+        background: #f5f3ff;
+        color: #5b21b6;
+        padding: 3px 8px;
+        font: inherit;
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.3;
+        cursor: pointer;
+      }
+      .clarid-badge:hover,
+      .clarid-badge:focus-visible,
+      .clarid-identity.is-open .clarid-badge {
+        background: #ede9fe;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+      }
+      .clarid-popover {
+        position: absolute;
+        top: calc(100% + 7px);
+        left: 0;
+        z-index: 30;
+        display: none;
+        width: min(390px, calc(100vw - 48px));
+        padding: 12px;
+        border: 1px solid #c4b5fd;
+        border-radius: 14px;
+        background: var(--panel-strong);
+        color: var(--ink);
+        box-shadow: 0 16px 36px rgba(30, 41, 59, 0.18);
+        text-align: left;
+      }
+      .clarid-identity.is-open .clarid-popover {
+        display: grid;
+        gap: 8px;
+      }
+      .clarid-identity.is-compact.is-open {
+        display: inline-grid;
+        align-items: start;
+        justify-items: start;
+      }
+      .clarid-identity.is-compact.is-open .clarid-popover {
+        position: static;
+        width: min(320px, calc(100vw - 72px));
+        margin-top: 6px;
+      }
+      .clarid-popover > strong {
+        display: block;
+        margin: 0;
+        font-size: 0.88rem;
+      }
+      .clarid-decoded-summary,
+      .clarid-popover small {
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+      .clarid-code-row {
+        display: grid;
+        grid-template-columns: 45px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 7px;
+      }
+      .clarid-code-row b {
+        font-size: 0.72rem;
+      }
+      .clarid-code-row code {
+        overflow: hidden;
+        color: #4c1d95;
+        font-size: 0.7rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .clarid-code-row button {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--ink);
+        padding: 3px 7px;
+        font: inherit;
+        font-size: 0.68rem;
+        cursor: pointer;
+      }
+      .clarid-search-feedback {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        align-items: center;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border: 1px solid #c4b5fd;
+        border-radius: 13px;
+        background: #f5f3ff;
+        color: #4c1d95;
+        font-size: 0.78rem;
+      }
+      .dashboard-timeline-patient-identity {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .dashboard-timeline-patient-identity > strong {
+        display: inline;
+      }
       .patient-card-compact {
         padding: 8px 9px;
         border-radius: 12px;
@@ -666,6 +792,12 @@
         margin: 0;
         padding: 3px 7px;
         font-size: 0.7rem;
+      }
+      .patient-card-compact-main > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
       }
       .patient-card-compact-meta {
         display: flex;

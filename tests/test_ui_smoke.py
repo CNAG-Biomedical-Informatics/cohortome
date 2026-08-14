@@ -547,6 +547,18 @@ def _mock_dashboard_load(page, clinical_representation: str = "snapshot") -> Non
                         "patient_id": "SYN001",
                         "visit_count": 5,
                         "sex": "female",
+                        "clarid": {
+                            "subject_id": 1,
+                            "human_id": "SyntheticStudy-00001-Case-K50.9-Female-A40_49",
+                            "stub_id": "SyntheticStudy00001CASE",
+                            "study": "SyntheticStudy",
+                            "type": "Case",
+                            "condition": "K50.9",
+                            "sex": "Female",
+                            "age_group": "Age40to49",
+                            "codebook_version": "0.04",
+                            "tools_version": "0.03_1",
+                        },
                         "evidence": {"diseases": {"count": 1}},
                         "first_event_date": "2024-01-01",
                         "last_event_date": "2024-06-01",
@@ -1863,6 +1875,40 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
     expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("2 patients selected")
     page.locator("#dashboardTimelineUseAnalysisBtn").click()
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+
+
+def test_dashboard_resolves_and_decodes_subject_clarid_in_timeline(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardTimelineBtn").click()
+
+    search = page.locator("#dashboardTimelineEventSearch")
+    search.fill("SyntheticStudy00001CASE")
+    expect(page.locator("#dashboard-timeline-event-count")).to_contain_text(
+        "ClarID recognized as patient SYN001"
+    )
+    expect(page.locator("#dashboard-timeline-event-table tbody tr")).to_have_count(2)
+    expect(page.locator("#dashboard-timeline-event-table tbody")).to_contain_text("SYN001")
+    expect(page.locator("#dashboard-timeline-event-table tbody")).not_to_contain_text("SYN002")
+
+    badge = page.locator("#dashboard-timeline-event-table [data-clarid-toggle]").first
+    badge.click()
+    expect(badge).to_have_attribute("aria-expanded", "true")
+    popover = badge.locator("xpath=..").locator(".clarid-popover")
+    expect(popover).to_be_visible()
+    assert popover.evaluate("element => getComputedStyle(element).position") == "static"
+    expect(popover).to_contain_text("SyntheticStudy · Case · K50.9 · Female · Age40to49")
+    expect(popover).to_contain_text("SyntheticStudy-00001-Case-K50.9-Female-A40_49")
+    expect(popover).to_contain_text("SyntheticStudy00001CASE")
+    expect(popover).to_contain_text("Codebook 0.04")
+    page.locator("#dashboard-timeline-event-table [data-clarid-toggle]").nth(1).hover()
+    expect(page.locator("#dashboard-timeline-event-table .clarid-popover:visible")).to_have_count(1)
 
 
 def test_dashboard_exposes_timeline_for_person_representation(page) -> None:

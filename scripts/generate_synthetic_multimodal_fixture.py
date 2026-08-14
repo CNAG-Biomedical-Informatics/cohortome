@@ -520,6 +520,11 @@ def patient_ids() -> list[tuple[str, CohortSpec]]:
     return output
 
 
+def synthetic_date_of_birth(reference_date: date, patient_index: int) -> str:
+    age_years = 25 + ((patient_index * 7) % 50)
+    return reference_date.replace(year=reference_date.year - age_years).isoformat()
+
+
 def build_clinical_records() -> list[dict]:
     records: list[dict] = []
     start_date = date(2024, 1, 1)
@@ -585,6 +590,11 @@ def build_clinical_records() -> list[dict]:
                     ],
                     "info": {
                         "event_date": event_date.isoformat(),
+                        "phenopacket": {
+                            "dateOfBirth": synthetic_date_of_birth(
+                                start_date + timedelta(days=patient_index), patient_index
+                            ),
+                        },
                     },
                 }
             )
@@ -620,6 +630,11 @@ def build_hc_clinical_records() -> list[dict]:
                 "info": {
                     "event_date": event_date.isoformat(),
                     "cohort": "Healthy Control",
+                    "phenopacket": {
+                        "dateOfBirth": synthetic_date_of_birth(
+                            event_date, len(patient_ids()) + patient_index
+                        ),
+                    },
                 },
             }
         )

@@ -50,6 +50,46 @@ participant at one visit or timepoint. New registrations are rejected when
 this declaration is missing, because COHORTome should not guess that one
 record equals one visit.
 
+### Optional ClarID subject identities
+
+A release can provide precomputed, decoded ClarID subject identities. Generate
+and validate the identifiers before freezing the release; COHORTome does not
+invoke ClarID-Tools while serving requests. Add the following optional root
+manifest section:
+
+```json
+{
+  "identifiers": {
+    "clarid_subjects": {
+      "entity": "subject",
+      "file": "identifiers/clarid_subjects.csv",
+      "delimiter": ",",
+      "codebook_version": "0.04",
+      "tools_version": "0.03_1"
+    }
+  }
+}
+```
+
+The referenced CSV is the reviewed merge of the human and stub encoding
+outputs and must contain:
+
+```text
+unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id
+```
+
+`unique_id` is the canonical source patient ID. `subject_id` must be a
+non-negative integer. The source patient ID, numeric subject ID, human ClarID,
+and stub ClarID must each be unique, and the CSV must cover the clinical
+patient inventory exactly. Store preparation fails closed on missing rows,
+unknown patients, duplicate identifiers, missing decoded fields, or paths that
+escape the release.
+
+The prepared DuckDB store holds both identifiers, the decoded snapshot, and
+the declared tool/codebook versions. This makes search and patient-card
+feedback immediate and reproducible. ClarIDs are treated as Detailed data:
+they are not added to Summary-mode responses or external model context.
+
 ## Register a protected release
 
 Keep source files, the prepared release, and the runtime on approved storage

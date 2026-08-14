@@ -67,7 +67,10 @@
     ],
     "info": {
       "event_date": "2024-01-01",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1989-01-01"
+      }
     }
   },
   {
@@ -138,7 +141,10 @@
     ],
     "info": {
       "event_date": "2024-01-02",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1982-01-02"
+      }
     }
   },
   {
@@ -209,7 +215,10 @@
     ],
     "info": {
       "event_date": "2024-01-03",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1975-01-03"
+      }
     }
   },
   {
@@ -280,7 +289,10 @@
     ],
     "info": {
       "event_date": "2024-01-04",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1968-01-04"
+      }
     }
   },
   {
@@ -351,7 +363,10 @@
     ],
     "info": {
       "event_date": "2024-01-05",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1961-01-05"
+      }
     }
   },
   {
@@ -422,7 +437,10 @@
     ],
     "info": {
       "event_date": "2024-01-06",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1954-01-06"
+      }
     }
   },
   {
@@ -493,7 +511,10 @@
     ],
     "info": {
       "event_date": "2024-01-07",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1997-01-07"
+      }
     }
   },
   {
@@ -564,7 +585,10 @@
     ],
     "info": {
       "event_date": "2024-01-08",
-      "cohort": "Healthy Control"
+      "cohort": "Healthy Control",
+      "phenopacket": {
+        "dateOfBirth": "1990-01-08"
+      }
     }
   }
 ]

@@ -613,9 +613,14 @@ def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp
         clinical_dir,
         "records.json",
         [
-            {"id": "SYN001:week_0", "patient_id": "SYN001"},
-            {"id": "SYN001:week_2", "patient_id": "SYN001"},
-            {"id": "SYN002:week_0", "patient_id": "SYN002"},
+            {
+                "id": "SYN001:week_0",
+                "patient_id": "SYN001",
+                "patient": {"sex": "female"},
+                "treatments": [{"treatmentCode": {"label": "Example treatment"}}],
+            },
+            {"id": "SYN001:week_2", "patient_id": "SYN001", "patient": {"sex": "female"}},
+            {"id": "SYN002:week_0", "patient_id": "SYN002", "patient": {"sex": "male"}},
         ],
     )
 
@@ -623,6 +628,22 @@ def test_deterministic_patient_inventory_prefers_patient_ids_over_sample_ids(tmp
 
     assert payload["intent"] == "patient_inventory"
     assert payload["data"]["patient_ids"] == ["SYN001", "SYN002"]
+    assert payload["data"]["patients"] == [
+        {
+            "patient_id": "SYN001",
+            "sex": "female",
+            "visit_count": 2,
+            "medication_count": 1,
+            "disease_count": 0,
+        },
+        {
+            "patient_id": "SYN002",
+            "sex": "male",
+            "visit_count": 1,
+            "medication_count": 0,
+            "disease_count": 0,
+        },
+    ]
     assert "SYN001:week_0" not in payload["reply"]
     assert "SYN001:week_2" not in payload["reply"]
 
@@ -3815,6 +3836,28 @@ def test_grouping_and_summary(tmp_path):
     assert patient.visits[0].event_date is None
     assert patient.visits[0].age_at_visit is None
     assert patient.visits[0].provenance.raw_bff["diagnosis"] == "Dx 3"
+
+
+def test_grouping_reads_phenopacket_date_of_birth_preserved_in_bff_info(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {
+                "id": "SYN001:baseline",
+                "patient_id": "SYN001",
+                "info": {
+                    "event_date": "2024-01-01",
+                    "phenopacket": {"dateOfBirth": "1984-01-01"},
+                },
+            }
+        ],
+    )
+
+    patient = get_patient_context(str(tmp_path), "SYN001")
+
+    assert patient is not None
+    assert patient.date_of_birth == "1984-01-01"
 
 
 def test_analysis_survival_kaplan_meier_for_measure_threshold(tmp_path):
@@ -8879,6 +8922,167 @@ def test_duckdb_query_store_indexes_multiple_files(tmp_path):
     assert meds[0]["medication"] == "Infliximab"
     assert meds[0]["patient_count"] == 2
     assert meds[0]["patients"] == ["101", "Beacon_1"]
+
+
+def test_query_store_ingests_and_resolves_precomputed_subject_clarids(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(
+        tmp_path,
+        "individuals.json",
+        [
+            {
+                "id": "SYN001",
+                "sex": "female",
+                "diseases": [{"diseaseCode": {"label": "Crohn Disease"}}],
+            },
+            {
+                "id": "SYN002",
+                "sex": "male",
+                "diseases": [{"diseaseCode": {"label": "Healthy control"}}],
+            },
+        ],
+    )
+    identifiers_dir = tmp_path / "identifiers"
+    identifiers_dir.mkdir()
+    (identifiers_dir / "clarid_subjects.csv").write_text(
+        "\n".join(
+            [
+                "unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id",
+                "SYN001,1,SyntheticStudy,Case,K50.9,Female,Age40to49,SyntheticStudy-00001-Case-K50.9-Female-A40_49,SyntheticStudy00001CASE",
+                "SYN002,2,SyntheticStudy,Control,Z00.00,Male,Age50to59,SyntheticStudy-00002-Control-Z00.00-Male-A50_59,SyntheticStudy00002CTRL",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_json(
+        tmp_path,
+        "manifest.json",
+        {
+            "schema_version": 1,
+            "clinical": {"representation": "person"},
+            "identifiers": {
+                "clarid_subjects": {
+                    "entity": "subject",
+                    "file": "identifiers/clarid_subjects.csv",
+                    "codebook_version": "0.04",
+                    "tools_version": "0.03_1",
+                }
+            },
+        },
+    )
+
+    clarids = query_store_module.patient_clarid_inventory(str(tmp_path))
+    assert clarids["SYN001"] == {
+        "subject_id": 1,
+        "human_id": "SyntheticStudy-00001-Case-K50.9-Female-A40_49",
+        "stub_id": "SyntheticStudy00001CASE",
+        "study": "SyntheticStudy",
+        "type": "Case",
+        "condition": "K50.9",
+        "sex": "Female",
+        "age_group": "Age40to49",
+        "codebook_version": "0.04",
+        "tools_version": "0.03_1",
+    }
+    resolved = query_store_module.resolve_patient_identifier(
+        str(tmp_path), "syntheticstudy-00001-case-k50.9-female-a40_49"
+    )
+    assert resolved == {"patient_id": "SYN001", "clarid": clarids["SYN001"]}
+
+    patient_payload = get_patients(data_dir=str(tmp_path))
+    assert patient_payload[0]["clarid"]["stub_id"] == "SyntheticStudy00001CASE"
+    query_payload = answer_query(
+        str(tmp_path),
+        "Show patient SyntheticStudy-00001-Case-K50.9-Female-A40_49",
+        query_mode="deterministic_only",
+    )
+    assert query_payload["intent"] == "patient_summary"
+    assert query_payload["data"]["patient_id"] == "SYN001"
+    assert query_payload["data"]["clarid"]["subject_id"] == 1
+    assert query_payload["reply"].startswith("ClarID recognized as patient SYN001.")
+
+    stub_payload = answer_query(
+        str(tmp_path),
+        "ClarID SyntheticStudy00001CASE",
+        query_mode="deterministic_only",
+    )
+    assert stub_payload["intent"] == "patient_summary"
+    assert stub_payload["data"]["patient_id"] == "SYN001"
+    assert stub_payload["reply"].startswith("ClarID recognized as patient SYN001.")
+
+    summary_payload = answer_query(
+        str(tmp_path),
+        "Show patient SyntheticStudy-00001-Case-K50.9-Female-A40_49",
+        query_mode="deterministic_only",
+        granularity_mode="summary",
+    )
+    assert summary_payload["reply"] == "Detailed patient-level answers are not available in Summary mode."
+    assert "clarid" not in json.dumps(summary_payload).lower()
+
+
+def test_query_store_rejects_incomplete_subject_clarid_coverage(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(tmp_path, "individuals.json", [{"id": "SYN001"}, {"id": "SYN002"}])
+    identifiers_dir = tmp_path / "identifiers"
+    identifiers_dir.mkdir()
+    (identifiers_dir / "clarid_subjects.csv").write_text(
+        "\n".join(
+            [
+                "unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id",
+                "SYN001,1,SyntheticStudy,Case,K50.9,Female,Age40to49,SyntheticStudy-00001-Case-K50.9-Female-A40_49,SyntheticStudy00001CASE",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    write_json(
+        tmp_path,
+        "manifest.json",
+        {
+            "schema_version": 1,
+            "clinical": {"representation": "person"},
+            "identifiers": {
+                "clarid_subjects": {
+                    "file": "identifiers/clarid_subjects.csv",
+                    "codebook_version": "0.04",
+                    "tools_version": "0.03_1",
+                }
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="coverage must exactly match"):
+        query_store_module.patient_clarid_inventory(str(tmp_path))
+
+
+def test_default_fixture_exposes_precomputed_subject_clarids(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+    isolate_query_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(query_store_module, "list_registered_datasets", lambda: [])
+    fixture_root = str(Path("default_dataset").resolve())
+
+    clarids = query_store_module.patient_clarid_inventory(fixture_root)
+
+    assert len(clarids) == 38
+    assert clarids["SYN001"] == {
+        "subject_id": 9,
+        "human_id": "CNAG_Test-00009-Case-K50.9-Female-A20_29",
+        "stub_id": "CT009C3ad01FA2",
+        "study": "CNAG-Test",
+        "type": "Case",
+        "condition": "K50.9",
+        "sex": "Female",
+        "age_group": "Age20to29",
+        "codebook_version": "0.04",
+        "tools_version": "0.03_1",
+    }
+    assert query_store_module.resolve_patient_identifier(
+        fixture_root, "CT009C3ad01FA2"
+    )["patient_id"] == "SYN001"
 
 
 def test_answer_query_supports_longitudinal_timepoint_queries(tmp_path):

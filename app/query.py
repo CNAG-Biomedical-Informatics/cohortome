@@ -49,9 +49,11 @@ from app.query_store import (
     duckdb_available,
     medication_cohort as store_medication_cohort,
     medication_counts as store_medication_counts,
+    patient_clarid as store_patient_clarid,
     patient_medication_count_cohort as store_patient_medication_count_cohort,
     patient_query_index as store_patient_query_index,
     patient_visit_count_cohort as store_patient_visit_count_cohort,
+    resolve_patient_identifier as store_resolve_patient_identifier,
 )
 
 def _contains_label(values: List[str], query: str) -> bool:
@@ -234,9 +236,12 @@ def _disease_cohort(data_dir: str, disease_query: str, scoped_patient_ids: Optio
 
 def _extract_patient_id(text: str) -> Optional[str]:
     for prefix in entity_identifier_prefixes("patient"):
-        match = re.search(rf"\b{re.escape(prefix)}\s+([A-Za-z0-9:_-]+)\b", text, flags=re.IGNORECASE)
+        match = re.search(rf"\b{re.escape(prefix)}\s+([A-Za-z0-9:_.-]+)\b", text, flags=re.IGNORECASE)
         if match:
             return match.group(1)
+    match = re.search(r"\bclarid\s+([A-Za-z0-9:_.-]+)\b", text, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
     return None
 
 
@@ -377,7 +382,7 @@ def _should_apply_scoped_context(
     lowered = query.lower()
     if any(phrase in lowered for phrase in ("full workspace", "entire workspace", "whole workspace", "all patients in the workspace")):
         return False
-    if re.search(r"\bshow patient\s+[A-Za-z0-9:_-]+\b", lowered):
+    if re.search(r"\b(?:show patient|clarid)\s+[A-Za-z0-9:_.-]+\b", lowered):
         return False
     return True
 
@@ -1230,6 +1235,8 @@ def _follow_up_suggestion_metadata(items: Any) -> List[Dict[str, str]]:
 def _needs_clarification(query: str) -> bool:
     lowered = query.strip().lower()
     if not lowered:
+        return False
+    if _extract_patient_id(query) is not None:
         return False
     vague_prompts = {
         "help",
@@ -2197,6 +2204,16 @@ def _answer_query_impl(
     if _is_patient_list_query(text):
         patient_ids = scope_context.patient_ids
         sample_ids = scope_context.sample_ids
+        patient_rows = [
+            {
+                "patient_id": row.get("patient_id"),
+                "sex": row.get("sex"),
+                "visit_count": row.get("visit_count"),
+                "medication_count": row.get("medication_count"),
+                "disease_count": row.get("disease_count"),
+            }
+            for row in scope_context.patient_rows
+        ]
         return {
             "query": query,
             "intent": "patient_inventory",
@@ -2207,6 +2224,7 @@ def _answer_query_impl(
             "data": {
                 "patient_count": len(patient_ids),
                 "patient_ids": patient_ids,
+                "patients": patient_rows,
                 "sample_count": len(sample_ids),
                 "sample_ids": sample_ids,
                 "scoped_follow_up": bool(active_scoped_patient_ids),
@@ -2672,16 +2690,22 @@ def _answer_query_impl(
             },
         }
 
-    patient_id = _extract_patient_id(text)
-    if patient_id is not None:
+    requested_patient_identifier = _extract_patient_id(text)
+    if requested_patient_identifier is not None:
+        resolved_identifier = (
+            store_resolve_patient_identifier(data_dir, requested_patient_identifier)
+            if duckdb_available()
+            else None
+        )
+        patient_id = str((resolved_identifier or {}).get("patient_id") or requested_patient_identifier)
         patient_workspace = build_patient_workspace(data_dir, patient_id)
         if patient_workspace is None:
             return {
                 "query": query,
                 "intent": "patient_lookup",
-                "reply": "Patient not found: %s." % patient_id,
+                "reply": "Patient not found: %s." % requested_patient_identifier,
                 "data": {
-                    "patient_id": patient_id,
+                    "patient_id": requested_patient_identifier,
                     "follow_up_suggestions": [
                         "List patients",
                         "Show patient 107",
@@ -2699,12 +2723,18 @@ def _answer_query_impl(
         else:
             reply = _render_patient_summary(payload)
             intent = "patient_summary"
+        clarid = (resolved_identifier or {}).get("clarid")
+        if clarid is None and duckdb_available():
+            clarid = store_patient_clarid(data_dir, patient_id)
+        if clarid and requested_patient_identifier.lower() != patient_id.lower():
+            reply = "ClarID recognized as patient %s. %s" % (patient_id, reply)
         return {
             "query": query,
             "intent": intent,
             "reply": reply,
             "data": {
                 **payload,
+                **({"clarid": clarid} if clarid else {}),
                 "follow_up_suggestions": [
                     "Show the timeline for patient %s" % patient_id,
                     "List visits for patient %s" % patient_id,

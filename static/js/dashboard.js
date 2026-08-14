@@ -166,7 +166,69 @@ export function createDashboardUi(ctx) {
     const query = String(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : "").trim().toLowerCase();
     const patients = Array.isArray(state.currentPatients) ? state.currentPatients : [];
     if (!query) return patients;
-    return patients.filter((patient) => String(patient && patient.patient_id ? patient.patient_id : "").toLowerCase().includes(query));
+    return patients.filter((patient) => patientMatchesIdentityQuery(patient, query));
+  }
+
+  function normalizedClarid(patient) {
+    const value = patient && patient.clarid && typeof patient.clarid === "object" ? patient.clarid : null;
+    if (!value || !String(value.human_id || "").trim() || !String(value.stub_id || "").trim()) return null;
+    return value;
+  }
+
+  function patientMatchesIdentityQuery(patient, rawQuery) {
+    const query = String(rawQuery || "").trim().toLowerCase();
+    if (!query) return true;
+    const clarid = normalizedClarid(patient);
+    return [
+      patient && patient.patient_id,
+      clarid && clarid.human_id,
+      clarid && clarid.stub_id,
+    ].some((value) => String(value || "").toLowerCase().includes(query));
+  }
+
+  function claridDecodedSummary(clarid) {
+    if (!clarid) return "";
+    return [clarid.study, clarid.type, clarid.condition, clarid.sex, clarid.age_group]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  function claridIdentityMarkup(patient, compact = false) {
+    const clarid = normalizedClarid(patient);
+    if (!clarid) return "";
+    const decoded = claridDecodedSummary(clarid);
+    const subjectId = String(clarid.subject_id ?? "").trim();
+    const version = [
+      clarid.codebook_version ? `Codebook ${clarid.codebook_version}` : "",
+      clarid.tools_version ? `Tools ${clarid.tools_version}` : "",
+    ].filter(Boolean).join(" · ");
+    return `
+      <span class="clarid-identity${compact ? " is-compact" : ""}">
+        <button type="button" class="clarid-badge" data-clarid-toggle aria-expanded="false" title="Show decoded ClarID metadata">
+          <span aria-hidden="true">ID</span> ClarID
+        </button>
+        <span class="clarid-popover" role="dialog" aria-label="Decoded ClarID metadata">
+          <strong>ClarID subject${subjectId ? ` ${escapeHtml(subjectId)}` : ""}</strong>
+          <span class="clarid-decoded-summary">${escapeHtml(decoded || "Decoded subject metadata")}</span>
+          <span class="clarid-code-row"><b>Human</b><code>${escapeHtml(clarid.human_id)}</code><button type="button" data-clarid-copy="${escapeHtml(clarid.human_id)}" aria-label="Copy human-readable ClarID">Copy</button></span>
+          <span class="clarid-code-row"><b>Stub</b><code>${escapeHtml(clarid.stub_id)}</code><button type="button" data-clarid-copy="${escapeHtml(clarid.stub_id)}" aria-label="Copy ClarID stub">Copy</button></span>
+          ${version ? `<small>${escapeHtml(version)}</small>` : ""}
+        </span>
+      </span>
+    `;
+  }
+
+  function claridSearchFeedback(items) {
+    const query = String(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : "").trim().toLowerCase();
+    if (!query) return "";
+    const match = items.find((patient) => {
+      const clarid = normalizedClarid(patient);
+      return clarid && [clarid.human_id, clarid.stub_id].some((value) => String(value || "").toLowerCase() === query);
+    });
+    if (!match) return "";
+    const clarid = normalizedClarid(match);
+    return `<div class="clarid-search-feedback" role="status"><strong>ClarID recognized</strong><span>${escapeHtml(claridDecodedSummary(clarid))}</span><span>Patient ${escapeHtml(match.patient_id)}</span></div>`;
   }
 
   function toggleTimelinePatient(patientId, summary) {
@@ -543,6 +605,11 @@ export function createDashboardUi(ctx) {
     ));
   }
 
+  function rosterPatient(patientId) {
+    return (Array.isArray(state.currentPatients) ? state.currentPatients : [])
+      .find((patient) => String(patient && patient.patient_id || "") === String(patientId || "")) || null;
+  }
+
   function timelineEventKey(row) {
     if (!row || typeof row !== "object") return "";
     return [
@@ -559,6 +626,7 @@ export function createDashboardUi(ctx) {
     if (!detailEl || !row) return;
     state.dashboardTimelineInspectedEventKey = timelineEventKey(row);
     const selected = timelineSelectedPatientSet().has(String(row.patient_id || ""));
+    const rosterIdentity = rosterPatient(row.patient_id);
     const domainCards = (Array.isArray(row.domains) ? row.domains : []).map((domain) => {
       const examples = Array.isArray(domain.examples) && domain.examples.length
         ? domain.examples.slice(0, 4).map((item) => `<span class="pill">${escapeHtml(String(item))}</span>`).join("")
@@ -576,7 +644,7 @@ export function createDashboardUi(ctx) {
         <div class="dashboard-section-header">
           <div>
             <div class="dashboard-card-eyebrow">Timeline inspector</div>
-            <h3>${escapeHtml(row.patient_id || "Patient")} ${row.visit_id ? `· ${escapeHtml(row.visit_id)}` : ""}</h3>
+            <div class="patient-detail-identity"><h3>${escapeHtml(row.patient_id || "Patient")} ${row.visit_id ? `· ${escapeHtml(row.visit_id)}` : ""}</h3>${claridIdentityMarkup(rosterIdentity)}</div>
           </div>
           <span class="query-chip badge">${selected ? "Selected" : "Not selected"}</span>
         </div>
@@ -607,6 +675,8 @@ export function createDashboardUi(ctx) {
       if (!query) return true;
       const haystack = [
         row.patient_id,
+        normalizedClarid(rosterPatient(row.patient_id))?.human_id,
+        normalizedClarid(rosterPatient(row.patient_id))?.stub_id,
         row.visit_id,
         row.event_date,
         row.event_type,
@@ -617,7 +687,13 @@ export function createDashboardUi(ctx) {
       return haystack.includes(query);
     });
     if (countEl) {
-      countEl.textContent = query
+      const recognized = query && (Array.isArray(state.currentPatients) ? state.currentPatients : []).find((patient) => {
+        const clarid = normalizedClarid(patient);
+        return clarid && [clarid.human_id, clarid.stub_id].some((value) => String(value || "").toLowerCase() === query);
+      });
+      countEl.textContent = recognized
+        ? `ClarID recognized as patient ${recognized.patient_id} · ${scopedRows.length} matching ${eventNoun}`
+        : query
         ? `${scopedRows.length} matching ${eventNoun}`
         : selectedOnly
         ? `${scopedRows.length} ${eventNoun} for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
@@ -649,6 +725,7 @@ export function createDashboardUi(ctx) {
             }).join("");
             const context = [row.diagnosis, row.event_type].filter(Boolean).join(" | ") || "n/a";
             const isInspected = timelineEventKey(row) === String(state.dashboardTimelineInspectedEventKey || "");
+            const identity = rosterPatient(row.patient_id);
             return `
               <tr class="${row.selected ? "is-selected" : ""}${isInspected ? " is-inspected" : ""}" data-dashboard-event-patient="${escapeHtml(row.patient_id)}">
                 <td><button type="button" class="dashboard-timeline-inspect-btn${isInspected ? " is-active" : ""}" data-dashboard-event-inspect="${escapeHtml(String(index))}" title="Inspect this ${snapshotRepresentation ? "timepoint" : "clinical record"}" aria-label="Inspect ${escapeHtml(row.patient_id)} ${escapeHtml(row.visit_id || (snapshotRepresentation ? "timepoint" : "record"))}" aria-pressed="${isInspected ? "true" : "false"}">
@@ -656,7 +733,7 @@ export function createDashboardUi(ctx) {
                     ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"></path></svg>'
                     : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5 0 9 5 9 7s-4 7-9 7-9-5-9-7 4-7 9-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'}
                 </button></td>
-                <td><strong>${escapeHtml(row.patient_id)}</strong></td>
+                <td><div class="dashboard-timeline-patient-identity"><strong>${escapeHtml(row.patient_id)}</strong>${claridIdentityMarkup(identity, true)}</div></td>
                 <td>${escapeHtml(row.visit_id || "n/a")}</td>
                 <td>${escapeHtml(row.event_date || "undated")}</td>
                 <td><div class="dashboard-timeline-domain-pills">${domainLabels}</div></td>
@@ -673,6 +750,9 @@ export function createDashboardUi(ctx) {
       row.addEventListener("click", () => {
         toggleTimelinePatient(row.getAttribute("data-dashboard-event-patient"), summary);
       });
+    });
+    tableEl.querySelectorAll("[data-clarid-toggle], [data-clarid-copy]").forEach((button) => {
+      button.addEventListener("click", (event) => { void handleClaridAction(event); });
     });
     tableEl.querySelectorAll("[data-dashboard-event-inspect]").forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -931,7 +1011,7 @@ export function createDashboardUi(ctx) {
         <div class="patient-card patient-card-compact ${activeClass}" data-patient-id="${patient.patient_id}">
           <div class="patient-card-compact-main">
             <strong>${patient.patient_id}</strong>
-            ${selectionBadge}
+            <span>${selectionBadge}${claridIdentityMarkup(patient, true)}</span>
           </div>
           <div class="patient-card-compact-meta">
             <span>${escapeHtml(recordText)}</span>
@@ -943,7 +1023,7 @@ export function createDashboardUi(ctx) {
     }
     return `
       <div class="patient-card ${activeClass}" data-patient-id="${patient.patient_id}">
-        <strong>${patient.patient_id}</strong>
+        <div class="patient-card-identity"><strong>${patient.patient_id}</strong>${claridIdentityMarkup(patient)}</div>
         <div>
           ${selectionBadge}
           ${datasetBadge}
@@ -966,7 +1046,7 @@ export function createDashboardUi(ctx) {
     const summary = items.length > MAX_VISIBLE_PATIENTS
       ? `<div class="section-note">Showing first ${MAX_VISIBLE_PATIENTS} of ${items.length} matching patients. Use search to narrow the list.</div>`
       : "";
-    patientsEl.innerHTML = summary + visibleItems.map(summaryCard).join("");
+    patientsEl.innerHTML = claridSearchFeedback(items) + summary + visibleItems.map(summaryCard).join("");
   }
 
   function renderDetail(patient) {
@@ -1026,7 +1106,7 @@ export function createDashboardUi(ctx) {
     detailEl.innerHTML = `
       <div class="workspace-grid">
         <div class="workspace-card">
-          <p><strong>${patient.patient_id}</strong></p>
+          <div class="patient-detail-identity"><p><strong>${patient.patient_id}</strong></p>${claridIdentityMarkup(patient)}</div>
           ${datasetLine}
           <p>Sex: ${patient.patient_context.sex || "n/a"} | DOB: ${patient.patient_context.date_of_birth || "n/a"} | Vital status: ${patient.patient_context.vital_status || "n/a"}</p>
           <p>Sources: ${(patient.patient_context.source_files || []).join(", ") || "n/a"}</p>
@@ -2546,6 +2626,65 @@ export function createDashboardUi(ctx) {
     void loadAssayFeatureSuggestions();
   }
 
+  function closeClaridPopovers(except = null) {
+    document.querySelectorAll(".clarid-identity.is-open").forEach((identity) => {
+      if (identity === except) return;
+      identity.classList.remove("is-open");
+      const toggle = identity.querySelector("[data-clarid-toggle]");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function fallbackCopyClarid(value) {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch (_error) {
+      copied = false;
+    }
+    textarea.remove();
+    return copied;
+  }
+
+  async function handleClaridAction(event) {
+    const copyButton = event.target.closest("[data-clarid-copy]");
+    const toggle = event.target.closest("[data-clarid-toggle]");
+    if (!copyButton && !toggle) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (toggle) {
+      const identity = toggle.closest(".clarid-identity");
+      const nextOpen = identity && !identity.classList.contains("is-open");
+      closeClaridPopovers(nextOpen ? identity : null);
+      if (identity) identity.classList.toggle("is-open", Boolean(nextOpen));
+      toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+      return true;
+    }
+    const value = String(copyButton.dataset.claridCopy || "");
+    let copied = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } else {
+        copied = fallbackCopyClarid(value);
+      }
+    } catch (_error) {
+      copied = false;
+    }
+    const original = copyButton.textContent;
+    copyButton.textContent = copied ? "Copied" : "Unavailable";
+    window.setTimeout(() => { copyButton.textContent = original; }, 1400);
+    return true;
+  }
+
   return {
     renderPatientList,
     renderDetail,
@@ -2565,5 +2704,7 @@ export function createDashboardUi(ctx) {
     handleAssayFeatureInput,
     assayDatasetOverlap,
     toggleTimelinePatientSelection,
+    handleClaridAction,
+    closeClaridPopovers,
   };
 }

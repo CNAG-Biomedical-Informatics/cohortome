@@ -128,7 +128,10 @@ from app.query_store import (
     dataset_query_store_status,
     ensure_dataset_query_stores_ready,
     ensure_query_store,
+    patient_clarid,
+    patient_clarid_inventory,
     prepare_dataset_query_store,
+    resolve_patient_identifier,
 )
 from app.user_settings import load_user_settings, update_user_settings as patch_user_settings
 from app.query_results import (
@@ -427,6 +430,18 @@ def _route_dataset_ids(
     if not selected_ids:
         raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset first.")
     return selected_ids
+
+
+def _route_allows_detailed_identifiers(
+    request: Request | None,
+    dataset_id: str = "",
+    data_dir: str = DEFAULT_DATA_DIR,
+) -> bool:
+    if request is None:
+        return True
+    return effective_query_granularity_ceiling(
+        _route_dataset_ids(request, dataset_id, data_dir)
+    ) == "detailed"
 
 
 def _require_detailed_assay_access(
@@ -847,6 +862,11 @@ def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = 
         ensure_query_store(resolved_dir)
         patients = list_patient_summaries(resolved_dir)
         representation = clinical_representation(resolved_dir)
+        clarids = (
+            patient_clarid_inventory(resolved_dir)
+            if _route_allows_detailed_identifiers(request, dataset_id, data_dir)
+            else {}
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
@@ -857,6 +877,8 @@ def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = 
         item.update(_dataset_provenance_from_sources(request, item.get("source_files") or []))
         item["clinical_record_count"] = int(item.get("visit_count") or 0)
         item["clinical_representation"] = representation
+        if item.get("patient_id") in clarids:
+            item["clarid"] = clarids[item["patient_id"]]
         payload.append(_sanitize_response_paths(item, request))
     return payload
 
@@ -867,7 +889,10 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
-        patient = get_patient_context(resolved_dir, patient_id)
+        detailed_identifiers = _route_allows_detailed_identifiers(request, dataset_id, data_dir)
+        resolved_identifier = resolve_patient_identifier(resolved_dir, patient_id) if detailed_identifiers else None
+        canonical_patient_id = str((resolved_identifier or {}).get("patient_id") or patient_id)
+        patient = get_patient_context(resolved_dir, canonical_patient_id)
         representation = clinical_representation(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -880,6 +905,10 @@ def get_patient(patient_id: str, request: Request = None, dataset_id: str = "", 
     payload.update(_dataset_provenance_from_sources(request, payload.get("source_files") or []))
     payload["clinical_record_count"] = len(payload.get("visits") or [])
     payload["clinical_representation"] = representation
+    if detailed_identifiers:
+        clarid = (resolved_identifier or {}).get("clarid") or patient_clarid(resolved_dir, canonical_patient_id)
+        if clarid:
+            payload["clarid"] = clarid
     return _sanitize_response_paths(payload, request)
 
 
@@ -889,7 +918,10 @@ def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: 
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         ensure_query_store(resolved_dir)
-        patient_workspace = build_patient_workspace(resolved_dir, patient_id)
+        detailed_identifiers = _route_allows_detailed_identifiers(request, dataset_id, data_dir)
+        resolved_identifier = resolve_patient_identifier(resolved_dir, patient_id) if detailed_identifiers else None
+        canonical_patient_id = str((resolved_identifier or {}).get("patient_id") or patient_id)
+        patient_workspace = build_patient_workspace(resolved_dir, canonical_patient_id)
         representation = clinical_representation(resolved_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -905,6 +937,10 @@ def get_patient_workspace(patient_id: str, request: Request = None, dataset_id: 
     payload["summary"]["clinical_record_count"] = int(payload["summary"].get("visit_count") or 0)
     payload["patient_context"]["clinical_representation"] = representation
     payload["clinical_representation"] = representation
+    if detailed_identifiers:
+        clarid = (resolved_identifier or {}).get("clarid") or patient_clarid(resolved_dir, canonical_patient_id)
+        if clarid:
+            payload["clarid"] = clarid
     return _sanitize_response_paths(payload, request)
 
 

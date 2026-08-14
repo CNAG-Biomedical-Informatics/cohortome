@@ -1349,6 +1349,10 @@ function bindEvents() {
   });
 
   refs.patientsEl && refs.patientsEl.addEventListener("click", (event) => {
+    if (event.target.closest("[data-clarid-toggle], [data-clarid-copy]")) {
+      void dashboardUi.handleClaridAction(event);
+      return;
+    }
     const card = event.target.closest(".patient-card");
     if (!card || !refs.patientsEl.contains(card)) {
       return;
@@ -1358,6 +1362,17 @@ function bindEvents() {
       return;
     }
     void workspaceUi.loadPatient(card.dataset.patientId);
+  });
+  refs.detailEl && refs.detailEl.addEventListener("click", (event) => {
+    if (event.target.closest("[data-clarid-toggle], [data-clarid-copy]")) {
+      void dashboardUi.handleClaridAction(event);
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".clarid-identity")) dashboardUi.closeClaridPopovers();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") dashboardUi.closeClaridPopovers();
   });
   refs.patientSearchEl && refs.patientSearchEl.addEventListener("input", () => {
     dashboardUi.renderPatientList(workspaceUi.filterPatients(refs.patientSearchEl.value));

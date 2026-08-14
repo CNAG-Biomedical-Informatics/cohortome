@@ -515,7 +515,9 @@ def group_patients(data_dir: Path) -> Dict[str, PatientBundle]:
         )
         bundle.context.date_of_birth = _pick_patient_field(
             bundle.context.date_of_birth,
-            deep_get(patient_node, DOB_KEYS) or deep_get(record, DOB_KEYS),
+            deep_get(patient_node, DOB_KEYS)
+            or deep_get(record, DOB_KEYS)
+            or nested_get(record, ("info", "phenopacket", "dateOfBirth")),
         )
         bundle.context.vital_status = _pick_patient_field(
             bundle.context.vital_status,

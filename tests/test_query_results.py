@@ -398,6 +398,7 @@ def test_materialized_long_result_is_bounded_and_patient_detail_is_unchanged(mon
     assert shaped["data"]["result_page"]["total_count"] == 607
     assert len(shaped["data"]["patient_ids"]) == 50
     assert len(shaped["data"]["patients"]) == 50
+    assert shaped["data"]["patients"][0]["sex"] == "female"
     assert sentinel not in json.dumps(shaped)
     assert shaped["action_context"]["patient_ids"] == []
     assert shaped["data"]["available_actions"] == {
