@@ -18,6 +18,7 @@ from app.lm import (
     sanitize_lm_text,
 )
 from app.query_store import (
+    _workspace_dataset_ids as store_workspace_dataset_ids,
     cohort_over_time_summary as store_cohort_over_time_summary,
     disease_counts as store_disease_counts,
     duckdb_available,
@@ -169,6 +170,8 @@ def _analysis_catalog_dispatch(
         raise RuntimeError("This analysis is not available in the current catalog.")
     if item.get("requires_detailed_access") and granularity_applied != "detailed":
         raise RuntimeError("This analysis requires Detailed in-app access for the current workspace.")
+    if item.get("requires_single_dataset_workspace") and len(store_workspace_dataset_ids(data_dir)) != 1:
+        raise RuntimeError("This analysis requires a workspace containing exactly one dataset.")
     required_representation = str(item.get("required_clinical_representation") or "").strip().lower()
     if required_representation and clinical_representation(data_dir) != required_representation:
         raise RuntimeError("This analysis requires longitudinal visit or timepoint records.")

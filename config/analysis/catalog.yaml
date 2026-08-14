@@ -187,6 +187,54 @@ items:
     analysis_level: sample
     tags: [methylation, differential-methylation, limma, m-values, background, rscript]
 
+  - id: flow-cytometry-wilcoxon-cohort-comparison
+    name: Immune-cell Wilcoxon cohort comparison
+    category: Assays
+    kind: quantitative_assay_comparison
+    execution_backend: job
+    expected_runtime: short
+    job_timeout_seconds: 1800
+    runner_type: rscript
+    runner_ref: quantitative_assay_wilcoxon_comparison
+    description: Compare every immune-cell population between Cohort A and Cohort B with unadjusted exploratory Wilcoxon rank-sum tests and BH correction.
+    guidance: Select two disjoint saved cohorts and one compatible immune-cell abundance assay. At least three linked samples are required per cohort; measurements are tested on their supplied scale without covariate adjustment.
+    default_prompt: Run an exploratory Wilcoxon cohort comparison of the selected immune-cell abundance assay between Cohort A and Cohort B.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    minimum_samples_per_cohort: 3
+    requires_detailed_access: true
+    requires_assays: true
+    requires_single_dataset_workspace: true
+    required_modalities: [flow_cytometry]
+    required_data_types: [cell_population_abundance]
+    analysis_level: sample
+    tags: [flow-cytometry, immune-cell, wilcoxon, cohort-comparison, exploratory, background, rscript]
+
+  - id: serology-wilcoxon-cohort-comparison
+    name: Serology Wilcoxon cohort comparison
+    category: Assays
+    kind: quantitative_assay_comparison
+    execution_backend: job
+    expected_runtime: short
+    job_timeout_seconds: 1800
+    runner_type: rscript
+    runner_ref: quantitative_assay_wilcoxon_comparison
+    description: Compare every quantitative serology marker between Cohort A and Cohort B with unadjusted exploratory Wilcoxon rank-sum tests and BH correction.
+    guidance: Select two disjoint saved cohorts and one compatible quantitative-serology assay. At least three linked samples are required per cohort; measurements are tested on their supplied scale without covariate adjustment.
+    default_prompt: Run an exploratory Wilcoxon cohort comparison of the selected quantitative serology assay between Cohort A and Cohort B.
+    execution_mode: deterministic
+    default_compare_mode: true
+    supports_compare_mode: true
+    minimum_samples_per_cohort: 3
+    requires_detailed_access: true
+    requires_assays: true
+    requires_single_dataset_workspace: true
+    required_modalities: [serology]
+    required_data_types: [quantitative_measurement]
+    analysis_level: sample
+    tags: [serology, quantitative, wilcoxon, cohort-comparison, exploratory, background, rscript]
+
   - id: transcriptomics-hallmark-pathway-enrichment
     name: Hallmark pathway enrichment
     category: Assays

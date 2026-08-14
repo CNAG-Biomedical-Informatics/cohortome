@@ -16,7 +16,7 @@ Each assay dataset is identified by stable metadata:
 - `feature_namespace`: the feature identifier system, such as Ensembl gene IDs, Illumina CpG probe IDs, protein symbols, UniProt-backed protein IDs, dbSNP rsIDs, or DICOM standard tags.
 - `level`: whether analysis is patient-level or sample-level.
 
-Curated Analysis tools currently support transcriptomics and externally stored processed methylation M-value matrices. Flow-cytometry immune-cell abundance and quantitative serology are supported as manifest-backed exploratory assays. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
+Curated Analysis tools currently support transcriptomics, externally stored processed methylation M-value matrices, flow-cytometry immune-cell abundance, and quantitative serology. The two compact quantitative modalities support bounded Query summaries plus exploratory Wilcoxon cohort comparisons. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
 
 Methylation follows a deliberately thin integration boundary. The complete high-dimensional probe matrix remains in the governed release rather than being materialized in DuckDB. COHORTome registers its assay metadata and sample linkage, then a curated runner reads the selected external matrix and returns compact quality-control, principal-component, and differential-methylation results. These analyses operate on supplied processed M-values; they do not claim to repeat bisulfite-array preprocessing or probe filtering from raw IDAT files.
 
@@ -111,3 +111,22 @@ The methylation catalog tools similarly require one sample-level assay declared 
 - complete sample-to-patient linkage for the selected scope.
 
 `Methylation QC and PCA` runs over one Analysis scope. `limma differential methylation` additionally requires disjoint saved Cohort A and Cohort B selections that both overlap the same assay.
+
+The immune-cell and quantitative-serology comparison tools require one
+sample-level assay declared with one of these exact capability pairs:
+
+- `modality: flow_cytometry` and `data_type: cell_population_abundance`; or
+- `modality: serology` and `data_type: quantitative_measurement`.
+
+They also require `Detailed` in-app access, disjoint Cohort A and Cohort B saved
+cohorts, and at least three linked assay samples per cohort. The shared curated
+runner performs a feature-wise Wilcoxon rank-sum test, reports rank-biserial
+effects, and applies Benjamini-Hochberg correction across tested features.
+
+This is an exploratory, unadjusted supplied-scale comparison. It does not
+normalize or impute the matrix and does not account for clinical or technical
+covariates. The source matrix remains external to DuckDB and is read in place;
+only compact aggregate results enter the job output and Analysis thread.
+Immune-cell abundance may be compositional, and serology missingness may be
+feature-dependent, so both effect direction and per-cohort missing counts must
+be reviewed before interpretation.

@@ -4004,6 +4004,37 @@ items:
     ]
 
 
+def test_analysis_catalog_declares_two_governed_quantitative_assay_comparisons():
+    items = {
+        item["id"]: item
+        for item in analysis_catalog_module.load_analysis_catalog()
+        if item["id"] in {
+            "flow-cytometry-wilcoxon-cohort-comparison",
+            "serology-wilcoxon-cohort-comparison",
+        }
+    }
+
+    assert set(items) == {
+        "flow-cytometry-wilcoxon-cohort-comparison",
+        "serology-wilcoxon-cohort-comparison",
+    }
+    expected_contracts = {
+        "flow-cytometry-wilcoxon-cohort-comparison": ("flow_cytometry", "cell_population_abundance"),
+        "serology-wilcoxon-cohort-comparison": ("serology", "quantitative_measurement"),
+    }
+    for item_id, (modality, data_type) in expected_contracts.items():
+        item = items[item_id]
+        assert item["runner_type"] == "rscript"
+        assert item["runner_ref"] == "quantitative_assay_wilcoxon_comparison"
+        assert item["execution_backend"] == "job"
+        assert item["default_compare_mode"] is True
+        assert item["minimum_samples_per_cohort"] == 3
+        assert item["requires_detailed_access"] is True
+        assert item["requires_single_dataset_workspace"] is True
+        assert item["required_modalities"] == [modality]
+        assert item["required_data_types"] == [data_type]
+
+
 def test_analysis_catalog_loader_preserves_debug_only_flag(tmp_path):
     catalog_path = tmp_path / "catalog.yaml"
     catalog_path.write_text(
@@ -4216,6 +4247,11 @@ items:
     description: Needs assay data.
     default_prompt: Show the assay analysis.
     requires_assays: true
+  - id: single-dataset-only
+    name: Single dataset analysis
+    description: Needs one dataset.
+    default_prompt: Run the single dataset analysis.
+    requires_single_dataset_workspace: true
 """.strip(),
         encoding="utf-8",
     )
@@ -4225,6 +4261,7 @@ items:
         str(tmp_path),
         granularity_ceiling="summary",
         ai_provider_access="safe_summary",
+        workspace_dataset_count=2,
         path=catalog_path,
     )
 
@@ -4235,6 +4272,8 @@ items:
     assert "Detailed" in items["detailed-only"]["unavailable_reason"]
     assert items["assay-only"]["available"] is False
     assert "assays" in items["assay-only"]["unavailable_reason"]
+    assert items["single-dataset-only"]["available"] is False
+    assert "exactly one dataset" in items["single-dataset-only"]["unavailable_reason"]
 
 
 def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
@@ -4247,10 +4286,18 @@ def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
     monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda dataset_ids: "safe_summary")
     monkeypatch.setattr(routes_module, "lm_provider_data_boundary", lambda provider_id=None: "local")
 
-    def fake_catalog_payload(data_dir, *, granularity_ceiling="detailed", ai_provider_access="detailed_allowed", path=None):
+    def fake_catalog_payload(
+        data_dir,
+        *,
+        granularity_ceiling="detailed",
+        ai_provider_access="detailed_allowed",
+        workspace_dataset_count=1,
+        path=None,
+    ):
         captured["data_dir"] = data_dir
         captured["granularity_ceiling"] = granularity_ceiling
         captured["ai_provider_access"] = ai_provider_access
+        captured["workspace_dataset_count"] = workspace_dataset_count
         return {"items": [], "workspace": {"granularity_ceiling": granularity_ceiling}}
 
     monkeypatch.setattr(routes_module, "analysis_catalog_payload", fake_catalog_payload)
@@ -4262,6 +4309,7 @@ def test_analysis_catalog_route_uses_workspace_policy(tmp_path, monkeypatch):
         "data_dir": str(tmp_path),
         "granularity_ceiling": "summary",
         "ai_provider_access": "safe_summary",
+        "workspace_dataset_count": 1,
     }
     assert payload["workspace"]["granularity_ceiling"] == "summary"
 
@@ -4844,6 +4892,195 @@ def test_methylation_bundle_resolves_matrix_and_metadata_from_authorized_source_
 
     assert bundle["matrix_path"] == source_root / "assays" / "methylation" / "synthetic_m_values.csv"
     assert bundle["clinical_linkage_status"] == "complete_selected_scope"
+
+
+def _write_synthetic_quantitative_assay_runner_fixture(tmp_path):
+    write_json(
+        tmp_path,
+        "records.json",
+        [{"id": f"SYN00{index}"} for index in range(1, 7)],
+    )
+    assay_dir = tmp_path / "assays" / "serology"
+    assay_dir.mkdir(parents=True)
+    matrix_path = assay_dir / "synthetic_quantitative_serology.tsv"
+    matrix_path.write_text(
+        "feature_id\tSYN001\tSYN002\tSYN003\tSYN004\tSYN005\tSYN006\n"
+        "Marker_up\t8\t9\t10\t1\t2\t3\n"
+        "Marker_constant\t5\t5\t5\t5\t5\t5\n"
+        "Marker_sparse\tNA\tNA\t4\t1\t2\t3\n",
+        encoding="utf-8",
+    )
+    metadata_path = assay_dir / "sample_metadata.tsv"
+    metadata_path.write_text(
+        "sample_id\tpatient_id\n"
+        + "".join(f"SYN00{index}\tSYN00{index}\n" for index in range(1, 7)),
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "synthetic_quantitative_serology",
+                        "label": "Synthetic quantitative serology",
+                        "modality": "serology",
+                        "data_type": "quantitative_measurement",
+                        "feature_count": 3,
+                        "file": "assays/serology/synthetic_quantitative_serology.tsv",
+                        "sample_metadata_file": "assays/serology/sample_metadata.tsv",
+                        "patient_linkage": "sample_metadata_file",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return matrix_path
+
+
+def test_quantitative_assay_wilcoxon_runner_keeps_source_external_and_returns_aggregates(tmp_path, monkeypatch):
+    if not shutil.which("Rscript"):
+        pytest.skip("Rscript is not available")
+    r_check = subprocess.run(
+        ["Rscript", "-e", "quit(status=ifelse(requireNamespace('jsonlite', quietly=TRUE), 0, 1))"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if r_check.returncode != 0:
+        pytest.skip("R jsonlite is not available")
+    isolate_query_store(monkeypatch, tmp_path)
+    matrix_path = _write_synthetic_quantitative_assay_runner_fixture(tmp_path)
+    job_dir = tmp_path / "quantitative-assay-job"
+
+    payload = analysis_external_module.run_rscript_analysis(
+        "quantitative_assay_wilcoxon_comparison",
+        prompt="Compare Cohort A and Cohort B.",
+        data_dir=str(tmp_path),
+        assay_id="synthetic_quantitative_serology",
+        selected_patient_ids="SYN001,SYN002,SYN003",
+        compare_selected_patient_ids="SYN004,SYN005,SYN006",
+        job_dir=job_dir,
+        timeout_seconds=30,
+    )
+
+    context = payload["data"]["context"]
+    assert context["mode"] == "external_rscript_quantitative_assay_wilcoxon_comparison"
+    assert context["adjustment_status"] == "unadjusted_exploratory"
+    assert context["feature_count"] == 3
+    assert context["tested_feature_count"] == 1
+    assert context["skipped_feature_count"] == 2
+    assert context["source_matrix_materialized_in_duckdb"] is False
+    assert context["source_matrix_copied_to_job"] is False
+    marker = next(row for row in context["results"] if row["feature_id"] == "Marker_up")
+    assert marker["status"] == "tested"
+    assert marker["rank_biserial_effect"] == pytest.approx(1.0)
+    assert marker["median_difference"] == pytest.approx(7.0)
+    assert 0 < marker["p_value"] <= marker["adj_p_value"] <= 1
+    for artifact_name in (
+        "compact_assay_results.tsv",
+        "summary.json",
+        "effect_plot.png",
+        "manifest.yaml",
+        "params.yaml",
+    ):
+        assert (job_dir / artifact_name).is_file()
+    assert not (job_dir / matrix_path.name).exists()
+    assert not (job_dir / ".analysis-private").exists()
+    assert "sample_table.tsv" not in {
+        item["name"] for item in jobs_module._artifact_inventory(job_dir)
+    }
+    assert "[protected assay matrix]" in (job_dir / "command.txt").read_text(encoding="utf-8")
+    assert str(matrix_path) not in json.dumps(payload)
+    for patient_id in [f"SYN00{index}" for index in range(1, 7)]:
+        assert patient_id not in json.dumps(payload)
+        assert patient_id not in (job_dir / "summary.json").read_text(encoding="utf-8")
+        assert patient_id not in (job_dir / "compact_assay_results.tsv").read_text(encoding="utf-8")
+
+
+def test_quantitative_assay_matrix_read_error_redacts_protected_path(tmp_path, monkeypatch):
+    isolate_query_store(monkeypatch, tmp_path)
+    matrix_path = _write_synthetic_quantitative_assay_runner_fixture(tmp_path)
+    original_open = Path.open
+
+    def fail_protected_matrix_open(path, *args, **kwargs):
+        if path == matrix_path:
+            raise OSError(f"cannot read protected source {path}")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_protected_matrix_open)
+
+    with pytest.raises(RuntimeError, match="matrix header cannot be read") as caught:
+        analysis_external_module._prepare_quantitative_assay_comparison_bundle(
+            str(tmp_path),
+            prompt="Compare the cohorts.",
+            assay_id="synthetic_quantitative_serology",
+            selected_patient_ids="SYN001,SYN002,SYN003",
+            compare_selected_patient_ids="SYN004,SYN005,SYN006",
+            output_dir=tmp_path / "failed-quantitative-assay-job",
+        )
+
+    assert str(matrix_path) not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+def test_quantitative_assay_catalog_rejects_multi_dataset_scope_before_queue(monkeypatch):
+    monkeypatch.setattr(
+        analysis_module,
+        "get_analysis_catalog_item",
+        lambda _item_id: {
+            "id": "compact-assay",
+            "name": "Compact assay",
+            "default_prompt": "Run compact assay.",
+            "runner_type": "rscript",
+            "runner_ref": "quantitative_assay_wilcoxon_comparison",
+            "execution_backend": "job",
+            "requires_single_dataset_workspace": True,
+        },
+    )
+    monkeypatch.setattr(
+        analysis_module,
+        "store_workspace_dataset_ids",
+        lambda _data_dir: ["dataset-a", "dataset-b"],
+    )
+    submitted = {"value": False}
+    monkeypatch.setattr(
+        analysis_module,
+        "submit_analysis_job",
+        lambda **_kwargs: submitted.__setitem__("value", True),
+    )
+
+    with pytest.raises(RuntimeError, match="exactly one dataset"):
+        analysis_module._analysis_catalog_dispatch(
+            "Run compact assay.",
+            catalog_item_id="compact-assay",
+            data_dir="scope--dataset-a--dataset-b",
+        )
+
+    assert submitted["value"] is False
+
+
+def test_quantitative_assay_comparison_rejects_repeated_patient_samples(tmp_path, monkeypatch):
+    isolate_query_store(monkeypatch, tmp_path)
+    _write_synthetic_quantitative_assay_runner_fixture(tmp_path)
+    metadata_path = tmp_path / "assays" / "serology" / "sample_metadata.tsv"
+    metadata_path.write_text(
+        "sample_id\tpatient_id\n"
+        "SYN001\tSYN001\nSYN002\tSYN001\nSYN003\tSYN003\n"
+        "SYN004\tSYN004\nSYN005\tSYN005\nSYN006\tSYN006\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="one independent sample per patient"):
+        analysis_external_module._prepare_quantitative_assay_comparison_bundle(
+            str(tmp_path),
+            prompt="Compare the cohorts.",
+            assay_id="synthetic_quantitative_serology",
+            selected_patient_ids="SYN001,SYN002,SYN003",
+            compare_selected_patient_ids="SYN004,SYN005,SYN006",
+            output_dir=tmp_path / "invalid-quantitative-assay-job",
+        )
 
 
 def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkeypatch):

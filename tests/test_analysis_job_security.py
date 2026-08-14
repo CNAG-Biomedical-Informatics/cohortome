@@ -295,7 +295,11 @@ def test_analysis_worker_user_lookup_supports_oidc_usernames_normalized_for_stat
     assert user["auth_source"] == "oidc"
 
 
-def test_private_methylation_submission_requires_explicit_external_runtime(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "runner_ref",
+    ["methylation_qc_pca", "quantitative_assay_wilcoxon_comparison"],
+)
+def test_private_external_matrix_submission_requires_explicit_external_runtime(tmp_path, monkeypatch, runner_ref):
     _isolate_runtime(monkeypatch, tmp_path)
     monkeypatch.setenv("COHORTOME_AUTH_MODE", "none")
     monkeypatch.delenv("COHORTOME_RUNTIME_ROOT", raising=False)
@@ -312,17 +316,21 @@ def test_private_methylation_submission_requires_explicit_external_runtime(tmp_p
         jobs_module.submit_analysis_job(
             user_id="local",
             analysis_session_id="",
-            prompt="Run methylation QC",
+            prompt="Run an external-matrix analysis",
             data_dir=str(dataset_root),
             dataset_id="private-study",
-            assay_id="methylation",
-            catalog_item=_catalog_item("methylation_qc_pca"),
+            assay_id="external-assay",
+            catalog_item=_catalog_item(runner_ref),
         )
 
     assert jobs_module.list_job_records("local") == []
 
 
-def test_private_methylation_worker_rechecks_runtime_before_execution(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "runner_ref",
+    ["methylation_qc_pca", "quantitative_assay_wilcoxon_comparison"],
+)
+def test_private_external_matrix_worker_rechecks_runtime_before_execution(tmp_path, monkeypatch, runner_ref):
     _isolate_runtime(monkeypatch, tmp_path)
     monkeypatch.setenv("COHORTOME_AUTH_MODE", "none")
     monkeypatch.delenv("COHORTOME_RUNTIME_ROOT", raising=False)
@@ -341,7 +349,7 @@ def test_private_methylation_worker_rechecks_runtime_before_execution(tmp_path, 
     monkeypatch.setattr(
         analysis_catalog_module,
         "get_analysis_catalog_item",
-        lambda item_id: _catalog_item("methylation_qc_pca"),
+        lambda item_id: _catalog_item(runner_ref),
     )
     monkeypatch.setattr(
         analysis_external_module,
@@ -354,6 +362,23 @@ def test_private_methylation_worker_rechecks_runtime_before_execution(tmp_path, 
     assert payload["status"] == "failed"
     assert "cohortome_runtime_root" in payload["error"].lower()
     assert called["external"] is False
+
+
+def test_internal_analysis_inputs_are_not_downloadable_job_artifacts(tmp_path, monkeypatch):
+    _isolate_runtime(monkeypatch, tmp_path)
+    root = jobs_module.job_dir("private-input-job", "local", create=True)
+    internal = root / ".analysis-private"
+    internal.mkdir()
+    (internal / "sample_table.tsv").write_text("sample_id\tpatient_id\nS1\tP1\n", encoding="utf-8")
+    (root / "summary.json").write_text("{}\n", encoding="utf-8")
+
+    assert [item["name"] for item in jobs_module._artifact_inventory(root)] == ["summary.json"]
+    with pytest.raises(HTTPException, match="Job artifact not found"):
+        jobs_module.resolve_job_artifact_path(
+            "private-input-job",
+            "local",
+            ".analysis-private/sample_table.tsv",
+        )
 
 
 def test_private_artifact_runtime_requires_matching_absolute_external_root(tmp_path, monkeypatch):

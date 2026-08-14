@@ -119,6 +119,9 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "supports_compare_mode": bool(raw.get("supports_compare_mode", False)),
         "requires_detailed_access": bool(raw.get("requires_detailed_access", False)),
         "requires_assays": bool(raw.get("requires_assays", False)),
+        "requires_single_dataset_workspace": bool(
+            raw.get("requires_single_dataset_workspace", False)
+        ),
         "required_modalities": [str(item or "").strip() for item in raw.get("required_modalities", []) if str(item or "").strip()],
         "required_data_types": [str(item or "").strip() for item in raw.get("required_data_types", []) if str(item or "").strip()],
         "analysis_level": str(raw.get("analysis_level") or "patient").strip() or "patient",
@@ -153,6 +156,8 @@ def _workspace_requirements(item: Dict[str, Any]) -> List[str]:
             requirements.append(f"Requires {', '.join(modalities)} assay data.")
         else:
             requirements.append("Requires at least one assay in the active workspace.")
+    if item.get("requires_single_dataset_workspace"):
+        requirements.append("Requires a workspace containing exactly one dataset.")
     analysis_level = str(item.get("analysis_level") or "patient").strip()
     if analysis_level:
         requirements.append(f"Runs at {analysis_level} level.")
@@ -196,12 +201,15 @@ def _availability_for_item(
     assay_datasets: List[Dict[str, Any]] | None = None,
     has_assays: bool | None = None,
     clinical_record_representation: str = "unspecified",
+    workspace_dataset_count: int = 1,
 ) -> Dict[str, Any]:
     if assay_datasets is None:
         assay_datasets = [{}] if has_assays else []
     unavailable_reason = ""
     if item.get("requires_detailed_access") and granularity_ceiling != "detailed":
         unavailable_reason = "Requires Detailed in-app access for the current workspace."
+    elif item.get("requires_single_dataset_workspace") and workspace_dataset_count != 1:
+        unavailable_reason = "Requires a workspace containing exactly one dataset."
     elif (
         item.get("required_clinical_representation")
         and item.get("required_clinical_representation") != clinical_record_representation
@@ -237,6 +245,7 @@ def analysis_catalog_payload(
     *,
     granularity_ceiling: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
+    workspace_dataset_count: int = 1,
     path: Path = ANALYSIS_CATALOG_PATH,
 ) -> Dict[str, Any]:
     items = load_analysis_catalog(path)
@@ -255,6 +264,7 @@ def analysis_catalog_payload(
             granularity_ceiling=granularity_ceiling,
             assay_datasets=assay_datasets,
             clinical_record_representation=record_representation,
+            workspace_dataset_count=max(0, int(workspace_dataset_count)),
         )
         materialized_items.append({**item, **availability})
     return {
@@ -267,6 +277,7 @@ def analysis_catalog_payload(
             "assay_modalities": sorted({str(item.get("modality") or "").strip() for item in assay_datasets if str(item.get("modality") or "").strip()}),
             "assay_data_types": sorted({str(item.get("data_type") or "").strip() for item in assay_datasets if str(item.get("data_type") or "").strip()}),
             "clinical_representation": record_representation,
+            "dataset_count": max(0, int(workspace_dataset_count)),
         },
     }
 

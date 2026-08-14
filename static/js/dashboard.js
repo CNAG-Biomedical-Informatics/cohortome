@@ -1477,7 +1477,9 @@ export function createDashboardUi(ctx) {
       || itemId === "transcriptomics-hallmark-pathway-enrichment"
       || itemId === "transcriptomics-signature-workflow"
       || itemId === "methylation-qc-pca"
-      || itemId === "methylation-limma-differential-methylation";
+      || itemId === "methylation-limma-differential-methylation"
+      || itemId === "flow-cytometry-wilcoxon-cohort-comparison"
+      || itemId === "serology-wilcoxon-cohort-comparison";
   }
 
   function formatAssayModality(value) {

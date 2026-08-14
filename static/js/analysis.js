@@ -99,7 +99,9 @@ export function createAnalysisUi(ctx) {
       || normalized === "transcriptomics-hallmark-pathway-enrichment"
       || normalized === "transcriptomics-signature-workflow"
       || normalized === "methylation-qc-pca"
-      || normalized === "methylation-limma-differential-methylation";
+      || normalized === "methylation-limma-differential-methylation"
+      || normalized === "flow-cytometry-wilcoxon-cohort-comparison"
+      || normalized === "serology-wilcoxon-cohort-comparison";
   }
 
   function isDifferentialExpressionContextMode(mode) {
@@ -118,6 +120,10 @@ export function createAnalysisUi(ctx) {
 
   function isDifferentialMethylationContextMode(mode) {
     return String(mode || "").trim() === "external_rscript_methylation_limma_differential_methylation";
+  }
+
+  function isQuantitativeAssayWilcoxonContextMode(mode) {
+    return String(mode || "").trim() === "external_rscript_quantitative_assay_wilcoxon_comparison";
   }
 
   function prettyHallmarkLabel(value) {
@@ -224,6 +230,75 @@ export function createAnalysisUi(ctx) {
     if (!Number.isFinite(number)) return "n/a";
     if (number === 0) return "< 1e-300";
     return number < 0.001 ? number.toExponential(2) : number.toPrecision(3);
+  }
+
+  function formatAnalysisNumber(value, digits = 3) {
+    if (value === null || value === undefined || value === "") return "n/a";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "n/a";
+    return number.toLocaleString("en-US", {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: 0,
+    });
+  }
+
+  function finiteAnalysisNumber(value) {
+    if (value === null || value === undefined || value === "") return Number.NaN;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : Number.NaN;
+  }
+
+  function rankedQuantitativeAssayResults(results) {
+    return (Array.isArray(results) ? results : [])
+      .filter((item) => (
+        item
+        && String(item.feature_id || "").trim()
+        && String(item.status || "").trim().toLowerCase() === "tested"
+      ))
+      .slice()
+      .sort((left, right) => {
+        const leftAdjusted = finiteAnalysisNumber(left.adj_p_value);
+        const rightAdjusted = finiteAnalysisNumber(right.adj_p_value);
+        const leftRank = Number.isFinite(leftAdjusted) ? leftAdjusted : Number.POSITIVE_INFINITY;
+        const rightRank = Number.isFinite(rightAdjusted) ? rightAdjusted : Number.POSITIVE_INFINITY;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        const leftRaw = finiteAnalysisNumber(left.p_value);
+        const rightRaw = finiteAnalysisNumber(right.p_value);
+        const leftRawRank = Number.isFinite(leftRaw) ? leftRaw : Number.POSITIVE_INFINITY;
+        const rightRawRank = Number.isFinite(rightRaw) ? rightRaw : Number.POSITIVE_INFINITY;
+        if (leftRawRank !== rightRawRank) return leftRawRank - rightRawRank;
+        const leftEffect = finiteAnalysisNumber(left.rank_biserial_effect);
+        const rightEffect = finiteAnalysisNumber(right.rank_biserial_effect);
+        return (Number.isFinite(rightEffect) ? Math.abs(rightEffect) : -1)
+          - (Number.isFinite(leftEffect) ? Math.abs(leftEffect) : -1);
+      });
+  }
+
+  function renderQuantitativeAssayResultsTable(results) {
+    const rows = rankedQuantitativeAssayResults(results).slice(0, 12);
+    if (!rows.length) return '<div class="empty">No tested quantitative features were returned.</div>';
+    return `
+      <div class="query-result-table-scroll" data-quantitative-assay-results="true">
+        <table class="query-result-table">
+          <thead><tr><th>Feature</th><th>Status</th><th>N A</th><th>N B</th><th>Missing A</th><th>Missing B</th><th>Median A</th><th>Median B</th><th>Median A - B</th><th>Rank-biserial effect</th><th>BH q</th></tr></thead>
+          <tbody>${rows.map((item) => `
+            <tr>
+              <td class="query-result-id-cell">${escapeHtml(String(item.feature_id || ""))}</td>
+              <td>${escapeHtml(String(item.status || "n/a").replaceAll("_", " "))}</td>
+              <td>${escapeHtml(formatAnalysisCount(item.cohort_a_n))}</td>
+              <td>${escapeHtml(formatAnalysisCount(item.cohort_b_n))}</td>
+              <td>${escapeHtml(formatAnalysisCount(item.cohort_a_missing))}</td>
+              <td>${escapeHtml(formatAnalysisCount(item.cohort_b_missing))}</td>
+              <td>${escapeHtml(formatAnalysisNumber(item.cohort_a_median))}</td>
+              <td>${escapeHtml(formatAnalysisNumber(item.cohort_b_median))}</td>
+              <td>${escapeHtml(formatAnalysisNumber(item.median_difference))}</td>
+              <td>${escapeHtml(formatAnalysisNumber(item.rank_biserial_effect))}</td>
+              <td>${escapeHtml(formatAnalysisPValue(item.adj_p_value))}</td>
+            </tr>
+          `).join("")}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   function renderAnalysisMetricCards(kind, items) {
@@ -452,6 +527,54 @@ export function createAnalysisUi(ctx) {
           <p class="section-note">${escapeHtml(topHitText)}</p>
           ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
           ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Differential methylation volcano plot"></div>` : '<div class="empty">Differential methylation volcano plot preview unavailable.</div>'}
+          ${downloads}
+        </div>
+      `;
+    }
+    if (isQuantitativeAssayWilcoxonContextMode(context.mode)) {
+      const assayLabel = String(context.assay_label || context.dataset_name || "Quantitative assay").trim();
+      const topFeature = String(context.top_feature || "").trim();
+      const topEffect = Number(context.top_rank_biserial_effect);
+      const topHitText = topFeature
+        ? `Top-ranked feature: ${topFeature}; rank-biserial effect ${Number.isFinite(topEffect) ? topEffect.toFixed(3) : "n/a"}; BH q = ${formatAnalysisPValue(context.top_adj_p_value)}.`
+        : "No top-ranked tested feature was reported.";
+      const externalMatrixNote = context.source_matrix_materialized_in_duckdb === false
+        ? `The source measurement matrix remained external to DuckDB${context.source_matrix_copied_to_job === false ? " and was not copied into the job output" : ""}; only compact aggregate results are shown here.`
+        : "";
+      const modalityCaveat = String(context.modality || "") === "flow_cytometry"
+        ? "Immune-cell abundance features may be compositional, so one population's apparent shift can reflect changes elsewhere in the measured cell mixture."
+        : String(context.modality || "") === "serology"
+          ? "Serology missingness can be feature-dependent; compare the cohort-specific missing counts before interpreting a marker."
+          : "";
+      const downloadableNames = new Set([
+        "effect_plot.png",
+        "compact_assay_results.tsv",
+        "summary.json",
+        "manifest.yaml",
+        "params.yaml",
+      ]);
+      const downloads = renderArtifactDownloads(
+        "Result files",
+        artifacts.filter((item) => downloadableNames.has(String(item && item.name ? item.name : ""))),
+      );
+      return `
+        ${renderAnalysisMetricCards("quantitative-assay-wilcoxon", [
+          { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
+          { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
+          { label: "Features tested", value: formatAnalysisCount(context.tested_feature_count) },
+          { label: "Features skipped", value: formatAnalysisCount(context.skipped_feature_count) },
+          { label: "BH < 0.05", value: formatAnalysisCount(context.significant_feature_count) },
+        ])}
+        <div class="viz-card" data-analysis-result="quantitative-assay-wilcoxon" style="grid-column: 1 / -1;">
+          <h3>${escapeHtml(assayLabel)}: Wilcoxon Cohort Comparison</h3>
+          <p class="section-note"><strong>Exploratory and unadjusted.</strong> Wilcoxon rank-sum tests and BH correction were applied to each feature on its supplied measurement scale. No covariate adjustment, assay normalization, or causal interpretation is included.</p>
+          <p class="section-note">Positive rank-biserial effects indicate higher ranks in Cohort A; negative effects indicate higher ranks in Cohort B. ${escapeHtml(topHitText)}</p>
+          ${modalityCaveat ? `<p class="section-note">${escapeHtml(modalityCaveat)}</p>` : ""}
+          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
+          ${plotPlaceholder(`analysis-plot-${turnIndex}-quantitative-assay-wilcoxon`, 460)}
+          <h4 style="margin:18px 0 10px;">Top tested features</h4>
+          <p class="section-note">Up to 12 features are shown, ordered by BH-adjusted p-value. Sample sizes are non-missing observations for each feature.</p>
+          ${renderQuantitativeAssayResultsTable(context.results)}
           ${downloads}
         </div>
       `;
@@ -1005,6 +1128,78 @@ export function createAnalysisUi(ctx) {
     };
   }
 
+  function buildQuantitativeAssayWilcoxonPlot(results, assayLabel) {
+    const plotRows = rankedQuantitativeAssayResults(results)
+      .map((item) => ({
+        feature: String(item.feature_id || "").trim(),
+        effect: finiteAnalysisNumber(item.rank_biserial_effect),
+        adjustedP: finiteAnalysisNumber(item.adj_p_value),
+        cohortAN: finiteAnalysisNumber(item.cohort_a_n),
+        cohortBN: finiteAnalysisNumber(item.cohort_b_n),
+      }))
+      .filter((item) => item.feature && Number.isFinite(item.effect) && Number.isFinite(item.adjustedP));
+    const plottedRows = plotRows.map((item) => ({
+      ...item,
+      negativeLogAdjustedP: -Math.log10(Math.max(item.adjustedP, 1e-300)),
+    }));
+    const labeledFeatures = new Set(plottedRows.slice(0, 12).map((item) => item.feature));
+    return {
+      traces: [{
+        type: "scatter",
+        mode: "markers+text",
+        x: plottedRows.map((item) => item.effect),
+        y: plottedRows.map((item) => item.negativeLogAdjustedP),
+        text: plottedRows.map((item) => labeledFeatures.has(item.feature) ? item.feature : ""),
+        textposition: "top center",
+        textfont: { color: "#334155", size: 10 },
+        cliponaxis: false,
+        marker: {
+          color: plottedRows.map((item) => item.adjustedP < 0.05 ? "#dc2626" : "#2563eb"),
+          size: plottedRows.map((item) => item.adjustedP < 0.05 ? 11 : 9),
+          opacity: 0.82,
+          line: { color: "#ffffff", width: 1 },
+        },
+        customdata: plottedRows.map((item) => [item.feature, item.adjustedP, item.cohortAN, item.cohortBN]),
+        hovertemplate: "Feature: %{customdata[0]}<br>Rank-biserial effect: %{x:.3f}<br>BH q: %{customdata[1]:.3g}<br>N A: %{customdata[2]}<br>N B: %{customdata[3]}<extra></extra>",
+        showlegend: false,
+      }],
+      layout: basePlotLayout({
+        margin: { t: 54, r: 36, b: 70, l: 72 },
+        title: assayLabel ? { text: assayLabel, font: { color: "#61758c", size: 12 } } : undefined,
+        xaxis: {
+          ...basePlotLayout().xaxis,
+          title: { text: "Rank-biserial effect (Cohort A - Cohort B)", font: { color: "#61758c", size: 12 } },
+          range: [-1.1, 1.1],
+          zeroline: true,
+          zerolinecolor: "#475569",
+          zerolinewidth: 1,
+        },
+        yaxis: {
+          ...basePlotLayout().yaxis,
+          title: { text: "-log10(BH q)", font: { color: "#61758c", size: 12 } },
+          rangemode: "tozero",
+        },
+        shapes: [{
+          type: "line",
+          x0: -1.1,
+          x1: 1.1,
+          y0: -Math.log10(0.05),
+          y1: -Math.log10(0.05),
+          line: { color: "#d97706", width: 1, dash: "dot" },
+        }],
+        annotations: [{
+          x: 1.08,
+          y: -Math.log10(0.05),
+          text: "BH q = 0.05",
+          showarrow: false,
+          xanchor: "right",
+          yanchor: "bottom",
+          font: { color: "#92400e", size: 10 },
+        }],
+      }),
+    };
+  }
+
   function euclideanDistance(valuesA, valuesB) {
     let total = 0;
     for (let index = 0; index < valuesA.length; index += 1) {
@@ -1275,6 +1470,14 @@ export function createAnalysisUi(ctx) {
           const volcano = buildExploratoryVolcanoPlot(points, `${item.medication_a || "A"} vs ${item.medication_b || "B"}`);
           mountPlot(`analysis-plot-${turnIndex}-assay-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
         });
+        return;
+      }
+      if (isQuantitativeAssayWilcoxonContextMode(context.mode)) {
+        const effectPlot = buildQuantitativeAssayWilcoxonPlot(
+          context.results,
+          String(context.assay_label || context.dataset_name || "Quantitative assay"),
+        );
+        mountPlot(`analysis-plot-${turnIndex}-quantitative-assay-wilcoxon`, effectPlot.traces, effectPlot.layout);
         return;
       }
       if (isDifferentialExpressionContextMode(context.mode)) {
@@ -1629,6 +1832,7 @@ export function createAnalysisUi(ctx) {
       "external_rscript_transcriptomics_hallmark_pathway_enrichment",
       "external_rscript_methylation_qc_pca",
       "external_rscript_methylation_limma_differential_methylation",
+      "external_rscript_quantitative_assay_wilcoxon_comparison",
       "workflow_transcriptomics_signature",
       "transcriptomics_medication_compare",
       "trajectory",
@@ -1695,6 +1899,15 @@ export function createAnalysisUi(ctx) {
         `Which genes drive the main separation in ${medicationComparisonLabel}?`,
         `Is ${medicationComparisonLabel} exploratory or confirmatory?`,
         `What should I validate next for ${medicationComparisonLabel}?`,
+      ];
+    }
+    if (isQuantitativeAssayWilcoxonContextMode(mode)) {
+      const assayLabel = String(context && (context.assay_label || context.dataset_name) ? (context.assay_label || context.dataset_name) : "this quantitative assay").trim();
+      return [
+        `Can you explain the rank-biserial effects in ${assayLabel}?`,
+        `Which ${assayLabel} features have the strongest cohort separation?`,
+        "How should I interpret features with large effects but BH q above 0.05?",
+        "What covariates and assay preprocessing should be added before confirmatory analysis?",
       ];
     }
     if (mode === "compare") {

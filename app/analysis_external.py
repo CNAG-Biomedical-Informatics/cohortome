@@ -35,6 +35,7 @@ RSCRIPT_RUNNERS = {
     "transcriptomics_hallmark_pathway_enrichment": SCRIPTS_DIR / "analysis_r_hallmark_pathway_enrichment.R",
     "methylation_qc_pca": SCRIPTS_DIR / "analysis_r_methylation_qc_pca.R",
     "methylation_limma_differential_methylation": SCRIPTS_DIR / "analysis_r_methylation_limma.R",
+    "quantitative_assay_wilcoxon_comparison": SCRIPTS_DIR / "analysis_r_quantitative_assay_comparison.R",
 }
 SNAKEMAKE_RUNNERS = {
     "dummy_queue_demo": SCRIPTS_DIR / "analysis_dummy_snakemake" / "Snakefile",
@@ -788,6 +789,243 @@ def _tabular_delimiter(header_line: str) -> str:
     return max(candidates, key=lambda value: parsed_widths[value])
 
 
+def _delimiter_name(delimiter: str) -> str:
+    return {"\t": "tab", ";": "semicolon", ",": "comma"}.get(delimiter, "comma")
+
+
+def _prepare_quantitative_assay_comparison_bundle(
+    data_dir: str,
+    *,
+    prompt: str,
+    assay_id: str,
+    selected_patient_ids: str,
+    compare_selected_patient_ids: str,
+    output_dir: Path,
+) -> Dict[str, Any]:
+    if len(query_store_module._workspace_dataset_ids(data_dir)) > 1:
+        raise RuntimeError(
+            "Compact-assay comparison v1 supports single-dataset workspaces only; "
+            "select exactly one dataset before running this analysis."
+        )
+    wanted_assay = str(assay_id or "").strip()
+    if not wanted_assay:
+        raise RuntimeError("Compact-assay comparison requires one explicitly selected assay.")
+    item = query_store_module._queryable_external_assay_item(data_dir, assay_id=wanted_assay)
+    if item is None:
+        raise RuntimeError("The selected assay is not a queryable immune-cell or quantitative-serology assay.")
+
+    modality = str(item.get("modality") or "").strip().lower()
+    data_type = str(item.get("data_type") or "").strip().lower()
+    allowed_contracts = {
+        ("flow_cytometry", "cell_population_abundance"),
+        ("serology", "quantitative_measurement"),
+    }
+    if (modality, data_type) not in allowed_contracts:
+        raise RuntimeError("The selected assay does not use a supported quantitative compact-assay contract.")
+    if not str(item.get("sample_metadata_file") or "").strip():
+        raise RuntimeError(
+            "Compact-assay inference requires a declared sample_metadata_file with explicit sample-to-patient linkage."
+        )
+
+    try:
+        matrix_path = query_store_module._external_assay_matrix_path(data_dir, item)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    try:
+        with matrix_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            first_line = handle.readline()
+    except (OSError, UnicodeDecodeError, csv.Error):
+        raise RuntimeError("The selected assay matrix header cannot be read.") from None
+    if not first_line:
+        raise RuntimeError("The selected assay matrix is empty.")
+    delimiter = _tabular_delimiter(first_line)
+    header = next(csv.reader([first_line], delimiter=delimiter), [])
+    if len(header) < 2:
+        raise RuntimeError("The selected assay matrix has no sample columns.")
+    matrix_sample_ids = [str(value or "").strip() for value in header[1:]]
+    if any(not value for value in matrix_sample_ids) or len(matrix_sample_ids) != len(set(matrix_sample_ids)):
+        raise RuntimeError("The selected assay matrix contains invalid sample identifiers.")
+
+    root = query_store_module._manifest_item_root(data_dir, item)
+    try:
+        linkage = query_store_module._manifest_assay_sample_patient_links(
+            root,
+            item,
+            matrix_sample_ids,
+            require_complete_metadata=True,
+        )
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    links = {
+        str(sample_id or "").strip(): str(patient_id or "").strip()
+        for sample_id, patient_id in dict(linkage.get("links") or {}).items()
+        if str(sample_id or "").strip() and str(patient_id or "").strip()
+    }
+    if len(links) != len(matrix_sample_ids) or any(sample_id not in links for sample_id in matrix_sample_ids):
+        raise RuntimeError("Every compact-assay sample must have explicit patient linkage metadata.")
+
+    cohort_a_tokens = set(_assay_scope_tokens(selected_patient_ids))
+    cohort_b_tokens = set(_assay_scope_tokens(compare_selected_patient_ids))
+    if not cohort_a_tokens or not cohort_b_tokens:
+        raise RuntimeError("Compact-assay comparison requires both Cohort A and Cohort B.")
+    if cohort_a_tokens.intersection(cohort_b_tokens):
+        raise RuntimeError("Compact-assay comparison requires disjoint Cohort A and Cohort B selections.")
+
+    sample_rows: List[Dict[str, Any]] = []
+    for sample_id in matrix_sample_ids:
+        patient_id = links[sample_id]
+        belongs_to_a = sample_id in cohort_a_tokens or patient_id in cohort_a_tokens
+        belongs_to_b = sample_id in cohort_b_tokens or patient_id in cohort_b_tokens
+        if belongs_to_a and belongs_to_b:
+            raise RuntimeError("Compact-assay comparison requires disjoint linked samples across cohorts.")
+        if not belongs_to_a and not belongs_to_b:
+            continue
+        cohort = "A" if belongs_to_a else "B"
+        sample_rows.append(
+            {
+                "sample_id": sample_id,
+                "patient_id": patient_id,
+                "cohort": cohort,
+                "group_label": "Cohort A" if cohort == "A" else "Cohort B",
+            }
+        )
+    cohort_counts = Counter(row["cohort"] for row in sample_rows)
+    if cohort_counts.get("A", 0) < 3 or cohort_counts.get("B", 0) < 3:
+        raise RuntimeError(
+            "Compact-assay comparison requires at least three linked samples in Cohort A and Cohort B."
+        )
+    patient_counts = Counter(str(row["patient_id"]) for row in sample_rows)
+    if any(count > 1 for count in patient_counts.values()):
+        raise RuntimeError(
+            "Compact-assay comparison v1 requires one independent sample per patient."
+        )
+    clinical_patient_ids = set(query_store_module.patient_inventory(data_dir))
+    selected_patient_set = set(patient_counts)
+    missing_clinical = selected_patient_set - clinical_patient_ids
+    if not clinical_patient_ids or missing_clinical:
+        raise RuntimeError(
+            "Compact-assay comparison requires complete clinical linkage for every selected patient."
+        )
+
+    feature_count = 0
+    seen_features: set[str] = set()
+    try:
+        with matrix_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle, delimiter=delimiter)
+            next(reader, None)
+            for row in reader:
+                if not row:
+                    continue
+                if len(row) != len(matrix_sample_ids) + 1:
+                    raise RuntimeError("The selected assay contains an invalid matrix row width.")
+                feature_id = str(row[0] or "").strip()
+                if not feature_id:
+                    raise RuntimeError("The selected assay contains an empty feature identifier.")
+                if feature_id in seen_features:
+                    raise RuntimeError("The selected assay contains duplicate feature identifiers.")
+                seen_features.add(feature_id)
+                for token in row[1:]:
+                    try:
+                        query_store_module._external_numeric_value(token)
+                    except ValueError as exc:
+                        raise RuntimeError(str(exc)) from exc
+                feature_count += 1
+    except (OSError, UnicodeDecodeError, csv.Error):
+        raise RuntimeError("The selected assay matrix cannot be read.") from None
+    if feature_count < 1:
+        raise RuntimeError("The selected assay contains no quantitative features.")
+    try:
+        declared_feature_count = int(item.get("feature_count") or 0)
+    except (TypeError, ValueError):
+        raise RuntimeError("The selected assay declares an invalid feature_count.") from None
+    if declared_feature_count and declared_feature_count != feature_count:
+        raise RuntimeError("The selected assay feature count does not match its manifest declaration.")
+
+    dataset_name = str(item.get("assay_id") or wanted_assay).strip()
+    assay_label = str(item.get("label") or dataset_name).strip() or dataset_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    private_input_dir = output_dir / ".analysis-private"
+    private_input_dir.mkdir(mode=0o700, exist_ok=True)
+    sample_table_path = private_input_dir / "sample_table.tsv"
+    params_path = output_dir / "params.yaml"
+    manifest_path = output_dir / "manifest.yaml"
+    _write_tsv(
+        sample_table_path,
+        ["sample_id", "patient_id", "cohort", "group_label"],
+        sample_rows,
+    )
+    source_sha256 = str(item.get("sha256") or item.get("checksum") or "").strip()
+    source_fingerprint_status = "declared_not_recomputed" if source_sha256 else "not_declared"
+    _write_yaml(
+        params_path,
+        {
+            "analysis_type": "quantitative_compact_assay_comparison",
+            "method": "two_sided_wilcoxon_rank_sum",
+            "multiple_testing": "benjamini_hochberg_across_tested_features",
+            "minimum_complete_samples_per_group": 3,
+            "effect_size": "rank_biserial_2U_over_nA_nB_minus_1",
+            "adjustment_status": "unadjusted_exploratory",
+            "input_scale": "supplied_values_untransformed",
+            "missing_value_handling": "featurewise_complete_cases",
+            "dataset_name": dataset_name,
+            "modality": modality,
+            "data_type": data_type,
+            "prompt": str(prompt or "").strip(),
+            "source_matrix": "manifest_backed_external_file",
+            "source_matrix_materialized_in_duckdb": False,
+            "source_matrix_copied_to_job": False,
+            "source_sha256": source_sha256,
+            "source_fingerprint_status": source_fingerprint_status,
+            "contrast": {"numerator": "Cohort A", "denominator": "Cohort B"},
+        },
+    )
+    _write_yaml(
+        manifest_path,
+        {
+            "version": 1,
+            "analysis_type": "quantitative_compact_assay_comparison",
+            "dataset_name": dataset_name,
+            "assay_label": assay_label,
+            "modality": modality,
+            "data_type": data_type,
+            "feature_count": feature_count,
+            "patient_count": len(selected_patient_set),
+            "cohort_sample_counts": dict(cohort_counts),
+            "inputs": {
+                "matrix": "manifest-backed external assay (not copied)",
+                "sample_linkage": "temporary protected runtime input (removed after execution)",
+                "params": params_path.name,
+            },
+            "outputs": {
+                "results_table": "compact_assay_results.tsv",
+                "summary": "summary.json",
+                "plot": "effect_plot.png",
+            },
+        },
+    )
+    return {
+        "dataset_name": dataset_name,
+        "assay_label": assay_label,
+        "modality": modality,
+        "data_type": data_type,
+        "matrix_path": matrix_path,
+        "delimiter_name": _delimiter_name(delimiter),
+        "sample_table_path": sample_table_path,
+        "params_path": params_path,
+        "manifest_path": manifest_path,
+        "feature_count": feature_count,
+        "sample_count": len(sample_rows),
+        "patient_count": len(selected_patient_set),
+        "cohort_a_sample_count": int(cohort_counts.get("A", 0)),
+        "cohort_b_sample_count": int(cohort_counts.get("B", 0)),
+        "cohort_a_patient_count": len({row["patient_id"] for row in sample_rows if row["cohort"] == "A"}),
+        "cohort_b_patient_count": len({row["patient_id"] for row in sample_rows if row["cohort"] == "B"}),
+        "source_sha256": source_sha256,
+        "source_fingerprint_status": source_fingerprint_status,
+        "clinical_linkage_status": "complete_selected_scope",
+    }
+
+
 def _choose_methylation_assay(data_dir: str, requested_name: str = "") -> Dict[str, Any]:
     compatible: List[Dict[str, Any]] = []
     for raw_item in query_store_module._assay_manifest_items(data_dir):
@@ -1297,7 +1535,9 @@ def run_rscript_analysis(
     if not script_path.exists():
         raise RuntimeError(f"Configured Rscript analysis is missing: {script_path}")
     sensitive_command_values: List[str] = []
+    private_input_paths: List[Path] = []
     methylation_bundle: Dict[str, Any] | None = None
+    quantitative_assay_bundle: Dict[str, Any] | None = None
     with tempfile.TemporaryDirectory(prefix="pn-analysis-rscript-") as temp_dir:
         temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
         temp_path.mkdir(parents=True, exist_ok=True)
@@ -1551,6 +1791,45 @@ def run_rscript_analysis(
                 "--plot-file",
                 str(temp_path / "volcano_plot.png"),
             ]
+        elif runner_ref == "quantitative_assay_wilcoxon_comparison":
+            bundle = _prepare_quantitative_assay_comparison_bundle(
+                data_dir,
+                prompt=prompt,
+                assay_id=assay_id,
+                selected_patient_ids=selected_patient_ids,
+                compare_selected_patient_ids=compare_selected_patient_ids,
+                output_dir=temp_path,
+            )
+            quantitative_assay_bundle = bundle
+            private_input_paths.append(bundle["sample_table_path"])
+            matrix_path = str(bundle["matrix_path"])
+            sensitive_command_values.append(matrix_path)
+            command = [
+                binary,
+                str(script_path),
+                "--prompt",
+                str(prompt or ""),
+                "--dataset-name",
+                str(bundle["dataset_name"]),
+                "--assay-label",
+                str(bundle["assay_label"]),
+                "--modality",
+                str(bundle["modality"]),
+                "--data-type",
+                str(bundle["data_type"]),
+                "--matrix",
+                matrix_path,
+                "--delimiter-name",
+                str(bundle["delimiter_name"]),
+                "--sample-table",
+                str(bundle["sample_table_path"]),
+                "--results-table",
+                str(temp_path / "compact_assay_results.tsv"),
+                "--summary-json",
+                str(temp_path / "summary.json"),
+                "--plot-file",
+                str(temp_path / "effect_plot.png"),
+            ]
         else:
             raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
         try:
@@ -1565,10 +1844,19 @@ def run_rscript_analysis(
             raise RuntimeError("External Rscript analysis exceeded its configured time limit.") from None
         except OSError:
             raise RuntimeError("External Rscript analysis could not be started.") from None
+        finally:
+            for private_input_path in private_input_paths:
+                try:
+                    private_input_path.unlink(missing_ok=True)
+                    private_input_path.parent.rmdir()
+                except OSError:
+                    # Hidden runtime inputs are also denied by the job-artifact
+                    # boundary if an interrupted process prevents cleanup.
+                    pass
     public_command = list(command)
     public_stdout = result.stdout or ""
     public_stderr = result.stderr or ""
-    if methylation_bundle is not None:
+    if methylation_bundle is not None or quantitative_assay_bundle is not None:
         public_command = _redact_command_job_paths(public_command, temp_path)
         public_stdout = public_stdout.replace(str(temp_path), "[job artifacts]")
         public_stderr = public_stderr.replace(str(temp_path), "[job artifacts]")
@@ -1607,6 +1895,33 @@ def run_rscript_analysis(
         context["clinical_linkage_status"] = str(methylation_bundle.get("clinical_linkage_status") or "")
         context["clinical_linked_patient_count"] = int(
             methylation_bundle.get("clinical_linked_patient_count") or 0
+        )
+    if quantitative_assay_bundle is not None:
+        context["dataset_name"] = str(quantitative_assay_bundle.get("dataset_name") or "")
+        context["assay_label"] = str(quantitative_assay_bundle.get("assay_label") or "")
+        context["modality"] = str(quantitative_assay_bundle.get("modality") or "")
+        context["data_type"] = str(quantitative_assay_bundle.get("data_type") or "")
+        context["cohort_a_sample_count"] = int(
+            quantitative_assay_bundle.get("cohort_a_sample_count") or 0
+        )
+        context["cohort_b_sample_count"] = int(
+            quantitative_assay_bundle.get("cohort_b_sample_count") or 0
+        )
+        context["source_matrix_materialized_in_duckdb"] = False
+        context["source_matrix_copied_to_job"] = False
+        context["source_sha256"] = str(quantitative_assay_bundle.get("source_sha256") or "")
+        context["source_fingerprint_status"] = str(
+            quantitative_assay_bundle.get("source_fingerprint_status") or "not_declared"
+        )
+        context["source_fingerprint_verified_for_run"] = False
+        context["clinical_linkage_status"] = str(
+            quantitative_assay_bundle.get("clinical_linkage_status") or ""
+        )
+        context["cohort_a_patient_count"] = int(
+            quantitative_assay_bundle.get("cohort_a_patient_count") or 0
+        )
+        context["cohort_b_patient_count"] = int(
+            quantitative_assay_bundle.get("cohort_b_patient_count") or 0
         )
     if not reply:
         raise RuntimeError("External Rscript analysis returned an empty reply.")

@@ -34,9 +34,10 @@ JOB_LOG_FILENAMES = {
     "error": "error.txt",
 }
 JOB_STATUS_PRECEDENCE = {"queued": 0, "running": 1, "completed": 2, "failed": 3, "cancelled": 4}
-PRIVATE_METHYLATION_RUNNERS = {
+PRIVATE_EXTERNAL_MATRIX_RUNNERS = {
     "methylation_qc_pca",
     "methylation_limma_differential_methylation",
+    "quantitative_assay_wilcoxon_comparison",
 }
 
 
@@ -129,9 +130,9 @@ def _analysis_scope_data_dir(scope: Dict[str, Any]) -> str:
     raise RuntimeError("Analysis job has no valid registered dataset scope.")
 
 
-def _require_private_methylation_runtime(catalog_item: Dict[str, Any], scope: Dict[str, Any]) -> None:
+def _require_private_external_matrix_runtime(catalog_item: Dict[str, Any], scope: Dict[str, Any]) -> None:
     runner_ref = str(catalog_item.get("runner_ref") or "").strip()
-    if runner_ref not in PRIVATE_METHYLATION_RUNNERS:
+    if runner_ref not in PRIVATE_EXTERNAL_MATRIX_RUNNERS:
         return
     has_private_dataset = any(
         str(item.get("data_classification") or "private").strip().lower() == "private"
@@ -139,7 +140,7 @@ def _require_private_methylation_runtime(catalog_item: Dict[str, Any], scope: Di
     )
     if has_private_dataset and not private_artifact_runtime_is_safe():
         raise RuntimeError(
-            "Private methylation jobs require COHORTOME_RUNTIME_ROOT to be an absolute path "
+            "Private external-matrix jobs require COHORTOME_RUNTIME_ROOT to be an absolute path "
             "on protected storage outside the Git checkout."
         )
 
@@ -208,7 +209,9 @@ def _artifact_inventory(path: Path) -> List[Dict[str, Any]]:
         if not item.is_file():
             continue
         relative_name = item.relative_to(path).as_posix()
-        if relative_name == JOB_RECORD_FILENAME:
+        if relative_name == JOB_RECORD_FILENAME or any(
+            part.startswith(".") for part in Path(relative_name).parts
+        ):
             continue
         artifacts.append(
             {
@@ -555,6 +558,8 @@ def save_job_result(job_id: str, user_id: str, payload: Dict[str, Any]) -> Dict[
 def resolve_job_artifact_path(job_id: str, user_id: str, filename: str) -> Path:
     root = job_dir(job_id, user_id).resolve()
     raw_name = str(filename or "").strip().lstrip("/")
+    if any(part.startswith(".") for part in Path(raw_name).parts):
+        raise HTTPException(status_code=404, detail="Job artifact not found.")
     path = (root / raw_name).resolve()
     if path == root or root not in path.parents:
         raise HTTPException(status_code=404, detail="Job artifact not found.")
@@ -733,7 +738,7 @@ def submit_analysis_job(
     compare_mode: bool = False,
 ) -> Dict[str, Any]:
     scope = _authorize_analysis_scope(user_id, dataset_id)
-    _require_private_methylation_runtime(catalog_item, scope)
+    _require_private_external_matrix_runtime(catalog_item, scope)
     if not jobs_enabled():
         raise RuntimeError("Background jobs require RQ and Redis to be installed and configured.")
     if not analysis_worker_available():
@@ -852,7 +857,7 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         if runner_type not in {"rscript", "snakemake", "nextflow", "workflow"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
         scope = _authorize_analysis_scope(user_id, str(record.get("dataset_id") or ""))
-        _require_private_methylation_runtime(item, scope)
+        _require_private_external_matrix_runtime(item, scope)
         resolved_data_dir = _analysis_scope_data_dir(scope)
         payload = run_external_analysis(
             runner_type,

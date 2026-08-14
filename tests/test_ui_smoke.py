@@ -3195,6 +3195,131 @@ def test_analysis_renders_completed_limma_voom_result(page) -> None:
     expect(result).to_contain_text("volcano_points.tsv")
 
 
+def test_analysis_renders_quantitative_assay_wilcoxon_result(page) -> None:
+    results = [
+        {
+            "feature_id": f"Marker_{index:02d}",
+            "status": "tested",
+            "cohort_a_n": 12,
+            "cohort_b_n": 14,
+            "cohort_a_missing": 0,
+            "cohort_b_missing": 1,
+            "cohort_a_mean": 2.1 + index,
+            "cohort_a_median": 2.0 + index,
+            "cohort_a_q1": 1.5 + index,
+            "cohort_a_q3": 2.5 + index,
+            "cohort_b_mean": 1.7 + index,
+            "cohort_b_median": 1.6 + index,
+            "cohort_b_q1": 1.2 + index,
+            "cohort_b_q3": 2.1 + index,
+            "mean_difference": 0.4,
+            "median_difference": 0.4,
+            "rank_biserial_effect": 0.72 - index * 0.04,
+            "p_value": 0.0001 + index * 0.001,
+            "adj_p_value": 0.001 + index * 0.01,
+        }
+        for index in reversed(range(13))
+    ]
+    results.append(
+        {
+            "feature_id": "Marker_skipped",
+            "status": "insufficient_complete_cases",
+            "cohort_a_n": 2,
+            "cohort_b_n": 14,
+            "cohort_a_missing": 10,
+            "cohort_b_missing": 0,
+            "cohort_a_median": 1.0,
+            "cohort_b_median": 2.0,
+            "median_difference": -1.0,
+            "rank_biserial_effect": None,
+            "p_value": None,
+            "adj_p_value": None,
+        }
+    )
+    page.route(
+        "**/analysis",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "analysis_external_rscript",
+                    "reply": "Exploratory quantitative-serology cohort comparison completed.",
+                    "data": {
+                        "source": "deterministic",
+                        "execution": "external_runner",
+                        "runner_ref": "quantitative_assay_wilcoxon_comparison",
+                        "context": {
+                            "mode": "external_rscript_quantitative_assay_wilcoxon_comparison",
+                            "runner": "quantitative_assay_wilcoxon_comparison",
+                            "dataset_name": "synthetic_quantitative_serology",
+                            "assay_label": "Quantitative serology",
+                            "modality": "serology",
+                            "data_type": "quantitative_measurement",
+                            "adjustment_status": "unadjusted_exploratory",
+                            "cohort_a_sample_count": 12,
+                            "cohort_a_patient_count": 12,
+                            "cohort_b_sample_count": 14,
+                            "cohort_b_patient_count": 14,
+                            "feature_count": 14,
+                            "tested_feature_count": 13,
+                            "skipped_feature_count": 1,
+                            "significant_feature_count": 5,
+                            "top_feature": "Marker_00",
+                            "top_rank_biserial_effect": 0.72,
+                            "top_adj_p_value": 0.001,
+                            "source_matrix_materialized_in_duckdb": False,
+                            "source_matrix_copied_to_job": False,
+                            "supplied_scale": True,
+                            "method": "wilcoxon_rank_sum",
+                            "results": results,
+                        },
+                        "artifacts": [
+                            {"name": "compact_assay_results.tsv", "url": "/jobs/serology/artifacts/compact_assay_results.tsv"},
+                            {"name": "summary.json", "url": "/jobs/serology/artifacts/summary.json"},
+                            {"name": "sample_table.tsv", "url": "/jobs/serology/artifacts/sample_table.tsv"},
+                        ],
+                    },
+                }
+            ),
+        ),
+    )
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    expect = playwright.expect
+
+    page.locator("#analysisPrompt").fill("Run the quantitative assay cohort comparison.")
+    page.locator("#analysisRunBtn").click()
+
+    summary = page.locator("[data-analysis-summary='quantitative-assay-wilcoxon']")
+    expect(summary).to_contain_text("Cohort A samples")
+    expect(summary).to_contain_text("12")
+    expect(summary).to_contain_text("Features tested")
+    expect(summary).to_contain_text("13")
+    expect(summary).to_contain_text("Features skipped")
+    expect(summary).to_contain_text("1")
+    expect(summary).to_contain_text("BH < 0.05")
+    expect(summary).to_contain_text("5")
+
+    result = page.locator("[data-analysis-result='quantitative-assay-wilcoxon']")
+    expect(result).to_contain_text("Exploratory and unadjusted")
+    expect(result).to_contain_text("supplied measurement scale")
+    expect(result).to_contain_text("No covariate adjustment")
+    expect(result).to_contain_text("Top-ranked feature: Marker_00")
+    expect(result).to_contain_text("remained external to DuckDB")
+    expect(result.locator(".query-result-table thead")).to_contain_text("Missing A")
+    expect(result.locator(".query-result-table thead")).to_contain_text("Missing B")
+    expect(result.locator(".query-result-table tbody tr")).to_have_count(12)
+    expect(result.locator(".query-result-table tbody tr").first).to_contain_text("Marker_00")
+    expect(result.locator(".query-result-table tbody")).not_to_contain_text("Marker_skipped")
+    expect(result.locator("[id$='-quantitative-assay-wilcoxon']")).to_have_attribute("data-plotly-ready", "true")
+    expect(page.locator(".analysis-result-followups")).to_contain_text("rank-biserial effects")
+
+    result.locator("details.analysis-artifact-downloads > summary").click()
+    expect(result).to_contain_text("compact_assay_results.tsv")
+    expect(result).not_to_contain_text("sample_table.tsv")
+
+
 def test_analysis_setup_rechecks_background_worker(page) -> None:
     _mock_methylation_catalog_and_assay(page)
     worker_state = {"online": False}

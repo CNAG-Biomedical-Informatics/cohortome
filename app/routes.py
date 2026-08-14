@@ -1736,6 +1736,7 @@ def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str =
             resolved_dir,
             granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
             ai_provider_access=selected_ai_provider_access(request, selected_ids),
+            workspace_dataset_count=len(selected_ids),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

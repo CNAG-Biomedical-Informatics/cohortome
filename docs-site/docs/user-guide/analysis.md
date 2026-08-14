@@ -23,6 +23,7 @@ Use `Analysis` after you already know what subset or workspace you want to inter
 - DESeq2 differential expression on one raw-count dataset
 - methylation matrix QC and PCA on one processed M-value dataset
 - limma differential methylation between two cohorts
+- exploratory immune-cell and quantitative-serology cohort comparisons
 - Hallmark pathway enrichment from a DESeq2-ranked comparison
 - curated external analyses through reviewed runners
 
@@ -192,6 +193,8 @@ Examples:
 - `Hallmark pathway enrichment`
 - `Methylation QC and PCA`
 - `limma differential methylation`
+- `Immune-cell Wilcoxon cohort comparison`
+- `Serology Wilcoxon cohort comparison`
 
 These tools do not compare two transcriptomics assays against each other.
 
@@ -222,6 +225,28 @@ The methylation tools use one selected processed M-value assay. The complete pro
 
 `Methylation QC and PCA` checks the supplied matrix and sample linkage in the current Analysis scope. It does not repeat raw-array preprocessing or probe filtering from IDAT files. `limma differential methylation` uses Cohort A and Cohort B as the comparison groups and requires both cohorts to overlap the same selected methylation assay.
 
+The immune-cell and quantitative-serology tools also use one selected assay
+plus disjoint saved Cohort A and Cohort B selections. Each cohort must overlap
+the assay by at least three samples. The runner applies a Wilcoxon rank-sum test
+to each feature, reports rank-biserial effect sizes, and controls the displayed
+feature-wise false-discovery rate with Benjamini-Hochberg correction.
+
+These comparisons are deliberately labeled **exploratory and unadjusted**.
+They test values on the scale supplied by the assay release: COHORTome does not
+normalize, batch-correct, transform, or impute those measurements in this
+runner. A positive rank-biserial effect means higher ranks in Cohort A; a
+negative effect means higher ranks in Cohort B. Demographic, recruitment,
+treatment, technical, and other confounders remain unmodeled, so this result is
+useful for screening and prioritization rather than confirmatory inference.
+Immune-cell abundance features can also be compositional, while serology
+missingness can vary by marker; inspect the cohort-specific missing counts
+before interpreting the ranking.
+
+The compact source matrices remain in the governed dataset release. They are
+read directly by the curated runner, are not materialized in DuckDB, and are
+not copied into the job output. Analysis stores only compact aggregate results
+and provenance artifacts.
+
 
 ## Catalog search, filters, and suggestions
 
@@ -246,7 +271,7 @@ Filters are intentionally coarse:
 
 These filters are meant to reduce browse cost quickly, not to replace the catalog structure.
 
-When a selected catalog item requires assay data, the compatible transcriptomics assay selector appears below the catalog search and filters. For single-dataset assay analyses, including the current workflow, the selector behaves as a single-select control.
+When a selected catalog item requires assay data, a compatible assay selector appears below the catalog search and filters. For single-assay analyses, including transcriptomics, methylation, immune-cell, and quantitative-serology tools, the selector behaves as a single-select control.
 
 The folded catalog in the main tab also shows a `Suggested` strip.
 
@@ -259,7 +284,7 @@ Suggestions are lightweight and local:
 
 Examples of setup-aware suggestions:
 
-- assay tools rank better when transcriptomics assays are available
+- assay tools rank better when a compatible assay is available
 - compare-oriented tools rank better when compare mode is active
 
 :::note
