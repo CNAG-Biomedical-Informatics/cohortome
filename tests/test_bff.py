@@ -9597,6 +9597,170 @@ def test_flow_cytometry_and_serology_manifests_are_first_class_external_assays(t
         con.close()
 
 
+def test_query_reads_compact_external_assays_deterministically_without_duckdb_values(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(
+        tmp_path,
+        "records.json",
+        [
+            {"id": "SYN001", "diseases": [{"diseaseCode": {"label": "Condition A"}}]},
+            {"id": "SYN002", "diseases": [{"diseaseCode": {"label": "Condition A"}}]},
+            {"id": "SYN003", "diseases": [{"diseaseCode": {"label": "Healthy Control"}}]},
+            {"id": "SYN004", "diseases": [{"diseaseCode": {"label": "Healthy Control"}}]},
+        ],
+    )
+    assays_dir = tmp_path / "assays"
+    immune_dir = assays_dir / "flow_cytometry"
+    serology_dir = assays_dir / "serology"
+    immune_dir.mkdir(parents=True)
+    serology_dir.mkdir(parents=True)
+    (immune_dir / "immune.tsv").write_text(
+        "feature_id\tSYN001\tSYN002\tSYN003\tSYN004\n"
+        "CD4_T_cells\t0.30\t0.34\t0.21\t0.25\n"
+        "Monocytes\t0.12\t0.16\t0.08\t0.10\n",
+        encoding="utf-8",
+    )
+    (serology_dir / "serology.tsv").write_text(
+        "feature_id\tSYN001\tSYN002\tSYN003\tSYN004\n"
+        "Marker_A\t4\t6\t2\t4\n"
+        "Marker_B\t8\tNA\t3\t5\n",
+        encoding="utf-8",
+    )
+    (assays_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "immune_cells",
+                        "label": "Immune-cell abundance",
+                        "modality": "flow_cytometry",
+                        "data_type": "cell_population_abundance",
+                        "patient_linkage": "exact_sample_id",
+                        "feature_count": 2,
+                        "file": "assays/flow_cytometry/immune.tsv",
+                    },
+                    {
+                        "assay_id": "quantitative_serology",
+                        "label": "Quantitative serology",
+                        "modality": "serology",
+                        "data_type": "quantitative_measurement",
+                        "patient_linkage": "exact_sample_id",
+                        "feature_count": 2,
+                        "file": "assays/serology/serology.tsv",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    inventory = answer_query(str(tmp_path), "List the available serology markers", query_mode="deterministic_only")
+    assert inventory["intent"] == "external_assay_inventory"
+    assert inventory["data"]["feature_count"] == 2
+    assert [row["feature_id"] for row in inventory["data"]["assay_results"]] == ["Marker_A", "Marker_B"]
+
+    summary = answer_query(
+        str(tmp_path),
+        "Summarize Marker_A in serology for this cohort",
+        query_mode="deterministic_only",
+        history=[{"role": "assistant", "content": "A prior query selected this cohort."}],
+        scoped_patient_ids=["SYN001", "SYN003"],
+    )
+    assert summary["intent"] == "external_assay_summary"
+    assert summary["data"]["scope_sample_count"] == 2
+    assert summary["data"]["assay_results"][0]["mean"] == 3.0
+    assert all(patient_id not in json.dumps(summary) for patient_id in ("SYN001", "SYN002", "SYN003", "SYN004"))
+
+    comparison = answer_query(
+        str(tmp_path),
+        "Compare Marker_A in serology between Condition A and Healthy Control",
+        query_mode="deterministic_only",
+    )
+    assert comparison["intent"] == "external_assay_comparison"
+    result = comparison["data"]["assay_results"][0]
+    assert result["cohort_a"]["mean"] == 5.0
+    assert result["cohort_b"]["mean"] == 3.0
+    assert result["mean_difference_a_minus_b"] == 2.0
+    assert all(patient_id not in json.dumps(comparison) for patient_id in ("SYN001", "SYN002", "SYN003", "SYN004"))
+
+    con = query_store_module._connect(str(tmp_path))
+    try:
+        assert con.execute("SELECT count(*) FROM transcript_counts").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+def test_semantic_planner_can_select_a_validated_external_assay_operation(tmp_path, monkeypatch):
+    if not duckdb_available():
+        return
+
+    isolate_query_store(monkeypatch, tmp_path)
+    write_json(tmp_path, "records.json", [{"id": "SYN001"}, {"id": "SYN002"}])
+    assay_dir = tmp_path / "assays" / "serology"
+    assay_dir.mkdir(parents=True)
+    (assay_dir / "serology.tsv").write_text(
+        "feature_id\tSYN001\tSYN002\nMarker_A\t4\t2\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "assays" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assays": [
+                    {
+                        "assay_id": "quantitative_serology",
+                        "label": "Quantitative serology",
+                        "modality": "serology",
+                        "data_type": "quantitative_measurement",
+                        "patient_linkage": "exact_sample_id",
+                        "feature_count": 1,
+                        "file": "assays/serology/serology.tsv",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(query_module, "_lm_studio_enabled", lambda: True)
+    monkeypatch.setattr(query_module, "_resolve_lm_studio_model", lambda: "synthetic-model")
+    monkeypatch.setattr(
+        query_module,
+        "_http_json",
+        lambda *_args, **_kwargs: {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "intent": "assay_query",
+                                "operation": "summary",
+                                "modality": "serology",
+                                "feature": "Marker_A",
+                            }
+                        )
+                    }
+                }
+            ]
+        },
+    )
+
+    payload = answer_query(
+        str(tmp_path),
+        "Give me a compact overview of the first serological marker",
+        query_mode="planner_only",
+        ai_provider_access="detailed_allowed",
+    )
+
+    assert payload["intent"] == "external_assay_summary"
+    assert payload["data"]["planner"]["provider"] == "lm_studio"
+    assert payload["data"]["semantic_plan"]["intent"] == "assay_query"
+    assert payload["data"]["assay_results"][0]["mean"] == 3.0
+
+
 def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
     matrices = []
     for dataset_root in (Path("default_dataset"), Path("dataset-large")):

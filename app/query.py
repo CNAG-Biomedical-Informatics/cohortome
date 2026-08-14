@@ -47,6 +47,9 @@ from app.query_store import (
     disease_cohort as store_disease_cohort,
     disease_counts as store_disease_counts,
     duckdb_available,
+    external_assay_feature_catalog as store_external_assay_feature_catalog,
+    external_assay_feature_comparison as store_external_assay_feature_comparison,
+    external_assay_feature_summary as store_external_assay_feature_summary,
     medication_cohort as store_medication_cohort,
     medication_counts as store_medication_counts,
     patient_clarid as store_patient_clarid,
@@ -1153,6 +1156,10 @@ def _follow_up_execution_kind(prompt: str) -> str:
 
     if _extract_patient_id(text) is not None:
         return "deterministic"
+    if _assay_modality_from_text(text) and any(
+        token in lowered for token in ("list", "show", "summar", "average", "mean", "distribution", "compare", "difference")
+    ):
+        return "deterministic"
     if _is_patient_list_query(text) or _is_patient_count_query(text) or _is_sample_list_query(text):
         return "deterministic"
     if _medication_count_constraint(text) is not None or _visit_count_constraint(text) is not None:
@@ -1230,6 +1237,349 @@ def _follow_up_suggestion_metadata(items: Any) -> List[Dict[str, str]]:
             }
         )
     return metadata
+
+
+def _assay_modality_from_text(text: str) -> str:
+    lowered = str(text or "").lower()
+    if "serology" in lowered or "serological" in lowered:
+        return "serology"
+    if any(
+        phrase in lowered
+        for phrase in ("flow cytometry", "flow-cytometry", "immune cell", "immune-cell", "cell population")
+    ):
+        return "flow_cytometry"
+    return ""
+
+
+def _assay_feature_from_text(text: str, catalog: List[Dict[str, Any]]) -> str:
+    lowered = str(text or "").lower()
+    features = sorted(
+        {
+            str(feature or "").strip()
+            for item in catalog
+            for feature in (item.get("features") or [])
+            if str(feature or "").strip()
+        },
+        key=lambda value: (-len(value), value.lower()),
+    )
+    for feature in features:
+        if feature.lower() in lowered:
+            return feature
+    return ""
+
+
+def _format_assay_number(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{number:.4g}"
+
+
+def _assay_markdown_cell(value: Any) -> str:
+    return str(value or "").replace("\r", " ").replace("\n", " ").replace("|", "/").strip()
+
+
+def _assay_inventory_response(query: str, modality: str, catalog: List[Dict[str, Any]]) -> Dict[str, Any]:
+    feature_rows = [
+        {
+            "assay_id": item["assay_id"],
+            "assay_label": item["label"],
+            "modality": item["modality"],
+            "feature_id": feature,
+        }
+        for item in catalog
+        for feature in item.get("features") or []
+    ]
+    lines = ["| Feature | Assay |", "|---|---|"]
+    lines.extend(
+        f"| {_assay_markdown_cell(row['feature_id'])} | {_assay_markdown_cell(row['assay_label'])} |"
+        for row in feature_rows[:100]
+    )
+    modality_label = "quantitative serology" if modality == "serology" else "immune-cell abundance"
+    return {
+        "query": query,
+        "intent": "external_assay_inventory",
+        "reply": (
+            f"Found {len(feature_rows)} {modality_label} features across {len(catalog)} assay"
+            f"{'s' if len(catalog) != 1 else ''}.\n\n" + "\n".join(lines)
+        ),
+        "data": {
+            "modality": modality,
+            "assay_count": len(catalog),
+            "feature_count": len(feature_rows),
+            "assay_results": feature_rows[:100],
+            "execution": "deterministic",
+            "source_boundary": "external_manifest_assay",
+            "follow_up_suggestions": [
+                f"Summarize {feature_rows[0]['feature_id']} in {modality_label}" if feature_rows else f"Summarize a feature in {modality_label}",
+                f"Compare a {modality_label} feature between two disease cohorts",
+            ],
+        },
+    }
+
+
+def _assay_summary_response(
+    query: str,
+    summary: Dict[str, Any],
+    *,
+    scoped: bool,
+) -> Dict[str, Any]:
+    rows = list(summary.get("features") or [])
+    lines = ["| Feature | N | Missing | Mean | Median | Min | Max |", "|---|---:|---:|---:|---:|---:|---:|"]
+    lines.extend(
+        "| %(feature)s | %(n)s | %(missing)s | %(mean)s | %(median)s | %(min)s | %(max)s |" % {
+            "feature": _assay_markdown_cell(row.get("feature_id") or ""),
+            "n": row.get("sample_count") or 0,
+            "missing": row.get("missing_count") or 0,
+            "mean": _format_assay_number(row.get("mean")),
+            "median": _format_assay_number(row.get("median")),
+            "min": _format_assay_number(row.get("min")),
+            "max": _format_assay_number(row.get("max")),
+        }
+        for row in rows
+    )
+    return {
+        "query": query,
+        "intent": "external_assay_summary",
+        "reply": (
+            f"Descriptive sample-level summary for {summary.get('label') or summary.get('assay_id')}"
+            f" ({summary.get('scope_sample_count', 0)} samples; no inferential test).\n\n" + "\n".join(lines)
+        ),
+        "data": {
+            **{key: value for key, value in summary.items() if key != "features"},
+            "assay_results": rows,
+            "scoped_follow_up": scoped,
+            "execution": "deterministic",
+            "source_boundary": "external_manifest_assay",
+            "follow_up_suggestions": [
+                f"List all {'serology markers' if summary.get('modality') == 'serology' else 'immune-cell populations'}",
+                "Compare this feature between two disease cohorts",
+            ],
+        },
+    }
+
+
+def _assay_comparison_response(
+    query: str,
+    comparison: Dict[str, Any],
+    *,
+    cohort_a_label: str,
+    cohort_b_label: str,
+) -> Dict[str, Any]:
+    rows = list(comparison.get("features") or [])
+    lines = [
+        f"| Feature | {_assay_markdown_cell(cohort_a_label)} mean | {_assay_markdown_cell(cohort_b_label)} mean | A − B | N A | N B |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    lines.extend(
+        "| %(feature)s | %(mean_a)s | %(mean_b)s | %(delta)s | %(n_a)s | %(n_b)s |" % {
+            "feature": _assay_markdown_cell(row.get("feature_id") or ""),
+            "mean_a": _format_assay_number((row.get("cohort_a") or {}).get("mean")),
+            "mean_b": _format_assay_number((row.get("cohort_b") or {}).get("mean")),
+            "delta": _format_assay_number(row.get("mean_difference_a_minus_b")),
+            "n_a": (row.get("cohort_a") or {}).get("sample_count") or 0,
+            "n_b": (row.get("cohort_b") or {}).get("sample_count") or 0,
+        }
+        for row in rows
+    )
+    return {
+        "query": query,
+        "intent": "external_assay_comparison",
+        "reply": (
+            f"Descriptive sample-level comparison of {comparison.get('label') or comparison.get('assay_id')}: "
+            f"{cohort_a_label} versus {cohort_b_label}. Positive differences mean higher values in the first cohort. "
+            "No covariate adjustment or hypothesis test is applied in Query. "
+            "A control term uses an explicit control label when available; otherwise it is a proxy for patients with no recorded disease.\n\n"
+            + "\n".join(lines)
+        ),
+        "data": {
+            **{key: value for key, value in comparison.items() if key != "features"},
+            "cohort_a_label": cohort_a_label,
+            "cohort_b_label": cohort_b_label,
+            "cohort_resolution_note": (
+                "Disease cohorts use recorded disease labels. If a requested control label is absent, "
+                "the control proxy is patients with no recorded disease; this must be verified before inference."
+            ),
+            "assay_results": rows,
+            "execution": "deterministic",
+            "source_boundary": "external_manifest_assay",
+            "follow_up_suggestions": [
+                "Open these cohorts in Analysis for adjusted inference",
+                f"List all {'serology markers' if comparison.get('modality') == 'serology' else 'immune-cell populations'}",
+            ],
+        },
+    }
+
+
+def _disease_patient_ids_for_assay_query(
+    data_dir: str,
+    term: str,
+    scoped_patient_ids: Optional[List[str]],
+) -> List[str]:
+    normalized = str(term or "").strip(" ?.\t\n")
+    control_term = "control" in normalized.lower()
+    if control_term:
+        normalized = "Healthy Control"
+    cohort = _disease_cohort(data_dir, normalized, scoped_patient_ids=scoped_patient_ids)
+    patient_ids = [str(item.get("patient_id") or "").strip() for item in cohort.get("patients") or []]
+    if control_term and not patient_ids:
+        rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
+        patient_ids = [
+            str(row.get("patient_id") or "").strip()
+            for row in rows
+            if not [value for value in row.get("diseases", []) if str(value or "").strip()]
+        ]
+    if not patient_ids and normalized.lower().endswith("s"):
+        cohort = _disease_cohort(data_dir, normalized[:-1], scoped_patient_ids=scoped_patient_ids)
+        patient_ids = [str(item.get("patient_id") or "").strip() for item in cohort.get("patients") or []]
+    return [value for value in patient_ids if value]
+
+
+def _execute_assay_query_plan(
+    data_dir: str,
+    query: str,
+    plan: Dict[str, Any],
+    *,
+    scoped_patient_ids: Optional[List[str]] = None,
+    planner: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    modality = str(plan.get("modality") or "").strip().lower()
+    operation = str(plan.get("operation") or "").strip().lower()
+    feature = str(plan.get("feature") or "").strip()
+    catalog = store_external_assay_feature_catalog(data_dir, modality=modality, limit=100)
+    if not catalog:
+        return {
+            "query": query,
+            "intent": "external_assay_unavailable",
+            "reply": "No queryable compact assay is available for that modality in this workspace.",
+            "data": {"modality": modality, "execution": "deterministic"},
+        }
+    known_features = {
+        str(value or "").strip().lower(): str(value or "").strip()
+        for item in catalog
+        for value in item.get("features") or []
+        if str(value or "").strip()
+    }
+    if operation != "inventory":
+        canonical_feature = known_features.get(feature.lower())
+        if not canonical_feature:
+            return {
+                "query": query,
+                "intent": "needs_clarification",
+                "reply": "That feature is not present in the selected compact assay. List the available features and choose one of them.",
+                "data": {"modality": modality, "execution": "deterministic"},
+            }
+        feature = canonical_feature
+    if operation == "inventory":
+        response = _assay_inventory_response(query, modality, catalog)
+    elif operation == "summary":
+        summary = store_external_assay_feature_summary(
+            data_dir,
+            modality=modality,
+            feature_query=feature,
+            selected_patient_ids=scoped_patient_ids,
+            limit=20,
+        )
+        response = _assay_summary_response(query, summary, scoped=bool(scoped_patient_ids))
+    else:
+        cohort_a_label = str(plan.get("cohort_a") or "").strip()
+        cohort_b_label = str(plan.get("cohort_b") or "").strip()
+        cohort_a_ids = _disease_patient_ids_for_assay_query(data_dir, cohort_a_label, scoped_patient_ids)
+        cohort_b_ids = _disease_patient_ids_for_assay_query(data_dir, cohort_b_label, scoped_patient_ids)
+        if not cohort_a_ids or not cohort_b_ids:
+            return {
+                "query": query,
+                "intent": "needs_clarification",
+                "reply": "Both named disease cohorts must match patients in the current workspace scope.",
+                "data": {"modality": modality, "execution": "deterministic"},
+            }
+        comparison = store_external_assay_feature_comparison(
+            data_dir,
+            modality=modality,
+            feature_query=feature,
+            cohort_a_patient_ids=cohort_a_ids,
+            cohort_b_patient_ids=cohort_b_ids,
+            limit=20,
+        )
+        response = _assay_comparison_response(
+            query,
+            comparison,
+            cohort_a_label=cohort_a_label,
+            cohort_b_label=cohort_b_label,
+        )
+    if planner:
+        response["data"]["planner"] = planner
+        response["data"]["semantic_plan"] = plan
+    return response
+
+
+def _deterministic_assay_query(
+    data_dir: str,
+    query: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Dict[str, Any] | None:
+    modality = _assay_modality_from_text(query)
+    if not modality:
+        return None
+    lowered = query.lower()
+    catalog = store_external_assay_feature_catalog(data_dir, modality=modality, limit=100)
+    feature = _assay_feature_from_text(query, catalog)
+    if re.search(r"\b(compare|difference)\b", lowered):
+        cohort_match = re.search(r"\bbetween\s+(.+?)\s+(?:and|versus|vs\.?)\s+(.+?)[?.]*$", query, flags=re.IGNORECASE)
+        if not feature or not cohort_match:
+            return {
+                "query": query,
+                "intent": "needs_clarification",
+                "reply": "Name one listed assay feature and two disease cohorts, for example: Compare FEATURE between Disease A and Healthy Control.",
+                "data": {"modality": modality, "execution": "deterministic"},
+            }
+        return _execute_assay_query_plan(
+            data_dir,
+            query,
+            {
+                "intent": "assay_query",
+                "operation": "compare",
+                "modality": modality,
+                "feature": feature,
+                "cohort_a": cohort_match.group(1).strip(),
+                "cohort_b": cohort_match.group(2).strip(),
+            },
+            scoped_patient_ids=scoped_patient_ids,
+        )
+    if any(token in lowered for token in ("summar", "average", "mean", "median", "distribution")):
+        if not feature:
+            return {
+                "query": query,
+                "intent": "needs_clarification",
+                "reply": "Name one assay feature to summarize. You can first ask to list the available features.",
+                "data": {"modality": modality, "execution": "deterministic"},
+            }
+        return _execute_assay_query_plan(
+            data_dir,
+            query,
+            {
+                "intent": "assay_query",
+                "operation": "summary",
+                "modality": modality,
+                "feature": feature,
+            },
+            scoped_patient_ids=scoped_patient_ids,
+        )
+    inventory_request = any(token in lowered for token in ("list", "show", "available", "inventory")) or (
+        any(token in lowered for token in ("what", "which"))
+        and any(token in lowered for token in ("marker", "feature", "population"))
+    )
+    if inventory_request:
+        return _execute_assay_query_plan(
+            data_dir,
+            query,
+            {"intent": "assay_query", "operation": "inventory", "modality": modality, "feature": ""},
+            scoped_patient_ids=scoped_patient_ids,
+        )
+    return None
 
 
 def _needs_clarification(query: str) -> bool:
@@ -1425,6 +1775,7 @@ def _semantic_query_catalog(
             "catalog_policy": "Safe-summary AI-provider mode does not expose patient-derived clinical catalog values.",
         }
     context = scope_context or _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids)
+    external_assays = store_external_assay_feature_catalog(data_dir, limit=100)
     return {
         "patient_count": len(context.patient_ids),
         "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
@@ -1434,6 +1785,7 @@ def _semantic_query_catalog(
         "supported_numeric_operators": ["eq", "gt", "gte", "lt", "lte"],
         "known_diseases": [item["disease"] for item in context.disease_counts[:50]],
         "known_treatments": [item["medication"] for item in context.medication_counts[:50]],
+        "external_assays": external_assays,
     }
 
 
@@ -1460,6 +1812,29 @@ def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
 
 
 def _validate_semantic_query_plan(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if plan.get("intent") == "assay_query":
+        operation = str(plan.get("operation") or "").strip().lower()
+        modality = str(plan.get("modality") or "").strip().lower()
+        feature = str(plan.get("feature") or "").strip()
+        cohort_a = str(plan.get("cohort_a") or "").strip()
+        cohort_b = str(plan.get("cohort_b") or "").strip()
+        if operation not in {"inventory", "summary", "compare"}:
+            return None
+        if modality not in {"flow_cytometry", "serology"}:
+            return None
+        if len(feature) > 200 or len(cohort_a) > 200 or len(cohort_b) > 200:
+            return None
+        if operation in {"summary", "compare"} and not feature:
+            return None
+        if operation == "compare" and (not cohort_a or not cohort_b):
+            return None
+        return {
+            "intent": "assay_query",
+            "operation": operation,
+            "modality": modality,
+            "feature": feature,
+            **({"cohort_a": cohort_a, "cohort_b": cohort_b} if operation == "compare" else {}),
+        }
     if plan.get("intent") != "cohort_query":
         return None
 
@@ -1655,7 +2030,13 @@ def _semantic_query_plan(
                     "{\"intent\":\"cohort_query\",\"output\":\"count|patient_list\",\"logic\":\"and|or\","
                     "\"filters\":[{\"domain\":\"patient_id|disease|treatment|medication_count|visit_count\","
                     "\"operator\":\"contains|eq|gt|gte|lt|lte\",\"value\":\"string or number\",\"negate\":false}]}. "
+                    "For approved compact assays, use "
+                    "{\"intent\":\"assay_query\",\"operation\":\"inventory|summary|compare\","
+                    "\"modality\":\"flow_cytometry|serology\",\"feature\":\"catalog feature\","
+                    "\"cohort_a\":\"disease label\",\"cohort_b\":\"disease label\"}. "
+                    "Inventory does not need feature or cohorts; summary needs feature; compare needs feature and both cohorts. "
                     "Use string operators only for patient_id/disease/treatment and numeric operators only for medication_count/visit_count. "
+                    "Use only assay modalities and feature identifiers listed in the catalog. "
                     "If the question uses a category term such as biologics, expand it into explicit treatment filters using the known treatments in the catalog."
                 ),
             },
@@ -1701,6 +2082,14 @@ def _semantic_query_plan(
     validated = _validate_semantic_query_plan(parsed)
     if validated is None:
         return None
+    if validated.get("intent") == "assay_query":
+        return _execute_assay_query_plan(
+            data_dir,
+            query,
+            validated,
+            scoped_patient_ids=scoped_patient_ids,
+            planner={"provider": "lm_studio", "model": model, "base_url": _lm_studio_base_url()},
+        )
     return _execute_semantic_query_plan(data_dir, query, validated, model, scoped_patient_ids=scoped_patient_ids)
 
 
@@ -1953,6 +2342,22 @@ def _answer_query_impl(
                 "conversation_history": history[-8:] if history else [],
             },
         }
+
+    try:
+        assay_response = _deterministic_assay_query(
+            data_dir,
+            text,
+            scoped_patient_ids=active_scoped_patient_ids,
+        )
+    except ValueError as exc:
+        return {
+            "query": query,
+            "intent": "needs_clarification",
+            "reply": str(exc),
+            "data": {"execution": "deterministic", "source_boundary": "external_manifest_assay"},
+        }
+    if assay_response is not None:
+        return assay_response
 
     medication_count_constraint = _medication_count_constraint(text)
     visit_count_constraint = _visit_count_constraint(text)

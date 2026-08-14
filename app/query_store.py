@@ -2189,6 +2189,316 @@ def assay_dataset_matrix_preview(data_dir: str, dataset_name: str, feature_limit
     return _manifest_assay_matrix_preview(data_dir, normalized_name, limit)
 
 
+QUERYABLE_EXTERNAL_ASSAY_MODALITIES = {"flow_cytometry", "serology"}
+_EXTERNAL_ASSAY_MISSING_VALUES = {"", "na", "n/a", "nan", "null", "none", "."}
+
+
+def _queryable_external_assay_item(
+    data_dir: str,
+    assay_id: str = "",
+    modality: str = "",
+) -> Dict[str, Any] | None:
+    wanted_id = str(assay_id or "").strip()
+    wanted_modality = str(modality or "").strip().lower()
+    matches: List[Dict[str, Any]] = []
+    for item in _assay_manifest_items(data_dir):
+        item_modality = str(item.get("modality") or "").strip().lower()
+        if item_modality not in QUERYABLE_EXTERNAL_ASSAY_MODALITIES:
+            continue
+        item_id = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
+        if wanted_id and item_id != wanted_id:
+            continue
+        if wanted_modality and item_modality != wanted_modality:
+            continue
+        matches.append(item)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _external_assay_matrix_path(data_dir: str, item: Dict[str, Any]) -> Path:
+    root = _manifest_item_root(data_dir, item).resolve()
+    relative_file = str(item.get("file") or "").strip()
+    if not relative_file:
+        raise ValueError("The assay matrix file is not declared.")
+    path = (root / relative_file).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        raise ValueError("The assay matrix must remain inside the authorized release.") from None
+    if not path.is_file():
+        raise ValueError("The assay matrix is unavailable.")
+    return path
+
+
+def _external_assay_header(data_dir: str, item: Dict[str, Any]) -> Tuple[Path, str, List[str], Dict[str, str]]:
+    path = _external_assay_matrix_path(data_dir, item)
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        first_line = handle.readline()
+    if not first_line:
+        raise ValueError("The assay matrix is empty.")
+    delimiter = _detect_matrix_delimiter(first_line)
+    header = next(csv.reader([first_line], delimiter=delimiter), [])
+    sample_ids = [str(value or "").strip() for value in header[1:]]
+    if not sample_ids or any(not value for value in sample_ids) or len(sample_ids) != len(set(sample_ids)):
+        raise ValueError("The assay matrix has invalid sample identifiers.")
+    linkage = _manifest_assay_sample_patient_links(_manifest_item_root(data_dir, item), item, sample_ids)
+    links = {str(key): str(value) for key, value in dict(linkage.get("links") or {}).items() if str(value)}
+    if len(links) != len(sample_ids):
+        raise ValueError("Every assay sample must have explicit patient linkage before it can be queried.")
+    return path, delimiter, sample_ids, links
+
+
+def external_assay_feature_catalog(
+    data_dir: str,
+    modality: str = "",
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Return bounded non-patient feature metadata for compact external assays."""
+    ensure_query_store(data_dir)
+    wanted_modality = str(modality or "").strip().lower()
+    maximum = max(1, min(int(limit or 100), 200))
+    payload: List[Dict[str, Any]] = []
+    for item in _assay_manifest_items(data_dir):
+        item_modality = str(item.get("modality") or "").strip().lower()
+        if item_modality not in QUERYABLE_EXTERNAL_ASSAY_MODALITIES:
+            continue
+        if wanted_modality and item_modality != wanted_modality:
+            continue
+        assay_id = str(item.get("assay_id") or Path(str(item.get("file") or "")).stem).strip()
+        path, delimiter, _, _ = _external_assay_header(data_dir, item)
+        features: List[str] = []
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle, delimiter=delimiter)
+            next(reader, None)
+            for row in reader:
+                feature_id = str(row[0] if row else "").strip()
+                if feature_id:
+                    features.append(feature_id)
+                if len(features) >= maximum:
+                    break
+        payload.append(
+            {
+                "assay_id": assay_id,
+                "label": str(item.get("label") or assay_id).strip() or assay_id,
+                "modality": item_modality,
+                "data_type": str(item.get("data_type") or "feature_matrix").strip(),
+                "feature_count": int(item.get("feature_count") or len(features)),
+                "features": features,
+            }
+        )
+    return sorted(payload, key=lambda value: (value["modality"], value["assay_id"]))
+
+
+def _external_numeric_value(token: Any) -> float | None:
+    text = str(token or "").strip()
+    if text.lower() in _EXTERNAL_ASSAY_MISSING_VALUES:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        raise ValueError("The selected assay contains a non-numeric measurement.") from None
+    if not math.isfinite(value):
+        raise ValueError("The selected assay contains a non-finite measurement.")
+    return value
+
+
+def _summarize_external_values(
+    values: List[Tuple[str, str, float]],
+    *,
+    scope_sample_count: int,
+) -> Dict[str, Any]:
+    numeric = sorted(value for _, _, value in values)
+    if not numeric:
+        return {
+            "sample_count": 0,
+            "patient_count": 0,
+            "missing_count": scope_sample_count,
+            "mean": None,
+            "median": None,
+            "min": None,
+            "max": None,
+        }
+    middle = len(numeric) // 2
+    median = numeric[middle] if len(numeric) % 2 else (numeric[middle - 1] + numeric[middle]) / 2
+    return {
+        "sample_count": len(numeric),
+        "patient_count": len({patient_id for patient_id, _, _ in values}),
+        "missing_count": max(0, scope_sample_count - len(numeric)),
+        "mean": sum(numeric) / len(numeric),
+        "median": median,
+        "min": numeric[0],
+        "max": numeric[-1],
+    }
+
+
+def _external_assay_feature_values(
+    data_dir: str,
+    *,
+    assay_id: str = "",
+    modality: str = "",
+    feature_query: str = "",
+    limit: int = 20,
+) -> Dict[str, Any]:
+    item = _queryable_external_assay_item(data_dir, assay_id=assay_id, modality=modality)
+    if item is None:
+        raise ValueError("Choose exactly one immune-cell or quantitative-serology assay.")
+    path, delimiter, sample_ids, links = _external_assay_header(data_dir, item)
+    needle = str(feature_query or "").strip().lower()
+    maximum = max(1, min(int(limit or 20), 100))
+    exact_rows: List[Tuple[str, List[str]]] = []
+    partial_rows: List[Tuple[str, List[str]]] = []
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle, delimiter=delimiter)
+        next(reader, None)
+        seen_features: set[str] = set()
+        for row in reader:
+            if not row:
+                continue
+            feature_id = str(row[0] or "").strip()
+            if not feature_id:
+                continue
+            if feature_id in seen_features:
+                raise ValueError("The selected assay contains duplicate feature identifiers.")
+            seen_features.add(feature_id)
+            if len(row) != len(sample_ids) + 1:
+                raise ValueError("The selected assay contains an invalid matrix row width.")
+            if not needle:
+                partial_rows.append((feature_id, row))
+            elif feature_id.lower() == needle:
+                exact_rows.append((feature_id, row))
+            elif needle in feature_id.lower():
+                partial_rows.append((feature_id, row))
+            if len(exact_rows) >= maximum or (not needle and len(partial_rows) >= maximum):
+                break
+    selected_rows = (exact_rows or partial_rows)[:maximum]
+    features: List[Dict[str, Any]] = []
+    for feature_id, row in selected_rows:
+        feature_values: List[Tuple[str, str, float]] = []
+        for index, sample_id in enumerate(sample_ids, start=1):
+            value = _external_numeric_value(row[index] if index < len(row) else "")
+            patient_id = links[sample_id]
+            if value is not None:
+                feature_values.append((patient_id, sample_id, value))
+        features.append(
+            {
+                "feature_id": feature_id,
+                "values": feature_values,
+            }
+        )
+    assay_id_value = str(item.get("assay_id") or path.stem).strip()
+    return {
+        "assay_id": assay_id_value,
+        "label": str(item.get("label") or assay_id_value).strip() or assay_id_value,
+        "modality": str(item.get("modality") or "assay").strip(),
+        "data_type": str(item.get("data_type") or "feature_matrix").strip(),
+        "sample_ids": sample_ids,
+        "links": links,
+        "features": features,
+    }
+
+
+def external_assay_feature_summary(
+    data_dir: str,
+    *,
+    assay_id: str = "",
+    modality: str = "",
+    feature_query: str = "",
+    selected_patient_ids: List[str] | None = None,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    """Compute bounded aggregate statistics without returning measurement rows."""
+    ensure_query_store(data_dir)
+    source = _external_assay_feature_values(
+        data_dir,
+        assay_id=assay_id,
+        modality=modality,
+        feature_query=feature_query,
+        limit=limit,
+    )
+    selected = {str(value).strip() for value in (selected_patient_ids or []) if str(value).strip()}
+    scoped_samples = [
+        sample_id
+        for sample_id in source["sample_ids"]
+        if not selected or source["links"].get(sample_id) in selected
+    ]
+    rows: List[Dict[str, Any]] = []
+    for feature in source["features"]:
+        values = [
+            item for item in feature["values"]
+            if not selected or item[0] in selected
+        ]
+        rows.append(
+            {
+                "feature_id": feature["feature_id"],
+                **_summarize_external_values(values, scope_sample_count=len(scoped_samples)),
+            }
+        )
+    return {
+        "assay_id": source["assay_id"],
+        "label": source["label"],
+        "modality": source["modality"],
+        "data_type": source["data_type"],
+        "scope_sample_count": len(scoped_samples),
+        "scope_patient_count": len({source["links"][sample_id] for sample_id in scoped_samples}),
+        "features": rows,
+    }
+
+
+def external_assay_feature_comparison(
+    data_dir: str,
+    *,
+    assay_id: str = "",
+    modality: str = "",
+    feature_query: str = "",
+    cohort_a_patient_ids: List[str],
+    cohort_b_patient_ids: List[str],
+    limit: int = 20,
+) -> Dict[str, Any]:
+    """Compare two disjoint cohorts descriptively; inferential tests belong in Analysis."""
+    cohort_a = {str(value).strip() for value in cohort_a_patient_ids if str(value).strip()}
+    cohort_b = {str(value).strip() for value in cohort_b_patient_ids if str(value).strip()}
+    if not cohort_a or not cohort_b:
+        raise ValueError("Both assay comparison cohorts must contain patients.")
+    if cohort_a.intersection(cohort_b):
+        raise ValueError("Assay comparison cohorts must be disjoint.")
+    source = _external_assay_feature_values(
+        data_dir,
+        assay_id=assay_id,
+        modality=modality,
+        feature_query=feature_query,
+        limit=limit,
+    )
+    sample_counts = {
+        "a": sum(1 for sample_id in source["sample_ids"] if source["links"].get(sample_id) in cohort_a),
+        "b": sum(1 for sample_id in source["sample_ids"] if source["links"].get(sample_id) in cohort_b),
+    }
+    rows: List[Dict[str, Any]] = []
+    for feature in source["features"]:
+        values_a = [item for item in feature["values"] if item[0] in cohort_a]
+        values_b = [item for item in feature["values"] if item[0] in cohort_b]
+        summary_a = _summarize_external_values(values_a, scope_sample_count=sample_counts["a"])
+        summary_b = _summarize_external_values(values_b, scope_sample_count=sample_counts["b"])
+        difference = None
+        if summary_a["mean"] is not None and summary_b["mean"] is not None:
+            difference = summary_a["mean"] - summary_b["mean"]
+        rows.append(
+            {
+                "feature_id": feature["feature_id"],
+                "cohort_a": summary_a,
+                "cohort_b": summary_b,
+                "mean_difference_a_minus_b": difference,
+            }
+        )
+    return {
+        "assay_id": source["assay_id"],
+        "label": source["label"],
+        "modality": source["modality"],
+        "data_type": source["data_type"],
+        "cohort_a_patient_count": len(cohort_a),
+        "cohort_b_patient_count": len(cohort_b),
+        "features": rows,
+    }
+
+
 def _parse_patient_scope(scope: str) -> List[str]:
     return [item.strip() for item in str(scope or "").split(",") if item.strip()]
 

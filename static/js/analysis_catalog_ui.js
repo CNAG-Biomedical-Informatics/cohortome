@@ -749,7 +749,7 @@ export function createAnalysisCatalogUi(ctx) {
         const selectedCount = selectedDatasetNames.length;
         const datasetBadge = requiresSingleSelectedAssayDataset(item)
           ? (selectedCount === 1 ? `Assay ready: ${selectedDatasetNames[0]}` : selectedCount > 1 ? `${selectedCount} assays selected` : "Choose 1 assay")
-          : (selectedCount ? `${selectedCount} dataset${selectedCount === 1 ? "" : "s"} selected` : "Choose assay");
+          : (selectedCount ? `${selectedCount} assay${selectedCount === 1 ? "" : "s"} selected` : "Choose assay");
         badges.push(`<span class="query-chip badge">${escapeHtml(datasetBadge)}</span>`);
       }
       analysisCatalogSetupBadgesEl.innerHTML = badges.join("");

@@ -1798,7 +1798,7 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardAssaysBtn").click()
 
-    expect(page.locator("#assayDashboardOverview")).to_contain_text("Datasets")
+    expect(page.locator("#assayDashboardOverview")).to_contain_text("Assays")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Transcriptomics")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Immune-cell abundance")
@@ -2004,6 +2004,56 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+
+
+def test_query_external_assay_summary_renders_bounded_aggregate_table(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    page.route(
+        "**/query",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "intent": "external_assay_summary",
+                    "reply": (
+                        "Descriptive sample-level summary for Quantitative serology (4 samples; no inferential test).\n\n"
+                        "| Feature | N | Missing | Mean | Median | Min | Max |\n"
+                        "|---|---:|---:|---:|---:|---:|---:|\n"
+                        "| Marker_A | 4 | 0 | 4 | 4 | 2 | 6 |"
+                    ),
+                    "data": {
+                        "execution": "deterministic",
+                        "source_boundary": "external_manifest_assay",
+                        "modality": "serology",
+                        "assay_results": [
+                            {
+                                "feature_id": "Marker_A",
+                                "sample_count": 4,
+                                "missing_count": 0,
+                                "mean": 4.0,
+                                "median": 4.0,
+                                "min": 2.0,
+                                "max": 6.0,
+                            }
+                        ],
+                    },
+                    "action_context": {"patient_ids": [], "record_ids": [], "id_type": "patient"},
+                }
+            ),
+        ),
+    )
+
+    page.locator("#question").fill("Summarize Marker_A in serology")
+    page.locator("#askBtn").click()
+
+    turn = page.locator("#queryThread .query-thread-turn-assistant").last
+    expect(turn).to_contain_text("Assay summary")
+    expect(turn).to_contain_text("Deterministic")
+    expect(turn.locator("table thead")).to_contain_text("Feature")
+    expect(turn.locator("table tbody")).to_contain_text("Marker_A")
+    expect(turn).to_contain_text("no inferential test")
 
 
 def test_query_large_patient_result_is_bounded_and_pages_by_handle(page) -> None:

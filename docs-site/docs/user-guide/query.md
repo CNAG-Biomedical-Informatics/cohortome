@@ -29,6 +29,35 @@ Common examples include:
 - `Which patients have Crohn Disease?`
 - `Which patients do not have Crohn Disease but take Infliximab?`
 
+### Compact external assays
+
+Approved immune-cell abundance and quantitative-serology assays can be queried
+without loading their measurements into DuckDB. Query reads the governed
+manifest-backed matrix locally and returns bounded aggregates.
+
+Examples:
+
+- `List the available serology markers`
+- `List the available immune-cell populations`
+- `Summarize FEATURE in serology`
+- `Summarize FEATURE in flow cytometry for this cohort`
+- `Compare FEATURE in serology between Disease A and Healthy Control`
+
+Feature summaries report sample count, missingness, mean, median, minimum, and
+maximum. Comparisons report descriptive cohort means and their difference. They
+do not apply covariate adjustment or hypothesis testing; use a curated Analysis
+tool for publication-grade inference.
+
+A comparison resolves cohorts from recorded disease labels. When a requested
+control label is absent, Query can use patients with no recorded disease as a
+control proxy and says so in the result. Verify that proxy against study design
+before interpreting it as a healthy-control group.
+
+The deterministic route is available whenever the assay and workspace policy
+allow local detailed access. An LLM may select the same constrained operations
+only when AI-provider policy permits the assay catalog to be shared; the model
+does not execute SQL or receive the returned measurement rows.
+
 ## Choose the question context
 
 The composer has an explicit context switch:

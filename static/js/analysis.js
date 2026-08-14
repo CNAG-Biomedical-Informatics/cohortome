@@ -509,7 +509,7 @@ export function createAnalysisUi(ctx) {
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
       const downloads = renderArtifactDownloads("Result files", [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]);
       const summaryItems = [
-        { label: "Dataset", value: String(context.dataset_name || "n/a") },
+        { label: "Assay", value: String(context.dataset_name || "n/a") },
         { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
         { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
         { label: "Ranked genes", value: Number(context.ranked_gene_count || 0) },

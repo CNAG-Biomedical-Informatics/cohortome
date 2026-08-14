@@ -1925,7 +1925,7 @@ export function createDashboardUi(ctx) {
     if (!assayDashboardOverviewEl) return;
     const items = Array.isArray(datasets) ? datasets : [];
     if (!items.length) {
-      assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assay datasets to review modality coverage.</div>';
+      assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assays to review modality coverage.</div>';
       return;
     }
     const patientIds = new Set();
@@ -1948,7 +1948,7 @@ export function createDashboardUi(ctx) {
           <div class="section-note">${escapeHtml(modalities.map((item) => formatAssayModality(item)).join(" · "))}</div>
         </div>
         <div class="assay-workspace-kpis">
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Datasets</span><strong class="assay-kpi-value">${escapeHtml(String(items.length))}</strong></div>
+          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Assays</span><strong class="assay-kpi-value">${escapeHtml(String(items.length))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(sampleIds.size))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(patientIds.size))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(featureTotal))}</strong></div>
@@ -2387,7 +2387,7 @@ export function createDashboardUi(ctx) {
     assayDashboardCardsEl.innerHTML = `
       <section class="assay-modality-section">
         <div class="assay-modality-section-header">
-          <strong>${escapeHtml(selected === "all" ? "All assay datasets" : formatAssayModality(selected))}</strong>
+          <strong>${escapeHtml(selected === "all" ? "All assays" : formatAssayModality(selected))}</strong>
           <span class="query-chip badge">${escapeHtml(String(visibleItems.length))} assay${visibleItems.length === 1 ? "" : "s"}</span>
         </div>
         <div class="assay-dashboard-grid">
@@ -2493,10 +2493,10 @@ export function createDashboardUi(ctx) {
     analysisAssayStatusEl.className = "query-status loading";
     analysisAssayStatusEl.textContent = "Checking transcriptomics assays...";
     if (analysisCatalogAssayStatusEl) {
-      analysisCatalogAssayStatusEl.textContent = "Checking assay datasets...";
+      analysisCatalogAssayStatusEl.textContent = "Checking assays...";
     }
     assayDashboardStatusEl.className = "query-status loading";
-    assayDashboardStatusEl.textContent = "Checking assay datasets...";
+    assayDashboardStatusEl.textContent = "Checking assays...";
     try {
       const payload = options.prefetched && typeof options.prefetched === "object"
         ? options.prefetched
@@ -2535,7 +2535,7 @@ export function createDashboardUi(ctx) {
       if (analysisCatalogAssayStatusEl) {
         analysisCatalogAssayStatusEl.textContent = datasets.length === 1
           ? `1 assay dataset available for Analysis.`
-          : `${datasets.length} assay datasets available. Some assay tools require exactly one selected assay.`;
+          : `${datasets.length} assays available. Some assay tools require exactly one selected assay.`;
       }
       assayDashboardStatusEl.className = "query-status";
       assayDashboardStatusEl.textContent = `Loaded ${datasets.length} assay dataset${datasets.length === 1 ? "" : "s"}.`;
