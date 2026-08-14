@@ -4035,6 +4035,26 @@ def test_analysis_catalog_declares_two_governed_quantitative_assay_comparisons()
         assert item["required_data_types"] == [data_type]
 
 
+def test_analysis_catalog_restricts_builtin_transcript_count_analyses_to_raw_counts():
+    items = {
+        item["id"]: item
+        for item in analysis_catalog_module.load_analysis_catalog()
+        if item["id"] in {
+            "transcriptomics-expression",
+            "transcriptomics-medication-compare",
+        }
+    }
+
+    assert set(items) == {
+        "transcriptomics-expression",
+        "transcriptomics-medication-compare",
+    }
+    for item in items.values():
+        assert item["runner_type"] == "builtin"
+        assert item["required_modalities"] == ["transcriptomics"]
+        assert item["required_data_types"] == ["raw_counts"]
+
+
 def test_analysis_catalog_loader_preserves_debug_only_flag(tmp_path):
     catalog_path = tmp_path / "catalog.yaml"
     catalog_path.write_text(
@@ -4708,7 +4728,7 @@ def test_methylation_runner_requires_explicit_valid_covariate_types(tmp_path, mo
 @pytest.mark.parametrize(
     ("metadata_problem", "error_pattern"),
     [
-        ("missing", "Every selected methylation matrix sample must have explicit patient linkage metadata"),
+        ("missing", "Every selected assay matrix sample must have explicit patient linkage metadata"),
         ("duplicate", "duplicate sample identifiers"),
         ("ambiguous", "ambiguous row with extra fields"),
     ],
@@ -9676,6 +9696,44 @@ def test_manifest_assay_inventory_honors_exact_sample_id_with_technical_metadata
     assert item["linkage_source"] == "exact_sample_id"
     assert item["linked_sample_count"] == 2
     assert item["unlinked_sample_count"] == 0
+    assert item["supports_expression_summary"] is False
+
+    catalog = analysis_catalog_module.analysis_catalog_payload(str(tmp_path))
+    catalog_items = {value["id"]: value for value in catalog["items"]}
+    for item_id in (
+        "transcriptomics-expression",
+        "transcriptomics-medication-compare",
+    ):
+        assert catalog_items[item_id]["available"] is False
+        assert "raw_counts" in catalog_items[item_id]["unavailable_reason"]
+
+    expression_context = analysis_module.transcriptomics_expression_context(
+        str(tmp_path),
+        "ENSG00000141510",
+    )
+    medication_context = analysis_module.transcriptomics_expression_by_medication_context(str(tmp_path))
+    assert expression_context["datasets"] == []
+    assert "No raw-count transcriptomics assays" in expression_context["error"]
+    assert medication_context["comparisons"] == []
+    assert "raw-count transcriptomics assays" in medication_context["error"]
+
+    with pytest.raises(RuntimeError, match="compatible assay"):
+        analysis_module.analysis_llm_reply(
+            "Show expression of ENSG00000141510 in the current Analysis scope.",
+            str(tmp_path),
+            catalog_item_id="transcriptomics-expression",
+            assay_id="synthetic_rsem_expected_counts",
+            deterministic_only=True,
+        )
+
+    with pytest.raises(RuntimeError, match="compatible assay"):
+        analysis_module.analysis_llm_reply(
+            "Explain differences in gene expression according to medication.",
+            str(tmp_path),
+            catalog_item_id="transcriptomics-medication-compare",
+            assay_id="synthetic_rsem_expected_counts",
+            deterministic_only=True,
+        )
 
 
 def test_methylation_manifest_is_registered_without_materializing_values(tmp_path, monkeypatch):
@@ -10023,6 +10081,98 @@ def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
 
     assert matrices[0] == matrices[1]
     assert matrices[0].splitlines()[1].startswith("cg00000029;")
+
+
+def test_synthetic_compact_assay_fixtures_have_complete_analysis_ready_linkage():
+    expected = {
+        "synthetic_immune_cell_abundance": {
+            "modality": "flow_cytometry",
+            "data_type": "cell_population_abundance",
+            "feature_namespace": "immune_cell_population",
+            "feature_label": "immune-cell populations",
+            "feature_count": 5,
+            "metadata_file": "assays/flow_cytometry/synthetic_immune_cell_sample_metadata.tsv",
+        },
+        "synthetic_quantitative_serology": {
+            "modality": "serology",
+            "data_type": "quantitative_measurement",
+            "feature_namespace": "serology_marker",
+            "feature_label": "serology markers",
+            "feature_count": 6,
+            "metadata_file": "assays/serology/synthetic_serology_sample_metadata.tsv",
+        },
+    }
+    generated_payloads = {}
+
+    for dataset_root in (Path("default_dataset"), Path("dataset-large")):
+        manifest = json.loads((dataset_root / "assays" / "manifest.json").read_text(encoding="utf-8"))
+        items = {value.get("assay_id"): value for value in manifest["assays"]}
+        clinical_records = json.loads(
+            (dataset_root / "clinical" / "synthetic_longitudinal.json").read_text(encoding="utf-8")
+        )
+        baseline_disease_by_patient = {
+            str(record.get("patient_id") or ""): str(
+                ((record.get("diseases") or [{}])[0].get("diseaseCode") or {}).get("label") or ""
+            )
+            for record in clinical_records
+            if str(record.get("id") or "").endswith(":week_0")
+        }
+
+        for assay_id, contract in expected.items():
+            item = items[assay_id]
+            matrix_path = dataset_root / item["file"]
+            metadata_path = dataset_root / item["sample_metadata_file"]
+            matrix_lines = matrix_path.read_text(encoding="utf-8").splitlines()
+            metadata_lines = metadata_path.read_text(encoding="utf-8").splitlines()
+            sample_ids = matrix_lines[0].split(";")[1:]
+            metadata_rows = [line.split("\t") for line in metadata_lines[1:]]
+            links = dict(metadata_rows)
+
+            assert item["modality"] == contract["modality"]
+            assert item["data_type"] == contract["data_type"]
+            assert item["feature_namespace"] == contract["feature_namespace"]
+            assert item["feature_label"] == contract["feature_label"]
+            assert item["value_kind"] == contract["data_type"]
+            assert item["level"] == "sample"
+            assert item["patient_linkage"] == "sample_metadata_file"
+            assert item["patient_id_column"] == "patient_id"
+            assert item["sample_metadata_file"] == contract["metadata_file"]
+            assert len(matrix_lines) - 1 == contract["feature_count"]
+            assert metadata_lines[0] == "sample_id\tpatient_id"
+            assert sample_ids == list(links)
+            assert len(sample_ids) == len(set(sample_ids)) == 8
+            assert len(set(links.values())) == 8
+            assert all(links[sample_id] in baseline_disease_by_patient for sample_id in sample_ids)
+
+            disease_counts = {
+                disease: sum(
+                    baseline_disease_by_patient[patient_id] == disease
+                    for patient_id in links.values()
+                )
+                for disease in (
+                    "Systemic Lupus Erythematosus",
+                    "Rheumatoid Arthritis",
+                )
+            }
+            assert disease_counts == {
+                "Systemic Lupus Erythematosus": 4,
+                "Rheumatoid Arthritis": 4,
+            }
+
+            stats = query_store_module._assay_matrix_stats(dataset_root.resolve(), item)
+            assert stats is not None
+            assert stats["sample_count"] == 8
+            assert stats["patient_count"] == 8
+            assert stats["feature_count"] == contract["feature_count"]
+            assert stats["linked_sample_count"] == 8
+            assert stats["unlinked_sample_count"] == 0
+            assert stats["linkage_source"] == "sample_metadata_file"
+
+            payload = (matrix_path.read_text(encoding="utf-8"), metadata_path.read_text(encoding="utf-8"))
+            if assay_id in generated_payloads:
+                assert generated_payloads[assay_id] == payload
+            else:
+                generated_payloads[assay_id] = payload
 
 
 def test_assay_inventory_metadata_honors_manifest_capability_overrides():

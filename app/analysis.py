@@ -600,14 +600,19 @@ def transcriptomics_expression_by_medication_context(
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
 ) -> Dict[str, Any]:
-    datasets = store_assay_dataset_inventory(data_dir)
+    datasets = [
+        item
+        for item in store_assay_dataset_inventory(data_dir)
+        if str(item.get("modality") or "").strip() == "transcriptomics"
+        and str(item.get("data_type") or "").strip() == "raw_counts"
+    ]
     scope_ids = parse_scope_ids(selected_patient_ids) + parse_scope_ids(compare_selected_patient_ids)
     scope_patient_ids = derive_scope_patient_ids(scope_ids)
     scope_patient_id_set = {item for item in scope_patient_ids if item}
     if len(datasets) < 2:
         return {
             "mode": "transcriptomics_medication_compare",
-            "error": "At least two assays are required to compare gene expression by medication.",
+            "error": "At least two raw-count transcriptomics assays are required to compare gene expression by medication.",
             "comparisons": [],
         }
     medication_items = store_medication_counts(data_dir)
@@ -645,7 +650,7 @@ def transcriptomics_expression_by_medication_context(
         return {
             "mode": "transcriptomics_medication_compare",
             "error": (
-                "At least two medication-aligned assays with patients in the current Analysis scope are required for deterministic comparison."
+                "At least two medication-aligned raw-count assays with patients in the current Analysis scope are required for deterministic comparison."
                 + detail
             ),
             "comparisons": [],
@@ -712,13 +717,18 @@ def transcriptomics_expression_context(
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
 ) -> Dict[str, Any]:
-    datasets = store_assay_dataset_inventory(data_dir)
+    datasets = [
+        item
+        for item in store_assay_dataset_inventory(data_dir)
+        if str(item.get("modality") or "").strip() == "transcriptomics"
+        and str(item.get("data_type") or "").strip() == "raw_counts"
+    ]
     if not datasets:
         return {
             "mode": "transcriptomics_expression",
             "gene_id": gene_id,
             "datasets": [],
-            "error": "No assays are currently available.",
+            "error": "No raw-count transcriptomics assays are currently available.",
         }
     summaries = [
         store_assay_expression_summary(

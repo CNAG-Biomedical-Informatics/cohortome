@@ -2,6 +2,23 @@
   "version": 1,
   "assays": [
     {
+      "assay_id": "synthetic_immune_cell_abundance",
+      "label": "Synthetic immune-cell abundance",
+      "modality": "flow_cytometry",
+      "data_type": "cell_population_abundance",
+      "level": "sample",
+      "feature_namespace": "immune_cell_population",
+      "feature_label": "immune-cell populations",
+      "value_kind": "cell_population_abundance",
+      "feature_id_column": "feature_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "patient_id",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/flow_cytometry/synthetic_immune_cell_abundance.csv",
+      "patient_linkage": "sample_metadata_file",
+      "sample_metadata_file": "assays/flow_cytometry/synthetic_immune_cell_sample_metadata.tsv"
+    },
+    {
       "assay_id": "synthetic_genotyping_risk_variants",
       "label": "synthetic genotyping risk variants",
       "modality": "genotyping",
@@ -68,6 +85,23 @@
       "patient_id_column": "derived_from_sample_id_prefix",
       "timepoint_column": "derived_from_sample_id_suffix",
       "file": "assays/proteomics/synthetic_proteomics_plasma_panel.csv"
+    },
+    {
+      "assay_id": "synthetic_quantitative_serology",
+      "label": "Synthetic quantitative serology",
+      "modality": "serology",
+      "data_type": "quantitative_measurement",
+      "level": "sample",
+      "feature_namespace": "serology_marker",
+      "feature_label": "serology markers",
+      "value_kind": "quantitative_measurement",
+      "feature_id_column": "feature_id",
+      "sample_id_column": "matrix_columns",
+      "patient_id_column": "patient_id",
+      "timepoint_column": "derived_from_sample_id_suffix",
+      "file": "assays/serology/synthetic_quantitative_serology.csv",
+      "patient_linkage": "sample_metadata_file",
+      "sample_metadata_file": "assays/serology/synthetic_serology_sample_metadata.tsv"
     },
     {
       "assay_id": "synthetic_transcriptome_raw_counts_adalimumab",

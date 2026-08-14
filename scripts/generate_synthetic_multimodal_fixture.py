@@ -925,6 +925,51 @@ PLACEHOLDER_ASSAYS = {
         "data_type": "relative_abundance",
         "feature_namespace": "protein_symbol",
     },
+    "flow_cytometry": {
+        "filename": "synthetic_immune_cell_abundance.csv",
+        "sample_metadata_filename": "synthetic_immune_cell_sample_metadata.tsv",
+        "label": "Synthetic immune-cell abundance",
+        "features": [
+            ("CD4_T_cells_fraction", [0.30, 0.28, 0.31, 0.29, 0.39, 0.37, 0.40, 0.38]),
+            ("CD8_T_cells_fraction", [0.22, 0.24, 0.21, 0.23, 0.19, 0.20, 0.18, 0.21]),
+            ("CD19_B_cells_fraction", [0.18, 0.19, 0.17, 0.20, 0.09, 0.10, 0.08, 0.11]),
+            ("NK_cells_fraction", [0.12, 0.13, 0.14, 0.11, 0.13, 0.14, 0.15, 0.12]),
+            ("CD14_monocytes_fraction", [0.18, 0.16, 0.17, 0.17, 0.20, 0.19, 0.19, 0.18]),
+        ],
+        "data_type": "cell_population_abundance",
+        "feature_namespace": "immune_cell_population",
+        "feature_label": "immune-cell populations",
+        "value_kind": "cell_population_abundance",
+        "patient_linkage": "sample_metadata_file",
+        "patient_id_column": "patient_id",
+        "sample_diseases": [
+            "Systemic Lupus Erythematosus",
+            "Rheumatoid Arthritis",
+        ],
+    },
+    "serology": {
+        "filename": "synthetic_quantitative_serology.csv",
+        "sample_metadata_filename": "synthetic_serology_sample_metadata.tsv",
+        "label": "Synthetic quantitative serology",
+        "features": [
+            ("Anti_dsDNA_IU_mL", [85, 110, 72, 96, 8, 12, 6, 10]),
+            ("Rheumatoid_factor_IU_mL", [9, 12, 7, 10, 86, 110, 72, 98]),
+            ("Complement_C3_g_L", [0.62, 0.71, 0.58, 0.67, 1.18, 1.09, 1.24, 1.15]),
+            ("Complement_C4_g_L", [0.08, 0.11, 0.07, 0.09, 0.25, 0.22, 0.28, 0.24]),
+            ("CXCL10_pg_mL", [410, 520, 380, "NA", 190, 220, 170, 205]),
+            ("CRP_mg_L", [5.2, 6.8, 4.7, 5.9, 13.5, 16.2, 11.8, 14.7]),
+        ],
+        "data_type": "quantitative_measurement",
+        "feature_namespace": "serology_marker",
+        "feature_label": "serology markers",
+        "value_kind": "quantitative_measurement",
+        "patient_linkage": "sample_metadata_file",
+        "patient_id_column": "patient_id",
+        "sample_diseases": [
+            "Systemic Lupus Erythematosus",
+            "Rheumatoid Arthritis",
+        ],
+    },
     "proteomics": {
         "filename": "synthetic_proteomics_plasma_panel.csv",
         "features": [
@@ -975,9 +1020,38 @@ PLACEHOLDER_ASSAYS = {
 }
 
 
-def _baseline_sample_ids(records: list[dict], limit: int = 8) -> list[str]:
+def _record_disease_labels(record: dict) -> set[str]:
+    labels: set[str] = set()
+    diseases = record.get("diseases")
+    if not isinstance(diseases, list):
+        return labels
+    for disease in diseases:
+        if not isinstance(disease, dict):
+            continue
+        code = disease.get("diseaseCode")
+        if not isinstance(code, dict):
+            continue
+        label = str(code.get("label") or "").strip()
+        if label:
+            labels.add(label)
+    return labels
+
+
+def _baseline_sample_ids(
+    records: list[dict],
+    limit: int = 8,
+    *,
+    disease_labels: list[str] | None = None,
+) -> list[str]:
+    selected_diseases = {
+        str(value or "").strip()
+        for value in (disease_labels or [])
+        if str(value or "").strip()
+    }
     sample_ids: list[str] = []
     for record in records:
+        if selected_diseases and not selected_diseases.intersection(_record_disease_labels(record)):
+            continue
         record_id = str(record.get("id") or "").strip()
         patient_id = str(
             record.get("subject", {}).get("id")
@@ -996,12 +1070,15 @@ def _baseline_sample_ids(records: list[dict], limit: int = 8) -> list[str]:
 
 
 def write_placeholder_assay_matrices(dataset_root: Path, clinical_records: list[dict]) -> None:
-    sample_ids = _baseline_sample_ids(clinical_records)
-    if not sample_ids:
-        return
     assays_root = dataset_root / "assays"
-    header = ["feature_id", *sample_ids]
     for modality, spec in PLACEHOLDER_ASSAYS.items():
+        sample_ids = _baseline_sample_ids(
+            clinical_records,
+            disease_labels=list(spec.get("sample_diseases") or []),
+        )
+        if not sample_ids:
+            continue
+        header = ["feature_id", *sample_ids]
         out_dir = assays_root / modality
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / str(spec["filename"])
@@ -1038,16 +1115,21 @@ def write_assay_manifest(dataset_root: Path) -> None:
             "data_type": data_type,
             "level": "sample",
             "feature_namespace": feature_namespace,
-            "feature_id_column": "gene_id" if modality == "transcriptomics" else "feature_id",
-            "sample_id_column": "matrix_columns",
-            "patient_id_column": "derived_from_sample_id_prefix",
-            "timepoint_column": "derived_from_sample_id_suffix",
-            "file": str(path.relative_to(assays_root.parent)),
         }
         for key in ("feature_label", "value_kind"):
             value = str(spec.get(key) or "").strip()
             if value:
                 resource[key] = value
+        resource.update({
+            "feature_id_column": "gene_id" if modality == "transcriptomics" else "feature_id",
+            "sample_id_column": "matrix_columns",
+            "patient_id_column": str(spec.get("patient_id_column") or "derived_from_sample_id_prefix"),
+            "timepoint_column": "derived_from_sample_id_suffix",
+            "file": str(path.relative_to(assays_root.parent)),
+        })
+        patient_linkage = str(spec.get("patient_linkage") or "").strip()
+        if patient_linkage:
+            resource["patient_linkage"] = patient_linkage
         sample_metadata_filename = str(spec.get("sample_metadata_filename") or "").strip()
         if sample_metadata_filename:
             resource["sample_metadata_file"] = str(
@@ -1055,7 +1137,7 @@ def write_assay_manifest(dataset_root: Path) -> None:
             )
         resources.append(resource)
     manifest = {"version": 1, "assays": resources}
-    (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def write_dicom_studies_manifest(dataset_root: Path, clinical_records: list[dict], *, private: bool = False) -> None:

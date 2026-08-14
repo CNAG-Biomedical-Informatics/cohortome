@@ -1514,7 +1514,7 @@ def _assay_inventory_metadata(
         feature_id_type = "ensembl_gene_id"
         feature_label = "genes"
         value_kind = "integer_counts" if data_type_text == "raw_counts" else "expression_values"
-        supports_expression_summary = True
+        supports_expression_summary = data_type_text == "raw_counts"
         supports_differential_expression = data_type_text == "raw_counts"
     elif modality_text == "methylation":
         feature_id_type = "illumina_cpg_probe_id"
@@ -1584,6 +1584,8 @@ def _assay_inventory_metadata(
     for key in ("supports_expression_summary", "supports_differential_expression"):
         if isinstance(item.get(key), bool):
             metadata[key] = item[key]
+    if modality_text == "transcriptomics" and data_type_text != "raw_counts":
+        metadata["supports_expression_summary"] = False
     levels = item.get("compatible_analysis_levels")
     if isinstance(levels, list):
         normalized_levels = [str(value).strip() for value in levels if str(value or "").strip()]
@@ -1744,7 +1746,7 @@ def _manifest_assay_sample_patient_links(
     }
     unlinked = [sample_id for sample_id in normalized_samples if sample_id not in links]
     if require_complete_metadata and unlinked:
-        raise ValueError("Every selected methylation matrix sample must have explicit patient linkage metadata.")
+        raise ValueError("Every selected assay matrix sample must have explicit patient linkage metadata.")
     return {
         "links": links,
         "linkage_source": "sample_metadata_file",

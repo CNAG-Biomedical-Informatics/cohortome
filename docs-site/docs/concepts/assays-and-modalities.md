@@ -18,6 +18,12 @@ Each assay dataset is identified by stable metadata:
 
 Curated Analysis tools currently support transcriptomics, externally stored processed methylation M-value matrices, flow-cytometry immune-cell abundance, and quantitative serology. The two compact quantitative modalities support bounded Query summaries plus exploratory Wilcoxon cohort comparisons. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
 
+The bundled public datasets include deterministic compact fixtures for four
+synthetic systemic lupus erythematosus patients and four synthetic rheumatoid
+arthritis patients at baseline, with complete sample-to-patient metadata.
+These fixtures exercise Query and Analysis end to end; their contrasts are not
+biological evidence.
+
 Methylation follows a deliberately thin integration boundary. The complete high-dimensional probe matrix remains in the governed release rather than being materialized in DuckDB. COHORTome registers its assay metadata and sample linkage, then a curated runner reads the selected external matrix and returns compact quality-control, principal-component, and differential-methylation results. These analyses operate on supplied processed M-values; they do not claim to repeat bisulfite-array preprocessing or probe filtering from raw IDAT files.
 
 Publication and interactive workflows may use versioned, replaceable CpG
@@ -28,7 +34,7 @@ strategy.
 
 ## Patient and sample linkage
 
-Assay columns use sample IDs. General synthetic matrices use the explicit manifest convention `patient_id_column: derived_from_sample_id_prefix`. Methylation runners use the stricter `sample_metadata_file` contract: the table must contain unique, complete `sample_id` and `patient_id` columns, and every selected matrix column must link to a clinical patient. Cohort tools use the same metadata mapping for inventory and overlap checks, so assay selection and execution agree even when sample IDs do not resemble patient IDs.
+Assay columns use sample IDs. General synthetic matrices use the explicit manifest convention `patient_id_column: derived_from_sample_id_prefix`. Methylation and compact quantitative inference runners use the stricter `sample_metadata_file` contract: the table must contain unique, complete `sample_id` and `patient_id` columns, and every selected matrix column must link to a clinical patient. Cohort tools use the same metadata mapping for inventory and overlap checks, so assay selection and execution agree even when sample IDs do not resemble patient IDs.
 
 Optional methylation model covariates also live in this protected sample metadata table. The manifest declares them with `analysis_covariates` and must type each one in `analysis_covariate_types` as `numeric` or `categorical`; numeric-looking plate, chip, or position codes should be categorical. A run with no varying declared covariates is labeled unadjusted and exploratory.
 

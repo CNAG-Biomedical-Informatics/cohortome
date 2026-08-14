@@ -75,12 +75,13 @@ items:
     kind: transcriptomics_expression
     runner_type: builtin
     runner_ref: transcriptomics_expression
-    description: Summarize scoped expression for a selected gene across available assays.
+    description: Summarize scoped expression for a selected gene across available raw-count assays.
     guidance: Replace the gene identifier in the prompt if needed.
     default_prompt: Show expression of ENSG00002700028 in the current Analysis scope.
     execution_mode: deterministic
     requires_assays: true
     required_modalities: [transcriptomics]
+    required_data_types: [raw_counts]
     analysis_level: sample
     tags: [transcriptomics, expression, deterministic]
 
@@ -90,12 +91,13 @@ items:
     kind: assay_compare
     runner_type: builtin
     runner_ref: transcriptomics_medication_compare
-    description: Compare transcriptomic profiles across medication-defined groups in the current Analysis scope.
-    guidance: Works best when the workspace contains transcriptomics assays.
+    description: Compare raw-count transcriptomic profiles across medication-defined groups in the current Analysis scope.
+    guidance: Works best when the workspace contains medication-aligned raw-count transcriptomics assays.
     default_prompt: Explain differences in gene expression according to medication.
     execution_mode: deterministic
     requires_assays: true
     required_modalities: [transcriptomics]
+    required_data_types: [raw_counts]
     analysis_level: sample
     tags: [transcriptomics, volcano, medication, deterministic]
 

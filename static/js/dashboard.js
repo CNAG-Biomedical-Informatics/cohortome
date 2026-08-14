@@ -1454,7 +1454,7 @@ export function createDashboardUi(ctx) {
   function selectedTranscriptomicsAssayDatasetNames() {
     const transcriptomicsNames = new Set(
       state.assayDatasetsState
-        .filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics")
+        .filter((dataset) => isQuickExpressionDataset(dataset))
         .map((dataset) => dataset.dataset_name)
     );
     return selectedAssayDatasetNames().filter((datasetName) => transcriptomicsNames.has(datasetName));
@@ -1524,6 +1524,12 @@ export function createDashboardUi(ctx) {
     if (modality.endsWith("_cell_population_abundance")) return "cell_population_abundance";
     if (modality.endsWith("_quantitative_measurement")) return "quantitative_measurement";
     return "";
+  }
+
+  function isQuickExpressionDataset(dataset) {
+    return normalizedAssayModality(dataset && dataset.modality) === "transcriptomics"
+      && normalizedAssayDataType(dataset) === "raw_counts"
+      && dataset.supports_expression_summary !== false;
   }
 
   function assayMatchesCatalogRequirement(dataset, item) {
@@ -1624,7 +1630,7 @@ export function createDashboardUi(ctx) {
     `;
     };
     if (mainListEl) {
-      const transcriptomicsDatasets = state.assayDatasetsState.filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics");
+      const transcriptomicsDatasets = state.assayDatasetsState.filter((dataset) => isQuickExpressionDataset(dataset));
       mainListEl.innerHTML = transcriptomicsDatasets.length
         ? groupAssaysByModality(transcriptomicsDatasets).map(([modality, datasets]) => `
         <div class="assay-modality-group">
@@ -1632,7 +1638,7 @@ export function createDashboardUi(ctx) {
           ${datasets.map((dataset) => renderOption(dataset)).join("")}
         </div>
       `).join("")
-        : '<div class="empty">No transcriptomics assays available</div>';
+        : '<div class="empty">No raw-count transcriptomics assays available</div>';
     }
     if (contextualListEl) {
       if (!contextRequiresAssay) {
@@ -1986,7 +1992,8 @@ export function createDashboardUi(ctx) {
 
   function renderTranscriptomicsQuickExpressionVisibility() {
     if (!transcriptomicsQuickExpressionPanelEl) return;
-    const visible = selectedAssayModalityFilter() === "transcriptomics";
+    const visible = selectedAssayModalityFilter() === "transcriptomics"
+      && state.assayDatasetsState.some((dataset) => isQuickExpressionDataset(dataset));
     transcriptomicsQuickExpressionPanelEl.classList.toggle("is-hidden", !visible);
     transcriptomicsQuickExpressionPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
   }
@@ -2520,7 +2527,7 @@ export function createDashboardUi(ctx) {
       }
       if (!datasets.length) {
         analysisAssayStatusEl.className = "query-status";
-        analysisAssayStatusEl.textContent = "No transcriptomics assays are currently available for quick expression checks.";
+        analysisAssayStatusEl.textContent = "No raw-count transcriptomics assays are currently available for quick expression checks.";
         if (analysisCatalogAssayStatusEl) {
           analysisCatalogAssayStatusEl.textContent = "No compatible assay datasets are currently available in this workspace.";
         }
@@ -2530,10 +2537,10 @@ export function createDashboardUi(ctx) {
         return;
       }
       analysisAssayStatusEl.className = "query-status";
-      const transcriptomicsCount = datasets.filter((dataset) => normalizedAssayModality(dataset && dataset.modality) === "transcriptomics").length;
+      const transcriptomicsCount = datasets.filter((dataset) => isQuickExpressionDataset(dataset)).length;
       analysisAssayStatusEl.textContent = transcriptomicsCount
-        ? `Loaded ${transcriptomicsCount} transcriptomics assay${transcriptomicsCount === 1 ? "" : "s"} for quick expression checks.`
-        : "No transcriptomics assays are currently available for quick expression checks.";
+        ? `Loaded ${transcriptomicsCount} raw-count transcriptomics assay${transcriptomicsCount === 1 ? "" : "s"} for quick expression checks.`
+        : "No raw-count transcriptomics assays are currently available for quick expression checks.";
       if (analysisCatalogAssayStatusEl) {
         analysisCatalogAssayStatusEl.textContent = datasets.length === 1
           ? `1 assay dataset available for Analysis.`
@@ -2570,7 +2577,7 @@ export function createDashboardUi(ctx) {
     const geneId = String(analysisAssayGeneEl.value || "").trim();
     if (!datasetNames.length || !geneId) {
       analysisAssayStatusEl.className = "query-status";
-      analysisAssayStatusEl.textContent = "Choose at least one transcriptomics assay and a gene ID first.";
+      analysisAssayStatusEl.textContent = "Choose at least one raw-count transcriptomics assay and a gene ID first.";
       return;
     }
     analysisAssayStatusEl.className = "query-status loading";

@@ -1,0 +1,6 @@
+feature_id;SYN015:week_0;SYN016:week_0;SYN017:week_0;SYN018:week_0;SYN019:week_0;SYN020:week_0;SYN021:week_0;SYN022:week_0
+CD4_T_cells_fraction;0.3;0.28;0.31;0.29;0.39;0.37;0.4;0.38
+CD8_T_cells_fraction;0.22;0.24;0.21;0.23;0.19;0.2;0.18;0.21
+CD19_B_cells_fraction;0.18;0.19;0.17;0.2;0.09;0.1;0.08;0.11
+NK_cells_fraction;0.12;0.13;0.14;0.11;0.13;0.14;0.15;0.12
+CD14_monocytes_fraction;0.18;0.16;0.17;0.17;0.2;0.19;0.19;0.18

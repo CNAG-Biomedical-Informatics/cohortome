@@ -693,6 +693,35 @@ def _mock_assay_datasets(page) -> None:
     )
 
 
+def _mock_rsem_only_assay_datasets(page) -> None:
+    page.route(
+        "**/assays?*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "datasets": [
+                        {
+                            "dataset_name": "synthetic_rsem_expected_counts",
+                            "modality": "transcriptomics",
+                            "data_type": "rsem_expected_counts",
+                            "supports_expression_summary": False,
+                            "feature_label": "genes",
+                            "patient_ids": ["SYN001", "SYN002"],
+                            "sample_ids": ["SYN001", "SYN002"],
+                            "sample_count": 2,
+                            "patient_count": 2,
+                            "feature_count": 1200,
+                            "clinical_overlap_patient_count": 2,
+                        }
+                    ]
+                }
+            ),
+        ),
+    )
+
+
 def _mock_dicom_studies(page) -> None:
     page.route(
         "**/dicom/studies?*",
@@ -1849,6 +1878,29 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#dicomDashboardPanel")).to_be_visible()
     expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
+
+
+def test_dashboard_quick_expression_excludes_rsem_only_transcriptomics(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_rsem_only_assay_datasets(page)
+    _mock_dicom_studies(page)
+    _mock_dicom_status(page)
+    _mock_multimodal_readiness(page)
+    _mock_multimodal_matrix(page)
+    expect = playwright.expect
+
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardAssaysBtn").click()
+    page.locator("[data-assay-modality-filter='transcriptomics']").click()
+
+    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_rsem_expected_counts")
+    expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
+    expect(page.locator("#analysisAssayDatasetList")).not_to_contain_text("synthetic_rsem_expected_counts")
+    expect(page.locator("#analysisAssayDatasetList")).to_contain_text("No raw-count transcriptomics assays available")
+    expect(page.locator("#analysisAssayStatus")).to_contain_text("No raw-count transcriptomics assays")
 
 
 def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
