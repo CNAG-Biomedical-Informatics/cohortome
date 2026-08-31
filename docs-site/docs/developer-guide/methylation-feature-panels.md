@@ -31,6 +31,26 @@ COHORTome has two narrower responsibilities:
 The interface and persisted provenance must distinguish provider-declared QC,
 COHORTome ingestion validation, and exploratory diagnostics.
 
+### Non-finite M-values
+
+Processed M-value exports can contain `Inf` or `-Inf`, commonly when the
+underlying beta value is exactly zero or one. COHORTome does not replace these
+values with an arbitrary finite number. During protected panel preparation, a
+probe containing any infinite value is excluded from the compact analysis
+matrix. Ordinary declared missing values remain missing and are handled by the
+selected curated runner.
+
+Panel provenance reports these categories separately:
+
+- requested probes from the registered panel definition;
+- probes absent from the supplied source matrix;
+- source-matched probes excluded because at least one value was infinite;
+- retained probes available to Analysis.
+
+The excluded probe identifiers remain in the protected preparation report so
+the decision is auditable. This is COHORTome ingestion validation, not a claim
+that upstream array QC or normalization has been repeated.
+
 ## Full assay and panel views
 
 A methylation assay can expose multiple replaceable feature views over the same
@@ -81,6 +101,40 @@ a small sidecar mapping CpG IDs to byte offsets can support direct row retrieval
 The sidecar contains identifiers and offsets, not methylation values. It should
 only be added when actual usage justifies the extra format and lifecycle.
 
+The repository includes `scripts/prepare_methylation_panel.py` for this
+protected preparation step. It reconstructs the independent SLE panel directly
+from the authors' supplementary Table S2, verifies that the published rule
+selects exactly 7,245 unique CpGs, hashes the source and outputs, and performs a
+single byte-streaming extraction. It refuses to write outputs inside the source
+repository. The supplementary material is CC BY-NC 4.0 and is therefore fetched
+or supplied separately rather than vendored in COHORTome's Apache-licensed
+source tree.
+
+For a generic administrator-supplied panel, use the same compact-matrix
+contract and record the fields listed above. The first publication helper is
+invoked from the repository root as follows, with all input and output paths in
+the protected dataset-preparation area:
+
+```bash
+python3 scripts/prepare_methylation_panel.py \
+  --supplement-pdf /protected/input/supplementary-table-s2.pdf \
+  --source-matrix /protected/release/assays/methylation/m-values.csv \
+  --output-dir /protected/next-release/assays/methylation/panels/independent-sle-ewas-v1
+```
+
+Repeat `--source-matrix` for disease-partition matrices. The helper requires
+identical panel coverage and CpG order, compares every duplicated sample value,
+and retains one canonical column only when those values agree exactly.
+After extraction, probes containing infinite M-values are excluded rather than
+coerced; requested, source-matched, absent, non-finite-excluded, and retained
+counts are recorded separately in `panel.json`.
+
+The output contains `panel.tsv`, the compact `m_values.csv`, and `panel.json`.
+The dataset manifest registers the compact matrix as another methylation
+M-value assay view and adds the `feature_panel` object from `panel.json`, using
+release-relative paths. The source assay and panel view may coexist; Analysis
+then shows the panel as an explicitly labelled assay choice.
+
 ## Publication panels
 
 The PRECISESADS molecular-stratification study selected 4,144 CpGs by identifying
@@ -106,17 +160,17 @@ coverage in the supplied assay, its methylation pattern in the authorized SLE
 cohort, and its concordance with interferon-related transcriptomic, immune-cell,
 and serology measurements.
 
-## Deferred implementation
+## Current implementation boundary
 
-The intended first implementation is deliberately small:
+The first implementation is deliberately small:
 
-- manifest-declared, versioned shared panels;
-- one selected panel per methylation run;
-- protected one-time compact-matrix extraction;
-- panel identity and match statistics in every result;
+- manifest-declared, versioned shared panel views;
+- one selected complete-assay or panel view per methylation run;
+- protected one-time compact-matrix extraction with checksums;
+- panel identity, provenance, and match statistics in every result;
 - no complete CpG-value ingestion into DuckDB.
 
-In-app panel upload and lifecycle management can follow after the publication
-workflow establishes the required user experience. Until then, panels can be
-installed through the protected dataset-preparation workflow and selected in
-Analysis.
+In-app panel upload and lifecycle management remain deferred until the
+publication workflow establishes the required user experience. For now,
+administrators install panel views through protected dataset preparation and
+users select an approved view in Analysis.

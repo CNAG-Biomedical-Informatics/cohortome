@@ -1615,7 +1615,13 @@ export function createDashboardUi(ctx) {
       const overlap = currentAssayScopeOverlap(dataset.patient_ids);
       const featureLabel = String(dataset.feature_label || "features").trim() || "features";
       const featureCount = Number(dataset.feature_count || dataset.gene_count || 0);
-      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(normalizedAssayDataType(dataset) || dataset.data_type))}`;
+      const panel = dataset && dataset.feature_panel && typeof dataset.feature_panel === "object"
+        ? dataset.feature_panel
+        : null;
+      const panelMeta = panel
+        ? ` • Panel v${escapeHtml(String(panel.panel_version || ""))}${panel.independent_of_target_cohort ? " • independently selected" : ""}`
+        : "";
+      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(normalizedAssayDataType(dataset) || dataset.data_type))}${panelMeta}`;
       const small = options.includeOverlap
         ? `${baseMeta} • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
         : baseMeta;
@@ -1623,7 +1629,7 @@ export function createDashboardUi(ctx) {
       <label class="assay-dataset-option">
         <input type="checkbox" value="${escapeHtml(dataset.dataset_name)}"${selected.has(dataset.dataset_name) ? " checked" : ""}>
         <span>
-          <strong>${escapeHtml(dataset.dataset_name)}</strong>
+          <strong>${escapeHtml(String(dataset.label || dataset.dataset_name))}</strong>
           <small>${small}</small>
         </span>
       </label>

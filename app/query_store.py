@@ -1591,6 +1591,30 @@ def _assay_inventory_metadata(
         normalized_levels = [str(value).strip() for value in levels if str(value or "").strip()]
         if normalized_levels:
             metadata["compatible_analysis_levels"] = normalized_levels
+    raw_panel = item.get("feature_panel")
+    if modality_text == "methylation" and isinstance(raw_panel, dict):
+        panel_id = str(raw_panel.get("panel_id") or "").strip()
+        panel_version = str(raw_panel.get("panel_version") or "").strip()
+        panel_label = str(raw_panel.get("label") or panel_id).strip()
+        try:
+            matched_feature_count = int(raw_panel.get("matched_feature_count") or 0)
+        except (TypeError, ValueError):
+            matched_feature_count = 0
+        if panel_id and panel_version and matched_feature_count > 0:
+            metadata["view_type"] = "feature_panel"
+            metadata["feature_panel"] = {
+                "panel_id": panel_id,
+                "panel_version": panel_version,
+                "label": panel_label or panel_id,
+                "requested_feature_count": int(raw_panel.get("requested_feature_count") or 0),
+                "matched_feature_count": matched_feature_count,
+                "missing_feature_count": int(raw_panel.get("missing_feature_count") or 0),
+                "excluded_nonfinite_feature_count": int(
+                    raw_panel.get("excluded_nonfinite_feature_count") or 0
+                ),
+                "independent_of_target_cohort": bool(raw_panel.get("independent_of_target_cohort")),
+                "source_publication_doi": str(raw_panel.get("source_publication_doi") or "").strip(),
+            }
     return metadata
 
 

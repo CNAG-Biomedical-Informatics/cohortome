@@ -221,7 +221,19 @@ In practice, that means baseline-only transcriptomics datasets are the safest fi
 
 For the synthetic large transcriptome fixtures, remember that treatment-specific matrices only contain their own patient subset. For example, an `infliximab` matrix does not contain `vedolizumab` patients. If you want a broad split across many synthetic patients, use the baseline matrix for that workspace.
 
-The methylation tools use one selected processed M-value assay. The complete probe matrix remains in its governed dataset release and is read by the curated runner; COHORTome does not materialize all CpG-by-sample values in DuckDB.
+The methylation tools use one selected processed M-value assay view. A view can
+be the complete externally stored assay or an administrator-installed,
+versioned feature panel. Panel choices are labelled in the assay selector and
+their identity, version, source, and match counts are retained with the result.
+The complete probe matrix remains in its governed dataset release; COHORTome
+does not materialize all CpG-by-sample values in DuckDB.
+
+The panel summary distinguishes probes that were absent from the supplied
+matrix from probes excluded during ingestion validation. In particular, a CpG
+with any `Inf` or `-Inf` M-value is excluded from the compact analysis view and
+counted explicitly; COHORTome does not coerce an infinite value to a finite
+number. This filtering decision and the resulting retained feature count are
+stored with the analysis provenance.
 
 `Methylation QC and PCA` checks the supplied matrix and sample linkage in the current Analysis scope. It does not repeat raw-array preprocessing or probe filtering from IDAT files. `limma differential methylation` uses Cohort A and Cohort B as the comparison groups and requires both cohorts to overlap the same selected methylation assay.
 

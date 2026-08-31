@@ -3447,6 +3447,18 @@ def test_analysis_methylation_catalog_keeps_selected_assay_in_run_request(page) 
                             "strongest_covariate_p_value": 0.00042,
                             "strongest_covariate_adj_p_value": 0.00168,
                             "association_scope": "exploratory_one_covariate_at_a_time_bh_adjusted",
+                            "feature_view": "feature_panel",
+                            "feature_panel": {
+                                "panel_id": "independent_sle_ewas",
+                                "panel_version": "1",
+                                "label": "Independent replicated SLE EWAS panel",
+                                "requested_feature_count": 7245,
+                                "matched_feature_count": 5584,
+                                "missing_feature_count": 1660,
+                                "excluded_nonfinite_feature_count": 1,
+                                "source_publication_doi": "10.1136/annrheumdis-2017-212379",
+                                "independent_of_target_cohort": True,
+                            },
                             "source_matrix_materialized_in_duckdb": False,
                             "source_matrix_copied_to_job": False,
                         },
@@ -3492,6 +3504,15 @@ def test_analysis_methylation_catalog_keeps_selected_assay_in_run_request(page) 
     expect(summary).to_contain_text("8,000")
     expect(summary).to_contain_text("PC1 variance")
     expect(summary).to_contain_text("21.4%")
+    panel_summary = page.locator("[data-methylation-panel-summary='true']")
+    expect(panel_summary).to_contain_text("Panel requested")
+    expect(panel_summary).to_contain_text("7,245")
+    expect(panel_summary).to_contain_text("Absent from source")
+    expect(panel_summary).to_contain_text("1,660")
+    expect(panel_summary).to_contain_text("Non-finite excluded")
+    expect(panel_summary).to_contain_text("Panel retained")
+    expect(panel_summary).to_contain_text("5,584")
+    expect(panel_summary).to_contain_text("Feature selection was independent")
     result = page.locator("[data-methylation-result='qc-pca']")
     expect(result).to_contain_text("Covariates assessed against the leading components: age, plate")
     expect(result).to_contain_text("Strongest exploratory association: plate with PC1")

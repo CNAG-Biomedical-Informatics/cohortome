@@ -311,6 +311,31 @@ export function createAnalysisUi(ctx) {
     return `<div class="metrics-grid" data-analysis-summary="${escapeHtml(kind)}" data-methylation-summary="${escapeHtml(kind)}" style="grid-column: 1 / -1; margin-bottom: 0;">${cards}</div>`;
   }
 
+  function renderMethylationPanelSummary(context) {
+    const panel = context && context.feature_panel && typeof context.feature_panel === "object"
+      ? context.feature_panel
+      : null;
+    if (!panel || String(context.feature_view || "") !== "feature_panel") return "";
+    const label = String(panel.label || panel.panel_id || "Methylation feature panel").trim();
+    const version = String(panel.panel_version || "").trim();
+    const independent = panel.independent_of_target_cohort
+      ? " Feature selection was independent of this target cohort."
+      : "";
+    const source = String(panel.source_publication_doi || "").trim();
+    const note = `${label}${version ? ` v${version}` : ""}.${source ? ` Source DOI: ${source}.` : ""}${independent}`;
+    return `
+      <div data-methylation-panel-summary="true" style="grid-column: 1 / -1;">
+        ${renderAnalysisMetricCards("panel", [
+          { label: "Panel requested", value: formatAnalysisCount(panel.requested_feature_count) },
+          { label: "Absent from source", value: formatAnalysisCount(panel.missing_feature_count) },
+          { label: "Non-finite excluded", value: formatAnalysisCount(panel.excluded_nonfinite_feature_count) },
+          { label: "Panel retained", value: formatAnalysisCount(panel.matched_feature_count) },
+        ])}
+        <p class="section-note">${escapeHtml(note)}</p>
+      </div>
+    `;
+  }
+
   function renderArtifactDownloads(title, artifacts) {
     const links = (Array.isArray(artifacts) ? artifacts : [])
       .filter(Boolean)
@@ -456,6 +481,7 @@ export function createAnalysisUi(ctx) {
         ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
         : "";
       return `
+        ${renderMethylationPanelSummary(context)}
         ${renderAnalysisMetricCards("qc", [
           { label: "Samples", value: formatAnalysisCount(context.sample_count) },
           { label: "Patients", value: formatAnalysisCount(context.patient_count) },
@@ -512,6 +538,7 @@ export function createAnalysisUi(ctx) {
         ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
         : "";
       return `
+        ${renderMethylationPanelSummary(context)}
         ${renderAnalysisMetricCards("differential", [
           { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
           { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -1097,6 +1099,70 @@ def _methylation_matrix_header(matrix_path: Path, assay_id: str) -> List[str]:
     return sample_ids
 
 
+def _methylation_feature_panel(data_dir: str, item: Dict[str, Any]) -> Dict[str, Any] | None:
+    raw_panel = item.get("feature_panel")
+    if raw_panel is None:
+        return None
+    if not isinstance(raw_panel, dict):
+        raise RuntimeError("Methylation feature_panel must be an object.")
+    panel_id = str(raw_panel.get("panel_id") or "").strip()
+    panel_version = str(raw_panel.get("panel_version") or "").strip()
+    label = str(raw_panel.get("label") or panel_id).strip()
+    if not panel_id or not panel_version or not label:
+        raise RuntimeError("Methylation feature_panel requires panel_id, panel_version, and label.")
+    counts: Dict[str, int] = {}
+    for field in ("requested_feature_count", "matched_feature_count", "missing_feature_count"):
+        try:
+            counts[field] = int(raw_panel.get(field))
+        except (TypeError, ValueError):
+            raise RuntimeError(f"Methylation feature_panel requires an integer {field}.") from None
+        if counts[field] < 0:
+            raise RuntimeError(f"Methylation feature_panel {field} must not be negative.")
+    if counts["matched_feature_count"] < 1:
+        raise RuntimeError("Methylation feature_panel must contain at least one matched feature.")
+    try:
+        excluded_feature_count = int(raw_panel.get("excluded_nonfinite_feature_count") or 0)
+    except (TypeError, ValueError):
+        raise RuntimeError("Methylation feature_panel excluded_nonfinite_feature_count must be an integer.") from None
+    if excluded_feature_count < 0:
+        raise RuntimeError("Methylation feature_panel excluded_nonfinite_feature_count must not be negative.")
+    if counts["requested_feature_count"] != (
+        counts["matched_feature_count"] + counts["missing_feature_count"] + excluded_feature_count
+    ):
+        raise RuntimeError("Methylation feature_panel match counts are inconsistent.")
+    declared_feature_count = int(item.get("feature_count") or 0)
+    if declared_feature_count and declared_feature_count != counts["matched_feature_count"]:
+        raise RuntimeError("Methylation feature_panel matched count does not match the assay feature_count.")
+    panel_file = str(raw_panel.get("panel_file") or "").strip()
+    panel_sha256 = str(raw_panel.get("panel_sha256") or "").strip().lower()
+    if not panel_file or not re.fullmatch(r"[0-9a-f]{64}", panel_sha256):
+        raise RuntimeError("Methylation feature_panel requires a panel_file and SHA-256 fingerprint.")
+    root = query_store_module._manifest_item_root(data_dir, item)
+    panel_path = (root / panel_file).resolve()
+    try:
+        panel_path.relative_to(root)
+    except ValueError:
+        raise RuntimeError("Methylation feature_panel uses an invalid panel_file location.") from None
+    if not panel_path.is_file():
+        raise RuntimeError("Methylation feature_panel definition is unavailable.")
+    digest = hashlib.sha256(panel_path.read_bytes()).hexdigest()
+    if digest != panel_sha256:
+        raise RuntimeError("Methylation feature_panel definition does not match its SHA-256 fingerprint.")
+    return {
+        "panel_id": panel_id,
+        "panel_version": panel_version,
+        "label": label,
+        **counts,
+        "excluded_nonfinite_feature_count": excluded_feature_count,
+        "panel_sha256": panel_sha256,
+        "source_matrix_sha256": str(raw_panel.get("source_matrix_sha256") or "").strip().lower(),
+        "source_publication_doi": str(raw_panel.get("source_publication_doi") or "").strip(),
+        "source_publication_url": str(raw_panel.get("source_publication_url") or "").strip(),
+        "scientific_selection_rule": str(raw_panel.get("scientific_selection_rule") or "").strip(),
+        "independent_of_target_cohort": bool(raw_panel.get("independent_of_target_cohort")),
+    }
+
+
 def _manifest_analysis_covariates(item: Dict[str, Any]) -> List[str]:
     raw_covariates = item.get("analysis_covariates")
     if raw_covariates is None:
@@ -1279,6 +1345,7 @@ def _prepare_methylation_analysis_bundle(
     dataset_name = str(item["assay_id"])
     matrix_path = _resolve_assay_manifest_file(data_dir, item, "file", required=True)
     assert matrix_path is not None
+    feature_panel = _methylation_feature_panel(data_dir, item)
     matrix_sample_ids = _methylation_matrix_header(matrix_path, dataset_name)
     declared_covariates = _manifest_analysis_covariates(item)
     covariate_types = _manifest_analysis_covariate_types(item, declared_covariates)
@@ -1405,6 +1472,8 @@ def _prepare_methylation_analysis_bundle(
         "source_fingerprint_status": source_fingerprint_status,
         "source_fingerprint_verified_for_run": False,
         "declared_feature_count": int(item.get("feature_count") or 0),
+        "feature_view": "feature_panel" if feature_panel else "complete_assay",
+        "feature_panel": feature_panel,
         "declared_covariates": declared_covariates,
         "analysis_covariate_types": covariate_types,
         "covariates_used": usable_covariates,
@@ -1443,6 +1512,8 @@ def _prepare_methylation_analysis_bundle(
             "analysis_type": f"methylation_{analysis_type}",
             "dataset_name": dataset_name,
             "input_data_type": "m_values",
+            "feature_view": "feature_panel" if feature_panel else "complete_assay",
+            "feature_panel": feature_panel,
             "sample_count": len(sample_rows),
             "patient_count": len({row["patient_id"] for row in sample_rows}),
             "cohort_sample_counts": dict(cohort_counts),
@@ -1474,6 +1545,8 @@ def _prepare_methylation_analysis_bundle(
         "source_sha256": source_sha256,
         "source_fingerprint_status": source_fingerprint_status,
         "source_fingerprint_verified_for_run": False,
+        "feature_view": "feature_panel" if feature_panel else "complete_assay",
+        "feature_panel": feature_panel,
         "adjustment_status": adjustment_status if analysis_type == "differential_methylation" else "not_applicable",
         "clinical_linkage_status": "complete_selected_scope",
         "clinical_linked_patient_count": len(selected_patient_ids_set),
@@ -1891,6 +1964,9 @@ def run_rscript_analysis(
         context["source_fingerprint_verified_for_run"] = bool(
             methylation_bundle.get("source_fingerprint_verified_for_run")
         )
+        context["feature_view"] = str(methylation_bundle.get("feature_view") or "complete_assay")
+        if isinstance(methylation_bundle.get("feature_panel"), dict):
+            context["feature_panel"] = dict(methylation_bundle["feature_panel"])
         context["adjustment_status"] = str(methylation_bundle.get("adjustment_status") or "not_applicable")
         context["clinical_linkage_status"] = str(methylation_bundle.get("clinical_linkage_status") or "")
         context["clinical_linked_patient_count"] = int(
