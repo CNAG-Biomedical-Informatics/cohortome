@@ -7,15 +7,8 @@ from urllib import error
 from app.bff import (
     build_patient_workspace,
     dashboard_summary,
-    ensure_data_dir,
-    extract_event_date,
-    extract_treatment_labels,
-    group_patients,
     list_patient_summaries,
-    medication_cohort,
-    medication_counts,
     normalize_value,
-    read_bff_records,
 )
 from app.entity_terms import entity_identifier_prefixes, inventory_count_prompt_matches, inventory_prompt_matches
 from app.entity_terms import normalize_entity_synonym_mentions
@@ -38,15 +31,11 @@ from app.query_scope import (
     apply_patient_scope_to_cohort as _apply_patient_scope_to_cohort,
     apply_patient_scope_to_rows as _apply_patient_scope_to_rows,
     build_query_scope_context as _build_query_scope_context_from_rows,
-    patient_inventory_from_records as _patient_inventory_from_records,
-    sample_inventory_from_records as _sample_inventory_from_records,
 )
 from app.query_store import (
-    QueryStoreNotReadyError,
     cohort_over_time_summary as store_cohort_over_time_summary,
     disease_cohort as store_disease_cohort,
     disease_counts as store_disease_counts,
-    duckdb_available,
     external_assay_feature_catalog as store_external_assay_feature_catalog,
     external_assay_feature_comparison as store_external_assay_feature_comparison,
     external_assay_feature_summary as store_external_assay_feature_summary,
@@ -64,125 +53,20 @@ def _contains_label(values: List[str], query: str) -> bool:
     return any(lowered in value.lower() for value in values)
 
 
-def _extract_disease_labels(record: Dict[str, Any]) -> List[str]:
-    diseases = record.get("diseases")
-    labels: List[str] = []
-    if not isinstance(diseases, list):
-        return labels
-    for item in diseases:
-        if not isinstance(item, dict):
-            continue
-        code = item.get("diseaseCode")
-        if isinstance(code, dict):
-            label = normalize_value(code.get("label")) or normalize_value(code.get("id"))
-            if label is not None:
-                text = str(label)
-                if text not in labels:
-                    labels.append(text)
-    return labels
-
-
 def disease_cohort(data_dir: str, disease_query: str) -> Dict[str, Any]:
-    resolved_dir = ensure_data_dir(data_dir)
-    bundles = group_patients(resolved_dir)
-    query = disease_query.strip().lower()
-    matches: List[Dict[str, Any]] = []
-
-    for patient_id, bundle in sorted(bundles.items()):
-        matched_visits: List[Dict[str, Any]] = []
-        matched_labels: List[str] = []
-        medication_labels: List[str] = []
-        original_record_ids: List[str] = []
-        for visit in bundle.context.visits:
-            labels = _extract_disease_labels(visit.provenance.raw_bff)
-            visit_matches = [label for label in labels if query in label.lower()]
-            if not visit_matches:
-                continue
-            original_id = normalize_value(visit.provenance.raw_bff.get("id"))
-            if isinstance(original_id, str) and original_id not in original_record_ids:
-                original_record_ids.append(original_id)
-            for medication_label in extract_treatment_labels(visit.provenance.raw_bff):
-                if medication_label not in medication_labels:
-                    medication_labels.append(medication_label)
-            for label in visit_matches:
-                if label not in matched_labels:
-                    matched_labels.append(label)
-            matched_visits.append(
-                {
-                    "visit_id": visit.visit_id,
-                    "original_id": str(original_id) if isinstance(original_id, str) else None,
-                    "event_type": visit.event_type,
-                    "event_date": visit.event_date,
-                    "matched_diseases": visit_matches,
-                    "source_file": visit.provenance.source_file,
-                    "record_index": visit.provenance.record_index,
-                }
-            )
-
-        if matched_visits:
-            matches.append(
-                {
-                    "patient_id": patient_id,
-                    "sex": bundle.context.sex,
-                    "visit_count": len(matched_visits),
-                    "medications": medication_labels,
-                    "medication_count": len(medication_labels),
-                    "matched_diseases": matched_labels,
-                    "original_record_ids": original_record_ids,
-                    "visits": matched_visits,
-                }
-            )
-
-    return {
-        "query": disease_query,
-        "match_type": "case-insensitive substring",
-        "patient_count": len(matches),
-        "patients": matches,
-    }
+    return store_disease_cohort(data_dir, disease_query)
 
 
 def disease_counts(data_dir: str) -> List[Dict[str, Any]]:
-    resolved_dir = ensure_data_dir(data_dir)
-    bundles = group_patients(resolved_dir)
-    counts: Dict[str, Dict[str, Any]] = {}
-
-    for patient_id, bundle in bundles.items():
-        seen_for_patient = set()
-        for visit in bundle.context.visits:
-            for label in _extract_disease_labels(visit.provenance.raw_bff):
-                entry = counts.setdefault(
-                    label,
-                    {"disease": label, "patient_count": 0, "patients": []},
-                )
-                if label in seen_for_patient:
-                    continue
-                seen_for_patient.add(label)
-                entry["patient_count"] += 1
-                entry["patients"].append(patient_id)
-
-    return sorted(counts.values(), key=lambda item: (-item["patient_count"], item["disease"]))
-
-
-def _patient_inventory_from_records(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
-    resolved_dir = ensure_data_dir(data_dir)
-    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
-    ids: List[str] = []
-    seen = set()
-    for _, _, record in read_bff_records(resolved_dir):
-        patient_id = normalize_value(record.get("patient_id"))
-        if allowed and str(patient_id or "").strip() not in allowed:
-            continue
-        raw_id = normalize_value(record.get("id"))
-        candidate = str(patient_id or raw_id or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        ids.append(candidate)
-    return sorted(ids)
+    return store_disease_counts(data_dir)
 
 
 def _patient_inventory(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
-    return _patient_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids)
+    return [
+        str(row.get("patient_id") or "").strip()
+        for row in _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
+        if str(row.get("patient_id") or "").strip()
+    ]
 
 
 def _sample_inventory(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[str]:
@@ -190,51 +74,23 @@ def _sample_inventory(data_dir: str, scoped_patient_ids: Optional[List[str]] = N
 
 
 def _medication_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    if duckdb_available() and not scoped_patient_ids:
-        try:
-            return store_medication_counts(data_dir)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
     if not scoped_patient_ids:
-        return medication_counts(data_dir)
+        return store_medication_counts(data_dir)
     return _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids).medication_counts
 
 
 def _disease_counts(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    if duckdb_available() and not scoped_patient_ids:
-        try:
-            return store_disease_counts(data_dir)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
     if not scoped_patient_ids:
-        return disease_counts(data_dir)
+        return store_disease_counts(data_dir)
     return _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids).disease_counts
 
 
 def _medication_cohort(data_dir: str, medication_query: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-    if duckdb_available() and not scoped_patient_ids:
-        try:
-            return store_medication_cohort(data_dir, medication_query)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    return _apply_patient_scope_to_cohort(medication_cohort(data_dir, medication_query), scoped_patient_ids)
+    return _apply_patient_scope_to_cohort(store_medication_cohort(data_dir, medication_query), scoped_patient_ids)
 
 
 def _disease_cohort(data_dir: str, disease_query: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-    if duckdb_available() and not scoped_patient_ids:
-        try:
-            return store_disease_cohort(data_dir, disease_query)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    return _apply_patient_scope_to_cohort(disease_cohort(data_dir, disease_query), scoped_patient_ids)
+    return _apply_patient_scope_to_cohort(store_disease_cohort(data_dir, disease_query), scoped_patient_ids)
 
 
 def _extract_patient_id(text: str) -> Optional[str]:
@@ -324,47 +180,7 @@ def _explicit_patient_cohort_ids(text: str, known_ids: List[str]) -> Optional[Di
 
 
 def _patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
-    if duckdb_available():
-        try:
-            return store_patient_query_index(data_dir)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    resolved_dir = ensure_data_dir(data_dir)
-    bundles = group_patients(resolved_dir)
-    rows: List[Dict[str, Any]] = []
-
-    for patient_id, bundle in sorted(bundles.items()):
-        medication_labels: List[str] = []
-        disease_labels: List[str] = []
-        original_record_ids: List[str] = []
-
-        for visit in bundle.context.visits:
-            original_id = normalize_value(visit.provenance.raw_bff.get("id"))
-            if isinstance(original_id, str) and original_id not in original_record_ids:
-                original_record_ids.append(original_id)
-            for label in extract_treatment_labels(visit.provenance.raw_bff):
-                if label not in medication_labels:
-                    medication_labels.append(label)
-            for label in _extract_disease_labels(visit.provenance.raw_bff):
-                if label not in disease_labels:
-                    disease_labels.append(label)
-
-        rows.append(
-            {
-                "patient_id": patient_id,
-                "sex": bundle.context.sex,
-                "visit_count": len(bundle.context.visits),
-                "medications": medication_labels,
-                "medication_count": len(medication_labels),
-                "diseases": disease_labels,
-                "disease_count": len(disease_labels),
-                "original_record_ids": original_record_ids,
-            }
-        )
-
-    return rows
+    return store_patient_query_index(data_dir)
 
 
 def _build_query_scope_context(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> QueryScopeContext:
@@ -473,24 +289,10 @@ def patient_medication_count_cohort(
     target: int,
     scoped_patient_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    if duckdb_available():
-        try:
-            return store_patient_medication_count_cohort(data_dir, operator, target)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    patients = []
-    for row in _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids):
-        if _matches_numeric_constraint(row["medication_count"], operator, target):
-            patients.append(row)
-
-    return {
-        "operator": operator,
-        "target": target,
-        "patient_count": len(patients),
-        "patients": patients,
-    }
+    return _apply_patient_scope_to_cohort(
+        store_patient_medication_count_cohort(data_dir, operator, target),
+        scoped_patient_ids,
+    )
 
 
 def _format_medication_count_constraint(operator: str, target: int) -> str:
@@ -533,71 +335,14 @@ def patient_visit_count_cohort(
     target: int,
     scoped_patient_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    if duckdb_available():
-        try:
-            return store_patient_visit_count_cohort(data_dir, operator, target)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    patients = []
-    for row in _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids):
-        if _matches_numeric_constraint(row["visit_count"], operator, target):
-            patients.append(row)
-    return {
-        "operator": operator,
-        "target": target,
-        "patient_count": len(patients),
-        "patients": patients,
-    }
+    return _apply_patient_scope_to_cohort(
+        store_patient_visit_count_cohort(data_dir, operator, target),
+        scoped_patient_ids,
+    )
 
 
 def _cohort_over_time_summary(data_dir: str, scoped_patient_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-    if duckdb_available():
-        try:
-            return store_cohort_over_time_summary(data_dir)
-        except QueryStoreNotReadyError:
-            raise
-        except Exception:
-            pass
-    patient_rows = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
-    allowed = {str(item).strip() for item in scoped_patient_ids or [] if str(item).strip()}
-    dated = []
-    undated = 0
-    period_counts: Dict[str, Dict[str, Any]] = {}
-    for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
-        raw_patient_id = normalize_value(record.get("patient_id")) or normalize_value(record.get("id"))
-        patient_id = str(raw_patient_id).split(":")[0] if isinstance(raw_patient_id, str) and raw_patient_id else ""
-        if allowed and patient_id not in allowed:
-            continue
-        date = normalize_value(extract_event_date(record))
-        if isinstance(date, str) and date.strip():
-            date = date.strip()
-            dated.append(date)
-            period = date[:7] if len(date) >= 7 else date
-            entry = period_counts.setdefault(period, {"period": period, "timepoint_count": 0, "patients": set()})
-            entry["timepoint_count"] += 1
-            if patient_id:
-                entry["patients"].add(patient_id)
-        else:
-            undated += 1
-    periods = [
-        {
-            "period": period,
-            "timepoint_count": values["timepoint_count"],
-            "patient_count": len(values["patients"]),
-        }
-        for period, values in sorted(period_counts.items())
-    ]
-    return {
-        "timepoint_count": len(dated) + undated,
-        "patient_count": len(patient_rows),
-        "dated_timepoint_count": len(dated),
-        "undated_timepoint_count": undated,
-        "first_event_date": min(dated) if dated else None,
-        "last_event_date": max(dated) if dated else None,
-        "periods": periods,
-    }
+    return store_cohort_over_time_summary(data_dir, scoped_patient_ids=scoped_patient_ids)
 
 
 def _term_timepoint_summary(
@@ -605,8 +350,8 @@ def _term_timepoint_summary(
     term: str,
     scoped_patient_ids: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
-    medication = _apply_patient_scope_to_cohort(_medication_cohort(data_dir, term), scoped_patient_ids)
-    disease = _apply_patient_scope_to_cohort(_disease_cohort(data_dir, term), scoped_patient_ids)
+    medication = _medication_cohort(data_dir, term, scoped_patient_ids=scoped_patient_ids)
+    disease = _disease_cohort(data_dir, term, scoped_patient_ids=scoped_patient_ids)
     if medication["patient_count"] == 0 and disease["patient_count"] == 0:
         return None
     selected = medication if medication["patient_count"] >= disease["patient_count"] else disease
@@ -2264,101 +2009,14 @@ def _restricted_ai_provider_context(query: str) -> Dict[str, Any]:
     }
 
 
-def _answer_query_impl(
+def _basic_deterministic_query_response(
     data_dir: str,
     query: str,
-    query_mode: str = "auto",
-    history: Optional[List[Dict[str, str]]] = None,
-    scoped_patient_ids: Optional[List[str]] = None,
-    granularity_mode: str = "detailed",
-    ai_provider_access: str = "detailed_allowed",
-) -> Dict[str, Any]:
-    text = normalize_entity_synonym_mentions(query.strip(), "patient", "patient", "patients")
-    lowered = text.lower()
-    mode = str(query_mode or "auto").strip().lower()
-    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
-    provider_granularity_mode = _ai_provider_granularity_mode(granularity_mode, normalized_ai_provider_access)
-    active_scoped_patient_ids = scoped_patient_ids if _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
-
-    if not text:
-        return {
-            "query": query,
-            "intent": "empty",
-            "reply": "Ask a question about medications, diseases, or a patient timeline.",
-            "data": {},
-        }
-
-    if _needs_clarification(text):
-        return {
-            "query": query,
-            "intent": "needs_clarification",
-            "reply": (
-                "That prompt is too short to answer reliably. Try naming a patient, disease, medication, "
-                "or the cohort question you want to answer."
-            ),
-            "data": {
-                "follow_up_suggestions": _follow_up_suggestions(text),
-                "conversation_history": history[-8:] if history else [],
-            },
-        }
-
-    scope_context = _build_query_scope_context(data_dir, scoped_patient_ids=active_scoped_patient_ids)
-
-    if mode in {"planner_only", "llm_only"}:
-        if normalized_ai_provider_access == "blocked":
-            return _ai_provider_blocked_response(query, history=history)
-        if mode == "planner_only":
-            semantic_fallback = _semantic_query_plan(
-                data_dir,
-                query,
-                history=history,
-                scoped_patient_ids=active_scoped_patient_ids,
-                scope_context=scope_context,
-                granularity_mode=provider_granularity_mode,
-                ai_provider_access=normalized_ai_provider_access,
-            )
-            if semantic_fallback is not None:
-                return semantic_fallback
-        fallback = _lm_studio_reply(
-            data_dir,
-            query,
-            history=history,
-            scoped_patient_ids=active_scoped_patient_ids,
-            scope_context=scope_context,
-            granularity_mode=provider_granularity_mode,
-            ai_provider_access=normalized_ai_provider_access,
-        )
-        if fallback is not None:
-            return fallback
-        return {
-            "query": query,
-            "intent": "unsupported",
-            "reply": (
-                "I could not answer that query with the current semantic planner or LM fallback. "
-                "Try rephrasing the filter more explicitly."
-            ),
-            "data": {
-                "follow_up_suggestions": _follow_up_suggestions(text),
-                "conversation_history": history[-8:] if history else [],
-            },
-        }
-
-    try:
-        assay_response = _deterministic_assay_query(
-            data_dir,
-            text,
-            scoped_patient_ids=active_scoped_patient_ids,
-        )
-    except ValueError as exc:
-        return {
-            "query": query,
-            "intent": "needs_clarification",
-            "reply": str(exc),
-            "data": {"execution": "deterministic", "source_boundary": "external_manifest_assay"},
-        }
-    if assay_response is not None:
-        return assay_response
-
+    text: str,
+    lowered: str,
+    scope_context: QueryScopeContext,
+    active_scoped_patient_ids: Optional[List[str]],
+) -> Optional[Dict[str, Any]]:
     medication_count_constraint = _medication_count_constraint(text)
     visit_count_constraint = _visit_count_constraint(text)
     if medication_count_constraint is not None and (
@@ -2640,7 +2298,114 @@ def _answer_query_impl(
                 ],
             },
         }
+    return None
 
+def _answer_query_impl(
+    data_dir: str,
+    query: str,
+    query_mode: str = "auto",
+    history: Optional[List[Dict[str, str]]] = None,
+    scoped_patient_ids: Optional[List[str]] = None,
+    granularity_mode: str = "detailed",
+    ai_provider_access: str = "detailed_allowed",
+) -> Dict[str, Any]:
+    text = normalize_entity_synonym_mentions(query.strip(), "patient", "patient", "patients")
+    lowered = text.lower()
+    mode = str(query_mode or "auto").strip().lower()
+    normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
+    provider_granularity_mode = _ai_provider_granularity_mode(granularity_mode, normalized_ai_provider_access)
+    active_scoped_patient_ids = scoped_patient_ids if _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
+
+    if not text:
+        return {
+            "query": query,
+            "intent": "empty",
+            "reply": "Ask a question about medications, diseases, or a patient timeline.",
+            "data": {},
+        }
+
+    if _needs_clarification(text):
+        return {
+            "query": query,
+            "intent": "needs_clarification",
+            "reply": (
+                "That prompt is too short to answer reliably. Try naming a patient, disease, medication, "
+                "or the cohort question you want to answer."
+            ),
+            "data": {
+                "follow_up_suggestions": _follow_up_suggestions(text),
+                "conversation_history": history[-8:] if history else [],
+            },
+        }
+
+    scope_context = _build_query_scope_context(data_dir, scoped_patient_ids=active_scoped_patient_ids)
+
+    if mode in {"planner_only", "llm_only"}:
+        if normalized_ai_provider_access == "blocked":
+            return _ai_provider_blocked_response(query, history=history)
+        if mode == "planner_only":
+            semantic_fallback = _semantic_query_plan(
+                data_dir,
+                query,
+                history=history,
+                scoped_patient_ids=active_scoped_patient_ids,
+                scope_context=scope_context,
+                granularity_mode=provider_granularity_mode,
+                ai_provider_access=normalized_ai_provider_access,
+            )
+            if semantic_fallback is not None:
+                return semantic_fallback
+        fallback = _lm_studio_reply(
+            data_dir,
+            query,
+            history=history,
+            scoped_patient_ids=active_scoped_patient_ids,
+            scope_context=scope_context,
+            granularity_mode=provider_granularity_mode,
+            ai_provider_access=normalized_ai_provider_access,
+        )
+        if fallback is not None:
+            return fallback
+        return {
+            "query": query,
+            "intent": "unsupported",
+            "reply": (
+                "I could not answer that query with the current semantic planner or LM fallback. "
+                "Try rephrasing the filter more explicitly."
+            ),
+            "data": {
+                "follow_up_suggestions": _follow_up_suggestions(text),
+                "conversation_history": history[-8:] if history else [],
+            },
+        }
+
+    try:
+        assay_response = _deterministic_assay_query(
+            data_dir,
+            text,
+            scoped_patient_ids=active_scoped_patient_ids,
+        )
+    except ValueError as exc:
+        return {
+            "query": query,
+            "intent": "needs_clarification",
+            "reply": str(exc),
+            "data": {"execution": "deterministic", "source_boundary": "external_manifest_assay"},
+        }
+    if assay_response is not None:
+        return assay_response
+
+    basic_response = _basic_deterministic_query_response(
+        data_dir,
+        query,
+        text,
+        lowered,
+        scope_context,
+        active_scoped_patient_ids,
+    )
+    if basic_response is not None:
+        return basic_response
+    visit_count_constraint = _visit_count_constraint(text)
     transition_query = _transition_query(text)
     if transition_query is not None:
         result = _patient_transition_cohort(
@@ -3097,11 +2862,7 @@ def _answer_query_impl(
 
     requested_patient_identifier = _extract_patient_id(text)
     if requested_patient_identifier is not None:
-        resolved_identifier = (
-            store_resolve_patient_identifier(data_dir, requested_patient_identifier)
-            if duckdb_available()
-            else None
-        )
+        resolved_identifier = store_resolve_patient_identifier(data_dir, requested_patient_identifier)
         patient_id = str((resolved_identifier or {}).get("patient_id") or requested_patient_identifier)
         patient_workspace = build_patient_workspace(data_dir, patient_id)
         if patient_workspace is None:
@@ -3129,7 +2890,7 @@ def _answer_query_impl(
             reply = _render_patient_summary(payload)
             intent = "patient_summary"
         clarid = (resolved_identifier or {}).get("clarid")
-        if clarid is None and duckdb_available():
+        if clarid is None:
             clarid = store_patient_clarid(data_dir, patient_id)
         if clarid and requested_patient_identifier.lower() != patient_id.lower():
             reply = "ClarID recognized as patient %s. %s" % (patient_id, reply)

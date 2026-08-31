@@ -1588,6 +1588,322 @@ def _validate_limma_voom_bundle(bundle: Dict[str, Any]) -> None:
         )
 
 
+def _prepare_rscript_run(
+    runner_ref: str,
+    *,
+    binary: str,
+    script_path: Path,
+    prompt: str,
+    data_dir: str,
+    assay_id: str,
+    selected_patient_ids: str,
+    compare_selected_patient_ids: str,
+    temp_path: Path,
+) -> Dict[str, Any]:
+    sensitive_command_values: List[str] = []
+    private_input_paths: List[Path] = []
+    methylation_bundle: Dict[str, Any] | None = None
+    quantitative_assay_bundle: Dict[str, Any] | None = None
+    if runner_ref == "dummy_scope_snapshot":
+        counts = _scope_counts(
+            data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+        )
+        command = [
+            binary,
+            str(script_path),
+            "--prompt",
+            str(prompt or ""),
+            "--workspace-record-count",
+            str(counts["workspace_record_count"]),
+            "--workspace-patient-count",
+            str(counts["workspace_patient_count"]),
+            "--scope-a-record-count",
+            str(counts["scope_a_record_count"]),
+            "--scope-a-patient-count",
+            str(counts["scope_a_patient_count"]),
+            "--scope-b-record-count",
+            str(counts["scope_b_record_count"]),
+            "--scope-b-patient-count",
+            str(counts["scope_b_patient_count"]),
+            "--compare-mode",
+            "true" if counts["compare_mode"] else "false",
+        ]
+    elif runner_ref == "clinical_scope_profile":
+        tables = _clinical_profile_tables(
+            data_dir,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+        )
+        overview_path = temp_path / "overview.tsv"
+        diseases_path = temp_path / "diseases.tsv"
+        medications_path = temp_path / "medications.tsv"
+        periods_path = temp_path / "periods.tsv"
+        _write_tsv(overview_path, ["cohort", "record_count", "patient_count"], tables["overview"])
+        _write_tsv(diseases_path, ["cohort", "label", "patient_count"], tables["diseases"])
+        _write_tsv(medications_path, ["cohort", "label", "patient_count"], tables["medications"])
+        _write_tsv(periods_path, ["cohort", "period", "timepoint_count", "patient_count"], tables["periods"])
+        command = [
+            binary,
+            str(script_path),
+            "--prompt",
+            str(prompt or ""),
+            "--overview-tsv",
+            str(overview_path),
+            "--diseases-tsv",
+            str(diseases_path),
+            "--medications-tsv",
+            str(medications_path),
+            "--periods-tsv",
+            str(periods_path),
+            "--compare-mode",
+            "true" if tables["compare_mode"] else "false",
+        ]
+    elif runner_ref == "dummy_long_job":
+        command = [
+            binary,
+            str(script_path),
+            "--prompt",
+            str(prompt or ""),
+            "--sleep-seconds",
+            "60",
+        ]
+    elif runner_ref == "transcriptomics_deseq2_differential_expression":
+        bundle = _prepare_transcriptomics_differential_expression_bundle(
+            data_dir,
+            prompt=prompt,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path,
+            method="deseq2_apeglm",
+            minimum_samples_per_group=2,
+        )
+        _validate_deseq2_bundle(bundle)
+        command = [
+            binary,
+            str(script_path),
+            "--job-dir",
+            str(temp_path),
+            "--manifest",
+            str(bundle["manifest_path"]),
+            "--params",
+            str(bundle["params_path"]),
+            "--prompt",
+            str(prompt or ""),
+            "--dataset-name",
+            str(bundle["dataset_name"]),
+            "--sample-table",
+            str(bundle["sample_table_path"]),
+            "--counts-matrix",
+            str(bundle["counts_matrix_path"]),
+            "--results-table",
+            str(temp_path / "de_results.tsv"),
+            "--volcano-table",
+            str(temp_path / "volcano_points.tsv"),
+            "--summary-json",
+            str(temp_path / "summary.json"),
+            "--plot-file",
+            str(temp_path / "volcano_plot.png"),
+            "--heatmap-file",
+            str(temp_path / "top_genes_heatmap.png"),
+            "--heatmap-table",
+            str(temp_path / "top_genes_heatmap.tsv"),
+            "--heatmap-clustering",
+            str(temp_path / "top_genes_heatmap_clustering.json"),
+        ]
+    elif runner_ref == "transcriptomics_limma_voom_differential_expression":
+        bundle = _prepare_transcriptomics_differential_expression_bundle(
+            data_dir, prompt=prompt, assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path, method="limma_voom",
+            minimum_samples_per_group=2, required_data_type="rsem_expected_counts",
+        )
+        _validate_limma_voom_bundle(bundle)
+        command = [binary, str(script_path), "--job-dir", str(temp_path),
+            "--manifest", str(bundle["manifest_path"]), "--params", str(bundle["params_path"]),
+            "--prompt", str(prompt or ""), "--dataset-name", str(bundle["dataset_name"]),
+            "--sample-table", str(bundle["sample_table_path"]), "--counts-matrix", str(bundle["counts_matrix_path"]),
+            "--results-table", str(temp_path / "de_results.tsv"), "--volcano-table", str(temp_path / "volcano_points.tsv"),
+            "--summary-json", str(temp_path / "summary.json"), "--plot-file", str(temp_path / "volcano_plot.png")]
+    elif runner_ref == "transcriptomics_hallmark_pathway_enrichment":
+        bundle = _prepare_transcriptomics_differential_expression_bundle(
+            data_dir,
+            prompt=prompt,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path,
+            method="deseq2_fgsea_hallmark",
+            minimum_samples_per_group=2,
+        )
+        _validate_deseq2_bundle(bundle)
+        command = [
+            binary,
+            str(script_path),
+            "--job-dir",
+            str(temp_path),
+            "--manifest",
+            str(bundle["manifest_path"]),
+            "--params",
+            str(bundle["params_path"]),
+            "--prompt",
+            str(prompt or ""),
+            "--dataset-name",
+            str(bundle["dataset_name"]),
+            "--sample-table",
+            str(bundle["sample_table_path"]),
+            "--counts-matrix",
+            str(bundle["counts_matrix_path"]),
+            "--results-table",
+            str(temp_path / "pathway_results.tsv"),
+            "--rankings-table",
+            str(temp_path / "gene_rankings.tsv"),
+            "--summary-json",
+            str(temp_path / "summary.json"),
+            "--plot-file",
+            str(temp_path / "pathway_plot.png"),
+        ]
+    elif runner_ref == "methylation_qc_pca":
+        bundle = _prepare_methylation_analysis_bundle(
+            data_dir,
+            prompt=prompt,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path,
+            analysis_type="qc_pca",
+        )
+        methylation_bundle = bundle
+        matrix_path = str(bundle["matrix_path"])
+        sensitive_command_values.append(matrix_path)
+        command = [
+            binary,
+            str(script_path),
+            "--job-dir",
+            str(temp_path),
+            "--manifest",
+            str(bundle["manifest_path"]),
+            "--params",
+            str(bundle["params_path"]),
+            "--prompt",
+            str(prompt or ""),
+            "--dataset-name",
+            str(bundle["dataset_name"]),
+            "--matrix",
+            matrix_path,
+            "--sample-table",
+            str(bundle["sample_table_path"]),
+            "--covariates-file",
+            str(bundle["covariates_path"]),
+            "--feature-limit",
+            str(bundle["pca_feature_limit"]),
+            "--sample-qc",
+            str(temp_path / "sample_qc.tsv"),
+            "--pca-scores",
+            str(temp_path / "pca_scores.tsv"),
+            "--pca-variance",
+            str(temp_path / "pca_variance.tsv"),
+            "--covariate-associations",
+            str(temp_path / "pca_covariate_associations.tsv"),
+            "--summary-json",
+            str(temp_path / "summary.json"),
+            "--plot-file",
+            str(temp_path / "pca_plot.png"),
+        ]
+    elif runner_ref == "methylation_limma_differential_methylation":
+        bundle = _prepare_methylation_analysis_bundle(
+            data_dir,
+            prompt=prompt,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path,
+            analysis_type="differential_methylation",
+        )
+        methylation_bundle = bundle
+        matrix_path = str(bundle["matrix_path"])
+        sensitive_command_values.append(matrix_path)
+        command = [
+            binary,
+            str(script_path),
+            "--job-dir",
+            str(temp_path),
+            "--manifest",
+            str(bundle["manifest_path"]),
+            "--params",
+            str(bundle["params_path"]),
+            "--prompt",
+            str(prompt or ""),
+            "--dataset-name",
+            str(bundle["dataset_name"]),
+            "--matrix",
+            matrix_path,
+            "--sample-table",
+            str(bundle["sample_table_path"]),
+            "--covariates-file",
+            str(bundle["covariates_path"]),
+            "--results-table",
+            str(temp_path / "dm_results.tsv"),
+            "--volcano-table",
+            str(temp_path / "volcano_points.tsv"),
+            "--summary-json",
+            str(temp_path / "summary.json"),
+            "--plot-file",
+            str(temp_path / "volcano_plot.png"),
+        ]
+    elif runner_ref == "quantitative_assay_wilcoxon_comparison":
+        bundle = _prepare_quantitative_assay_comparison_bundle(
+            data_dir,
+            prompt=prompt,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            output_dir=temp_path,
+        )
+        quantitative_assay_bundle = bundle
+        private_input_paths.append(bundle["sample_table_path"])
+        matrix_path = str(bundle["matrix_path"])
+        sensitive_command_values.append(matrix_path)
+        command = [
+            binary,
+            str(script_path),
+            "--prompt",
+            str(prompt or ""),
+            "--dataset-name",
+            str(bundle["dataset_name"]),
+            "--assay-label",
+            str(bundle["assay_label"]),
+            "--modality",
+            str(bundle["modality"]),
+            "--data-type",
+            str(bundle["data_type"]),
+            "--matrix",
+            matrix_path,
+            "--delimiter-name",
+            str(bundle["delimiter_name"]),
+            "--sample-table",
+            str(bundle["sample_table_path"]),
+            "--results-table",
+            str(temp_path / "compact_assay_results.tsv"),
+            "--summary-json",
+            str(temp_path / "summary.json"),
+            "--plot-file",
+            str(temp_path / "effect_plot.png"),
+        ]
+    else:
+        raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
+    return {
+        "command": command,
+        "sensitive_command_values": sensitive_command_values,
+        "private_input_paths": private_input_paths,
+        "methylation_bundle": methylation_bundle,
+        "quantitative_assay_bundle": quantitative_assay_bundle,
+    }
+
+
 def run_rscript_analysis(
     runner_ref: str,
     *,
@@ -1607,304 +1923,25 @@ def run_rscript_analysis(
         raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
     if not script_path.exists():
         raise RuntimeError(f"Configured Rscript analysis is missing: {script_path}")
-    sensitive_command_values: List[str] = []
-    private_input_paths: List[Path] = []
-    methylation_bundle: Dict[str, Any] | None = None
-    quantitative_assay_bundle: Dict[str, Any] | None = None
     with tempfile.TemporaryDirectory(prefix="pn-analysis-rscript-") as temp_dir:
         temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
         temp_path.mkdir(parents=True, exist_ok=True)
-        if runner_ref == "dummy_scope_snapshot":
-            counts = _scope_counts(
-                data_dir,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-            )
-            command = [
-                binary,
-                str(script_path),
-                "--prompt",
-                str(prompt or ""),
-                "--workspace-record-count",
-                str(counts["workspace_record_count"]),
-                "--workspace-patient-count",
-                str(counts["workspace_patient_count"]),
-                "--scope-a-record-count",
-                str(counts["scope_a_record_count"]),
-                "--scope-a-patient-count",
-                str(counts["scope_a_patient_count"]),
-                "--scope-b-record-count",
-                str(counts["scope_b_record_count"]),
-                "--scope-b-patient-count",
-                str(counts["scope_b_patient_count"]),
-                "--compare-mode",
-                "true" if counts["compare_mode"] else "false",
-            ]
-        elif runner_ref == "clinical_scope_profile":
-            tables = _clinical_profile_tables(
-                data_dir,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-            )
-            overview_path = temp_path / "overview.tsv"
-            diseases_path = temp_path / "diseases.tsv"
-            medications_path = temp_path / "medications.tsv"
-            periods_path = temp_path / "periods.tsv"
-            _write_tsv(overview_path, ["cohort", "record_count", "patient_count"], tables["overview"])
-            _write_tsv(diseases_path, ["cohort", "label", "patient_count"], tables["diseases"])
-            _write_tsv(medications_path, ["cohort", "label", "patient_count"], tables["medications"])
-            _write_tsv(periods_path, ["cohort", "period", "timepoint_count", "patient_count"], tables["periods"])
-            command = [
-                binary,
-                str(script_path),
-                "--prompt",
-                str(prompt or ""),
-                "--overview-tsv",
-                str(overview_path),
-                "--diseases-tsv",
-                str(diseases_path),
-                "--medications-tsv",
-                str(medications_path),
-                "--periods-tsv",
-                str(periods_path),
-                "--compare-mode",
-                "true" if tables["compare_mode"] else "false",
-            ]
-        elif runner_ref == "dummy_long_job":
-            command = [
-                binary,
-                str(script_path),
-                "--prompt",
-                str(prompt or ""),
-                "--sleep-seconds",
-                "60",
-            ]
-        elif runner_ref == "transcriptomics_deseq2_differential_expression":
-            bundle = _prepare_transcriptomics_differential_expression_bundle(
-                data_dir,
-                prompt=prompt,
-                assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-                method="deseq2_apeglm",
-                minimum_samples_per_group=2,
-            )
-            _validate_deseq2_bundle(bundle)
-            command = [
-                binary,
-                str(script_path),
-                "--job-dir",
-                str(temp_path),
-                "--manifest",
-                str(bundle["manifest_path"]),
-                "--params",
-                str(bundle["params_path"]),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--counts-matrix",
-                str(bundle["counts_matrix_path"]),
-                "--results-table",
-                str(temp_path / "de_results.tsv"),
-                "--volcano-table",
-                str(temp_path / "volcano_points.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "volcano_plot.png"),
-                "--heatmap-file",
-                str(temp_path / "top_genes_heatmap.png"),
-                "--heatmap-table",
-                str(temp_path / "top_genes_heatmap.tsv"),
-                "--heatmap-clustering",
-                str(temp_path / "top_genes_heatmap_clustering.json"),
-            ]
-        elif runner_ref == "transcriptomics_limma_voom_differential_expression":
-            bundle = _prepare_transcriptomics_differential_expression_bundle(
-                data_dir, prompt=prompt, assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path, method="limma_voom",
-                minimum_samples_per_group=2, required_data_type="rsem_expected_counts",
-            )
-            _validate_limma_voom_bundle(bundle)
-            command = [binary, str(script_path), "--job-dir", str(temp_path),
-                "--manifest", str(bundle["manifest_path"]), "--params", str(bundle["params_path"]),
-                "--prompt", str(prompt or ""), "--dataset-name", str(bundle["dataset_name"]),
-                "--sample-table", str(bundle["sample_table_path"]), "--counts-matrix", str(bundle["counts_matrix_path"]),
-                "--results-table", str(temp_path / "de_results.tsv"), "--volcano-table", str(temp_path / "volcano_points.tsv"),
-                "--summary-json", str(temp_path / "summary.json"), "--plot-file", str(temp_path / "volcano_plot.png")]
-        elif runner_ref == "transcriptomics_hallmark_pathway_enrichment":
-            bundle = _prepare_transcriptomics_differential_expression_bundle(
-                data_dir,
-                prompt=prompt,
-                assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-                method="deseq2_fgsea_hallmark",
-                minimum_samples_per_group=2,
-            )
-            _validate_deseq2_bundle(bundle)
-            command = [
-                binary,
-                str(script_path),
-                "--job-dir",
-                str(temp_path),
-                "--manifest",
-                str(bundle["manifest_path"]),
-                "--params",
-                str(bundle["params_path"]),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--counts-matrix",
-                str(bundle["counts_matrix_path"]),
-                "--results-table",
-                str(temp_path / "pathway_results.tsv"),
-                "--rankings-table",
-                str(temp_path / "gene_rankings.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "pathway_plot.png"),
-            ]
-        elif runner_ref == "methylation_qc_pca":
-            bundle = _prepare_methylation_analysis_bundle(
-                data_dir,
-                prompt=prompt,
-                assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-                analysis_type="qc_pca",
-            )
-            methylation_bundle = bundle
-            matrix_path = str(bundle["matrix_path"])
-            sensitive_command_values.append(matrix_path)
-            command = [
-                binary,
-                str(script_path),
-                "--job-dir",
-                str(temp_path),
-                "--manifest",
-                str(bundle["manifest_path"]),
-                "--params",
-                str(bundle["params_path"]),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--matrix",
-                matrix_path,
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--covariates-file",
-                str(bundle["covariates_path"]),
-                "--feature-limit",
-                str(bundle["pca_feature_limit"]),
-                "--sample-qc",
-                str(temp_path / "sample_qc.tsv"),
-                "--pca-scores",
-                str(temp_path / "pca_scores.tsv"),
-                "--pca-variance",
-                str(temp_path / "pca_variance.tsv"),
-                "--covariate-associations",
-                str(temp_path / "pca_covariate_associations.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "pca_plot.png"),
-            ]
-        elif runner_ref == "methylation_limma_differential_methylation":
-            bundle = _prepare_methylation_analysis_bundle(
-                data_dir,
-                prompt=prompt,
-                assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-                analysis_type="differential_methylation",
-            )
-            methylation_bundle = bundle
-            matrix_path = str(bundle["matrix_path"])
-            sensitive_command_values.append(matrix_path)
-            command = [
-                binary,
-                str(script_path),
-                "--job-dir",
-                str(temp_path),
-                "--manifest",
-                str(bundle["manifest_path"]),
-                "--params",
-                str(bundle["params_path"]),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--matrix",
-                matrix_path,
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--covariates-file",
-                str(bundle["covariates_path"]),
-                "--results-table",
-                str(temp_path / "dm_results.tsv"),
-                "--volcano-table",
-                str(temp_path / "volcano_points.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "volcano_plot.png"),
-            ]
-        elif runner_ref == "quantitative_assay_wilcoxon_comparison":
-            bundle = _prepare_quantitative_assay_comparison_bundle(
-                data_dir,
-                prompt=prompt,
-                assay_id=assay_id,
-                selected_patient_ids=selected_patient_ids,
-                compare_selected_patient_ids=compare_selected_patient_ids,
-                output_dir=temp_path,
-            )
-            quantitative_assay_bundle = bundle
-            private_input_paths.append(bundle["sample_table_path"])
-            matrix_path = str(bundle["matrix_path"])
-            sensitive_command_values.append(matrix_path)
-            command = [
-                binary,
-                str(script_path),
-                "--prompt",
-                str(prompt or ""),
-                "--dataset-name",
-                str(bundle["dataset_name"]),
-                "--assay-label",
-                str(bundle["assay_label"]),
-                "--modality",
-                str(bundle["modality"]),
-                "--data-type",
-                str(bundle["data_type"]),
-                "--matrix",
-                matrix_path,
-                "--delimiter-name",
-                str(bundle["delimiter_name"]),
-                "--sample-table",
-                str(bundle["sample_table_path"]),
-                "--results-table",
-                str(temp_path / "compact_assay_results.tsv"),
-                "--summary-json",
-                str(temp_path / "summary.json"),
-                "--plot-file",
-                str(temp_path / "effect_plot.png"),
-            ]
-        else:
-            raise RuntimeError(f"Unsupported Rscript analysis runner '{runner_ref}'.")
+        plan = _prepare_rscript_run(
+            runner_ref,
+            binary=binary,
+            script_path=script_path,
+            prompt=prompt,
+            data_dir=data_dir,
+            assay_id=assay_id,
+            selected_patient_ids=selected_patient_ids,
+            compare_selected_patient_ids=compare_selected_patient_ids,
+            temp_path=temp_path,
+        )
+        command = plan["command"]
+        sensitive_command_values = plan["sensitive_command_values"]
+        private_input_paths = plan["private_input_paths"]
+        methylation_bundle = plan["methylation_bundle"]
+        quantitative_assay_bundle = plan["quantitative_assay_bundle"]
         try:
             result = subprocess.run(
                 command,
@@ -2022,6 +2059,7 @@ def run_snakemake_analysis(
     *,
     prompt: str,
     data_dir: str,
+    assay_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -2090,6 +2128,7 @@ def run_nextflow_analysis(
     *,
     prompt: str,
     data_dir: str,
+    assay_id: str = "",
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     job_dir: Path | None = None,
@@ -2289,6 +2328,14 @@ def run_workflow_analysis(
         }
 
 
+EXTERNAL_ANALYSIS_RUNNERS = {
+    "rscript": run_rscript_analysis,
+    "snakemake": run_snakemake_analysis,
+    "nextflow": run_nextflow_analysis,
+    "workflow": run_workflow_analysis,
+}
+
+
 def run_external_analysis(
     runner_type: str,
     runner_ref: str,
@@ -2302,46 +2349,16 @@ def run_external_analysis(
     timeout_seconds: int = 30,
 ) -> Dict[str, Any]:
     normalized = str(runner_type or "").strip().lower()
-    if normalized == "rscript":
-        return run_rscript_analysis(
-            runner_ref,
-            prompt=prompt,
-            data_dir=data_dir,
-            assay_id=assay_id,
-            selected_patient_ids=selected_patient_ids,
-            compare_selected_patient_ids=compare_selected_patient_ids,
-            job_dir=job_dir,
-            timeout_seconds=timeout_seconds,
-        )
-    if normalized == "snakemake":
-        return run_snakemake_analysis(
-            runner_ref,
-            prompt=prompt,
-            data_dir=data_dir,
-            selected_patient_ids=selected_patient_ids,
-            compare_selected_patient_ids=compare_selected_patient_ids,
-            job_dir=job_dir,
-            timeout_seconds=timeout_seconds,
-        )
-    if normalized == "nextflow":
-        return run_nextflow_analysis(
-            runner_ref,
-            prompt=prompt,
-            data_dir=data_dir,
-            selected_patient_ids=selected_patient_ids,
-            compare_selected_patient_ids=compare_selected_patient_ids,
-            job_dir=job_dir,
-            timeout_seconds=timeout_seconds,
-        )
-    if normalized == "workflow":
-        return run_workflow_analysis(
-            runner_ref,
-            prompt=prompt,
-            data_dir=data_dir,
-            assay_id=assay_id,
-            selected_patient_ids=selected_patient_ids,
-            compare_selected_patient_ids=compare_selected_patient_ids,
-            job_dir=job_dir,
-            timeout_seconds=timeout_seconds,
-        )
-    raise RuntimeError(f"Unsupported analysis runner type '{runner_type}'.")
+    runner = EXTERNAL_ANALYSIS_RUNNERS.get(normalized)
+    if runner is None:
+        raise RuntimeError(f"Unsupported analysis runner type '{runner_type}'.")
+    return runner(
+        runner_ref,
+        prompt=prompt,
+        data_dir=data_dir,
+        assay_id=assay_id,
+        selected_patient_ids=selected_patient_ids,
+        compare_selected_patient_ids=compare_selected_patient_ids,
+        job_dir=job_dir,
+        timeout_seconds=timeout_seconds,
+    )

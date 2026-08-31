@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.config import DEFAULT_LOCAL_USER_ID, STATE_ROOT_DIR
+from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import normalize_user_id
 
 
@@ -30,8 +31,12 @@ def _read_sessions(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]
 
 
 def _write_sessions(items: List[Dict[str, Any]], user_id: str = DEFAULT_LOCAL_USER_ID) -> None:
+    atomic_write_json(_store_path(user_id), items)
+
+
+def _store_lock_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
     path = _store_path(user_id)
-    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path.with_name(f".{path.name}.lock")
 
 
 def list_analysis_sessions(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
@@ -75,17 +80,18 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
         "updated_at": str(item.get("updated_at") or now),
         "created_at": str(item.get("created_at") or now),
     }
-    items = _read_sessions(user_id)
-    replaced = False
-    for index, existing in enumerate(items):
-        if str(existing.get("id") or "") == session_id:
-            normalized["created_at"] = str(existing.get("created_at") or normalized["created_at"])
-            items[index] = normalized
-            replaced = True
-            break
-    if not replaced:
-        items.append(normalized)
-    _write_sessions(items, user_id)
+    with advisory_file_lock(_store_lock_path(user_id)):
+        items = _read_sessions(user_id)
+        replaced = False
+        for index, existing in enumerate(items):
+            if str(existing.get("id") or "") == session_id:
+                normalized["created_at"] = str(existing.get("created_at") or normalized["created_at"])
+                items[index] = normalized
+                replaced = True
+                break
+        if not replaced:
+            items.append(normalized)
+        _write_sessions(items, user_id)
     return normalized
 
 
@@ -136,26 +142,28 @@ def _normalize_id_list(value: Any) -> List[str]:
 
 
 def rename_analysis_session(session_id: str, title: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> Dict[str, Any] | None:
-    items = _read_sessions(user_id)
-    for index, item in enumerate(items):
-        if str(item.get("id") or "") != session_id:
-            continue
-        updated = dict(item)
-        updated["title"] = title.strip()
-        updated["updated_at"] = datetime.now(timezone.utc).isoformat()
-        items[index] = updated
-        _write_sessions(items, user_id)
-        return updated
+    with advisory_file_lock(_store_lock_path(user_id)):
+        items = _read_sessions(user_id)
+        for index, item in enumerate(items):
+            if str(item.get("id") or "") != session_id:
+                continue
+            updated = dict(item)
+            updated["title"] = title.strip()
+            updated["updated_at"] = datetime.now(timezone.utc).isoformat()
+            items[index] = updated
+            _write_sessions(items, user_id)
+            return updated
     return None
 
 
 def delete_analysis_session(session_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> bool:
-    items = _read_sessions(user_id)
-    filtered = [item for item in items if str(item.get("id") or "") != session_id]
-    if len(filtered) == len(items):
-        return False
-    _write_sessions(filtered, user_id)
-    return True
+    with advisory_file_lock(_store_lock_path(user_id)):
+        items = _read_sessions(user_id)
+        filtered = [item for item in items if str(item.get("id") or "") != session_id]
+        if len(filtered) == len(items):
+            return False
+        _write_sessions(filtered, user_id)
+        return True
 
 
 def list_sessions_referencing_saved_cohort(cohort_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:

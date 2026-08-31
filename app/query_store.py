@@ -3004,38 +3004,61 @@ def patient_visit_count_cohort(data_dir: str, operator: str, target: int) -> Dic
     }
 
 
-def cohort_over_time_summary(data_dir: str) -> Dict[str, Any]:
+def cohort_over_time_summary(
+    data_dir: str,
+    scoped_patient_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     ensure_query_store(data_dir)
+    scope_ids = sorted({str(value or "").strip() for value in scoped_patient_ids or [] if str(value or "").strip()})
+    scope_clause = ""
+    if scope_ids:
+        placeholders = ", ".join("?" for _ in scope_ids)
+        scope_clause = f"WHERE patient_id IN ({placeholders})"
     con = _connect(data_dir)
     try:
         totals_row = con.execute(
-            """
+            f"""
+            WITH scoped_timepoints AS (
+                SELECT * FROM timepoints
+                {scope_clause}
+            )
             SELECT
                 COUNT(*) AS timepoint_count,
                 COUNT(DISTINCT patient_id) AS patient_count,
                 COUNT(event_date) AS dated_timepoint_count,
                 MIN(event_date) AS first_event_date,
                 MAX(event_date) AS last_event_date
-            FROM timepoints
-            """
+            FROM scoped_timepoints
+            """,
+            scope_ids,
         ).fetchone()
         period_rows = con.execute(
-            """
+            f"""
+            WITH scoped_timepoints AS (
+                SELECT * FROM timepoints
+                {scope_clause}
+            )
             SELECT
                 SUBSTR(event_date, 1, 7) AS period,
                 COUNT(*) AS timepoint_count,
                 COUNT(DISTINCT patient_id) AS patient_count
-            FROM timepoints
+            FROM scoped_timepoints
             WHERE event_date IS NOT NULL AND event_date <> ''
             GROUP BY period
             ORDER BY period
-            """
+            """,
+            scope_ids,
         ).fetchall()
         undated_row = con.execute(
-            """
-            SELECT COUNT(*) FROM timepoints
+            f"""
+            WITH scoped_timepoints AS (
+                SELECT * FROM timepoints
+                {scope_clause}
+            )
+            SELECT COUNT(*) FROM scoped_timepoints
             WHERE event_date IS NULL OR event_date = ''
-            """
+            """,
+            scope_ids,
         ).fetchone()
     finally:
         con.close()

@@ -113,10 +113,24 @@ def build_query_scope_context(
     scoped_patient_ids: Optional[List[str]] = None,
 ) -> QueryScopeContext:
     scoped_rows = apply_patient_scope_to_rows(patient_rows, scoped_patient_ids)
+    patient_ids = [
+        str(row.get("patient_id") or "").strip()
+        for row in scoped_rows
+        if str(row.get("patient_id") or "").strip()
+    ]
+    sample_ids: List[str] = []
+    seen_sample_ids = set()
+    for row in scoped_rows:
+        for value in row.get("original_record_ids", []) if isinstance(row, dict) else []:
+            sample_id = str(value or "").strip()
+            if not sample_id or sample_id in seen_sample_ids:
+                continue
+            seen_sample_ids.add(sample_id)
+            sample_ids.append(sample_id)
     return QueryScopeContext(
-        patient_ids=patient_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids),
+        patient_ids=patient_ids,
         patient_rows=scoped_rows,
-        sample_ids=sample_inventory_from_records(data_dir, scoped_patient_ids=scoped_patient_ids),
+        sample_ids=sorted(sample_ids),
         disease_counts=bucket_counts_from_rows(scoped_rows, "diseases", "disease"),
         medication_counts=bucket_counts_from_rows(scoped_rows, "medications", "medication"),
     )

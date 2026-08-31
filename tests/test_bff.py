@@ -911,8 +911,8 @@ def test_deterministic_sample_inventory_returns_sample_ids(tmp_path):
 
     assert payload["intent"] == "sample_inventory"
     assert payload["data"]["sample_ids"] == ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]
-    assert "SYN001:week_0" in payload["reply"]
-    assert "SYN001:week_2" in payload["reply"]
+    assert payload["reply"] == "Found 3 samples in this workspace. Browse the bounded result below."
+    assert "SYN001:week_0" not in payload["reply"]
 
 
 def test_deterministic_sample_inventory_supports_biospecimen_synonyms(tmp_path):
@@ -8838,7 +8838,9 @@ def test_query_supports_negative_disease_cohort(tmp_path):
     payload = answer_query(str(tmp_path), "How many patients don't have Crohn Disease?")
     assert payload["intent"] == "negative_disease_cohort"
     assert payload["data"]["patient_count"] == 2
-    assert payload["reply"] == "2 patients do not have 'Crohn Disease'."
+    assert payload["reply"] == "2 patients match this query."
+    assert payload["data"]["count_only"] is True
+    assert "patient_ids" not in payload["data"]
 
 
 def test_query_supports_mixed_include_exclude_patient_filters(tmp_path):

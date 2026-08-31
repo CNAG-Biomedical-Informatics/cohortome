@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
+from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import user_state_file
 
 
@@ -91,14 +92,18 @@ def load_user_settings(user_id: str | None = None) -> Dict[str, Any]:
 def save_user_settings(settings: Dict[str, Any], user_id: str | None = None) -> Dict[str, Any]:
     normalized = normalize_user_settings(settings)
     path = user_state_file(USER_SETTINGS_FILENAME, user_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with advisory_file_lock(path.with_name(f".{path.name}.lock")):
+        atomic_write_json(path, normalized)
     return normalized
 
 
 def update_user_settings(patch: Dict[str, Any], user_id: str | None = None) -> Dict[str, Any]:
-    current = load_user_settings(user_id)
-    for key, value in patch.items():
-        if key in DEFAULT_USER_SETTINGS and key != "version":
-            current[key] = value
-    return save_user_settings(current, user_id)
+    path = user_state_file(USER_SETTINGS_FILENAME, user_id)
+    with advisory_file_lock(path.with_name(f".{path.name}.lock")):
+        current = load_user_settings(user_id)
+        for key, value in patch.items():
+            if key in DEFAULT_USER_SETTINGS and key != "version":
+                current[key] = value
+        normalized = normalize_user_settings(current)
+        atomic_write_json(path, normalized)
+        return normalized

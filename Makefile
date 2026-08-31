@@ -13,10 +13,10 @@ worker:
 	$(PYTHONPATH_APP) python3 -c 'from dotenv import load_dotenv; load_dotenv("docker/.env"); from rq.cli import main; main()' worker analysis --url redis://127.0.0.1:6379/0
 
 test:
-	$(PYTHONPATH_DEPS) pytest tests/test_bff.py -q
+	$(PYTHONPATH_DEPS) pytest tests -q --ignore=tests/test_ui_smoke.py
 
 test-cov:
-	$(PYTHONPATH_DEPS) pytest tests/test_bff.py --cov=app --cov-report=term -q
+	$(PYTHONPATH_DEPS) pytest tests -q --ignore=tests/test_ui_smoke.py --cov=app --cov-report=term
 
 test-ui:
 	$(PYTHONPATH_DEPS) pytest tests/test_ui_smoke.py -q

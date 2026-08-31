@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from app.bff import ensure_data_dir, extract_patient_id, normalize_value, read_bff_records
 from app.config import DEFAULT_LOCAL_USER_ID, STATE_ROOT_DIR
+from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import normalize_user_id
 
 
@@ -56,8 +57,12 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
 
 
 def _write_saved_cohorts(items: List[Dict[str, Any]], user_id: str = DEFAULT_LOCAL_USER_ID) -> None:
+    atomic_write_json(_cohort_store_path(user_id), items)
+
+
+def _cohort_store_lock_path(user_id: str = DEFAULT_LOCAL_USER_ID) -> Path:
     path = _cohort_store_path(user_id)
-    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path.with_name(f".{path.name}.lock")
 
 
 def list_saved_cohorts(dataset_id: str | None = None, user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, Any]]:
@@ -213,36 +218,38 @@ def save_cohort(
         normalized_dataset_ids = [normalized_dataset_id]
     requested_name = (name or "").strip() or f"Cohort {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     now = datetime.now(timezone.utc).isoformat()
-    items = _read_saved_cohorts(user_id)
-    normalized_name = _dedupe_cohort_name(requested_name, normalized_dataset_id, items)
-    item = {
-        "id": f"cohort_{uuid4().hex[:12]}",
-        "name": normalized_name,
-        "dataset_id": normalized_dataset_id,
-        "dataset_ids": normalized_dataset_ids,
-        "data_dir": data_dir,
-        "id_type": id_type if id_type in {"sample", "original_record", "patient"} else "sample",
-        "sample_ids": normalized_sample_ids,
-        "patient_ids": normalized_patient_ids,
-        "sample_count": len(normalized_sample_ids),
-        "patient_count": len(normalized_patient_ids),
-        "is_full_dataset": is_full_dataset,
-        "source": {
-            "kind": source_kind or "manual",
-            "prompt": source_prompt.strip(),
-        },
-        "created_at": now,
-        "updated_at": now,
-    }
-    items.append(item)
-    _write_saved_cohorts(items, user_id)
+    with advisory_file_lock(_cohort_store_lock_path(user_id)):
+        items = _read_saved_cohorts(user_id)
+        normalized_name = _dedupe_cohort_name(requested_name, normalized_dataset_id, items)
+        item = {
+            "id": f"cohort_{uuid4().hex[:12]}",
+            "name": normalized_name,
+            "dataset_id": normalized_dataset_id,
+            "dataset_ids": normalized_dataset_ids,
+            "data_dir": data_dir,
+            "id_type": id_type if id_type in {"sample", "original_record", "patient"} else "sample",
+            "sample_ids": normalized_sample_ids,
+            "patient_ids": normalized_patient_ids,
+            "sample_count": len(normalized_sample_ids),
+            "patient_count": len(normalized_patient_ids),
+            "is_full_dataset": is_full_dataset,
+            "source": {
+                "kind": source_kind or "manual",
+                "prompt": source_prompt.strip(),
+            },
+            "created_at": now,
+            "updated_at": now,
+        }
+        items.append(item)
+        _write_saved_cohorts(items, user_id)
     return item
 
 
 def delete_saved_cohort(cohort_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> bool:
-    items = _read_saved_cohorts(user_id)
-    filtered = [item for item in items if str(item.get("id") or "") != cohort_id]
-    if len(filtered) == len(items):
-        return False
-    _write_saved_cohorts(filtered, user_id)
-    return True
+    with advisory_file_lock(_cohort_store_lock_path(user_id)):
+        items = _read_saved_cohorts(user_id)
+        filtered = [item for item in items if str(item.get("id") or "") != cohort_id]
+        if len(filtered) == len(items):
+            return False
+        _write_saved_cohorts(filtered, user_id)
+        return True

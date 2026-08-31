@@ -19,6 +19,7 @@ from fastapi import HTTPException, Request
 
 from app.config import STATE_ROOT_DIR
 from app.env import app_env, app_env_has
+from app.state_io import atomic_write_json
 
 
 AUTH_USERS_PATH = STATE_ROOT_DIR / "auth" / "users.json"
@@ -266,9 +267,8 @@ def _seed_users_from_env_or_default() -> List[Dict[str, Any]]:
 
 def _write_local_users(users: List[Dict[str, Any]]) -> None:
     path = _state_users_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"version": 1, "provider": "local", "users": users}
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload, file_mode=0o600)
 
 
 def local_users(include_secrets: bool = False) -> List[Dict[str, Any]]:
@@ -533,9 +533,8 @@ def _read_password_reset_tokens() -> List[Dict[str, Any]]:
 
 def _write_password_reset_tokens(tokens: List[Dict[str, Any]]) -> None:
     path = _state_password_reset_tokens_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"version": 1, "tokens": tokens}
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload, file_mode=0o600)
 
 
 def _password_reset_base_url(request: Request) -> str:
