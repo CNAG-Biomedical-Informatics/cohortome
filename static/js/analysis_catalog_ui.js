@@ -1,3 +1,5 @@
+import { formatAssayRequirementLabel } from "./assay_labels.js";
+
 export function createAnalysisCatalogUi(ctx) {
   const { refs, state, helpers, callbacks, constants } = ctx;
   const {
@@ -282,37 +284,6 @@ export function createAnalysisCatalogUi(ctx) {
     if (normalized === "cli") return "CLI";
     if (normalized === "container") return "Container";
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  }
-
-  function formatAssayRequirementLabel(value) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized) return "";
-    const labels = {
-      transcriptomics: "Transcriptomics",
-      methylation: "DNA methylation",
-      olink: "OLINK",
-      proteomics: "Proteomics",
-      flow_cytometry: "Immune-cell abundance",
-      serology: "Serology",
-      genotyping: "Genotyping",
-      imaging: "Imaging",
-      raw_counts: "Raw counts",
-      m_values: "M-values",
-      relative_abundance: "Relative abundance",
-      protein_abundance: "Protein abundance",
-      cell_population_abundance: "Cell-population abundance",
-      quantitative_measurement: "Quantitative measurement",
-      allele_dosage: "Allele dosage",
-      dicom_derived_measurements: "DICOM-derived measurements",
-    };
-    if (labels[normalized]) {
-      return labels[normalized];
-    }
-    return normalized
-      .split(/[_\s-]+/)
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
   }
 
   function analysisCatalogCapabilityBadges(item) {

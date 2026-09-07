@@ -102,6 +102,29 @@ The frontend is stateful and uses:
 - local persisted mirrors for some sessions
 - backend persistence for important reusable objects
 
+`static/js/dashboard.js` coordinates Dashboard views and shared patient/ClarID
+presentation. `static/js/timeline.js` handles timeline plots, event inspection,
+filters and whole-patient selection. Both use the existing workspace state;
+Timeline remains a Dashboard subtab, not a separate application page.
+
+### Shared presentation definitions
+
+- `static/css/shared.css` defines theme colours and reusable dimensions. The
+  `--radius-md` and `--radius-lg` tokens preserve the existing 12px and 14px
+  corners. Reuse these for matching components rather than repeating literals.
+  Scientific colour scales are separate from interface styling.
+- `static/js/assay_labels.js` holds assay modality and data-type display names
+  used by Dashboard and Analysis. Unknown identifiers retain readable fallback
+  labels. This is presentation only: backend catalogs still define available
+  methods, required inputs and capabilities.
+- `static/js/shared.js` provides shared escaping, activity cards and clipboard
+  fallback behaviour. Query, Pheno-Ranker, ClarID and About reuse the clipboard
+  helper; failed copies remove temporary elements and restore keyboard focus.
+
+Keep view-specific layouts local. Extract repeated behaviour when it has the
+same meaning across views, not just similar markup. This does not require a
+frontend framework or making every heading and CSS value configurable.
+
 ## Workspace resolution
 
 The app operates on an active workspace, not directly on arbitrary file paths.

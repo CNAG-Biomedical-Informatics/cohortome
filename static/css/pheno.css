@@ -187,7 +187,7 @@
       }
       #phenoSelectedPatientIdsSummary {
         padding: 8px 10px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: rgba(37, 99, 235, 0.08);
         border: 1px solid var(--line);
       }
@@ -223,7 +223,7 @@
       .planner-warning {
         margin-bottom: 12px;
         padding: 12px 14px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid rgba(185, 28, 28, 0.24);
         background: var(--theme-surface, rgba(254, 242, 242, 0.96));
         color: var(--theme-red-ink, #7f1d1d);

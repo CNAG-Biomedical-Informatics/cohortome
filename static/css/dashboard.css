@@ -40,7 +40,7 @@
         min-width: 0;
         padding: 8px 10px;
         border: 1px solid color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface, white));
         color: var(--muted);
         font-size: 0.78rem;
@@ -125,7 +125,7 @@
         overflow: hidden;
         padding: 12px 14px;
         border: 1px solid color-mix(in srgb, var(--line) 78%, var(--theme-surface, white));
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: linear-gradient(180deg, var(--theme-surface, rgba(255,255,255,0.98)), var(--theme-surface, rgba(249,250,251,0.94)));
         cursor: pointer;
         transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
@@ -343,7 +343,7 @@
         gap: 8px;
         padding: 12px;
         border: 1px solid color-mix(in srgb, var(--line) 86%, var(--theme-surface, white));
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: color-mix(in srgb, var(--panel-strong) 88%, var(--theme-surface, white));
       }
       .dataset-policy-section-muted {
@@ -376,7 +376,7 @@
       .dataset-admin-feedback {
         margin-top: 4px;
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: color-mix(in srgb, var(--theme-green-soft, #dcfce7) 82%, var(--theme-surface, white));
         color: var(--theme-green-ink, #166534);
         border: 1px solid color-mix(in srgb, #86efac 70%, var(--theme-surface, white));
@@ -393,7 +393,7 @@
         align-items: center;
         min-height: 40px;
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px dashed color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
         background: color-mix(in srgb, var(--panel) 94%, var(--theme-surface, white));
         color: var(--muted);
@@ -687,7 +687,7 @@
         width: min(390px, calc(100vw - 48px));
         padding: 12px;
         border: 1px solid var(--theme-blue-soft, #c4b5fd);
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--panel-strong);
         color: var(--ink);
         box-shadow: 0 16px 36px rgba(30, 41, 59, 0.18);
@@ -774,7 +774,7 @@
       }
       .patient-card-compact {
         padding: 8px 9px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         margin-bottom: 6px;
       }
       .patient-card-compact:hover,
@@ -957,7 +957,7 @@
         max-height: 360px;
         overflow: auto;
         border: 1px solid var(--line);
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, #ffffff);
       }
       .dashboard-timeline-table {
@@ -1106,7 +1106,7 @@
       details {
         margin-top: 12px;
         padding: 10px 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, rgba(255,255,255,0.72));
         border: 1px solid var(--line);
       }
@@ -1119,7 +1119,7 @@
 .workspace-notice {
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--panel);
   color: var(--ink);
   text-align: left;

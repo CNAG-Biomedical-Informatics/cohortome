@@ -56,6 +56,7 @@ class UserSettingsResponse(BaseModel):
     query_default_mode: Literal["auto", "planner_only"] = "auto"
     latest_query_details: bool = True
     analysis_auto_open_jobs: bool = True
+    job_notifications: bool = True
     run_history_retention_days: Literal[0, 7, 30, 90, 180, 365] = 30
     pheno_default_metric: Literal["", "hamming", "jaccard"] = ""
     pheno_advanced_open: bool = False
@@ -75,6 +76,7 @@ class UserSettingsUpdateRequest(BaseModel):
     query_default_mode: Literal["auto", "planner_only"] | None = None
     latest_query_details: bool | None = None
     analysis_auto_open_jobs: bool | None = None
+    job_notifications: bool | None = None
     run_history_retention_days: Literal[0, 7, 30, 90, 180, 365] | None = None
     pheno_default_metric: Literal["", "hamming", "jaccard"] | None = None
     pheno_advanced_open: bool | None = None

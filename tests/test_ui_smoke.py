@@ -34,6 +34,63 @@ def test_appearance_saves_reloads_and_follows_system(page):
     page.request.patch(page.url.rstrip('/') + '/user-settings', data={'appearance': 'light'})
 
 
+def test_settings_about_and_background_notifications(page):
+    settings = {"job_notifications": True}
+    jobs = [{"job_id": "notice-test", "status": "running", "execution_backend": "job"}]
+
+    def settings_handler(route):
+        if route.request.method == "PATCH":
+            settings.update(route.request.post_data_json)
+        route.fulfill(json=settings)
+
+    page.route("**/user-settings", settings_handler)
+    page.route("**/jobs", lambda route: route.fulfill(json={"jobs": jobs}))
+    page.route("**/about", lambda route: route.fulfill(json={
+        "components": {"COHORTome": "0.1.0", "duckdb": "1.5.0", "R": "Not installed"},
+        "note": "No private configuration included.",
+    }))
+    page.reload(wait_until="networkidle")
+    expect = playwright.expect
+    expect(page.locator(".job-completion-notice")).to_have_count(0)
+    # Navigation must not discard the observed running status.
+    page.locator("#userSettingsBtn").click()
+    page.locator("#settingsAbout summary").click()
+    expect(page.locator("#aboutVersionReport")).to_contain_text("duckdb: 1.5.0")
+    expect(page.locator("#aboutVersionReport")).to_contain_text("R: Not installed")
+    expect(page.locator("#aboutCopyReport")).to_be_enabled()
+    jobs[0]["status"] = "completed"
+    expect(page.locator(".job-completion-notice")).to_contain_text("1 completed, 0 failed", timeout=10000)
+    page.locator(".job-completion-notice").get_by_text("Dismiss", exact=True).click()
+    page.locator("#settingsJobNotifications").uncheck()
+    page.locator("#userSettingsSaveBtn").click()
+    expect(page.locator("#userSettingsStatus")).to_contain_text("saved")
+    assert settings["job_notifications"] is False
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".job-completion-notice")).to_have_count(0)
+
+
+def test_shared_clipboard_fallback_preserves_focus_and_cleans_up(page):
+    result = page.evaluate("""async () => {
+      const { fallbackCopyText } = await import('/static/js/shared.js');
+      const button = document.getElementById('userSettingsBtn');
+      button.focus();
+      const before = document.querySelectorAll('textarea').length;
+      const original = document.execCommand;
+      let copied = '';
+      try {
+        document.execCommand = () => { copied = document.activeElement.value; return true; };
+        const success = fallbackCopyText('Synthetic version report');
+        const focusRestored = document.activeElement === button;
+        document.execCommand = () => { throw new Error('Copy denied'); };
+        const failure = fallbackCopyText('Not copied');
+        return { success, failure, focusRestored, copied,
+          clean: document.querySelectorAll('textarea').length === before };
+      } finally { document.execCommand = original; }
+    }""")
+    assert result == {"success": True, "failure": False, "focusRestored": True,
+                      "copied": "Synthetic version report", "clean": True}
+
+
 def _free_port() -> int:
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.bind(("127.0.0.1", 0))

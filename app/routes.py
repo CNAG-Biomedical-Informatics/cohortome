@@ -1350,6 +1350,12 @@ def get_user_settings(request: Request) -> Dict:
     return load_user_settings(request_user_id(request))
 
 
+def get_about(request: Request) -> Dict:
+    require_authenticated(request)
+    from app.about import version_report
+    return version_report()
+
+
 def update_user_settings(request: UserSettingsUpdateRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     return patch_user_settings(request.model_dump(exclude_unset=True, exclude_none=True), request_user_id(raw_request))
@@ -2239,6 +2245,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/auth/users/{username}/password", reset_auth_user_password, methods=["POST"], tags=["auth"], summary="Reset a local user password", description="Replaces the password for a local user. Admin-only when auth is enabled.", response_model=AuthUserResponse)
     app.add_api_route("/auth/users/{username}", delete_auth_user, methods=["DELETE"], tags=["auth"], summary="Delete a local user", description="Deletes a persisted local user. Admin-only when auth is enabled.", response_model=DeleteResponse)
     app.add_api_route("/user-settings", get_user_settings, methods=["GET"], tags=["auth"], summary="Get user UI settings", description="Returns persisted UI preferences for the current user.", response_model=UserSettingsResponse)
+    app.add_api_route("/about", get_about, methods=["GET"], tags=["auth"], summary="Detected software versions")
     app.add_api_route("/user-settings", update_user_settings, methods=["PATCH"], tags=["auth"], summary="Update user UI settings", description="Persists UI preferences for the current user.", response_model=UserSettingsResponse)
     app.add_api_route("/datasets", get_datasets, methods=["GET"], tags=["datasets"], summary="List authorized datasets", description="Returns datasets visible to the current user plus the currently active workspace selection.", response_model=DatasetsResponse)
     app.add_api_route("/datasets/select", select_dataset, methods=["POST"], tags=["datasets"], summary="Select the active dataset workspace", description="Applies one or more authorized dataset IDs as the current workspace for the authenticated user.", response_model=DatasetSelectionResponse)

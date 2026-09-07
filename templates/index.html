@@ -232,6 +232,7 @@
             </select>
           </div>
           <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
+          <label class="user-settings-check"><input id="settingsJobNotifications" type="checkbox"> Notify when background runs finish or fail (while this app is open)</label>
           <label class="user-settings-check"><input id="settingsLatestQueryDetails" type="checkbox"> Latest query details</label>
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
@@ -240,6 +241,14 @@
           <label class="user-settings-check"><input id="settingsDashboardAssaysOpen" type="checkbox"> Open Dashboard on assays view</label>
           <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
         </div>
+        <details id="settingsAbout">
+          <summary>About COHORTome</summary>
+          <p class="section-note">Research software · Apache-2.0. Detected versions on this web server, not a worker health check. Optional tools may be absent. Versions are cached until restart.</p>
+          <p><a href="https://github.com/mrueda/cohortome" target="_blank" rel="noopener">Source code</a> · <a href="https://mrueda.github.io/cohortome/" target="_blank" rel="noopener">Documentation</a> · <a href="https://github.com/mrueda/cohortome/blob/main/LICENSE" target="_blank" rel="noopener">License</a></p>
+          <pre id="aboutVersionReport" style="white-space: pre-wrap; overflow-wrap: anywhere" aria-live="polite">Open to load versions.</pre>
+          <button id="aboutCopyReport" type="button" disabled>Copy version report</button>
+          <span id="aboutCopyStatus" role="status"></span>
+        </details>
         <div class="user-settings-danger">
           <strong>Danger zone</strong>
           <div class="user-settings-danger-actions">

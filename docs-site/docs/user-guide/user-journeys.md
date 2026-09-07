@@ -352,3 +352,20 @@ Use this rough rule of thumb:
 :::tip
 If a workflow starts in `Query`, becomes explanatory in `Analysis`, and later needs phenotypic similarity, that is normal. The tabs are meant to compose rather than behave like isolated tools.
 :::
+
+## Settings and software versions
+
+Settings saves your preferences for your account. Enable background-run
+notifications to see an in-app message when an observed queued or running job
+completes or fails. The app must remain open; these are not email or operating
+system notifications. Previously completed runs do not trigger messages on login.
+Use **View runs** to inspect the results or failure details.
+
+Open **Settings → About COHORTome** for the application version, source checkout
+revision and detected dependency versions. **Copy version report** prepares a
+short report for troubleshooting, without user details, dataset information,
+paths or configuration. Missing optional tools are labelled. The report describes
+the web server, not separate workers, Redis server or external imaging viewers;
+use the Queue worker indicator to check worker availability. Versions are cached
+until the web server restarts. A checkout revision does not describe uncommitted
+edits.

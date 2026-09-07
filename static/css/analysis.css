@@ -298,7 +298,7 @@
       }
       .analysis-assay-panel-note {
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(148, 163, 184, 0.18);
         background: var(--theme-surface, rgba(255, 255, 255, 0.88));
         color: var(--text);
@@ -375,7 +375,7 @@
       .analysis-setup-check.is-complete .analysis-setup-check-state { color: var(--theme-teal-ink, #0f766e); }
       .analysis-setup-status {
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(148, 163, 184, 0.2);
         background: var(--theme-surface, rgba(248, 250, 252, 0.96));
         color: var(--text);
@@ -443,7 +443,7 @@
       .analysis-catalog-search input {
         width: 100%;
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(148, 163, 184, 0.24);
         background: var(--theme-surface, rgba(255, 255, 255, 0.96));
       }
@@ -636,7 +636,7 @@
         display: grid;
         gap: 3px;
         padding: 8px 10px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         font-size: 0.86rem;
         line-height: 1.35;
         border: 1px solid rgba(148, 163, 184, 0.18);
@@ -833,7 +833,7 @@
         gap: 8px;
         padding: 9px 11px;
         border: 1px solid rgba(148, 163, 184, 0.24);
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: var(--theme-surface, rgba(248, 250, 252, 0.88));
         color: var(--muted);
         font-size: 0.82rem;
@@ -1307,7 +1307,7 @@
         gap: 9px;
         align-items: center;
         padding: 10px 11px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid rgba(148, 163, 184, 0.18);
         background: var(--theme-surface, rgba(255, 255, 255, 0.9));
         color: var(--text);
@@ -1400,7 +1400,7 @@
       }
       .analysis-composer-setup-status {
         padding: 10px 12px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(148, 163, 184, 0.2);
         background: var(--theme-surface, rgba(255, 255, 255, 0.92));
         color: var(--text);
@@ -1428,7 +1428,7 @@
         align-items: center;
         min-height: 34px;
         padding: 8px 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid rgba(13, 148, 136, 0.18);
         background: var(--theme-surface, rgba(240, 253, 250, 0.78));
         color: var(--theme-teal-ink, #115e59);
@@ -1543,7 +1543,7 @@
         gap: 10px;
         align-items: center;
         padding: 10px 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid rgba(148, 163, 184, 0.18);
         background: var(--theme-surface, rgba(248, 251, 255, 0.86));
         cursor: pointer;
@@ -1910,7 +1910,7 @@
       }
       .pheno-explain-group {
         padding: 12px 14px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid var(--line);
       }
       .pheno-explain-group.is-shared {

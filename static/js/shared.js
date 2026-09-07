@@ -23,6 +23,7 @@ export function renderActivityCard(label, detail) {
 }
 
 export function fallbackCopyText(text) {
+  const previousFocus = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
@@ -40,6 +41,9 @@ export function fallbackCopyText(text) {
     success = false;
   }
   document.body.removeChild(textarea);
+  if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === "function") {
+    previousFocus.focus({ preventScroll: true });
+  }
   if (selectedRange && selection) {
     selection.removeAllRanges();
     selection.addRange(selectedRange);

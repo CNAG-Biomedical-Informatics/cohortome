@@ -1,4 +1,6 @@
       :root {
+        --radius-md: 12px;
+        --radius-lg: 14px;
         --bg: #f4f8fc;
         --panel: rgba(255, 255, 255, 0.82);
         --panel-strong: rgba(255, 255, 255, 0.96);
@@ -69,7 +71,7 @@
         justify-content: flex-start;
         min-height: 44px;
         padding: 10px 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border-color: transparent;
         background: transparent;
         color: var(--ink);
@@ -106,7 +108,7 @@
         margin: 0 0 14px;
         padding: 10px 4px;
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: var(--theme-surface, rgba(255, 255, 255, 0.94));
       }
       .context-pill {
@@ -158,7 +160,7 @@
         width: 100%;
         min-height: 44px;
         padding: 10px 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         border: 1px solid transparent;
         background: transparent;
         color: var(--ink);
@@ -449,6 +451,23 @@
         color: var(--ink);
         white-space: nowrap;
       }
+      .job-completion-notice {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        z-index: 1200;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .7rem;
+        max-width: min(32rem, calc(100vw - 2rem));
+        padding: 1rem;
+        background: var(--panel-strong);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        box-shadow: 0 8px 30px #0003;
+      }
       .user-settings-panel {
         position: fixed;
         top: 50%;
@@ -500,7 +519,7 @@
         gap: 10px;
         padding: 12px;
         border: 1px solid rgba(37, 99, 235, 0.16);
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, rgba(239, 246, 255, 0.72));
       }
       .user-settings-auth-grid {
@@ -559,7 +578,7 @@
         gap: 10px;
         padding: 12px;
         border: 1px solid rgba(185, 28, 28, 0.18);
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, rgba(254, 242, 242, 0.72));
       }
       .user-settings-danger strong {
@@ -746,7 +765,7 @@
       .js-plotly-plot .modebar {
         background: var(--theme-surface, rgba(255, 255, 255, 0.9));
         border: 1px solid var(--line);
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         padding: 2px;
       }
 .composer-heading-group {

@@ -1,3 +1,5 @@
+import { fallbackCopyText } from "./shared.js";
+
 const DEFAULT_USER_SETTINGS = {
   appearance: "light",
   version: 1,
@@ -7,6 +9,7 @@ const DEFAULT_USER_SETTINGS = {
   query_default_mode: "auto",
   latest_query_details: true,
   analysis_auto_open_jobs: true,
+  job_notifications: true,
   run_history_retention_days: 30,
   pheno_default_metric: "",
   pheno_advanced_open: false,
@@ -46,6 +49,7 @@ function normalizeUserSettings(raw) {
     query_default_mode: normalizeChoice(source.query_default_mode, ALLOWED_QUERY_MODES, DEFAULT_USER_SETTINGS.query_default_mode),
     latest_query_details: source.latest_query_details !== false,
     analysis_auto_open_jobs: source.analysis_auto_open_jobs !== false,
+    job_notifications: source.job_notifications !== false,
     run_history_retention_days: normalizeRetentionDays(source.run_history_retention_days, DEFAULT_USER_SETTINGS.run_history_retention_days),
     pheno_default_metric: normalizeChoice(source.pheno_default_metric, ALLOWED_PHENO_METRICS, DEFAULT_USER_SETTINGS.pheno_default_metric),
     pheno_advanced_open: Boolean(source.pheno_advanced_open),
@@ -60,6 +64,41 @@ function normalizeUserSettings(raw) {
 
 export function createUserSettingsUi(ctx) {
   const { refs, state, callbacks } = ctx;
+  const about = document.getElementById("settingsAbout");
+  const report = document.getElementById("aboutVersionReport");
+  const copy = document.getElementById("aboutCopyReport");
+  let aboutLoaded = false;
+  let aboutLoading = false;
+  about?.addEventListener("toggle", async () => {
+    if (!about.open || aboutLoaded || aboutLoading) return;
+    aboutLoading = true;
+    report.textContent = "Detecting installed versions…";
+    try {
+      const response = await fetch("/about");
+      if (!response.ok) throw new Error();
+      const payload = await response.json();
+      const rows = Object.entries(payload.components || {});
+      for (const [label, version] of [["Plotly (browser)", window.Plotly?.version], ["Cytoscape (browser)", window.cytoscape?.version]]) {
+        if (version) rows.push([label, version]);
+      }
+      report.textContent = rows.map(([name, version]) => `${name}: ${version}`).join("\n") + `\n\n${payload.note}`;
+      aboutLoaded = true;
+      copy.disabled = false;
+    } catch (_) {
+      report.textContent = "Unable to load versions. Close and reopen About to retry.";
+    } finally { aboutLoading = false; }
+  });
+  copy?.addEventListener("click", async () => {
+    const status = document.getElementById("aboutCopyStatus");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report.textContent);
+      } else {
+        if (!fallbackCopyText(report.textContent)) throw new Error();
+      }
+      status.textContent = "Copied.";
+    } catch (_) { status.textContent = "Select the report text and copy it manually."; }
+  });
   const {
     userSettingsBtnEl,
     userSettingsPanelEl,
@@ -166,6 +205,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsQueryDefaultModeEl) settingsQueryDefaultModeEl.value = settings.query_default_mode;
     if (settingsRunRetentionEl) settingsRunRetentionEl.value = String(settings.run_history_retention_days);
     if (settingsAnalysisAutoOpenJobsEl) settingsAnalysisAutoOpenJobsEl.checked = settings.analysis_auto_open_jobs;
+    document.getElementById("settingsJobNotifications").checked = settings.job_notifications;
     if (settingsLatestQueryDetailsEl) settingsLatestQueryDetailsEl.checked = settings.latest_query_details;
     if (settingsPhenoDefaultMetricEl) settingsPhenoDefaultMetricEl.value = settings.pheno_default_metric;
     if (settingsLlmProviderEl) settingsLlmProviderEl.value = settings.llm_provider_id;
@@ -205,6 +245,7 @@ export function createUserSettingsUi(ctx) {
       query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
       run_history_retention_days: settingsRunRetentionEl ? Number(settingsRunRetentionEl.value) : DEFAULT_USER_SETTINGS.run_history_retention_days,
       analysis_auto_open_jobs: settingsAnalysisAutoOpenJobsEl ? settingsAnalysisAutoOpenJobsEl.checked : DEFAULT_USER_SETTINGS.analysis_auto_open_jobs,
+      job_notifications: document.getElementById("settingsJobNotifications").checked,
       latest_query_details: settingsLatestQueryDetailsEl ? settingsLatestQueryDetailsEl.checked : DEFAULT_USER_SETTINGS.latest_query_details,
       pheno_default_metric: settingsPhenoDefaultMetricEl ? settingsPhenoDefaultMetricEl.value : DEFAULT_USER_SETTINGS.pheno_default_metric,
       llm_provider_id: settingsLlmProviderEl ? settingsLlmProviderEl.value : DEFAULT_USER_SETTINGS.llm_provider_id,

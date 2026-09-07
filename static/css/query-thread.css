@@ -27,7 +27,7 @@
       #queryReply pre {
         margin: 0 0 10px;
         padding: 14px 16px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, rgba(255, 255, 255, 0.82));
         border: 1px solid var(--line);
         overflow: auto;
@@ -46,7 +46,7 @@
         margin: 0 0 10px;
         background: var(--theme-surface, rgba(255, 255, 255, 0.82));
         border: 1px solid var(--line);
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         overflow: hidden;
       }
       #queryReply th,
@@ -77,7 +77,7 @@
         display: grid;
         gap: 12px;
         padding: 12px 14px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid var(--line);
         background: var(--theme-surface, #f8fafc);
         box-shadow: none;
@@ -94,7 +94,7 @@
       }
       .query-starter-panel.query-starter-panel-compact {
         padding: 12px;
-        border-radius: 14px;
+        border-radius: var(--radius-lg);
         background: var(--theme-surface, rgba(248, 250, 252, 0.88));
         box-shadow: none;
       }
@@ -123,7 +123,7 @@
         display: grid;
         gap: 12px;
         padding: 14px 16px;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         border: 1px solid var(--line);
         background: var(--theme-surface, rgba(255, 255, 255, 0.92));
         box-shadow: none;
@@ -193,7 +193,7 @@
       }
       .query-thread-turn {
         position: relative;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
       }
       .query-thread-turn .analysis-turn-body {
         margin-bottom: 0;

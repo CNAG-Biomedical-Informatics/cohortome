@@ -18,6 +18,7 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "query_default_mode": "auto",
     "latest_query_details": True,
     "analysis_auto_open_jobs": True,
+    "job_notifications": True,
     "run_history_retention_days": 30,
     "pheno_default_metric": "",
     "pheno_advanced_open": False,
@@ -41,6 +42,7 @@ _ALLOWED_VALUES = {
 _BOOLEAN_FIELDS = {
     "latest_query_details",
     "analysis_auto_open_jobs",
+    "job_notifications",
     "pheno_advanced_open",
     "pheno_render_heatmap",
     "pheno_render_mds",

@@ -1,5 +1,37 @@
 export function createJobsUi(ctx) {
   const { refs, state, helpers, callbacks } = ctx;
+  let observedUser = "";
+  let observedStatuses = new Map();
+  let notice = null;
+  function notifyTransitions(jobs, user) {
+    if (observedUser !== user) {
+      observedStatuses.clear();
+      notice?.remove();
+      observedUser = user;
+    }
+    const finished = jobs.filter((job) => ["queued", "running"].includes(observedStatuses.get(job.job_id))
+      && ["completed", "failed"].includes(job.status));
+    observedStatuses = new Map(jobs.map((job) => [job.job_id, job.status]));
+    if (!finished.length || state.userSettings?.job_notifications === false) return;
+    notice?.remove();
+    notice = document.createElement("div");
+    notice.className = "job-completion-notice";
+    const message = document.createElement("span");
+    message.setAttribute("role", "status");
+    notice.append(message);
+    const view = document.createElement("button");
+    view.type = "button";
+    view.textContent = "View runs";
+    view.onclick = () => { setRunHistoryDrawerOpen(true); notice.remove(); };
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.textContent = "Dismiss";
+    dismiss.onclick = () => notice.remove();
+    notice.append(view, dismiss);
+    document.body.append(notice);
+    const failed = finished.filter((job) => job.status === "failed").length;
+    message.textContent = `Background runs: ${finished.length - failed} completed, ${failed} failed.`;
+  }
   const {
     jobsDrawerBtnEl,
     jobsDrawerCountEl,
@@ -53,6 +85,11 @@ export function createJobsUi(ctx) {
   }
 
   function closeJobSurfaces() {
+    if (!state.authState?.authenticated) {
+      notice?.remove();
+      observedStatuses.clear();
+      observedUser = "";
+    }
     if (jobsDrawerEl) {
       jobsDrawerEl.classList.add("is-hidden");
       jobsDrawerEl.setAttribute("aria-hidden", "true");
@@ -458,7 +495,11 @@ export function createJobsUi(ctx) {
 
   async function loadRecentJobs(options = {}) {
     const silent = Boolean(options.silent);
+    const authSnapshot = state.authState;
     if (!state.authState || !state.authState.authenticated) {
+      observedStatuses.clear();
+      observedUser = "";
+      notice?.remove();
       state.recentJobs = [];
       renderJobsDrawer();
       renderRunHistoryDrawer();
@@ -477,7 +518,9 @@ export function createJobsUi(ctx) {
         throw new Error("Unable to load queue.");
       }
       const payload = await response.json();
+      if (state.authState !== authSnapshot || !state.authState?.authenticated) return;
       state.recentJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+      notifyTransitions(state.recentJobs, String(authSnapshot.user?.id || authSnapshot.user?.username || "local"));
       void loadRunHistory({ silent: true, skipWorkerStatus: true });
       void hydrateCompletedAnalysisJobsForCurrentSession();
       renderJobsDrawer();
