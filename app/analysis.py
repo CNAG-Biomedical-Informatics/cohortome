@@ -2082,6 +2082,21 @@ def _analysis_llm_reply_impl(
     granularity_applied: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
 ) -> Dict[str, Any]:
+    if prompt.startswith("Compare measurements: "):
+        if granularity_applied != "detailed":
+            raise RuntimeError("Cross-modal association requires Detailed in-app access.")
+        if compare_mode:
+            raise RuntimeError("Turn off A/B comparison for this analysis. Clinical groups are shown within one scope.")
+        from app.multimodal import cross_modal_association
+        try:
+            parameters = json.loads(prompt.split(": ", 1)[1])
+            context = cross_modal_association(data_dir, parameters, selected_patient_ids)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        rho = context['spearman_rho']
+        return {"intent": "analysis_cross_modal_association",
+                "reply": f"Compared two measurements in {context['counts']['matched_patients']} matched patients. Spearman rho: {rho:.3f}." if rho is not None else "The selected feature is constant; Spearman correlation is undefined.",
+                "data": {"source": "deterministic", "context": context, "model": None, "base_url": ""}}
     if not llm_only:
         catalog_payload = _analysis_catalog_dispatch(
             prompt,

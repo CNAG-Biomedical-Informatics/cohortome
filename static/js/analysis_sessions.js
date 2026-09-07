@@ -154,6 +154,7 @@ export function createAnalysisSessionsUi(ctx) {
           workspace_fingerprint: session.workspaceFingerprint || {},
           catalog_item_id: session.catalogItemId || "",
           prompt_draft: session.promptDraft || "",
+          framing: session.framing || {},
           context_mode: session.contextMode === "general" ? "general" : "workspace",
           scope: session.scope || "",
           scope_metadata: session.scopeMetadata || {},
@@ -226,6 +227,7 @@ export function createAnalysisSessionsUi(ctx) {
         workspaceStatus: item.workspace_status,
         catalogItemId: item.catalog_item_id,
         promptDraft: item.prompt_draft,
+        framing: item.framing,
         contextMode: item.context_mode,
         scope: item.scope,
         scopeMetadata: item.scope_metadata,
@@ -323,6 +325,11 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     session.promptDraft = analysisPromptEl.value;
+    session.framing = {
+      mode: document.getElementById("analysisStudyMode").value,
+      question: document.getElementById("analysisResearchQuestion").value.trim(),
+      hypothesis: document.getElementById("analysisHypothesis").value.trim(),
+    };
     session.contextMode = state.analysisContextMode === "general" ? "general" : "workspace";
     session.datasetId = typeof currentDatasetSelectionKey === "function"
       ? String(currentDatasetSelectionKey() || "").trim()
@@ -347,6 +354,11 @@ export function createAnalysisSessionsUi(ctx) {
   function applyAnalysisSession(session) {
     state.analysisExamplesPinnedOpen = false;
     analysisPromptEl.value = session.promptDraft || "";
+    const framing = session.framing || {};
+    document.getElementById("analysisStudyMode").value = framing.mode === "hypothesis_driven" ? "hypothesis_driven" : "exploratory";
+    document.getElementById("analysisResearchQuestion").value = framing.question || "";
+    document.getElementById("analysisHypothesis").value = framing.hypothesis || "";
+    document.getElementById("analysisHypothesisFields").hidden = framing.mode !== "hypothesis_driven";
     state.analysisContextMode = session.contextMode === "general" ? "general" : "workspace";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
     analysisSelectedPatientIdsEl.value = session.scope || "";

@@ -7,6 +7,89 @@ import TabItem from '@theme/TabItem';
 
 # Analysis
 
+The numbered bar shows **Method → Patients → Inputs → Review → Results**.
+Click a step to reach its controls. Status labels identify missing setup;
+methods without additional inputs show **Not required**. These are setup checks,
+not a guarantee that the statistical model or data will pass execution checks.
+
+Choose a method under **What analysis would you like to run?** The page shows
+the inputs for that method. **Describe my cohort** and **Associate two
+measurements** do not need a language model. Catalog methods identify whether
+they need a model or are unavailable; their existing input and worker checks
+still apply.
+
+Use **Patients and cohorts** to change the scope. Review the method description,
+required inputs and research question, then run. The generated request remains
+available under **Review or edit the analysis request**. Choose **Write a
+request / follow-up** for direct text entry, or **Browse method details** for
+the full catalog. Selecting a method does not execute it.
+
+## Compare two measurements
+
+Select **Associate two measurements** in Analysis, or follow the shortcut from
+Dashboard → Multimodal. Select two matrices from different modalities and an exact feature ID from each.
+Each feature dropdown lists up to 50 matches, with readable names where supplied.
+Search by name, description, units or ID, then select a match to see its description
+and units. Missing annotations are marked explicitly. Gene names come from the
+bundled gene annotation; other descriptions must be supplied with the assay.
+Changing a matrix or
+search clears the previous feature selection. Select **Use these measurements**, review the research question and active scope,
+turn off A/B comparison, then run. No language model is used. Parameters,
+results and matrix hashes are saved with the Analysis conversation.
+
+For a first trial, select only **Synthetic autoimmune demo** and compare:
+
+- Immune-cell / flow-cytometry matrix: `CD4_T_cells_fraction`
+- Serology matrix: `CRP_mg_L`
+
+The synthetic demo also offers explained example buttons: CD4 T cells versus
+C-reactive protein, and B cells versus anti-double-stranded DNA antibodies.
+These fill the selectors without running an analysis. The measurements and
+their associations are simulated, not biological findings.
+
+Dataset authors can add an optional `feature_annotations` object to an assay
+entry in `assays/manifest.json`, keyed by the exact feature ID. Each entry can
+supply `label`, `description` and `unit` strings. These describe existing features;
+they do not rename IDs or convert values. Only annotations for returned features
+are sent to the browser. Compact external matrices up to 64 MiB can be browsed
+without importing their measurement values into DuckDB.
+
+Results include a scatter plot coloured by recorded clinical disease, overall
+and within-group Spearman correlations, and matched, unmatched, missing,
+invalid-linkage and repeated-observation counts. Matching requires exact clinical
+sample/timepoint IDs and agreeing patient links, not patient ID alone. The
+earliest complete dated pair per patient is retained; undated pairs sort last,
+with sample ID breaking ties.
+
+This first version requires one dataset, explicit sample-to-patient metadata,
+at least three complete patients, and matrices no larger than 64 MiB or 1,000
+samples. Large matrices need a prepared feature panel. Constant features and
+groups with fewer than three patients have undefined correlations.
+
+Values use their supplied scales: no normalization, imputation or covariate
+adjustment is performed. Use normalized RNA data for biological interpretation;
+raw or expected counts can reflect library size. Group differences can produce
+an overall correlation without a within-group relationship. No p-values,
+significance claims, causal claims or predictive models are provided.
+Synthetic results demonstrate software behaviour only.
+
+## Research question and hypothesis
+
+Before submitting a workspace analysis, open **Question this analysis addresses**
+above the Run button. Exploratory is the default: you can record the question
+without asserting an expected result. Hypothesis-driven runs require both a
+research question and a hypothesis. State these before running, not after
+examining the findings.
+
+Each submission captures its own note and browser timestamp in the saved
+conversation. Editing the draft affects future submissions, not earlier result
+labels. Background results retain the note in their originating conversation.
+Older results without a note are not retrospectively labelled.
+
+This framing documents intent; it does not configure covariates, alter the
+statistical method, or get sent to a language model. It is not a tamper-proof
+preregistration record. General questions do not use research framing.
+
 Completed responses have an **Analysis result** heading. Summary metrics, plots,
 method notes and suggested follow-ups remain together. Expand **Result files**
 to see the available file count and a list labelled by format (such as TSV, PNG

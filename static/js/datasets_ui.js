@@ -57,7 +57,11 @@ export function createDatasetsUi(ctx) {
       svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
     },
   };
-  const datasetTraitOrder = ["private", "cross_sectional", "longitudinal", "clinical", "assay"];
+  datasetTraitDefinitions.imaging = {
+    label: "Imaging data", legendLabel: "Imaging",
+    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="12" cy="12" r="5"></circle><path d="M12 9v6M9 12h6"></path></svg>',
+  };
+  const datasetTraitOrder = ["private", "cross_sectional", "longitudinal", "clinical", "assay", "imaging"];
 
   function normalizedDatasetStoreStatus(dataset) {
     const storeStatus = dataset && typeof dataset.query_store_status === "object" && dataset.query_store_status
@@ -85,9 +89,10 @@ export function createDatasetsUi(ctx) {
     if (Number(dataset && dataset.clinical_record_count ? dataset.clinical_record_count : 0) > 0) {
       keys.push("clinical");
     }
-    if (Number(dataset && dataset.assay_file_count ? dataset.assay_file_count : 0) > 0) {
+    if (Number(dataset?.laboratory_assay_file_count ?? dataset?.assay_file_count ?? 0) > 0) {
       keys.push("assay");
     }
+    if (dataset?.has_imaging) keys.push("imaging");
     return keys;
   }
 

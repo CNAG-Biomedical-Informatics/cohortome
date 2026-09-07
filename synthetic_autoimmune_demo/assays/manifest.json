@@ -47,7 +47,39 @@
       "patient_linkage": "sample_metadata_file",
       "sample_metadata_file": "assays/flow_cytometry/sample_metadata.tsv",
       "file": "assays/flow_cytometry/synthetic_flow_cytometry.csv",
-      "feature_count": 6
+      "feature_count": 6,
+      "feature_annotations": {
+        "CD4_T_cells_fraction": {
+          "label": "CD4 T cells",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        },
+        "CD8_T_cells_fraction": {
+          "label": "CD8 T cells",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        },
+        "B_cells_fraction": {
+          "label": "B cells",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        },
+        "NK_cells_fraction": {
+          "label": "Natural killer cells",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        },
+        "Monocytes_fraction": {
+          "label": "Monocytes",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        },
+        "Neutrophils_fraction": {
+          "label": "Neutrophils",
+          "description": "Simulated cell fraction; independently generated, not part of a sum-to-one cell composition.",
+          "unit": "fraction (0–1)"
+        }
+      }
     },
     {
       "assay_id": "synthetic_autoimmune_serology",
@@ -63,7 +95,39 @@
       "patient_linkage": "sample_metadata_file",
       "sample_metadata_file": "assays/serology/sample_metadata.tsv",
       "file": "assays/serology/synthetic_serology.csv",
-      "feature_count": 6
+      "feature_count": 6,
+      "feature_annotations": {
+        "Anti_dsDNA_IU_mL": {
+          "label": "Anti-double-stranded DNA antibodies",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "IU/mL"
+        },
+        "Rheumatoid_factor_IU_mL": {
+          "label": "Rheumatoid factor",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "IU/mL"
+        },
+        "Complement_C3_g_L": {
+          "label": "Complement C3",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "g/L"
+        },
+        "Complement_C4_g_L": {
+          "label": "Complement C4",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "g/L"
+        },
+        "CXCL10_pg_mL": {
+          "label": "C-X-C motif chemokine ligand 10 (CXCL10)",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "pg/mL"
+        },
+        "CRP_mg_L": {
+          "label": "C-reactive protein (CRP)",
+          "description": "Simulated quantitative serology measurement; values are for software demonstration, not clinical interpretation.",
+          "unit": "mg/L"
+        }
+      }
     }
   ]
 }

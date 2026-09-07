@@ -840,37 +840,102 @@ export function createAnalysisCatalogUi(ctx) {
     return "Generated";
   }
 
+  const cohortSummaryPrompt = "Summarize the main clinical patterns in this workspace and tell me what stands out.";
+
+  function renderMethodPicker() {
+    const select = document.getElementById("analysisMethodSelect");
+    if (!select) return;
+    const general = state.analysisContextMode === "general";
+    const item = currentAnalysisCatalogItem();
+    const prompt = analysisPromptEl.value.trim();
+    const method = item ? `catalog:${item.id}` : prompt.startsWith("Compare measurements:") ? "association"
+      : /^Summarize the main clinical patterns in this (workspace|cohort) and tell me what stands out\.$/.test(prompt) ? "summary" : "custom";
+    const items = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
+    select.innerHTML = '<option value="summary">Describe my cohort · No LLM needed</option><option value="association">Associate two measurements · No LLM needed</option>'
+      + '<optgroup label="Supported analyses">' + items.map(entry => {
+        const availability = analysisCatalogUiAvailability(entry);
+        const modeLabel = entry.execution_mode === "deterministic" ? "No LLM needed" : ["llm_only", "planner_only"].includes(entry.execution_mode) ? "Requires LLM" : "May use LLM";
+        return `<option value="catalog:${escapeHtml(entry.id)}" ${availability.available ? "" : "disabled"}>${escapeHtml(entry.name)} · ${availability.available ? modeLabel : "Unavailable"}</option>`;
+      }).join("") + '</optgroup><option value="custom">Write a request / follow-up</option>';
+    select.value = method;
+    document.getElementById("analysisMethodPicker").hidden = general;
+    const comparison = document.getElementById("analysisMeasurementComparison");
+    comparison.hidden = general || method !== "association";
+    if (!comparison.hidden) comparison.open = true;
+    analysisComposerExamplesBtnEl.hidden = !general && method !== "custom";
+    if (analysisStarterPanelEl) analysisStarterPanelEl.hidden = !general && method !== "custom";
+    const description = item ? [item.description, item.guidance].filter(Boolean).join(" ")
+      : method === "association" ? "Check whether two measurements vary together across matched patients. Choose one feature from each modality. This is exploratory correlation, without covariate adjustment."
+      : method === "summary" ? "Describe the clinical patterns in your patient scope. No assay selection or language model is needed."
+      : "Write a supported analysis request or a follow-up. Some requests need an available language model; deterministic analyses remain available without one.";
+    document.getElementById("analysisMethodDescription").textContent = description;
+    const requestDetails = document.getElementById("analysisRequestDetails");
+    if (requestDetails.dataset.method !== method || requestDetails.dataset.general !== String(general)) {
+      requestDetails.open = general || method === "custom";
+      requestDetails.dataset.method = method;
+      requestDetails.dataset.general = String(general);
+    }
+    document.getElementById("analysisRunReview").textContent = general ? "Ask the selected model without workspace data."
+      : `Patient scope: ${analysisFlowScopeLabel()}. ${item && item.execution_backend === "job" ? "Runs in the background; requires an available worker." : method === "custom" ? "Execution depends on the requested analysis." : "Runs directly."} Review the inputs and research question before running.`;
+    select.onchange = () => {
+      const chosen = select.value;
+      if (chosen.startsWith("catalog:")) {
+        applyAnalysisCatalogItemById(chosen.slice(8));
+        return;
+      }
+      state.analysisSelectedCatalogItemId = "";
+      state.analysisExecutionMode = chosen === "custom" ? "auto" : "deterministic";
+      analysisPromptEl.value = chosen === "summary" ? cohortSummaryPrompt : chosen === "association" ? "Compare measurements: " : "";
+      renderAnalysisCatalogAssayPanel();
+      syncCurrentAnalysisSessionFromUi({ render: true });
+    };
+  }
+
   function renderAnalysisFlowBar() {
+    renderMethodPicker();
     if (!analysisFlowBarEl) return;
+    analysisFlowBarEl.hidden = state.analysisContextMode === "general";
     const item = currentAnalysisCatalogItem();
     const setupState = selectedAnalysisSetupState(item);
     const hasItem = Boolean(item);
     const setupSteps = Array.isArray(setupState.steps)
       ? setupState.steps.filter((step) => step.key !== "prompt")
       : [];
-    const incompleteSetupCount = setupSteps.filter((step) => !step.complete).length;
-    const requirementsReady = !hasItem || incompleteSetupCount === 0;
+    const patientsReady = setupSteps.filter(step => step.key.startsWith("cohort-")).every(step => step.complete);
+    const inputSteps = setupSteps.filter(step => !step.key.startsWith("cohort-"));
+    const incompleteSetupCount = inputSteps.filter(step => !step.complete).length;
+    const association = document.getElementById("analysisMethodSelect").value === "association";
+    const comparisonReady = ["X", "Y"].every(axis => document.getElementById(`associationAssay${axis}`).value && document.getElementById(`associationFeature${axis}`).value);
+    const requirementsReady = association ? comparisonReady : !hasItem || incompleteSetupCount === 0;
     const resultsLabel = analysisFlowResultsLabel();
     const hasPrompt = Boolean(analysisPromptEl && analysisPromptEl.value.trim());
+    const hypothesisReady = document.getElementById("analysisStudyMode").value !== "hypothesis_driven" || Boolean(document.getElementById("analysisResearchQuestion").value.trim() && document.getElementById("analysisHypothesis").value.trim());
+    const reviewReady = hasPrompt && hypothesisReady;
+    const lastSubmission = (state.analysisTurns || []).slice().reverse().find(turn => turn.role === "user");
+    const showingCurrentResult = lastSubmission && lastSubmission.prompt === analysisPromptEl.value.trim()
+      && ["Generated", "Job queued", "Error"].includes(resultsLabel);
     const activeTarget = state.analysisInFlight
       ? "results"
-      : resultsLabel === "Generated" || resultsLabel === "Job queued" || resultsLabel === "Error"
-        ? "results"
+      : !patientsReady ? "scope"
         : !requirementsReady
             ? "requirements"
-          : "prompt";
+          : reviewReady && showingCurrentResult ? "results" : "prompt";
     const steps = {
       catalog: {
-        value: hasItem ? String(item.name || "Selected") : "Quick prompt",
-        state: hasItem ? "is-ready" : "is-neutral",
+        value: hasItem ? String(item.name || "Selected") : association ? "Two measurements" : document.getElementById("analysisMethodSelect").value === "summary" ? "Cohort summary" : "Custom request",
+        state: "is-ready",
+      },
+      scope: {
+        value: patientsReady ? analysisFlowScopeLabel() : "Choose cohorts",
+        state: patientsReady ? "is-ready" : "is-blocked",
       },
       requirements: {
-        value: !hasItem ? "No extra setup" : requirementsReady ? `${analysisFlowScopeLabel()} ready` : `${incompleteSetupCount} step${incompleteSetupCount === 1 ? "" : "s"} remaining`,
+        value: association ? (requirementsReady ? "Measurements selected" : "Choose measurements") : !hasItem ? "Not required" : requirementsReady ? "Ready" : `${incompleteSetupCount} step${incompleteSetupCount === 1 ? "" : "s"} remaining`,
         state: requirementsReady ? "is-ready" : "is-blocked",
       },
       prompt: {
-        value: state.analysisInFlight ? "Running" : (!requirementsReady ? "Waiting for setup" : (hasPrompt ? "Ready" : "Needs text")),
-        state: state.analysisInFlight ? "is-running" : (!requirementsReady ? "is-neutral" : (!hasPrompt ? "is-blocked" : "is-ready")),
+        value: state.analysisInFlight ? "Running" : !hypothesisReady ? "Add hypothesis" : !patientsReady || !requirementsReady ? "Waiting for setup" : hasPrompt ? "Ready to review" : "Enter request",
+        state: state.analysisInFlight ? "is-running" : !reviewReady ? "is-blocked" : !patientsReady || !requirementsReady ? "is-neutral" : "is-ready",
       },
       results: {
         value: resultsLabel,
@@ -886,6 +951,8 @@ export function createAnalysisCatalogUi(ctx) {
       button.classList.remove("is-active", "is-ready", "is-blocked", "is-running", "is-neutral");
       button.classList.add(step.state);
       button.classList.toggle("is-active", target === activeTarget);
+      if (target === activeTarget) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
     });
   }
 

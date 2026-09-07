@@ -1,10 +1,132 @@
 from __future__ import annotations
 
 from itertools import combinations
+import csv
+import hashlib
+import math
+import numpy as np
 from typing import Any, Dict, List, Set
 
 from app.dicom import dicom_studies
 from app.query_store import assay_dataset_inventory, assay_dataset_matrix_preview, clinical_workspace_inventory
+from app.query_store import (_manifest_assay_item, _external_assay_header, _workspace_dataset_ids)
+
+
+def _association_feature(data_dir, assay_id, feature):
+    item = _manifest_assay_item(data_dir, assay_id)
+    if not item or not item.get("sample_metadata_file"):
+        raise ValueError("Choose a manifest-backed matrix with explicit sample-to-patient metadata.")
+    from app.query_store import _external_assay_matrix_path
+    path = _external_assay_matrix_path(data_dir, item)
+    if path.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("This matrix exceeds the 64 MiB interactive limit. Prepare a smaller feature panel first.")
+    path, delimiter, samples, links = _external_assay_header(data_dir, item)
+    if len(samples) > 1000:
+        raise ValueError("This first comparison supports matrices with at most 1,000 samples.")
+    found = None
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle, delimiter=delimiter)
+        next(reader)
+        for row in reader:
+            if not row or row[0].strip() != feature:
+                continue
+            if found is not None or len(row) != len(samples) + 1:
+                raise ValueError("Selected feature has duplicate rows or an inconsistent number of values.")
+            found = []
+            for value in row[1:]:
+                try:
+                    number = float(value)
+                    found.append(number if math.isfinite(number) else None)
+                except ValueError:
+                    found.append(None)
+    if found is None:
+        raise ValueError("Selected feature was not found. Use an exact feature identifier.")
+    digest = hashlib.sha256()
+    with path.open('rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return item, dict(zip(samples, found)), links, digest.hexdigest()
+
+
+def _spearman(points):
+    if len(points) < 3:
+        return None
+    def ranks(values):
+        # Average ranks for ties, then Pearson correlation of those ranks.
+        values = np.asarray(values)
+        result = np.empty(len(values), dtype=float)
+        order = np.argsort(values, kind='stable')
+        start = 0
+        while start < len(order):
+            end = start + 1
+            while end < len(order) and values[order[end]] == values[order[start]]:
+                end += 1
+            result[order[start:end]] = (start + end - 1) / 2 + 1
+            start = end
+        return result
+    x, y = ranks([p['x'] for p in points]), ranks([p['y'] for p in points])
+    if not np.ptp(x) or not np.ptp(y):
+        return None
+    return float(np.corrcoef(x, y)[0, 1])
+
+
+def cross_modal_association(data_dir, parameters, selected_ids=""):
+    if len(_workspace_dataset_ids(data_dir)) > 1:
+        raise ValueError("Select a single dataset for this first cross-modal comparison.")
+    required = ('assay_x', 'feature_x', 'assay_y', 'feature_y')
+    if not isinstance(parameters, dict) or any(not isinstance(parameters.get(key), str) or not parameters[key].strip() for key in required):
+        raise ValueError("Choose an assay and exact feature identifier for each axis.")
+    params = {key: parameters[key].strip() for key in required}
+    left, x, xlinks, xhash = _association_feature(data_dir, params['assay_x'], params['feature_x'])
+    right, y, ylinks, yhash = _association_feature(data_dir, params['assay_y'], params['feature_y'])
+    if _normalize_modality(left.get('modality')) == _normalize_modality(right.get('modality')):
+        raise ValueError("Choose measurements from two different modalities.")
+    clinical = clinical_workspace_inventory(data_dir)
+    samples = {}
+    for row in clinical['samples']:
+        samples.setdefault(row['sample_id'], []).append(row)
+    groups = {}
+    # Use source clinical labels, not labels inferred from molecular measurements.
+    from app.query_store import patient_query_index
+    for patient in patient_query_index(data_dir):
+        groups[patient['patient_id']] = '; '.join(patient.get('diseases') or []) or 'Not recorded'
+    scope = {value.strip() for value in selected_ids.split(',') if value.strip()}
+    x = {key: value for key, value in x.items() if not scope or key in scope or xlinks[key] in scope}
+    y = {key: value for key, value in y.items() if not scope or key in scope or ylinks[key] in scope}
+    common = set(x) & set(y)
+    counts = dict(x_samples=len(x), y_samples=len(y), x_only=len(set(x)-set(y)), y_only=len(set(y)-set(x)),
+                  shared_samples=len(common), invalid_linkage=0, missing_pairs=0, repeated_observations=0)
+    candidates = []
+    for sid in sorted(common):
+        rows = samples.get(sid, [])
+        if len(rows) != 1 or xlinks[sid] != ylinks[sid] or rows[0]['patient_id'] != xlinks[sid]:
+            counts['invalid_linkage'] += 1
+            continue
+        if x[sid] is None or y[sid] is None:
+            counts['missing_pairs'] += 1
+            continue
+        row = rows[0]
+        candidates.append(dict(sample_id=sid, patient_id=row['patient_id'], event_date=row.get('event_date') or '',
+                               x=x[sid], y=y[sid], group=groups.get(row['patient_id'], 'Not recorded')))
+    points, seen = [], set()
+    for point in sorted(candidates, key=lambda p: (p['event_date'] or '9999', p['sample_id'])):
+        if point['patient_id'] in seen:
+            counts['repeated_observations'] += 1
+            continue
+        seen.add(point['patient_id'])
+        points.append(point)
+    counts['matched_patients'] = len(points)
+    if len(points) < 3:
+        raise ValueError(f"Only {len(points)} complete, explicitly linked patients remain; at least 3 are required. Shared samples: {len(common)}; missing pairs: {counts['missing_pairs']}; invalid links: {counts['invalid_linkage']}.")
+    return dict(mode='cross_modal_association', parameters=params, counts=counts, points=points,
+                spearman_rho=_spearman(points),
+                groups=[dict(label=label, n=len(subset), spearman_rho=_spearman(subset))
+                        for label in sorted({p['group'] for p in points})
+                        for subset in [[p for p in points if p['group'] == label]]],
+                matching='Exact clinical sample/timepoint ID and agreeing patient links; earliest complete dated pair per patient, then sample ID. Undated pairs sort last.',
+                provenance=[dict(assay_id=params['assay_x'], feature=params['feature_x'], sha256=xhash, data_type=left.get('data_type')),
+                            dict(assay_id=params['assay_y'], feature=params['feature_y'], sha256=yhash, data_type=right.get('data_type'))],
+                limitations='Exploratory supplied-scale association. No normalization, covariate adjustment, p-value or causal inference. Raw RNA counts may reflect library size. Overall correlation may reflect group differences; review within-group results. Undefined rho means fewer than 3 observations or a constant feature.')
 
 
 def _clean(value: Any) -> str:

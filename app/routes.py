@@ -1794,12 +1794,15 @@ def get_assay_feature_matrix(
 def get_assay_features(assay_id: str, request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR, q: str = "", limit: int = 50) -> Dict:
     require_authenticated(request)
     try:
-        genes = assay_feature_inventory(_resolve_route_dataset_dir(request, dataset_id, data_dir), assay_id, search=q, limit=limit)
+        resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
+        genes = assay_feature_inventory(resolved_dir, assay_id, search=q, limit=limit)
         return {
             "assay_id": assay_id,
             "genes": genes,
-            "annotations": assay_feature_annotations(genes),
+            "annotations": assay_feature_annotations(genes, resolved_dir, assay_id),
         }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Unable to browse features. Check the assay declaration and use a prepared store or a matrix panel of at most 64 MiB.") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:

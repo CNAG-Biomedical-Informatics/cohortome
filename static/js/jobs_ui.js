@@ -439,6 +439,7 @@ export function createJobsUi(ctx) {
         });
         if (turnIndex < 0) continue;
         state.analysisTurns[turnIndex] = {
+          ...state.analysisTurns[turnIndex],
           role: "assistant",
           payload: resultPayload,
           showPlots: analysisPayloadHasPlots(resultPayload),
@@ -612,6 +613,7 @@ export function createJobsUi(ctx) {
     const turn = { role: "assistant", payload: resultPayload, showPlots: analysisPayloadHasPlots(resultPayload) };
     let resultTurnIndex = existingIndex;
     if (existingIndex >= 0) {
+      turn.framing = state.analysisTurns[existingIndex].framing;
       state.analysisTurns[existingIndex] = turn;
     } else {
       state.analysisTurns.push(turn);

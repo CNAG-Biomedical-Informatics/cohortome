@@ -1986,3 +1986,10 @@
           justify-self: start;
         }
       }
+/* One method selection, its inputs, then the request and run action. */
+#analysisMethodPicker { flex: 1; min-width: 0; }
+#analysisMethodSelect { width: 100%; }
+.analysis-request-details { flex: 1; min-width: 0; }
+.analysis-request-details textarea { width: 100%; box-sizing: border-box; }
+#analysisMeasurementComparison[hidden], #analysisMethodPicker[hidden],
+#analysisStarterPanel[hidden], #analysisComposerExamplesBtn[hidden], #analysisFlowBar[hidden] { display: none; }

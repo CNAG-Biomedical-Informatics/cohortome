@@ -187,13 +187,21 @@ def _gene_annotation(gene_id: str) -> Dict[str, str]:
     return annotation
 
 
-def assay_feature_annotations(gene_ids: List[str]) -> Dict[str, Dict[str, str]]:
+def assay_feature_annotations(gene_ids: List[str], data_dir: str = "", dataset_name: str = "") -> Dict[str, Dict[str, str]]:
+    item = _manifest_assay_item(data_dir, dataset_name) if data_dir and dataset_name else None
+    declared = (item or {}).get("feature_annotations", {})
+    if not isinstance(declared, dict):
+        declared = {}
     payload: Dict[str, Dict[str, str]] = {}
     for raw_gene_id in gene_ids:
         gene_id = str(raw_gene_id or "").strip()
         if not gene_id:
             continue
         annotation = _gene_annotation(gene_id)
+        supplied = declared.get(gene_id, {})
+        if isinstance(supplied, dict):
+            annotation.update({key: str(supplied[key]).strip() for key in ("label", "description", "unit")
+                               if isinstance(supplied.get(key), str) and supplied[key].strip()})
         if any(annotation.values()):
             payload[gene_id] = annotation
     return payload
@@ -2051,16 +2059,31 @@ def assay_feature_inventory(data_dir: str, dataset_name: str, search: str = "", 
     finally:
         con.close()
     gene_ids = [str(row[0]) for row in rows]
+    # Compact manifest matrices can remain external to DuckDB.
+    if not gene_ids:
+        item = _manifest_assay_item(data_dir, dataset_name)
+        if item:
+            path = _external_assay_matrix_path(data_dir, item)
+            if path.stat().st_size > 64 * 1024 * 1024:
+                raise ValueError("Feature browsing requires a prepared store or a matrix panel of at most 64 MiB.")
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                first_line = handle.readline()
+                reader = csv.reader(handle, delimiter=_detect_matrix_delimiter(first_line))
+                gene_ids = sorted({str(row[0]).strip() for row in reader if row and str(row[0]).strip()})
     needle = str(search or "").strip().lower()
     if not needle:
         return gene_ids[: int(limit)]
     matches: List[str] = []
+    annotations = assay_feature_annotations(gene_ids, data_dir, dataset_name)
     for gene_id in gene_ids:
-        annotation = _gene_annotation(gene_id)
+        annotation = annotations.get(gene_id, {})
         haystacks = [
             gene_id.lower(),
             str(annotation.get("gene_symbol") or "").lower(),
             str(annotation.get("gene_name") or "").lower(),
+            str(annotation.get("label") or "").lower(),
+            str(annotation.get("description") or "").lower(),
+            str(annotation.get("unit") or "").lower(),
         ]
         if any(needle in value for value in haystacks if value):
             matches.append(gene_id)

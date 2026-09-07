@@ -159,6 +159,7 @@ def _install_dataset_lifecycle_routes(page):
         {
             "dataset_id": "default",
             "name": "Synthetic demo",
+            "has_imaging": True,
             "description": "Public longitudinal clinical and assay demonstration with deliberately verbose explanatory copy for the dataset-card layout.",
             "enabled": True,
             "visibility": "all_authenticated",
@@ -405,6 +406,7 @@ def _open_query_tab(page) -> None:
 
 def _open_analysis_tab(page) -> None:
     page.locator("#analysisTabBtn").click()
+    page.locator("#analysisRequestDetails").evaluate("element => { element.open = true; }")
     page.locator("#analysisPrompt").wait_for()
 
 
@@ -1538,7 +1540,8 @@ def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) 
 
     legend = page.locator("#datasetPickerLegend")
     expect(legend).to_be_visible()
-    expect(legend.locator("[data-dataset-trait-legend]")).to_have_count(5)
+    expect(legend.locator("[data-dataset-trait-legend]")).to_have_count(6)
+    expect(legend).to_contain_text("Imaging")
     expect(legend).to_contain_text("Private")
     expect(legend).to_contain_text("Cross-sectional")
     expect(legend).to_contain_text("Longitudinal")
@@ -1549,6 +1552,8 @@ def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) 
 
     default_card = page.locator("[data-dataset-card='default']")
     secondary_card = page.locator("[data-dataset-card='secondary']")
+    expect(default_card.get_by_role("img", name="Imaging data")).to_be_visible()
+    expect(secondary_card.locator("[data-dataset-trait='imaging']")).to_have_count(0)
     expect(default_card.locator("[data-dataset-trait='private']")).to_have_count(0)
     expect(default_card.get_by_role("img", name="Longitudinal clinical records")).to_have_attribute(
         "title", "Longitudinal clinical records"
@@ -1835,6 +1840,174 @@ def test_empty_workspace_is_not_a_dashboard_failure(page) -> None:
     expect(page.locator('#dashboard [data-workspace-state="empty"]')).to_have_count(1)
     expect(page.locator('#dashboard [data-dashboard-retry]')).to_have_count(0)
     expect(page.locator('#loadBtn')).not_to_have_class(re.compile('is-loading'))
+
+
+def test_multimodal_association_handoff_and_plot(page):
+    _mock_dashboard_load(page)
+    _mock_multimodal_assay_datasets(page)
+    _mock_multimodal_readiness(page)
+    _mock_multimodal_matrix(page)
+    def features(route):
+        from urllib.parse import urlparse, parse_qs
+        query = parse_qs(urlparse(route.request.url).query)
+        ids = ['CD4_T_cells_fraction', 'CD8_T_cells_fraction'] if query['assay_id'][0] == 'synthetic_immune_cell_abundance' else ['CRP_mg_L']
+        needle = query.get('q', [''])[0].lower()
+        annotations = {'CRP_mg_L': {'label': 'C-reactive protein', 'description': 'Simulated soluble protein measurement.', 'unit': 'mg/L'}}
+        route.fulfill(content_type='application/json', body=json.dumps({'genes': [value for value in ids if needle in (value + ' ' + annotations.get(value, {}).get('label', '')).lower()], 'annotations': annotations}))
+    page.route('**/assays/features?*', features)
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardMultimodalBtn').click()
+    playwright.expect(page.locator('#dashboardMultimodalPanel #associationAssayX')).to_have_count(0)
+    page.locator('#multimodalCompareShortcut').click()
+    playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_visible()
+    page.locator('#associationAssayX').select_option('synthetic_immune_cell_abundance')
+    page.locator('#associationAssayY').select_option('synthetic_quantitative_serology')
+    playwright.expect(page.locator('#associationFeatureX option')).to_have_count(3)
+    page.locator('#associationFeatureX').select_option('CD8_T_cells_fraction')
+    playwright.expect(page.locator('#associationDescriptionX')).to_contain_text('No description supplied')
+    page.locator('#associationSearchX').fill('no-match')
+    playwright.expect(page.locator('#associationFeatureX')).to_be_disabled()
+    playwright.expect(page.locator('#associationFeatureStatusX')).to_contain_text('0 available')
+    page.locator('#associationSearchX').fill('CD4')
+    playwright.expect(page.locator('#associationFeatureX option')).to_have_count(2)
+    playwright.expect(page.locator('#associationFeatureX')).to_have_value('')
+    page.locator('#associationFeatureX').select_option('CD4_T_cells_fraction')
+    page.locator('#associationFeatureY').select_option('CRP_mg_L')
+    playwright.expect(page.locator('#associationFeatureY option:checked')).to_contain_text('C-reactive protein')
+    playwright.expect(page.locator('#associationDescriptionY')).to_contain_text('Units: mg/L')
+    page.locator('#associationSearchY').fill('C-reactive')
+    playwright.expect(page.locator('#associationFeatureY')).to_have_value('')
+    page.locator('#associationFeatureY').select_option('CRP_mg_L')
+    page.locator('#associationAssayY').select_option('')
+    playwright.expect(page.locator('#associationFeatureY')).to_have_value('')
+    playwright.expect(page.locator('#associationSearchY')).to_be_disabled()
+    page.locator('#associationAssayY').select_option('synthetic_quantitative_serology')
+    page.locator('#associationFeatureY').select_option('CRP_mg_L')
+    page.locator('#associationOpenBtn').click()
+    prompt = page.locator('#analysisPrompt').input_value()
+    assert prompt.startswith('Compare measurements: ')
+    params = json.loads(prompt.split(': ', 1)[1])
+    context = dict(mode='cross_modal_association', parameters=params, counts={'matched_patients': 3},
+                   points=[dict(x=i, y=i, group='Synthetic group') for i in range(3)],
+                   groups=[dict(label='Synthetic group', n=3, spearman_rho=1)],
+                   matching='Exact sample matching', limitations='Exploratory association', provenance=[])
+    page.route('**/analysis', lambda route: route.fulfill(content_type='application/json', body=json.dumps({
+        'intent': 'analysis_cross_modal_association', 'reply': 'Spearman rho: 1.000.',
+        'data': {'source': 'deterministic', 'context': context}})))
+    page.locator('#analysisRunBtn').click()
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Spearman rho: 1.000')
+    playwright.expect(page.locator('[id$="-association"]')).to_have_attribute('data-plotly-ready', 'true')
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Synthetic group')
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Parameters and provenance')
+
+
+def test_analysis_research_framing_snapshot(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    requests = []
+    def result(route):
+        requests.append(route.request.post_data_json)
+        route.fulfill(content_type='application/json', body=json.dumps({
+            'intent': 'analysis_summary', 'reply': 'Synthetic analysis complete.',
+            'data': {'source': 'deterministic', 'context': {}}}))
+    page.route('**/analysis', result)
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#analysisTabBtn').click()
+    page.locator('#analysisFraming summary').click()
+    page.locator('#analysisStudyMode').select_option('hypothesis_driven')
+    page.locator('#analysisRunBtn').click()
+    playwright.expect(page.locator('#analysisStatus')).to_contain_text('Enter the research question and hypothesis')
+    assert requests == []
+    page.locator('#analysisResearchQuestion').fill('Do simulated measurements covary?')
+    page.locator('#analysisHypothesis').fill('A positive association.')
+    page.locator('#analysisRunBtn').click()
+    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('Hypothesis-driven')
+    page.locator('.analysis-framing-result summary').click()
+    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
+    assert 'framing' not in requests[0]  # Research note is not model context.
+    page.locator('#analysisHypothesis').fill('A different expectation for a later run.')
+    page.locator('#analysisHypothesis').blur()
+    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
+    page.reload()
+    page.locator('#analysisTabBtn').click()
+    playwright.expect(page.locator('#analysisHypothesis')).to_have_value('A different expectation for a later run.')
+    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
+    page.locator('#analysisContextGeneralBtn').click()
+    playwright.expect(page.locator('#analysisFraming')).to_be_hidden()
+
+
+def test_multimodal_synthetic_discovery_examples(page):
+    _mock_dashboard_load(page)
+    _mock_multimodal_readiness(page)
+    _mock_multimodal_matrix(page)
+    page.route('**/assays?*', lambda route: route.fulfill(content_type='application/json', body=json.dumps({'datasets': [
+        {'dataset_name': 'synthetic_autoimmune_flow_cytometry', 'modality': 'flow_cytometry'},
+        {'dataset_name': 'synthetic_autoimmune_serology', 'modality': 'serology'},
+    ]})))
+    def features(route):
+        ids = ['CD4_T_cells_fraction', 'B_cells_fraction'] if 'flow_cytometry' in route.request.url else ['CRP_mg_L', 'Anti_dsDNA_IU_mL']
+        route.fulfill(content_type='application/json', body=json.dumps({'genes': ids}))
+    page.route('**/assays/features?*', features)
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#analysisTabBtn').click()
+    page.locator('#analysisMethodSelect').select_option('association')
+    page.locator('#associationExamples button').first.click()
+    playwright.expect(page.locator('#associationFeatureX')).to_have_value('CD4_T_cells_fraction')
+    playwright.expect(page.locator('#associationFeatureY')).to_have_value('CRP_mg_L')
+    page.locator('#associationExamples button').nth(1).click()
+    playwright.expect(page.locator('#associationFeatureX')).to_have_value('B_cells_fraction')
+    playwright.expect(page.locator('#associationFeatureY')).to_have_value('Anti_dsDNA_IU_mL')
+    playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_visible()
+    playwright.expect(page.locator('#associationExamples')).to_contain_text('not biological findings')
+
+
+def test_analysis_method_picker_without_llm(page):
+    _mock_dashboard_load(page)
+    _mock_multimodal_assay_datasets(page)
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#analysisTabBtn').click()
+    picker = page.locator('#analysisMethodSelect')
+    playwright.expect(picker).to_have_value('summary')
+    playwright.expect(page.locator('#analysisFlowBar .analysis-flow-step')).to_have_count(5)
+    playwright.expect(page.locator('[data-analysis-flow-target="requirements"]')).to_contain_text('Not required')
+    page.locator('[data-analysis-flow-target="scope"]').click()
+    playwright.expect(page.locator('#analysisWorkspaceSetup')).to_have_attribute('open', '')
+    playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_hidden()
+    playwright.expect(page.locator('#analysisPrompt')).to_be_hidden()
+    playwright.expect(page.locator('#analysisMethodDescription')).to_contain_text('No assay selection or language model')
+    calls = []
+    def result(route):
+        calls.append(route.request.post_data_json)
+        route.fulfill(content_type='application/json', body=json.dumps({'intent': 'analysis_summary', 'reply': 'Cohort summary.', 'data': {'source': 'deterministic', 'context': {}}}))
+    page.route('**/analysis', result)
+    page.locator('#analysisRunBtn').click()
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Cohort summary.')
+    assert calls[0]['deterministic_only'] is True
+    picker.select_option('association')
+    playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_visible()
+    playwright.expect(page.locator('[data-analysis-flow-target="requirements"]')).to_contain_text('Choose measurements')
+    playwright.expect(page.locator('[data-analysis-flow-target="requirements"]')).to_have_attribute('aria-current', 'step')
+    page.locator('[data-analysis-flow-target="requirements"]').click()
+    playwright.expect(page.locator('#associationAssayX')).to_be_focused()
+    page.locator('#analysisRunBtn').click()
+    playwright.expect(page.locator('#analysisStatus')).to_contain_text('Choose a matrix and feature')
+    assert len(calls) == 1
+    picker.select_option('custom')
+    playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_hidden()
+    playwright.expect(page.locator('#analysisPrompt')).to_be_visible()
+    page.locator('#analysisContextGeneralBtn').click()
+    playwright.expect(picker).to_be_hidden()
+    playwright.expect(page.locator('#analysisFlowBar')).to_be_hidden()
+    playwright.expect(page.locator('#analysisPrompt')).to_be_visible()
 
 
 def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:

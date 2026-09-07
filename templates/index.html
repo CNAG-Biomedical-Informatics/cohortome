@@ -585,6 +585,11 @@
         </section>
         <section id="dashboardMultimodalPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
+            <section class="section-card">
+              <h3>Explore relationships between modalities</h3>
+              <p class="section-note">Review coverage and overlap here, then choose measurements and run a comparison in Analysis.</p>
+              <button id="multimodalCompareShortcut" type="button" class="query-chip query-chip-deterministic">Compare measurements in Analysis</button>
+            </section>
             <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
               <div class="assay-modality-section-header">
                 <strong>Multimodal analysis readiness</strong>
@@ -1255,18 +1260,22 @@
             <div id="analysisFlowBar" class="analysis-flow-bar" aria-label="Analysis workflow">
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="catalog">
                 <span class="analysis-flow-step-index">1</span>
-                <span class="analysis-flow-step-copy"><span>Analysis</span><strong>Choose analysis</strong></span>
+                <span class="analysis-flow-step-copy"><span>Method</span><strong>Choose analysis</strong></span>
+              </button>
+              <button type="button" class="analysis-flow-step" data-analysis-flow-target="scope">
+                <span class="analysis-flow-step-index">2</span>
+                <span class="analysis-flow-step-copy"><span>Patients</span><strong>Full workspace</strong></span>
               </button>
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="requirements">
-                <span class="analysis-flow-step-index">2</span>
-                <span class="analysis-flow-step-copy"><span>Setup</span><strong>Full workspace</strong></span>
+                <span class="analysis-flow-step-index">3</span>
+                <span class="analysis-flow-step-copy"><span>Inputs</span><strong>Not required</strong></span>
               </button>
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="prompt">
-                <span class="analysis-flow-step-index">3</span>
-                <span class="analysis-flow-step-copy"><span>Prompt</span><strong>Ready</strong></span>
+                <span class="analysis-flow-step-index">4</span>
+                <span class="analysis-flow-step-copy"><span>Review</span><strong>Ready</strong></span>
               </button>
               <button type="button" class="analysis-flow-step" data-analysis-flow-target="results">
-                <span class="analysis-flow-step-index">4</span>
+                <span class="analysis-flow-step-index">5</span>
                 <span class="analysis-flow-step-copy"><span>Results</span><strong>Empty</strong></span>
               </button>
             </div>
@@ -1274,8 +1283,8 @@
             <details id="analysisWorkspaceSetup" class="analysis-setup-card">
               <summary class="analysis-setup-summary">
                 <div class="analysis-setup-summary-copy">
-                  <strong>Setup</strong>
-                  <div class="section-note">Scope and analysis selection.</div>
+                  <strong>Patients and cohorts</strong>
+                  <div class="section-note">Use the full workspace or choose a subset.</div>
                 </div>
                 <div class="analysis-setup-summary-body">
                   <div id="analysisSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
@@ -1390,15 +1399,20 @@
               </div>
               <div class="analysis-flow-cue">Results and follow-up questions will appear below.</div>
               <div class="analysis-picker">
-                <div class="analysis-picker-copy">
+                <div id="analysisMethodPicker" class="analysis-picker-copy">
+                  <label for="analysisMethodSelect">What analysis would you like to run?</label>
+                  <select id="analysisMethodSelect" aria-describedby="analysisMethodDescription"><option value="summary">Describe my cohort · No LLM needed</option></select>
+                  <p id="analysisMethodDescription" class="section-note">Summarize the patients and clinical patterns in your current scope.</p>
+                </div>
+                <div class="analysis-picker-copy is-hidden">
                   <div class="analysis-picker-eyebrow">Analysis picker</div>
                   <strong id="analysisCatalogDisclosureTitle">Choose analysis</strong>
                   <div id="analysisCatalogDisclosureNote" class="section-note">Use the catalog to configure the prompt, mode, and required inputs.</div>
                   <div id="analysisCatalogStatus" class="section-note">Loading curated analyses...</div>
                 </div>
                 <div class="analysis-picker-actions">
-                  <button id="analysisCatalogBrowseBtn" type="button" class="query-chip action">Choose analysis</button>
-                  <button id="analysisComposerExamplesBtn" type="button" class="query-chip">Prompts</button>
+                  <button id="analysisCatalogBrowseBtn" type="button" class="query-chip">Browse method details</button>
+                  <button id="analysisComposerExamplesBtn" type="button" class="query-chip">Prompt examples</button>
                 </div>
                 <div id="analysisCatalogList" class="analysis-catalog-featured is-hidden" aria-hidden="true">
                   <div class="empty">Loading curated analyses...</div>
@@ -1419,8 +1433,35 @@
                   </div>
                 </div>
               </div>
+            <details id="analysisMeasurementComparison" class="section-card">
+              <summary>Compare two measurements · Exploratory association</summary>
+              <div id="associationExamples" class="section-note" hidden></div>
+              <p class="section-note">Explore correlation across two modalities in one dataset. Exact sample links, one observation per patient; no normalization or causal inference. Matrices must be at most 64 MiB and 1,000 samples. Use normalized RNA values for biological interpretation.</p>
+              <div class="assay-grid">
+                <div><label for="associationAssayX">X modality / measurement matrix</label><select id="associationAssayX"></select><label for="associationSearchX">Search X feature IDs</label><input id="associationSearchX" type="search" placeholder="Filter available IDs" disabled><label for="associationFeatureX">X feature ID</label><select id="associationFeatureX" aria-describedby="associationFeatureStatusX" disabled><option value="">Choose a matrix first</option></select><div id="associationFeatureStatusX" class="note" role="status"></div></div>
+                <div><label for="associationAssayY">Y modality / measurement matrix</label><select id="associationAssayY"></select><label for="associationSearchY">Search Y feature IDs</label><input id="associationSearchY" type="search" placeholder="Filter available IDs" disabled><label for="associationFeatureY">Y feature ID</label><select id="associationFeatureY" aria-describedby="associationFeatureStatusY" disabled><option value="">Choose a matrix first</option></select><div id="associationFeatureStatusY" class="note" role="status"></div></div>
+              </div>
+              <button id="associationOpenBtn" type="button" class="query-chip query-chip-deterministic">Use these measurements</button>
+              <p id="associationStatus" class="section-note" role="status">Choose two measurements to fill the analysis prompt. Review the question and scope, then select Run analysis. Keep A/B comparison off.</p>
+            </details>
+              <details id="analysisFraming" class="section-card">
+                <summary>Question this analysis addresses</summary>
+                <label for="analysisStudyMode">Analysis purpose</label>
+                <select id="analysisStudyMode"><option value="exploratory">Exploratory</option><option value="hypothesis_driven">Hypothesis-driven</option></select>
+                <label for="analysisResearchQuestion">Biological or research question</label>
+                <textarea id="analysisResearchQuestion" maxlength="2000" rows="2" placeholder="What do you want to learn in this cohort? Optional for exploration."></textarea>
+                <div id="analysisHypothesisFields" hidden>
+                  <label for="analysisHypothesis">Hypothesis specified before this run</label>
+                  <textarea id="analysisHypothesis" maxlength="2000" rows="2" placeholder="State the expected association or difference, including direction if relevant."></textarea>
+                </div>
+                <p class="section-note">Saved with each submission. Changes apply to later runs only. This note does not configure the statistical model, get sent to a language model, or constitute formal preregistration.</p>
+              </details>
+              <p id="analysisRunReview" class="section-note" role="status"></p>
               <div class="query-row">
-                <textarea id="analysisPrompt">Summarize the main clinical patterns in this workspace and tell me what stands out.</textarea>
+                <details id="analysisRequestDetails" class="analysis-request-details">
+                  <summary>Review or edit the analysis request</summary>
+                  <textarea id="analysisPrompt" aria-label="Analysis request">Summarize the main clinical patterns in this workspace and tell me what stands out.</textarea>
+                </details>
                 <button id="analysisRunBtn" type="button">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

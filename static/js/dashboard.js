@@ -2382,6 +2382,132 @@ export function createDashboardUi(ctx) {
   function renderAssayDashboardCards(datasets) {
     if (!assayDashboardCardsEl) return;
     const allItems = Array.isArray(datasets) ? datasets : [];
+    for (const axis of ["X", "Y"]) {
+      const select = document.getElementById(`associationAssay${axis}`);
+      if (!select) continue;
+      const previous = select.value;
+      select.innerHTML = '<option value="">Choose a matrix</option>' + allItems.map(item => `<option value="${escapeHtml(item.dataset_name)}">${escapeHtml(formatAssayModality(item.modality))} · ${escapeHtml(item.label || item.dataset_name)}</option>`).join("");
+      if (allItems.some(item => item.dataset_name === previous)) select.value = previous;
+      const feature = document.getElementById(`associationFeature${axis}`);
+      const search = document.getElementById(`associationSearch${axis}`);
+      const status = document.getElementById(`associationFeatureStatus${axis}`);
+      document.querySelector(`label[for="associationSearch${axis}"]`).textContent = `Search ${axis} features`;
+      search.placeholder = "Name, description or ID";
+      let description = document.getElementById(`associationDescription${axis}`);
+      if (!description) {
+        description = document.createElement("p");
+        description.id = `associationDescription${axis}`;
+        description.className = "section-note";
+        description.setAttribute("role", "status");
+        feature.after(description);
+        feature.setAttribute("aria-describedby", `${status.id} ${description.id}`);
+      }
+      let annotations = {};
+      feature.onchange = () => {
+        const annotation = annotations[feature.value] || {};
+        description.textContent = feature.value ? [
+          annotation.description || annotation.gene_name || "No description supplied for this feature.",
+          annotation.unit ? `Units: ${annotation.unit}.` : "Units not supplied.",
+        ].join(" ") : "";
+      };
+      // Invalidates responses from previous renders as well as rapid searches.
+      const resetFeatures = (label) => {
+        feature._request = {};
+        feature.innerHTML = `<option value="">${escapeHtml(label)}</option>`;
+        feature.disabled = true;
+        status.textContent = "";
+        description.textContent = "";
+        annotations = {};
+      };
+      let searchTimer;
+      const loadFeatures = async () => {
+        if (!select.value) return;
+        resetFeatures("Loading features…");
+        const request = feature._request;
+        const assay = select.value;
+        const scope = state.currentDatasetScopeId;
+        const isCurrent = () => feature._request === request && select.value === assay && state.currentDatasetScopeId === scope;
+        try {
+          const response = await fetch(`/assays/features?data_dir=${encodeURIComponent(scope)}&assay_id=${encodeURIComponent(assay)}&q=${encodeURIComponent(search.value.trim())}&limit=50`);
+          if (!response.ok) throw new Error("Feature lookup failed");
+          const payload = await response.json();
+          if (!isCurrent()) return;
+          const ids = payload.genes || [];
+          annotations = payload.annotations || {};
+          feature.innerHTML = `<option value="">${ids.length ? "Choose a feature" : "No matching features"}</option>` + ids.map(id => {
+            const annotation = annotations[id] || {};
+            const label = annotation.label || annotation.gene_symbol || annotation.gene_name;
+            return `<option value="${escapeHtml(id)}">${escapeHtml(label ? `${label} · ${id}` : `${id} · Name not supplied`)}</option>`;
+          }).join("");
+          feature.disabled = !ids.length;
+          status.textContent = ids.length >= 50 ? "Showing up to 50 matches. Search to narrow the list." : `${ids.length} available feature${ids.length === 1 ? "" : "s"}${search.value.trim() ? " matching your search" : ""}.`;
+          return true;
+        } catch (_) {
+          if (!isCurrent()) return;
+          resetFeatures("Features unavailable");
+          status.textContent = "Could not load features. Edit the search or reselect the matrix to retry.";
+        }
+      };
+      select.onchange = () => {
+        clearTimeout(searchTimer);
+        search.value = "";
+        search.disabled = !select.value;
+        resetFeatures("Choose a matrix first");
+        return loadFeatures();
+      };
+      search.oninput = () => {
+        clearTimeout(searchTimer);
+        resetFeatures("Searching features…");
+        const request = feature._request;
+        searchTimer = setTimeout(() => {
+          if (feature._request === request) void loadFeatures();
+        }, 250);
+      };
+      select.onchange();
+    }
+    const examples = document.getElementById("associationExamples");
+    if (examples) {
+      const flow = "synthetic_autoimmune_flow_cytometry";
+      const serology = "synthetic_autoimmune_serology";
+      examples.hidden = ![flow, serology].every(id => allItems.some(item => item.dataset_name === id));
+      examples.innerHTML = examples.hidden ? "" : `<strong>Try a synthetic comparison</strong>
+        <p>These examples explore how two simulated measurements vary together. They are not biological findings.</p>
+        <button type="button" class="query-chip" data-example-x="CD4_T_cells_fraction" data-example-y="CRP_mg_L">CD4 T cells × C-reactive protein</button>
+        <p>Compare a cell fraction with a soluble protein measurement.</p>
+        <button type="button" class="query-chip" data-example-x="B_cells_fraction" data-example-y="Anti_dsDNA_IU_mL">B cells × anti-double-stranded DNA antibodies</button>
+        <p>Compare a cell fraction with an antibody measurement. Neither example runs until you review it in Analysis.</p>`;
+      examples.querySelectorAll("button").forEach(button => {
+        button.onclick = async () => {
+          await Promise.all([['X', flow, button.dataset.exampleX], ['Y', serology, button.dataset.exampleY]].map(async ([axis, assay, id]) => {
+            const matrix = document.getElementById(`associationAssay${axis}`);
+            matrix.value = assay;
+            const loaded = await matrix.onchange();
+            const feature = document.getElementById(`associationFeature${axis}`);
+            if (loaded && matrix.value === assay && Array.from(feature.options).some(option => option.value === id)) {
+              feature.value = id;
+              feature.onchange();
+            }
+          }));
+        };
+      });
+    }
+    const associationBtn = document.getElementById("associationOpenBtn");
+    if (associationBtn) {
+      associationBtn.disabled = allItems.length < 2;
+      associationBtn.onclick = () => {
+        const parameters = {};
+        for (const axis of ["X", "Y"]) {
+          parameters[`assay_${axis.toLowerCase()}`] = document.getElementById(`associationAssay${axis}`).value;
+          parameters[`feature_${axis.toLowerCase()}`] = document.getElementById(`associationFeature${axis}`).value.trim();
+        }
+        if (Object.values(parameters).some(value => !value)) {
+          document.getElementById("associationStatus").textContent = "Choose both matrices and select a feature from each dropdown.";
+          return;
+        }
+        sendPromptToAnalysis(`Compare measurements: ${JSON.stringify(parameters)}`);
+        document.getElementById("associationStatus").textContent = "Comparison prompt ready. Review the question and cohort scope, keep A/B comparison off, then select Run analysis.";
+      };
+    }
     const imagingItems = allItems.filter((item) => normalizedAssayModality(item.modality) === "imaging");
     const imagingCards = document.getElementById("imagingDashboardCards");
     if (imagingCards) imagingCards.innerHTML = imagingItems.length

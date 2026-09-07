@@ -1093,12 +1093,25 @@ function bindEvents() {
         setup.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     } else if (target === "analysis" || target === "choose" || target === "setup" || target === "catalog") {
-      analysisCatalogUi.setAnalysisCatalogDrawerOpen(true);
+      document.getElementById("analysisMethodSelect").focus();
+      document.getElementById("analysisMethodPicker").scrollIntoView({ block: "center" });
     } else if (target === "prompt") {
+      document.getElementById("analysisRequestDetails").open = true;
+      document.getElementById("analysisFraming").open = true;
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (target === "requirements") {
-      analysisCatalogUi.focusFirstIncompleteAnalysisSetup();
+      if (document.getElementById("analysisMethodSelect").value === "association") {
+        const panel = document.getElementById("analysisMeasurementComparison");
+        panel.open = true;
+        panel.scrollIntoView({ block: "center" });
+        document.getElementById("associationAssayX").focus();
+      } else if (state.analysisSelectedCatalogItemId) {
+        analysisCatalogUi.focusFirstIncompleteAnalysisSetup();
+        refs.analysisCatalogAssayPanelEl.scrollIntoView({ block: "center" });
+      } else {
+        document.getElementById("analysisMethodDescription").scrollIntoView({ block: "center" });
+      }
     } else if (target === "run") {
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1106,6 +1119,7 @@ function bindEvents() {
       refs.analysisThreadEl && refs.analysisThreadEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   });
+  document.getElementById("analysisMeasurementComparison").addEventListener("change", () => analysisCatalogUi.renderAnalysisFlowBar());
   refs.analysisComposerExamplesBtnEl && refs.analysisComposerExamplesBtnEl.addEventListener("click", () => {
     state.analysisExamplesPinnedOpen = true;
     analysisCatalogUi.renderAnalysisStarterPrompts();
@@ -1313,8 +1327,28 @@ function bindEvents() {
     analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
+  ["analysisStudyMode", "analysisResearchQuestion", "analysisHypothesis"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+      document.getElementById("analysisHypothesisFields").hidden = document.getElementById("analysisStudyMode").value !== "hypothesis_driven";
+      analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: false });
+      analysisCatalogUi.renderAnalysisFlowBar();
+    });
+  });
   refs.analysisContextWorkspaceBtnEl && refs.analysisContextWorkspaceBtnEl.addEventListener("click", () => {
     analysisUi.setContextMode("workspace");
+  });
+  document.getElementById("multimodalCompareShortcut").addEventListener("click", () => {
+    navigationUi.setActiveTab("analysis");
+    analysisUi.setContextMode("workspace");
+    const method = document.getElementById("analysisMethodSelect");
+    if (method.value !== "association") {
+      method.value = "association";
+      method.dispatchEvent(new Event("change"));
+    }
+    const panel = document.getElementById("analysisMeasurementComparison");
+    panel.open = true;
+    panel.scrollIntoView({ block: "center" });
+    document.getElementById("associationAssayX").focus();
   });
   refs.analysisContextGeneralBtnEl && refs.analysisContextGeneralBtnEl.addEventListener("click", () => {
     analysisUi.setContextMode("general");

@@ -84,6 +84,12 @@ kind of clinical imaging workflow the project is expected to support.
 
 ## Multimodal dashboard
 
+Use **Compare measurements in Analysis** to open the comparison setup. The
+Dashboard keeps coverage and overlap information; feature selection and results
+belong to [Analysis](analysis.md#compare-two-measurements).
+
+### Coverage and feature preview
+
 The multimodal dashboard checks how well clinical records and different assays overlap.
 
 `Multimodal analysis readiness` is a QC panel. It reports modality coverage,

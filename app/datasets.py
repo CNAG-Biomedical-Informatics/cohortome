@@ -134,6 +134,7 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
     clinical_files = sorted(path for path in (clinical_dir if clinical_dir.is_dir() else root).glob("*.json") if path.is_file())
     discovered_assay_files = sorted(path for path in assays_dir.glob("*/*.csv") if path.is_file()) if assays_dir.is_dir() else []
     assay_files = discovered_assay_files
+    imaging_files = {path.resolve() for path in discovered_assay_files if path.parent.name == "imaging"}
     assay_manifest_path = assays_dir / "manifest.json"
     if assay_manifest_path.is_file():
         try:
@@ -143,6 +144,7 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         manifest_items = assay_manifest.get("assays") if isinstance(assay_manifest, dict) else None
         if isinstance(manifest_items, list):
             declared_files: List[Path] = []
+            imaging_files = set()
             for item in manifest_items:
                 if not isinstance(item, dict):
                     continue
@@ -156,8 +158,19 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
                     continue
                 if path.is_file():
                     declared_files.append(path)
+                    if str(item.get("modality") or "").lower().startswith("imaging") or item.get("modality") == "dicom":
+                        imaging_files.add(path)
             assay_files = sorted(dict.fromkeys(declared_files))
     transcriptomics_files = [path for path in assay_files if path.parent == transcriptomics_dir.resolve()]
+    dicom_file = assays_dir / "imaging/dicom_studies.json"
+    has_dicom = False
+    if dicom_file.is_file() and dicom_file.resolve().is_relative_to(root.resolve()):
+        try:
+            content = json.loads(dicom_file.read_text())
+            studies = content.get("studies", []) if isinstance(content, dict) else content
+            has_dicom = isinstance(studies, list) and any(isinstance(study, dict) and study for study in studies)
+        except (OSError, json.JSONDecodeError):
+            pass
     representation = clinical_representation(str(root))
     patient_ids = set()
     clinical_record_count = 0
@@ -188,6 +201,8 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         "content_summary": "",
         "clinical_file_count": len(clinical_files),
         "assay_file_count": len(assay_files),
+        "laboratory_assay_file_count": len(set(path.resolve() for path in assay_files) - imaging_files),
+        "has_imaging": bool(imaging_files or has_dicom),
         "patient_count": patient_count,
         "clinical_record_count": clinical_record_count,
         "clinical_representation": representation,

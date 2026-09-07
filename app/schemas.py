@@ -121,6 +121,7 @@ class AnalysisSessionRequest(BaseModel):
     workspace_fingerprint: Dict[str, Any] = Field(default_factory=dict, description="Workspace fingerprint snapshot captured when the session was first bound.")
     catalog_item_id: str = Field(default="", description="Selected Analysis Catalog item for this session, if any.")
     prompt_draft: str = Field(default="", description="Current draft prompt stored for the session.")
+    framing: Dict[str, Any] = Field(default_factory=dict, description="Draft research question and exploratory/hypothesis-driven purpose; run snapshots are stored in conversation turns.")
     context_mode: Literal["workspace", "general"] = Field(default="workspace", description="Whether the saved composer is using workspace context or general knowledge.")
     scope: str = Field(default="", description="Comma-separated scope IDs for cohort A.")
     scope_metadata: Dict[str, Any] = Field(default_factory=dict, description="Saved-cohort-shaped metadata for Cohort A.")

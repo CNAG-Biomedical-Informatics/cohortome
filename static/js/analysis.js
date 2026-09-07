@@ -47,6 +47,8 @@ export function createAnalysisUi(ctx) {
 
   function renderAnalysisContextMode() {
     const general = isGeneralQuestionMode();
+    document.getElementById("analysisFraming").hidden = general;
+    document.getElementById("analysisMeasurementComparison").hidden = general;
     [[analysisContextWorkspaceBtnEl, !general], [analysisContextGeneralBtnEl, general]].forEach(([button, active]) => {
       if (!button) return;
       button.classList.toggle("is-active", active);
@@ -357,6 +359,15 @@ export function createAnalysisUi(ctx) {
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
+    if (context.mode === "cross_modal_association") {
+      const counts = context.counts || {};
+      return `<div class="viz-card" style="grid-column: 1 / -1;"><div class="section-note">${escapeHtml(context.matching)}</div>
+        <div class="assay-kpi-grid">${Object.entries(counts).map(([key, value]) => `<div class="assay-kpi"><span class="assay-kpi-label">${escapeHtml(key.replace(/_/g, " "))}</span><strong class="assay-kpi-value">${escapeHtml(String(value))}</strong></div>`).join("")}</div>
+        ${plotPlaceholder(`analysis-plot-${turnIndex}-association`, 420)}
+        <div class="query-result-table-scroll"><table><thead><tr><th>Clinical group</th><th>Patients</th><th>Spearman rho</th></tr></thead><tbody>${(context.groups || []).map(group => `<tr><td>${escapeHtml(group.label)}</td><td>${group.n}</td><td>${group.spearman_rho === null ? "Undefined" : Number(group.spearman_rho).toFixed(3)}</td></tr>`).join("")}</tbody></table></div>
+        <p class="section-note">${escapeHtml(context.limitations)}</p>
+        <details class="query-section"><summary>Parameters and provenance</summary><pre>${escapeHtml(JSON.stringify({parameters: context.parameters, provenance: context.provenance}, null, 2))}</pre></details></div>`;
+    }
     if (context.mode === "workflow_transcriptomics_signature") {
       const findArtifact = (suffix) => artifacts.find((item) => String(item && item.name ? item.name : "").endsWith(suffix));
       const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
@@ -1491,6 +1502,19 @@ export function createAnalysisUi(ctx) {
       if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
       const context = turn.payload.data.context;
       if (!context) return;
+      if (context.mode === "cross_modal_association") {
+        const points = context.points || [];
+        const traces = (context.groups || []).map(group => {
+          const subset = points.filter(point => point.group === group.label);
+          return {type: "scatter", mode: "markers", name: group.label,
+            x: subset.map(point => point.x), y: subset.map(point => point.y),
+            marker: {size: 9, opacity: 0.8}};
+        });
+        mountPlot(`analysis-plot-${turnIndex}-association`, traces, {height: 420,
+          xaxis: {title: context.parameters.feature_x}, yaxis: {title: context.parameters.feature_y},
+          margin: {l: 70, r: 25, b: 80, t: 30}, legend: {orientation: "h", y: -0.25}});
+        return;
+      }
       if (context.mode === "transcriptomics_medication_compare") {
         (context.comparisons || []).forEach((item, comparisonIndex) => {
           const points = Array.isArray(item.exploratory_volcano_points) ? item.exploratory_volcano_points : [];
@@ -1645,6 +1669,7 @@ export function createAnalysisUi(ctx) {
     const value = String(intent || "analysis");
     const labels = {
       analysis_external_rscript: { label: "R analysis", title: "An approved external R runner produced this result." },
+      analysis_cross_modal_association: { label: "Cross-modal association", title: "Deterministic Spearman correlation of two explicitly matched measurements." },
       analysis_deterministic: { label: "Workspace summary", title: "Deterministic workspace summary produced by the app." },
       analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
       analysis_transcriptomics_expression: { label: "Transcriptomics expression", title: "Deterministic transcriptomics expression summary across the loaded assays." },
@@ -1857,6 +1882,7 @@ export function createAnalysisUi(ctx) {
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
       "external_rscript_transcriptomics_deseq2_differential_expression",
+      "cross_modal_association",
       "external_rscript_transcriptomics_limma_voom_differential_expression",
       "external_rscript_transcriptomics_hallmark_pathway_enrichment",
       "external_rscript_methylation_qc_pca",
@@ -2014,7 +2040,9 @@ export function createAnalysisUi(ctx) {
         ? `<div class="analysis-result-followups">${followUpsHtml}</div>`
         : "";
       const dataHtml = `<details class="query-section analysis-result-data"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${generalAnswer ? "Show response data" : "Show analysis data"}</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details>`;
-      const resultHtml = `<div class="analysis-result-content"><div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${visualHtml}${contextHtml}${followupHtml}${dataHtml}</div>`;
+      const framing = turn.framing;
+      const framingHtml = !generalAnswer && framing ? `<details class="query-section analysis-framing-result"><summary>${framing.mode === "hypothesis_driven" ? "Hypothesis-driven" : "Exploratory"} · Research question</summary><p>${escapeHtml(framing.question || "No research question recorded.")}</p>${framing.mode === "hypothesis_driven" ? `<p><strong>Hypothesis:</strong> ${escapeHtml(framing.hypothesis || "Not recorded")}</p>` : ""}<p class="section-note">Captured at submission: ${escapeHtml(framing.captured_at || "Not recorded")}. User-specified framing, not formal preregistration.</p></details>` : "";
+      const resultHtml = `<div class="analysis-result-content">${framingHtml}<div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${visualHtml}${contextHtml}${followupHtml}${dataHtml}</div>`;
       const intentInfo = analysisIntentPresentation(turn.payload && turn.payload.intent ? turn.payload.intent : "analysis");
       const summaryText = contextParts.length ? contextParts.slice(0, 2).join(" | ") : String(turn.payload && turn.payload.reply ? turn.payload.reply : "").replace(/\s+/g, " ").slice(0, 140);
       const compactResultHtml = turnIndex === latestAssistantIndex
@@ -2039,8 +2067,28 @@ export function createAnalysisUi(ctx) {
 
   async function runAnalysis() {
     if (state.analysisInFlight) return;
+    if (!isGeneralQuestionMode() && analysisPromptEl.value.trim() === "Compare measurements:") {
+      document.getElementById("associationOpenBtn").click();
+      if (analysisPromptEl.value.trim() === "Compare measurements:") {
+        setAnalysisBlockedStatus("Choose a matrix and feature for each measurement before running.");
+        return;
+      }
+    }
+    if (!isGeneralQuestionMode() && document.getElementById("analysisMethodSelect").value === "summary") state.analysisExecutionMode = "deterministic";
     const prompt = analysisPromptEl.value.trim();
     const generalQuestion = isGeneralQuestionMode();
+    const framing = generalQuestion ? null : {
+      mode: document.getElementById("analysisStudyMode").value,
+      question: document.getElementById("analysisResearchQuestion").value.trim(),
+      hypothesis: document.getElementById("analysisStudyMode").value === "hypothesis_driven" ? document.getElementById("analysisHypothesis").value.trim() : "",
+      captured_at: new Date().toISOString(),
+    };
+    if (framing && framing.mode === "hypothesis_driven" && (!framing.question || !framing.hypothesis)) {
+      document.getElementById("analysisFraming").open = true;
+      document.getElementById(!framing.question ? "analysisResearchQuestion" : "analysisHypothesis").focus();
+      setAnalysisBlockedStatus("Enter the research question and hypothesis before a hypothesis-driven run, or choose Exploratory.");
+      return;
+    }
     if (!prompt) {
       setAnalysisBlockedStatus("Enter an analysis prompt first.");
       return;
@@ -2111,10 +2159,11 @@ export function createAnalysisUi(ctx) {
     setAnalysisComposerStatus(generalQuestion ? "Waiting for a general answer." : "Running analysis. Results will appear below.");
     if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     state.analysisExamplesPinnedOpen = false;
-    state.analysisTurns.push({ role: "user", prompt, scope: generalQuestion ? "" : currentScope, compareScope: generalQuestion ? "" : compareScope, contextMode: generalQuestion ? "general" : "workspace" });
+    state.analysisTurns.push({ role: "user", prompt, framing, scope: generalQuestion ? "" : currentScope, compareScope: generalQuestion ? "" : compareScope, contextMode: generalQuestion ? "general" : "workspace" });
     state.analysisTurns.push({
       role: "assistant",
       pending: true,
+      framing,
       contextMode: generalQuestion ? "general" : "workspace",
       pendingLabel: generalQuestion ? "Asking model" : "Preparing response",
       pendingDetail: generalQuestion
@@ -2167,7 +2216,7 @@ export function createAnalysisUi(ctx) {
       const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
       stopAnalysisProgressUpdates();
       renderAnalysisMeta(payload);
-      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots, contextMode: generalQuestion ? "general" : "workspace" };
+      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, framing, showPlots: finalShowPlots, contextMode: generalQuestion ? "general" : "workspace" };
       renderAnalysisThread();
       if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       syncCurrentAnalysisSessionFromUi({ render: true });
@@ -2193,6 +2242,7 @@ export function createAnalysisUi(ctx) {
       state.analysisTurns[state.analysisTurns.length - 1] = {
         role: "assistant",
         contextMode: generalQuestion ? "general" : "workspace",
+        framing,
         payload: {
           intent: "analysis_error",
           reply: error && error.message ? error.message : "Analysis failed.",

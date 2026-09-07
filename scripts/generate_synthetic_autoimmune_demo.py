@@ -82,6 +82,7 @@ def build(output):
          ["Anti_dsDNA_IU_mL", "Rheumatoid_factor_IU_mL", "Complement_C3_g_L", "Complement_C4_g_L", "CXCL10_pg_mL", "CRP_mg_L"]),
     ]
     assays, truth = [], []
+    feature_annotations = json.loads((ROOT / "scripts/data/synthetic_autoimmune_feature_annotations.json").read_text())
     for modality, data_type, namespace, features in specs:
         # Different absent samples per assay, balanced across the three groups.
         excluded = {"methylation": {0, 1}, "flow_cytometry": {2, 3, 4}, "serology": {5}}.get(modality, set())
@@ -124,6 +125,8 @@ def build(output):
                            sample_id_column="matrix_columns", patient_id_column="patient_id",
                            patient_linkage="sample_metadata_file", sample_metadata_file=metadata,
                            file=relative, feature_count=len(features)))
+        if modality in feature_annotations:
+            assays[-1]["feature_annotations"] = feature_annotations[modality]
     write_json(output / "assays/manifest.json", {"version": 1, "assays": assays})
     write_json(output / "simulation_truth.json", {"label": LABEL, "seed": SEED, "features": truth})
     write_json(output / "provenance.json", {"label": LABEL, "seed": SEED,
