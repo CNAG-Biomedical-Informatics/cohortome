@@ -4,23 +4,23 @@ sidebar_position: 1
 
 # Workspace And Saved Cohorts
 
-The app now distinguishes between two different scopes:
+Workspaces and saved cohorts determine which data you are working with.
 
 :::tip Terminology shortcut
-If the question is about the currently loaded universe of data, think `workspace`.
+Your `workspace` contains the datasets you have selected and applied.
 
-If the question is about a reusable subset inside that universe, think `saved cohort`.
+A `saved cohort` records a selection of patients or samples for reuse.
 :::
 
 ## Workspace
 
-The workspace is the active loaded dataset scope.
+The workspace contains your currently active datasets.
 
 - it may contain one dataset
 - or multiple authorized datasets
 - it is the default scope for Dashboard, Query, Analysis, and Pheno-Ranker
 
-You can think of the workspace as the loaded universe of data the user is currently working inside.
+Changing the workspace changes the data available to these tabs.
 
 ## Saved cohort
 
@@ -34,7 +34,7 @@ A saved cohort is not a second name for the workspace. It is a saved slice of th
 
 ## Why this distinction matters
 
-When the app had only one dataset loaded at a time, `cohort` was used for almost everything. Now that multiple datasets can be active, the broader term is:
+Use these terms when choosing data:
 
 - `workspace` for the active loaded scope
 - `saved cohort` for a reusable subset

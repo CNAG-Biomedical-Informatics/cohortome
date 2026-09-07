@@ -4,7 +4,8 @@ sidebar_position: 2
 
 # Patient IDs vs Sample IDs
 
-This is one of the most important concepts in the app.
+One patient can have several samples or timepoint records. Counting samples
+can therefore give a different answer from counting patients.
 
 :::warning This distinction affects behavior across tabs
 The same visible subset may be described in patient language while still preserving sample-level IDs behind the scenes for downstream tools.
@@ -49,7 +50,7 @@ Other analyses are naturally sample-level:
 - biosample-oriented assay views
 - timepoint-specific record selection
 
-The app therefore needs both levels, but they should not be mixed carelessly.
+Check which type of ID an analysis expects before selecting its inputs.
 
 ## Working examples
 
@@ -96,7 +97,7 @@ C1_SYN001:week_0
 
 This prefix is only a cohort/reference marker for the Pheno run. It should be pruned when copying or handing selected IDs to other tabs.
 
-## Mental model
+## Choosing the right IDs
 
 Use this shortcut:
 

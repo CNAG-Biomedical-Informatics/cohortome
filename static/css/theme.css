@@ -1,0 +1,38 @@
+/* Dark overrides. Existing light literals remain fallback values in components. */
+:root[data-theme="dark"] {
+  --bg: #101923;
+  --panel: #172435;
+  --panel-strong: #1b2b3e;
+  --ink: #e5edf6;
+  --muted: #acbdd0;
+  --accent-soft: #1d3557;
+  --handoff-soft: #153c3b;
+  --utility: #acbdd0;
+  --utility-soft: #223247;
+  --warning: #f6c570;
+  --warning-soft: #403320;
+  --teal-soft: #19384a;
+  --line: #34465c;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  --theme-surface: #172435;
+  --theme-neutral-ink: #c5d3e3;
+  --theme-blue-ink: #93c5fd;
+  --theme-blue-soft: #1d3557;
+  --theme-teal-ink: #75ded1;
+  --theme-teal-soft: #153c3b;
+  --theme-green-ink: #8de2af;
+  --theme-green-soft: #1b382c;
+  --theme-amber-ink: #f6c570;
+  --theme-amber-soft: #403320;
+  --theme-red-ink: #ffaaaa;
+  --theme-red-soft: #422731;
+  --theme-purple-ink: #ceb4ff;
+  --theme-purple-soft: #322846;
+}
+:root[data-theme="dark"] body { background: var(--bg); }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea { color-scheme: dark; }
+:root[data-theme="dark"] :focus-visible { outline-color: #93c5fd; }
+/* Scientific bitmap outputs are unchanged; their white canvas remains intentional. */
+:root[data-theme="dark"] img { color-scheme: light; }

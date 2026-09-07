@@ -1790,7 +1790,7 @@ export function createPhenoUi(ctx) {
         textposition: "top center",
         textfont: {
           size: 12,
-          color: "#0f172a",
+          color: window.CohortomeTheme.colors().ink,
         },
         hovertemplate: "<b>%{customdata[0]}</b><br>Patient %{customdata[1]}<br>%{customdata[2]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
         marker: {
@@ -1816,7 +1816,7 @@ export function createPhenoUi(ctx) {
           },
         },
       }));
-      await window.Plotly.newPlot(plotEl, traces, {
+      await window.CohortomeTheme.newPlot(plotEl, traces, {
         margin: { l: 40, r: 20, t: 10, b: 40 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(255,255,255,0.86)",
@@ -1898,7 +1898,7 @@ export function createPhenoUi(ctx) {
         const numeric = Number(value);
         return Number.isFinite(numeric) ? numeric : null;
       }));
-      await window.Plotly.newPlot(plotEl, [{
+      await window.CohortomeTheme.newPlot(plotEl, [{
         type: "heatmap",
         x: xLabels,
         y: yLabels,
@@ -2306,7 +2306,7 @@ export function createPhenoUi(ctx) {
               style: {
                 "background-color": "data(cohort_color)",
                 label: "data(label)",
-                color: "#0f172a",
+                color: window.CohortomeTheme.colors().ink,
                 "font-size": 10,
                 "text-wrap": "wrap",
                 "text-max-width": 96,
@@ -2327,9 +2327,9 @@ export function createPhenoUi(ctx) {
                 opacity: "data(opacity)",
                 "curve-style": "bezier",
                 label: "data(value_label)",
-                color: "#0f172a",
+                color: window.CohortomeTheme.colors().ink,
                 "font-size": 9,
-                "text-background-color": "#ffffff",
+                "text-background-color": window.CohortomeTheme.colors().panel,
                 "text-background-opacity": 0.86,
                 "text-background-padding": 2,
                 "text-rotation": "autorotate",

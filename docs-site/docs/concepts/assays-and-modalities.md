@@ -4,7 +4,15 @@ sidebar_position: 3
 
 # Assays and modalities
 
-COHORTome workspaces combine clinical records with assay data. Clinical data describes patients, visits, diagnoses, treatments, and measurements. Assays describe measured sample-level data that can be linked back to patients and visits.
+COHORTome presents Clinical, Assays, and Imaging separately. Clinical describes
+patients, visits, diagnoses, treatments, and outcomes. Assays covers molecular
+and cellular laboratory measurements. Imaging covers image studies and derived
+measurements. Multimodal connects these data through patient and timepoint links.
+
+Imaging uses the shared assay manifest and analysis infrastructure internally;
+existing `assays/imaging/` files and API routes remain unchanged. An imaging
+study is not necessarily a collected biosample; use its recorded patient/visit
+links rather than inventing a specimen identifier.
 
 ## Assay model
 
@@ -24,13 +32,16 @@ arthritis patients at baseline, with complete sample-to-patient metadata.
 These fixtures exercise Query and Analysis end to end; their contrasts are not
 biological evidence.
 
-Methylation follows a deliberately thin integration boundary. The complete high-dimensional probe matrix remains in the governed release rather than being materialized in DuckDB. COHORTome registers its assay metadata and sample linkage, then a curated runner reads the selected external matrix and returns compact quality-control, principal-component, and differential-methylation results. These analyses operate on supplied processed M-values; they do not claim to repeat bisulfite-array preprocessing or probe filtering from raw IDAT files.
+Methylation matrices stay in the protected dataset files, outside DuckDB.
+COHORTome stores their metadata and sample links. An analysis runner reads the
+selected matrix and returns QC, principal-component, or differential-methylation
+results. These analyses use supplied processed M-values; they do not repeat
+array preprocessing or probe filtering from raw IDAT files.
 
 Publication and interactive workflows may use versioned, replaceable CpG
 feature panels over that complete external assay. See
 [Methylation feature panels](../developer-guide/methylation-feature-panels.md)
-for the scientific boundary, provenance contract, and efficient extraction
-strategy.
+for panel selection, extraction, and the source information recorded with each result.
 
 ## Patient and sample linkage
 
@@ -42,7 +53,7 @@ Optional methylation model covariates also live in this protected sample metadat
 
 Imaging assays must use the DICOM standard. The current fixture represents imaging as DICOM-derived measurement matrices keyed by DICOM tag identifiers such as `DICOM:0018,0087_MagneticFieldStrength` and `DICOM:0028,0030_PixelSpacingRow`.
 
-Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to COHORTome patient and sample IDs. When `COHORTOME_DICOM_ENABLED=true`, the Assays dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
+Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to COHORTome patient and sample IDs. When `COHORTOME_DICOM_ENABLED=true`, the Imaging dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
 
 COHORTome does not copy OHIF, Cornerstone, or Orthanc source code into the app. OHIF and Orthanc run as separate services; COHORTome only stores study metadata and creates viewer links for studies that belong to the authorized workspace.
 
@@ -108,7 +119,7 @@ Curated Analysis tools declare their assay capabilities explicitly. For example,
 - compare mode with Cohort A and Cohort B;
 - one selected compatible assay dataset.
 
-The Analysis Catalog surfaces these requirements as capability labels so users can distinguish clinical-only tools from assay-specific tools before configuring a run.
+The Analysis Catalog shows these requirements before you configure a run.
 
 The methylation catalog tools similarly require one sample-level assay declared with:
 

@@ -39,9 +39,9 @@
         gap: 6px 12px;
         min-width: 0;
         padding: 8px 10px;
-        border: 1px solid color-mix(in srgb, var(--line) 82%, white);
+        border: 1px solid color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
         border-radius: 12px;
-        background: color-mix(in srgb, var(--panel) 92%, white);
+        background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface, white));
         color: var(--muted);
         font-size: 0.78rem;
       }
@@ -72,27 +72,27 @@
         height: 26px;
         border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
         border-radius: 8px;
-        background: color-mix(in srgb, currentColor 8%, white);
-        color: var(--accent-deep);
+        background: color-mix(in srgb, currentColor 8%, var(--theme-surface, white));
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       .dataset-trait-icon svg {
         width: 15px;
         height: 15px;
       }
       .dataset-trait-icon-private {
-        color: #92400e;
+        color: var(--theme-amber-ink, #92400e);
       }
       .dataset-trait-icon-cross_sectional {
-        color: #1d4ed8;
+        color: var(--theme-blue-ink, #1d4ed8);
       }
       .dataset-trait-icon-longitudinal {
-        color: #0f766e;
+        color: var(--theme-teal-ink, #0f766e);
       }
       .dataset-trait-icon-clinical {
-        color: #6d28d9;
+        color: var(--theme-purple-ink, #6d28d9);
       }
       .dataset-trait-icon-assay {
-        color: #166534;
+        color: var(--theme-green-ink, #166534);
       }
       .dataset-trait-legend-item .dataset-trait-icon {
         width: 20px;
@@ -124,9 +124,9 @@
         box-sizing: border-box;
         overflow: hidden;
         padding: 12px 14px;
-        border: 1px solid color-mix(in srgb, var(--line) 78%, white);
+        border: 1px solid color-mix(in srgb, var(--line) 78%, var(--theme-surface, white));
         border-radius: 14px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(249,250,251,0.94));
+        background: linear-gradient(180deg, var(--theme-surface, rgba(255,255,255,0.98)), var(--theme-surface, rgba(249,250,251,0.94)));
         cursor: pointer;
         transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
       }
@@ -168,9 +168,9 @@
         min-width: 0;
         max-width: 100%;
         overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--line) 78%, white);
+        border: 1px solid color-mix(in srgb, var(--line) 78%, var(--theme-surface, white));
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.96);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.96));
       }
       .dataset-admin-card[open] {
         border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
@@ -214,7 +214,7 @@
       .dataset-admin-body {
         min-width: 0;
         padding: 12px 14px 14px;
-        border-top: 1px solid color-mix(in srgb, var(--line) 82%, white);
+        border-top: 1px solid color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
       }
       .dataset-picker-title {
         display: flex;
@@ -246,18 +246,18 @@
         overflow-wrap: anywhere;
       }
       .dataset-picker-state-active {
-        background: rgba(204, 251, 241, 0.94);
-        color: #0f766e;
+        background: var(--theme-teal-soft, rgba(204, 251, 241, 0.94));
+        color: var(--theme-teal-ink, #0f766e);
         border: 1px solid rgba(15, 118, 110, 0.18);
       }
       .dataset-picker-state-pending {
-        background: rgba(219, 234, 254, 0.94);
-        color: #1d4ed8;
+        background: var(--theme-blue-soft, rgba(219, 234, 254, 0.94));
+        color: var(--theme-blue-ink, #1d4ed8);
         border: 1px solid rgba(37, 99, 235, 0.18);
       }
       .dataset-picker-state-removal {
-        background: rgba(254, 243, 199, 0.94);
-        color: #92400e;
+        background: var(--theme-amber-soft, rgba(254, 243, 199, 0.94));
+        color: var(--theme-amber-ink, #92400e);
         border: 1px solid rgba(180, 83, 9, 0.18);
       }
       .dataset-picker-meta {
@@ -289,21 +289,21 @@
         word-break: break-word;
       }
       .dataset-picker-tag-content {
-        background: rgba(220, 252, 231, 0.82);
-        color: #166534;
+        background: var(--theme-green-soft, rgba(220, 252, 231, 0.82));
+        color: var(--theme-green-ink, #166534);
         border: 1px solid rgba(22, 101, 52, 0.14);
       }
       .dataset-picker-tag-ready {
-        background: rgba(220, 252, 231, 0.88);
-        color: #166534;
+        background: var(--theme-green-soft, rgba(220, 252, 231, 0.88));
+        color: var(--theme-green-ink, #166534);
       }
       .dataset-picker-tag-warning {
-        background: rgba(254, 243, 199, 0.9);
-        color: #92400e;
+        background: var(--theme-amber-soft, rgba(254, 243, 199, 0.9));
+        color: var(--theme-amber-ink, #92400e);
       }
       .dataset-picker-tag-danger {
-        background: rgba(254, 226, 226, 0.9);
-        color: #991b1b;
+        background: var(--theme-red-soft, rgba(254, 226, 226, 0.9));
+        color: var(--theme-red-ink, #991b1b);
       }
       .dataset-picker-description {
         margin-top: 6px;
@@ -336,18 +336,18 @@
         gap: 8px;
         margin-top: 10px;
         padding-top: 10px;
-        border-top: 1px solid color-mix(in srgb, var(--line) 82%, white);
+        border-top: 1px solid color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
       }
       .dataset-policy-section {
         display: grid;
         gap: 8px;
         padding: 12px;
-        border: 1px solid color-mix(in srgb, var(--line) 86%, white);
+        border: 1px solid color-mix(in srgb, var(--line) 86%, var(--theme-surface, white));
         border-radius: 14px;
-        background: color-mix(in srgb, var(--panel-strong) 88%, white);
+        background: color-mix(in srgb, var(--panel-strong) 88%, var(--theme-surface, white));
       }
       .dataset-policy-section-muted {
-        background: color-mix(in srgb, var(--panel) 92%, white);
+        background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface, white));
       }
       .dataset-policy-heading {
         font-size: 0.78rem;
@@ -377,16 +377,16 @@
         margin-top: 4px;
         padding: 10px 12px;
         border-radius: 12px;
-        background: color-mix(in srgb, #dcfce7 82%, white);
-        color: #166534;
-        border: 1px solid color-mix(in srgb, #86efac 70%, white);
+        background: color-mix(in srgb, var(--theme-green-soft, #dcfce7) 82%, var(--theme-surface, white));
+        color: var(--theme-green-ink, #166534);
+        border: 1px solid color-mix(in srgb, #86efac 70%, var(--theme-surface, white));
         font-size: 0.88rem;
         font-weight: 600;
       }
       .dataset-admin-feedback.is-error {
-        background: color-mix(in srgb, #fee2e2 82%, white);
-        color: #991b1b;
-        border-color: color-mix(in srgb, #fca5a5 72%, white);
+        background: color-mix(in srgb, var(--theme-red-soft, #fee2e2) 82%, var(--theme-surface, white));
+        color: var(--theme-red-ink, #991b1b);
+        border-color: color-mix(in srgb, #fca5a5 72%, var(--theme-surface, white));
       }
       .dataset-policy-placeholder {
         display: inline-flex;
@@ -394,8 +394,8 @@
         min-height: 40px;
         padding: 10px 12px;
         border-radius: 12px;
-        border: 1px dashed color-mix(in srgb, var(--line) 82%, white);
-        background: color-mix(in srgb, var(--panel) 94%, white);
+        border: 1px dashed color-mix(in srgb, var(--line) 82%, var(--theme-surface, white));
+        background: color-mix(in srgb, var(--panel) 94%, var(--theme-surface, white));
         color: var(--muted);
         font-size: 0.92rem;
       }
@@ -410,8 +410,8 @@
         align-items: center;
         padding: 4px 8px;
         border-radius: 999px;
-        background: rgba(219, 234, 254, 0.8);
-        color: #1d4ed8;
+        background: var(--theme-blue-soft, rgba(219, 234, 254, 0.8));
+        color: var(--theme-blue-ink, #1d4ed8);
         font-size: 0.78rem;
         font-weight: 700;
       }
@@ -479,7 +479,7 @@
         margin: 0;
         font-size: 1.08rem;
         line-height: 1.35;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       h2, h3 {
         margin-top: 0;
@@ -497,7 +497,7 @@
         align-items: center;
         justify-content: center;
         flex: 0 0 auto;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       .section-heading-icon svg {
         width: 18px;
@@ -556,7 +556,7 @@
       }
       .analysis-view-tab {
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.92);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.92));
         color: var(--ink);
         border-radius: 999px;
         padding: 7px 12px;
@@ -566,8 +566,8 @@
       }
       .analysis-view-tab.is-active {
         border-color: rgba(37, 99, 235, 0.34);
-        background: rgba(219, 234, 254, 0.95);
-        color: #1d4ed8;
+        background: var(--theme-blue-soft, rgba(219, 234, 254, 0.95));
+        color: var(--theme-blue-ink, #1d4ed8);
       }
       .analysis-view-tab.is-disabled,
       .analysis-view-tab:disabled {
@@ -584,7 +584,7 @@
         border: 1px solid var(--line);
         border-radius: 18px;
         overflow: hidden;
-        background: rgba(255, 255, 255, 0.96);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.96));
       }
       .analysis-artifact-image {
         display: block;
@@ -631,7 +631,7 @@
       }
       .patient-card:hover, .patient-card.active {
         border-color: var(--accent);
-        background: linear-gradient(145deg, var(--accent-soft), #f8fbff);
+        background: linear-gradient(145deg, var(--accent-soft), var(--theme-surface, #f8fbff));
         transform: translateY(-2px);
       }
       .patient-card strong {
@@ -662,8 +662,8 @@
       .clarid-badge {
         border: 1px solid #7c3aed;
         border-radius: 999px;
-        background: #f5f3ff;
-        color: #5b21b6;
+        background: var(--theme-surface, #f5f3ff);
+        color: var(--theme-purple-ink, #5b21b6);
         padding: 3px 8px;
         font: inherit;
         font-size: 0.72rem;
@@ -674,7 +674,7 @@
       .clarid-badge:hover,
       .clarid-badge:focus-visible,
       .clarid-identity.is-open .clarid-badge {
-        background: #ede9fe;
+        background: var(--theme-surface, #ede9fe);
         outline: none;
         box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
       }
@@ -686,7 +686,7 @@
         display: none;
         width: min(390px, calc(100vw - 48px));
         padding: 12px;
-        border: 1px solid #c4b5fd;
+        border: 1px solid var(--theme-blue-soft, #c4b5fd);
         border-radius: 14px;
         background: var(--panel-strong);
         color: var(--ink);
@@ -728,7 +728,7 @@
       }
       .clarid-code-row code {
         overflow: hidden;
-        color: #4c1d95;
+        color: var(--theme-purple-ink, #4c1d95);
         font-size: 0.7rem;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -750,10 +750,10 @@
         align-items: center;
         margin-bottom: 12px;
         padding: 10px 12px;
-        border: 1px solid #c4b5fd;
+        border: 1px solid var(--theme-blue-soft, #c4b5fd);
         border-radius: 13px;
-        background: #f5f3ff;
-        color: #4c1d95;
+        background: var(--theme-surface, #f5f3ff);
+        color: var(--theme-purple-ink, #4c1d95);
         font-size: 0.78rem;
       }
       .dashboard-timeline-patient-identity {
@@ -764,6 +764,13 @@
       }
       .dashboard-timeline-patient-identity > strong {
         display: inline;
+      }
+      .dashboard-timeline-patient-identity .clarid-popover {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      .dashboard-timeline-patient-identity .clarid-popover > * {
+        min-width: 0;
       }
       .patient-card-compact {
         padding: 8px 9px;
@@ -814,7 +821,7 @@
         display: inline-block;
         padding: 5px 10px;
         border-radius: 999px;
-        background: #eef4ff;
+        background: var(--theme-surface, #eef4ff);
         font-size: 0.78rem;
         margin-right: 6px;
         margin-bottom: 6px;
@@ -823,7 +830,7 @@
         white-space: pre-wrap;
         word-break: break-word;
         font-size: 0.85rem;
-        background: #f8fbff;
+        background: var(--theme-surface, #f8fbff);
         border-radius: 16px;
         border: 1px solid var(--line);
         padding: 16px;
@@ -834,7 +841,7 @@
         border-radius: 22px;
         padding: 18px;
         margin-bottom: 18px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(244,248,255,0.98));
+        background: linear-gradient(180deg, var(--theme-surface, rgba(255,255,255,0.92)), var(--theme-surface, rgba(244,248,255,0.98)));
       }
       .dashboard-timeline-card {
         min-width: 0;
@@ -867,6 +874,9 @@
         gap: 8px;
         align-items: center;
       }
+      .dashboard-timeline-actions[hidden] {
+        display: none;
+      }
       .dashboard-timeline-actions {
         display: flex;
         flex-wrap: wrap;
@@ -876,7 +886,7 @@
         border: 1px solid var(--line);
         border-radius: 16px;
         padding: 10px 12px;
-        background: rgba(248, 251, 255, 0.94);
+        background: var(--theme-surface, rgba(248, 251, 255, 0.94));
       }
       .dashboard-timeline-actions .section-note {
         margin: 0;
@@ -891,10 +901,10 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        border: 1px solid color-mix(in srgb, var(--timeline-domain-color, #64748b) 36%, white);
+        border: 1px solid color-mix(in srgb, var(--timeline-domain-color, #64748b) 36%, var(--theme-surface, white));
         border-radius: 999px;
         padding: 6px 10px;
-        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 10%, white);
+        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 10%, var(--theme-surface, white));
         color: var(--timeline-domain-color, var(--ink));
         font-size: 0.82rem;
         font-weight: 700;
@@ -902,8 +912,8 @@
         user-select: none;
       }
       .dashboard-timeline-domain:has(input:checked) {
-        border-color: color-mix(in srgb, var(--timeline-domain-color, #64748b) 52%, white);
-        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 16%, white);
+        border-color: color-mix(in srgb, var(--timeline-domain-color, #64748b) 52%, var(--theme-surface, white));
+        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 16%, var(--theme-surface, white));
       }
       .dashboard-timeline-domain input {
         margin: 0;
@@ -922,7 +932,7 @@
       .dashboard-timeline-event-card {
         border: 1px solid var(--line);
         border-radius: 18px;
-        background: rgba(255, 255, 255, 0.92);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.92));
         padding: 14px;
         display: grid;
         gap: 12px;
@@ -937,7 +947,7 @@
       }
       .dashboard-timeline-event-header h4 {
         margin: 0 0 4px;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       .dashboard-timeline-event-search {
         max-width: 280px;
@@ -948,7 +958,7 @@
         overflow: auto;
         border: 1px solid var(--line);
         border-radius: 14px;
-        background: #ffffff;
+        background: var(--theme-surface, #ffffff);
       }
       .dashboard-timeline-table {
         width: 100%;
@@ -966,7 +976,7 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: #f8fbff;
+        background: var(--theme-surface, #f8fbff);
         color: var(--muted);
         font-size: 0.74rem;
         text-transform: uppercase;
@@ -977,14 +987,14 @@
       }
       .dashboard-timeline-table tbody tr:hover,
       .dashboard-timeline-table tbody tr.is-selected {
-        background: rgba(219, 234, 254, 0.58);
+        background: var(--theme-blue-soft, rgba(219, 234, 254, 0.58));
       }
       .dashboard-timeline-table tbody tr.is-inspected {
-        background: rgba(220, 252, 231, 0.72);
+        background: var(--theme-green-soft, rgba(220, 252, 231, 0.72));
         box-shadow: inset 3px 0 0 #16a34a;
       }
       .dashboard-timeline-table tbody tr.is-selected.is-inspected {
-        background: linear-gradient(90deg, rgba(220, 252, 231, 0.9), rgba(219, 234, 254, 0.68));
+        background: linear-gradient(90deg, var(--theme-green-soft, rgba(220, 252, 231, 0.9)), var(--theme-blue-soft, rgba(219, 234, 254, 0.68)));
       }
       .dashboard-timeline-inspect-btn {
         width: 30px;
@@ -994,14 +1004,14 @@
         justify-content: center;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.92);
-        color: var(--accent-deep);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.92));
+        color: var(--theme-blue-ink, var(--accent-deep));
         cursor: pointer;
         padding: 0;
       }
       .dashboard-timeline-inspect-btn:hover {
         border-color: rgba(37, 99, 235, 0.4);
-        background: rgba(219, 234, 254, 0.82);
+        background: var(--theme-blue-soft, rgba(219, 234, 254, 0.82));
       }
       .dashboard-timeline-inspect-btn.is-active {
         border-color: rgba(22, 163, 74, 0.45);
@@ -1028,9 +1038,9 @@
         gap: 5px;
         border-radius: 999px;
         padding: 3px 7px;
-        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 13%, white);
+        background: color-mix(in srgb, var(--timeline-domain-color, #64748b) 13%, var(--theme-surface, white));
         color: var(--ink);
-        border: 1px solid color-mix(in srgb, var(--timeline-domain-color, #64748b) 34%, white);
+        border: 1px solid color-mix(in srgb, var(--timeline-domain-color, #64748b) 34%, var(--theme-surface, white));
         font-size: 0.76rem;
         font-weight: 800;
       }
@@ -1072,7 +1082,7 @@
         border: 1px solid var(--line);
         border-radius: 16px;
         padding: 14px;
-        background: linear-gradient(180deg, #ffffff, #f4f9ff);
+        background: linear-gradient(180deg, var(--theme-surface, #ffffff), var(--theme-surface, #f4f9ff));
       }
       .evidence-card strong {
         display: block;
@@ -1097,11 +1107,25 @@
         margin-top: 12px;
         padding: 10px 12px;
         border-radius: 14px;
-        background: rgba(255,255,255,0.72);
+        background: var(--theme-surface, rgba(255,255,255,0.72));
         border: 1px solid var(--line);
       }
       summary {
         cursor: pointer;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
         font-weight: 700;
       }
+/* Loading and failure messages describe the state without implying empty data. */
+.workspace-notice {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+}
+.workspace-notice > strong { display: block; font-size: 1rem; }
+.workspace-notice > p { margin: 8px 0 0; color: var(--muted); max-width: 65ch; }
+.workspace-notice > button { margin-top: 14px; }
+.workspace-notice-unavailable { border-left: 3px solid var(--theme-amber-ink, var(--warning)); }
+.workspace-notice-loading { border-left: 3px solid var(--accent); }

@@ -20,7 +20,7 @@ consortium data environment.
 COHORTome is generic and independent of any one upstream warehouse. In the planned
 3TR deployment, the Omics DM Warehouse supplies the authorized PRECISESADS
 release and may supply other 3TR releases, but it is not a runtime dependency or
-the application's identity boundary. Other deployments can register approved
+the application. Other deployments can register approved
 institutional sources that satisfy the same clinical and assay contracts.
 
 The platform owns:
@@ -113,7 +113,7 @@ That workspace may represent:
 
 Prepared DuckDB stores remain per dataset. File-based compatibility helpers may
 still materialize a resolved scope directory, but that directory is not the
-database identity boundary. Dataset provenance remains explicit in both cases.
+query store. Both approaches retain each record's source dataset.
 
 ## Query store and DuckDB
 
@@ -126,7 +126,8 @@ Current model:
 - merged workspaces attach the selected dataset stores into one in-memory DuckDB session
 - the app no longer relies on building one physical DuckDB per dataset combination during user workspace reload
 
-Materialized scope directories can still exist under `<runtime>/state/datasets/scopes/`, but they are no longer the identity boundary for DuckDB storage.
+Temporary scope directories can still exist under `<runtime>/state/datasets/scopes/`.
+DuckDB stores remain attached to individual registered datasets.
 
 This query layer is:
 
@@ -150,8 +151,8 @@ This keeps rebuild time low without changing the product-facing data model.
 
 ### Dashboard
 
-Uses the active workspace to provide Timeline, Clinical, Assays, and Multimodal
-orientation with provenance-aware summaries.
+Shows Timeline, Clinical, Assays, Imaging, and Multimodal views of the active workspace.
+Summaries retain information about their source datasets.
 
 The Multimodal view reports overlap, missingness, DICOM linkage, and readiness.
 Its bounded feature matrix is an inspectable preview, not a trained model or a
@@ -161,7 +162,7 @@ validated integration method.
 
 Builds subsets and counts from the active workspace.
 
-It is the main subset-building surface.
+Researchers use it to select patients or samples for later analysis.
 
 Its explicit `General question` context calls the approved model without
 resolving a workspace. It has separate history and cannot produce workspace
@@ -180,7 +181,7 @@ It is session-based and supports both deterministic and LLM-assisted interpretat
 The same explicit `General question` context is available for background
 knowledge without attaching dataset, cohort, assay, or result context.
 
-The Analysis tab now has two launch surfaces:
+The Analysis tab offers two ways to start:
 
 - `Analysis Catalog`
   - curated tools loaded from YAML
@@ -217,7 +218,7 @@ Current examples include:
   - stores one user-facing job with step directories under `workflow/`
 
 LLM-assisted Analysis routes resolve the current user's selected provider before
-they plan or interpret a request. Provider failures are surfaced as provider
+they plan or interpret a request. Provider failures appear as provider
 availability or policy messages for LLM-only routes; they should not silently
 turn into deterministic clinical interpretation.
 

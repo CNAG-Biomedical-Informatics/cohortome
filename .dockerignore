@@ -15,6 +15,7 @@ state/users/
 state/auth/
 state/datasets/scopes/
 default_dataset/
+native.env
 private_dataset/
 dataset-large/
 manuscript/

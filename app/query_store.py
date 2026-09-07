@@ -453,6 +453,7 @@ def _read_subject_clarid_rows(root: Path, patient_ids: set[str]) -> List[Tuple[A
                     values["age_group"],
                     codebook_version,
                     tools_version,
+                    str(raw.get("condition_name") or "").strip(),
                 )
             )
     missing_patients = patient_ids - seen_patient_ids
@@ -865,7 +866,8 @@ def _connect_workspace(dataset_ids: List[str]):
                 f"""
                 SELECT
                     patient_id, subject_id, human_id, stub_id, study, subject_type,
-                    condition, sex, age_group, codebook_version, tools_version
+                    condition, sex, age_group, codebook_version, tools_version,
+                    {_clarid_condition_name_sql(con, f'{alias}.patient_clarids')} AS condition_name
                 FROM {alias}.patient_clarids
                 """
             )
@@ -881,7 +883,8 @@ def _connect_workspace(dataset_ids: List[str]):
             CAST(NULL AS VARCHAR) AS sex,
             CAST(NULL AS VARCHAR) AS age_group,
             CAST(NULL AS VARCHAR) AS codebook_version,
-            CAST(NULL AS VARCHAR) AS tools_version
+            CAST(NULL AS VARCHAR) AS tools_version,
+            CAST(NULL AS VARCHAR) AS condition_name
         WHERE false
     """
     timepoints_sql = _union_select(
@@ -1049,7 +1052,8 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                 sex TEXT,
                 age_group TEXT,
                 codebook_version TEXT,
-                tools_version TEXT
+                tools_version TEXT,
+                condition_name TEXT
             );
             """
         )
@@ -1237,7 +1241,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         clarid_rows = _read_subject_clarid_rows(resolve_project_data_dir(data_dir), set(patient_stats))
         if clarid_rows:
             con.executemany(
-                "INSERT INTO patient_clarids VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO patient_clarids VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 clarid_rows,
             )
         if timepoint_rows:
@@ -1280,6 +1284,12 @@ def patient_inventory(data_dir: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+def _clarid_condition_name_sql(con, relation: str = "patient_clarids", prefix: str = "") -> str:
+    # Optional additive metadata: older prepared releases remain readable.
+    columns = {row[0] for row in con.execute(f"DESCRIBE {relation}").fetchall()}
+    return f"{prefix}condition_name" if "condition_name" in columns else "CAST(NULL AS VARCHAR)"
+
+
 def _clarid_payload(row: Tuple[Any, ...]) -> Dict[str, Any]:
     return {
         "subject_id": int(row[1]),
@@ -1292,6 +1302,7 @@ def _clarid_payload(row: Tuple[Any, ...]) -> Dict[str, Any]:
         "age_group": str(row[8] or ""),
         "codebook_version": str(row[9] or ""),
         "tools_version": str(row[10] or ""),
+        **({"condition_name": str(row[11])} if len(row) > 11 and row[11] else {}),
     }
 
 
@@ -1302,7 +1313,7 @@ def patient_clarid_inventory(data_dir: str) -> Dict[str, Dict[str, Any]]:
         if not _relation_exists(con, "patient_clarids"):
             return {}
         rows = con.execute(
-            """
+            f"""
             SELECT
                 patient_id,
                 subject_id,
@@ -1314,7 +1325,8 @@ def patient_clarid_inventory(data_dir: str) -> Dict[str, Dict[str, Any]]:
                 sex,
                 age_group,
                 codebook_version,
-                tools_version
+                tools_version,
+                {_clarid_condition_name_sql(con)} AS condition_name
             FROM patient_clarids
             ORDER BY patient_id, human_id, stub_id
             """
@@ -1350,7 +1362,7 @@ def resolve_patient_identifier(data_dir: str, identifier: str) -> Dict[str, Any]
             ).fetchone()
             return {"patient_id": str(row[0]), "clarid": None} if row else None
         rows = con.execute(
-            """
+            f"""
             SELECT
                 p.patient_id,
                 c.subject_id,
@@ -1362,7 +1374,8 @@ def resolve_patient_identifier(data_dir: str, identifier: str) -> Dict[str, Any]
                 c.sex,
                 c.age_group,
                 c.codebook_version,
-                c.tools_version
+                c.tools_version,
+                {_clarid_condition_name_sql(con, prefix='c.')} AS condition_name
             FROM patients p
             LEFT JOIN patient_clarids c ON c.patient_id = p.patient_id
             WHERE lower(p.patient_id) = lower(?)
@@ -1426,10 +1439,11 @@ def clinical_workspace_inventory(data_dir: str) -> Dict[str, Any]:
         ).fetchall()
         clarid_rows = (
             con.execute(
-                """
+                f"""
                 SELECT
                     patient_id, subject_id, human_id, stub_id, study, subject_type,
-                    condition, sex, age_group, codebook_version, tools_version
+                    condition, sex, age_group, codebook_version, tools_version,
+                    {_clarid_condition_name_sql(con)} AS condition_name
                 FROM patient_clarids
                 ORDER BY patient_id, human_id, stub_id
                 """
@@ -2898,10 +2912,11 @@ def patient_query_index(data_dir: str) -> List[Dict[str, Any]]:
         }
         clarid_rows = (
             con.execute(
-                """
+                f"""
                 SELECT
                     patient_id, subject_id, human_id, stub_id, study, subject_type,
-                    condition, sex, age_group, codebook_version, tools_version
+                    condition, sex, age_group, codebook_version, tools_version,
+                    {_clarid_condition_name_sql(con)} AS condition_name
                 FROM patient_clarids
                 ORDER BY patient_id, human_id, stub_id
                 """

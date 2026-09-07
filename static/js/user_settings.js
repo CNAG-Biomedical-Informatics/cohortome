@@ -1,4 +1,5 @@
 const DEFAULT_USER_SETTINGS = {
+  appearance: "light",
   version: 1,
   landing_tab_mode: "fixed",
   landing_tab: "dashboard",
@@ -38,6 +39,7 @@ function normalizeUserSettings(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   return {
     version: 1,
+    appearance: normalizeChoice(source.appearance, new Set(["light", "dark", "system"]), "light"),
     landing_tab_mode: normalizeChoice(source.landing_tab_mode, ALLOWED_LANDING_TAB_MODES, DEFAULT_USER_SETTINGS.landing_tab_mode),
     landing_tab: normalizeChoice(source.landing_tab, ALLOWED_TABS, DEFAULT_USER_SETTINGS.landing_tab),
     query_disclosure_default: normalizeChoice(source.query_disclosure_default, ALLOWED_DISCLOSURE, DEFAULT_USER_SETTINGS.query_disclosure_default),
@@ -66,6 +68,7 @@ export function createUserSettingsUi(ctx) {
     userSettingsSaveBtnEl,
     userSettingsResetBtnEl,
     settingsLandingTabModeEl,
+    settingsAppearanceEl,
     settingsLandingTabEl,
     settingsQueryDisclosureEl,
     settingsQueryDefaultModeEl,
@@ -156,6 +159,7 @@ export function createUserSettingsUi(ctx) {
   function renderUserSettingsForm() {
     const settings = normalizeUserSettings(state.userSettings);
     renderLlmProviderOptions(settings.llm_provider_id);
+    if (settingsAppearanceEl) settingsAppearanceEl.value = settings.appearance;
     if (settingsLandingTabModeEl) settingsLandingTabModeEl.value = settings.landing_tab_mode;
     if (settingsLandingTabEl) settingsLandingTabEl.value = settings.landing_tab;
     if (settingsQueryDisclosureEl) settingsQueryDisclosureEl.value = settings.query_disclosure_default;
@@ -195,6 +199,7 @@ export function createUserSettingsUi(ctx) {
   function formSettings() {
     return normalizeUserSettings({
       landing_tab_mode: settingsLandingTabModeEl ? settingsLandingTabModeEl.value : DEFAULT_USER_SETTINGS.landing_tab_mode,
+      appearance: settingsAppearanceEl ? settingsAppearanceEl.value : "light",
       landing_tab: settingsLandingTabEl ? settingsLandingTabEl.value : DEFAULT_USER_SETTINGS.landing_tab,
       query_disclosure_default: settingsQueryDisclosureEl ? settingsQueryDisclosureEl.value : DEFAULT_USER_SETTINGS.query_disclosure_default,
       query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
@@ -215,6 +220,7 @@ export function createUserSettingsUi(ctx) {
   function applyUserSettings(options = {}) {
     const settings = normalizeUserSettings(state.userSettings);
     state.userSettings = settings;
+    window.CohortomeTheme.apply(settings.appearance);
     document.body.classList.toggle("user-setting-dataset-compact", settings.dataset_compact_view);
     if (queryLatestDetailsEl) {
       queryLatestDetailsEl.classList.toggle("is-hidden", !settings.latest_query_details);

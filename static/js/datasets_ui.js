@@ -131,7 +131,9 @@ export function createDatasetsUi(ctx) {
     }
     const storeStatus = normalizedDatasetStoreStatus(blockedRecord);
     const datasetLabel = String(blockedRecord.name || blockedRecord.dataset_id || "Dataset").trim();
-    const actionLabel = canManageDataset()
+    const actionLabel = storeStatus.status === "building"
+      ? "Wait for preparation to finish, then refresh the dataset list."
+      : canManageDataset()
       ? "Prepare or rebuild it in Admin > Data."
       : "Ask an admin to prepare it in Admin > Data.";
     const statusText = ({

@@ -301,6 +301,7 @@ def index(request: Request) -> HTMLResponse:
             "datasets": visible_datasets,
             "current_dataset_id": str(selected.get("dataset_id") or ""),
             "branding": branding_settings(),
+            "appearance": load_user_settings(request_user_id(request)).get("appearance", "light") if user else "light",
             "auth_enabled": auth_enabled(),
         },
     )

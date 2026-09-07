@@ -9226,7 +9226,7 @@ def test_query_store_ingests_and_resolves_precomputed_subject_clarids(tmp_path, 
                     "entity": "subject",
                     "file": "identifiers/clarid_subjects.csv",
                     "codebook_version": "0.04",
-                    "tools_version": "0.03_1",
+                    "tools_version": "0.04",
                 }
             },
         },
@@ -9243,7 +9243,7 @@ def test_query_store_ingests_and_resolves_precomputed_subject_clarids(tmp_path, 
         "sex": "Female",
         "age_group": "Age40to49",
         "codebook_version": "0.04",
-        "tools_version": "0.03_1",
+        "tools_version": "0.04",
     }
     resolved = query_store_module.resolve_patient_identifier(
         str(tmp_path), "syntheticstudy-00001-case-k50.9-female-a40_49"
@@ -9307,7 +9307,7 @@ def test_query_store_rejects_incomplete_subject_clarid_coverage(tmp_path, monkey
                 "clarid_subjects": {
                     "file": "identifiers/clarid_subjects.csv",
                     "codebook_version": "0.04",
-                    "tools_version": "0.03_1",
+                    "tools_version": "0.04",
                 }
             },
         },
@@ -9334,10 +9334,11 @@ def test_default_fixture_exposes_precomputed_subject_clarids(tmp_path, monkeypat
         "study": "CNAG-Test",
         "type": "Case",
         "condition": "K50.9",
+        "condition_name": "Crohn's disease, unspecified",
         "sex": "Female",
         "age_group": "Age20to29",
         "codebook_version": "0.04",
-        "tools_version": "0.03_1",
+        "tools_version": "0.04",
     }
     assert query_store_module.resolve_patient_identifier(
         fixture_root, "CT009C3ad01FA2"

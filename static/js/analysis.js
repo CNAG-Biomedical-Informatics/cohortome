@@ -343,12 +343,13 @@ export function createAnalysisUi(ctx) {
         const name = String(item && item.name ? item.name : "").trim();
         const url = String(item && item.url ? item.url : "").trim();
         if (!name || !url) return "";
-        return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
+        const extension = name.split(".").pop().toUpperCase();
+        const format = /^[A-Z0-9]{1,8}$/.test(extension) && name.includes(".") ? extension : "FILE";
+        return `<li><a class="analysis-result-file" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(name)} — open in a new tab"><span class="analysis-file-format" aria-hidden="true">${escapeHtml(format)}</span><span class="analysis-file-name">${escapeHtml(name)}</span><span class="analysis-file-action" aria-hidden="true">Open</span></a></li>`;
       })
-      .filter(Boolean)
-      .join("");
-    if (!links) return "";
-    return `<details class="query-section analysis-artifact-downloads"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${escapeHtml(title || "Result files")}</span></span></summary><div class="analysis-catalog-tags">${links}</div></details>`;
+      .filter(Boolean);
+    if (!links.length) return "";
+    return `<details class="query-section analysis-artifact-downloads"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${escapeHtml(title || "Result files")}</span></span><span class="analysis-file-count">${links.length} file${links.length === 1 ? "" : "s"}</span></summary><ul class="analysis-result-files">${links.join("")}</ul></details>`;
   }
 
   function renderAnalysisPlotsMarkup(payload, turnIndex) {
@@ -750,7 +751,7 @@ export function createAnalysisUi(ctx) {
       el.innerHTML = '<div class="empty">Plot rendering unavailable.</div>';
       return;
     }
-    window.Plotly.newPlot(el, traces, layout, basePlotConfig());
+    window.CohortomeTheme.newPlot(el, traces, layout, basePlotConfig());
   }
 
   function buildHorizontalBar(items, labelKey, valueKey, color) {
@@ -1643,6 +1644,7 @@ export function createAnalysisUi(ctx) {
   function analysisIntentPresentation(intent) {
     const value = String(intent || "analysis");
     const labels = {
+      analysis_external_rscript: { label: "R analysis", title: "An approved external R runner produced this result." },
       analysis_deterministic: { label: "Workspace summary", title: "Deterministic workspace summary produced by the app." },
       analysis_compare: { label: "Cohort comparison", title: "Deterministic comparison between the selected cohorts." },
       analysis_transcriptomics_expression: { label: "Transcriptomics expression", title: "Deterministic transcriptomics expression summary across the loaded assays." },
@@ -2001,7 +2003,7 @@ export function createAnalysisUi(ctx) {
       const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
       const generalAnswer = turn.contextMode === "general" || String(turn.payload && turn.payload.intent ? turn.payload.intent : "") === "general_llm";
-      const turnLabel = isErrorTurn ? (generalAnswer ? "Model Error" : "Analysis Error") : (generalAnswer ? "Model" : "Analysis");
+      const turnLabel = isErrorTurn ? (generalAnswer ? "Model Error" : "Analysis Error") : (generalAnswer ? "Answer" : "Analysis result");
       const contextHtml = contextParts.length
         ? `<div class="analysis-turn-context"><p>${escapeHtml(contextParts.join(" | "))}</p></div>`
         : "";

@@ -197,7 +197,7 @@ When COHORTome runs from source on the host, `COHORTOME_ORTHANC_INTERNAL_URL` mu
 `http://127.0.0.1:8042`. Use `http://orthanc:8042` only when COHORTome itself is
 running inside the Docker Compose network.
 
-Open `http://127.0.0.1:8000`, then go to `Dashboard -> Assays -> DICOM imaging`.
+Open `http://127.0.0.1:8000`, then go to `Dashboard -> Imaging`.
 
 To verify that OHIF is rendering pixels instead of a black/blank viewport:
 

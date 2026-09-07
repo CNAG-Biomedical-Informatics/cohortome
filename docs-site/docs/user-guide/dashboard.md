@@ -4,13 +4,24 @@ sidebar_position: 2
 
 # Dashboard
 
-`Dashboard` is the orientation layer of the app.
+Use `Dashboard` to check the data in your current workspace before choosing an analysis.
+
+The Dashboard distinguishes loading, an empty workspace, and an unavailable
+summary. If loading fails or the summary request times out after 30 seconds,
+use **Retry dashboard**. This requests the summary again without switching
+datasets, preparing stores, or importing data. A workspace with no patient
+records is shown as empty, not as a connection failure.
+
+When a dataset switch fails before it is applied, the previous workspace stays
+active. Check the message in **Datasets** before retrying. A dataset whose store
+is not ready must be prepared by an administrator; waiting for the Dashboard
+will not prepare it.
 
 Use it to answer:
 
 - what is currently loaded
 - how many patients and timepoints are in the workspace
-- which diseases and medications dominate the workspace
+- which diseases and medications are most common
 - which assay modalities are available in the current scope
 
 ## Clinical dashboard
@@ -25,20 +36,44 @@ The clinical dashboard gives a workspace-level summary of:
 
 This is the fastest way to sanity-check that the right datasets are loaded before you start filtering in `Query` or interpreting in `Analysis`.
 
+## Timeline
+
+Use Timeline to inspect dated clinical records and available samples. **Show
+events** controls which event categories appear in the plot and Events table.
+Click a marker to inspect that event, or a coverage bar to inspect the patient's
+first visible event. The table's Inspect buttons also work without using the plot.
+Drag to zoom; zooming changes the plot only, not the Events table or analysis scope.
+
+The **Select patient** checkboxes are separate from inspection and filtering.
+They select whole patients, including records outside the visible dates or event
+categories. Selecting one does not hide other patients' events. **Save cohort**
+and **Open in Analysis** appear when patients are selected; neither action saves
+a time-window restriction. Timepoint-restricted analysis is not implemented by
+this view.
+
+A single dated observation is a point, not a follow-up duration. Undated events
+remain available in the table when their event categories are shown.
+
 ## Assays dashboard
 
-The assays dashboard is dataset-aware.
+The assays dashboard shows which dataset each assay comes from.
 
 It shows:
 
 - assay modalities currently visible in the workspace
 - dataset-level counts and metadata
 - workspace-level assay summary
-- DICOM viewer readiness when imaging studies are configured
+- laboratory assay coverage, excluding imaging
 
 In a multi-dataset workspace, assay provenance matters. If two datasets are active, the dashboard helps confirm whether the assay side really comes from both.
 
-For DICOM imaging, COHORTome lists authorized study metadata and launches OHIF. Pixel data stays in Orthanc or another DICOMweb service.
+## Imaging dashboard
+
+Open **Dashboard → Imaging** for DICOM studies, viewer readiness, and derived
+imaging measurement cards. Imaging is not included in the Assays filters or
+totals. Multimodal still includes imaging alongside clinical and laboratory data.
+
+COHORTome lists authorized study metadata and launches OHIF. Pixel data stays in Orthanc or another DICOMweb service.
 
 In the bundled demo dataset, the first DICOM study is a stable viewer smoke test
 and the additional synthetic MS brain MRI studies behave like patient examples.
@@ -49,7 +84,7 @@ kind of clinical imaging workflow the project is expected to support.
 
 ## Multimodal dashboard
 
-The multimodal dashboard is the cross-modal preparation layer.
+The multimodal dashboard checks how well clinical records and different assays overlap.
 
 `Multimodal analysis readiness` is a QC panel. It reports modality coverage,
 patient-level overlap, exact sample/timepoint overlap, DICOM-clinical linkage
@@ -66,7 +101,8 @@ DICOM pixels are not converted into numeric analysis features in this step.
 
 ## Patient list and patient detail
 
-The left-side patient list is still patient-oriented, even if some downstream operations become sample-aware.
+The patient list groups records by person. An analysis may still use individual
+samples or timepoints from those records.
 
 When multiple datasets are active:
 

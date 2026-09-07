@@ -27,6 +27,7 @@ const sidebars: SidebarsConfig = {
       label: 'User Guide',
       items: [
         'user-guide/datasets',
+        'user-guide/synthetic-autoimmune-demo',
         'user-guide/dashboard',
         'user-guide/query',
         'user-guide/saved-cohorts-and-handoffs',
@@ -39,6 +40,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Admin Guide',
       items: [
+        'admin-guide/starting-and-stopping',
         'admin-guide/datasets-and-access',
         'admin-guide/local-auth-and-groups',
         'admin-guide/model-providers',

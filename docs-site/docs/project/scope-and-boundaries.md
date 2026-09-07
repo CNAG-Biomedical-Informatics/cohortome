@@ -1,9 +1,8 @@
 # Platform Scope And Boundaries
 
-COHORTome is a research workbench that sits between heterogeneous data delivery and
-project-specific statistical or bioinformatics environments. It standardizes
-how data is registered, linked, governed, queried, and handed to curated
-analyses without pretending that every source study has the same semantics.
+COHORTome helps researchers use released clinical and assay data. It registers
+datasets, links records, checks access, and runs selected analyses. Each study
+still needs a mapping of its identifiers, measurements, and visits.
 
 ## What works now and what comes next
 
@@ -20,10 +19,9 @@ analyses without pretending that every source study has the same semantics.
 
 ## Related tools and where COHORTome fits
 
-COHORTome enters a mature ecosystem. The tools below solve important parts of the
-research-data journey, but they start from different data and serve different
-primary tasks. This is therefore a positioning map, not a claim that COHORTome
-replaces them or a feature-by-feature ranking.
+The tools below support related research tasks. The table describes their roles
+and possible connections to COHORTome; it is not a benchmark or a complete
+feature comparison.
 
 | Area | Representative tools | Primary role | Relationship to COHORTome |
 | --- | --- | --- | --- |
@@ -36,14 +34,10 @@ replaces them or a feature-by-feature ranking.
 | Imaging repositories and processing platforms | [XNAT](https://wiki.xnat.org/documentation/getting-started-with-xnat), [Kaapana](https://kaapana.readthedocs.io/en/stable/), and [QMENTA](https://support.qmenta.com/knowledge/qmenta-platform) | Manage imaging studies and support quality control, processing, annotation, or imaging-specific workflows at research or clinical-trial scale. | These are specialist imaging environments, not components COHORTome needs to reproduce. In the planned 3TR setting, imaging experts and QMENTA perform the image processing; COHORTome consumes their approved quantitative outputs and may retain links for visual inspection and provenance. |
 | Medical-imaging AI development | [MONAI](https://monai.readthedocs.io/en/stable/modules.html) | Provide reusable deep-learning components for medical-image preprocessing, training, evaluation, and inference. | MONAI is appropriate for teams developing pixel-level models. COHORTome does not train such models; it treats validated outputs such as lesion burden or regional volumes as derived imaging features. |
 
-The resulting boundary is intentional: COHORTome is not another warehouse, PACS,
-general workflow engine, or medical-imaging AI platform. It is a downstream
-research workbench that turns authorized heterogeneous releases into a governed,
-patient- and sample-aware workspace. It connects cohort construction,
-longitudinal clinical context, assay availability, curated analyses,
-policy-controlled LLM assistance, and persisted evidence. Specialist systems
-remain responsible for their domains, while COHORTome records their processed outputs
-in a form that can be combined with clinical and other assay features.
+COHORTome uses data released by source systems and calls specialist analysis
+tools. It links their inputs and outputs to the selected patients, samples,
+and visits, and keeps a record of each run. Processed imaging measurements can
+then be combined with clinical records and other assay features.
 
 For imaging specifically, the manuscript should distinguish three operations:
 
@@ -54,8 +48,8 @@ For imaging specifically, the manuscript should distinguish three operations:
    and patient/visit linkage for downstream multimodal statistics or machine
    learning
 
-This positioning avoids claiming imaging expertise while still making imaging
-evidence usable alongside the other 3TR modalities.
+These steps let researchers use imaging measurements alongside other 3TR data
+while retaining the processing and review performed by imaging specialists.
 
 ## Harmonization boundary
 
@@ -84,14 +78,13 @@ For example:
 - an appropriate external pipeline must produce MRI lesion or regional-volume
   features
 
-COHORTome contributes explicit data scope, readiness checks, controlled execution,
-persisted parameters, artifacts, and a coherent researcher workflow around
-those methods.
+COHORTome selects the input data, checks each method's requirements, and starts
+the run. It saves the parameters, logs, and output files with the result.
 
 ## AI boundary
 
 Models may help formulate and interpret research operations, but they do not
-receive ambient access to every dataset or an unrestricted shell. Dataset policy
+receive access to every dataset or an unrestricted shell. Dataset policy
 and approved-provider configuration apply before model invocation. Results must
 identify whether they came from deterministic logic, LLM planning, LLM-only
 interpretation, or a curated analysis runner.

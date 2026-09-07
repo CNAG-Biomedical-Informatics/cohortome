@@ -10,6 +10,7 @@ from app.user_state import user_state_file
 USER_SETTINGS_FILENAME = "settings.json"
 
 DEFAULT_USER_SETTINGS: Dict[str, Any] = {
+    "appearance": "light",
     "version": 1,
     "landing_tab_mode": "fixed",
     "landing_tab": "dashboard",
@@ -29,6 +30,7 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
 }
 
 _ALLOWED_VALUES = {
+    "appearance": {"light", "dark", "system"},
     "landing_tab_mode": {"fixed", "last"},
     "landing_tab": {"dashboard", "datasets", "query", "analysis", "pheno"},
     "query_disclosure_default": {"summary", "detailed"},

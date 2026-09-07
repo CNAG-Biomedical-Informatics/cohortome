@@ -7,7 +7,14 @@ import TabItem from '@theme/TabItem';
 
 # Analysis
 
-`Analysis` is the interpretation layer of the app.
+Completed responses have an **Analysis result** heading. Summary metrics, plots,
+method notes and suggested follow-ups remain together. Expand **Result files**
+to see the available file count and a list labelled by format (such as TSV, PNG
+or JSON). Opening a file uses a new browser tab; the file endpoint determines
+whether it is displayed or downloaded.
+
+Use `Analysis` to summarize data, compare cohorts, run statistical methods, and
+review their results.
 
 :::tip Best use
 Use `Analysis` after you already know what subset or workspace you want to interpret.
@@ -134,7 +141,7 @@ The foldable catalog strip and the drawer share the same browsing state:
 - active filter
 - selected analysis
 
-That means if you search or filter in one place, the other surface stays in sync.
+Searches and filters therefore stay the same in both places.
 
 The catalog is available only when the active workspace allows `Detailed` in-app access.
 
@@ -160,7 +167,8 @@ button that opens the relevant control. Completed requirements remain visible
 as `Done`; later requirements wait until the preceding step is complete. Quick
 prompts that do not select a curated tool continue to need no extra setup.
 
-The catalog is intentionally narrower than the prompt surface. Prompt-like summaries such as “what stands out” or broad A/B interpretation belong in quick prompts, not in the catalog.
+Use quick prompts for summaries such as “what stands out” or an explanation of
+differences between cohorts. Use the catalog to choose a specific method.
 
 ## Analysis workflows
 
@@ -183,7 +191,7 @@ For this first workflow, select exactly one compatible raw-count transcriptomics
 
 The workflow result keeps interpretation and plots visible first. Raw output files are folded under `Result files` and can be opened when needed.
 
-## Assay tool contract
+## Assay tool requirements
 
 The current assay catalog tools are method-driven.
 
@@ -225,7 +233,7 @@ The methylation tools use one selected processed M-value assay view. A view can
 be the complete externally stored assay or an administrator-installed,
 versioned feature panel. Panel choices are labelled in the assay selector and
 their identity, version, source, and match counts are retained with the result.
-The complete probe matrix remains in its governed dataset release; COHORTome
+The complete probe matrix remains in the protected dataset files; COHORTome
 does not materialize all CpG-by-sample values in DuckDB.
 
 The panel summary distinguishes probes that were absent from the supplied
@@ -254,15 +262,15 @@ Immune-cell abundance features can also be compositional, while serology
 missingness can vary by marker; inspect the cohort-specific missing counts
 before interpreting the ranking.
 
-The compact source matrices remain in the governed dataset release. They are
+The compact source matrices remain in the protected dataset files. They are
 read directly by the curated runner, are not materialized in DuckDB, and are
 not copied into the job output. Analysis stores only compact aggregate results
-and provenance artifacts.
+and records of the inputs and method used.
 
 
 ## Catalog search, filters, and suggestions
 
-The Analysis Catalog is optimized for tool discovery, not only for scrolling.
+Search and filter the Analysis Catalog to find a suitable tool.
 
 Search matches against:
 
@@ -281,7 +289,7 @@ Filters are intentionally coarse:
 - `Background jobs`
 - `External`
 
-These filters are meant to reduce browse cost quickly, not to replace the catalog structure.
+Use these filters to shorten the list of tools.
 
 When a selected catalog item requires assay data, a compatible assay selector appears below the catalog search and filters. For single-assay analyses, including transcriptomics, methylation, immune-cell, and quantitative-serology tools, the selector behaves as a single-select control.
 
@@ -338,7 +346,7 @@ That keeps the session understandable and reduces accidental drift.
 
 ## Follow-up queries
 
-Analysis can now suggest follow-up queries after strong result types, especially plots.
+Analysis suggests follow-up questions for several result types, including plots.
 
 Examples:
 
@@ -347,7 +355,9 @@ Examples:
 - assay volcano follow-ups
 - A/B comparison follow-ups
 
-These follow-ups are intentionally neutral in color. They are suggestions about the next analytical question, not a promise about whether the reply will be deterministic or LLM-assisted.
+Follow-up questions are amber and labeled `LLM interpretation`. Selecting one
+prepares the question; the selected model is called when you run it, subject to
+the workspace's model-access rules.
 
 :::info
 Follow-up chips are generated from the latest result context plus short recent Analysis history, not from an unlimited chat memory.
@@ -436,7 +446,7 @@ Longer curated external analyses can now run through a background queue instead 
 Current model:
 
 - queue backend: `RQ + Redis`
-- user-facing surface: shared `Jobs` drawer in the app shell
+- progress and results: the `Jobs` drawer
 - current queued runner types include curated `Rscript`, `Snakemake`, `Nextflow`, and pre-made Analysis workflows
 
 When a catalog item is configured as a background job:
@@ -450,7 +460,7 @@ If the original Analysis session no longer exists, the app can recover the compl
 
 ## Deleting chats and generated data
 
-Analysis session deletion now has two distinct semantics:
+There are two deletion options:
 
 - `Delete chat only`
   - removes the Analysis session record

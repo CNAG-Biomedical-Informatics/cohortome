@@ -3,16 +3,16 @@
         border-radius: 24px;
         background:
           radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 42%),
-          linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.92));
+          linear-gradient(135deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(239, 246, 255, 0.92)));
         border: 1px solid rgba(14, 165, 233, 0.16);
       }
       .assay-hero-note {
         margin-top: 10px;
         padding: 10px 12px;
         border-radius: 14px;
-        background: rgba(255, 255, 255, 0.72);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.72));
         border: 1px solid rgba(14, 165, 233, 0.14);
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
         font-size: 0.94rem;
         font-weight: 600;
       }
@@ -26,16 +26,16 @@
       .dashboard-hero-clinical {
         background:
           radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 42%),
-          linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 253, 245, 0.92));
+          linear-gradient(135deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(236, 253, 245, 0.92)));
         border: 1px solid rgba(16, 185, 129, 0.16);
       }
       .dashboard-hero-note {
         margin-top: 10px;
         padding: 10px 12px;
         border-radius: 14px;
-        background: rgba(255, 255, 255, 0.72);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.72));
         border: 1px solid rgba(16, 185, 129, 0.14);
-        color: #166534;
+        color: var(--theme-green-ink, #166534);
         font-size: 0.94rem;
         font-weight: 600;
       }
@@ -51,7 +51,7 @@
         padding: 14px;
         border-radius: 20px;
         border: 1px solid var(--line);
-        background: rgba(248, 251, 255, 0.98);
+        background: var(--theme-surface, rgba(248, 251, 255, 0.98));
         display: grid;
         gap: 8px;
         min-width: 0;
@@ -60,7 +60,7 @@
       .dashboard-plot-card h4 {
         margin: 0;
         font-size: 1rem;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       .dashboard-plot-frame {
         width: 100%;
@@ -87,7 +87,7 @@
         padding: 10px 12px;
         border-radius: 14px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.82);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.82));
       }
       .assay-dataset-option input[type="checkbox"] {
         width: auto;
@@ -117,7 +117,7 @@
         padding: 18px 20px;
         border-radius: 18px;
         border: 1px solid rgba(15, 118, 110, 0.14);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+        background: linear-gradient(180deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(248, 250, 252, 0.92)));
         box-shadow: 0 12px 26px rgba(15, 23, 42, 0.04);
       }
       .assay-overview-copy {
@@ -147,7 +147,7 @@
         padding: 8px 11px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.82);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.82));
         color: var(--text);
         font-size: 0.9rem;
         font-weight: 700;
@@ -165,7 +165,7 @@
       .assay-modality-tab.active {
         border-color: var(--accent);
         background: rgba(14, 165, 233, 0.10);
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
       }
       .assay-modality-tab.active strong {
         background: var(--accent);
@@ -180,7 +180,7 @@
         border-radius: 22px;
         border: 1px solid rgba(14, 165, 233, 0.12);
         background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94)),
+          linear-gradient(180deg, var(--theme-surface, rgba(255, 255, 255, 0.98)), var(--theme-surface, rgba(248, 250, 252, 0.94))),
           radial-gradient(circle at top right, rgba(16, 185, 129, 0.08), transparent 36%);
         box-shadow: 0 14px 30px rgba(15, 23, 42, 0.04);
       }
@@ -204,7 +204,7 @@
         border-radius: 22px;
         border: 1px solid rgba(14, 165, 233, 0.14);
         background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92)),
+          linear-gradient(180deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(248, 250, 252, 0.92))),
           radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 35%);
         box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
         display: grid;
@@ -232,7 +232,7 @@
         display: block;
         font-size: 1.08rem;
         line-height: 1.35;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
         overflow-wrap: anywhere;
         word-break: break-word;
       }
@@ -257,7 +257,7 @@
       .assay-kpi {
         padding: 14px;
         border-radius: 16px;
-        background: rgba(239, 246, 255, 0.9);
+        background: var(--theme-surface, rgba(239, 246, 255, 0.9));
         border: 1px solid rgba(14, 165, 233, 0.12);
         display: grid;
         gap: 6px;
@@ -277,7 +277,7 @@
       }
       .assay-kpi-value {
         font-size: 1.2rem;
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
         min-width: 0;
       }
       .assay-card-section {
@@ -285,7 +285,7 @@
         gap: 12px;
         padding: 14px 16px;
         border-radius: 18px;
-        background: rgba(248, 250, 252, 0.8);
+        background: var(--theme-surface, rgba(248, 250, 252, 0.8));
         border: 1px solid rgba(148, 163, 184, 0.10);
       }
       .assay-summary-grid {
@@ -296,7 +296,7 @@
       .assay-summary-item {
         padding: 12px;
         border-radius: 16px;
-        background: rgba(248, 250, 252, 0.92);
+        background: var(--theme-surface, rgba(248, 250, 252, 0.92));
         border: 1px solid var(--line);
         display: grid;
         gap: 4px;
@@ -323,9 +323,9 @@
         align-items: center;
         padding: 8px 11px;
         border-radius: 999px;
-        background: rgba(220, 252, 231, 0.94);
+        background: var(--theme-green-soft, rgba(220, 252, 231, 0.94));
         border: 1px solid rgba(22, 163, 74, 0.18);
-        color: #166534;
+        color: var(--theme-green-ink, #166534);
         font-size: 0.86rem;
         font-weight: 600;
       }
@@ -348,7 +348,7 @@
         padding: 14px;
         border-radius: 18px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.76);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.76));
       }
       .assay-result-header {
         display: flex;
@@ -365,7 +365,7 @@
         padding: 14px;
         border-radius: 16px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.76);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.76));
       }
       .assay-scope-card h4 {
         margin-bottom: 10px;
@@ -425,7 +425,7 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: #f8fbff;
+        background: var(--theme-surface, #f8fbff);
       }
       .multimodal-overlap-list,
       .multimodal-issue-list,
@@ -441,7 +441,7 @@
         padding: 10px 12px;
         border-radius: 10px;
         border: 1px solid rgba(15, 118, 110, 0.14);
-        background: rgba(240, 253, 250, 0.72);
+        background: var(--theme-surface, rgba(240, 253, 250, 0.72));
       }
       .multimodal-feature-group strong,
       .multimodal-feature-group small {
@@ -460,7 +460,7 @@
         padding: 10px 12px;
         border-radius: 10px;
         border: 1px solid rgba(37, 99, 235, 0.12);
-        background: rgba(239, 246, 255, 0.72);
+        background: var(--theme-surface, rgba(239, 246, 255, 0.72));
       }
       .multimodal-overlap-row span,
       .multimodal-overlap-row small {
@@ -482,11 +482,11 @@
         padding: 12px 14px;
         border-radius: 12px;
         border: 1px solid rgba(15, 118, 110, 0.16);
-        background: rgba(240, 253, 250, 0.76);
+        background: var(--theme-surface, rgba(240, 253, 250, 0.76));
       }
       .multimodal-suggestion.disabled {
         border-color: var(--line);
-        background: rgba(248, 250, 252, 0.84);
+        background: var(--theme-surface, rgba(248, 250, 252, 0.84));
       }
       .multimodal-suggestion small {
         color: var(--muted);
@@ -514,10 +514,10 @@
         padding: 12px 14px;
         border-radius: 12px;
         border: 1px solid rgba(15, 118, 110, 0.14);
-        background: rgba(240, 253, 250, 0.72);
+        background: var(--theme-surface, rgba(240, 253, 250, 0.72));
       }
       .dicom-health-card strong {
-        color: var(--accent-deep);
+        color: var(--theme-blue-ink, var(--accent-deep));
         font-size: 0.98rem;
       }
       .dicom-health-card small {
@@ -535,7 +535,7 @@
         padding: 20px;
         border-radius: 18px;
         border: 1px solid rgba(15, 118, 110, 0.16);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 253, 250, 0.86));
+        background: linear-gradient(180deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(240, 253, 250, 0.86)));
         box-shadow: 0 14px 30px rgba(15, 23, 42, 0.04);
         display: grid;
         gap: 14px;

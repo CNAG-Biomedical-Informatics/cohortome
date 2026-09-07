@@ -35,6 +35,7 @@ export function createQueryUi(ctx) {
     sendPatientIdsToAnalysis,
     sendPromptToAnalysis,
     currentPatientsProvider,
+    claridIdentityMarkup,
     phenoRankerPatientIdsProvider,
     isMultiDatasetWorkspace,
     setLatestQueryState,
@@ -185,7 +186,7 @@ export function createQueryUi(ctx) {
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
     if (queryTabEl) queryTabEl.classList.toggle("query-tab-general-mode", general);
-    if (queryComposerTitleEl) queryComposerTitleEl.textContent = general ? "Ask Model" : "Continue Query";
+    if (queryComposerTitleEl) queryComposerTitleEl.textContent = hasQueryTurns() ? "Ask a follow-up" : general ? "Ask Model" : "Ask a question";
     if (queryThreadModeLabelEl) queryThreadModeLabelEl.textContent = general ? "General question" : "Workspace mode";
     if (questionEl) {
       questionEl.placeholder = general
@@ -221,7 +222,7 @@ export function createQueryUi(ctx) {
       return;
     }
     const hasTurns = hasQueryTurns();
-    const targetHost = queryStarterTopHostEl;
+    const targetHost = hasTurns ? queryStarterHostEl : queryStarterTopHostEl;
     if (targetHost && queryStarterPanelEl.parentElement !== targetHost) {
       targetHost.appendChild(queryStarterPanelEl);
     }
@@ -229,11 +230,11 @@ export function createQueryUi(ctx) {
     const visible = !isGeneralQuestionMode() && (!hasTurns || queryPromptLibraryOpen);
     queryStarterPanelEl.hidden = !visible;
     queryStarterPanelEl.classList.toggle("is-hidden", !visible);
-    queryStarterPanelEl.classList.remove("query-starter-panel-compact");
+    queryStarterPanelEl.classList.toggle("query-starter-panel-compact", hasTurns);
 
     if (queryStarterHostEl) {
-      queryStarterHostEl.hidden = true;
-      queryStarterHostEl.classList.add("is-hidden");
+      queryStarterHostEl.hidden = !hasTurns || !visible;
+      queryStarterHostEl.classList.toggle("is-hidden", !hasTurns || !visible);
     }
 
     if (queryComposerExamplesBtnEl) {
@@ -253,7 +254,7 @@ export function createQueryUi(ctx) {
     queryPromptLibraryOpen = Boolean(open);
     renderQueryStarterPrompts();
     if (options.scroll && queryPromptLibraryOpen && queryStarterPanelEl && !queryStarterPanelEl.hidden) {
-      queryStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      queryStarterPanelEl.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     }
   }
 
@@ -349,11 +350,25 @@ export function createQueryUi(ctx) {
         Array.isArray(item.dataset_names) ? item.dataset_names : [],
       ]));
       const showDataset = isMultiDatasetWorkspace();
+      const patientsById = new Map(currentPatients.map((patient) => [String(patient.patient_id), patient]));
+      const patientsBySample = new Map();
+      currentPatients.forEach((patient) => (patient.original_record_ids || []).forEach((id) => {
+        const key = String(id);
+        // Ambiguous links must not attribute an identifier to the wrong subject.
+        patientsBySample.set(key, patientsBySample.has(key) ? null : patient);
+      }));
+      const claridCell = (item, index) => {
+        const patient = sampleLevel
+          ? patientsBySample.get(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))
+          : patientsById.get(String(item.patient_id || resultPage.patientIds[index] || ""));
+        return `<td>${(patient && claridIdentityMarkup?.(patient)) || '<span class="section-note">Not available</span>'}</td>`;
+      };
       const rows = resultRows.slice(0, QUERY_RESULT_PAGE_SIZE).map((item, index) => sampleLevel ? `
-        <tr><td class="query-result-id-cell">${escapeHtml(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td></tr>
+        <tr><td class="query-result-id-cell">${escapeHtml(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td>${claridCell(item, index)}</tr>
       ` : `
         <tr>
           <td class="query-result-id-cell">${escapeHtml(String(item.patient_id || resultPage.patientIds[index] || ""))}</td>
+          ${claridCell(item, index)}
           ${showDataset ? `<td>${escapeHtml((provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
           <td>${escapeHtml(String(item.sex || ""))}</td>
           <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
@@ -385,8 +400,8 @@ export function createQueryUi(ctx) {
         <div class="query-result-table-scroll">
         <table class="query-result-table">
           <thead>${sampleLevel
-            ? "<tr><th>Sample</th></tr>"
-            : `<tr><th>Patient</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr>`}</thead>
+            ? "<tr><th>Sample</th><th>Subject ClarID</th></tr>"
+            : `<tr><th>Patient</th><th>ClarID</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr>`}</thead>
           <tbody>${rows}</tbody>
         </table>
         </div>
@@ -734,6 +749,7 @@ export function createQueryUi(ctx) {
 
   function renderQueryThread() {
     renderQueryStarterPrompts();
+    if (queryComposerTitleEl) queryComposerTitleEl.textContent = hasQueryTurns() ? "Ask a follow-up" : isGeneralQuestionMode() ? "Ask Model" : "Ask a question";
     if (!queryThreadEl) return;
     if (queryTabEl) queryTabEl.classList.toggle("query-tab-empty", !state.queryTurns.length);
     if (!state.queryTurns.length) {
@@ -761,8 +777,8 @@ export function createQueryUi(ctx) {
         ? state.queryTurns[index - 1].prompt || ""
         : "";
       return `
-        <article class="analysis-turn query-thread-turn ${toneClass}" data-query-turn-index="${index}">
-          <div class="analysis-turn-label">${turn.pending ? "Running" : "Assistant"}</div>
+        <article class="analysis-turn query-thread-turn ${toneClass}${index === latestAssistantIndex ? " query-thread-turn-latest" : ""}" data-query-turn-index="${index}">
+          <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : isGeneralQuestionMode() ? "Answer" : "Result"}</div>
           ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
             ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}
@@ -782,7 +798,7 @@ export function createQueryUi(ctx) {
       : queryThreadEl.lastElementChild;
     if (!target || typeof target.scrollIntoView !== "function") return;
     window.requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     });
   }
 
@@ -997,6 +1013,7 @@ export function createQueryUi(ctx) {
     queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
     if (queryActionsEl) queryActionsEl.innerHTML = "";
     queryFollowupsEl.innerHTML = "";
+    queryPromptLibraryOpen = false;
     state.queryTurns.push({ role: "user", prompt: question, contextMode: generalQuestion ? "general" : "workspace" });
     state.queryTurns.push({
       role: "assistant",

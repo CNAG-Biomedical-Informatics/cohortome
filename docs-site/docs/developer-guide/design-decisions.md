@@ -8,13 +8,13 @@ This page captures stable architectural decisions that shape how COHORTome behav
 
 It is not a changelog. It records decisions that are important for future implementation and maintenance.
 
-## 1. Dataset scope is a first-class concept
+## 1. Each user has an active dataset selection
 
 The app no longer assumes one global shared dataset.
 
 Current model:
 
-- datasets are first-class registry entries
+- each dataset has a registry entry
 - users can access different datasets depending on permissions
 - a user may select one or more authorized datasets as the active workspace
 
@@ -72,7 +72,7 @@ Consequence:
 
 - the application exposes one active workspace while preserving the identity of
   every contributing dataset
-- a compatibility scope directory is not the query-store identity boundary
+- compatibility scope directories do not replace per-dataset query stores
 
 ## 4. Saved cohorts are sample-first
 
@@ -111,7 +111,7 @@ Consequence:
 - some handoffs preserve sample IDs
 - some deterministic helpers derive patient IDs locally only where needed
 
-## 6. Query is the main subset-building surface
+## 6. Query selects patients and samples
 
 `Query` is the primary place where users build subsets and discover reusable groups.
 
@@ -320,7 +320,7 @@ Suggestions are not a server-side personalization system. They are derived from:
 
 This keeps catalog navigation fast without introducing a separate recommendation backend or catalog-specific persistence model.
 
-## 16. Background jobs are a shared substrate, not an Analysis-only special case
+## 16. Analysis and Pheno-Ranker share the background queue
 
 Longer curated analyses should not hold the request open.
 
@@ -338,7 +338,7 @@ Consequence:
 - completed results can be reopened into Analysis, even when the original session is gone
 - current queued `Pheno-Ranker` cohort runs are intentionally capped at `2500` resolved samples until the large-output path is redesigned
 
-## 17. OpenAPI is a product asset, not only an integration artifact
+## 17. OpenAPI documents the API for clients and developers
 
 The API contract is being formalized through FastAPI response and request models.
 
@@ -382,11 +382,12 @@ Why:
 
 Consequence:
 
-- use `clinical + assays` in code and documentation
+- present Clinical, Assays (laboratory), and Imaging separately in the UI;
+  retain the shared assay contract internally for imaging resources
 - show transcriptomics-only controls only for compatible assays
 - keep patient/sample/time-point linkage explicit across modalities
 
-## 20. LLM assistance is first-class and governed
+## 20. Model assistance follows dataset access rules
 
 LLM assistance is a product capability for cohort discovery, planning, and
 interpretation. Query and Analysis also provide an explicitly selected

@@ -1,0 +1,6846 @@
+{
+  "label": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+  "seed": 20260907,
+  "features": [
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108691",
+      "label": "CCL2",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169245",
+      "label": "CXCL10",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169429",
+      "label": "CXCL8",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165949",
+      "label": "IFI27",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137965",
+      "label": "IFI44",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137959",
+      "label": "IFI44L",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185745",
+      "label": "IFIT1",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119922",
+      "label": "IFIT2",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119917",
+      "label": "IFIT3",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000125538",
+      "label": "IL1B",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136244",
+      "label": "IL6",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187608",
+      "label": "ISG15",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157601",
+      "label": "MX1",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000109320",
+      "label": "NFKB1",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000089127",
+      "label": "OAS1",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000073756",
+      "label": "PTGS2",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134321",
+      "label": "RSAD2",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143546",
+      "label": "S100A8",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163220",
+      "label": "S100A9",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000232810",
+      "label": "TNF",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121410",
+      "label": "A1BG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148584",
+      "label": "A1CF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175899",
+      "label": "A2M",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166535",
+      "label": "A2ML1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184389",
+      "label": "A3GALT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128274",
+      "label": "A4GALT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118017",
+      "label": "A4GNT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000094914",
+      "label": "AAAS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000081760",
+      "label": "AACS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114771",
+      "label": "AADAC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197953",
+      "label": "AADACL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188984",
+      "label": "AADACL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204518",
+      "label": "AADACL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000109576",
+      "label": "AADAT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103591",
+      "label": "AAGAB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115977",
+      "label": "AAK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000087884",
+      "label": "AAMDC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000127837",
+      "label": "AAMP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129673",
+      "label": "AANAT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131043",
+      "label": "AAR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000205002",
+      "label": "AARD",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000090861",
+      "label": "AARS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124608",
+      "label": "AARS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000266967",
+      "label": "AARSD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157426",
+      "label": "AASDH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000149313",
+      "label": "AASDHPPT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000008311",
+      "label": "AASS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000275700",
+      "label": "AATF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181409",
+      "label": "AATK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183044",
+      "label": "ABAT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165029",
+      "label": "ABCA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154263",
+      "label": "ABCA10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144452",
+      "label": "ABCA12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179869",
+      "label": "ABCA13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107331",
+      "label": "ABCA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167972",
+      "label": "ABCA3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198691",
+      "label": "ABCA4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154265",
+      "label": "ABCA5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154262",
+      "label": "ABCA6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000064687",
+      "label": "ABCA7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000141338",
+      "label": "ABCA8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154258",
+      "label": "ABCA9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000085563",
+      "label": "ABCB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135776",
+      "label": "ABCB10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000073734",
+      "label": "ABCB11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000005471",
+      "label": "ABCB4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000004846",
+      "label": "ABCB5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115657",
+      "label": "ABCB6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131269",
+      "label": "ABCB7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197150",
+      "label": "ABCB8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000150967",
+      "label": "ABCB9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103222",
+      "label": "ABCC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124574",
+      "label": "ABCC10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121270",
+      "label": "ABCC11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140798",
+      "label": "ABCC12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000023839",
+      "label": "ABCC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108846",
+      "label": "ABCC3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000125257",
+      "label": "ABCC4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114770",
+      "label": "ABCC5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000091262",
+      "label": "ABCC6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006071",
+      "label": "ABCC8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000069431",
+      "label": "ABCC9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101986",
+      "label": "ABCD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173208",
+      "label": "ABCD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117528",
+      "label": "ABCD3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119688",
+      "label": "ABCD4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164163",
+      "label": "ABCE1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204574",
+      "label": "ABCF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000033050",
+      "label": "ABCF2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161204",
+      "label": "ABCF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160179",
+      "label": "ABCG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118777",
+      "label": "ABCG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172350",
+      "label": "ABCG4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138075",
+      "label": "ABCG5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143921",
+      "label": "ABCG8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143994",
+      "label": "ABHD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144827",
+      "label": "ABHD10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106077",
+      "label": "ABHD11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100997",
+      "label": "ABHD12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131969",
+      "label": "ABHD12B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139826",
+      "label": "ABHD13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000248487",
+      "label": "ABHD14A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114779",
+      "label": "ABHD14B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168792",
+      "label": "ABHD15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204427",
+      "label": "ABHD16A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183260",
+      "label": "ABHD16B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129968",
+      "label": "ABHD17A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107362",
+      "label": "ABHD17B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136379",
+      "label": "ABHD17C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164074",
+      "label": "ABHD18",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140526",
+      "label": "ABHD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000158201",
+      "label": "ABHD3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100439",
+      "label": "ABHD4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000011198",
+      "label": "ABHD5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163686",
+      "label": "ABHD6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000127220",
+      "label": "ABHD8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136754",
+      "label": "ABI1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138443",
+      "label": "ABI2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108798",
+      "label": "ABI3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154175",
+      "label": "ABI3BP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119328",
+      "label": "ABITRAM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000097007",
+      "label": "ABL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143322",
+      "label": "ABL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000099204",
+      "label": "ABLIM1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163995",
+      "label": "ABLIM2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173210",
+      "label": "ABLIM3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175164",
+      "label": "ABO",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159842",
+      "label": "ABR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174429",
+      "label": "ABRA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146386",
+      "label": "ABRACL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163322",
+      "label": "ABRAXAS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165660",
+      "label": "ABRAXAS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146109",
+      "label": "ABT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114626",
+      "label": "ABTB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166016",
+      "label": "ABTB2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151136",
+      "label": "ABTB3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000060971",
+      "label": "ACAA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167315",
+      "label": "ACAA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000278540",
+      "label": "ACACA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000076555",
+      "label": "ACACB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111271",
+      "label": "ACAD10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000240303",
+      "label": "ACAD11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151498",
+      "label": "ACAD8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177646",
+      "label": "ACAD9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115361",
+      "label": "ACADL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117054",
+      "label": "ACADM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000122971",
+      "label": "ACADS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196177",
+      "label": "ACADSB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072778",
+      "label": "ACADVL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157766",
+      "label": "ACAN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072818",
+      "label": "ACAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114331",
+      "label": "ACAP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131584",
+      "label": "ACAP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000075239",
+      "label": "ACAT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000120437",
+      "label": "ACAT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182827",
+      "label": "ACBD3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181513",
+      "label": "ACBD4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107897",
+      "label": "ACBD5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000230124",
+      "label": "ACBD6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000176244",
+      "label": "ACBD7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110455",
+      "label": "ACCS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000205126",
+      "label": "ACCSL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000102977",
+      "label": "ACD",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159640",
+      "label": "ACE",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130234",
+      "label": "ACE2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167769",
+      "label": "ACER1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177076",
+      "label": "ACER2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000078124",
+      "label": "ACER3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000087085",
+      "label": "ACHE",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100813",
+      "label": "ACIN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000213088",
+      "label": "ACKR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144648",
+      "label": "ACKR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144476",
+      "label": "ACKR3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129048",
+      "label": "ACKR4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166856",
+      "label": "ACKR5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131473",
+      "label": "ACLY",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153086",
+      "label": "ACMSD",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000122729",
+      "label": "ACO1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100412",
+      "label": "ACO2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000102794",
+      "label": "ACOD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184227",
+      "label": "ACOT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162390",
+      "label": "ACOT11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172497",
+      "label": "ACOT12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000112304",
+      "label": "ACOT13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119673",
+      "label": "ACOT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177465",
+      "label": "ACOT4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000205669",
+      "label": "ACOT6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000097021",
+      "label": "ACOT7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101473",
+      "label": "ACOT8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123130",
+      "label": "ACOT9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161533",
+      "label": "ACOX1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168306",
+      "label": "ACOX2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000087008",
+      "label": "ACOX3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153093",
+      "label": "ACOXL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143727",
+      "label": "ACP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134575",
+      "label": "ACP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000014257",
+      "label": "ACP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000142513",
+      "label": "ACP4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000102575",
+      "label": "ACP5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162836",
+      "label": "ACP6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183760",
+      "label": "ACP7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100312",
+      "label": "ACR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111644",
+      "label": "ACRBP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134940",
+      "label": "ACRV1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103740",
+      "label": "ACSBG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130377",
+      "label": "ACSBG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167107",
+      "label": "ACSF2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000176715",
+      "label": "ACSF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151726",
+      "label": "ACSL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123983",
+      "label": "ACSL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000068366",
+      "label": "ACSL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197142",
+      "label": "ACSL5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164398",
+      "label": "ACSL6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166743",
+      "label": "ACSM1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183747",
+      "label": "ACSM2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000066813",
+      "label": "ACSM2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000005187",
+      "label": "ACSM3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000215009",
+      "label": "ACSM4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183549",
+      "label": "ACSM5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173124",
+      "label": "ACSM6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154930",
+      "label": "ACSS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131069",
+      "label": "ACSS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111058",
+      "label": "ACSS3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143632",
+      "label": "ACTA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107796",
+      "label": "ACTA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000075624",
+      "label": "ACTB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169067",
+      "label": "ACTBL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159251",
+      "label": "ACTC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184009",
+      "label": "ACTG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163017",
+      "label": "ACTG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000288649",
+      "label": "ACTL10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136518",
+      "label": "ACTL6A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000077080",
+      "label": "ACTL6B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187003",
+      "label": "ACTL7A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148156",
+      "label": "ACTL7B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117148",
+      "label": "ACTL8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181786",
+      "label": "ACTL9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188493",
+      "label": "ACTMAP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072110",
+      "label": "ACTN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000077522",
+      "label": "ACTN2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000248746",
+      "label": "ACTN3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130402",
+      "label": "ACTN4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131966",
+      "label": "ACTR10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138107",
+      "label": "ACTR1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115073",
+      "label": "ACTR1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138071",
+      "label": "ACTR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115091",
+      "label": "ACTR3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000133627",
+      "label": "ACTR3B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106526",
+      "label": "ACTR3C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101442",
+      "label": "ACTR5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000075089",
+      "label": "ACTR6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000113812",
+      "label": "ACTR8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123165",
+      "label": "ACTRT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169717",
+      "label": "ACTRT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184378",
+      "label": "ACTRT3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115170",
+      "label": "ACVR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135503",
+      "label": "ACVR1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123612",
+      "label": "ACVR1C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121989",
+      "label": "ACVR2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114739",
+      "label": "ACVR2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139567",
+      "label": "ACVRL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000243989",
+      "label": "ACY1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132744",
+      "label": "ACY3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119640",
+      "label": "ACYP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170634",
+      "label": "ACYP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196839",
+      "label": "ADA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000093072",
+      "label": "ADA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164113",
+      "label": "ADAD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140955",
+      "label": "ADAD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137845",
+      "label": "ADAM10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000073670",
+      "label": "ADAM11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148848",
+      "label": "ADAM12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143537",
+      "label": "ADAM15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151694",
+      "label": "ADAM17",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168619",
+      "label": "ADAM18",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135074",
+      "label": "ADAM19",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000104755",
+      "label": "ADAM2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134007",
+      "label": "ADAM20",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139985",
+      "label": "ADAM21",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000008277",
+      "label": "ADAM22",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114948",
+      "label": "ADAM23",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000042980",
+      "label": "ADAM28",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168594",
+      "label": "ADAM29",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134249",
+      "label": "ADAM30",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197140",
+      "label": "ADAM32",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000149451",
+      "label": "ADAM33",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000069206",
+      "label": "ADAM7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151651",
+      "label": "ADAM8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168615",
+      "label": "ADAM9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134028",
+      "label": "ADAMDEC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154734",
+      "label": "ADAMTS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000142303",
+      "label": "ADAMTS10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151388",
+      "label": "ADAMTS12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160323",
+      "label": "ADAMTS13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138316",
+      "label": "ADAMTS14",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166106",
+      "label": "ADAMTS15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145536",
+      "label": "ADAMTS16",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140470",
+      "label": "ADAMTS17",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140873",
+      "label": "ADAMTS18",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145808",
+      "label": "ADAMTS19",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000087116",
+      "label": "ADAMTS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173157",
+      "label": "ADAMTS20",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156140",
+      "label": "ADAMTS3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000158859",
+      "label": "ADAMTS4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154736",
+      "label": "ADAMTS5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000049192",
+      "label": "ADAMTS6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136378",
+      "label": "ADAMTS7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134917",
+      "label": "ADAMTS8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163638",
+      "label": "ADAMTS9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178031",
+      "label": "ADAMTSL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197859",
+      "label": "ADAMTSL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156218",
+      "label": "ADAMTSL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143382",
+      "label": "ADAMTSL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185761",
+      "label": "ADAMTSL5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000105963",
+      "label": "ADAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184060",
+      "label": "ADAP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160710",
+      "label": "ADAR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197381",
+      "label": "ADARB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185736",
+      "label": "ADARB2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000065457",
+      "label": "ADAT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189007",
+      "label": "ADAT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000213638",
+      "label": "ADAT3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000063761",
+      "label": "ADCK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000133597",
+      "label": "ADCK2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173137",
+      "label": "ADCK5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164742",
+      "label": "ADCY1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143199",
+      "label": "ADCY10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000078295",
+      "label": "ADCY2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138031",
+      "label": "ADCY3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129467",
+      "label": "ADCY4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173175",
+      "label": "ADCY5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174233",
+      "label": "ADCY6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121281",
+      "label": "ADCY7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000155897",
+      "label": "ADCY8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162104",
+      "label": "ADCY9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000141433",
+      "label": "ADCYAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000078549",
+      "label": "ADCYAP1R1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000087274",
+      "label": "ADD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000075340",
+      "label": "ADD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148700",
+      "label": "ADD3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118492",
+      "label": "ADGB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197177",
+      "label": "ADGRA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000020181",
+      "label": "ADGRA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000152990",
+      "label": "ADGRA3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181790",
+      "label": "ADGRB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121753",
+      "label": "ADGRB2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135298",
+      "label": "ADGRB3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111452",
+      "label": "ADGRD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180264",
+      "label": "ADGRD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174837",
+      "label": "ADGRE1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000127507",
+      "label": "ADGRE2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131355",
+      "label": "ADGRE3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123146",
+      "label": "ADGRE5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153292",
+      "label": "ADGRF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173567",
+      "label": "ADGRF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153294",
+      "label": "ADGRF4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000069122",
+      "label": "ADGRF5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000205336",
+      "label": "ADGRG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173698",
+      "label": "ADGRG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182885",
+      "label": "ADGRG3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156920",
+      "label": "ADGRG4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159618",
+      "label": "ADGRG5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000112414",
+      "label": "ADGRG6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144820",
+      "label": "ADGRG7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072071",
+      "label": "ADGRL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117114",
+      "label": "ADGRL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000150471",
+      "label": "ADGRL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162618",
+      "label": "ADGRL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164199",
+      "label": "ADGRV1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187758",
+      "label": "ADH1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196616",
+      "label": "ADH1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000248144",
+      "label": "ADH1C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198099",
+      "label": "ADH4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197894",
+      "label": "ADH5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172955",
+      "label": "ADH6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196344",
+      "label": "ADH7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000147576",
+      "label": "ADHFE1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182551",
+      "label": "ADI1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182035",
+      "label": "ADIG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181092",
+      "label": "ADIPOQ",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159346",
+      "label": "ADIPOR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006831",
+      "label": "ADIPOR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148671",
+      "label": "ADIRF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101220",
+      "label": "ADISSP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156110",
+      "label": "ADK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148926",
+      "label": "ADM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128165",
+      "label": "ADM2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000224420",
+      "label": "ADM5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101126",
+      "label": "ADNP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101544",
+      "label": "ADNP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181915",
+      "label": "ADO",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163485",
+      "label": "ADORA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128271",
+      "label": "ADORA2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170425",
+      "label": "ADORA2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000282608",
+      "label": "ADORA3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159322",
+      "label": "ADPGK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144843",
+      "label": "ADPRH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153531",
+      "label": "ADPRHL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170222",
+      "label": "ADPRM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116863",
+      "label": "ADPRS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000120907",
+      "label": "ADRA1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170214",
+      "label": "ADRA1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171873",
+      "label": "ADRA1D",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000150594",
+      "label": "ADRA2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000274286",
+      "label": "ADRA2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184160",
+      "label": "ADRA2C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000043591",
+      "label": "ADRB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169252",
+      "label": "ADRB2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188778",
+      "label": "ADRB3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130706",
+      "label": "ADRM1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000239900",
+      "label": "ADSL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185100",
+      "label": "ADSS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000035687",
+      "label": "ADSS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111863",
+      "label": "ADTRP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106624",
+      "label": "AEBP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139154",
+      "label": "AEBP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181026",
+      "label": "AEN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196526",
+      "label": "AFAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157510",
+      "label": "AFAP1L1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169129",
+      "label": "AFAP1L2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130396",
+      "label": "AFDN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172493",
+      "label": "AFF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000155966",
+      "label": "AFF2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144218",
+      "label": "AFF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072364",
+      "label": "AFF4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135537",
+      "label": "AFG1L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145375",
+      "label": "AFG2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171763",
+      "label": "AFG2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000141385",
+      "label": "AFG3L2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000079557",
+      "label": "AFM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183077",
+      "label": "AFMID",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000081051",
+      "label": "AFP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119844",
+      "label": "AFTPH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000038002",
+      "label": "AGA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157985",
+      "label": "AGAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135439",
+      "label": "AGAP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000133612",
+      "label": "AGAP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188234",
+      "label": "AGAP4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172650",
+      "label": "AGAP5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204149",
+      "label": "AGAP6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204172",
+      "label": "AGAP9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000273540",
+      "label": "AGBL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165923",
+      "label": "AGBL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146856",
+      "label": "AGBL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186094",
+      "label": "AGBL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000084693",
+      "label": "AGBL5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204305",
+      "label": "AGER",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173744",
+      "label": "AGFG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106351",
+      "label": "AGFG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164252",
+      "label": "AGGF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006530",
+      "label": "AGK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162688",
+      "label": "AGL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116771",
+      "label": "AGMAT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187546",
+      "label": "AGMO",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000092847",
+      "label": "AGO1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123908",
+      "label": "AGO2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000126070",
+      "label": "AGO3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134698",
+      "label": "AGO4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204310",
+      "label": "AGPAT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169692",
+      "label": "AGPAT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160216",
+      "label": "AGPAT3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000026652",
+      "label": "AGPAT4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000155189",
+      "label": "AGPAT5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000018510",
+      "label": "AGPS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106541",
+      "label": "AGR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173467",
+      "label": "AGR3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188157",
+      "label": "AGRN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159723",
+      "label": "AGRP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135744",
+      "label": "AGT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135049",
+      "label": "AGTPBP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144891",
+      "label": "AGTR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180772",
+      "label": "AGTR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177674",
+      "label": "AGTRAP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172482",
+      "label": "AGXT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000113492",
+      "label": "AGXT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153207",
+      "label": "AHCTF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101444",
+      "label": "AHCY",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168710",
+      "label": "AHCYL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000158467",
+      "label": "AHCYL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000126705",
+      "label": "AHDC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135541",
+      "label": "AHI1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124942",
+      "label": "AHNAK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185567",
+      "label": "AHNAK2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106546",
+      "label": "AHR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000063438",
+      "label": "AHRR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100591",
+      "label": "AHSA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145192",
+      "label": "AHSG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169877",
+      "label": "AHSP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111732",
+      "label": "AICDA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186063",
+      "label": "AIDA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204472",
+      "label": "AIF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000126878",
+      "label": "AIF1L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156709",
+      "label": "AIFM1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000042286",
+      "label": "AIFM2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183773",
+      "label": "AIFM3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146416",
+      "label": "AIG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163568",
+      "label": "AIM2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164022",
+      "label": "AIMP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106305",
+      "label": "AIMP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110711",
+      "label": "AIP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129221",
+      "label": "AIPL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160224",
+      "label": "AIRE",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116922",
+      "label": "AIRIM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196581",
+      "label": "AJAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000232434",
+      "label": "AJM1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129474",
+      "label": "AJUBA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106992",
+      "label": "AK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000004455",
+      "label": "AK2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000147853",
+      "label": "AK3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162433",
+      "label": "AK4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154027",
+      "label": "AK5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000085231",
+      "label": "AK6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140057",
+      "label": "AK7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165695",
+      "label": "AK8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000155085",
+      "label": "AK9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000231824",
+      "label": "AKAIN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000121057",
+      "label": "AKAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108599",
+      "label": "AKAP10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000023516",
+      "label": "AKAP11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131016",
+      "label": "AKAP12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170776",
+      "label": "AKAP13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186471",
+      "label": "AKAP14",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197976",
+      "label": "AKAP17A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187699",
+      "label": "AKAP19",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111254",
+      "label": "AKAP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000147081",
+      "label": "AKAP4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179841",
+      "label": "AKAP5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151320",
+      "label": "AKAP6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118507",
+      "label": "AKAP7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000105127",
+      "label": "AKAP8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000011243",
+      "label": "AKAP8L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000127914",
+      "label": "AKAP9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166452",
+      "label": "AKIP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174574",
+      "label": "AKIRIN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135334",
+      "label": "AKIRIN2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106948",
+      "label": "AKNA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162641",
+      "label": "AKNAD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117448",
+      "label": "AKR1A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000085662",
+      "label": "AKR1B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198074",
+      "label": "AKR1B10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000227471",
+      "label": "AKR1B15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187134",
+      "label": "AKR1C1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151632",
+      "label": "AKR1C2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196139",
+      "label": "AKR1C3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198610",
+      "label": "AKR1C4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000264006",
+      "label": "AKR1C8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000122787",
+      "label": "AKR1D1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165568",
+      "label": "AKR1E2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000053371",
+      "label": "AKR7A2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162482",
+      "label": "AKR7A3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000211454",
+      "label": "AKR7L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000142208",
+      "label": "AKT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204673",
+      "label": "AKT1S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000105221",
+      "label": "AKT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117020",
+      "label": "AKT3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166971",
+      "label": "AKTIP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148218",
+      "label": "ALAD",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000023330",
+      "label": "ALAS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000158578",
+      "label": "ALAS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163631",
+      "label": "ALB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170017",
+      "label": "ALCAM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161618",
+      "label": "ALDH16A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000059573",
+      "label": "ALDH18A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165092",
+      "label": "ALDH1A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128918",
+      "label": "ALDH1A2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184254",
+      "label": "ALDH1A3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137124",
+      "label": "ALDH1B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144908",
+      "label": "ALDH1L1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136010",
+      "label": "ALDH1L2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111275",
+      "label": "ALDH2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108602",
+      "label": "ALDH3A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072210",
+      "label": "ALDH3A2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006534",
+      "label": "ALDH3B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132746",
+      "label": "ALDH3B2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159423",
+      "label": "ALDH4A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000112294",
+      "label": "ALDH5A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119711",
+      "label": "ALDH6A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164904",
+      "label": "ALDH7A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118514",
+      "label": "ALDH8A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143149",
+      "label": "ALDH9A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000149925",
+      "label": "ALDOA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136872",
+      "label": "ALDOB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000109107",
+      "label": "ALDOC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000033011",
+      "label": "ALG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139133",
+      "label": "ALG10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175548",
+      "label": "ALG10B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000253710",
+      "label": "ALG11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182858",
+      "label": "ALG12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101901",
+      "label": "ALG13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172339",
+      "label": "ALG14",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000251287",
+      "label": "ALG1L2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119523",
+      "label": "ALG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000214160",
+      "label": "ALG3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000120697",
+      "label": "ALG5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000088035",
+      "label": "ALG6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159063",
+      "label": "ALG8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000086848",
+      "label": "ALG9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171094",
+      "label": "ALK",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196711",
+      "label": "ALKAL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189292",
+      "label": "ALKAL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100601",
+      "label": "ALKBH1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189046",
+      "label": "ALKBH2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166199",
+      "label": "ALKBH3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160993",
+      "label": "ALKBH4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000091542",
+      "label": "ALKBH5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000239382",
+      "label": "ALKBH6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000125652",
+      "label": "ALKBH7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137760",
+      "label": "ALKBH8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151360",
+      "label": "ALLC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116127",
+      "label": "ALMS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000108839",
+      "label": "ALOX12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179477",
+      "label": "ALOX12B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161905",
+      "label": "ALOX15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179593",
+      "label": "ALOX15B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000012779",
+      "label": "ALOX5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132965",
+      "label": "ALOX5AP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179148",
+      "label": "ALOXE3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163286",
+      "label": "ALPG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163295",
+      "label": "ALPI",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000073331",
+      "label": "ALPK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198796",
+      "label": "ALPK2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136383",
+      "label": "ALPK3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162551",
+      "label": "ALPL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163283",
+      "label": "ALPP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000003393",
+      "label": "ALS2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178038",
+      "label": "ALS2CL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180318",
+      "label": "ALX1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156150",
+      "label": "ALX3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000052850",
+      "label": "ALX4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183684",
+      "label": "ALYREF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000242110",
+      "label": "AMACR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178522",
+      "label": "AMBN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106927",
+      "label": "AMBP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110497",
+      "label": "AMBRA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123505",
+      "label": "AMD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139344",
+      "label": "AMDHD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000162066",
+      "label": "AMDHD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000125363",
+      "label": "AMELX",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000099721",
+      "label": "AMELY",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184675",
+      "label": "AMER1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165566",
+      "label": "AMER2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178171",
+      "label": "AMER3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159461",
+      "label": "AMFR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000104899",
+      "label": "AMH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135409",
+      "label": "AMHR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181754",
+      "label": "AMIGO1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139211",
+      "label": "AMIGO2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000176020",
+      "label": "AMIGO3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101935",
+      "label": "AMMECR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144233",
+      "label": "AMMECR1L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166126",
+      "label": "AMN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151743",
+      "label": "AMN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000126016",
+      "label": "AMOT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166025",
+      "label": "AMOTL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000114019",
+      "label": "AMOTL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116748",
+      "label": "AMPD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116337",
+      "label": "AMPD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000133805",
+      "label": "AMPD3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000078053",
+      "label": "AMPH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145020",
+      "label": "AMT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187689",
+      "label": "AMTN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000237763",
+      "label": "AMY1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174876",
+      "label": "AMY1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187733",
+      "label": "AMY1C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000243480",
+      "label": "AMY2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000240038",
+      "label": "AMY2B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174945",
+      "label": "AMZ1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196704",
+      "label": "AMZ2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153107",
+      "label": "ANAPC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164162",
+      "label": "ANAPC10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000141552",
+      "label": "ANAPC11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129055",
+      "label": "ANAPC13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110200",
+      "label": "ANAPC15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166295",
+      "label": "ANAPC16",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000176248",
+      "label": "ANAPC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000053900",
+      "label": "ANAPC4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000089053",
+      "label": "ANAPC5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196510",
+      "label": "ANAPC7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000214274",
+      "label": "ANG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000013523",
+      "label": "ANGEL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174606",
+      "label": "ANGEL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154188",
+      "label": "ANGPT1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000091879",
+      "label": "ANGPT2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101280",
+      "label": "ANGPT4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000116194",
+      "label": "ANGPTL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136859",
+      "label": "ANGPTL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132855",
+      "label": "ANGPTL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167772",
+      "label": "ANGPTL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000187151",
+      "label": "ANGPTL5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130812",
+      "label": "ANGPTL6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171819",
+      "label": "ANGPTL7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130173",
+      "label": "ANGPTL8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000227059",
+      "label": "ANHX",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000029534",
+      "label": "ANK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145362",
+      "label": "ANK2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151150",
+      "label": "ANK3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151687",
+      "label": "ANKAR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166839",
+      "label": "ANKDD1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189045",
+      "label": "ANKDD1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132623",
+      "label": "ANKEF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000153930",
+      "label": "ANKFN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185722",
+      "label": "ANKFY1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154122",
+      "label": "ANKH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131503",
+      "label": "ANKHD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000001629",
+      "label": "ANKIB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000170209",
+      "label": "ANKK1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160117",
+      "label": "ANKLE1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000176915",
+      "label": "ANKLE2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144504",
+      "label": "ANKMY1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106524",
+      "label": "ANKMY2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164331",
+      "label": "ANKRA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148677",
+      "label": "ANKRD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000088448",
+      "label": "ANKRD10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167522",
+      "label": "ANKRD11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101745",
+      "label": "ANKRD12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000076513",
+      "label": "ANKRD13A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198720",
+      "label": "ANKRD13B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118454",
+      "label": "ANKRD13C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000172932",
+      "label": "ANKRD13D",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134461",
+      "label": "ANKRD16",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132466",
+      "label": "ANKRD17",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180071",
+      "label": "ANKRD18A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000230453",
+      "label": "ANKRD18B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165887",
+      "label": "ANKRD2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000260691",
+      "label": "ANKRD20A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000152766",
+      "label": "ANKRD22",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163126",
+      "label": "ANKRD23",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000089847",
+      "label": "ANKRD24",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107890",
+      "label": "ANKRD26",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000105186",
+      "label": "ANKRD27",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000206560",
+      "label": "ANKRD28",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154065",
+      "label": "ANKRD29",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148513",
+      "label": "ANKRD30A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180777",
+      "label": "ANKRD30B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163046",
+      "label": "ANKRD30BL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145700",
+      "label": "ANKRD31",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167612",
+      "label": "ANKRD33",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164236",
+      "label": "ANKRD33B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000272031",
+      "label": "ANKRD34A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189127",
+      "label": "ANKRD34B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000235711",
+      "label": "ANKRD34C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198483",
+      "label": "ANKRD35",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135976",
+      "label": "ANKRD36",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196912",
+      "label": "ANKRD36B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000174501",
+      "label": "ANKRD36C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186352",
+      "label": "ANKRD37",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000213337",
+      "label": "ANKRD39",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154945",
+      "label": "ANKRD40",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167117",
+      "label": "ANKRD40CL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137494",
+      "label": "ANKRD42",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000065413",
+      "label": "ANKRD44",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183831",
+      "label": "ANKRD45",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186106",
+      "label": "ANKRD46",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168876",
+      "label": "ANKRD49",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151458",
+      "label": "ANKRD50",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139645",
+      "label": "ANKRD52",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000144031",
+      "label": "ANKRD53",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100124",
+      "label": "ANKRD54",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164512",
+      "label": "ANKRD55",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135299",
+      "label": "ANKRD6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124227",
+      "label": "ANKRD60",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157999",
+      "label": "ANKRD61",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000181626",
+      "label": "ANKRD62",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000230778",
+      "label": "ANKRD63",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000235098",
+      "label": "ANKRD65",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000230062",
+      "label": "ANKRD66",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106013",
+      "label": "ANKRD7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000156381",
+      "label": "ANKRD9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000064999",
+      "label": "ANKS1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185046",
+      "label": "ANKS1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168096",
+      "label": "ANKS3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175311",
+      "label": "ANKS4B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165138",
+      "label": "ANKS6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000206199",
+      "label": "ANKUB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163516",
+      "label": "ANKZF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000011426",
+      "label": "ANLN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131620",
+      "label": "ANO1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160746",
+      "label": "ANO10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000047617",
+      "label": "ANO2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134343",
+      "label": "ANO3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000151572",
+      "label": "ANO4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171714",
+      "label": "ANO5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177119",
+      "label": "ANO6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146205",
+      "label": "ANO7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000074855",
+      "label": "ANO8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185101",
+      "label": "ANO9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000011201",
+      "label": "ANOS1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140350",
+      "label": "ANP32A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136938",
+      "label": "ANP32B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000139223",
+      "label": "ANP32D",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143401",
+      "label": "ANP32E",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166825",
+      "label": "ANPEP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103254",
+      "label": "ANTKMT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169604",
+      "label": "ANTXR1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163297",
+      "label": "ANTXR2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000274209",
+      "label": "ANTXRL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000135046",
+      "label": "ANXA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000109511",
+      "label": "ANXA10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000122359",
+      "label": "ANXA11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000104537",
+      "label": "ANXA13",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182718",
+      "label": "ANXA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177721",
+      "label": "ANXA2R",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138772",
+      "label": "ANXA3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196975",
+      "label": "ANXA4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164111",
+      "label": "ANXA5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000197043",
+      "label": "ANXA6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138279",
+      "label": "ANXA7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000265190",
+      "label": "ANXA8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000264230",
+      "label": "ANXA8L1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143412",
+      "label": "ANXA9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136250",
+      "label": "AOAH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000002726",
+      "label": "AOC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131480",
+      "label": "AOC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000131471",
+      "label": "AOC3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000148120",
+      "label": "AOPEP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138356",
+      "label": "AOX1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138660",
+      "label": "AP1AR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100280",
+      "label": "AP1B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166747",
+      "label": "AP1G1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000213983",
+      "label": "AP1G2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000072958",
+      "label": "AP1M1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000129354",
+      "label": "AP1M2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000106367",
+      "label": "AP1S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000182287",
+      "label": "AP1S2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000152056",
+      "label": "AP1S3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196961",
+      "label": "AP2A1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000183020",
+      "label": "AP2A2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006125",
+      "label": "AP2B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161203",
+      "label": "AP2M1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000042753",
+      "label": "AP2S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132842",
+      "label": "AP3B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103723",
+      "label": "AP3B2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000065000",
+      "label": "AP3D1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185009",
+      "label": "AP3M1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000070718",
+      "label": "AP3M2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000177879",
+      "label": "AP3S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157823",
+      "label": "AP3S2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134262",
+      "label": "AP4B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000081014",
+      "label": "AP4E1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000221838",
+      "label": "AP4M1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100478",
+      "label": "AP4S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000254470",
+      "label": "AP5B1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000053770",
+      "label": "AP5M1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000125843",
+      "label": "AP5S1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000242802",
+      "label": "AP5Z1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000120868",
+      "label": "APAF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107282",
+      "label": "APBA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000034053",
+      "label": "APBA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000011132",
+      "label": "APBA3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166313",
+      "label": "APBB1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000077420",
+      "label": "APBB1IP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163697",
+      "label": "APBB2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000113108",
+      "label": "APBB3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134982",
+      "label": "APC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000115266",
+      "label": "APC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000154856",
+      "label": "APCDD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198768",
+      "label": "APCDD1L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132703",
+      "label": "APCS",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164062",
+      "label": "APEH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000248329",
+      "label": "APELA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100823",
+      "label": "APEX1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169188",
+      "label": "APEX2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000117362",
+      "label": "APH1A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138613",
+      "label": "APH1B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000166181",
+      "label": "API5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000149089",
+      "label": "APIP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169621",
+      "label": "APLF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171388",
+      "label": "APLN",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134817",
+      "label": "APLNR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000105290",
+      "label": "APLP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000084234",
+      "label": "APLP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101474",
+      "label": "APMAP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118137",
+      "label": "APOA1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000158874",
+      "label": "APOA2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110244",
+      "label": "APOA4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110243",
+      "label": "APOA5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000084674",
+      "label": "APOB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111701",
+      "label": "APOBEC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124701",
+      "label": "APOBEC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128383",
+      "label": "APOBEC3A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000262156",
+      "label": "APOBEC3A_B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000179750",
+      "label": "APOBEC3B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000244509",
+      "label": "APOBEC3C",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000243811",
+      "label": "APOBEC3D",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128394",
+      "label": "APOBEC3F",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000239713",
+      "label": "APOBEC3G",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100298",
+      "label": "APOBEC3H",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000173627",
+      "label": "APOBEC4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184730",
+      "label": "APOBR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130208",
+      "label": "APOC1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000234906",
+      "label": "APOC2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000110245",
+      "label": "APOC3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000267467",
+      "label": "APOC4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000189058",
+      "label": "APOD",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000130203",
+      "label": "APOE",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175336",
+      "label": "APOF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000091583",
+      "label": "APOH",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100342",
+      "label": "APOL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128335",
+      "label": "APOL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128284",
+      "label": "APOL3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100336",
+      "label": "APOL4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128313",
+      "label": "APOL5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000221963",
+      "label": "APOL6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178878",
+      "label": "APOLD1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000188897",
+      "label": "APOLTP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000204444",
+      "label": "APOM",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184831",
+      "label": "APOO",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000155008",
+      "label": "APOOL",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000142192",
+      "label": "APP",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000062725",
+      "label": "APPBP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000157500",
+      "label": "APPL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000136044",
+      "label": "APPL2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198931",
+      "label": "APRT",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137074",
+      "label": "APTX",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000240583",
+      "label": "AQP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143595",
+      "label": "AQP10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000178301",
+      "label": "AQP11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000184945",
+      "label": "AQP12A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000185176",
+      "label": "AQP12B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000167580",
+      "label": "AQP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165272",
+      "label": "AQP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000171885",
+      "label": "AQP4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000161798",
+      "label": "AQP5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000086159",
+      "label": "AQP6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165269",
+      "label": "AQP7",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000259916",
+      "label": "AQP7B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103375",
+      "label": "AQP8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000103569",
+      "label": "AQP9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000021776",
+      "label": "AQR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000169083",
+      "label": "AR",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000078061",
+      "label": "ARAF",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186635",
+      "label": "ARAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000047365",
+      "label": "ARAP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000120318",
+      "label": "ARAP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000113391",
+      "label": "ARB2A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198576",
+      "label": "ARC",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000095139",
+      "label": "ARCN1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000109321",
+      "label": "AREG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000119682",
+      "label": "AREL1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000143761",
+      "label": "ARF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134287",
+      "label": "ARF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000168374",
+      "label": "ARF4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000004059",
+      "label": "ARF5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165527",
+      "label": "ARF6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101199",
+      "label": "ARFGAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000149182",
+      "label": "ARFGAP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000242247",
+      "label": "ARFGAP3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000066777",
+      "label": "ARFGEF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124198",
+      "label": "ARFGEF2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000112379",
+      "label": "ARFGEF3",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000164144",
+      "label": "ARFIP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132254",
+      "label": "ARFIP2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000101246",
+      "label": "ARFRP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000118520",
+      "label": "ARG1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000081181",
+      "label": "ARG2",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186103",
+      "label": "ARGFX",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134884",
+      "label": "ARGLU1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000175220",
+      "label": "ARHGAP1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000071205",
+      "label": "ARHGAP10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000198826",
+      "label": "ARHGAP11A",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000285077",
+      "label": "ARHGAP11B",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165322",
+      "label": "ARHGAP12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000075884",
+      "label": "ARHGAP15",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000140750",
+      "label": "ARHGAP17",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000146376",
+      "label": "ARHGAP18",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000213390",
+      "label": "ARHGAP19",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137727",
+      "label": "ARHGAP20",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000107863",
+      "label": "ARHGAP21",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000128805",
+      "label": "ARHGAP22",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000275832",
+      "label": "ARHGAP23",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000138639",
+      "label": "ARHGAP24",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000163219",
+      "label": "ARHGAP25",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000145819",
+      "label": "ARHGAP26",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000159314",
+      "label": "ARHGAP27",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000088756",
+      "label": "ARHGAP28",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000137962",
+      "label": "ARHGAP29",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000186517",
+      "label": "ARHGAP30",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000031081",
+      "label": "ARHGAP31",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000134909",
+      "label": "ARHGAP32",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000004777",
+      "label": "ARHGAP33",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000160007",
+      "label": "ARHGAP35",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000147256",
+      "label": "ARHGAP36",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000147799",
+      "label": "ARHGAP39",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000089820",
+      "label": "ARHGAP4",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000124143",
+      "label": "ARHGAP40",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000165895",
+      "label": "ARHGAP42",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000006740",
+      "label": "ARHGAP44",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000180448",
+      "label": "ARHGAP45",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000100852",
+      "label": "ARHGAP5",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000047648",
+      "label": "ARHGAP6",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000241484",
+      "label": "ARHGAP8",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000123329",
+      "label": "ARHGAP9",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000141522",
+      "label": "ARHGDIA",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000111348",
+      "label": "ARHGDIB",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000242173",
+      "label": "ARHGDIG",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000076928",
+      "label": "ARHGEF1",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000104728",
+      "label": "ARHGEF10",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000074964",
+      "label": "ARHGEF10L",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000132694",
+      "label": "ARHGEF11",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "transcriptomics",
+      "feature_id": "ENSG00000196914",
+      "label": "ARHGEF12",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0001",
+      "label": "SYNCPG0001",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0002",
+      "label": "SYNCPG0002",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0003",
+      "label": "SYNCPG0003",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0004",
+      "label": "SYNCPG0004",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0005",
+      "label": "SYNCPG0005",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0006",
+      "label": "SYNCPG0006",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0007",
+      "label": "SYNCPG0007",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0008",
+      "label": "SYNCPG0008",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0009",
+      "label": "SYNCPG0009",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0010",
+      "label": "SYNCPG0010",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0011",
+      "label": "SYNCPG0011",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0012",
+      "label": "SYNCPG0012",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0013",
+      "label": "SYNCPG0013",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0014",
+      "label": "SYNCPG0014",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0015",
+      "label": "SYNCPG0015",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0016",
+      "label": "SYNCPG0016",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0017",
+      "label": "SYNCPG0017",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0018",
+      "label": "SYNCPG0018",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0019",
+      "label": "SYNCPG0019",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0020",
+      "label": "SYNCPG0020",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0021",
+      "label": "SYNCPG0021",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0022",
+      "label": "SYNCPG0022",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0023",
+      "label": "SYNCPG0023",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0024",
+      "label": "SYNCPG0024",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0025",
+      "label": "SYNCPG0025",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0026",
+      "label": "SYNCPG0026",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0027",
+      "label": "SYNCPG0027",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0028",
+      "label": "SYNCPG0028",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0029",
+      "label": "SYNCPG0029",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0030",
+      "label": "SYNCPG0030",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0031",
+      "label": "SYNCPG0031",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0032",
+      "label": "SYNCPG0032",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0033",
+      "label": "SYNCPG0033",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0034",
+      "label": "SYNCPG0034",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0035",
+      "label": "SYNCPG0035",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0036",
+      "label": "SYNCPG0036",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0037",
+      "label": "SYNCPG0037",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0038",
+      "label": "SYNCPG0038",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0039",
+      "label": "SYNCPG0039",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0040",
+      "label": "SYNCPG0040",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0041",
+      "label": "SYNCPG0041",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0042",
+      "label": "SYNCPG0042",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0043",
+      "label": "SYNCPG0043",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0044",
+      "label": "SYNCPG0044",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0045",
+      "label": "SYNCPG0045",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0046",
+      "label": "SYNCPG0046",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0047",
+      "label": "SYNCPG0047",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0048",
+      "label": "SYNCPG0048",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0049",
+      "label": "SYNCPG0049",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0050",
+      "label": "SYNCPG0050",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0051",
+      "label": "SYNCPG0051",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0052",
+      "label": "SYNCPG0052",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0053",
+      "label": "SYNCPG0053",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0054",
+      "label": "SYNCPG0054",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0055",
+      "label": "SYNCPG0055",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0056",
+      "label": "SYNCPG0056",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0057",
+      "label": "SYNCPG0057",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0058",
+      "label": "SYNCPG0058",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0059",
+      "label": "SYNCPG0059",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0060",
+      "label": "SYNCPG0060",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0061",
+      "label": "SYNCPG0061",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0062",
+      "label": "SYNCPG0062",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0063",
+      "label": "SYNCPG0063",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0064",
+      "label": "SYNCPG0064",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0065",
+      "label": "SYNCPG0065",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0066",
+      "label": "SYNCPG0066",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0067",
+      "label": "SYNCPG0067",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0068",
+      "label": "SYNCPG0068",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0069",
+      "label": "SYNCPG0069",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0070",
+      "label": "SYNCPG0070",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0071",
+      "label": "SYNCPG0071",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0072",
+      "label": "SYNCPG0072",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0073",
+      "label": "SYNCPG0073",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0074",
+      "label": "SYNCPG0074",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0075",
+      "label": "SYNCPG0075",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0076",
+      "label": "SYNCPG0076",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0077",
+      "label": "SYNCPG0077",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0078",
+      "label": "SYNCPG0078",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0079",
+      "label": "SYNCPG0079",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0080",
+      "label": "SYNCPG0080",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0081",
+      "label": "SYNCPG0081",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0082",
+      "label": "SYNCPG0082",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0083",
+      "label": "SYNCPG0083",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0084",
+      "label": "SYNCPG0084",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0085",
+      "label": "SYNCPG0085",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0086",
+      "label": "SYNCPG0086",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0087",
+      "label": "SYNCPG0087",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0088",
+      "label": "SYNCPG0088",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0089",
+      "label": "SYNCPG0089",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0090",
+      "label": "SYNCPG0090",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0091",
+      "label": "SYNCPG0091",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0092",
+      "label": "SYNCPG0092",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0093",
+      "label": "SYNCPG0093",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0094",
+      "label": "SYNCPG0094",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0095",
+      "label": "SYNCPG0095",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0096",
+      "label": "SYNCPG0096",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0097",
+      "label": "SYNCPG0097",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0098",
+      "label": "SYNCPG0098",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0099",
+      "label": "SYNCPG0099",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0100",
+      "label": "SYNCPG0100",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0101",
+      "label": "SYNCPG0101",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0102",
+      "label": "SYNCPG0102",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0103",
+      "label": "SYNCPG0103",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0104",
+      "label": "SYNCPG0104",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0105",
+      "label": "SYNCPG0105",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0106",
+      "label": "SYNCPG0106",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0107",
+      "label": "SYNCPG0107",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0108",
+      "label": "SYNCPG0108",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0109",
+      "label": "SYNCPG0109",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0110",
+      "label": "SYNCPG0110",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0111",
+      "label": "SYNCPG0111",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0112",
+      "label": "SYNCPG0112",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0113",
+      "label": "SYNCPG0113",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0114",
+      "label": "SYNCPG0114",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0115",
+      "label": "SYNCPG0115",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0116",
+      "label": "SYNCPG0116",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0117",
+      "label": "SYNCPG0117",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0118",
+      "label": "SYNCPG0118",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0119",
+      "label": "SYNCPG0119",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0120",
+      "label": "SYNCPG0120",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0121",
+      "label": "SYNCPG0121",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0122",
+      "label": "SYNCPG0122",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0123",
+      "label": "SYNCPG0123",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0124",
+      "label": "SYNCPG0124",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0125",
+      "label": "SYNCPG0125",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0126",
+      "label": "SYNCPG0126",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0127",
+      "label": "SYNCPG0127",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "methylation",
+      "feature_id": "SYNCPG0128",
+      "label": "SYNCPG0128",
+      "elevated_group": "none"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "CD4_T_cells_fraction",
+      "label": "CD4_T_cells_fraction",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "CD8_T_cells_fraction",
+      "label": "CD8_T_cells_fraction",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "B_cells_fraction",
+      "label": "B_cells_fraction",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "NK_cells_fraction",
+      "label": "NK_cells_fraction",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "Monocytes_fraction",
+      "label": "Monocytes_fraction",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "flow_cytometry",
+      "feature_id": "Neutrophils_fraction",
+      "label": "Neutrophils_fraction",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "Anti_dsDNA_IU_mL",
+      "label": "Anti_dsDNA_IU_mL",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "Rheumatoid_factor_IU_mL",
+      "label": "Rheumatoid_factor_IU_mL",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "Complement_C3_g_L",
+      "label": "Complement_C3_g_L",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "Complement_C4_g_L",
+      "label": "Complement_C4_g_L",
+      "elevated_group": "RA"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "CXCL10_pg_mL",
+      "label": "CXCL10_pg_mL",
+      "elevated_group": "SLE"
+    },
+    {
+      "modality": "serology",
+      "feature_id": "CRP_mg_L",
+      "label": "CRP_mg_L",
+      "elevated_group": "RA"
+    }
+  ]
+}

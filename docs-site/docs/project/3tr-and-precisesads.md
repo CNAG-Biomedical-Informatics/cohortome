@@ -1,8 +1,7 @@
 # 3TR And PRECISESADS
 
-3TR is the first planned consortium-scale deployment of COHORTome, not the boundary of
-the software. COHORTome is a generic open-source tool that can be configured for other
-approved longitudinal clinical and assay datasets.
+3TR is the first planned consortium deployment of COHORTome. The software can
+also be configured for other approved clinical and assay datasets.
 
 ## Consortium context
 
@@ -18,9 +17,9 @@ autoimmune, inflammatory, and allergic disease areas:
 - asthma
 - chronic obstructive pulmonary disease
 
-Its research model depends on joint interpretation of longitudinal clinical
-data and multiple molecular measurements across conditions. This makes 3TR a
-strong first deployment setting for the reusable COHORTome workbench.
+3TR researchers need to interpret longitudinal clinical data and molecular
+measurements together across these conditions. COHORTome is being developed
+to support that work.
 
 ## How COHORTome relates to the Omics DM Warehouse
 
@@ -51,9 +50,9 @@ The reference implementation is intended to exercise a complete path:
 
 1. map restricted source files into explicit clinical and assay contracts
 2. validate patients, samples, time points, conditions, and feature provenance
-3. register separately governed disease datasets
+3. register datasets with their access rules
 4. inspect cross-condition coverage and missingness
-5. formulate and save cohorts using deterministic or governed LLM-assisted Query
+5. find and save cohorts using deterministic or permitted LLM-assisted queries
 6. run a prespecified clinical-assay analysis
 7. preserve the data scope, parameters, execution mode, and outputs
 8. evaluate correctness, reproducibility, performance, and researcher utility
@@ -73,8 +72,7 @@ against the restricted files.
 
 ## Publication role
 
-PRECISESADS should demonstrate the platform rather than redefine it as a
-PRECISESADS-only application. The software claim is general: an independently
-deployable layer can connect harmonized clinical and assay data, governed
-natural-language interaction, reusable cohorts, curated workflows, and
-reproducible evidence across heterogeneous translational projects.
+The PRECISESADS use case will test a complete workflow: prepare clinical and
+assay data, select cohorts, run an analysis, and review the result with
+collaborators. The paper will describe the reusable software and report the
+results and limitations of that use case.

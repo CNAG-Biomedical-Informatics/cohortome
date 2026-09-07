@@ -9,7 +9,7 @@
       "file": "identifiers/clarid_subjects.csv",
       "delimiter": ",",
       "codebook_version": "0.04",
-      "tools_version": "0.03_1"
+      "tools_version": "0.04"
     }
   }
 }

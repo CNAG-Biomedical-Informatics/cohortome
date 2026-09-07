@@ -1,0 +1,12 @@
+{
+  "label": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+  "seed": 20260907,
+  "source": "Independent mathematical simulation; no restricted study inputs or fitted distributions.",
+  "participants": 90,
+  "groups": {
+    "RA": 30,
+    "SLE": 30,
+    "HC": 30
+  },
+  "limitations": "Expected-count-like values are simulated, not RSEM output. CpG identifiers are fictional. Cell fractions are separate measurements, not a compositional partition. Effects are test signals, not biological claims."
+}

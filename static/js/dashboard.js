@@ -134,7 +134,7 @@ export function createDashboardUi(ctx) {
       el.innerHTML = '<div class="empty">Plot rendering unavailable.</div>';
       return;
     }
-    const plotResult = window.Plotly.newPlot(el, traces, layout, { ...dashboardPlotConfig(), ...configOverrides });
+    const plotResult = window.CohortomeTheme.newPlot(el, traces, layout, { ...dashboardPlotConfig(), ...configOverrides });
     if (typeof afterPlot === "function") {
       Promise.resolve(plotResult).then(() => afterPlot(el)).catch(() => {});
     }
@@ -188,7 +188,9 @@ export function createDashboardUi(ctx) {
 
   function claridDecodedSummary(clarid) {
     if (!clarid) return "";
-    return [clarid.study, clarid.type, clarid.condition, clarid.sex, clarid.age_group]
+    const condition = clarid.condition_name
+      ? `${clarid.condition_name} (${clarid.condition})` : clarid.condition;
+    return [clarid.study, clarid.type, condition, clarid.sex, clarid.age_group]
       .map((value) => String(value || "").trim())
       .filter(Boolean)
       .join(" · ");
@@ -282,15 +284,6 @@ export function createDashboardUi(ctx) {
       }
     }
     return String(point.y || point.label || "").trim();
-  }
-
-  function setTimelineSelectionFromPoints(points, summary) {
-    const ids = (Array.isArray(points) ? points : [])
-      .map((point) => patientIdFromTimelinePoint(point))
-      .filter(Boolean);
-    if (!ids.length) return;
-    setTimelineSelectedPatientIds(ids);
-    renderDashboardTimeline(summary);
   }
 
   function setTimelineStatus(message) {
@@ -549,7 +542,7 @@ export function createDashboardUi(ctx) {
   }
 
   function selectedTimelineDomainSet() {
-    if (!Array.isArray(state.dashboardTimelineDomains) || !state.dashboardTimelineDomains.length) {
+    if (!Array.isArray(state.dashboardTimelineDomains)) {
       state.dashboardTimelineDomains = DASHBOARD_TIMELINE_DOMAINS.map((item) => item.key);
     }
     return new Set(state.dashboardTimelineDomains);
@@ -646,7 +639,7 @@ export function createDashboardUi(ctx) {
             <div class="dashboard-card-eyebrow">Timeline inspector</div>
             <div class="patient-detail-identity"><h3>${escapeHtml(row.patient_id || "Patient")} ${row.visit_id ? `· ${escapeHtml(row.visit_id)}` : ""}</h3>${claridIdentityMarkup(rosterIdentity)}</div>
           </div>
-          <span class="query-chip badge">${selected ? "Selected" : "Not selected"}</span>
+          <span class="query-chip badge">${selected ? "Patient selected for cohort" : "Patient not selected for cohort"}</span>
         </div>
         <div class="assay-stats">
           <span class="query-chip badge">Date: ${escapeHtml(row.event_date || "undated")}</span>
@@ -666,12 +659,16 @@ export function createDashboardUi(ctx) {
     const countEl = document.getElementById("dashboard-timeline-event-count");
     if (!tableEl) return;
     const query = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
-    const selectedOnly = selectedPatients.size > 0 && !query;
     const snapshotRepresentation = clinicalRepresentation(summary) === "snapshot";
     const eventNoun = snapshotRepresentation ? "events" : "records";
     const allRows = timelineEventRows(timelineItems, selectedDomains, selectedPatients);
+    const inspected = allRows.find((row) => timelineEventKey(row) === state.dashboardTimelineInspectedEventKey);
+    if (inspected) renderTimelineInspector(inspected);
+    else if (state.dashboardTimelineInspectedEventKey && detailEl) {
+      state.dashboardTimelineInspectedEventKey = "";
+      detailEl.textContent = "The inspected event is no longer shown. Inspect another event for details.";
+    }
     const scopedRows = allRows.filter((row) => {
-      if (selectedOnly && !selectedPatients.has(row.patient_id)) return false;
       if (!query) return true;
       const haystack = [
         row.patient_id,
@@ -695,8 +692,6 @@ export function createDashboardUi(ctx) {
         ? `ClarID recognized as patient ${recognized.patient_id} · ${scopedRows.length} matching ${eventNoun}`
         : query
         ? `${scopedRows.length} matching ${eventNoun}`
-        : selectedOnly
-        ? `${scopedRows.length} ${eventNoun} for ${selectedPatients.size} selected patient${selectedPatients.size === 1 ? "" : "s"}`
         : `${scopedRows.length} visible ${eventNoun}`;
     }
     if (!scopedRows.length) {
@@ -709,6 +704,7 @@ export function createDashboardUi(ctx) {
         <thead>
           <tr>
             <th>Inspect</th>
+            <th>Select patient</th>
             <th>Patient</th>
             <th>${snapshotRepresentation ? "Visit" : "Record"}</th>
             <th>Date</th>
@@ -733,6 +729,7 @@ export function createDashboardUi(ctx) {
                     ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"></path></svg>'
                     : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c5 0 9 5 9 7s-4 7-9 7-9-5-9-7 4-7 9-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'}
                 </button></td>
+                <td><input type="checkbox" data-dashboard-select-patient="${escapeHtml(row.patient_id)}" aria-label="Select patient ${escapeHtml(row.patient_id)} for cohort"${row.selected ? " checked" : ""}></td>
                 <td><div class="dashboard-timeline-patient-identity"><strong>${escapeHtml(row.patient_id)}</strong>${claridIdentityMarkup(identity, true)}</div></td>
                 <td>${escapeHtml(row.visit_id || "n/a")}</td>
                 <td>${escapeHtml(row.event_date || "undated")}</td>
@@ -746,9 +743,9 @@ export function createDashboardUi(ctx) {
       </table>
       ${scopedRows.length > rows.length ? `<div class="section-note">Showing first ${rows.length} of ${scopedRows.length} matching events.</div>` : ""}
     `;
-    tableEl.querySelectorAll("[data-dashboard-event-patient]").forEach((row) => {
-      row.addEventListener("click", () => {
-        toggleTimelinePatient(row.getAttribute("data-dashboard-event-patient"), summary);
+    tableEl.querySelectorAll("[data-dashboard-select-patient]").forEach((input) => {
+      input.addEventListener("change", () => {
+        toggleTimelinePatient(input.getAttribute("data-dashboard-select-patient"), summary);
       });
     });
     tableEl.querySelectorAll("[data-clarid-toggle], [data-clarid-copy]").forEach((button) => {
@@ -805,7 +802,7 @@ export function createDashboardUi(ctx) {
           const selected = Array.from(controlsEl.querySelectorAll('input[type="checkbox"]:checked'))
             .map((item) => String(item.value || "").trim())
             .filter(Boolean);
-          state.dashboardTimelineDomains = selected.length ? selected : DASHBOARD_TIMELINE_DOMAINS.map((item) => item.key);
+          state.dashboardTimelineDomains = selected;
           renderDashboardTimeline(summary);
         });
       });
@@ -819,9 +816,11 @@ export function createDashboardUi(ctx) {
     const statusEl = document.getElementById("dashboard-timeline-selection-status");
     if (statusEl) {
       statusEl.textContent = selectedPatientIds.length
-        ? `${selectedPatientIds.length} patient${selectedPatientIds.length === 1 ? "" : "s"} selected from the timeline.`
-        : "Click timeline bars or event markers to build a patient selection.";
+        ? `${selectedPatientIds.length} patient${selectedPatientIds.length === 1 ? "" : "s"} selected. Whole patients—not just the visible dates or event types.`
+        : "Use the patient checkboxes in Events to build a cohort.";
     }
+    const actionsEl = document.getElementById("dashboard-timeline-actions");
+    if (actionsEl) actionsEl.hidden = !selectedPatientIds.length;
     const useAnalysisBtn = document.getElementById("dashboardTimelineUseAnalysisBtn");
     const saveBtn = document.getElementById("dashboardTimelineSaveCohortBtn");
     const clearBtn = document.getElementById("dashboardTimelineClearSelectionBtn");
@@ -858,7 +857,7 @@ export function createDashboardUi(ctx) {
 
     const oneDayMs = 24 * 60 * 60 * 1000;
     const yLabels = datedItems.map((item) => item.patient_id);
-    const durations = datedItems.map((item) => Math.max(((item.last_time || item.first_time) - item.first_time) / oneDayMs, 1));
+    const durations = datedItems.map((item) => Math.max(((item.last_time || item.first_time) - item.first_time) / oneDayMs, 0));
     const eventPoints = [];
     datedItems.forEach((item) => {
       item.events.forEach((event) => {
@@ -869,6 +868,8 @@ export function createDashboardUi(ctx) {
           patient_id: item.patient_id,
           visit_id: event.visit_id,
           event_date: event.event_date,
+          event_key: timelineEventKey({ ...event, patient_id: item.patient_id,
+            domains: event.domains.filter((domain) => selectedDomains.has(domain.key)) }),
           domain: primaryDomain,
           selected: selectedPatients.has(item.patient_id),
           hover: eventHoverLabel(item.patient_id, event, primaryDomain),
@@ -884,7 +885,7 @@ export function createDashboardUi(ctx) {
         name: domain.label,
         x: domainPoints.map((point) => point.event_date),
         y: domainPoints.map((point) => point.patient_id),
-        customdata: domainPoints.map((point) => [point.patient_id, point.visit_id]),
+        customdata: domainPoints.map((point) => [point.patient_id, point.visit_id, point.event_key]),
         text: domainPoints.map((point) => point.hover),
         marker: {
           color: domain.color,
@@ -916,7 +917,7 @@ export function createDashboardUi(ctx) {
               width: datedItems.map((item) => selectedPatients.has(item.patient_id) || item.patient_id === activePatientId ? 2 : 1),
             },
           },
-          hovertemplate: "Patient: %{customdata}<br>Start: %{base}<br>Duration: %{x:.0f} days<br>Click to select/unselect<extra></extra>",
+          hovertemplate: "Patient: %{customdata}<br>Start: %{base}<br>Duration: %{x:.0f} days<br>Click to inspect first visible event<extra></extra>",
         },
         ...eventTraces,
       ],
@@ -933,9 +934,9 @@ export function createDashboardUi(ctx) {
           automargin: true,
           autorange: "reversed",
         },
-        clickmode: "event+select",
-        dragmode: "lasso",
-        showlegend: Boolean(eventTraces.length),
+        clickmode: "event",
+        dragmode: "zoom",
+        showlegend: false,
         legend: {
           orientation: "h",
           yanchor: "bottom",
@@ -949,21 +950,22 @@ export function createDashboardUi(ctx) {
           el.on("plotly_click", (event) => {
             const point = event && Array.isArray(event.points) ? event.points[0] : null;
             const patientId = patientIdFromTimelinePoint(point);
-            toggleTimelinePatient(patientId, summary);
-          });
-          el.on("plotly_selected", (event) => {
-            setTimelineSelectionFromPoints(event && event.points, summary);
-          });
-          el.on("plotly_deselect", () => {
-            setTimelineSelectedPatientIds([]);
-            renderDashboardTimeline(summary);
+            const visitId = Array.isArray(point?.customdata) ? point.customdata[1] : null;
+            const eventKey = Array.isArray(point?.customdata) ? point.customdata[2] : null;
+            const row = timelineEventRows(visibleItems, selectedDomains, selectedPatients)
+              .find((item) => eventKey ? timelineEventKey(item) === eventKey
+                : item.patient_id === patientId && (visitId === null || item.visit_id === visitId));
+            if (row) {
+              renderTimelineInspector(row);
+              renderTimelineEventTable(visibleItems, selectedDomains, selectedPatients, summary);
+              detailEl.scrollIntoView({ block: "nearest", behavior: "auto" });
+            }
           });
         }
       },
       {
         displayModeBar: true,
-        modeBarButtonsToAdd: ["select2d", "lasso2d"],
-        modeBarButtonsToRemove: ["zoom2d", "pan2d", "autoScale2d"],
+        modeBarButtonsToRemove: ["select2d", "lasso2d"],
       }
     );
   }
@@ -1184,9 +1186,9 @@ export function createDashboardUi(ctx) {
           <div class="section-card-eyebrow">${snapshotRepresentation ? "Longitudinal coverage" : "Clinical coverage"}</div>
           <h3>${snapshotRepresentation ? "Patient timeline" : "Patient records"}</h3>
         </div>
-        <div class="section-note">Click timeline bars or event markers to toggle one patient, or drag with the lasso/select tool to select several patients. Event markers are colored by BFF domain, including assay sample coverage when present.</div>
-        <div id="dashboard-timeline-controls" class="dashboard-timeline-controls"></div>
-        <div class="dashboard-timeline-actions">
+        <div class="section-note">Inspect visits and available samples. Click an event for details; drag to zoom. Zoom and event filters change this view only, not the data used in Analysis.</div>
+        <div><strong id="dashboard-timeline-controls-label">Show events</strong><div id="dashboard-timeline-controls" class="dashboard-timeline-controls" role="group" aria-labelledby="dashboard-timeline-controls-label"></div></div>
+        <div id="dashboard-timeline-actions" class="dashboard-timeline-actions" hidden>
           <div id="dashboard-timeline-selection-status" class="section-note">Click timeline bars or event markers to build a patient selection.</div>
           <div class="dashboard-timeline-action-buttons">
             <button id="dashboardTimelineUseAnalysisBtn" type="button" class="query-chip action" disabled>Open in Analysis</button>
@@ -1199,7 +1201,8 @@ export function createDashboardUi(ctx) {
         <div class="dashboard-timeline-event-card">
           <div class="dashboard-timeline-event-header">
             <div>
-              <h4>Selection table</h4>
+              <h4>Events</h4>
+              <div class="section-note">Inspect an event for details. Use checkboxes to select whole patients for a cohort or Analysis.</div>
               <div id="dashboard-timeline-event-count" class="section-note">Filter by patient, ${snapshotRepresentation ? "visit" : "record"}, domain, diagnosis, event type, or sample.</div>
             </div>
             <input id="dashboardTimelineEventSearch" class="patient-search dashboard-timeline-event-search" aria-label="Search all timeline fields" placeholder="Search all fields">
@@ -1920,6 +1923,7 @@ export function createDashboardUi(ctx) {
   }
 
   function assayModalityTabs(datasets) {
+    datasets = (datasets || []).filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     const counts = assayModalityCounts(datasets);
     return [
       { key: "all", label: "All", count: Array.isArray(datasets) ? datasets.length : 0 },
@@ -1937,7 +1941,7 @@ export function createDashboardUi(ctx) {
 
   function renderAssayDashboardOverview(datasets) {
     if (!assayDashboardOverviewEl) return;
-    const items = Array.isArray(datasets) ? datasets : [];
+    const items = (Array.isArray(datasets) ? datasets : []).filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     if (!items.length) {
       assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assays to review modality coverage.</div>';
       return;
@@ -1953,8 +1957,6 @@ export function createDashboardUi(ctx) {
       clinicalOverlap += Number(item.clinical_overlap_patient_count || 0);
     });
     const modalities = Array.from(assayModalityCounts(items).keys()).sort((left, right) => formatAssayModality(left).localeCompare(formatAssayModality(right)));
-    const dicomStudyCount = Array.isArray(state.dicomStudiesState) ? state.dicomStudiesState.length : 0;
-    const dicomEnabled = Boolean(state.dicomStatus && state.dicomStatus.enabled);
     assayDashboardOverviewEl.innerHTML = `
       <section class="assay-overview-summary">
         <div class="assay-overview-copy">
@@ -1970,7 +1972,6 @@ export function createDashboardUi(ctx) {
         <div class="assay-overview-tags">
           ${modalities.map((modality) => `<span class="query-chip badge">${escapeHtml(formatAssayModality(modality))}</span>`).join("")}
           <span class="query-chip badge">Clinical overlap ${escapeHtml(String(clinicalOverlap))}</span>
-          <span class="query-chip badge">DICOM ${dicomEnabled ? "enabled" : "disabled"}${dicomStudyCount ? ` · ${escapeHtml(String(dicomStudyCount))} studies` : ""}</span>
         </div>
       </section>
     `;
@@ -1990,10 +1991,8 @@ export function createDashboardUi(ctx) {
 
   function renderDicomPanelVisibility() {
     if (!dicomDashboardPanelEl) return;
-    const selected = selectedAssayModalityFilter();
-    const visible = selected === "all" || selected === "imaging";
-    dicomDashboardPanelEl.classList.toggle("is-hidden", !visible);
-    dicomDashboardPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
+    dicomDashboardPanelEl.classList.remove("is-hidden");
+    dicomDashboardPanelEl.setAttribute("aria-hidden", "false");
   }
 
   function renderTranscriptomicsQuickExpressionVisibility() {
@@ -2352,7 +2351,7 @@ export function createDashboardUi(ctx) {
       <article class="assay-dashboard-card assay-dashboard-card-${escapeHtml(modality)}">
         <div class="assay-card-header">
           <div>
-            <div class="assay-card-eyebrow">${escapeHtml(isTranscriptomics ? "Expression assay" : `${formatAssayModality(modality)} assay`)}</div>
+            <div class="assay-card-eyebrow">${escapeHtml(modality === "imaging" ? "Imaging measurements" : isTranscriptomics ? "Expression assay" : `${formatAssayModality(modality)} assay`)}</div>
             <strong class="assay-card-title">${escapeHtml(item.label || item.dataset_name)}</strong>
           </div>
           <span class="query-chip badge assay-modality-badge">${escapeHtml(formatAssayModality(modality))}</span>
@@ -2382,7 +2381,13 @@ export function createDashboardUi(ctx) {
 
   function renderAssayDashboardCards(datasets) {
     if (!assayDashboardCardsEl) return;
-    const items = Array.isArray(datasets) ? datasets : [];
+    const allItems = Array.isArray(datasets) ? datasets : [];
+    const imagingItems = allItems.filter((item) => normalizedAssayModality(item.modality) === "imaging");
+    const imagingCards = document.getElementById("imagingDashboardCards");
+    if (imagingCards) imagingCards.innerHTML = imagingItems.length
+      ? imagingItems.map((item) => renderAssayDashboardCard(item)).join("")
+      : '<div class="empty">No derived imaging measurements in this workspace. DICOM studies, when available, are listed above.</div>';
+    const items = allItems.filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     renderAssayDashboardOverview(items);
     renderAssayModalityTabs(items);
     renderDicomPanelVisibility();
@@ -2390,13 +2395,13 @@ export function createDashboardUi(ctx) {
     renderMultimodalReadinessVisibility();
     renderMultimodalMatrixVisibility();
     if (!items.length) {
-      assayDashboardCardsEl.innerHTML = '<div class="empty">No assays loaded.</div>';
+      assayDashboardCardsEl.innerHTML = '<div class="empty">No assay data to display. Check the workspace selection and assay availability in Datasets.</div>';
       return;
     }
     const selected = selectedAssayModalityFilter();
     const visibleItems = filteredAssayDatasets(items);
     if (!visibleItems.length) {
-      assayDashboardCardsEl.innerHTML = '<div class="empty">No assays match the selected modality.</div>';
+      assayDashboardCardsEl.innerHTML = '<div class="empty">No assays match the selected modality. Choose another modality filter to see the available assays.</div>';
       return;
     }
     assayDashboardCardsEl.innerHTML = `
@@ -2553,7 +2558,8 @@ export function createDashboardUi(ctx) {
           : `${datasets.length} assays available. Some assay tools require exactly one selected assay.`;
       }
       assayDashboardStatusEl.className = "query-status";
-      assayDashboardStatusEl.textContent = `Loaded ${datasets.length} assay dataset${datasets.length === 1 ? "" : "s"}.`;
+      const laboratoryCount = datasets.filter((item) => normalizedAssayModality(item.modality) !== "imaging").length;
+      assayDashboardStatusEl.textContent = `Loaded ${laboratoryCount} laboratory assay${laboratoryCount === 1 ? "" : "s"}.`;
       await loadAssayFeatureSuggestions();
     } catch (error) {
       if (!isCurrentWorkspaceScope(scopeId)) return;
@@ -2568,6 +2574,11 @@ export function createDashboardUi(ctx) {
       clearAssayWorkspaceSelection();
       renderAssayDatasetSelector();
       renderAssayDashboardCards(state.assayDatasetsState);
+      if (assayDashboardCardsEl) {
+        assayDashboardCardsEl.innerHTML = '<div class="workspace-notice workspace-notice-unavailable" role="status"><strong>Assays unavailable</strong><p>Assay information could not be loaded. This does not mean the workspace has no assays. Apply workspace again in Datasets to retry.</p></div>';
+      }
+      const imagingCards = document.getElementById("imagingDashboardCards");
+      if (imagingCards) imagingCards.innerHTML = '<div class="workspace-notice workspace-notice-unavailable" role="status"><strong>Imaging measurements unavailable</strong><p>The measurement inventory could not be loaded. Apply workspace again in Datasets to retry.</p></div>';
       if (typeof renderAnalysisCatalogAssayPanel === "function") {
         renderAnalysisCatalogAssayPanel();
       }
@@ -2709,6 +2720,7 @@ export function createDashboardUi(ctx) {
   }
 
   return {
+    claridIdentityMarkup,
     renderPatientList,
     renderDetail,
     renderDashboard,

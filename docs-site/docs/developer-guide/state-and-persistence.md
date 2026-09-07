@@ -12,6 +12,26 @@ COHORTome mixes:
 
 This page summarizes what lives where.
 
+## What you can reopen
+
+| Item | Saved by the app? | How to return to it |
+| --- | --- | --- |
+| Saved cohort | Yes, per user | Select it in the cohort controls. |
+| Analysis conversation | Yes, per user | Open it from Analysis chats. |
+| Background job and result | Yes, per user | Open Jobs or Run History. |
+| User preferences | Yes, per user | Open Settings. |
+| Query conversation | Browser memory only | Reloading the page clears it; save useful selections as cohorts. |
+| Temporary Query result | For one hour | Save it as a cohort before it expires if you need it later. |
+| Named project containing several cohorts and analyses | No | Related items currently remain separate. |
+
+Analysis sessions record their workspace context and fingerprint. A saved
+session does not freeze a copy of the source dataset. Execution checks still
+apply when the workspace changes or data become unavailable.
+
+Saved work depends on both the runtime directory and the COHORTome username.
+Keep both when changing login providers; see
+[changing login methods](../admin-guide/local-auth-and-groups#changing-login-methods-without-losing-access-to-saved-work).
+
 ## Runtime root
 
 All mutable backend files live below one directory selected with
@@ -48,7 +68,7 @@ discover whether a host bind source is repository-local.
 
 ## Dataset registry
 
-Datasets are persisted as first-class records.
+Each dataset has a stored registry record.
 
 Key file:
 
@@ -74,7 +94,7 @@ When a user selects multiple datasets, the backend materializes a combined works
 
 This primarily supports compatibility with file-based clinical helpers while preserving dataset provenance in filenames.
 
-It is no longer the primary storage boundary for DuckDB query stores.
+DuckDB query stores are maintained separately for each registered dataset.
 
 ## Saved cohorts
 
@@ -227,7 +247,8 @@ The app needs several levels of state because it is doing several different jobs
 - multi-dataset workspace materialization
 - repeated query execution over the same data
 
-Treating all of that as only browser state or only raw files would make the app much less robust.
+Saved cohorts, chats, and job results must survive browser reloads. Temporary
+display settings can remain in browser memory.
 
 ## Background jobs and artifacts
 

@@ -4,15 +4,13 @@ sidebar_position: 7
 
 # Methylation feature panels
 
-COHORTome treats a high-dimensional methylation matrix like another governed
-analysis source, not like a table that must be fully materialized in DuckDB.
-The complete processed matrix remains external and immutable. DuckDB stores
+COHORTome reads methylation measurements from protected matrix files.
+The complete processed matrix stays outside DuckDB and is not modified. DuckDB stores
 only assay inventory, sample-to-patient linkage, technical metadata, and compact
 result summaries.
 
-This boundary is not an admission that COHORTome cannot load every CpG. It is a
-scientific scoping decision: an interactive or publication workflow often needs
-a defined feature panel rather than every measured probe.
+An analysis may need only a defined CpG panel. Extracting that panel once makes
+repeated analyses faster and records exactly which probes were selected.
 
 ## Responsibility for data quality
 
@@ -160,7 +158,7 @@ coverage in the supplied assay, its methylation pattern in the authorized SLE
 cohort, and its concordance with interferon-related transcriptomic, immune-cell,
 and serology measurements.
 
-## Current implementation boundary
+## What is implemented
 
 The first implementation is deliberately small:
 

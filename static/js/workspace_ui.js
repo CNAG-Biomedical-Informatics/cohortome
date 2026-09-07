@@ -250,6 +250,61 @@ export function createWorkspaceUi(ctx) {
     return payload;
   }
 
+  function showDashboardNotice(kind, detail, retry = null) {
+    for (const [panel, label] of [[dashboardEl, "Dashboard"], [dashboardTimelineEl, "Timeline"]]) {
+      if (!panel) continue;
+      const card = document.createElement("div");
+      card.className = `workspace-notice workspace-notice-${kind}`;
+      card.dataset.workspaceState = kind;
+      card.setAttribute("role", "status");
+      card.setAttribute("aria-live", "polite");
+      card.setAttribute("aria-busy", String(kind === "loading"));
+      const title = document.createElement("strong");
+      title.textContent = kind === "loading" ? `Loading ${label.toLowerCase()}`
+        : kind === "empty" ? "No patient records" : `${label} unavailable`;
+      const message = document.createElement("p");
+      message.textContent = detail;
+      card.append(title, message);
+      if (retry) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "query-chip";
+        button.dataset.dashboardRetry = "true";
+        button.textContent = "Retry dashboard";
+        button.addEventListener("click", retry);
+        card.append(button);
+      }
+      panel.replaceChildren(card);
+    }
+  }
+
+  async function loadDashboard(scopeId, revision) {
+    const isCurrent = () => revision === state.workspaceRevision && state.currentDatasetScopeId === scopeId;
+    if (!isCurrent()) return;
+    showDashboardNotice("loading", "Reading the clinical summary and dated events. Your workspace is already selected.");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(`/dashboard?dataset_id=${encodeURIComponent(scopeId)}`, { signal: controller.signal });
+      if (!response.ok) throw new Error("Dashboard request failed.");
+      const payload = await response.json();
+      if (!isCurrent()) return;
+      state.dashboardSummaryState = payload;
+      renderDashboard(payload);
+      renderGlobalContext();
+    } catch (error) {
+      if (!isCurrent()) return;
+      state.dashboardSummaryState = null;
+      showDashboardNotice("unavailable", error.name === "AbortError"
+        ? "The summary request timed out. Retry to request it again; this does not prepare or import data."
+        : "The clinical summary could not be loaded. Retry without changing the selected workspace.",
+        () => { void loadDashboard(scopeId, revision); });
+      renderGlobalContext();
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   async function loadPatients(options = {}) {
     const { respectAdminGate = true, targetDatasetIds = null } = options;
     if (state.loadInFlight) {
@@ -272,6 +327,7 @@ export function createWorkspaceUi(ctx) {
     }
     await nextFrame();
 
+    let workspaceCommitted = false;
     try {
       const serverSelectionAlreadyPersisted = Array.isArray(targetDatasetIds);
       const requestedIds = serverSelectionAlreadyPersisted
@@ -321,7 +377,7 @@ export function createWorkspaceUi(ctx) {
       const patients = await patientResponse.json();
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = "Preparing transcriptomics assays for the selected workspace...";
+        loadStatusEl.textContent = "Reading assay availability for the selected workspace...";
       }
       await nextFrame();
       const assayResponse = await fetch(`/assays?data_dir=${encodeURIComponent(targetScopeId)}`);
@@ -347,6 +403,7 @@ export function createWorkspaceUi(ctx) {
       state.currentDatasetIds = committedIds.slice();
       state.pendingDatasetIds = committedIds.slice();
       state.currentDatasetScopeId = committedScopeId;
+      workspaceCommitted = true;
       if (dataDirEl) {
         dataDirEl.dataset.scopeId = committedScopeId;
       }
@@ -382,7 +439,7 @@ export function createWorkspaceUi(ctx) {
       if (workspaceRevision !== state.workspaceRevision || state.currentDatasetScopeId !== committedScopeId) return;
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
-        loadStatusEl.textContent = "Indexing transcriptomics assays for the selected workspace...";
+        loadStatusEl.textContent = "Updating assay views for the selected workspace...";
       }
       await nextFrame();
       await loadAssayDatasets({ scopeId: committedScopeId, prefetched: prefetchedAssayPayload });
@@ -393,16 +450,11 @@ export function createWorkspaceUi(ctx) {
       await loadPhenoRankerPatientIds();
       if (workspaceRevision !== state.workspaceRevision || state.currentDatasetScopeId !== committedScopeId) return;
       if (!state.currentPatients.length) {
-        if (dashboardEl) {
-          dashboardEl.innerHTML = '<div class="empty">No dashboard to display.</div>';
-        }
-        if (dashboardTimelineEl) {
-          dashboardTimelineEl.innerHTML = '<div class="empty">No timeline to display.</div>';
-        }
+        showDashboardNotice("empty", "The selected workspace loaded successfully but contains no patient records. Select another dataset in Datasets, or ask an administrator to check its clinical content.");
         state.dashboardSummaryState = null;
         if (loadStatusEl) {
           loadStatusEl.className = "load-status";
-          loadStatusEl.textContent = "No patients found.";
+          loadStatusEl.textContent = "Workspace loaded successfully. No patient records were found.";
         }
         renderGlobalContext();
         return;
@@ -414,45 +466,7 @@ export function createWorkspaceUi(ctx) {
       }
       renderGlobalContext();
 
-      if (dashboardEl) {
-        dashboardEl.innerHTML = '<div class="empty">Loading dashboard...</div>';
-      }
-      if (dashboardTimelineEl) {
-        dashboardTimelineEl.innerHTML = '<div class="empty">Loading timeline...</div>';
-      }
-      window.setTimeout(() => {
-        fetch(`/dashboard?dataset_id=${encodeURIComponent(committedScopeId)}`)
-          .then(async (response) => {
-            if (workspaceRevision !== state.workspaceRevision || state.currentDatasetScopeId !== committedScopeId) return;
-            if (!response.ok) {
-              if (dashboardEl) {
-                dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-              }
-              if (dashboardTimelineEl) {
-                dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
-              }
-              state.dashboardSummaryState = null;
-              renderGlobalContext();
-              return;
-            }
-            const payload = await response.json();
-            if (workspaceRevision !== state.workspaceRevision || state.currentDatasetScopeId !== committedScopeId) return;
-            state.dashboardSummaryState = payload;
-            renderDashboard(state.dashboardSummaryState);
-            renderGlobalContext();
-          })
-          .catch(() => {
-            if (workspaceRevision !== state.workspaceRevision || state.currentDatasetScopeId !== committedScopeId) return;
-            if (dashboardEl) {
-              dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-            }
-            if (dashboardTimelineEl) {
-              dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
-            }
-            state.dashboardSummaryState = null;
-            renderGlobalContext();
-          });
-      }, 0);
+      void loadDashboard(committedScopeId, workspaceRevision);
     } catch (error) {
       if (!state.currentDatasetIds.length) {
         if (patientsEl) {
@@ -461,17 +475,15 @@ export function createWorkspaceUi(ctx) {
         if (detailEl) {
           detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
         }
-        if (dashboardEl) {
-          dashboardEl.innerHTML = '<div class="empty">Dashboard unavailable.</div>';
-        }
-        if (dashboardTimelineEl) {
-          dashboardTimelineEl.innerHTML = '<div class="empty">Timeline unavailable.</div>';
-        }
+        showDashboardNotice("unavailable", "The workspace could not be loaded. Check the message in Datasets and apply the selection again when it is ready.");
         state.dashboardSummaryState = null;
       }
       if (loadStatusEl) {
-        loadStatusEl.className = "load-status";
-        loadStatusEl.textContent = error && error.message ? error.message : "Load failed.";
+        loadStatusEl.className = "load-status warning";
+        const detail = error && error.message ? error.message : "Unable to load the selected workspace.";
+        loadStatusEl.textContent = detail + (state.currentDatasetIds.length && !workspaceCommitted
+          ? " Your previous workspace remains active. Check the selection and try Apply workspace again."
+          : workspaceCommitted ? " The workspace is selected, but some views could not be loaded. Apply workspace again to retry." : " Select an available dataset and try Apply workspace again.");
       }
       renderGlobalContext();
     } finally {

@@ -635,6 +635,7 @@ queryUi = createQueryUi({
     sendPatientIdsToAnalysis,
     sendPromptToAnalysis,
     currentPatientsProvider: () => state.currentPatients,
+    claridIdentityMarkup: (patient) => dashboardUi.claridIdentityMarkup(patient, true),
     phenoRankerPatientIdsProvider: () => state.phenoRankerPatientIds,
     isMultiDatasetWorkspace,
     setLatestQueryState,
@@ -1150,6 +1151,7 @@ function bindEvents() {
   refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
   refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
   refs.dashboardAssaysBtnEl && refs.dashboardAssaysBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("assays"));
+  refs.dashboardImagingBtnEl && refs.dashboardImagingBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("imaging"));
   refs.dashboardMultimodalBtnEl && refs.dashboardMultimodalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("multimodal"));
   refs.dashboardTimelineBtnEl && refs.dashboardTimelineBtnEl.addEventListener("click", () => {
     navigationUi.setDashboardSubtab("timeline");
@@ -1362,6 +1364,11 @@ function bindEvents() {
       return;
     }
     void workspaceUi.loadPatient(card.dataset.patientId);
+  });
+  refs.queryThreadEl && refs.queryThreadEl.addEventListener("click", (event) => {
+    if (event.target.closest("[data-clarid-toggle], [data-clarid-copy]")) {
+      void dashboardUi.handleClaridAction(event);
+    }
   });
   refs.detailEl && refs.detailEl.addEventListener("click", (event) => {
     if (event.target.closest("[data-clarid-toggle], [data-clarid-copy]")) {

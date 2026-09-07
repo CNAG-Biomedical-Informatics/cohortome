@@ -48,6 +48,7 @@ class GeneralLlmRequest(BaseModel):
 
 
 class UserSettingsResponse(BaseModel):
+    appearance: Literal["light", "dark", "system"] = "light"
     version: int = 1
     landing_tab_mode: Literal["fixed", "last"] = "fixed"
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] = "dashboard"
@@ -67,6 +68,7 @@ class UserSettingsResponse(BaseModel):
 
 
 class UserSettingsUpdateRequest(BaseModel):
+    appearance: Literal["light", "dark", "system"] | None = None
     landing_tab_mode: Literal["fixed", "last"] | None = None
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None
     query_disclosure_default: Literal["summary", "detailed"] | None = None

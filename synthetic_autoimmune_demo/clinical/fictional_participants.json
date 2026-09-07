@@ -1,0 +1,3872 @@
+[
+  {
+    "id": "DEMOAI001:baseline",
+    "patient_id": "DEMOAI001",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 14.078,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "2000-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI002:baseline",
+    "patient_id": "DEMOAI002",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 10.994,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1993-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI003:baseline",
+    "patient_id": "DEMOAI003",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 10.405,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1986-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI004:baseline",
+    "patient_id": "DEMOAI004",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.001,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1979-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI005:baseline",
+    "patient_id": "DEMOAI005",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.393,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1972-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI006:baseline",
+    "patient_id": "DEMOAI006",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.491,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1965-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI007:baseline",
+    "patient_id": "DEMOAI007",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.909,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1998-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI008:baseline",
+    "patient_id": "DEMOAI008",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.972,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1991-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI009:baseline",
+    "patient_id": "DEMOAI009",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.542,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1984-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI010:baseline",
+    "patient_id": "DEMOAI010",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.541,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1977-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI011:baseline",
+    "patient_id": "DEMOAI011",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.153,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1970-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI012:baseline",
+    "patient_id": "DEMOAI012",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.957,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1963-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI013:baseline",
+    "patient_id": "DEMOAI013",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.626,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1996-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI014:baseline",
+    "patient_id": "DEMOAI014",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 10.198,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1989-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI015:baseline",
+    "patient_id": "DEMOAI015",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.837,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1982-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI016:baseline",
+    "patient_id": "DEMOAI016",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.926,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1975-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI017:baseline",
+    "patient_id": "DEMOAI017",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 10.857,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1968-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI018:baseline",
+    "patient_id": "DEMOAI018",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.185,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1961-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI019:baseline",
+    "patient_id": "DEMOAI019",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.65,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1994-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI020:baseline",
+    "patient_id": "DEMOAI020",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.557,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1987-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI021:baseline",
+    "patient_id": "DEMOAI021",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.268,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1980-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI022:baseline",
+    "patient_id": "DEMOAI022",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.253,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1973-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI023:baseline",
+    "patient_id": "DEMOAI023",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.499,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1966-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI024:baseline",
+    "patient_id": "DEMOAI024",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.02,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1999-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI025:baseline",
+    "patient_id": "DEMOAI025",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.816,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1992-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI026:baseline",
+    "patient_id": "DEMOAI026",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 12.183,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1985-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI027:baseline",
+    "patient_id": "DEMOAI027",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.922,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1978-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI028:baseline",
+    "patient_id": "DEMOAI028",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 13.412,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1971-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI029:baseline",
+    "patient_id": "DEMOAI029",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.318,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1964-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI030:baseline",
+    "patient_id": "DEMOAI030",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0008383",
+          "label": "Rheumatoid Arthritis"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 11.742,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1997-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI031:baseline",
+    "patient_id": "DEMOAI031",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.469,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "2000-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI032:baseline",
+    "patient_id": "DEMOAI032",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.527,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1993-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI033:baseline",
+    "patient_id": "DEMOAI033",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.061,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1986-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI034:baseline",
+    "patient_id": "DEMOAI034",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.317,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1979-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI035:baseline",
+    "patient_id": "DEMOAI035",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.525,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1972-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI036:baseline",
+    "patient_id": "DEMOAI036",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.027,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1965-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI037:baseline",
+    "patient_id": "DEMOAI037",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.34,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1998-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI038:baseline",
+    "patient_id": "DEMOAI038",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.665,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1991-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI039:baseline",
+    "patient_id": "DEMOAI039",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.678,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1984-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI040:baseline",
+    "patient_id": "DEMOAI040",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.654,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1977-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI041:baseline",
+    "patient_id": "DEMOAI041",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.02,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1970-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI042:baseline",
+    "patient_id": "DEMOAI042",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.096,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1963-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI043:baseline",
+    "patient_id": "DEMOAI043",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.875,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1996-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI044:baseline",
+    "patient_id": "DEMOAI044",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.963,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1989-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI045:baseline",
+    "patient_id": "DEMOAI045",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.996,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1982-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI046:baseline",
+    "patient_id": "DEMOAI046",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.901,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1975-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI047:baseline",
+    "patient_id": "DEMOAI047",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.016,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1968-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI048:baseline",
+    "patient_id": "DEMOAI048",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.202,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1961-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI049:baseline",
+    "patient_id": "DEMOAI049",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.139,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1994-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI050:baseline",
+    "patient_id": "DEMOAI050",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.977,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1987-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI051:baseline",
+    "patient_id": "DEMOAI051",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.763,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1980-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI052:baseline",
+    "patient_id": "DEMOAI052",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.759,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1973-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI053:baseline",
+    "patient_id": "DEMOAI053",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.481,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1966-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI054:baseline",
+    "patient_id": "DEMOAI054",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.015,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1999-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI055:baseline",
+    "patient_id": "DEMOAI055",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.252,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1992-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI056:baseline",
+    "patient_id": "DEMOAI056",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.56,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1985-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI057:baseline",
+    "patient_id": "DEMOAI057",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.136,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1978-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI058:baseline",
+    "patient_id": "DEMOAI058",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.728,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1971-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI059:baseline",
+    "patient_id": "DEMOAI059",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.853,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1964-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI060:baseline",
+    "patient_id": "DEMOAI060",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "MONDO:0007915",
+          "label": "Systemic Lupus Erythematosus"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.23,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1997-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI061:baseline",
+    "patient_id": "DEMOAI061",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.486,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "2000-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI062:baseline",
+    "patient_id": "DEMOAI062",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.074,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1993-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI063:baseline",
+    "patient_id": "DEMOAI063",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.482,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1986-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI064:baseline",
+    "patient_id": "DEMOAI064",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.941,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1979-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI065:baseline",
+    "patient_id": "DEMOAI065",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.44,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1972-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI066:baseline",
+    "patient_id": "DEMOAI066",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.557,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1965-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI067:baseline",
+    "patient_id": "DEMOAI067",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.489,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1998-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI068:baseline",
+    "patient_id": "DEMOAI068",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.167,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1991-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI069:baseline",
+    "patient_id": "DEMOAI069",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.975,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1984-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI070:baseline",
+    "patient_id": "DEMOAI070",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.146,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1977-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI071:baseline",
+    "patient_id": "DEMOAI071",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.758,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1970-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI072:baseline",
+    "patient_id": "DEMOAI072",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.411,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1963-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI073:baseline",
+    "patient_id": "DEMOAI073",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.302,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1996-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI074:baseline",
+    "patient_id": "DEMOAI074",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.541,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1989-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI075:baseline",
+    "patient_id": "DEMOAI075",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 2.763,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1982-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI076:baseline",
+    "patient_id": "DEMOAI076",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.617,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1975-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI077:baseline",
+    "patient_id": "DEMOAI077",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.865,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1968-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI078:baseline",
+    "patient_id": "DEMOAI078",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.099,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1961-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI079:baseline",
+    "patient_id": "DEMOAI079",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.0,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1994-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI080:baseline",
+    "patient_id": "DEMOAI080",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.088,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1987-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI081:baseline",
+    "patient_id": "DEMOAI081",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.518,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1980-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI082:baseline",
+    "patient_id": "DEMOAI082",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.747,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1973-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI083:baseline",
+    "patient_id": "DEMOAI083",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.098,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1966-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI084:baseline",
+    "patient_id": "DEMOAI084",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.103,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 2",
+      "phenopacket": {
+        "dateOfBirth": "1999-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI085:baseline",
+    "patient_id": "DEMOAI085",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.985,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1992-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI086:baseline",
+    "patient_id": "DEMOAI086",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 5.105,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1985-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI087:baseline",
+    "patient_id": "DEMOAI087",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 3.895,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 3",
+      "phenopacket": {
+        "dateOfBirth": "1978-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI088:baseline",
+    "patient_id": "DEMOAI088",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.001,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1971-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI089:baseline",
+    "patient_id": "DEMOAI089",
+    "sex": {
+      "id": "NCIT:C20197",
+      "label": "Male"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 4.863,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1964-01-01"
+      }
+    }
+  },
+  {
+    "id": "DEMOAI090:baseline",
+    "patient_id": "DEMOAI090",
+    "sex": {
+      "id": "NCIT:C16576",
+      "label": "Female"
+    },
+    "diseases": [
+      {
+        "diseaseCode": {
+          "id": "NCIT:C94342",
+          "label": "Healthy Control"
+        }
+      }
+    ],
+    "treatments": [],
+    "measures": [
+      {
+        "assayCode": {
+          "id": "LOINC:1988-5",
+          "label": "CRP"
+        },
+        "measurementValue": {
+          "quantity": {
+            "value": 6.172,
+            "unit": {
+              "id": "UO:0000275",
+              "label": "mg/L"
+            }
+          }
+        }
+      }
+    ],
+    "info": {
+      "event_date": "2025-01-01",
+      "synthetic": true,
+      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "recruitment_center": "Demo center 1",
+      "phenopacket": {
+        "dateOfBirth": "1997-01-01"
+      }
+    }
+  }
+]

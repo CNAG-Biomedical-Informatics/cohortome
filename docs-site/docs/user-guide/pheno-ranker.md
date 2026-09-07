@@ -165,7 +165,8 @@ The intent is:
 - LLM explanation gives a narrative interpretation, with deterministic evidence shown as support
 
 :::note
-The explanation cards are meant to complement the ranked output, not replace it. Deterministic evidence remains the grounding layer.
+Read explanation cards alongside the ranks and scores. Check any interpretation
+against those computed results.
 :::
 
 ## Planner follow-up questions

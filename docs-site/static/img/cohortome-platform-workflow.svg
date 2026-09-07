@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="620" viewBox="0 0 1440 620" role="img" aria-labelledby="title desc">
   <title id="title">COHORTome platform workflow</title>
-  <desc id="desc">Source systems feed an independent COHORTome layer that harmonizes clinical and assay data, applies governance, supports research workspaces, and records reproducible evidence.</desc>
+  <desc id="desc">COHORTome receives released data, links clinical records and assays, checks user access, and saves analysis inputs and results.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
       <path d="M0 0L10 5L0 10Z" fill="#5f7482"/>

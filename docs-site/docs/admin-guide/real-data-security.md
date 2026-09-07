@@ -10,7 +10,7 @@ with protected services and approved data handling.
 
 COHORTome authorization protects application routes and controls which datasets are
 available in a user's workspace. Every external data or model service must also
-enforce an appropriate boundary:
+protect access to its data. The deployment needs:
 
 - reverse proxy or network gateway
 - institutional identity and authorization
@@ -63,8 +63,8 @@ See [DICOM Viewing](./dicom-viewing) for the local development workflow.
 
 ## Redis, workers, and artifacts
 
-Redis and workers participate in the analysis trust boundary. Restrict their
-network access and protect job payloads. Generated bundles may contain cohort
+Redis and workers handle analysis requests and may receive sensitive data.
+Restrict their network access and protect job payloads. Generated bundles may contain cohort
 IDs, clinical tables, assay matrices, logs, or plots and must follow the same
 classification and retention policy as their source data.
 

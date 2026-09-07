@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "identifiers": {
+    "clarid_subjects": {
+      "entity": "subject",
+      "file": "identifiers/clarid_subjects.csv",
+      "delimiter": ",",
+      "codebook_version": "0.04",
+      "tools_version": "0.04"
+    }
+  },
+  "name": "Synthetic autoimmune demo — not real PRECISESADS data",
+  "clinical": {
+    "representation": "snapshot"
+  }
+}

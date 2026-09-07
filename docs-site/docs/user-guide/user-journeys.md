@@ -7,12 +7,23 @@ import TabItem from '@theme/TabItem';
 
 # User Journeys
 
+## Choose an appearance
+
+In **Settings**, choose **Light**, **Dark**, or **System** under Appearance, then
+select **Save**. The preference is stored with your user account. System follows
+your browser's operating-system colour preference, including changes while the
+app is open. Light remains the default.
+
+Interactive charts update with the app theme; their data colour scales do not
+change. Exported image files and the separate OHIF DICOM viewer retain their own
+appearance.
+
 This page collects realistic end-to-end journeys that combine `Query`, `Analysis`, `Saved Cohorts`, and `Pheno-Ranker`.
 
 Use it as a practical companion to the reference-style pages in the rest of the docs.
 
 :::tip
-These journeys are intentionally phrased as user goals, not backend implementation details.
+Each example starts with a research task and shows the steps in the app.
 The execution path may still be deterministic, LLM-planned, or LLM-interpreted depending on the prompt and the available context.
 :::
 
@@ -125,7 +136,7 @@ By the end of this journey, the user should have:
 ### What this journey demonstrates
 
 - `Query` is the subset builder
-- `Analysis` is the interpretation layer
+- `Analysis` runs methods and helps you interpret results
 - saved cohorts are the reusable bridge between tabs and sessions
 
 :::note

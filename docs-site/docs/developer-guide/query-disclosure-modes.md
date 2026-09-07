@@ -2,15 +2,14 @@
 
 This note records the current Query disclosure design in COHORTome.
 
-It is still intentionally narrower than a full privacy architecture, but it now reflects the implemented Query behavior rather than only an initial design sketch.
+It describes the information Query can return and how dataset policy limits
+that information. Deployment security is covered separately in the administrator guide.
 
 ## Why This Exists
 
-COHORTome may eventually send selected query or analysis context to external LLM providers for richer interpretation.
-
-Today, most query behavior is effectively record-level when the result includes patient IDs, row-level payloads, or actions derived from visible IDs.
-
-Before expanding LLM usage, the app needs a simple and explicit disclosure model.
+Query can return patient records or summary counts. Dataset rules determine
+which level is available to a user. Separate rules determine what context an
+approved language model may receive.
 
 ## User-Facing Model
 
@@ -219,7 +218,7 @@ follow-up scope pass the handle rather than a client-supplied bulk ID array.
 
 ## V1 Scope
 
-V1 should be intentionally narrow.
+The scope described here is:
 
 Included:
 

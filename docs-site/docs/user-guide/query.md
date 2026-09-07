@@ -4,10 +4,23 @@ sidebar_position: 1
 
 # Query
 
-`Query` is the main subset-building interface.
+Use `Query` to find patients or samples and save them as a cohort.
+
+Patient result tables include a **ClarID** column. Click its label to inspect
+the decoded fields or copy the human-readable code or stub. Sample tables use
+**Subject ClarID** for the linked patient's code, not a biosample identifier.
+An absent or ambiguous recorded link displays **Not available**; COHORTome
+does not infer the patient from a sample name. These labels use the authorized
+patient inventory and do not add identifiers to Summary responses.
+
+When you submit a question, the introductory prompt library closes so the
+response has more space. The result keeps its provenance, execution labels,
+cohort actions and suggested follow-ups visible. Use **Prompts** beside the
+follow-up composer to reopen the examples without returning to the top of the
+conversation. **Clear thread** restores the initial view.
 
 :::tip Best use
-Use `Query` first when your goal is to define a subset cleanly before interpreting it elsewhere.
+Start here to select the group you want to analyze.
 :::
 
 ## What Query can do
@@ -32,8 +45,8 @@ Common examples include:
 ### Compact external assays
 
 Approved immune-cell abundance and quantitative-serology assays can be queried
-without loading their measurements into DuckDB. Query reads the governed
-manifest-backed matrix locally and returns bounded aggregates.
+without loading their measurements into DuckDB. Query reads the matrix
+registered for the assay and returns summary statistics.
 
 Examples:
 
@@ -45,8 +58,8 @@ Examples:
 
 Feature summaries report sample count, missingness, mean, median, minimum, and
 maximum. Comparisons report descriptive cohort means and their difference. They
-do not apply covariate adjustment or hypothesis testing; use a curated Analysis
-tool for publication-grade inference.
+do not apply covariate adjustment or hypothesis testing. Use an Analysis tool
+for statistical tests, and check that its model is appropriate for your study.
 
 A comparison resolves cohorts from recorded disease labels. When a requested
 control label is absent, Query can use patients with no recorded disease as a
@@ -166,7 +179,7 @@ or disclosure policy.
 
 ### Summary
 
-Use `Summary` when the active workspace is governed for reduced in-app answers such as:
+In a workspace with `Summary` access, answers are limited to information such as:
 
 - counts
 - grouped summaries

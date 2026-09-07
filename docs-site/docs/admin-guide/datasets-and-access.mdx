@@ -16,7 +16,7 @@ import TabItem from '@theme/TabItem';
   </div>
 </div>
 
-Datasets are first-class resources in the app.
+Each dataset has its own registration, access rules, and prepared query store.
 
 :::tip Recommended policy
 Use groups as the default way to grant dataset access. Use direct allowed users only for exceptions.
@@ -65,7 +65,7 @@ manifest section:
       "file": "identifiers/clarid_subjects.csv",
       "delimiter": ",",
       "codebook_version": "0.04",
-      "tools_version": "0.03_1"
+      "tools_version": "0.04"
     }
   }
 }
@@ -78,6 +78,13 @@ outputs and must contain:
 unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id
 ```
 
+An optional `condition_name` column stores the ICD-10 description alongside
+the condition code. Generate it with ClarID-Tools' decode action and
+`--with-condition-name`. COHORTome stores that text with the subject and shows
+`name (code)` in the ClarID details; older releases without it show the code
+alone. No full ICD-10 lookup table or runtime decoding is required. The ICD-10
+description may differ from a study's preferred disease label.
+
 `unique_id` is the canonical source patient ID. `subject_id` must be a
 non-negative integer. The source patient ID, numeric subject ID, human ClarID,
 and stub ClarID must each be unique, and the CSV must cover the clinical
@@ -89,6 +96,41 @@ The prepared DuckDB store holds both identifiers, the decoded snapshot, and
 the declared tool/codebook versions. This makes search and patient-card
 feedback immediate and reproducible. ClarIDs are treated as Detailed data:
 they are not added to Summary-mode responses or external model context.
+
+### Synthetic fixture identifiers
+
+The default, large, private synthetic, and autoimmune demo fixtures include
+subject ClarIDs. The private fixture remains access-controlled and Summary-only
+by default; adding identifiers does not change its disclosure policy.
+
+To regenerate the three additional fixture sidecars with ClarID-Tools 0.04:
+
+```bash
+python3 scripts/generate_synthetic_clarids.py \
+  --clarid-tools /path/to/clarid-tools/bin/clarid-tools \
+  --codebook /path/to/clarid-tools/share/versions/0.04/clarid-codebook.yaml \
+  --output /path/to/new-review-directory
+```
+
+This utility reads only the named repository fixtures. It uses explicit ICD-10
+condition mappings and age at the earliest dated observation; absent birth dates
+remain Not Available. Numeric subject IDs occupy separate fixture ranges; source
+patient IDs remain unchanged. These mappings are fixture-specific, not a general
+clinical conversion rule. Review changes before replacing existing identifiers,
+especially if the patient inventory changes.
+
+After encoding, the utility runs a decode pass with `--with-condition-name`
+and includes the returned descriptions in each sidecar.
+
+Review each output CSV before placing it at the corresponding fixture's
+`identifiers/clarid_subjects.csv`. Also update
+`scripts/data/synthetic_autoimmune_clarid_subjects.csv`, which the autoimmune
+generator copies into fresh releases, including Docker builds. Prepare the
+affected synthetic stores after updating their manifests or sidecars.
+The app does not require a ClarID-Tools installation to display these codes.
+
+Biosample ClarIDs are not supplied by these sidecars. Query sample tables show
+the linked subject's code explicitly as Subject ClarID.
 
 ## Register a protected release
 

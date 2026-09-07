@@ -16,6 +16,24 @@ import pytest
 playwright = pytest.importorskip("playwright.sync_api")
 
 
+def test_appearance_saves_reloads_and_follows_system(page):
+    page.locator('#userSettingsBtn').click()
+    page.locator('#settingsAppearance').select_option('dark')
+    page.locator('#userSettingsSaveBtn').click()
+    page.wait_for_function('document.documentElement.dataset.theme === "dark"')
+    page.reload(wait_until='networkidle')
+    assert page.locator('html').get_attribute('data-theme') == 'dark'
+    page.locator('#userSettingsBtn').click()
+    page.locator('#settingsAppearance').select_option('system')
+    page.locator('#userSettingsSaveBtn').click()
+    page.wait_for_function('document.documentElement.dataset.appearance === "system"')
+    page.emulate_media(color_scheme='dark')
+    page.wait_for_function('document.documentElement.dataset.theme === "dark"')
+    page.emulate_media(color_scheme='light')
+    page.wait_for_function('document.documentElement.dataset.theme === "light"')
+    page.request.patch(page.url.rstrip('/') + '/user-settings', data={'appearance': 'light'})
+
+
 def _free_port() -> int:
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -546,6 +564,7 @@ def _mock_dashboard_load(page, clinical_representation: str = "snapshot") -> Non
                     {
                         "patient_id": "SYN001",
                         "visit_count": 5,
+                        "original_record_ids": ["SYN001:week_0"],
                         "sex": "female",
                         "clarid": {
                             "subject_id": 1,
@@ -554,10 +573,11 @@ def _mock_dashboard_load(page, clinical_representation: str = "snapshot") -> Non
                             "study": "SyntheticStudy",
                             "type": "Case",
                             "condition": "K50.9",
+                            "condition_name": "Crohn's disease, unspecified",
                             "sex": "Female",
                             "age_group": "Age40to49",
                             "codebook_version": "0.04",
-                            "tools_version": "0.03_1",
+                            "tools_version": "0.04",
                         },
                         "evidence": {"diseases": {"count": 1}},
                         "first_event_date": "2024-01-01",
@@ -1740,7 +1760,8 @@ def test_failed_workspace_switch_keeps_previous_workspace_and_query_state(page) 
     page._cohortome_dataset_state["fail_next_selection"] = "Secondary dataset store is not ready."
     page.locator("#loadBtn").click()
 
-    expect(page.locator("#loadStatus")).to_have_text("Secondary dataset store is not ready.")
+    expect(page.locator("#loadStatus")).to_contain_text("Secondary dataset store is not ready.")
+    expect(page.locator("#loadStatus")).to_contain_text("Your previous workspace remains active.")
     expect(page.locator("#datasetScopeSummary")).to_contain_text("Active workspace: Synthetic demo")
     expect(page.locator("[data-dataset-card='default'] .dataset-picker-state-active")).to_have_text("Active")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
@@ -1772,14 +1793,51 @@ def test_failed_assay_preflight_does_not_commit_workspace_switch(page) -> None:
     page.locator("#datasetPicker [data-dataset-checkbox='secondary']").check()
     page.locator("#loadBtn").click()
 
-    expect(page.locator("#loadStatus")).to_have_text("Selected dataset assay store is unavailable.")
+    expect(page.locator("#loadStatus")).to_contain_text("Selected dataset assay store is unavailable.")
+    expect(page.locator("#loadStatus")).to_contain_text("Your previous workspace remains active.")
     expect(page.locator("#datasetScopeSummary")).to_contain_text("Active workspace: Synthetic demo")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
     assert page._cohortome_dataset_state["current_ids"] == ["default"]
     assert len(page._cohortome_dataset_state["select_requests"]) == committed_request_count
 
 
-def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
+def test_dashboard_failure_retries_summary_without_switching_workspace(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    def fail(route):
+        route.fulfill(status=503, content_type='application/json', body='{"detail":"Unavailable"}')
+    page.route('**/dashboard?*', fail)
+    expect = playwright.expect
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    expect(page.locator('#dashboard [data-workspace-state="unavailable"]')).to_have_count(1)
+    selections = len(page._cohortome_dataset_state['select_requests'])
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardClinicalBtn').click()
+    expect(page.locator('#dashboard')).to_contain_text('Retry without changing the selected workspace.')
+    expect(page.locator('#dashboard [role="status"]')).to_have_attribute('aria-busy', 'false')
+    page.unroute('**/dashboard?*', fail)
+    page.locator('#dashboard [data-dashboard-retry]').click()
+    expect(page.locator('#dashboard-plot-diseases')).to_have_attribute('data-plotly-ready', 'true')
+    expect(page.locator('#dashboard [data-workspace-state]')).to_have_count(0)
+    assert len(page._cohortome_dataset_state['select_requests']) == selections
+
+
+def test_empty_workspace_is_not_a_dashboard_failure(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    page.route('**/patients?*', lambda route: route.fulfill(status=200, content_type='application/json', body='[]'))
+    expect = playwright.expect
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_contain_text('Workspace loaded successfully. No patient records')
+    expect(page.locator('#dashboard [data-workspace-state="empty"]')).to_have_count(1)
+    expect(page.locator('#dashboard [data-dashboard-retry]')).to_have_count(0)
+    expect(page.locator('#loadBtn')).not_to_have_class(re.compile('is-loading'))
+
+
+def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
     _mock_dicom_studies(page)
@@ -1792,8 +1850,9 @@ def test_dashboard_assays_panel_lists_dicom_studies(page) -> None:
     page.locator("#loadBtn").click()
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page.locator("#dashboardTabBtn").click()
-    page.locator("#dashboardAssaysBtn").click()
+    page.locator("#dashboardImagingBtn").click()
 
+    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
     expect(page.locator("#dicomDashboardStatus")).to_contain_text("Loaded 1 DICOM study")
     expect(page.locator("#dicomDashboardHealth")).to_contain_text("Orthanc")
     expect(page.locator("#dicomDashboardHealth")).to_contain_text("Reachable")
@@ -1829,14 +1888,14 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
 
     expect(page.locator("#assayDashboardOverview")).to_contain_text("Assays")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Transcriptomics")
-    expect(page.locator("#assayModalityTabs")).to_contain_text("Imaging")
+    expect(page.locator("#assayModalityTabs")).not_to_contain_text("Imaging")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Immune-cell abundance")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Serology")
     expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
-    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_mri_derived_measurements")
     expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()
     expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
-    expect(page.locator("#dicomDashboardPanel")).to_be_visible()
+    expect(page.locator("#dicomDashboardPanel")).not_to_be_visible()
     expect(page.locator("#transcriptomicsQuickExpressionPanel")).not_to_be_visible()
 
     page.locator("#dashboardMultimodalBtn").click()
@@ -1868,11 +1927,11 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#dicomDashboardPanel")).not_to_be_visible()
     expect(page.locator("#transcriptomicsQuickExpressionPanel")).to_be_visible()
 
-    page.locator("[data-assay-modality-filter='imaging']").click()
+    page.locator("#dashboardImagingBtn").click()
 
-    expect(page.locator("[data-assay-modality-filter='imaging']")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator("#assayDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
-    expect(page.locator("#assayDashboardCards")).not_to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
+    expect(page.locator("#dashboardImagingBtn")).to_have_class(re.compile("active"))
+    expect(page.locator("#imagingDashboardCards")).to_contain_text("synthetic_mri_derived_measurements")
+    expect(page.locator("#imagingDashboardCards")).not_to_contain_text("synthetic_transcriptome_raw_counts_infliximab")
     expect(page.locator("#multimodalReadinessPanel")).not_to_be_visible()
     expect(page.locator("#multimodalMatrixPanel")).not_to_be_visible()
     expect(page.locator("#dicomDashboardPanel")).to_be_visible()
@@ -1934,6 +1993,8 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
     expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Disease")
     expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Treatment")
     expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Assay")
+    expect(page.locator("#dashboard-timeline-controls-label")).to_have_text("Show events")
+    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
     page.locator("#dashboard-timeline-controls input[value='diseases']").uncheck()
     expect(page.locator("#dashboard-timeline-controls input[value='diseases']")).not_to_be_checked()
     page.evaluate(
@@ -1944,17 +2005,35 @@ def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
         }
         """
     )
+    expect(page.locator("#detail")).to_contain_text("SYN002")
+    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
+    expect(page.locator("[data-dashboard-select-patient]:checked")).to_have_count(0)
+    page.locator("[data-dashboard-select-patient='SYN002']").first.check()
     expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("1 patient selected")
+    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("Whole patients")
+    expect(page.locator("[data-dashboard-event-patient='SYN001']").first).to_be_visible()
     page.locator("[data-dashboard-event-inspect]").first.click()
     expect(page.locator("#detail")).to_contain_text("Timeline inspector")
     expect(page.locator(".dashboard-timeline-table tbody tr.is-inspected")).to_have_count(1)
     expect(page.locator("[data-dashboard-event-inspect][aria-pressed='true']")).to_have_count(1)
     page.locator("#dashboardTimelineEventSearch").fill("SYN001")
     expect(page.locator("#dashboard-timeline-event-count")).to_contain_text("matching events")
-    page.locator("[data-dashboard-event-patient='SYN001']").first.click()
+    page.locator("[data-dashboard-select-patient='SYN001']").first.check()
     expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("2 patients selected")
     page.locator("#dashboardTimelineUseAnalysisBtn").click()
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardTimelineBtn").click()
+    page.locator("#dashboardTimelineClearSelectionBtn").click()
+    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
+    for value in page.locator("#dashboard-timeline-controls input:enabled:checked").evaluate_all(
+        "inputs => inputs.map(input => input.value)"
+    ):
+        page.locator(f"#dashboard-timeline-controls input[value='{value}']").uncheck()
+    expect(page.locator("#dashboard-timeline-controls input:checked:enabled")).to_have_count(0)
+    expect(page.locator("#dashboard-timeline-event-table")).to_contain_text("No events match")
+    page.locator("#dashboard-timeline-controls input[value='treatments']").check()
+    expect(page.locator("#dashboard-timeline-event-table tbody tr")).to_have_count(1)
 
 
 def test_dashboard_resolves_and_decodes_subject_clarid_in_timeline(page) -> None:
@@ -1983,10 +2062,16 @@ def test_dashboard_resolves_and_decodes_subject_clarid_in_timeline(page) -> None
     popover = badge.locator("xpath=..").locator(".clarid-popover")
     expect(popover).to_be_visible()
     assert popover.evaluate("element => getComputedStyle(element).position") == "static"
-    expect(popover).to_contain_text("SyntheticStudy · Case · K50.9 · Female · Age40to49")
+    expect(popover).to_contain_text("SyntheticStudy · Case · Crohn's disease, unspecified (K50.9) · Female · Age40to49")
     expect(popover).to_contain_text("SyntheticStudy-00001-Case-K50.9-Female-A40_49")
     expect(popover).to_contain_text("SyntheticStudy00001CASE")
     expect(popover).to_contain_text("Codebook 0.04")
+    for width in (1440, 390):
+        page.set_viewport_size({"width": width, "height": 900})
+        assert popover.evaluate("el => el.scrollWidth <= el.clientWidth")
+        assert popover.locator(".clarid-decoded-summary").evaluate(
+            "el => getComputedStyle(el).whiteSpace === 'normal' && el.scrollWidth <= el.clientWidth"
+        )
     page.locator("#dashboard-timeline-event-table [data-clarid-toggle]").nth(1).hover()
     expect(page.locator("#dashboard-timeline-event-table .clarid-popover:visible")).to_have_count(1)
 
@@ -2008,6 +2093,23 @@ def test_dashboard_exposes_timeline_for_person_representation(page) -> None:
     expect(page.locator("#dashboardTimelinePanel")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#dashboardTimeline")).to_contain_text("Clinical coverage")
     expect(page.locator("#dashboardTimeline")).to_contain_text("Patient records")
+
+
+def test_query_result_focus_error_and_reset(page) -> None:
+    _open_query_tab(page)
+    expect = playwright.expect
+    expect(page.locator('#queryStarterTopHost > #queryStarterPanel')).to_be_visible()
+    page.route('**/query', lambda route: route.fulfill(status=503, content_type='application/json', body='{"detail":"Synthetic service unavailable"}'))
+    page.locator('#question').fill('List patients')
+    page.locator('#askBtn').click()
+    expect(page.locator('#queryThread')).to_contain_text('Synthetic service unavailable')
+    expect(page.locator('#queryStarterPanel')).to_be_hidden()
+    expect(page.locator('.query-thread-turn-latest > .analysis-turn-label')).to_have_text('Query not completed')
+    page.on('dialog', lambda dialog: dialog.accept())
+    page.locator('#queryClearBtn').click()
+    expect(page.locator('#queryStarterTopHost > #queryStarterPanel')).to_be_visible()
+    expect(page.locator('#queryComposerTitle')).to_have_text('Ask a question')
+    expect(page.locator('#queryStarterHost')).to_be_hidden()
 
 
 def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None:
@@ -2035,8 +2137,15 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     expect(page.locator("#question")).to_have_value("")
     expect(page.locator("#queryMeta")).to_have_count(0)
     expect(page.locator("#queryStatus")).to_be_hidden()
+    expect(page.locator("#queryStarterPanel")).to_be_hidden()
+    expect(page.locator("#queryStarterHost > #queryStarterPanel")).to_have_count(1)
+    expect(page.locator("#queryComposerTitle")).to_have_text("Ask a follow-up")
+    expect(page.locator("#queryThread .query-thread-turn-latest > .analysis-turn-label")).to_have_text("Result")
+    page.locator("#queryComposerExamplesBtn").click()
     expect(page.locator("#queryStarterPanel")).to_be_visible()
-    expect(page.locator("#queryStarterTopHost > #queryStarterPanel")).to_have_count(1)
+    expect(page.locator("#queryComposerExamplesBtn")).to_have_attribute("aria-expanded", "true")
+    page.locator("#queryComposerExamplesBtn").click()
+    expect(page.locator("#queryStarterPanel")).to_be_hidden()
     expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-color", "rgb(255, 255, 255)")
     expect(page.locator("#queryThread .query-thread-turn-assistant")).to_have_css("background-image", "none")
     expect(page.locator("#queryThread .query-thread-turn-assistant .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
@@ -2383,6 +2492,33 @@ def test_query_expired_result_retires_handle_actions_and_prompt_scope(page) -> N
     assert followup_request.value.post_data_json["scoped_result_handle"] == ""
 
 
+@pytest.mark.parametrize("sample_level", [False, True])
+def test_query_tables_show_linked_subject_clarid(page, sample_level):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    page.locator("#datasetsTabBtn").click()
+    page.locator("#loadBtn").click()
+    playwright.expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
+    _open_query_tab(page)
+    identifiers = ["SYN001:week_0", "unlinked-sample"] if sample_level else ["SYN001", "SYN002"]
+    key = "sample_ids" if sample_level else "patient_ids"
+    payload = {"intent": "sample_inventory" if sample_level else "patient_inventory",
+               "reply": "Matching records", "data": {key: identifiers, "source": "deterministic"},
+               "action_context": {"id_type": "sample" if sample_level else "patient"}}
+    page.route("**/query", lambda route: route.fulfill(content_type="application/json", body=json.dumps(payload)))
+    page.locator("#question").fill("List records")
+    page.locator("#askBtn").click()
+    table = page.locator("#queryThread .query-result-table").last
+    playwright.expect(table.locator("thead")).to_contain_text("Subject ClarID" if sample_level else "ClarID")
+    badge = table.locator("[data-clarid-toggle]")
+    playwright.expect(badge).to_have_count(1)
+    badge.click()
+    playwright.expect(badge).to_have_attribute("aria-expanded", "true")
+    playwright.expect(table).to_contain_text("SyntheticStudy-00001-Case-K50.9-Female-A40_49")
+    playwright.expect(table).to_contain_text("Crohn's disease, unspecified (K50.9)")
+    playwright.expect(table.locator("tbody tr").last).to_contain_text("Not available")
+
+
 def test_query_sample_result_uses_sample_table_and_sample_count(page) -> None:
     _open_query_tab(page)
     expect = playwright.expect
@@ -2429,7 +2565,7 @@ def test_query_sample_result_uses_sample_table_and_sample_count(page) -> None:
     latest_turn = page.locator("#queryThread .query-thread-turn-assistant").last
     expect(latest_turn).to_contain_text("120 samples match this query")
     expect(latest_turn.locator(".query-result-range")).to_have_text("Showing 1–50 of 120")
-    expect(latest_turn.locator(".query-result-table thead")).to_have_text("Sample")
+    expect(latest_turn.locator(".query-result-table thead")).to_have_text("SampleSubject ClarID")
     expect(latest_turn.locator(".query-result-table thead")).not_to_contain_text("Patient")
     expect(latest_turn.locator(".query-result-table tbody tr")).to_have_count(50)
 
@@ -3245,6 +3381,12 @@ def test_analysis_renders_completed_limma_voom_result(page) -> None:
     result.locator("details.analysis-artifact-downloads > summary").click()
     expect(result).to_contain_text("de_results.tsv")
     expect(result).to_contain_text("volcano_points.tsv")
+    expect(page.locator('#analysisThread .is-latest-result > .analysis-turn-label')).to_have_text('Analysis result')
+    expect(result.locator('.analysis-file-count')).to_contain_text('files')
+    file_link = result.locator('a.analysis-result-file').filter(has_text='de_results.tsv')
+    expect(file_link).to_have_attribute('href', '/jobs/limma/artifacts/de_results.tsv')
+    expect(file_link.locator('.analysis-file-format')).to_have_text('TSV')
+    expect(file_link).to_have_attribute('target', '_blank')
 
 
 def test_analysis_renders_quantitative_assay_wilcoxon_result(page) -> None:

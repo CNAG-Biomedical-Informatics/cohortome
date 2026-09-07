@@ -19,7 +19,7 @@ This gives you three useful entry points:
 
 ## What the schema covers
 
-The current OpenAPI contract is strongest for the stable top-level API surfaces:
+OpenAPI describes the main API endpoints:
 
 - authentication and local user visibility
 - dataset registry and workspace selection

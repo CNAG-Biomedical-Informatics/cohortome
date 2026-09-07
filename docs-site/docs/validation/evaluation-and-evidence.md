@@ -1,6 +1,6 @@
 # Evaluation And Evidence
 
-COHORTome needs evidence at two levels: software correctness and translational utility.
+COHORTome needs tests of software correctness and usefulness for research.
 The public synthetic fixture supports the first level. The restricted
 PRECISESADS demonstrator is required for the second.
 
@@ -11,11 +11,11 @@ PRECISESADS demonstrator is required for the second.
 | Functional | Can each user role complete the intended workflow? | Automated tests and reviewed task scripts. |
 | Reproducibility | Does the same dataset, cohort, and method reproduce the same evidence? | Source fingerprints, manifests, parameters, artifact comparison, and pinned environments. |
 | Performance | Does preparation and interactive use remain practical at representative scale? | Preparation, reload, dashboard, matrix, and workflow timings. |
-| Governed AI | Does model assistance produce correct, grounded, policy-compliant operations? | Reference tasks, cohort agreement, unsupported-claim review, and disclosure tests. |
+| Model assistance | Does the model select the right data, give supported answers, and follow access rules? | Reference tasks, cohort agreement, review of unsupported claims, and disclosure tests. |
 | Usability | Can clinical and translational researchers complete tasks without manual scripting? | Prespecified task completion, errors, time, and structured collaborator feedback. |
 | Scientific demonstrator | Does PRECISESADS produce a meaningful, reviewed analysis result? | Prespecified cohorts, real assay output, statistics, figures, and collaborator interpretation. |
 
-## Current evidence boundary
+## What the synthetic data can test
 
 The checked-in data is synthetic. It can verify:
 

@@ -56,7 +56,7 @@ remain available for development, demonstration, and automated testing.
 | Analyzing | COHORTome runs reviewed clinical, omics, pathway, and phenotype-similarity methods. |
 | Keeping evidence | COHORTome retains the data scope, settings, logs, plots, tables, files, and run history needed to understand a result. |
 
-The technical boundary behind that journey is shown below. Source systems keep
+The diagram below shows how the components connect. Source systems keep
 the originals; COHORTome prepares authorized releases for exploration and analysis.
 
 <picture>
@@ -84,9 +84,8 @@ the originals; COHORTome prepares authorized releases for exploration and analys
 
 ## Governed AI
 
-LLM assistance is a first-class platform capability, not a general-purpose
-chatbot. It supports cohort discovery, analysis planning, and interpretation
-inside the current user's authorized workspace.
+An approved language model can help you find cohorts, plan analyses, and
+interpret results using the data you are allowed to access.
 
 Administrators choose which model services are approved, including services
 that run locally or inside a private network. Rules attached to each dataset
@@ -94,23 +93,23 @@ determine whether detailed information, a limited summary, or nothing at all
 may be sent. COHORTome can still answer supported questions without a model and tells
 the researcher which route produced the result.
 
-Read [Governed AI](./concepts/governed-ai) for the execution and evaluation
-contract.
+Read [Governed AI](./concepts/governed-ai) for model access rules and how we
+plan to evaluate model responses.
 
 ## Current status
 
-COHORTome currently implements the governed workspace, longitudinal dashboard,
+COHORTome currently provides workspaces with dataset access controls, a longitudinal dashboard,
 clinical and assay exploration, Query, saved cohorts, Analysis sessions,
 transcriptomics workflows, Pheno-Ranker, configurable LLM providers,
-multimodal-readiness inspection, and optional OHIF/DICOMweb integration.
+checks for missing data and overlap between assays, and optional OHIF/DICOMweb integration.
 
-The multimodal feature matrix is currently a bounded inspection and
-feature-engineering preview. It is not yet a validated cross-modal statistical
-or machine-learning workflow. PRECISESADS ingestion, the publication
+The multimodal feature matrix lets you preview selected clinical and assay
+measurements together. It does not yet run a validated statistical or
+machine-learning analysis across modalities. PRECISESADS ingestion, the publication
 demonstrator, and formal LLM evaluation are active project work.
 
 See [Platform Scope And Boundaries](./project/scope-and-boundaries) for a precise
-current-versus-target account.
+description of available features and planned work.
 
 ## What COHORTome is not
 
@@ -125,6 +124,7 @@ current-versus-target account.
 
 | Goal | Start here |
 | --- | --- |
+| Start or stop an installation | [Starting and stopping](./admin-guide/starting-and-stopping) |
 | Understand the 3TR and PRECISESADS role | [3TR And PRECISESADS](./project/3tr-and-precisesads) |
 | Understand one-time and repeated observations | [Cross-sectional And Longitudinal Data](./concepts/cross-sectional-and-longitudinal) |
 | Load and inspect a workspace | [Datasets](./user-guide/datasets) and [Dashboard](./user-guide/dashboard) |

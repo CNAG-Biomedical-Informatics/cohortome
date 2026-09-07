@@ -1,5 +1,21 @@
 [
   {
+    "dataset_id": "synthetic-autoimmune-demo",
+    "name": "Synthetic autoimmune demo (not real PRECISESADS data)",
+    "description": "90 fictional RA/SLE/control participants with linked clinical, RNA, methylation, immune-cell and serology data. Independently simulated; not study results.",
+    "root_path": "synthetic_autoimmune_demo",
+    "enabled": true,
+    "visibility": "all_authenticated",
+    "data_classification": "public",
+    "allowed_users": [],
+    "allowed_groups": [],
+    "query_granularity_ceiling": "detailed",
+    "ai_provider_access": "detailed_allowed",
+    "created_by": "system",
+    "created_at": "2026-09-07T00:00:00+00:00",
+    "updated_at": "2026-09-07T00:00:00+00:00"
+  },
+  {
     "dataset_id": "default",
     "name": "Default dataset",
     "description": "Compact clinical and transcriptome fixture for regular app testing.",

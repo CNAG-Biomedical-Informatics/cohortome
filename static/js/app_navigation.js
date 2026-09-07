@@ -12,6 +12,7 @@ export function createNavigationUi(ctx) {
     phenoTabBtnEl,
     dashboardClinicalBtnEl,
     dashboardAssaysBtnEl,
+    dashboardImagingBtnEl,
     dashboardMultimodalBtnEl,
     dashboardTimelineBtnEl,
     tabHelperTextEl,
@@ -25,6 +26,7 @@ export function createNavigationUi(ctx) {
     phenoTabEl,
     dashboardClinicalPanelEl,
     dashboardAssaysPanelEl,
+    dashboardImagingPanelEl,
     dashboardMultimodalPanelEl,
     dashboardTimelinePanelEl,
     loadStatusEl,
@@ -39,7 +41,8 @@ export function createNavigationUi(ctx) {
     if (tabName === "dashboard") {
       const helperText = {
         clinical: "Browse patients and orient yourself in the loaded clinical dataset",
-        assays: "Inspect assay modalities, DICOM viewer status, and transcriptomics quick summaries",
+        assays: "Inspect laboratory assays and transcriptomics quick summaries",
+        imaging: "Review imaging studies, DICOM viewer status, and derived measurements",
         multimodal: "Review cross-modal readiness, sample-level feature joins, missingness, and provenance",
         timeline: "Review clinical records, BFF event domains, and assay coverage",
       };
@@ -127,7 +130,9 @@ export function createNavigationUi(ctx) {
   }
 
   function setDashboardSubtab(subtabName) {
-    state.currentDashboardSubtab = ["assays", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
+    state.currentDashboardSubtab = ["assays", "imaging", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
+    dashboardImagingBtnEl && dashboardImagingBtnEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
+    dashboardImagingPanelEl && dashboardImagingPanelEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");
     dashboardAssaysBtnEl && dashboardAssaysBtnEl.classList.toggle("active", state.currentDashboardSubtab === "assays");
     dashboardMultimodalBtnEl && dashboardMultimodalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "multimodal");

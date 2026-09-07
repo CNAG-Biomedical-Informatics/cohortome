@@ -6,7 +6,7 @@ sidebar_position: 2
 
 <div className="pnQuickHero">
   <div className="pnEyebrow">Authentication</div>
-  <h2>Authenticate with local users or OIDC, then authorize through COHORTome roles and groups.</h2>
+  <h2>Set up login and decide who can access each dataset.</h2>
   <div className="pnHeroText">
     External identity providers prove who a user is. COHORTome still
     owns local role, group, dataset access, and per-user settings.
@@ -64,9 +64,41 @@ OIDC authenticates identity only. Authorization remains local:
 OIDC subject/email -> COHORTome user -> role/groups -> dataset access
 ```
 
-An OIDC user must map to an enabled local COHORTome user by
-`external_subject` or email. Automatic user provisioning is intentionally not
-enabled.
+An OIDC user must match an enabled COHORTome account by `external_subject` or
+email. Logging in through OIDC does not create a new account automatically.
+
+## Changing login methods without losing access to saved work
+
+Saved cohorts, Analysis sessions, settings, and jobs belong to the COHORTome
+username. OIDC identifies the person, then maps them to that existing username.
+Use the same account when moving between local login and OIDC.
+
+Before changing the login method:
+
+1. Keep the same `COHORTOME_RUNTIME_ROOT`. A different runtime can open a
+   different user database, dataset registry, and collection of saved work.
+2. Back up the protected runtime and current login configuration.
+3. For OIDC, check that each existing account has the matching email or
+   `external_subject`. The external subject can change when switching identity
+   providers; check it against the new provider.
+4. Configure the new provider's issuer, client credentials, and exact callback
+   URL. Keep the session secret stored in the configuration file.
+5. If local fallback is permitted, confirm that an existing administrator has
+   a working local password before enabling it for the transition.
+6. Restart the web app and worker with the same configuration. Test the new
+   login in a separate browser session, then check the username, dataset access,
+   saved cohorts, and an existing Analysis session.
+7. Disable temporary fallback after successful verification if the deployment
+   requires external login only.
+
+When returning to local login, the existing account needs a local password.
+Do not create a replacement username merely to change how the person logs in.
+Changing bootstrap users in an environment file does not update an existing
+user database; use `Admin > Users` for supported account changes.
+
+If login succeeds but datasets or saved work appear missing, check the runtime
+directory and mapped COHORTome username first. The app does not currently
+provide an authentication-migration wizard.
 
 ## Roles versus groups
 
@@ -213,10 +245,10 @@ For now, local role-based admin support still exists and is useful during develo
 
 ## Future direction
 
-The local auth model is now provider-ready:
+Supported login methods are:
 
-- current provider: `local`
-- future provider: external identity such as Google OIDC
+- local username and password
+- external identity through OIDC, such as Google or institutional SSO
 
 COHORTome should continue to own authorization concepts such as:
 
@@ -227,7 +259,8 @@ COHORTome should continue to own authorization concepts such as:
 - AI-provider policy
 
 For production environments with institutional identity management, external
-OIDC/SAML/LDAP remains the preferred long-term authentication model. Local SMTP
+OIDC is the supported integration. Institutions using SAML or LDAP need an
+identity service that exposes OIDC to COHORTome. Local SMTP
 password reset is intended for controlled deployments that still use local auth.
 
 ## Local OIDC development with Dex

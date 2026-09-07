@@ -24,3 +24,4 @@ node_modules/
 dist/
 frontend/dist/
 docker/.env
+native.env

@@ -1,5 +1,7 @@
 # Governed AI
 
+Here, governance means the rules for who can use a model and what data it may receive.
+
 A language model can help a researcher express a question or understand a
 result. COHORTome checks what data may be used, limits what may be sent, and remains
 responsible for running the requested operation.
@@ -8,23 +10,22 @@ responsible for running the requested operation.
 
 COHORTome uses approved models to assist with:
 
-- translating natural-language research intent into inspectable query or
-  analysis plans
+- turning a research question into a query or analysis plan you can inspect
 - explaining available data, overlap, and missingness
 - interpreting deterministic or curated analysis results
 - suggesting follow-up questions without silently expanding the data scope
 - answering explicitly selected general-knowledge questions without attaching
   workspace context
 
-A deployment may disable model access, and a dataset may block it. This is an
-expected governed state, not an application failure.
+A deployment or dataset may disable model access. Supported deterministic
+queries and analyses remain available.
 
 ## Execution modes
 
 | Mode | Role |
 | --- | --- |
 | Deterministic | Structured application logic queries data or computes a known result directly. |
-| LLM planner | A model interprets intent and proposes a structured operation that COHORTome executes within its allowed contract. |
+| LLM planner | A model turns the question into a supported operation. COHORTome checks the operation and runs it. |
 | LLM interpretation | A model explains bounded context or outputs produced by deterministic or curated methods. |
 | Curated runner | Reviewed backend code launches a declared statistical or workflow implementation. |
 
@@ -91,7 +92,7 @@ detailed local response was also sent to the provider.
 - arbitrary shell or notebook execution
 - authority to diagnose, prescribe, or make autonomous clinical decisions
 
-## Evaluation contract
+## How model responses will be evaluated
 
 The PRECISESADS demonstrator should evaluate model-assisted tasks against
 reviewed reference outcomes. Relevant measures include:

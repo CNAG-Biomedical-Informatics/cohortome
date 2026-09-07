@@ -21,6 +21,8 @@
           justify-content: center;
         }
         .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .context-pill { padding: 6px 12px; }
+        .context-pill:nth-child(odd) { border-left: 0; }
         .dashboard-shell, .viz-grid, .metrics-grid, .workspace-grid { grid-template-columns: 1fr; }
         .dashboard-timeline-lower { grid-template-columns: 1fr; }
         .assay-grid, .assay-result-grid, .assay-dashboard-grid, .dicom-health-grid, .dicom-study-grid, .multimodal-kpi-grid, .multimodal-suggestion-grid, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
@@ -48,12 +50,18 @@
         #queryClearBtn { margin-left: 0; }
       }
       @media (max-width: 640px) {
+        #queryTab .query-row {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #queryTab .query-row > button {
+          justify-self: end;
+        }
         .app-sidebar-nav .tab-btn {
           min-width: 116px;
           padding-left: 10px;
           padding-right: 10px;
         }
-        .context-bar { grid-template-columns: 1fr; }
+        .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .assay-kpi-grid, .assay-summary-grid, .assay-workspace-kpis, .dashboard-plot-grid, .dashboard-plot-grid-compact { grid-template-columns: 1fr; }
         .dashboard-subtabs {
           display: flex;
@@ -82,6 +90,9 @@
         .hero-utility {
           width: 100%;
           justify-content: space-between;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          padding: 10px 0 0;
         }
         .analysis-setup-summary,
         .analysis-setup-body {

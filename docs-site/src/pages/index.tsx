@@ -65,8 +65,8 @@ export default function Home() {
               <Link className="button button--primary button--lg" to="/docs/overview">
                 See what COHORTome does
               </Link>
-              <Link className="button button--outline button--secondary button--lg" to="/docs/admin-guide/local-auth-and-groups">
-                Run from source
+              <Link className="button button--outline button--secondary button--lg" to="/docs/admin-guide/starting-and-stopping">
+                Start COHORTome
               </Link>
             </div>
             <div className={styles.heroSignals} aria-label="What COHORTome covers">
