@@ -42,6 +42,8 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
     workspaceFingerprint: session.workspaceFingerprint && typeof session.workspaceFingerprint === "object" ? session.workspaceFingerprint : {},
     workspaceStatus: session.workspaceStatus && typeof session.workspaceStatus === "object" ? session.workspaceStatus : {},
     catalogItemId: typeof session.catalogItemId === "string" ? session.catalogItemId : "",
+    measurement: typeof session.measurement === "string" ? session.measurement : "",
+    scriptDraft: session.scriptDraft && typeof session.scriptDraft === "object" ? { ...session.scriptDraft } : {},
     promptDraft: typeof session.promptDraft === "string" ? session.promptDraft : "Summarize the main clinical patterns in this cohort and tell me what stands out.",
     framing: session.framing && typeof session.framing === "object" ? { ...session.framing } : {},
     contextMode: session.contextMode === "general" ? "general" : "workspace",

@@ -153,6 +153,8 @@ export function createAnalysisSessionsUi(ctx) {
           data_dir: session.dataDir || "",
           workspace_fingerprint: session.workspaceFingerprint || {},
           catalog_item_id: session.catalogItemId || "",
+          measurement: session.measurement || "",
+          script_draft: session.scriptDraft || {},
           prompt_draft: session.promptDraft || "",
           framing: session.framing || {},
           context_mode: session.contextMode === "general" ? "general" : "workspace",
@@ -226,6 +228,8 @@ export function createAnalysisSessionsUi(ctx) {
         workspaceFingerprint: item.workspace_fingerprint,
         workspaceStatus: item.workspace_status,
         catalogItemId: item.catalog_item_id,
+        measurement: item.measurement,
+        scriptDraft: item.script_draft,
         promptDraft: item.prompt_draft,
         framing: item.framing,
         contextMode: item.context_mode,
@@ -335,6 +339,8 @@ export function createAnalysisSessionsUi(ctx) {
       ? String(currentDatasetSelectionKey() || "").trim()
       : (session.datasetId || "");
     session.catalogItemId = state.analysisSelectedCatalogItemId || "";
+    session.measurement = state.analysisMeasurement || "";
+    session.scriptDraft = state.analysisScriptDraft || {};
     session.scope = analysisSelectedPatientIdsEl.value.trim();
     session.scopeMetadata = state.analysisScopeMetadata && typeof state.analysisScopeMetadata === "object" ? state.analysisScopeMetadata : {};
     session.compareMode = Boolean(analysisCompareModeEl && analysisCompareModeEl.checked);
@@ -361,6 +367,8 @@ export function createAnalysisSessionsUi(ctx) {
     document.getElementById("analysisHypothesisFields").hidden = framing.mode !== "hypothesis_driven";
     state.analysisContextMode = session.contextMode === "general" ? "general" : "workspace";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
+    state.analysisMeasurement = session.measurement || "";
+    state.analysisScriptDraft = session.scriptDraft || {};
     analysisSelectedPatientIdsEl.value = session.scope || "";
     state.analysisScopeMetadata = session.scopeMetadata && typeof session.scopeMetadata === "object" ? session.scopeMetadata : {};
     if (analysisCompareModeEl) analysisCompareModeEl.checked = Boolean(session.compareMode);

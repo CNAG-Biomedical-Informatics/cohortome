@@ -1993,3 +1993,10 @@
 .analysis-request-details textarea { width: 100%; box-sizing: border-box; }
 #analysisMeasurementComparison[hidden], #analysisMethodPicker[hidden],
 #analysisStarterPanel[hidden], #analysisComposerExamplesBtn[hidden], #analysisFlowBar[hidden] { display: none; }
+.analysis-script-editor textarea {
+  min-height: 340px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85rem;
+  tab-size: 4;
+  white-space: pre;
+}

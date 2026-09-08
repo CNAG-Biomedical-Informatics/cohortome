@@ -89,6 +89,12 @@ class UserSettingsUpdateRequest(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
+    custom_script: str = Field(default="", max_length=131072)
+    script_language: Literal["python", "r"] = "python"
+    input_contract_id: str = Field(default="", max_length=64)
+    sandbox_image_id: str = Field(default="", max_length=80)
+    custom_assay_ids: List[str] = Field(default_factory=list, max_length=4)
+    measurement: str = Field(default="", max_length=512, description="Exact clinical measurement label selected from workspace inputs.")
     prompt: str = Field(description="Natural-language analysis prompt.", examples=["Summarize the main workspace patterns and tell me what stands out."])
     catalog_item_id: str = Field(default="", description="Optional Analysis Catalog item identifier used for structured curated analyses.")
     analysis_session_id: str = Field(default="", description="Current Analysis session identifier used to associate queued jobs back to the active session.")
@@ -116,6 +122,8 @@ class AssayExpressionRequest(BaseModel):
 
 
 class AnalysisSessionRequest(BaseModel):
+    script_draft: Dict[str, Any] = Field(default_factory=dict)
+    measurement: str = Field(default="", max_length=512)
     id: str = Field(description="Client-generated analysis session identifier.")
     title: str = Field(default="", description="Optional user-facing session title.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID for the session.")

@@ -4,6 +4,36 @@ sidebar_position: 1
 
 # Query
 
+## Sort and export patient or sample tables
+
+Click a column heading to sort **all matching rows**, including rows on later
+pages. Click again to reverse the order. Visits and medication counts sort
+numerically; identifiers sort as text. Missing values stay last. Changing the
+sort returns to page one, without changing cohort membership.
+
+Choose **Export all · TSV** or **Export all · CSV** beside a result table to
+download every row in the selected order, not just the visible page. Patient
+tables include identifiers, available subject ClarIDs, dataset IDs, sex, visits
+and medication counts. Sample tables include sample IDs and unambiguous subject
+links/ClarIDs where available. These are clinical result exports, not downloads
+of the underlying molecular matrices.
+
+**Metadata JSON** downloads a separate companion file with dataset IDs, query
+creation/export times, the workspace fingerprint token, sort settings and the
+original query text. Older results may not have stored the query text. Metadata
+does not include server paths, user credentials or internal cursor secrets.
+User-entered query text is retained, so review it before sharing the file.
+
+Exports use your existing Detailed-access permissions and recheck authorization
+at download time. Expired results or changed workspace/policy bindings must be
+queried again. Summary-only results do not offer patient-level exports.
+
+Files use UTF-8. Import identifier columns as text to preserve leading zeros.
+Potential spreadsheet formulas are prefixed with an apostrophe; dataset-ID
+cells contain JSON arrays. Sorting/export supports up to 100,000 result rows;
+downloads are limited to 32 MiB and fail explicitly rather than truncate.
+Downloads are generated in memory, not retained as server-side export files.
+
 Use `Query` to find patients or samples and save them as a cohort.
 
 Patient result tables include a **ClarID** column. Click its label to inspect

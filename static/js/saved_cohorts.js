@@ -1,3 +1,5 @@
+import { downloadFile } from "./shared.js";
+
 export function createSavedCohortsUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
   const {
@@ -87,6 +89,7 @@ export function createSavedCohortsUi(ctx) {
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
               ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="export" data-saved-cohort-id="${escapeHtml(item.id)}" title="Membership TSV and metadata JSON">Export ZIP</button>
               ${isActiveHere ? `<span class="query-chip badge" title="Detach this cohort from the current Analysis or Pheno state before deleting it here.">In use here</span>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
             </div>
@@ -390,6 +393,15 @@ export function createSavedCohortsUi(ctx) {
   function handleSavedCohortAction(button) {
     const cohortId = button.dataset.savedCohortId;
     if (!cohortId) return;
+    if (button.dataset.savedCohortAction === "export") {
+      button.disabled = true;
+      setSavedCohortStatus("Preparing cohort download…");
+      void downloadFile(`/saved-cohorts/${encodeURIComponent(cohortId)}/export`, "saved-cohort.zip")
+        .then(() => setSavedCohortStatus("Cohort download prepared."))
+        .catch((error) => setSavedCohortStatus(error.message))
+        .finally(() => { button.disabled = false; });
+      return;
+    }
     if (button.dataset.savedCohortAction === "load-analysis") return void useSavedCohortInAnalysis(cohortId);
     if (button.dataset.savedCohortAction === "load-analysis-b") return void useSavedCohortInAnalysisCompare(cohortId);
     if (button.dataset.savedCohortAction === "load-pheno") return void useSavedCohortInPheno(cohortId);

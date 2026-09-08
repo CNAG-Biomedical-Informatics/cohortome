@@ -1,5 +1,22 @@
 version: 1
 items:
+  - id: synthetic-custom-script
+    name: Custom Python / R script (synthetic prototype)
+    category: Custom analysis
+    kind: custom_script
+    runner_type: container
+    runner_ref: synthetic_custom_script
+    execution_backend: job
+    job_timeout_seconds: 180
+    description: Run your own Python or R analysis using automatically prepared patient, clinical and assay objects.
+    guidance: Prepare the template in Inputs, optionally complete it with an external AI, then paste the script and run. Synthetic autoimmune demo only.
+    default_prompt: Run the custom analysis on the prepared synthetic inputs.
+    execution_mode: deterministic
+    requires_detailed_access: true
+    requires_single_dataset_workspace: true
+    supports_compare_mode: true
+    tags: [custom, python, r, synthetic, sandbox]
+
   - id: trajectory-single
     name: Trajectory analysis
     category: Trajectories
@@ -7,7 +24,7 @@ items:
     runner_type: builtin
     runner_ref: trajectory
     description: Plot a longitudinal clinical measure over time for the active scope.
-    guidance: Edit the measure in the prompt if you want a different marker.
+    guidance: Choose a clinical measurement in Inputs. Repeated dated observations are required.
     default_prompt: Show the trajectory of Leukocyte Count over time.
     execution_mode: deterministic
     required_clinical_representation: snapshot
@@ -20,9 +37,9 @@ items:
     runner_type: builtin
     runner_ref: trajectory_compare
     description: Compare longitudinal behavior of a clinical measure between Cohort A and Cohort B.
-    guidance: Select saved cohorts for A and B before running.
+    guidance: Select saved cohorts for A and B, then choose a measurement with repeated dated observations in both groups.
     default_prompt: Compare the active analysis scopes using Leukocyte Count trajectories.
-    execution_mode: auto
+    execution_mode: deterministic
     required_clinical_representation: snapshot
     default_compare_mode: true
     supports_compare_mode: true
@@ -35,7 +52,7 @@ items:
     runner_type: builtin
     runner_ref: treatment_response
     description: Track a clinical marker over time relative to treatment exposure.
-    guidance: Edit the treatment or measure in the prompt if needed.
+    guidance: Choose the measurement in Inputs; specify the treatment in the prompt.
     default_prompt: Show response to Infliximab using CRP.
     execution_mode: deterministic
     required_clinical_representation: snapshot
@@ -48,7 +65,7 @@ items:
     runner_type: builtin
     runner_ref: survival
     description: Estimate time-to-event behavior for the active scope using a clinical threshold event.
-    guidance: Edit the measure, operator, or threshold in the prompt if needed.
+    guidance: Choose the measurement in Inputs; edit the event operator and threshold in the prompt.
     default_prompt: Show a Kaplan-Meier curve for time to Clinical relapse > 0.
     execution_mode: deterministic
     required_clinical_representation: snapshot

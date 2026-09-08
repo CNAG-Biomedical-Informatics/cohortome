@@ -754,7 +754,8 @@ def submit_analysis_job(
         data={
             "feature": "analysis",
             "name": str(catalog_item.get("name") or "").strip() or "Analysis job",
-            "prompt": str(prompt or "").strip(),
+            "prompt": "Run the custom analysis on prepared synthetic inputs." if catalog_item.get("runner_type") == "container" else str(prompt or "").strip(),
+            "script_parameters": json.loads(prompt) if catalog_item.get("runner_type") == "container" else {},
             "dataset_id": str(scope.get("dataset_id") or "").strip(),
             "assay_id": str(assay_id or "").strip(),
             "data_dir": str(data_dir or "").strip(),
@@ -854,15 +855,19 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         if not item:
             raise RuntimeError(f"Unknown analysis catalog item '{catalog_item_id}'.")
         runner_type = str(item.get("runner_type") or "").strip().lower()
-        if runner_type not in {"rscript", "snakemake", "nextflow", "workflow"}:
+        if runner_type not in {"rscript", "snakemake", "nextflow", "workflow", "container"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
         scope = _authorize_analysis_scope(user_id, str(record.get("dataset_id") or ""))
+        if runner_type == "container":
+            from app.datasets import effective_query_granularity_ceiling
+            if effective_query_granularity_ceiling(scope["dataset_ids"]) != "detailed":
+                raise RuntimeError("Custom script access was revoked; Detailed access is required.")
         _require_private_external_matrix_runtime(item, scope)
         resolved_data_dir = _analysis_scope_data_dir(scope)
         payload = run_external_analysis(
             runner_type,
             str(item.get("runner_ref") or "").strip(),
-            prompt=str(record.get("prompt") or ""),
+            prompt=json.dumps(record.get("script_parameters") or {}) if runner_type == "container" else str(record.get("prompt") or ""),
             data_dir=resolved_data_dir,
             assay_id=str(record.get("assay_id") or ""),
             selected_patient_ids=str(record.get("selected_patient_ids") or ""),

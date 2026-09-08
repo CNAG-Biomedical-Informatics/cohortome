@@ -124,6 +124,27 @@ Two protections exist:
 
 This is important because an Analysis chat may depend on a saved cohort long after it was first selected.
 
+## Export a saved cohort
+
+Choose **Export ZIP** on a saved-cohort card. The archive contains:
+
+- `membership.tsv`: separate patient and sample membership rows, with available
+  subject ClarIDs and exact sample-to-subject links. Unavailable or ambiguous
+  links remain blank; the exporter does not infer them from ID prefixes.
+- `metadata.json`: cohort name, stored membership with original identifiers,
+  source kind/prompt, dataset IDs, timestamps and format notes. Internal data
+  directories and credentials are excluded. Review user-entered names/prompts
+  before sharing.
+
+Membership is exported as saved, not silently refreshed from a new query.
+ClarIDs and sample links are taken from the current authorized workspace.
+This is not a project backup or an importable workspace snapshot.
+
+Downloads require current Detailed access to every source dataset and ownership
+of the saved cohort. The export is limited to 100,000 combined membership rows
+and 32 MiB of uncompressed content. Existing result-file downloads in Analysis
+and Pheno-Ranker are unchanged.
+
 ## Best practice
 
 Use saved cohorts when:

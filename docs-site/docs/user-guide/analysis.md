@@ -24,6 +24,117 @@ available under **Review or edit the analysis request**. Choose **Write a
 request / follow-up** for direct text entry, or **Browse method details** for
 the full catalog. Selecting a method does not execute it.
 
+## Custom Python / R scripts (synthetic prototype)
+
+Select **Custom Python / R script** with only the bundled **Synthetic autoimmune
+demo** loaded. This is available to users with Detailed access, not just admins.
+Other datasets, modified demo files and mixed workspaces are rejected by the
+server. Restricted data cannot be enabled by changing a dataset label.
+
+1. Keep your current patient/cohort selections. Selected demo assays are used;
+   if no assays are selected, all four demo modalities are prepared.
+2. In **Inputs**, choose **Python** or **R**, then **Prepare / reset template**. COHORTome creates `patients`,
+   `clinical`, `samples`, and `assays[modality]` objects. The template documents
+   column types, units/value kinds, feature IDs, matrix orientation and linkage.
+3. Use **Copy template for AI**, describe your question to an external coding
+   assistant, and paste its completed script into the editor. The copied
+   template contains schemas and feature metadata, not patient IDs or values.
+   You can also edit or run the template without any AI.
+4. Review the code and click **Run**. It runs through the background queue.
+   Open the completed run in Analysis for output files, plots and audit details.
+
+Before copying, check **Check before copying**: it shows the prepared language,
+package versions, cohort patient counts and matched A/B sample counts for each
+assay. A single-cohort template explicitly says that Cohort B is not used. For
+an A-versus-B question, turn on comparison in **Patients** and attach both groups;
+preparation and copying are blocked if either group is missing. An assay with
+zero samples in one group cannot support that comparison, even when both patient
+cohorts exist. Assays with no samples in the scope are listed as not included.
+
+The copied template instructs the external AI to use the declared language and
+packages, treat the input contract as authoritative, and explain missing
+requirements instead of inventing groups or substituting a different method.
+It also asks generated scripts to fail explicitly when required inputs are
+missing. These instructions help guide the AI; they do not enforce statistical
+correctness. Review the returned code before running it.
+
+Changing language, cohorts or assays requires a fresh preparation. The server checks the
+input fingerprint and image identity again at submission and execution. One
+custom run per user may be queued/running at a time. Draft code is saved with
+the Analysis session; resetting the template replaces that draft, not old runs.
+
+The Python 3.11 environment includes fixed versions of NumPy, pandas, SciPy,
+Matplotlib and statsmodels. The R 4.2.2 environment includes base R, limma 3.54.1,
+edgeR 3.40.2 and ggplot2 3.4.1. Versions are listed in the generated template.
+These are the pinned prototype versions, not a claim to provide the latest releases.
+Administrators add packages when building the image; users do not install them
+during execution. Scripts have no network, package-installation service or access
+to the COHORTome runtime. Limits are 90 seconds, one CPU, 512 MiB RAM and 64
+processes. Scratch space is memory-backed and bounded. Save up to eight files
+(4 MiB total) as CSV, TXT or PNG under `/work/output`; unsupported or oversized
+files are not collected. Logs are truncated. CSV files are script-generated;
+review them before opening them in spreadsheet software.
+
+### Audit
+
+Custom runs retain `analysis.py` or `analysis.R`, `input_contract.json`, exact synthetic input
+files, logs, output files and `audit.json` with script hash and immutable image ID.
+Audit files and results use the existing user ownership and Detailed-access
+checks. A completed process is not evidence that its statistics are appropriate.
+
+New direct Analysis replies expose an **Analysis implementation** source snapshot
+and hash. These snapshots are deduplicated and retained independently of subsequent
+source edits. They identify the core Analysis module, not a standalone reproducer
+or an archive of every dependency. Curated background runners retain their adapter
+source; R runners execute retained copies of their R script (and the methylation
+helper where applicable). Existing command logs and result parameters remain
+part of the audit. Older runs cannot acquire historical code retroactively.
+
+### Administrator setup
+
+The web app can remain native Uvicorn. Build the separate execution image:
+
+```bash
+docker build -t cohortome-script-sandbox:prototype-v1 docker/script-sandbox
+```
+
+The prototype uses the local Unix Docker socket on the native web/worker host.
+Both processes need permission to inspect the image; the worker creates containers.
+Never mount that socket into the script container. This does **not** wire the
+Docker Compose web/worker services to a host daemon. Deploying that arrangement
+needs a separate design; do not add a Docker socket mount to solve it casually.
+
+Start Redis and the ordinary Analysis worker using the existing launch recipe.
+Restart web and worker after installing backend changes. Missing Docker/image
+access blocks execution but does not prevent template preparation. There is no
+fallback to running scripts on the host.
+
+The container uses a read-only root and inputs, no network, dropped capabilities,
+non-root execution and `no-new-privileges`, following the controls documented in
+[Docker's container run reference](https://docs.docker.com/reference/cli/docker/container/run/).
+It still shares the host kernel. These checks are a development prototype, not a
+claim of safe multi-tenant arbitrary-code execution. Restricted-data support
+requires a separate threat review and stronger isolation assessment.
+
+## Clinical measurement selection
+
+For trajectory, treatment-response and Kaplan–Meier methods, select a **Clinical
+measurement** in **Inputs**. The list comes from numeric measurements in the
+current patient scope and includes units. Coverage shows how many patients have
+values and how many have observations on at least two different dates. In A/B
+mode, both groups are checked. Missing values are not imputed.
+
+These methods require at least one patient with repeated dated observations in
+each group. Kaplan–Meier also requires at least two patients with dated values
+per group. These are minimum execution checks, not evidence of adequate sample
+size. Measurements with inconsistent units are blocked; harmonize them upstream.
+
+The selected measurement, rather than the example marker in the prompt, controls
+the run. It is saved with the session and result. Treatment-response requests
+still specify the treatment in the prompt; Kaplan–Meier requests specify the
+event operator and threshold there. Review those choices before running.
+Measurement selection and these clinical runners do not require an LLM.
+
 ## Compare two measurements
 
 Select **Associate two measurements** in Analysis, or follow the shortcut from

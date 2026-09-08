@@ -28,6 +28,7 @@ import app.query_store as query_store_module
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+_ADAPTER_SOURCE = Path(__file__).read_text(encoding="utf-8")
 RSCRIPT_RUNNERS = {
     "dummy_scope_snapshot": SCRIPTS_DIR / "analysis_dummy_scope_snapshot.R",
     "clinical_scope_profile": SCRIPTS_DIR / "analysis_r_clinical_profile.R",
@@ -1926,6 +1927,15 @@ def run_rscript_analysis(
     with tempfile.TemporaryDirectory(prefix="pn-analysis-rscript-") as temp_dir:
         temp_path = job_dir if isinstance(job_dir, Path) else Path(temp_dir)
         temp_path.mkdir(parents=True, exist_ok=True)
+        # Execute the same script bytes that are retained in this run's artifacts.
+        audit_dir = temp_path / "audit"
+        audit_dir.mkdir(exist_ok=True)
+        snapshot = audit_dir / script_path.name
+        snapshot.write_bytes(script_path.read_bytes())
+        if runner_ref in {"methylation_qc_pca", "methylation_limma_differential_methylation"}:
+            common = script_path.parent / "analysis_r_methylation_common.R"
+            (audit_dir / common.name).write_bytes(common.read_bytes())
+        script_path = snapshot
         plan = _prepare_rscript_run(
             runner_ref,
             binary=binary,
@@ -2328,7 +2338,11 @@ def run_workflow_analysis(
         }
 
 
+from app.script_analysis import run_script_analysis
+
+
 EXTERNAL_ANALYSIS_RUNNERS = {
+    "container": run_script_analysis,
     "rscript": run_rscript_analysis,
     "snakemake": run_snakemake_analysis,
     "nextflow": run_nextflow_analysis,
@@ -2349,6 +2363,10 @@ def run_external_analysis(
     timeout_seconds: int = 30,
 ) -> Dict[str, Any]:
     normalized = str(runner_type or "").strip().lower()
+    if job_dir is not None:
+        audit_dir = Path(job_dir) / "audit"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        (audit_dir / "runner_adapter.py").write_text(_ADAPTER_SOURCE, encoding="utf-8")
     runner = EXTERNAL_ANALYSIS_RUNNERS.get(normalized)
     if runner is None:
         raise RuntimeError(f"Unsupported analysis runner type '{runner_type}'.")

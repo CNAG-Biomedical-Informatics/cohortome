@@ -1,3 +1,5 @@
+import { downloadFile, chatCopyButton } from "./shared.js";
+
 export function createQueryUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
   const {
@@ -384,11 +386,20 @@ export function createQueryUi(ctx) {
       const navigationError = String(navigation.error || "").trim();
       const terminalResult = Boolean(navigation.terminal);
       const loading = Boolean(navigation.loading);
+      const sortBy = String(navigation.sortBy || "");
+      const sortDirection = String(navigation.sortDirection || "asc");
+      const header = (key, label) => {
+        if (!resultPage.resultHandle || terminalResult) return `<th>${label}</th>`;
+        const selected = sortBy === key;
+        const indicator = selected ? (sortDirection === "asc" ? " ↑" : " ↓") : " ↕";
+        return `<th aria-sort="${selected ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" class="query-sort-button" data-query-sort="${key}" ${loading ? "disabled" : ""} title="Sort all results by ${label}">${label}${indicator}</button></th>`;
+      };
       const paging = resultPage.resultHandle || terminalResult ? `
         <div class="query-result-pagination" aria-live="polite">
           <span class="query-result-range">Showing ${escapeHtml(String(start))}–${escapeHtml(String(end))} of ${escapeHtml(String(total))}</span>
           <span class="query-result-boundary-note">${terminalResult ? "This bounded page remains visible, but the server-side result is no longer active." : "Only this page is kept in the browser."}</span>
           <span class="query-result-page-actions">
+            ${resultPage.resultHandle && !terminalResult ? ["tsv", "csv", "json"].map((format) => `<button type="button" class="query-chip" data-query-export="${format}" data-query-export-handle="${escapeHtml(resultPage.resultHandle)}" data-query-export-sort="${escapeHtml(sortBy)}" data-query-export-direction="${escapeHtml(sortDirection)}" title="${format === "json" ? "Download metadata for this query result" : "Download all matching rows in the selected order, not just this page"}">${format === "json" ? "Metadata JSON" : `Export all · ${format.toUpperCase()}`}</button>`).join("") : ""}
             ${resultPage.resultHandle && hasPrevious ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="previous" ${loading ? "disabled" : ""}>Previous</button>` : ""}
             ${resultPage.resultHandle && resultPage.hasMore && resultPage.nextCursor ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="next" ${loading ? "disabled" : ""}>${loading ? "Loading…" : "Load more"}</button>` : ""}
           </span>
@@ -400,8 +411,8 @@ export function createQueryUi(ctx) {
         <div class="query-result-table-scroll">
         <table class="query-result-table">
           <thead>${sampleLevel
-            ? "<tr><th>Sample</th><th>Subject ClarID</th></tr>"
-            : `<tr><th>Patient</th><th>ClarID</th>${showDataset ? "<th>Dataset</th>" : ""}<th>Sex</th><th>Visits</th><th>Medications</th></tr>`}</thead>
+            ? `<tr>${header("sample_id", "Sample")}${header("subject_clarid", "Subject ClarID")}</tr>`
+            : `<tr>${header("patient_id", "Patient")}${header("subject_clarid", "ClarID")}${showDataset ? header("dataset_names", "Dataset") : ""}${header("sex", "Sex")}${header("visit_count", "Visits")}${header("medication_count", "Medications")}</tr>`}</thead>
           <tbody>${rows}</tbody>
         </table>
         </div>
@@ -781,10 +792,11 @@ export function createQueryUi(ctx) {
           <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : isGeneralQuestionMode() ? "Answer" : "Result"}</div>
           ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
-            ${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}
+            <div data-chat-copy-content>${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}</div>
             ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
             ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(data.follow_up_suggestions, data.follow_up_suggestion_metadata) : ""}
           </div>
+          ${turn.pending ? "" : chatCopyButton()}
         </article>
       `;
     }).join("");
@@ -1263,7 +1275,7 @@ export function createQueryUi(ctx) {
     }
   }
 
-  async function loadQueryResultPage(turnIndex, direction) {
+  async function loadQueryResultPage(turnIndex, direction, requestedSort = "") {
     const index = Number(turnIndex);
     const turn = Number.isInteger(index) ? state.queryTurns[index] : null;
     if (!turn || !turn.payload || turn.pending) return;
@@ -1272,11 +1284,18 @@ export function createQueryUi(ctx) {
     const currentNavigation = turn.resultNavigation && typeof turn.resultNavigation === "object"
       ? turn.resultNavigation
       : { cursor: "", start: 0, previous: [], loading: false, error: "" };
+    if (currentNavigation.loading) return;
+    let sortBy = String(currentNavigation.sortBy || "");
+    let sortDirection = String(currentNavigation.sortDirection || "asc");
     const previous = Array.isArray(currentNavigation.previous) ? currentNavigation.previous.slice() : [];
     let targetCursor = "";
     let targetStart = 0;
     let nextPrevious = previous;
-    if (direction === "next") {
+    if (direction === "sort") {
+      sortDirection = sortBy === requestedSort && sortDirection === "asc" ? "desc" : "asc";
+      sortBy = requestedSort;
+      nextPrevious = [];
+    } else if (direction === "next") {
       if (!currentPage.hasMore || !currentPage.nextCursor) return;
       targetCursor = currentPage.nextCursor;
       targetStart = Math.max(0, Number(currentNavigation.start || 0)) + currentPage.returnedCount;
@@ -1298,11 +1317,16 @@ export function createQueryUi(ctx) {
     renderQueryThread();
     try {
       const parameters = new URLSearchParams({ limit: String(QUERY_RESULT_PAGE_SIZE) });
+      if (sortBy) {
+        parameters.set("sort_by", sortBy);
+        parameters.set("sort_direction", sortDirection);
+      }
       if (targetCursor) parameters.set("cursor", targetCursor);
       const response = await fetch(
         `/query-results/${encodeURIComponent(currentPage.resultHandle)}?${parameters.toString()}`,
         { cache: "no-store" },
       );
+      if (state.queryTurns[index] !== turn || queryResultPage(turn.payload).resultHandle !== currentPage.resultHandle) return;
       if (!response.ok) {
         const terminalResponse = response.status === 404 || response.status === 410;
         let message = terminalResponse
@@ -1332,6 +1356,7 @@ export function createQueryUi(ctx) {
       turn.payload = replaceQueryResultPage(turn.payload, responsePage);
       turn.resultNavigation = {
         cursor: targetCursor,
+        sortBy, sortDirection,
         start: targetStart,
         previous: nextPrevious,
         loading: false,
@@ -1357,6 +1382,31 @@ export function createQueryUi(ctx) {
   }
 
   function handleDocumentClick(event) {
+    const sortButton = event.target.closest("[data-query-sort]");
+    if (sortButton && queryTabEl?.contains(sortButton)) {
+      const turnElement = sortButton.closest("[data-query-turn-index]");
+      const index = turnElement ? turnElement.dataset.queryTurnIndex : state.queryTurns.length - 1;
+      void loadQueryResultPage(index, "sort", sortButton.dataset.querySort);
+      return;
+    }
+    const exportButton = event.target.closest("[data-query-export]");
+    if (exportButton && queryTabEl?.contains(exportButton)) {
+      const format = exportButton.dataset.queryExport;
+      const handle = exportButton.dataset.queryExportHandle;
+      const parameters = new URLSearchParams({ format });
+      if (exportButton.dataset.queryExportSort) {
+        parameters.set("sort_by", exportButton.dataset.queryExportSort);
+        parameters.set("sort_direction", exportButton.dataset.queryExportDirection);
+      }
+      exportButton.disabled = true;
+      queryStatusEl.textContent = "Preparing download…";
+      void downloadFile(`/query-results/${encodeURIComponent(handle)}/export?${parameters.toString()}`,
+        format === "json" ? "query-result-metadata.json" : `query-result.${format}`)
+        .then(() => { queryStatusEl.textContent = "Download prepared."; })
+        .catch((error) => { queryStatusEl.textContent = error.message; })
+        .finally(() => { exportButton.disabled = false; });
+      return;
+    }
     const diseaseChip = event.target.closest("[data-query-disease-chip]");
     if (diseaseChip && queryDiseaseTopChipsEl && queryDiseaseTopChipsEl.contains(diseaseChip)) {
       preloadDiseaseCohort(diseaseChip.dataset.queryDiseaseChip || "");

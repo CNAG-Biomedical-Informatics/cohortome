@@ -1,3 +1,5 @@
+import { chatCopyButton } from "./shared.js";
+
 export function createAnalysisUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
   const {
@@ -359,6 +361,11 @@ export function createAnalysisUi(ctx) {
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
     if (!context) return '<div class="empty">No analysis plots available.</div>';
+    if (context.mode === "custom_script") {
+      return `<div class="viz-card" style="grid-column:1 / -1">${renderArtifactDownloads("Script, audit and result files", artifacts)}
+        ${artifacts.filter(item => /^outputs\/[A-Za-z0-9_.-]+\.png$/.test(item.name || "")).map(item => `<img class="analysis-artifact-image" src="${escapeHtml(item.url)}" alt="Custom script output">`).join("")}
+        <details class="query-section"><summary>Execution logs and audit</summary><pre>${escapeHtml(JSON.stringify({stdout: context.stdout, stderr: context.stderr, audit: context.audit}, null, 2))}</pre></details></div>`;
+    }
     if (context.mode === "cross_modal_association") {
       const counts = context.counts || {};
       return `<div class="viz-card" style="grid-column: 1 / -1;"><div class="section-note">${escapeHtml(context.matching)}</div>
@@ -1881,6 +1888,7 @@ export function createAnalysisUi(ctx) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
     return [
+      "custom_script",
       "external_rscript_transcriptomics_deseq2_differential_expression",
       "cross_modal_association",
       "external_rscript_transcriptomics_limma_voom_differential_expression",
@@ -2042,7 +2050,9 @@ export function createAnalysisUi(ctx) {
       const dataHtml = `<details class="query-section analysis-result-data"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${generalAnswer ? "Show response data" : "Show analysis data"}</span></span></summary><pre>${escapeHtml(JSON.stringify(turn.payload.data, null, 2))}</pre></details>`;
       const framing = turn.framing;
       const framingHtml = !generalAnswer && framing ? `<details class="query-section analysis-framing-result"><summary>${framing.mode === "hypothesis_driven" ? "Hypothesis-driven" : "Exploratory"} · Research question</summary><p>${escapeHtml(framing.question || "No research question recorded.")}</p>${framing.mode === "hypothesis_driven" ? `<p><strong>Hypothesis:</strong> ${escapeHtml(framing.hypothesis || "Not recorded")}</p>` : ""}<p class="section-note">Captured at submission: ${escapeHtml(framing.captured_at || "Not recorded")}. User-specified framing, not formal preregistration.</p></details>` : "";
-      const resultHtml = `<div class="analysis-result-content">${framingHtml}<div class="analysis-turn-body">${renderQueryReply(turn.payload)}</div>${visualHtml}${contextHtml}${followupHtml}${dataHtml}</div>`;
+      const audit = turn.payload?.data?.implementation_audit;
+      const auditHtml = audit ? `<details class="query-section"><summary>Analysis implementation</summary><p>${escapeHtml(audit.note)}</p>${renderArtifactDownloads("Source snapshot", [{name: audit.filename, url: audit.url}])}<p>SHA-256: <code>${escapeHtml(audit.sha256)}</code></p></details>` : "";
+      const resultHtml = `<div class="analysis-result-content">${framingHtml}<div class="analysis-turn-body" data-chat-copy-content>${renderQueryReply(turn.payload)}</div>${chatCopyButton()}${visualHtml}${contextHtml}${followupHtml}${auditHtml}${dataHtml}</div>`;
       const intentInfo = analysisIntentPresentation(turn.payload && turn.payload.intent ? turn.payload.intent : "analysis");
       const summaryText = contextParts.length ? contextParts.slice(0, 2).join(" | ") : String(turn.payload && turn.payload.reply ? turn.payload.reply : "").replace(/\s+/g, " ").slice(0, 140);
       const compactResultHtml = turnIndex === latestAssistantIndex
@@ -2183,6 +2193,12 @@ export function createAnalysisUi(ctx) {
           : {
             prompt,
             catalog_item_id: state.analysisSelectedCatalogItemId || "",
+            measurement: state.analysisMeasurement || "",
+            custom_script: state.analysisSelectedCatalogItemId === "synthetic-custom-script" ? state.analysisScriptDraft?.script || "" : "",
+            input_contract_id: state.analysisScriptDraft?.contract_id || "",
+            script_language: state.analysisScriptDraft?.language || "python",
+            sandbox_image_id: state.analysisScriptDraft?.image_id || "",
+            custom_assay_ids: state.analysisSelectedCatalogItemId === "synthetic-custom-script" ? state.selectedAssayDatasets || [] : [],
             analysis_session_id: state.currentAnalysisSessionId || "",
             assay_id: selectedAssayDatasets.length === 1 ? selectedAssayDatasets[0] : "",
             dataset_id: analysisWorkspaceKey(),

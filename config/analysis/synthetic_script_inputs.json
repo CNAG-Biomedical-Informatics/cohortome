@@ -1,0 +1,12 @@
+{
+  "clinical/fictional_participants.json": "d24c8308440dee96211f5028c913e98a7673dbb5a192be56851029a703c14459",
+  "assays/manifest.json": "bce90c11a61581343f35cba0b50af1b16d5f3835c093239a30d59010bd122d2f",
+  "assays/flow_cytometry/sample_metadata.tsv": "8a08ad4ce403ea55434c1bce9c64ecdbf40a1761c9630cfd9061db1baa75276a",
+  "assays/flow_cytometry/synthetic_flow_cytometry.csv": "6129ad17e7ad551abf8171f6384c809b238726e188176cc85b948a2204c58a52",
+  "assays/methylation/sample_metadata.tsv": "09ffc8c1f7a6f77a3c22a157169fd3c6420e3c38d74ba004190db31f6334a818",
+  "assays/methylation/synthetic_methylation.csv": "31aad66949824ae06d91ed2deac16614587f59cd4b4bb1bc155685d4f9578357",
+  "assays/serology/sample_metadata.tsv": "28d65d7777efdcf0b27f2974f87567f8541287c7a2283b7b7bdf0e93ded2c373",
+  "assays/serology/synthetic_serology.csv": "b28b491a10e4bc59a0338ebe79747e28988d27178b93cb62327757301046dcef",
+  "assays/transcriptomics/sample_metadata.tsv": "0bc1cab3e54f4b158b1f37ea84d790156cb52715db6a3d409797daa459b4edd0",
+  "assays/transcriptomics/synthetic_transcriptomics.csv": "c2287a29f64ad539a5bccbc6b67ca3073af12001eb8a51adbe4b67201735f54d"
+}

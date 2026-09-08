@@ -1,4 +1,6 @@
 import { formatAssayRequirementLabel } from "./assay_labels.js";
+import { createMeasurementSelector } from "./analysis_measurements.js";
+import { createScriptEditor } from "./analysis_script_editor.js";
 
 export function createAnalysisCatalogUi(ctx) {
   const { refs, state, helpers, callbacks, constants } = ctx;
@@ -52,6 +54,33 @@ export function createAnalysisCatalogUi(ctx) {
     setAnalysisContextMode,
     refreshBackgroundWorkerStatus,
   } = callbacks;
+  const measurementSelector = analysisCatalogAssayPanelEl ? createMeasurementSelector({
+    host: analysisCatalogAssayPanelEl, state, escapeHtml,
+    getContext: () => ({
+      prompt: "Measurement setup",
+      dataset_id: currentDatasetSelectionKey(),
+      selected_patient_ids: document.getElementById("analysisSelectedPatientIds").value.trim(),
+      compare_selected_patient_ids: document.getElementById("analysisCompareSelectedPatientIds").value.trim(),
+      compare_mode: Boolean(analysisCompareModeEl && analysisCompareModeEl.checked),
+      query_result_handle: state.analysisScopeMetadata?.query_result_handle || "",
+    }),
+    onChange: (persist = true) => {
+      renderAnalysisCatalogAssayPanel();
+      if (persist) syncCurrentAnalysisSessionFromUi({ render: false });
+    },
+  }) : null;
+
+  const scriptEditor = analysisCatalogAssayPanelEl ? createScriptEditor({
+    host: analysisCatalogAssayPanelEl, state,
+    getContext: () => ({prompt: "Prepare custom script", dataset_id: currentDatasetSelectionKey(),
+      script_language: state.analysisScriptDraft?.language || "python",
+      selected_patient_ids: document.getElementById("analysisSelectedPatientIds").value.trim(),
+      compare_selected_patient_ids: document.getElementById("analysisCompareSelectedPatientIds").value.trim(),
+      compare_mode: Boolean(analysisCompareModeEl && analysisCompareModeEl.checked),
+      custom_assay_ids: [...(state.selectedAssayDatasets || [])].sort(),
+      query_result_handle: state.analysisScopeMetadata?.query_result_handle || ""}),
+    onChange: () => { renderAnalysisCatalogAssayPanel(); syncCurrentAnalysisSessionFromUi({render: false}); },
+  }) : null;
 
   function initializeExampleToggle(container, maxVisible = MAX_VISIBLE_EXAMPLES) {
     if (!container) {
@@ -530,6 +559,17 @@ export function createAnalysisCatalogUi(ctx) {
         },
       );
     }
+    if (item.requires_measurement) {
+      const selected = String(item.id) === String(state.analysisSelectedCatalogItemId || "");
+      const status = selected && measurementSelector ? measurementSelector.status()
+        : { complete: false, detail: "Select this method, then choose a clinical measurement in Inputs." };
+      steps.push({ key: "measurement", label: "Choose clinical measurement", ...status });
+    }
+    if (item.kind === "custom_script") {
+      const status = String(item.id) === String(state.analysisSelectedCatalogItemId) && scriptEditor
+        ? scriptEditor.status() : {complete: false, detail: "Prepare inputs and a Python or R script in Inputs."};
+      steps.push({key: "script", label: "Prepare custom script", ...status});
+    }
     if (item.requires_assays) {
       const singleAssay = requiresSingleSelectedAssayDataset(item);
       const selectedCount = selectedDatasetNames.length;
@@ -652,6 +692,8 @@ export function createAnalysisCatalogUi(ctx) {
     }
     const item = currentAnalysisCatalogItem();
     const hasSelectedItem = Boolean(item);
+    if (scriptEditor) scriptEditor.render(Boolean(item && item.kind === "custom_script"));
+    if (measurementSelector) measurementSelector.render(Boolean(item && item.requires_measurement), String(item?.runner_ref || "").startsWith("survival") ? 2 : 1);
     analysisCatalogAssayPanelEl.classList.toggle("is-hidden", !hasSelectedItem);
     if (analysisComposerSetupEl) {
       analysisComposerSetupEl.classList.toggle("is-hidden", !hasSelectedItem);

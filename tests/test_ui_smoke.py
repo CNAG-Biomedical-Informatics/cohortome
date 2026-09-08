@@ -91,6 +91,177 @@ def test_shared_clipboard_fallback_preserves_focus_and_cleans_up(page):
                       "copied": "Synthetic version report", "clean": True}
 
 
+def test_query_downloads_all_rows_and_reports_expired_export(page):
+    handle = "qr_export_fixture"
+    page.route("**/query", lambda route: route.fulfill(json={
+        "intent": "patient_inventory", "reply": "Found 607 patients.",
+        "data": {"source": "deterministic", "patient_count": 607,
+                 "result_handle": handle, "result_page": {
+                     "result_handle": handle, "total_count": 607, "returned_count": 1,
+                     "rows": [{"patient_id": "P0000"}], "patient_ids": ["P0000"],
+                     "has_more": True, "next_cursor": "next"}},
+    }))
+    body = "patient_id\n" + "\n".join(f"P{i:04d}" for i in range(607)) + "\n"
+    page.route(f"**/query-results/{handle}/export?format=tsv", lambda route: route.fulfill(
+        content_type="text/tab-separated-values", body=body))
+    _open_query_tab(page)
+    page.locator("#question").fill("List all patients")
+    page.locator("#askBtn").click()
+    button = page.locator('#queryThread [data-query-export="tsv"]').last
+    playwright.expect(button).to_have_text("Export all · TSV")
+    with page.expect_download() as download_info:
+        button.click()
+    download = download_info.value
+    assert download.suggested_filename == "query-result.tsv"
+    assert Path(download.path()).read_text() == body
+    page.route(f"**/query-results/{handle}/export?format=csv", lambda route: route.fulfill(
+        status=410, json={"detail": "Query result expired. Run the query again."}))
+    page.locator('#queryThread [data-query-export="csv"]').last.click()
+    playwright.expect(page.locator("#queryStatus")).to_contain_text("Query result expired")
+    playwright.expect(page.locator('#queryThread [data-query-export="csv"]').last).to_be_enabled()
+
+
+def test_saved_cohort_download_button(page):
+    _mock_saved_cohorts(page)
+    page.route("**/saved-cohorts/cohort-a/export", lambda route: route.fulfill(
+        content_type="application/zip", body=b"synthetic-download-placeholder"))
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    page.locator("#analysisTab .analysis-setup-card > summary").click()
+    page.locator("#analysisTab .analysis-setup-saved-cohorts > summary").click()
+    with page.expect_download() as download_info:
+        page.locator('#savedCohorts [data-saved-cohort-action="export"]').first.click()
+    assert download_info.value.suggested_filename == "saved-cohort.zip"
+
+
+def test_custom_script_editor_prepares_and_submits_bound_inputs(page):
+    _install_online_worker_route(page)
+    item = {"id": "synthetic-custom-script", "name": "Custom Python script", "kind": "custom_script",
+            "runner_type": "container", "runner_ref": "synthetic_custom_script", "execution_mode": "deterministic",
+            "execution_backend": "job", "available": True, "default_prompt": "Run custom analysis."}
+    page.route("**/analysis/catalog?*", lambda route: route.fulfill(json={"items": [item], "workspace": {}}))
+    page.route("**/analysis/script-template", lambda route: route.fulfill(json={
+        "template": "print('prepared')", "contract_id": "a" * 64,
+        "contract": {"patients": 90, "cohort_a": 90, "cohort_b": 0,
+                     "language": "Python 3.11", "packages": {"pandas": "2.2.3"},
+                     "assays": {"transcriptomics": {"features": 1000, "cohort_a_samples": 90, "cohort_b_samples": 0}}},
+        "sandbox": {"available": True, "image_id": "sha256:" + "b" * 64}}))
+    submitted = []
+    def run(route):
+        submitted.append(route.request.post_data_json)
+        route.fulfill(json={"intent": "analysis_custom_script", "reply": "Script completed.",
+                            "data": {"source": "deterministic", "context": {"mode": "custom_script", "audit": {}}}})
+    page.route("**/analysis", run)
+    page.reload(wait_until="networkidle")
+    _open_analysis_tab(page)
+    page.locator("#analysisMethodSelect").select_option("catalog:synthetic-custom-script")
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_disabled()
+    page.locator("[data-script-prepare]").click()
+    playwright.expect(page.locator("#analysisScriptCode")).to_have_value("print('prepared')")
+    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Python 3.11')
+    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('pandas 2.2.3')
+    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('90 patients')
+    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Not used — single-cohort analysis')
+    playwright.expect(page.locator('[data-script-summary] table')).to_contain_text('1000')
+    page.locator("#analysisScriptCode").fill("print('completed by external AI')")
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_enabled()
+    page.locator("#analysisRunBtn").click()
+    playwright.expect(page.locator("#analysisThread")).to_contain_text("Script completed.")
+    assert submitted[0]["custom_script"] == "print('completed by external AI')"
+    assert submitted[0]["input_contract_id"] == "a" * 64
+    page.locator('[data-analysis-flow-target="scope"]').click()
+    page.locator("#analysisCompareMode").check()
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_disabled()
+    playwright.expect(page.locator('[data-script-prepare]')).to_be_disabled()
+    playwright.expect(page.locator('[data-script-copy]')).to_be_disabled()
+    playwright.expect(page.locator('[data-script-status]')).to_contain_text('Choose Cohort A in Patients')
+
+
+def test_chat_copy_reply_and_clipboard_fallback(page):
+    page.evaluate("""() => {
+      window.copiedChat = '';
+      Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async () => {throw Error('denied');}}});
+      document.execCommand = command => {
+        if (command === 'copy') { window.copiedChat = document.activeElement.value; return true; }
+        return false;
+      };
+    }""")
+    page.route("**/query", lambda route: route.fulfill(json={
+        "intent": "summary", "reply": "A synthetic reply to copy.", "data": {"source": "deterministic"}}))
+    _open_query_tab(page)
+    page.locator("#question").fill("Summarize the cohort")
+    page.locator("#askBtn").click()
+    button = page.locator("#queryThread [data-chat-copy]").last
+    button.click()
+    playwright.expect(button).to_contain_text("Copied")
+    assert "A synthetic reply to copy." in page.evaluate("window.copiedChat")
+    assert "Copy message" not in page.evaluate("window.copiedChat")
+    page.route("**/analysis", lambda route: route.fulfill(json={
+        "intent": "analysis_summary", "reply": "Analysis text to copy.", "data": {"source": "deterministic", "context": {}}}))
+    _open_analysis_tab(page)
+    page.locator("#analysisMethodSelect").select_option("summary")
+    page.locator("#analysisRunBtn").click()
+    button = page.locator("#analysisThread [data-chat-copy]").last
+    button.click()
+    playwright.expect(button).to_contain_text("Copied")
+    assert "Analysis text to copy." in page.evaluate("window.copiedChat")
+
+
+def test_query_column_sort_resets_page_and_orders_download(page):
+    from urllib.parse import parse_qs, urlparse
+    handle = "qr_sort_fixture"
+    requests = []
+
+    def result_page(parameters):
+        descending = parameters.get("sort_direction", ["asc"])[0] == "desc"
+        indices = list(range(607))
+        if descending:
+            indices.reverse()
+        start = int(parameters.get("cursor", ["0"])[0])
+        selected = indices[start:start + 50]
+        return {"result_handle": handle, "total_count": 607, "returned_count": len(selected),
+                "patient_ids": [f"P{i:04d}" for i in selected],
+                "rows": [{"patient_id": f"P{i:04d}", "visit_count": i} for i in selected],
+                "has_more": start + 50 < 607, "next_cursor": str(start + 50)}
+
+    page.route("**/query", lambda route: route.fulfill(json={
+        "intent": "patient_inventory", "reply": "Found 607 patients.",
+        "data": {"source": "deterministic", "result_handle": handle, "result_page": result_page({})}}))
+
+    def pages(route):
+        parameters = parse_qs(urlparse(route.request.url).query)
+        requests.append(parameters)
+        route.fulfill(json=result_page(parameters))
+
+    page.route(f"**/query-results/{handle}?*", pages)
+    page.route(f"**/query-results/{handle}/export?*", lambda route: route.fulfill(
+        content_type="text/tab-separated-values", body="patient_id\nP0606\n"))
+    _open_query_tab(page)
+    page.locator("#question").fill("List all patients")
+    page.locator("#askBtn").click()
+    table = page.locator("#queryThread .query-result-table").last
+    visits = table.locator('[data-query-sort="visit_count"]')
+    assert visits.evaluate("el => getComputedStyle(el).backgroundImage") == "none"
+    assert visits.evaluate("el => getComputedStyle(el).backgroundColor") == "rgba(0, 0, 0, 0)"
+    assert visits.evaluate("el => getComputedStyle(el).color === getComputedStyle(el.parentElement).color")
+    visits.click()
+    playwright.expect(visits.locator("..")).to_have_attribute("aria-sort", "ascending")
+    visits.click()
+    playwright.expect(visits.locator("..")).to_have_attribute("aria-sort", "descending")
+    playwright.expect(table.locator("tbody tr").first).to_contain_text("P0606")
+    with page.expect_request(f"**/query-results/{handle}/export?*") as exported:
+        with page.expect_download():
+            page.locator('#queryThread [data-query-export="tsv"]').last.click()
+    assert parse_qs(urlparse(exported.value.url).query)["sort_direction"] == ["desc"]
+    page.locator('#queryThread [data-query-page-action="next"]').last.click()
+    playwright.expect(table.locator("tbody tr").first).to_contain_text("P0556")
+    table.locator('[data-query-sort="patient_id"]').click()
+    playwright.expect(table.locator("tbody tr").first).to_contain_text("P0000")
+    assert requests[-1]["sort_by"] == ["patient_id"]
+    assert "cursor" not in requests[-1]
+    playwright.expect(page.locator('#queryThread [data-query-page-action="previous"]')).to_have_count(0)
+
+
 def _free_port() -> int:
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -3213,6 +3384,26 @@ def test_analysis_catalog_item_prefills_prompt_and_compare_mode(page) -> None:
 
     expect(page.locator("#analysisPrompt")).to_have_value(re.compile(r"Show the trajectory of Leukocyte Count over time"))
     expect(page.locator("#analysisCompareMode")).not_to_be_checked()
+
+
+def test_analysis_measurement_selection_controls_readiness(page):
+    page.route("**/analysis/measurements", lambda route: route.fulfill(json={"measurements": [
+        {"measure": "CRP", "units": ["mg/L"], "compatible_units": True,
+         "groups": [{"patient_count": 12, "dated_patient_count": 12, "repeated_patient_count": 8}]},
+        {"measure": "Single visit", "units": ["mg/L"], "compatible_units": True,
+         "groups": [{"patient_count": 12, "dated_patient_count": 12, "repeated_patient_count": 0}]},
+    ]}))
+    _open_analysis_tab(page)
+    page.locator("#analysisCatalogBrowseBtn").click()
+    page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='trajectory-single']").click()
+    selector = page.locator("#analysisMeasurement")
+    playwright.expect(selector.locator("option")).to_have_count(3)
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_disabled()
+    selector.select_option("CRP")
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_enabled()
+    playwright.expect(page.locator("#analysisCatalogAssayPanel")).to_contain_text("8 with values on two or more dates")
+    selector.select_option("Single visit")
+    playwright.expect(page.locator("#analysisRunBtn")).to_be_disabled()
 
 
 def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:

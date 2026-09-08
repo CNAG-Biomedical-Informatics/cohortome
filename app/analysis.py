@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from datetime import date
 from typing import Any, Dict, List
 
@@ -30,6 +31,9 @@ from app.query_store import (
     assay_expression_summary as store_assay_expression_summary,
     patient_query_index as store_patient_query_index,
 )
+
+# Capture at import, not when a later request reads a possibly edited source file.
+_IMPLEMENTATION_SOURCE = Path(__file__).read_text(encoding="utf-8")
 
 
 def _normalize_analysis_granularity_ceiling(value: str) -> str:
@@ -101,6 +105,9 @@ def _analysis_finalize_response(
 ) -> Dict[str, Any]:
     finalized = dict(payload)
     data = dict(finalized.get("data") or {})
+    if data.get("execution") != "queued":
+        from app.analysis_code import snapshot
+        data["implementation_audit"] = snapshot(_IMPLEMENTATION_SOURCE)
     data["granularity_applied"] = granularity_applied
     data["ai_provider_access"] = ai_provider_access
     data["external_llm_allowed"] = ai_provider_access != "blocked"
@@ -2422,9 +2429,50 @@ def analysis_llm_reply(
     history: List[Dict[str, str]] | None = None,
     granularity_ceiling: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
+    measurement: str = "",
 ) -> Dict[str, Any]:
     normalized_granularity = _normalize_analysis_granularity_ceiling(granularity_ceiling)
     normalized_ai_provider_access = _normalize_analysis_ai_provider_access(ai_provider_access)
+    from app.analysis_measurements import MEASUREMENT_RUNNERS, validate_measurement
+    item = get_analysis_catalog_item(catalog_item_id) if catalog_item_id else None
+    runner = item.get("runner_ref") if item else None
+    if runner in MEASUREMENT_RUNNERS:
+        if normalized_granularity != "detailed":
+            raise RuntimeError("Clinical measurement analyses require Detailed in-app access.")
+        if llm_only:
+            raise RuntimeError("Use the deterministic runner for the selected clinical analysis.")
+        if item.get("default_compare_mode") and (not compare_mode or not selected_patient_ids or not compare_selected_patient_ids):
+            raise RuntimeError("Choose Cohort A and Cohort B before running this comparison.")
+        _analysis_catalog_dispatch(prompt, catalog_item_id=catalog_item_id, data_dir=data_dir,
+                                   granularity_applied=normalized_granularity)
+        coverage = validate_measurement(data_dir, measurement, selected_patient_ids,
+                                        compare_selected_patient_ids, compare_mode)
+        if runner.startswith("survival"):
+            if any(group["dated_patient_count"] < 2 for group in coverage["groups"]):
+                raise RuntimeError("Kaplan-Meier requires at least two patients with dated numeric observations in each group.")
+            parameters = _parse_survival_request(prompt)
+            if not parameters:
+                raise RuntimeError("Specify an event operator and numeric threshold in the prompt, for example: time to marker > 0.")
+            if compare_mode:
+                context = compare_survival_analysis_context(data_dir, measurement, parameters["operator"], parameters["threshold"], selected_patient_ids, compare_selected_patient_ids)
+            else:
+                context = survival_analysis_context(data_dir, measurement, parameters["operator"], parameters["threshold"], selected_patient_ids)
+        else:
+            parameters = _parse_trajectory_request(prompt) or {}
+            treatment = parameters.get("treatment_query", "") if runner == "treatment_response" else ""
+            if runner == "treatment_response" and not treatment:
+                raise RuntimeError("Specify the treatment in the prompt, for example: Show response to Infliximab using the selected measurement.")
+            context = (compare_trajectory_context(data_dir, measurement, selected_patient_ids, compare_selected_patient_ids, treatment)
+                       if compare_mode else _build_trajectory_context(data_dir, measurement, selected_patient_ids, treatment))
+        context["measurement_input"] = coverage
+        intent = "analysis_" + ("survival" if runner.startswith("survival") else "trajectory") + ("_compare" if compare_mode else "")
+        payload = {"intent": intent,
+                   "reply": deterministic_analysis_reply(prompt, context),
+                   "data": {"source": "deterministic", "context": context,
+                            "catalog_item_id": catalog_item_id, "measurement": measurement,
+                            "model": None, "base_url": ""}}
+        return _analysis_finalize_response(payload, granularity_applied=normalized_granularity,
+                                           ai_provider_access=normalized_ai_provider_access)
     payload = _analysis_llm_reply_impl(
         prompt,
         data_dir,

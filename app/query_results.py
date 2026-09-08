@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -158,6 +159,7 @@ def create_query_result(
     id_type: str = "patient",
     private_scope: bool = False,
     ttl_minutes: int = QUERY_RESULT_TTL_MINUTES,
+    query_text: str = "",
 ) -> Dict[str, Any]:
     if private_scope and not private_artifact_runtime_is_safe():
         raise RuntimeError(
@@ -177,6 +179,7 @@ def create_query_result(
     handle = f"{_HANDLE_PREFIX}{secrets.token_urlsafe(32)}"
     record = {
         "schema_version": 1,
+        "query_text": str(query_text or ""),
         "handle": handle,
         "owner_user_id": _owner_identity(user_id),
         "dataset_id": str(dataset_id or "").strip(),
@@ -263,9 +266,43 @@ def require_query_result_binding(
         raise QueryResultStaleError("The workspace access policy changed after this query ran. Run the query again.")
 
 
+def sort_query_result(record, rows, sort_by, direction="asc"):
+    allowed = {"sample_id", "subject_clarid"} if record.get("id_type") == "sample" else {
+        "patient_id", "subject_clarid", "dataset_names", "sex", "visit_count", "medication_count"}
+    if sort_by not in allowed or direction not in {"asc", "desc"}:
+        raise ValueError("Unsupported result sort column or direction.")
+    primary = "sample_id" if record.get("id_type") == "sample" else "patient_id"
+    numeric = sort_by in {"visit_count", "medication_count"}
+
+    def value(row):
+        raw = row.get(sort_by)
+        if raw is None or raw == "":
+            return None
+        if numeric:
+            try:
+                number = float(raw)
+                return number if math.isfinite(number) else None
+            except (TypeError, ValueError):
+                return None
+        return str(raw).casefold()
+
+    # Stable ID tie-breaking; unavailable values are last in either direction.
+    pairs = [(row, value(row)) for row in sorted(rows, key=lambda row: str(row.get(primary, "")))]
+    present = sorted((pair for pair in pairs if pair[1] is not None), key=lambda pair: pair[1], reverse=direction == "desc")
+    ordered = present + [pair for pair in pairs if pair[1] is None]
+    return {**record, "sort_by": sort_by, "sort_direction": direction,
+            "items": [{primary: row[primary], "row": row} for row, _ in ordered]}
+
+
+def _cursor_message(record, message):
+    if record.get("sort_by"):
+        return message + f":{record['sort_by']}:{record['sort_direction']}".encode("ascii")
+    return message
+
+
 def _cursor(record: Dict[str, Any], offset: int, page_size: int) -> str:
     message = f"{int(offset)}:{int(page_size)}".encode("ascii")
-    signature = hmac.new(str(record.get("cursor_secret") or "").encode("utf-8"), message, hashlib.sha256).digest()[:16]
+    signature = hmac.new(str(record.get("cursor_secret") or "").encode("utf-8"), _cursor_message(record, message), hashlib.sha256).digest()[:16]
     payload = base64.urlsafe_b64encode(message + b":" + signature).decode("ascii").rstrip("=")
     return payload
 
@@ -285,7 +322,7 @@ def _cursor_offset(record: Dict[str, Any], cursor: str, page_size: int) -> int:
         raise QueryResultStaleError("Invalid query-result cursor.")
     expected = hmac.new(
         str(record.get("cursor_secret") or "").encode("utf-8"),
-        f"{offset}:{page_size}".encode("ascii"),
+        _cursor_message(record, f"{offset}:{page_size}".encode("ascii")),
         hashlib.sha256,
     ).digest()[:16]
     if not hmac.compare_digest(signature, expected):

@@ -100,6 +100,7 @@ def _normalize_catalog_item(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         )
     return {
         "id": item_id,
+        "requires_measurement": runner_ref in {"trajectory", "trajectory_compare", "treatment_response", "survival", "survival_compare"},
         "name": name,
         "category": category,
         "kind": kind,
@@ -266,6 +267,10 @@ def analysis_catalog_payload(
             clinical_record_representation=record_representation,
             workspace_dataset_count=max(0, int(workspace_dataset_count)),
         )
+        if item.get("runner_ref") == "synthetic_custom_script":
+            from app.script_inputs import DEMO_ROOT
+            if Path(data_dir).resolve() != DEMO_ROOT.resolve():
+                availability.update(available=False, unavailable_reason="Synthetic autoimmune demo only; restricted and mixed workspaces are blocked.")
         materialized_items.append({**item, **availability})
     return {
         "items": materialized_items,

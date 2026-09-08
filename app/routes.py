@@ -671,6 +671,7 @@ def _materialize_query_response(
         patient_ids=patient_ids,
         sample_ids=sample_ids,
         rows=_query_result_rows(payload),
+        query_text=str(payload.get("query") or ""),
         id_type="sample" if intent == "sample_inventory" and sample_ids else "patient",
         private_scope=private_scope,
     )
@@ -705,9 +706,12 @@ def get_query_result_page(
     request: Request,
     cursor: str = Query(default="", max_length=256),
     limit: int = Query(default=QUERY_RESULT_DEFAULT_PAGE_SIZE, ge=1, le=100),
+    sort_by: str = "",
+    sort_direction: str = "asc",
 ) -> JSONResponse:
     require_authenticated(request)
     record, _ = _load_authorized_query_result(request, handle)
+    record = _ordered_query_result(record, request, sort_by, sort_direction)
     try:
         page = query_result_page(record, cursor=cursor, limit=limit)
         return JSONResponse(page, headers={"Cache-Control": "no-store"})
@@ -715,6 +719,67 @@ def get_query_result_page(
         if "cursor" in str(exc).lower():
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         raise HTTPException(status_code=410, detail=str(exc)) from exc
+
+
+def _ordered_query_result(record, request, sort_by, sort_direction, patients=None):
+    from app import exports
+    from app.query_results import sort_query_result
+    if not sort_by:
+        if sort_direction != "asc":
+            raise HTTPException(400, "Choose a sort column before a direction.")
+        return record
+    exports.check_size(len(record.get("items") or []))
+    if patients is None:
+        patients = get_patients(request, dataset_id=record["dataset_id"])
+    rows, _ = exports.query_rows(record, patients)
+    try:
+        return sort_query_result(record, rows, sort_by, sort_direction)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+def export_query_result(handle: str, request: Request, format: str = "tsv", sort_by: str = "", sort_direction: str = "asc"):
+    from app import exports
+    require_authenticated(request)
+    if format not in {"tsv", "csv", "json"}:
+        raise HTTPException(400, "Choose TSV, CSV or JSON metadata.")
+    record, _ = _load_authorized_query_result(request, handle)
+    exports.check_size(len(record.get("items") or []))
+    patients = get_patients(request, dataset_id=record["dataset_id"]) if format != "json" or sort_by else None
+    record = _ordered_query_result(record, request, sort_by, sort_direction, patients)
+    if format == "json":
+        meta = exports.metadata("query_result", record.get("dataset_ids") or [],
+                                len(record.get("items") or []), id_type=record.get("id_type"),
+                                query_created_at=record.get("created_at"),
+                                query_text=record.get("query_text", ""),
+                                sort_by=sort_by or "original_result_order", sort_direction=sort_direction,
+                                workspace_fingerprint=(record.get("workspace_fingerprint") or {}).get("token", ""),
+                                scope="All rows in the stored query result; no query is rerun.")
+        return exports.attachment(exports.json_bytes(meta), "query-result-metadata.json", "application/json")
+    rows, columns = exports.query_rows(record, patients)
+    content = exports.table_bytes(rows, columns, "," if format == "csv" else "\t")
+    return exports.attachment(content, f"query-result.{format}",
+                              "text/csv" if format == "csv" else "text/tab-separated-values")
+
+
+def export_saved_cohort(cohort_id: str, request: Request):
+    from app import exports
+    require_authenticated(request)
+    cohort = next((item for item in list_saved_cohorts(user_id=request_user_id(request))
+                   if item.get("id") == cohort_id), None)
+    if cohort is None:
+        raise HTTPException(404, "Saved cohort not found.")
+    scope_id = str(cohort.get("dataset_id") or "")
+    if not parse_scope_dataset_ids(scope_id):
+        raise HTTPException(409, "This cohort has no registered dataset scope.")
+    selected_ids = resolve_dataset_ids(request, scope_id)
+    if not selected_ids or effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(403, "Cohort export requires Detailed access to every source dataset.")
+    if set(cohort.get("dataset_ids") or []) != set(selected_ids):
+        raise HTTPException(409, "Saved cohort dataset scope is inconsistent.")
+    exports.check_size(len(cohort.get("patient_ids") or []) + len(cohort.get("sample_ids") or []))
+    patients = get_patients(request, dataset_id=scope_id)
+    return exports.attachment(exports.cohort_bundle(cohort, patients), "saved-cohort.zip", "application/zip")
 
 
 def get_datasets(request: Request) -> Dict:
@@ -1621,10 +1686,40 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
                 raise HTTPException(status_code=409, detail=workspace_status["message"] or "This analysis session is no longer aligned with the current workspace.")
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
+            if request.catalog_item_id == "synthetic-custom-script":
+                from app.script_inputs import prepare_inputs
+                from app.script_sandbox import sandbox_image
+                if effective_query_granularity_ceiling(selected_ids) != "detailed":
+                    raise RuntimeError("Custom scripts require Detailed workspace access.")
+                prepared = prepare_inputs(resolved_dir, selected_patient_ids, request.compare_selected_patient_ids,
+                                          request.compare_mode, request.custom_assay_ids, request.script_language)
+                if prepared["contract_id"] != request.input_contract_id:
+                    raise RuntimeError("Inputs changed or have not been prepared. Prepare the script template again.")
+                if not request.custom_script.strip() or len(request.custom_script.encode()) > 131072:
+                    raise RuntimeError("Provide a script of at most 128 KiB.")
+                if sandbox_image() != request.sandbox_image_id:
+                    raise RuntimeError("The sandbox environment changed. Prepare the template again.")
+                packed = json.dumps({"script": request.custom_script, "contract_id": request.input_contract_id,
+                                     "image_id": request.sandbox_image_id, "assay_ids": request.custom_assay_ids,
+                                     "compare_mode": request.compare_mode, "language": request.script_language})
+                import fcntl
+                from app.jobs import user_jobs_root
+                user_id = request_user_id(raw_request)
+                with (user_jobs_root(user_id) / ".script-submit.lock").open("a") as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    if any(job.get("runner_type") == "container" and job.get("status") in {"queued", "running"}
+                           for job in list_job_records(user_id)):
+                        raise RuntimeError("You already have a custom script queued or running. Wait for it to finish before submitting another.")
+                    return analysis_llm_reply(packed, resolved_dir, catalog_item_id=request.catalog_item_id,
+                                              dataset_id=resolved_scope_id, analysis_session_id=request.analysis_session_id,
+                                              user_id=user_id, selected_patient_ids=selected_patient_ids,
+                                              compare_selected_patient_ids=request.compare_selected_patient_ids,
+                                              compare_mode=request.compare_mode, deterministic_only=True)
             return analysis_llm_reply(
                 request.prompt,
                 resolved_dir,
                 catalog_item_id=request.catalog_item_id,
+                measurement=request.measurement,
                 dataset_id=resolved_scope_id,
                 assay_id=request.assay_id,
                 analysis_session_id=request.analysis_session_id,
@@ -1731,7 +1826,58 @@ def get_job_artifact(job_id: str, filename: str, request: Request) -> FileRespon
     record = load_job_record(job_id, user_id)
     _require_job_dataset_access(record, user_id)
     file_path = resolve_job_artifact_path(job_id, user_id, filename)
+    if record.get("runner_type") == "container":
+        return FileResponse(file_path, media_type="image/png" if file_path.suffix == ".png" else "text/plain",
+                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                                     "Content-Security-Policy": "sandbox; default-src 'none'"})
     return FileResponse(file_path)
+
+
+def get_analysis_code(digest: str, request: Request) -> FileResponse:
+    require_authenticated(request)
+    from app.analysis_code import code_path
+    return FileResponse(code_path(digest), media_type="text/plain", headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+
+
+def prepare_analysis_script(request: AnalysisRequest, raw_request: Request) -> Dict:
+    require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Script preparation requires Detailed workspace access.")
+    resolved_dir = resolve_dataset_dir(raw_request, dataset_scope_id(selected_ids))
+    scope = request.selected_patient_ids
+    if request.query_result_handle:
+        _, membership = _load_authorized_query_result(raw_request, request.query_result_handle,
+                                                     dataset_id=dataset_scope_id(selected_ids))
+        scope = ",".join(membership["sample_ids"] if membership["id_type"] == "sample" else membership["patient_ids"])
+    from app.script_inputs import prepare_inputs
+    from app.script_sandbox import sandbox_status
+    try:
+        prepared = prepare_inputs(resolved_dir, scope, request.compare_selected_patient_ids,
+                                  request.compare_mode, request.custom_assay_ids, request.script_language)
+        prepared.pop("files")  # The AI template contains a schema, never data rows.
+        prepared["sandbox"] = sandbox_status()
+        return prepared
+    except (RuntimeError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def get_analysis_measurements(request: AnalysisRequest, raw_request: Request) -> Dict:
+    require_authenticated(raw_request)
+    selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+    if effective_query_granularity_ceiling(selected_ids) != "detailed":
+        raise HTTPException(status_code=403, detail="Measurement setup requires Detailed in-app access.")
+    resolved_dir = resolve_dataset_dir(raw_request, dataset_scope_id(selected_ids))
+    scope = request.selected_patient_ids
+    if request.query_result_handle:
+        _, membership = _load_authorized_query_result(raw_request, request.query_result_handle,
+                                                     dataset_id=dataset_scope_id(selected_ids))
+        scope = ",".join(membership["sample_ids"] if membership["id_type"] == "sample" else membership["patient_ids"])
+    from app.analysis_measurements import measurement_options
+    try:
+        return {"measurements": measurement_options(resolved_dir, scope, request.compare_selected_patient_ids, request.compare_mode)}
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def get_analysis_catalog(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
@@ -2225,6 +2371,8 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/cohorts/medications/search", search_medication_cohort, methods=["GET"], tags=["patients"], summary="Build a medication workspace", description="Returns the deterministic medication-matched workspace subset for a single medication label.")
     app.add_api_route("/query", query_app, methods=["GET"], tags=["query"], summary="Run a simple GET workspace query", description="Executes a lightweight workspace query using query-string parameters. Prefer POST /query for full prompt history and planner mode control.")
     app.add_api_route("/query-results/{handle}", get_query_result_page, methods=["GET"], tags=["query"], summary="Page through a Query result", description="Returns one bounded page from a short-lived, user-scoped Query result after rechecking workspace authorization and Detailed access.")
+    app.add_api_route("/query-results/{handle}/export", export_query_result, methods=["GET"], tags=["query"], summary="Export all rows of an authorized Query result")
+    app.add_api_route("/saved-cohorts/{cohort_id}/export", export_saved_cohort, methods=["GET"], tags=["cohorts"], summary="Export saved cohort membership and metadata")
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.", response_model=LmProvidersResponse)
     app.add_api_route("/lm-providers", create_lm_provider, methods=["POST"], tags=["auth"], summary="Create a managed LLM provider", description="Persists an OpenAI-compatible provider in protected runtime state. The API key is write-only.", response_model=LmProviderResponse)
@@ -2263,6 +2411,9 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/llm/general", general_llm_app, methods=["POST"], tags=["llm"], summary="Ask a general-knowledge question", description="Sends the prompt and recent General-question turns to the selected model provider without workspace or dataset context.")
     app.add_api_route("/analysis/catalog", get_analysis_catalog, methods=["GET"], tags=["analysis"], summary="List curated analysis catalog entries", description="Returns curated analysis definitions plus computed availability for the current workspace.")
     app.add_api_route("/analysis", analysis_app, methods=["POST"], tags=["analysis"], summary="Run a workspace analysis", description="Executes clinical or assay analysis over the active workspace or selected saved cohorts.")
+    app.add_api_route("/analysis/measurements", get_analysis_measurements, methods=["POST"], tags=["analysis"])
+    app.add_api_route("/analysis/script-template", prepare_analysis_script, methods=["POST"], tags=["analysis"])
+    app.add_api_route("/analysis/code/{digest}", get_analysis_code, methods=["GET"], tags=["analysis"])
     app.add_api_route("/jobs", get_jobs, methods=["GET"], tags=["jobs"], summary="List recent background jobs", description="Returns recent background jobs visible to the current user across supported product surfaces.")
     app.add_api_route("/jobs/status", get_jobs_status, methods=["GET"], tags=["jobs"], summary="Inspect background-worker availability", description="Reports whether Redis and workers for the analysis queue are online, idle, or working without exposing worker host details.")
     app.add_api_route("/jobs/{job_id}", get_job, methods=["GET"], tags=["jobs"], summary="Get one background job", description="Returns detailed status plus the completed payload for one background job visible to the current user.")
