@@ -871,6 +871,7 @@ def test_query_lists_all_patients_in_cohort(tmp_path):
         "individuals.json",
         [
             {"id": "1:week_0_arm_1", "treatments": []},
+            {"id": "1:week_12_arm_1", "treatments": []},
             {"id": "1004:week_0_arm_1", "treatments": []},
             {"id": "1005:week_0_arm_1", "treatments": []},
             {"id": "101:week_0_arm_1", "treatments": []},
@@ -887,16 +888,7 @@ def test_query_lists_all_patients_in_cohort(tmp_path):
     assert payload["intent"] == "patient_inventory"
     assert payload["data"]["patient_count"] == 10
     assert payload["data"]["patient_ids"] == [
-        "1004:week_0_arm_1",
-        "1005:week_0_arm_1",
-        "101:week_0_arm_1",
-        "1022:week_0_arm_1",
-        "1024:week_0_arm_1",
-        "102:week_0_arm_1",
-        "103:week_0_arm_1",
-        "104:week_0_arm_1",
-        "105:week_0_arm_1",
-        "1:week_0_arm_1",
+        "1", "1004", "1005", "101", "102", "1022", "1024", "103", "104", "105",
     ]
 
 

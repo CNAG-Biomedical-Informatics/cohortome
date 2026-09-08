@@ -860,7 +860,8 @@ def test_methylation_manifest_is_registered_without_materializing_values(tmp_pat
     assert item["clinical_overlap_patient_count"] == 2
     assert item["supports_expression_summary"] is False
     assert item["supports_differential_expression"] is False
-    assert searchable_features == []
+    # Feature discovery reads the compact external matrix without importing values.
+    assert searchable_features == ["cg00000029", "cg00000108", "cg00000165"]
     assert preview is not None
     assert preview["features"] == [
         {"feature_id": "cg00000029", "label": "cg00000029"},

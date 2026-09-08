@@ -749,7 +749,14 @@ def test_query_semantic_planner_can_expand_biologics_category(tmp_path, monkeypa
     payload = answer_query(str(tmp_path), "How many patients take biologics?")
     assert payload["intent"] == "semantic_cohort_query"
     assert payload["data"]["patient_count"] == 2
-    assert "takes 'Infliximab' or takes 'Vedolizumab'" in payload["reply"]
+    # Count requests intentionally omit identifiers, while retaining the plan.
+    assert "patient_ids" not in payload["data"]
+    plan = payload["data"]["semantic_plan"]
+    assert plan["logic"] == "or"
+    assert [(f["domain"], f["operator"], f["value"], f["negate"]) for f in plan["filters"]] == [
+        ("treatment", "eq", "Infliximab", False),
+        ("treatment", "eq", "Vedolizumab", False),
+    ]
     planner_message = captured["payload"]["messages"][1]["content"]
     assert "known_treatments" in planner_message
     assert "Infliximab" in planner_message

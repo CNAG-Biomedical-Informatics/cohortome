@@ -12,6 +12,7 @@ from app.main import app
 from fastapi.testclient import TestClient
 from bff_test_helpers import isolate_auth_store
 from bff_test_helpers import isolate_user_state
+from bff_test_helpers import isolated_registered_dataset
 
 
 def test_session_secret_is_required_when_local_auth_enabled(monkeypatch):
@@ -139,6 +140,7 @@ def test_user_settings_reject_invalid_values(monkeypatch, tmp_path):
 
 def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
     isolate_auth_store(monkeypatch, tmp_path)
+    isolated_registered_dataset(monkeypatch, tmp_path)
     monkeypatch.setenv("COHORTOME_AUTH_MODE", "local")
     monkeypatch.setenv(
         "COHORTOME_LOCAL_USERS_JSON",
@@ -162,7 +164,9 @@ def test_auth_enabled_protects_workspace_routes(monkeypatch, tmp_path):
     login = client.post("/auth/login", json={"username": "alice", "password": "secret"})
     assert login.status_code == 200
 
-    assert client.get("/saved-cohorts").status_code == 200
+    # Authentication does not grant a workspace implicitly; request an authorized scope.
+    assert client.get("/saved-cohorts", params={"dataset_id": "test-study"}).status_code == 200
+    assert client.get("/saved-cohorts", params={"dataset_id": "unavailable"}).status_code == 403
     assert client.get("/analysis-sessions").status_code == 200
 
 

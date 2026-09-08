@@ -10,6 +10,8 @@ import app.analysis_external as analysis_external_module
 import app.jobs as jobs_module
 import app.pheno as pheno_module
 from bff_test_helpers import isolate_jobs_store
+from bff_test_helpers import isolated_registered_dataset
+from unittest.mock import Mock
 import app.user_settings as user_settings_module
 from app.main import app
 from fastapi.testclient import TestClient
@@ -22,6 +24,8 @@ from datetime import timezone
 
 def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch):
     isolate_jobs_store(monkeypatch, tmp_path)
+    root = isolated_registered_dataset(monkeypatch, tmp_path)
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "none")
     monkeypatch.setattr(
         analysis_catalog_module,
         "get_analysis_catalog_item",
@@ -32,10 +36,8 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
             "runner_ref": "transcriptomics_signature",
         },
     )
-    monkeypatch.setattr(
-        analysis_external_module,
-        "run_workflow_analysis",
-        lambda runner_ref, **kwargs: {
+    runner = Mock(
+        return_value={
             "intent": "analysis_workflow",
             "reply": "Workflow done.",
             "data": {
@@ -43,10 +45,11 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
                 "execution": "external_runner",
                 "context": {"mode": "workflow_transcriptomics_signature"},
                 "runner_type": "workflow",
-                "runner_ref": runner_ref,
+                "runner_ref": "transcriptomics_signature",
             },
-        },
+        }
     )
+    monkeypatch.setitem(analysis_external_module.EXTERNAL_ANALYSIS_RUNNERS, "workflow", runner)
 
     record = jobs_module.create_job_record(
         job_type="analysis",
@@ -55,7 +58,7 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
             "feature": "analysis",
             "name": "Queued workflow",
             "prompt": "Run the assay signature workflow between Cohort A and Cohort B for the selected assay.",
-            "dataset_id": "default",
+            "dataset_id": "test-study",
             "data_dir": str(tmp_path),
             "catalog_item_id": "transcriptomics-signature-workflow",
             "runner_type": "workflow",
@@ -69,6 +72,10 @@ def test_run_analysis_job_supports_curated_workflow_runner(tmp_path, monkeypatch
     assert payload["status"] == "completed"
     assert payload["result_payload"]["intent"] == "analysis_workflow"
     assert payload["result_payload"]["data"]["runner_type"] == "workflow"
+    runner.assert_called_once()
+    assert runner.call_args.args == ("transcriptomics_signature",)
+    assert runner.call_args.kwargs["data_dir"] == str(root)
+    assert runner.call_args.kwargs["timeout_seconds"] == 120
 
 
 def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_payload(tmp_path, monkeypatch):
@@ -842,6 +849,8 @@ def test_analysis_session_delete_with_generated_data_blocks_active_jobs(tmp_path
 
 def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
     isolate_jobs_store(monkeypatch, tmp_path)
+    root = isolated_registered_dataset(monkeypatch, tmp_path)
+    monkeypatch.setenv("COHORTOME_AUTH_MODE", "none")
     monkeypatch.setattr(
         analysis_catalog_module,
         "get_analysis_catalog_item",
@@ -852,10 +861,8 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
             "runner_ref": "clinical_scope_profile",
         },
     )
-    monkeypatch.setattr(
-        analysis_external_module,
-        "run_rscript_analysis",
-        lambda runner_ref, **kwargs: {
+    runner = Mock(
+        return_value={
             "intent": "analysis_external_rscript",
             "reply": "External analysis done.",
             "data": {
@@ -863,10 +870,11 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
                 "execution": "external_runner",
                 "context": {"mode": "external"},
                 "runner_type": "rscript",
-                "runner_ref": runner_ref,
+                "runner_ref": "clinical_scope_profile",
             },
-        },
+        }
     )
+    monkeypatch.setitem(analysis_external_module.EXTERNAL_ANALYSIS_RUNNERS, "rscript", runner)
 
     record = jobs_module.create_job_record(
         job_type="analysis",
@@ -875,7 +883,7 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
             "feature": "analysis",
             "name": "Queued external R",
             "prompt": "Run the external R clinical scope profile for the current Analysis scope.",
-            "dataset_id": "default",
+            "dataset_id": "test-study",
             "data_dir": str(tmp_path),
             "catalog_item_id": "external-r-clinical-profile",
             "runner_type": "rscript",
@@ -888,6 +896,10 @@ def test_run_analysis_job_completes_and_persists_result(tmp_path, monkeypatch):
 
     assert payload["status"] == "completed"
     assert payload["result_payload"]["reply"] == "External analysis done."
+    runner.assert_called_once()
+    assert runner.call_args.args == ("clinical_scope_profile",)
+    assert runner.call_args.kwargs["data_dir"] == str(root)
+    assert runner.call_args.kwargs["timeout_seconds"] == 120
     stored = jobs_module.load_job_record(record["job_id"], "alice")
     assert stored["status"] == "completed"
     assert stored["result_available"] is True

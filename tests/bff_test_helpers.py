@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 import app.auth as auth_module
+import app.datasets as datasets_module
 import app.jobs as jobs_module
 import app.lm as lm_module
 import app.query_store as query_store_module
@@ -20,6 +21,26 @@ def isolate_auth_store(monkeypatch, tmp_path):
 
 def isolate_user_state(monkeypatch, tmp_path):
     monkeypatch.setattr(user_state_module, "STATE_ROOT_DIR", tmp_path / "state")
+
+
+def isolated_registered_dataset(monkeypatch, tmp_path):
+    """Provide a public synthetic scope without reading the local registry."""
+    isolate_user_state(monkeypatch, tmp_path)
+    monkeypatch.setattr(datasets_module, "STATE_ROOT_DIR", tmp_path / "state")
+    registry = tmp_path / "registry.json"
+    monkeypatch.setattr(datasets_module, "DATASET_REGISTRY_PATH", registry)
+    root = tmp_path / "dataset"
+    clinical = root / "clinical"
+    clinical.mkdir(parents=True)
+    write_json(clinical, "records.json", [{"id": "SYN001:v1", "patient_id": "SYN001"}])
+    write_json(tmp_path, "registry.json", [{
+        "dataset_id": "test-study", "name": "Synthetic test dataset",
+        "root_path": str(root), "enabled": True,
+        "visibility": "all_authenticated", "data_classification": "public",
+        "query_granularity_ceiling": "detailed",
+        "allowed_users": [], "allowed_groups": [],
+    }])
+    return root
 
 
 def isolate_query_store(monkeypatch, tmp_path):
