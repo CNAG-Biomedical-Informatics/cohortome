@@ -1857,6 +1857,51 @@ def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | No
     }
 
 
+@lru_cache(maxsize=32)
+def _expected_count_summary(path_text: str, mtime_ns: int, size: int) -> Dict[str, Any]:
+    """Bounded, in-memory Dashboard summary; never materialize the matrix in DuckDB."""
+    unavailable = {"mean_total_counts_per_sample": None,
+                   "mean_detected_genes_per_sample": None, "top_genes": [],
+                   "count_summary_status": "unavailable"}
+    if size > 64 * 1024 * 1024:
+        return {**unavailable, "count_summary_status": "matrix_too_large"}
+    try:
+        with Path(path_text).open(encoding="utf-8", newline="") as handle:
+            delimiter = _detect_matrix_delimiter(handle.readline())
+            handle.seek(0)
+            reader = csv.reader(handle, delimiter=delimiter)
+            header = next(reader)
+            n = len(header) - 1
+            if n < 1 or len(set(header[1:])) != n:
+                return unavailable
+            totals = [0.0] * n
+            detected = [0] * n
+            top: List[Tuple[str, float]] = []
+            genes: set[str] = set()
+            for row in reader:
+                if not row:
+                    continue
+                if len(row) != n + 1 or not row[0].strip() or row[0] in genes:
+                    return unavailable
+                genes.add(row[0])
+                values = [float(value) for value in row[1:]]
+                if any(not math.isfinite(value) or value < 0 for value in values):
+                    return unavailable
+                for i, value in enumerate(values):
+                    totals[i] += value
+                    detected[i] += value > 0
+                top = sorted([*top, (row[0], sum(values))], key=lambda item: (-item[1], item[0]))[:5]
+            if not genes or not all(math.isfinite(value) for value in totals):
+                return unavailable
+            return {"mean_total_counts_per_sample": sum(totals) / n,
+                    "mean_detected_genes_per_sample": sum(detected) / n,
+                    "count_summary_status": "available",
+                    "top_genes": [{"gene_id": gene, "total_count": total,
+                                   **_gene_annotation(gene)} for gene, total in top]}
+    except (OSError, UnicodeError, ValueError, StopIteration, csv.Error):
+        return unavailable
+
+
 def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_patient_ids: set[str]) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     for item in _assay_manifest_items(data_dir):
@@ -1870,6 +1915,16 @@ def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_
         data_type = str(item.get("data_type") or "feature_matrix").strip() or "feature_matrix"
         patient_ids = list(stats["patient_ids"])
         clinical_overlap = len(set(patient_ids).intersection(clinical_patient_ids))
+        count_summary: Dict[str, Any] = {}
+        if modality == "transcriptomics" and data_type == "rsem_expected_counts":
+            root = _manifest_item_root(data_dir, item).resolve()
+            path = (root / str(item.get("file") or "")).resolve()
+            if path.is_relative_to(root):
+                try:
+                    stat = path.stat()
+                    count_summary = _expected_count_summary(str(path), stat.st_mtime_ns, stat.st_size)
+                except OSError:
+                    pass
         items.append(
             {
                 "assay_id": dataset_name,
@@ -1881,8 +1936,8 @@ def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_
                 "patient_count": int(stats["patient_count"]),
                 "gene_count": int(stats["feature_count"]),
                 "clinical_overlap_patient_count": clinical_overlap,
-                "mean_total_counts_per_sample": 0.0,
-                "mean_detected_genes_per_sample": 0.0,
+                "mean_total_counts_per_sample": None,
+                "mean_detected_genes_per_sample": None,
                 "sample_ids": list(stats["sample_ids"]),
                 "patient_ids": patient_ids,
                 "top_genes": [],
@@ -1891,6 +1946,7 @@ def _manifest_assay_inventory(data_dir: str, existing_names: set[str], clinical_
                 "unlinked_sample_count": int(stats.get("unlinked_sample_count") or 0),
                 "linkage_source": str(stats.get("linkage_source") or ""),
                 **_assay_inventory_metadata(modality, data_type, item),
+                **count_summary,
             }
         )
     return sorted(items, key=lambda value: str(value.get("dataset_name") or ""))

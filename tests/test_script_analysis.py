@@ -172,6 +172,38 @@ def test_template_route_rejects_non_demo_and_summary_access(tmp_path, monkeypatc
     assert exc.value.status_code == 403
 
 
+def test_custom_script_submission_serializes_bound_parameters(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from app import routes, jobs, script_inputs, script_sandbox
+    from app.schemas import AnalysisRequest
+
+    monkeypatch.setattr(routes, 'require_authenticated', lambda _: None)
+    monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *a: ['synthetic-autoimmune-demo'])
+    monkeypatch.setattr(routes, 'resolve_dataset_dir', lambda *a: str(DEMO_ROOT))
+    monkeypatch.setattr(routes, 'effective_query_granularity_ceiling', lambda _: 'detailed')
+    monkeypatch.setattr(routes, 'request_user_id', lambda _: 'tester')
+    monkeypatch.setattr(routes, 'selected_lm_provider_id', lambda _: 'system-default')
+    monkeypatch.setattr(routes, 'lm_provider_context', lambda _: nullcontext())
+    monkeypatch.setattr(routes, 'list_job_records', lambda _: [])
+    monkeypatch.setattr(jobs, 'user_jobs_root', lambda _: tmp_path)
+    monkeypatch.setattr(script_inputs, 'prepare_inputs', lambda *a: {'contract_id': 'contract'})
+    monkeypatch.setattr(script_sandbox, 'sandbox_image', lambda: 'image')
+    captured = {}
+    def submit(prompt, *args, **kwargs):
+        captured.update(json.loads(prompt))
+        return {'queued': True}
+    monkeypatch.setattr(routes, 'analysis_llm_reply', submit)
+    result = routes.analysis_app(AnalysisRequest(
+        prompt='Run starter', dataset_id='synthetic-autoimmune-demo',
+        catalog_item_id='synthetic-custom-script', custom_script='print("hello")',
+        input_contract_id='contract', sandbox_image_id='image', script_language='python'), None)
+    assert result == {'queued': True}
+    assert captured['script'] == 'print("hello")'
+    assert captured['contract_id'] == 'contract'
+    assert captured['image_id'] == 'image'
+    assert captured['language'] == 'python'
+
+
 def test_custom_background_job_uses_saved_script_and_rechecks_access(tmp_path, monkeypatch):
     from app import jobs, user_state
     import app.analysis_external as external

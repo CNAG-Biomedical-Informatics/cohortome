@@ -17,6 +17,14 @@ The existing default dataset remains available for longitudinal demonstrations.
 | Immune cells | Six cell measurements, 81 samples |
 | Serology | Six quantitative markers, 87 samples |
 
+Dashboard summarises RSEM expected-count matrices without rounding to integers:
+mean expected counts per sample, mean genes with counts above zero, and the five
+genes with the largest total expected counts. These are descriptive summaries,
+not expression filtering or differential-expression results. On-demand summaries
+are limited to matrices up to 64 MiB and cached in memory until the file changes.
+Larger matrices or matrices with invalid count values show unavailable summaries,
+not zero counts. No extra DuckDB import is required.
+
 Assays share participant identifiers. Different participants lack different
 assays; immune-cell and serology matrices also contain some missing values.
 Age, sex, batch and fictional recruitment center are provided in assay metadata.

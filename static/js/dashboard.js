@@ -1611,6 +1611,9 @@ export function createDashboardUi(ctx) {
   }
 
   function renderTranscriptomicsHighlights(item) {
+    const expected = item.data_type === "rsem_expected_counts";
+    const summaryNumber = (value) => value != null && Number.isFinite(Number(value))
+      ? escapeHtml(Number(value).toFixed(1)) : "Not calculated";
     const topGenes = Array.isArray(item.top_genes) ? item.top_genes : [];
     const topGenesMarkup = topGenes.length
       ? topGenes.map((gene) => {
@@ -1618,7 +1621,7 @@ export function createDashboardUi(ctx) {
           String(gene.gene_id || "").trim(),
           String(gene.gene_symbol || "").trim(),
           String(gene.gene_name || "").trim(),
-          `Total raw count: ${String(gene.total_raw_count || 0)}`,
+          `Total ${expected ? "expected" : "raw"} count: ${String(gene.total_count ?? gene.total_raw_count ?? "Not calculated")}`,
         ].filter(Boolean).join(" • ");
         if (gene.ensembl_url) {
           return `<a class="assay-gene-pill assay-gene-pill-link" href="${escapeHtml(String(gene.ensembl_url || ""))}" target="_blank" rel="noopener" title="${escapeHtml(title)}">${escapeHtml(gene.gene_id)}</a>`;
@@ -1630,8 +1633,8 @@ export function createDashboardUi(ctx) {
       <div class="assay-card-section">
         <strong>Transcriptomics coverage</strong>
         <div class="assay-summary-grid">
-          <div class="assay-summary-item"><span>Total counts / sample</span><strong>${escapeHtml(Number(item.mean_total_counts_per_sample || 0).toFixed(1))}</strong></div>
-          <div class="assay-summary-item"><span>Detected genes / sample</span><strong>${escapeHtml(Number(item.mean_detected_genes_per_sample || 0).toFixed(1))}</strong></div>
+          <div class="assay-summary-item"><span>${expected ? "Expected" : "Total"} counts / sample</span><strong>${summaryNumber(item.mean_total_counts_per_sample)}</strong></div>
+          <div class="assay-summary-item"><span>Genes with counts &gt; 0 / sample</span><strong>${summaryNumber(item.mean_detected_genes_per_sample)}</strong></div>
         </div>
       </div>
       <div class="assay-card-section">

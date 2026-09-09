@@ -3306,6 +3306,8 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
 
 def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> None:
     _open_analysis_tab(page)
+    page.locator("#analysisMethodSelect").select_option("custom")
+    page.locator("#analysisComposerExamplesBtn").click()
     captured = {}
 
     def handler(route):
@@ -3324,6 +3326,9 @@ def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> 
 
     page.route("**/analysis", handler)
     page.locator("[data-analysis-prompt='Summarize the main clinical patterns in this workspace and tell me what stands out.']").click()
+    if not page.locator("#analysisPrompt").is_visible():
+        page.locator("#analysisRequestDetails > summary").click()
+    page.locator("#analysisPrompt").fill("Summarize the main clinical patterns in this workspace.")
     page.locator("#analysisRunBtn").click()
 
     assert captured["body"]["llm_only"] is False
@@ -3361,10 +3366,13 @@ def test_analysis_llm_starter_chip_blocks_when_lm_unavailable(page) -> None:
         route.fulfill(status=500, content_type="application/json", body=json.dumps({"detail": "unexpected"}))
 
     page.route("**/analysis", unexpected_analysis)
+    page.locator("#analysisMethodSelect").select_option("custom")
+    page.locator("#analysisComposerExamplesBtn").click()
     if page.locator("#analysisStarterPanel .query-chip-toggle").count():
         page.locator("#analysisStarterPanel .query-chip-toggle").click()
     page.locator("[data-analysis-prompt='Interpret the disease and medication profiles in this workspace and summarize the main themes.']").click()
     expect(page.locator("#analysisStatus")).to_contain_text("LLM unavailable")
+    page.locator("#analysisPrompt").fill("Interpret the medication profiles in three sentences.")
     page.locator("#analysisRunBtn").click()
     expect(page.locator("#analysisStatus")).to_contain_text("LLM unavailable")
     expect(page.locator("#analysisThread")).to_contain_text("LLM unavailable")
@@ -4163,6 +4171,8 @@ def test_analysis_renders_completed_differential_methylation_result(page) -> Non
 
 
 def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
+    _mock_available_lm(page)
+    page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     _mock_analysis_trajectory_reply(page)
     expect = playwright.expect
@@ -4181,6 +4191,12 @@ def test_analysis_deterministic_trajectory_mounts_plotly_cards(page) -> None:
     followup.click()
     expect(page.locator("#analysisPrompt")).to_have_value("Can you explain this response to Infliximab plot?")
     expect(page.locator("#analysisStatus")).to_contain_text("LLM interpretation follow-up prepared")
+    # Personalizing an explicitly LLM-based follow-up must not switch to Auto.
+    page.locator("#analysisPrompt").fill("Explain this plot in three short sentences, including limitations.")
+    with page.expect_request(lambda request: request.url.endswith("/analysis") and request.method == "POST") as submitted:
+        page.locator("#analysisRunBtn").click()
+    assert submitted.value.post_data_json["llm_only"] is True
+    assert submitted.value.post_data_json["deterministic_only"] is False
 
 
 def test_analysis_transcriptomics_medication_compare_mounts_volcano_plot(page) -> None:

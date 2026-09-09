@@ -1321,9 +1321,8 @@ function bindEvents() {
     analysisCatalogUi.renderAnalysisCatalog();
   });
   refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("input", () => {
-    if (!state.analysisSelectedCatalogItemId) {
-      state.analysisExecutionMode = "auto";
-    }
+    // Editing an example or follow-up must preserve its selected execution mode.
+    // Method selection and completed runs handle mode resets explicitly.
     analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
