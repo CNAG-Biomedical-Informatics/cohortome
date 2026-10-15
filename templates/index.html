@@ -459,10 +459,15 @@
           </span>
           <span>Models</span>
         </button>
+        <button id="deploymentAppearanceBtn" class="dashboard-subtab is-hidden" type="button" aria-haspopup="dialog">
+          <span class="tab-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></svg></span>
+          <span>Appearance</span>
+        </button>
         </div>
         </div>
           </nav>
           <div class="app-sidebar-utility">
+            <div id="deploymentBrand" class="deployment-brand" hidden></div>
             <a class="app-sidebar-settings app-sidebar-help" href="{{ branding.help_url }}" target="_blank" rel="noopener noreferrer" title="Open {{ branding.name }} documentation.">
               <span class="button-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -668,6 +673,30 @@
           <div class="section-note">Shared clinical and assay data are managed globally for all users.</div>
         </div>
       </section>
+
+      <dialog id="deploymentAppearanceDialog" class="deployment-appearance" aria-labelledby="deploymentAppearanceTitle">
+        <form id="deploymentAppearanceForm">
+          <div class="deployment-appearance-heading">
+            <h2 id="deploymentAppearanceTitle">Deployment appearance</h2>
+            <button id="deploymentAppearanceClose" type="button" class="secondary-btn" aria-label="Close deployment appearance">Close</button>
+          </div>
+          <p>Add a programme or institution logo for all users of this installation. The COHORTome logo stays unchanged.</p>
+          <label for="deploymentBrandName">Name</label>
+          <input id="deploymentBrandName" required maxlength="100" placeholder="e.g. 3TR">
+          <label for="deploymentBrandWebsite">Website (optional)</label>
+          <input id="deploymentBrandWebsite" type="url" maxlength="2048" placeholder="https://example.org">
+          <label for="deploymentBrandFile">Logo (PNG)</label>
+          <input id="deploymentBrandFile" type="file" accept="image/png,.png" aria-describedby="deploymentBrandFileHelp">
+          <p id="deploymentBrandFileHelp" class="section-note">Up to 512 KiB, 2048 pixels per side and 2 megapixels. Use a still PNG. Leave unchanged to keep the saved logo.</p>
+          <p class="section-note">Sidebar preview</p>
+          <div id="deploymentBrandPreview" class="deployment-brand" hidden></div>
+          <p id="deploymentBrandStatus" role="status" aria-live="polite"></p>
+          <div class="deployment-appearance-actions">
+            <button type="submit" id="deploymentBrandSave">Save branding</button>
+            <button type="button" id="deploymentBrandRemove" class="secondary-btn">Remove branding</button>
+          </div>
+        </form>
+      </dialog>
 
       <section id="usersTab" class="tab-panel">
         <div class="controls">

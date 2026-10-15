@@ -16,6 +16,52 @@ import pytest
 playwright = pytest.importorskip("playwright.sync_api")
 
 
+def test_deployment_branding_admin_preview_persistence_and_researcher_access(page_auth):
+    from test_deployment_branding import png
+    import base64
+    page = page_auth
+    expect = playwright.expect
+    base = page.url.rstrip('/')
+    assert page.request.post(base + '/auth/login', data={'username': 'admin', 'password': 'secret'}).ok
+    page.reload(wait_until='networkidle')
+    original_logo = page.locator('#appShell .hero-logo').get_attribute('src')
+    page.locator('#adminTabBtn').click()
+    page.locator('#deploymentAppearanceBtn').click()
+    page.locator('#deploymentBrandName').fill('Test programme')
+    page.locator('#deploymentBrandWebsite').fill('https://example.org/')
+    page.locator('#deploymentBrandFile').set_input_files({'name': 'logo.png', 'mimeType': 'image/png',
+        'buffer': base64.b64decode(png().split(',')[1])})
+    expect(page.locator('#deploymentBrandPreview img')).to_be_visible()
+    expect(page.locator('#deploymentBrand')).to_be_hidden()
+    page.locator('#deploymentBrandSave').click()
+    expect(page.locator('#deploymentBrandStatus')).to_contain_text('Branding saved')
+    page.locator('#deploymentAppearanceClose').click()
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#deploymentBrand')).to_contain_text('Test programme')
+    expect(page.locator('#deploymentBrand a')).to_have_attribute('href', 'https://example.org/')
+    expect(page.locator('#appShell .hero-logo')).to_have_attribute('src', original_logo)
+    assert page.request.post(base + '/auth/login', data={'username': 'researcher', 'password': 'secret'}).ok
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#deploymentAppearanceBtn')).to_be_hidden()
+    expect(page.locator('#deploymentBrand')).to_contain_text('Test programme')
+    assert page.request.delete(base + '/deployment-branding').status == 403
+    assert page.request.put(base + '/deployment-branding', data={'name': 'Denied', 'logo': png()}).status == 403
+    # Logo and long names remain within the narrow sidebar on mobile/dark mode.
+    page.set_viewport_size({'width': 390, 'height': 844})
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    expect(page.locator('#deploymentBrand')).to_be_visible()
+    assert page.locator('#deploymentBrand').evaluate('el => el.scrollWidth <= el.clientWidth')
+    assert page.request.post(base + '/auth/login', data={'username': 'admin', 'password': 'secret'}).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#adminTabBtn').click(); page.locator('#deploymentAppearanceBtn').click()
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator('#deploymentBrandRemove').click()
+    expect(page.locator('#deploymentBrandStatus')).to_contain_text('removed')
+    expect(page.locator('#deploymentBrand')).to_be_hidden()
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#deploymentBrand')).to_be_hidden()
+
+
 def test_appearance_saves_reloads_and_follows_system(page):
     page.locator('#userSettingsBtn').click()
     page.locator('#settingsAppearance').select_option('dark')
@@ -3746,7 +3792,8 @@ def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> No
     expect(page.locator("#analysisCatalogAssayStatus")).to_contain_text("Selected assay: synthetic_transcriptome_raw_counts_ustekinumab")
 
 
-def test_analysis_renders_completed_limma_voom_result(page) -> None:
+@pytest.mark.parametrize("adjusted", [False, True])
+def test_analysis_renders_completed_limma_voom_result(page, adjusted) -> None:
     page.route(
         "**/analysis",
         lambda route: route.fulfill(
@@ -3767,6 +3814,9 @@ def test_analysis_renders_completed_limma_voom_result(page) -> None:
                             "cohort_b_sample_count": 14,
                             "tested_gene_count": 1200,
                             "filtered_gene_count": 420,
+                            **({"input_gene_count": 1200, "tested_gene_count": 420,
+                                "covariates_used": ["batch", "age"], "adjustment_status": "covariate_adjusted"}
+                               if adjusted else {}),
                             "significant_gene_count": 37,
                             "top_gene": "ENSG000001",
                             "top_log2_fold_change": 1.234,
@@ -3778,6 +3828,9 @@ def test_analysis_renders_completed_limma_voom_result(page) -> None:
                             {"name": "de_results.tsv", "url": "/jobs/limma/artifacts/de_results.tsv"},
                             {"name": "volcano_points.tsv", "url": "/jobs/limma/artifacts/volcano_points.tsv"},
                             {"name": "summary.json", "url": "/jobs/limma/artifacts/summary.json"},
+                            *([{"name": "model.json", "url": "/jobs/limma/artifacts/model.json"},
+                               {"name": "design_matrix.tsv", "url": "/jobs/limma/artifacts/design_matrix.tsv"}]
+                              if adjusted else []),
                         ],
                     },
                 }
@@ -3801,7 +3854,14 @@ def test_analysis_renders_completed_limma_voom_result(page) -> None:
     expect(result).to_contain_text("RSEM expected counts")
     expect(result).to_contain_text("filterByExpr")
     expect(result).to_contain_text("TMM-normalized")
-    expect(result).to_contain_text("cohort-only and unadjusted")
+    if adjusted:
+        expect(result).to_contain_text("model adjusts for batch, age")
+        expect(result).not_to_contain_text("cohort-only and unadjusted")
+        result.locator("summary").filter(has_text="Result files").click()
+        expect(result.locator("a[href='/jobs/limma/artifacts/model.json']")).to_be_visible()
+        expect(result.locator("a[href='/jobs/limma/artifacts/design_matrix.tsv']")).to_be_visible()
+    else:
+        expect(result).to_contain_text("cohort-only and unadjusted")
     expect(result).to_contain_text("Top-ranked gene: ENSG000001")
     expect(result).to_contain_text("higher expression in Cohort A")
     expect(result.locator("img[alt='Differential expression volcano plot']")).to_have_attribute(

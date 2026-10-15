@@ -157,6 +157,7 @@ export function createAuthUi(ctx) {
   }
 
   function renderAuthUi() {
+    callbacks.syncDeploymentBranding?.(state.authState || {enabled: true});
     const mode = String(state.authState && state.authState.mode || (state.authState.enabled ? "local" : "none"));
     const provider = String(state.authState && state.authState.provider || mode || "local");
     const oidcMode = mode === "oidc";

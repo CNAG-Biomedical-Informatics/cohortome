@@ -151,11 +151,12 @@ items:
     runner_type: rscript
     runner_ref: transcriptomics_limma_voom_differential_expression
     description: Run limma-voom differential expression on RSEM expected counts between Cohort A and Cohort B.
-    guidance: Select Cohort A and Cohort B before running. This first version requires at least two samples per cohort and one sample per patient.
+    guidance: Select Cohort A and Cohort B before running. Requires at least two samples per cohort and one sample per patient. The assay manifest declares any adjustment covariates; missing values or a non-estimable design stop the run. Without declared covariates the result is explicitly unadjusted.
     default_prompt: Run limma-voom differential expression between Cohort A and Cohort B for the selected assay.
     execution_mode: deterministic
     default_compare_mode: true
     supports_compare_mode: true
+    minimum_samples_per_cohort: 2
     requires_detailed_access: true
     requires_assays: true
     required_modalities: [transcriptomics]

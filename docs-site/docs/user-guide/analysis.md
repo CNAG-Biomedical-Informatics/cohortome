@@ -402,7 +402,7 @@ These tools do not compare two transcriptomics assays against each other.
 
 The transcriptomics comparison tools use:
 
-- one selected raw-count transcriptomics assay
+- one selected transcriptomics assay with the value type required by the method
 - `Cohort A`
 - `Cohort B`
 
@@ -410,6 +410,48 @@ The cohorts define the groups.
 The transcriptomics assay defines the transcriptomics matrix.
 
 Both cohorts must overlap the same selected transcriptomics assay.
+
+### limma-voom adjustment
+
+The limma-voom method accepts fractional RSEM expected counts. An administrator
+can declare numeric and categorical adjustment variables in the assay manifest:
+
+```json
+{
+  "sample_metadata_file": "assays/transcriptomics/sample_metadata.tsv",
+  "patient_linkage": "sample_metadata_file",
+  "analysis_covariates": ["age", "sex", "batch"],
+  "analysis_covariate_types": {
+    "age": "numeric",
+    "sex": "categorical",
+    "batch": "categorical"
+  }
+}
+```
+
+The metadata table must contain `sample_id`, `patient_id`, and the declared
+covariate columns. Numeric-looking batch identifiers remain categorical when
+declared that way. Exact-sample linkage may also use a technical metadata table
+without a patient column when the manifest explicitly declares `exact_sample_id`.
+
+The selected cohorts determine which samples enter the model. All selected
+covariate values must be complete; prepare and document a complete-case cohort
+before running if necessary. The runner stops for missing or invalid values,
+constant requested covariates, rank-deficient designs, or no residual degrees
+of freedom. It does not silently remove patients or adjustment variables.
+
+The result states which covariates were used and reports the Cohort A minus
+Cohort B effect. Without declared covariates it is labelled an unadjusted
+exploratory model. Result files include `model.json`, `design_matrix.tsv`,
+`contrast.tsv`, `gene_filter.tsv`, `normalization_factors.tsv`, and
+`session_info.txt`, alongside the scoped sample table, covariate specification,
+and existing expression results. These files retain the actual design,
+filtering, normalisation, and package versions for review.
+
+Expression filtering uses the final design matrix. The input-gene count and
+the genes actually tested after filtering are reported separately. Model
+selection remains an explicit study decision; an LLM does not choose or remove
+adjustment variables automatically.
 
 If the chosen dataset contributes samples to only one side, the curated differential-expression tools fail with a validation error instead of silently dropping one cohort.
 

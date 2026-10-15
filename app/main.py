@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR
 from app.env import app_env
+from app.deployment_branding import router as deployment_branding_router
 from app.routes import (
     get_medication_counts,
     get_patient,
@@ -87,3 +88,4 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 register_routes(app, templates)
+app.include_router(deployment_branding_router)

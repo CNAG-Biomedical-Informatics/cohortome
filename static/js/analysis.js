@@ -634,11 +634,13 @@ export function createAnalysisUi(ctx) {
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "de_results.tsv");
       const volcanoArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "volcano_points.tsv");
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
-      const downloads = renderArtifactDownloads("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact]);
+      const modelArtifactNames = new Set(["model.json", "design_matrix.tsv", "contrast.tsv", "gene_filter.tsv", "normalization_factors.tsv", "analysis_covariates.tsv", "session_info.txt"]);
+      const modelArtifacts = artifacts.filter((item) => modelArtifactNames.has(String(item && item.name ? item.name : "")));
+      const downloads = renderArtifactDownloads("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact, ...modelArtifacts]);
       const summaryItems = [
         { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
         { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
-        { label: "Input genes", value: formatAnalysisCount(context.tested_gene_count ?? context.gene_count) },
+        { label: "Input genes", value: formatAnalysisCount(context.input_gene_count ?? context.tested_gene_count ?? context.gene_count) },
         { label: "Retained after filtering", value: formatAnalysisCount(context.filtered_gene_count ?? context.gene_count) },
         { label: "BH < 0.05", value: formatAnalysisCount(context.significant_gene_count) },
       ];
@@ -647,8 +649,12 @@ export function createAnalysisUi(ctx) {
       const topHitText = topGene && topGene !== "n/a"
         ? `Top-ranked gene: ${topGene}; log2 fold change ${Number.isFinite(topLogFc) ? topLogFc.toFixed(3) : "n/a"}; adjusted p = ${formatAnalysisPValue(context.top_adj_p_value)}. ${Number.isFinite(topLogFc) && topLogFc >= 0 ? "Positive" : "Negative"} values mean higher expression in Cohort ${Number.isFinite(topLogFc) && topLogFc >= 0 ? "A" : "B"}.`
         : "No top-ranked gene was reported.";
+      const covariates = Array.isArray(context.covariates_used) ? context.covariates_used.map(String).filter(Boolean) : [];
+      const adjustmentText = covariates.length
+        ? `The model adjusts for ${covariates.join(", ")}. Contrast: Cohort A minus Cohort B.`
+        : "The model is cohort-only and unadjusted. Contrast: Cohort A minus Cohort B.";
       const methodText = isLimmaVoom
-        ? "RSEM expected counts are filtered with edgeR filterByExpr, TMM-normalized, transformed to log2-CPM with voom precision weights, then tested with limma empirical Bayes and BH correction. The current model is cohort-only and unadjusted."
+        ? `RSEM expected counts are filtered with edgeR filterByExpr, TMM-normalized, transformed to log2-CPM with voom precision weights, then tested with limma empirical Bayes and BH correction. ${adjustmentText}`
         : "Raw counts are analyzed with DESeq2. Positive log2 fold change means higher expression in Cohort A; negative means higher in Cohort B.";
       return `
         ${renderAnalysisMetricCards("differential-expression", summaryItems)}

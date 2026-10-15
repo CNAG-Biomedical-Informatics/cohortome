@@ -17,9 +17,11 @@ import { createPhenoUi } from "/static/js/pheno.js";
 import { createQueryUi } from "/static/js/query.js";
 import { createAnalysisUi } from "/static/js/analysis.js";
 import { createUserSettingsUi } from "/static/js/user_settings.js";
+import { createDeploymentBrandingUi } from "/static/js/deployment_branding.js";
 
 const refs = createAppRefs(document);
 const state = createAppState();
+const deploymentBrandingUi = createDeploymentBrandingUi();
 
 const MAX_VISIBLE_PATIENTS = 80;
 const MAX_VISIBLE_EXAMPLES = 8;
@@ -851,6 +853,7 @@ authUi = createAuthUi({
   refs,
   state,
   callbacks: {
+    syncDeploymentBranding: (auth) => deploymentBrandingUi.syncAuth(auth),
     renderLoadButtonState: () => datasetsUi.renderLoadButtonState(),
     renderJobsDrawer: () => jobsUi.renderJobsDrawer(),
     renderRunHistoryDrawer: () => jobsUi.renderRunHistoryDrawer(),

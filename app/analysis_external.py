@@ -483,6 +483,24 @@ def _export_manifest_count_like_matrix(
     if len(set(source_sample_ids)) != len(source_sample_ids):
         raise RuntimeError(f"Assay '{dataset_name}' matrix contains duplicate sample identifiers.")
 
+    covariates = _manifest_analysis_covariates(item, assay_label="Transcriptomics")
+    covariate_types = _manifest_analysis_covariate_types(item, covariates, assay_label="Transcriptomics")
+    try:
+        linkage = query_store_module._manifest_assay_sample_patient_links(root, item, source_sample_ids)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    patient_links = dict(linkage.get("links") or {})
+    if any(not patient_links.get(sample_id) for sample_id in source_sample_ids):
+        raise RuntimeError("Transcriptomics matrix samples must have complete patient linkage.")
+    metadata = None
+    if covariates or item.get("sample_metadata_file"):
+        metadata = _read_manifest_sample_metadata(
+            data_dir, item, covariates, assay_label="Transcriptomics",
+            exact_sample_ids=str(item.get("patient_linkage") or "").strip().lower() == "exact_sample_id",
+        )
+        if any(sample_id not in metadata for sample_id in source_sample_ids):
+            raise RuntimeError("Transcriptomics sample metadata must explicitly link every matrix sample.")
+
     cohort_a_samples = set(cohort_a_scope["sample_ids"])
     cohort_b_samples = set(cohort_b_scope["sample_ids"])
     cohort_a_patients = set(cohort_a_scope["patient_ids"])
@@ -490,7 +508,7 @@ def _export_manifest_count_like_matrix(
     selected_columns: List[tuple[int, str]] = []
     sample_table_rows: List[Dict[str, Any]] = []
     for source_index, sample_id in enumerate(source_sample_ids, start=1):
-        patient_id = sample_id.split(":", 1)[0].strip()
+        patient_id = patient_links[sample_id]
         belongs_to_a = sample_id in cohort_a_samples or patient_id in cohort_a_patients
         belongs_to_b = sample_id in cohort_b_samples or patient_id in cohort_b_patients
         if belongs_to_a and belongs_to_b:
@@ -499,14 +517,11 @@ def _export_manifest_count_like_matrix(
             continue
         cohort = "A" if belongs_to_a else "B"
         selected_columns.append((source_index, sample_id))
-        sample_table_rows.append(
-            {
-                "sample_id": sample_id,
-                "patient_id": patient_id,
-                "cohort": cohort,
-                "group_label": "Cohort A" if cohort == "A" else "Cohort B",
-            }
-        )
+        row = {"sample_id": sample_id, "patient_id": patient_id, "cohort": cohort,
+               "group_label": "Cohort A" if cohort == "A" else "Cohort B"}
+        for covariate in covariates:
+            row[covariate] = metadata[sample_id][covariate]
+        sample_table_rows.append(row)
 
     if not selected_columns:
         raise RuntimeError(f"No assay samples overlap the selected cohorts for dataset '{dataset_name}'.")
@@ -514,6 +529,27 @@ def _export_manifest_count_like_matrix(
     cohort_b_sample_count = sum(1 for row in sample_table_rows if row["cohort"] == "B")
     if cohort_a_sample_count == 0 or cohort_b_sample_count == 0:
         raise RuntimeError(f"Dataset '{dataset_name}' must contain at least one sample in both Cohort A and Cohort B.")
+
+    missing_tokens = {"", "na", "n/a", "nan", "null", "none", "."}
+    for covariate in covariates:
+        values = [row[covariate] for row in sample_table_rows]
+        if any(value.lower() in missing_tokens for value in values):
+            raise RuntimeError(
+                f"limma-voom requires complete selected covariate '{covariate}'. "
+                "Select a documented complete-case cohort or correct the assay metadata."
+            )
+        if covariate_types[covariate] == "numeric":
+            try:
+                values = [float(value) for value in values]
+            except ValueError:
+                raise RuntimeError(f"Transcriptomics numeric covariate '{covariate}' contains a non-numeric value.") from None
+            if any(not math.isfinite(value) for value in values):
+                raise RuntimeError(f"Transcriptomics numeric covariate '{covariate}' must be finite.")
+        if len(set(values)) < 2:
+            raise RuntimeError(
+                f"Transcriptomics covariate '{covariate}' is constant in the selected cohorts. "
+                "Review the declared model; requested covariates are not dropped automatically."
+            )
 
     feature_count = 0
     seen_features: set[str] = set()
@@ -555,6 +591,8 @@ def _export_manifest_count_like_matrix(
         "cohort_a_sample_count": cohort_a_sample_count,
         "cohort_b_sample_count": cohort_b_sample_count,
         "gene_count": feature_count,
+        "analysis_covariates": covariates,
+        "analysis_covariate_types": covariate_types,
     }
 
 
@@ -593,6 +631,8 @@ def _prepare_transcriptomics_differential_expression_bundle(
         )
 
     counts_matrix_path = output_dir / "counts_matrix.tsv"
+    covariates: List[str] = []
+    covariate_types: Dict[str, str] = {}
     if dataset_data_type == "raw_counts":
         query_store_module.ensure_query_store(data_dir)
         con = query_store_module._connect(data_dir)
@@ -702,6 +742,8 @@ def _prepare_transcriptomics_differential_expression_bundle(
         cohort_a_sample_count = int(exported["cohort_a_sample_count"])
         cohort_b_sample_count = int(exported["cohort_b_sample_count"])
         gene_count = int(exported["gene_count"])
+        covariates = list(exported["analysis_covariates"])
+        covariate_types = dict(exported["analysis_covariate_types"])
     else:
         raise RuntimeError(f"Assay data type '{dataset_data_type or 'unspecified'}' is not a supported count-like matrix.")
 
@@ -721,7 +763,7 @@ def _prepare_transcriptomics_differential_expression_bundle(
     cohort_b_path = output_dir / "cohort_b.tsv"
     params_path = output_dir / "params.yaml"
     manifest_path = output_dir / "manifest.yaml"
-    _write_tsv(sample_table_path, ["sample_id", "patient_id", "cohort", "group_label"], sample_table_rows)
+    _write_tsv(sample_table_path, ["sample_id", "patient_id", "cohort", "group_label", *covariates], sample_table_rows)
     _write_tsv(cohort_a_path, ["patient_id", "sample_id", "cohort"], cohort_a_rows)
     _write_tsv(cohort_b_path, ["patient_id", "sample_id", "cohort"], cohort_b_rows)
     params_payload = {
@@ -766,6 +808,23 @@ def _prepare_transcriptomics_differential_expression_bundle(
             "plot": "volcano_plot.png",
         },
     }
+    covariates_path = None
+    if method == "limma_voom":
+        covariates_path = output_dir / "analysis_covariates.tsv"
+        _write_tsv(covariates_path, ["name", "type"],
+                   [{"name": name, "type": covariate_types[name]} for name in covariates])
+        params_payload.update(
+            analysis_covariates=covariates,
+            analysis_covariate_types=covariate_types,
+            adjustment_status="covariate_adjusted" if covariates else "unadjusted_exploratory",
+            missing_covariate_policy="reject_selected_missing",
+        )
+        _write_yaml(params_path, params_payload)
+        manifest_payload["inputs"]["analysis_covariates"] = covariates_path.name
+        manifest_payload["outputs"].update(
+            design_matrix="design_matrix.tsv", contrast="contrast.tsv", gene_filter="gene_filter.tsv",
+            model="model.json", normalization_factors="normalization_factors.tsv", session_info="session_info.txt",
+        )
     _write_yaml(manifest_path, manifest_payload)
     return {
         "dataset_name": dataset_name,
@@ -780,6 +839,9 @@ def _prepare_transcriptomics_differential_expression_bundle(
         "cohort_b_sample_count": cohort_b_sample_count,
         "gene_count": gene_count,
         "data_type": dataset_data_type,
+        "covariates_path": covariates_path,
+        "analysis_covariates": covariates,
+        "analysis_covariate_types": covariate_types,
     }
 
 
@@ -1164,49 +1226,51 @@ def _methylation_feature_panel(data_dir: str, item: Dict[str, Any]) -> Dict[str,
     }
 
 
-def _manifest_analysis_covariates(item: Dict[str, Any]) -> List[str]:
+def _manifest_analysis_covariates(item: Dict[str, Any], *, assay_label: str = "Methylation") -> List[str]:
     raw_covariates = item.get("analysis_covariates")
     if raw_covariates is None:
         return []
     if not isinstance(raw_covariates, list):
-        raise RuntimeError("Methylation analysis_covariates must be a list.")
+        raise RuntimeError(f"{assay_label} analysis_covariates must be a list.")
     covariates: List[str] = []
     reserved = {"sample_id", "patient_id", "cohort", "group_label"}
     for raw_value in raw_covariates:
         value = str(raw_value or "").strip()
         if not value:
-            raise RuntimeError("Methylation analysis_covariates must not contain empty names.")
+            raise RuntimeError(f"{assay_label} analysis_covariates must not contain empty names.")
         if value in reserved:
-            raise RuntimeError(f"Methylation analysis covariate '{value}' is reserved.")
+            raise RuntimeError(f"{assay_label} analysis covariate '{value}' is reserved.")
         if value in covariates:
-            raise RuntimeError(f"Methylation analysis covariate '{value}' is declared more than once.")
+            raise RuntimeError(f"{assay_label} analysis covariate '{value}' is declared more than once.")
         if "\n" in value or "\r" in value or "\t" in value or "," in value:
-            raise RuntimeError("Methylation analysis covariate names must not contain tabs, commas, or newlines.")
+            raise RuntimeError(f"{assay_label} analysis covariate names must not contain tabs, commas, or newlines.")
         covariates.append(value)
     return covariates
 
 
-def _manifest_analysis_covariate_types(item: Dict[str, Any], covariates: List[str]) -> Dict[str, str]:
+def _manifest_analysis_covariate_types(
+    item: Dict[str, Any], covariates: List[str], *, assay_label: str = "Methylation"
+) -> Dict[str, str]:
     raw_types = item.get("analysis_covariate_types")
     if not covariates:
         if raw_types not in (None, {}):
-            raise RuntimeError("Methylation analysis_covariate_types requires matching analysis_covariates.")
+            raise RuntimeError(f"{assay_label} analysis_covariate_types requires matching analysis_covariates.")
         return {}
     if not isinstance(raw_types, dict):
         raise RuntimeError(
-            "Methylation analysis_covariate_types must declare numeric or categorical for every analysis covariate."
+            f"{assay_label} analysis_covariate_types must declare numeric or categorical for every analysis covariate."
         )
     extra_names = sorted(str(value or "").strip() for value in raw_types if str(value or "").strip() not in covariates)
     if extra_names:
         raise RuntimeError(
-            "Methylation analysis_covariate_types includes undeclared covariates: " + ", ".join(extra_names) + "."
+            f"{assay_label} analysis_covariate_types includes undeclared covariates: " + ", ".join(extra_names) + "."
         )
     normalized: Dict[str, str] = {}
     for covariate in covariates:
         value = str(raw_types.get(covariate) or "").strip().lower()
         if value not in {"numeric", "categorical"}:
             raise RuntimeError(
-                f"Methylation analysis covariate '{covariate}' must have type numeric or categorical."
+                f"{assay_label} analysis covariate '{covariate}' must have type numeric or categorical."
             )
         normalized[covariate] = value
     return normalized
@@ -1216,6 +1280,9 @@ def _read_manifest_sample_metadata(
     data_dir: str,
     item: Dict[str, Any],
     covariates: List[str],
+    *,
+    assay_label: str = "Methylation",
+    exact_sample_ids: bool = False,
 ) -> Dict[str, Dict[str, str]]:
     metadata_path = _resolve_assay_manifest_file(
         data_dir,
@@ -1228,38 +1295,40 @@ def _read_manifest_sample_metadata(
         with metadata_path.open("r", encoding="utf-8-sig", newline="") as handle:
             first_line = handle.readline()
             if not first_line:
-                raise RuntimeError(f"Methylation assay '{item['assay_id']}' sample metadata is empty.")
+                raise RuntimeError(f"{assay_label} assay '{item['assay_id']}' sample metadata is empty.")
             delimiter = _tabular_delimiter(first_line)
             handle.seek(0)
             reader = csv.DictReader(handle, delimiter=delimiter)
             fieldnames = [str(value or "").strip() for value in (reader.fieldnames or [])]
             if any(not value for value in fieldnames) or len(set(fieldnames)) != len(fieldnames):
-                raise RuntimeError("Methylation sample metadata contains empty or duplicate column names.")
-            required_columns = {"sample_id", "patient_id"}
+                raise RuntimeError(f"{assay_label} sample metadata contains empty or duplicate column names.")
+            required_columns = {"sample_id"} if exact_sample_ids else {"sample_id", "patient_id"}
             if not required_columns.issubset(fieldnames):
-                raise RuntimeError("Methylation sample metadata must contain sample_id and patient_id columns.")
+                raise RuntimeError(f"{assay_label} sample metadata must contain sample_id and patient_id columns.")
             missing_covariates = [value for value in covariates if value not in fieldnames]
             if missing_covariates:
                 raise RuntimeError(
-                    "Methylation sample metadata is missing declared analysis covariates: "
+                    f"{assay_label} sample metadata is missing declared analysis covariates: "
                     + ", ".join(missing_covariates)
                     + "."
                 )
             rows: Dict[str, Dict[str, str]] = {}
             for raw_row in reader:
                 if None in raw_row:
-                    raise RuntimeError("Methylation sample metadata contains an ambiguous row with extra fields.")
+                    raise RuntimeError(f"{assay_label} sample metadata contains an ambiguous row with extra fields.")
                 row = {str(key or "").strip(): str(value or "").strip() for key, value in raw_row.items()}
                 sample_id = row.get("sample_id", "")
                 if not sample_id:
-                    raise RuntimeError("Methylation sample metadata contains an empty sample identifier.")
+                    raise RuntimeError(f"{assay_label} sample metadata contains an empty sample identifier.")
                 if sample_id in rows:
-                    raise RuntimeError("Methylation sample metadata contains duplicate sample identifiers.")
+                    raise RuntimeError(f"{assay_label} sample metadata contains duplicate sample identifiers.")
+                if exact_sample_ids:
+                    row["patient_id"] = sample_id
                 if not row.get("patient_id", ""):
-                    raise RuntimeError("Methylation sample metadata contains an empty patient identifier.")
+                    raise RuntimeError(f"{assay_label} sample metadata contains an empty patient identifier.")
                 rows[sample_id] = row
     except (OSError, UnicodeDecodeError, csv.Error) as exc:
-        raise RuntimeError(f"Methylation assay '{item['assay_id']}' sample metadata cannot be read.") from exc
+        raise RuntimeError(f"{assay_label} assay '{item['assay_id']}' sample metadata cannot be read.") from exc
     return rows
 
 
@@ -1727,6 +1796,7 @@ def _prepare_rscript_run(
             "--manifest", str(bundle["manifest_path"]), "--params", str(bundle["params_path"]),
             "--prompt", str(prompt or ""), "--dataset-name", str(bundle["dataset_name"]),
             "--sample-table", str(bundle["sample_table_path"]), "--counts-matrix", str(bundle["counts_matrix_path"]),
+            "--covariates-file", str(bundle["covariates_path"]),
             "--results-table", str(temp_path / "de_results.tsv"), "--volcano-table", str(temp_path / "volcano_points.tsv"),
             "--summary-json", str(temp_path / "summary.json"), "--plot-file", str(temp_path / "volcano_plot.png")]
     elif runner_ref == "transcriptomics_hallmark_pathway_enrichment":
