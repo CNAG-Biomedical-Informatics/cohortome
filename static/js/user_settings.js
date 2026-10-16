@@ -2,6 +2,9 @@ import { fallbackCopyText } from "./shared.js";
 
 const DEFAULT_USER_SETTINGS = {
   appearance: "light",
+  plot_palette: "default",
+  heatmap_palette: "default",
+  diverging_palette: "default",
   version: 1,
   landing_tab_mode: "fixed",
   landing_tab: "dashboard",
@@ -42,6 +45,9 @@ function normalizeUserSettings(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   return {
     version: 1,
+    plot_palette: normalizeChoice(source.plot_palette, new Set(["default", "okabe-ito", "muted"]), "default"),
+    heatmap_palette: normalizeChoice(source.heatmap_palette, new Set(["default", "viridis", "cividis"]), "default"),
+    diverging_palette: normalizeChoice(source.diverging_palette, new Set(["default", "blue-orange", "purple-green"]), "default"),
     appearance: normalizeChoice(source.appearance, new Set(["light", "dark", "system"]), "light"),
     landing_tab_mode: normalizeChoice(source.landing_tab_mode, ALLOWED_LANDING_TAB_MODES, DEFAULT_USER_SETTINGS.landing_tab_mode),
     landing_tab: normalizeChoice(source.landing_tab, ALLOWED_TABS, DEFAULT_USER_SETTINGS.landing_tab),
@@ -148,6 +154,26 @@ export function createUserSettingsUi(ctx) {
     userSettingsStatusEl.textContent = message;
   }
 
+  userSettingsPanelEl.addEventListener("click", event => {
+    const button = event.target.closest("[data-settings-section]");
+    if (!button) return;
+    const section = button.dataset.settingsSection;
+    userSettingsPanelEl.querySelectorAll("[data-settings-page]").forEach(page => {
+      page.hidden = page.dataset.settingsPage !== section;
+    });
+    userSettingsPanelEl.querySelectorAll("[data-settings-section]").forEach(item => {
+      if (item === button) item.setAttribute("aria-current", "page");
+      else item.removeAttribute("aria-current");
+    });
+    userSettingsPanelEl.querySelector(".user-settings-content").scrollTop = 0;
+  });
+  function updateDirtyStatus() {
+    const dirty = JSON.stringify(formSettings()) !== JSON.stringify(normalizeUserSettings(state.userSettings));
+    document.getElementById("userSettingsDirty").textContent = dirty ? "Unsaved changes" : "";
+  }
+  userSettingsPanelEl.addEventListener("input", updateDirtyStatus);
+  userSettingsPanelEl.addEventListener("change", updateDirtyStatus);
+
   function setPanelOpen(open) {
     if (!userSettingsPanelEl) return;
     userSettingsPanelEl.classList.toggle("is-hidden", !open);
@@ -199,6 +225,11 @@ export function createUserSettingsUi(ctx) {
     const settings = normalizeUserSettings(state.userSettings);
     renderLlmProviderOptions(settings.llm_provider_id);
     if (settingsAppearanceEl) settingsAppearanceEl.value = settings.appearance;
+    for (const key of ["plot_palette", "heatmap_palette", "diverging_palette"]) {
+      document.getElementById(`settings_${key}`).value = settings[key];
+      window.CohortomeTheme.palettePreview(key, settings[key]);
+      document.getElementById(`settings_${key}`).onchange = event => window.CohortomeTheme.palettePreview(key, event.target.value);
+    }
     if (settingsLandingTabModeEl) settingsLandingTabModeEl.value = settings.landing_tab_mode;
     if (settingsLandingTabEl) settingsLandingTabEl.value = settings.landing_tab;
     if (settingsQueryDisclosureEl) settingsQueryDisclosureEl.value = settings.query_disclosure_default;
@@ -216,6 +247,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsDashboardAssaysOpenEl) settingsDashboardAssaysOpenEl.checked = settings.dashboard_assays_open;
     if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
     renderAuthSummary();
+    updateDirtyStatus();
   }
 
   function renderLlmProviderOptions(selectedProviderId) {
@@ -238,6 +270,9 @@ export function createUserSettingsUi(ctx) {
 
   function formSettings() {
     return normalizeUserSettings({
+      plot_palette: document.getElementById("settings_plot_palette").value,
+      heatmap_palette: document.getElementById("settings_heatmap_palette").value,
+      diverging_palette: document.getElementById("settings_diverging_palette").value,
       landing_tab_mode: settingsLandingTabModeEl ? settingsLandingTabModeEl.value : DEFAULT_USER_SETTINGS.landing_tab_mode,
       appearance: settingsAppearanceEl ? settingsAppearanceEl.value : "light",
       landing_tab: settingsLandingTabEl ? settingsLandingTabEl.value : DEFAULT_USER_SETTINGS.landing_tab,
@@ -262,6 +297,7 @@ export function createUserSettingsUi(ctx) {
     const settings = normalizeUserSettings(state.userSettings);
     state.userSettings = settings;
     window.CohortomeTheme.apply(settings.appearance);
+    window.CohortomeTheme.applyPalettes(settings);
     document.body.classList.toggle("user-setting-dataset-compact", settings.dataset_compact_view);
     if (queryLatestDetailsEl) {
       queryLatestDetailsEl.classList.toggle("is-hidden", !settings.latest_query_details);

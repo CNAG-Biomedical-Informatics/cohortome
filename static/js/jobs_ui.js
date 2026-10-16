@@ -126,6 +126,10 @@ export function createJobsUi(ctx) {
     jobsDrawerCountEl.textContent = running ? String(running) : "";
     jobsDrawerBtnEl.classList.toggle("has-running-jobs", running > 0);
     jobsDrawerCountEl.classList.toggle("is-hidden", running === 0);
+    if (runHistoryDrawerBtnEl) {
+      runHistoryDrawerBtnEl.setAttribute("aria-label", running ? `Runs, ${running} active jobs` : "Runs");
+      runHistoryDrawerBtnEl.title = running ? `Runs — ${running} active jobs` : "Runs — history and active jobs";
+    }
   }
 
   function renderRunHistoryButton() {
@@ -174,7 +178,7 @@ export function createJobsUi(ctx) {
         return;
       }
       target.classList.add("is-offline");
-      const reason = status.redis_available
+      const reason = status.backend === "local" ? "desktop runner unavailable" : status.redis_available
         ? "no worker online"
         : status.dependencies_available
           ? "Redis unavailable"

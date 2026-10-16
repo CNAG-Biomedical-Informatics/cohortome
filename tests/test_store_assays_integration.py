@@ -465,9 +465,9 @@ def test_default_fixture_exposes_precomputed_subject_clarids(tmp_path, monkeypat
 
     assert len(clarids) == 38
     assert clarids["SYN001"] == {
-        "subject_id": 9,
-        "human_id": "CNAG_Test-00009-Case-K50.9-Female-A20_29",
-        "stub_id": "CT009C3ad01FA2",
+        "subject_id": 1,
+        "human_id": "CNAG_Test-00001-Case-K50.9-Female-A20_29",
+        "stub_id": "CT001C3ad01FA2",
         "study": "CNAG-Test",
         "type": "Case",
         "condition": "K50.9",
@@ -478,7 +478,7 @@ def test_default_fixture_exposes_precomputed_subject_clarids(tmp_path, monkeypat
         "tools_version": "0.04",
     }
     assert query_store_module.resolve_patient_identifier(
-        fixture_root, "CT009C3ad01FA2"
+        fixture_root, "CT001C3ad01FA2"
     )["patient_id"] == "SYN001"
 
 

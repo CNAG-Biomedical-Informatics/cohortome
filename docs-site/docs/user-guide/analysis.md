@@ -184,22 +184,16 @@ an overall correlation without a within-group relationship. No p-values,
 significance claims, causal claims or predictive models are provided.
 Synthetic results demonstrate software behaviour only.
 
-## Research question and hypothesis
+## Reading results
 
-Before submitting a workspace analysis, open **Question this analysis addresses**
-above the Run button. Exploratory is the default: you can record the question
-without asserting an expected result. Hypothesis-driven runs require both a
-research question and a hypothesis. State these before running, not after
-examining the findings.
-
-Each submission captures its own note and browser timestamp in the saved
-conversation. Editing the draft affects future submissions, not earlier result
-labels. Background results retain the note in their originating conversation.
-Older results without a note are not retrospectively labelled.
-
-This framing documents intent; it does not configure covariates, alter the
-statistical method, or get sent to a language model. It is not a tamper-proof
-preregistration record. General questions do not use research framing.
+Use **Chats** to find earlier Analysis conversations. On desktop-sized screens,
+chats sit beside the narrow application navigation rail. Settings and account
+actions are in the bottom avatar menu. Selecting a chat or choosing **New** opens Analysis.
+Smaller screens use a drawer opened with **Chats**.
+Search by title or request text, or browse Today, Yesterday and Older groups.
+The **⋯** button provides Rename and Delete. A conversation can contain several
+runs; use **Runs** above the avatar when looking for an execution and its files.
+Active runs appear first; **Queue** is available inside Run history.
 
 Completed responses have an **Analysis result** heading. Summary metrics, plots,
 method notes and suggested follow-ups remain together. Expand **Result files**

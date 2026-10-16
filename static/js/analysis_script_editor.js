@@ -9,10 +9,10 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
     <label for="analysisScriptLanguage">Language</label><select id="analysisScriptLanguage"><option value="python">Python</option><option value="r">R</option></select>
     <p class="section-note">For limma-voom, choose R. To compare two groups, open Patients, turn on comparison and choose Cohort A and Cohort B before preparing.</p>
     <p class="section-note">COHORTome prepares the current cohorts and selected assays (all demo assays if none selected). The template describes the objects and includes loading code, not patient values. Only the bundled synthetic autoimmune demo is allowed.</p>
-    <div class="pheno-actions"><button type="button" data-script-prepare>Prepare / reset template</button><button type="button" class="query-chip" data-script-copy disabled>Copy template for AI</button></div>
+    <div class="pheno-actions"><button type="button" data-script-basic>Use 60-second test</button><button type="button" data-script-inputs>Check inputs</button><button type="button" data-script-prepare>Generate data-aware template</button><button type="button" class="query-chip" data-script-copy disabled>Copy template for AI</button></div>
     <div data-script-summary aria-live="polite"></div>
-    <p class="section-note">Check this summary before copying. Paste the template into your AI and add your question. Then replace the editor contents with its complete script, without Markdown fences, and click Run. To test the setup first, run the starter script unchanged.</p>
-    <label for="analysisScriptCode">Analysis script</label><textarea id="analysisScriptCode" rows="18" spellcheck="false" placeholder="Prepare inputs, then complete the script here or paste the code returned by your AI."></textarea>
+    <p class="section-note">Paste a complete script and click Run: inputs are prepared automatically without replacing your code. The 60-second test waits one minute so you can navigate elsewhere while it runs; it performs no scientific analysis. Generate a data-aware template only when you need loading code and instructions for an AI.</p>
+    <label for="analysisScriptCode">Analysis script</label><textarea id="analysisScriptCode" rows="18" spellcheck="false" placeholder="Paste your complete Python or R script, or choose Use 60-second test."></textarea>
     <p class="section-note">Fixed packages; no network or installation. 90 seconds, 512 MiB. Save CSV, TXT or PNG under /work/output. Review statistical choices before running. The exact script and input contract are saved with the run.</p>
     <p data-script-status role="status"></p>`;
   host.appendChild(panel);
@@ -58,10 +58,11 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
     state.analysisScriptDraft = { ...(state.analysisScriptDraft || {}), script: editor.value };
     onChange();
   });
-  prepare.addEventListener('click', async () => {
-    if (busy || missingCohort()) return;
-    if (editor.value && !window.confirm('Replace the editor contents with a freshly prepared template? Your previous submitted scripts remain in Run history.')) return;
+  async function prepareInputs(replaceScript = false) {
+    if (busy) throw Error('Input preparation is already running.');
+    if (missingCohort()) throw Error(missingCohort());
     const key = contextKey();
+    const script = editor.value;
     busy = true; error = ''; state.analysisScriptDraft = { script: editor.value, language: language.value };
     onChange();
     try {
@@ -71,7 +72,7 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
       if (contextKey() !== key) throw Error('Inputs changed while preparing. Prepare the template again.');
       template = payload.template;
       templateKey = key;
-      state.analysisScriptDraft = { key, language: language.value, script: template, contract_id: payload.contract_id,
+      state.analysisScriptDraft = { key, language: language.value, script: replaceScript ? template : script, contract_id: payload.contract_id,
         contract: {language: payload.contract.language, packages: payload.contract.packages,
           cohort_a: payload.contract.cohort_a, cohort_b: payload.contract.cohort_b,
           omitted_assays: payload.contract.omitted_assays,
@@ -79,8 +80,24 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
             [name, {features: assay.features, cohort_a_samples: assay.cohort_a_samples, cohort_b_samples: assay.cohort_b_samples}]))},
         image_id: payload.sandbox.image_id || '', summary: `${payload.contract.patients} patients; ${Object.keys(payload.contract.assays).length} assays.`,
         unavailable: payload.sandbox.message || '' };
-    } catch (exc) { error = exc.message || 'Cannot prepare script inputs.'; }
+    } catch (exc) { error = exc.message || 'Cannot prepare script inputs.'; throw exc; }
     finally { busy = false; onChange(); }
+  }
+  prepare.addEventListener('click', async () => {
+    if (editor.value && !window.confirm('Replace your code with a data-aware template?')) return;
+    try { await prepareInputs(true); } catch (_) { /* shown by render */ }
+  });
+  panel.querySelector('[data-script-inputs]').addEventListener('click', async () => {
+    try { await prepareInputs(); } catch (_) { /* shown by render */ }
+  });
+  panel.querySelector('[data-script-basic]').addEventListener('click', () => {
+    if (editor.value && !window.confirm('Replace your code with the 60-second background test?')) return;
+    const script = language.value === 'r'
+      ? "# 60-second background test; no scientific analysis.\ncat('Waiting 60 seconds. Keep the app open.\\n')\nSys.sleep(60)\noutput <- '/work/output'\ndir.create(output, recursive=TRUE, showWarnings=FALSE)\nwriteLines('Background test succeeded.', file.path(output, 'diagnostic.txt'))\ncat('Completed.\\n')\n"
+      : "# 60-second background test; no scientific analysis.\nfrom pathlib import Path\nimport time\nprint('Waiting 60 seconds. Keep the app open.', flush=True)\ntime.sleep(60)\noutput = Path('/work/output')\noutput.mkdir(parents=True, exist_ok=True)\n(output / 'diagnostic.txt').write_text('Background test succeeded.\\n')\nprint('Completed.')\n";
+    error = '';
+    state.analysisScriptDraft = {...(state.analysisScriptDraft || {}), language: language.value, script};
+    onChange();
   });
   copy.addEventListener('click', async () => {
     if (busy || missingCohort() || templateKey !== contextKey()) return;
@@ -97,10 +114,9 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
     const draft = state.analysisScriptDraft || {};
     if (missingCohort()) return {complete: false, detail: missingCohort()};
     if (busy) return {complete: false, detail: 'Preparing input structures…'};
-    if (error) return {complete: false, detail: error};
-    if (draft.key !== contextKey()) return {complete: false, detail: 'Prepare the template for the current cohorts and assays. Previous editor text is kept until you reset it.'};
+    if (!draft.script?.trim()) return {complete: false, detail: error || 'Paste a complete script or choose Use 60-second test.'};
+    if (draft.key !== contextKey()) return {complete: true, detail: error || 'Inputs will be checked automatically when you run. Your code will not be replaced.'};
     if (!draft.image_id) return {complete: false, detail: draft.unavailable || 'The sandbox is unavailable.'};
-    if (!draft.script?.trim()) return {complete: false, detail: 'Paste or write the analysis script.'};
     return {complete: true, detail: `${draft.summary} Script ready to submit. This does not validate the analysis.`};
   }
   function render(required) {
@@ -109,11 +125,20 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
     if (lastContextKey !== contextKey()) { error = ''; lastContextKey = contextKey(); }
     language.value = state.analysisScriptDraft?.language || 'python';
     language.disabled = busy;
+    editor.disabled = busy;
+    panel.querySelector('[data-script-basic]').disabled = busy;
+    panel.querySelector('[data-script-inputs]').disabled = busy || Boolean(missingCohort());
     if (editor.value !== (state.analysisScriptDraft?.script || '')) editor.value = state.analysisScriptDraft?.script || '';
     prepare.disabled = busy || Boolean(missingCohort());
     copy.disabled = busy || Boolean(missingCohort()) || !template || templateKey !== contextKey() || state.analysisScriptDraft?.key !== contextKey();
     renderSummary();
     statusEl.textContent = status().detail;
   }
-  return { render, status };
+  async function prepareForRun() {
+    if (!editor.value.trim()) throw Error('Paste a complete script or choose Use 60-second test.');
+    await prepareInputs();
+    const check = status();
+    if (!check.complete) throw Error(check.detail);
+  }
+  return { render, status, prepareForRun };
 }

@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 from uuid import uuid4
+from app.analysis_resources import THREAD_ENV
 
 IMAGE = 'cohortome-script-sandbox:prototype-v1'
 DOCKER_HOST = 'unix:///var/run/docker.sock'
@@ -79,6 +80,11 @@ def execute_script(files, script, job_root, expected_image, language='python'):
     if image_id != expected_image:
         raise RuntimeError('The sandbox environment changed. Prepare the template again before running.')
     name = 'cohortome-script-' + uuid4().hex
+    if os.environ.get('COHORTOME_LOCAL_JOB_CHILD') == '1':
+        managed_name = os.environ.get('COHORTOME_LOCAL_CONTAINER_NAME', '')
+        if not re.fullmatch(r'cohortome-script-[0-9a-f]{32}', managed_name):
+            raise RuntimeError('Desktop sandbox cleanup identity is missing.')
+        name = managed_name
     # No job/runtime/secret directory is mounted. Temporary inputs are synthetic.
     with tempfile.TemporaryDirectory(prefix='cohortome-script-') as temporary:
         inputs = Path(temporary)
@@ -89,6 +95,7 @@ def execute_script(files, script, job_root, expected_image, language='python'):
             path.chmod(0o444)
         try:
             _control(['create', '--name', name, '--pull', 'never', '--network', 'none',
+                      *[argument for key, value in THREAD_ENV.items() for argument in ('--env', f'{key}={value}')],
                       '--read-only', '--user', '65534:65534', '--cap-drop', 'ALL',
                       '--security-opt', 'no-new-privileges=true', '--pids-limit', '64',
                       '--cpus', '1', '--memory', '512m', '--memory-swap', '512m',

@@ -158,7 +158,7 @@ if (!length(pathways)) {
   )
 }
 
-fgsea_res <- suppressWarnings(fgsea(pathways = pathways, stats = rank_stats, minSize = min_overlap_size, maxSize = 500, eps = 0))
+fgsea_res <- suppressWarnings(fgsea(pathways = pathways, stats = rank_stats, minSize = min_overlap_size, maxSize = 500, eps = 0, BPPARAM = BiocParallel::SerialParam()))
 fgsea_df <- as.data.frame(fgsea_res)
 if (!nrow(fgsea_df)) {
   stop("No pathway enrichment results were produced.", call. = FALSE)

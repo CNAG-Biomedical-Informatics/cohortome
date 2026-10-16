@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
+from app.analysis_resources import single_thread_environment
 
 from app.bff import (
     ensure_data_dir,
@@ -2025,6 +2026,7 @@ def run_rscript_analysis(
         try:
             result = subprocess.run(
                 command,
+                env=single_thread_environment(),
                 check=False,
                 capture_output=True,
                 text=True,
@@ -2187,6 +2189,7 @@ def run_snakemake_analysis(
         ]
         result = subprocess.run(
             command,
+            env=single_thread_environment(),
             check=False,
             capture_output=True,
             text=True,
@@ -2263,6 +2266,7 @@ def run_nextflow_analysis(
         ]
         result = subprocess.run(
             command,
+            env=single_thread_environment(),
             check=False,
             capture_output=True,
             text=True,

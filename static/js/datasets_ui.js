@@ -1,4 +1,7 @@
 export function createDatasetsUi(ctx) {
+  const desktop = document.documentElement.dataset.deployment === "desktop";
+  const accessLabel = (visibility) => desktop ? "Available in this desktop workspace"
+    : ({ all_authenticated: "All authenticated users", restricted: "Restricted", admin_only: "Admin only" }[visibility] || visibility);
   const { refs, state, helpers, callbacks } = ctx;
   const {
     dataDirEl,
@@ -578,10 +581,10 @@ export function createDatasetsUi(ctx) {
             ${traitKeys.length ? `<div class="dataset-trait-icons">${traitKeys.map((key) => renderDatasetTraitIcon(key)).join("")}</div>` : ""}
             <div class="dataset-picker-meta">
               <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-              <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+              <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
               ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
-              ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-              ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
+              ${!desktop && allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
+              ${!desktop && allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
             </div>
             ${description ? `<div class="dataset-picker-description" title="${escapeHtml(description)}">${escapeHtml(description)}</div>` : ""}
           </div>
@@ -640,7 +643,7 @@ export function createDatasetsUi(ctx) {
               <span class="dataset-picker-title">${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
               <span class="dataset-picker-meta">
                 <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
                 <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
               </span>
             </span>
@@ -652,21 +655,21 @@ export function createDatasetsUi(ctx) {
             </div>
             <div class="dataset-picker-meta">
                 <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                <span class="dataset-picker-tag">${escapeHtml(visibility.replaceAll("_", " "))}</span>
+                <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
                 <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
               ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
-              ${allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-              ${allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
+              ${!desktop && allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
+              ${!desktop && allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
             </div>
             ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
             <div class="dataset-picker-access">
               <div class="dataset-policy-section">
-                <div class="dataset-policy-heading">Access and classification</div>
-                <div class="section-note">Visibility controls who can use the dataset inside COHORTome. Classification controls whether its data may be sent outside this deployment.</div>
-                <div class="dataset-picker-access-row">
+                <div class="dataset-policy-heading">${desktop ? "Data classification and detail" : "Access and classification"}</div>
+                <div class="section-note">${desktop ? "This desktop workspace has one local owner. Classification and model policies still control how data may be shared." : "Visibility controls who can use the dataset inside COHORTome. Classification controls whether its data may be sent outside this deployment."}</div>
+                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
                   <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
                   <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
-                    <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated</option>
+                    <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated users</option>
                     <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
                     <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
                   </select>
@@ -678,11 +681,11 @@ export function createDatasetsUi(ctx) {
                     <option value="public" ${dataClassification === "public" ? "selected" : ""}>Public data</option>
                   </select>
                 </div>
-                <div class="dataset-picker-access-row">
+                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
                   <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
                   <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
                 </div>
-                <div class="dataset-picker-access-row">
+                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
                   <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
                   <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
                 </div>
@@ -693,7 +696,7 @@ export function createDatasetsUi(ctx) {
                     <option value="detailed" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "detailed" ? "selected" : ""}>Detailed allowed</option>
                   </select>
                 </div>
-                <div class="dataset-picker-access-row">
+                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
                   <label>Users with access</label>
                   <div class="identity-tags">
                     ${effectiveUsers.length
@@ -806,10 +809,8 @@ export function createDatasetsUi(ctx) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          visibility: visibilityEl.value,
+          ...(!desktop ? { visibility: visibilityEl.value, allowed_groups: allowedGroups, allowed_users: allowedUsers } : {}),
           data_classification: dataClassificationEl.value,
-          allowed_groups: allowedGroups,
-          allowed_users: allowedUsers,
           query_granularity_ceiling: queryGranularityEl.value,
           ai_provider_access: requestedAiProviderAccess,
         }),

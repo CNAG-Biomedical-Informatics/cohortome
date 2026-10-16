@@ -3,66 +3,66 @@
   "source": "synthetic",
   "studies": [
     {
-      "study_id": "synthetic-mri-syn001-week0",
+      "study_id": "synthetic-mri-syn20001-week0",
       "label": "DICOM viewer smoke test MRI",
-      "patient_id": "SYN001",
-      "sample_id": "SYN001:week_0",
+      "patient_id": "SYN20001",
+      "sample_id": "SYN20001:week_0",
       "timepoint": "week_0",
       "modality": "MR",
       "synthetic_profile": "smoke_test",
-      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.3.1",
       "study_description": "Synthetic DICOM viewer smoke test MRI",
       "series": [
         {
-          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.1.1",
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.3.1.1",
           "series_description": "Synthetic axial T1 smoke test",
           "instance_count": 1,
           "sop_instance_uids": [
-            "1.2.826.0.1.3680043.10.54321.1.1.1.1"
+            "1.2.826.0.1.3680043.10.54321.3.1.1.1"
           ]
         }
       ]
     },
     {
-      "study_id": "synthetic-ms-brain-syn011-week0",
-      "label": "Synthetic MS brain MRI baseline SYN011",
-      "patient_id": "SYN011",
-      "sample_id": "SYN011:week_0",
+      "study_id": "synthetic-ms-brain-syn20011-week0",
+      "label": "Synthetic MS brain MRI baseline SYN20011",
+      "patient_id": "SYN20011",
+      "sample_id": "SYN20011:week_0",
       "timepoint": "week_0",
       "modality": "MR",
       "body_part": "BRAIN",
       "synthetic_profile": "ms_brain_mild",
-      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.11",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.3.11",
       "study_description": "Synthetic multiple sclerosis brain MRI baseline",
       "series": [
         {
-          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.11.1",
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.3.11.1",
           "series_description": "Synthetic axial FLAIR mild lesion burden",
           "instance_count": 1,
           "sop_instance_uids": [
-            "1.2.826.0.1.3680043.10.54321.1.11.1.1"
+            "1.2.826.0.1.3680043.10.54321.3.11.1.1"
           ]
         }
       ]
     },
     {
-      "study_id": "synthetic-ms-brain-syn012-week0",
-      "label": "Synthetic MS brain MRI baseline SYN012",
-      "patient_id": "SYN012",
-      "sample_id": "SYN012:week_0",
+      "study_id": "synthetic-ms-brain-syn20012-week0",
+      "label": "Synthetic MS brain MRI baseline SYN20012",
+      "patient_id": "SYN20012",
+      "sample_id": "SYN20012:week_0",
       "timepoint": "week_0",
       "modality": "MR",
       "body_part": "BRAIN",
       "synthetic_profile": "ms_brain_moderate",
-      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.1.12",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.54321.3.12",
       "study_description": "Synthetic multiple sclerosis brain MRI baseline",
       "series": [
         {
-          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.1.12.1",
+          "series_instance_uid": "1.2.826.0.1.3680043.10.54321.3.12.1",
           "series_description": "Synthetic axial FLAIR moderate lesion burden",
           "instance_count": 1,
           "sop_instance_uids": [
-            "1.2.826.0.1.3680043.10.54321.1.12.1.1"
+            "1.2.826.0.1.3680043.10.54321.3.12.1.1"
           ]
         }
       ]

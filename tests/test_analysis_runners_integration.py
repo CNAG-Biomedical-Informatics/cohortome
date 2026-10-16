@@ -608,6 +608,8 @@ def test_analysis_external_rscript_assay_deseq2_runner_executes(tmp_path, monkey
     def fake_run(command, **kwargs):
         results_path = Path(command[command.index("--results-table") + 1])
         volcano_path = Path(command[command.index("--volcano-table") + 1])
+        assert kwargs["env"]["OPENBLAS_NUM_THREADS"] == "1"
+        assert kwargs["env"]["OMP_THREAD_LIMIT"] == "1"
         summary_path = Path(command[command.index("--summary-json") + 1])
         plot_path = Path(command[command.index("--plot-file") + 1])
         heatmap_path = Path(command[command.index("--heatmap-file") + 1])
@@ -748,6 +750,7 @@ def test_analysis_external_rscript_assay_hallmark_pathway_runner_executes(tmp_pa
     def fake_run(command, **kwargs):
         results_path = Path(command[command.index("--results-table") + 1])
         rankings_path = Path(command[command.index("--rankings-table") + 1])
+        assert kwargs["env"]["MC_CORES"] == "1"
         summary_path = Path(command[command.index("--summary-json") + 1])
         plot_path = Path(command[command.index("--plot-file") + 1])
         for path in (results_path, rankings_path, summary_path, plot_path):

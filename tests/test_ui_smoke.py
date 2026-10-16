@@ -25,6 +25,7 @@ def test_deployment_branding_admin_preview_persistence_and_researcher_access(pag
     assert page.request.post(base + '/auth/login', data={'username': 'admin', 'password': 'secret'}).ok
     page.reload(wait_until='networkidle')
     original_logo = page.locator('#appShell .hero-logo').get_attribute('src')
+    if not page.locator("#adminTabBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator('#adminTabBtn').click()
     page.locator('#deploymentAppearanceBtn').click()
     page.locator('#deploymentBrandName').fill('Test programme')
@@ -53,6 +54,7 @@ def test_deployment_branding_admin_preview_persistence_and_researcher_access(pag
     assert page.locator('#deploymentBrand').evaluate('el => el.scrollWidth <= el.clientWidth')
     assert page.request.post(base + '/auth/login', data={'username': 'admin', 'password': 'secret'}).ok
     page.reload(wait_until='networkidle')
+    if not page.locator("#adminTabBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator('#adminTabBtn').click(); page.locator('#deploymentAppearanceBtn').click()
     page.once('dialog', lambda dialog: dialog.accept())
     page.locator('#deploymentBrandRemove').click()
@@ -63,13 +65,17 @@ def test_deployment_branding_admin_preview_persistence_and_researcher_access(pag
 
 
 def test_appearance_saves_reloads_and_follows_system(page):
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="appearance"]').click()
     page.locator('#settingsAppearance').select_option('dark')
     page.locator('#userSettingsSaveBtn').click()
     page.wait_for_function('document.documentElement.dataset.theme === "dark"')
     page.reload(wait_until='networkidle')
     assert page.locator('html').get_attribute('data-theme') == 'dark'
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="appearance"]').click()
     page.locator('#settingsAppearance').select_option('system')
     page.locator('#userSettingsSaveBtn').click()
     page.wait_for_function('document.documentElement.dataset.appearance === "system"')
@@ -78,6 +84,37 @@ def test_appearance_saves_reloads_and_follows_system(page):
     page.emulate_media(color_scheme='light')
     page.wait_for_function('document.documentElement.dataset.theme === "light"')
     page.request.patch(page.url.rstrip('/') + '/user-settings', data={'appearance': 'light'})
+
+
+def test_plot_palette_settings_save_reload_and_reset(page):
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="appearance"]').click()
+    choices = {'plot_palette': 'okabe-ito', 'heatmap_palette': 'cividis', 'diverging_palette': 'blue-orange'}
+    for key, value in choices.items():
+        page.locator(f'#settings_{key}').select_option(value)
+        assert 'linear-gradient' in page.locator(f'#preview_{key}').evaluate('el => el.style.background')
+    playwright.expect(page.locator('#userSettingsDirty')).to_have_text('Unsaved changes')
+    page.locator('[data-settings-section="general"]').click()
+    playwright.expect(page.locator('#settings_plot_palette')).to_be_hidden()
+    page.locator('[data-settings-section="appearance"]').click()
+    playwright.expect(page.locator('#settings_plot_palette')).to_have_value('okabe-ito')
+    with page.expect_response('**/user-settings'):
+        page.locator('#userSettingsSaveBtn').click()
+    page.reload(wait_until='networkidle')
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="appearance"]').click()
+    playwright.expect(page.locator('#userSettingsDirty')).to_have_text('')
+    for width in (1280, 390):
+        page.set_viewport_size({'width': width, 'height': 800})
+        playwright.expect(page.locator('#userSettingsSaveBtn')).to_be_in_viewport()
+        assert page.locator('#userSettingsPanel').evaluate('el => el.scrollWidth <= el.clientWidth')
+    for key, value in choices.items():
+        playwright.expect(page.locator(f'#settings_{key}')).to_have_value(value)
+        page.locator(f'#settings_{key}').select_option('default')
+    with page.expect_response('**/user-settings'):
+        page.locator('#userSettingsSaveBtn').click()
 
 
 def test_settings_about_and_background_notifications(page):
@@ -99,14 +136,20 @@ def test_settings_about_and_background_notifications(page):
     expect = playwright.expect
     expect(page.locator(".job-completion-notice")).to_have_count(0)
     # Navigation must not discard the observed running status.
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator("#userSettingsBtn").click()
+    page.locator('[data-settings-section="about"]').click()
     page.locator("#settingsAbout summary").click()
     expect(page.locator("#aboutVersionReport")).to_contain_text("duckdb: 1.5.0")
     expect(page.locator("#aboutVersionReport")).to_contain_text("R: Not installed")
     expect(page.locator("#aboutCopyReport")).to_be_enabled()
     jobs[0]["status"] = "completed"
     expect(page.locator(".job-completion-notice")).to_contain_text("1 completed, 0 failed", timeout=10000)
+    page.locator('#userSettingsCloseBtn').click()
     page.locator(".job-completion-notice").get_by_text("Dismiss", exact=True).click()
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="jobs"]').click()
     page.locator("#settingsJobNotifications").uncheck()
     page.locator("#userSettingsSaveBtn").click()
     expect(page.locator("#userSettingsStatus")).to_contain_text("saved")
@@ -180,7 +223,8 @@ def test_saved_cohort_download_button(page):
     assert download_info.value.suggested_filename == "saved-cohort.zip"
 
 
-def test_custom_script_editor_prepares_and_submits_bound_inputs(page):
+@pytest.mark.parametrize('generate_template', [False, True])
+def test_custom_script_editor_prepares_and_submits_bound_inputs(page, generate_template):
     _install_online_worker_route(page)
     item = {"id": "synthetic-custom-script", "name": "Custom Python script", "kind": "custom_script",
             "runner_type": "container", "runner_ref": "synthetic_custom_script", "execution_mode": "deterministic",
@@ -202,13 +246,18 @@ def test_custom_script_editor_prepares_and_submits_bound_inputs(page):
     _open_analysis_tab(page)
     page.locator("#analysisMethodSelect").select_option("catalog:synthetic-custom-script")
     playwright.expect(page.locator("#analysisRunBtn")).to_be_disabled()
-    page.locator("[data-script-prepare]").click()
-    playwright.expect(page.locator("#analysisScriptCode")).to_have_value("print('prepared')")
-    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Python 3.11')
-    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('pandas 2.2.3')
-    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('90 patients')
-    playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Not used — single-cohort analysis')
-    playwright.expect(page.locator('[data-script-summary] table')).to_contain_text('1000')
+    if generate_template:
+        page.locator("[data-script-prepare]").click()
+        playwright.expect(page.locator("#analysisScriptCode")).to_have_value("print('prepared')")
+        playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Python 3.11')
+        playwright.expect(page.locator('[data-script-summary]')).to_contain_text('pandas 2.2.3')
+        playwright.expect(page.locator('[data-script-summary]')).to_contain_text('90 patients')
+        playwright.expect(page.locator('[data-script-summary]')).to_contain_text('Not used — single-cohort analysis')
+        playwright.expect(page.locator('[data-script-summary] table')).to_contain_text('1000')
+    else:
+        page.locator('[data-script-basic]').click()
+        assert "output = Path('/work/output')" in page.locator('#analysisScriptCode').input_value()
+        assert 'time.sleep(60)' in page.locator('#analysisScriptCode').input_value()
     page.locator("#analysisScriptCode").fill("print('completed by external AI')")
     playwright.expect(page.locator("#analysisRunBtn")).to_be_enabled()
     page.locator("#analysisRunBtn").click()
@@ -221,6 +270,7 @@ def test_custom_script_editor_prepares_and_submits_bound_inputs(page):
     playwright.expect(page.locator('[data-script-prepare]')).to_be_disabled()
     playwright.expect(page.locator('[data-script-copy]')).to_be_disabled()
     playwright.expect(page.locator('[data-script-status]')).to_contain_text('Choose Cohort A in Patients')
+    playwright.expect(page.locator('#analysisRunReview')).to_contain_text('Cannot run yet: Choose Cohort A in Patients')
 
 
 def test_chat_copy_reply_and_clipboard_fallback(page):
@@ -2178,7 +2228,7 @@ def test_multimodal_association_handoff_and_plot(page):
     playwright.expect(page.locator('#analysisThread')).to_contain_text('Parameters and provenance')
 
 
-def test_analysis_research_framing_snapshot(page):
+def test_analysis_runs_without_research_framing_controls(page):
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
     requests = []
@@ -2192,27 +2242,17 @@ def test_analysis_research_framing_snapshot(page):
     page.locator('#loadBtn').click()
     playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
     page.locator('#analysisTabBtn').click()
-    page.locator('#analysisFraming summary').click()
-    page.locator('#analysisStudyMode').select_option('hypothesis_driven')
+    playwright.expect(page.locator('#analysisFraming')).to_have_count(0)
+    page.locator('#analysisContextGeneralBtn').click()
+    playwright.expect(page.locator('#analysisFraming')).to_have_count(0)
+    page.locator('#analysisContextWorkspaceBtn').click()
+    page.locator('[data-analysis-flow-target="prompt"]').click()
     page.locator('#analysisRunBtn').click()
-    playwright.expect(page.locator('#analysisStatus')).to_contain_text('Enter the research question and hypothesis')
-    assert requests == []
-    page.locator('#analysisResearchQuestion').fill('Do simulated measurements covary?')
-    page.locator('#analysisHypothesis').fill('A positive association.')
-    page.locator('#analysisRunBtn').click()
-    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('Hypothesis-driven')
-    page.locator('.analysis-framing-result summary').click()
-    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
-    assert 'framing' not in requests[0]  # Research note is not model context.
-    page.locator('#analysisHypothesis').fill('A different expectation for a later run.')
-    page.locator('#analysisHypothesis').blur()
-    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Synthetic analysis complete.')
+    assert 'framing' not in requests[0]
     page.reload()
     page.locator('#analysisTabBtn').click()
-    playwright.expect(page.locator('#analysisHypothesis')).to_have_value('A different expectation for a later run.')
-    playwright.expect(page.locator('.analysis-framing-result')).to_contain_text('A positive association.')
-    page.locator('#analysisContextGeneralBtn').click()
-    playwright.expect(page.locator('#analysisFraming')).to_be_hidden()
+    playwright.expect(page.locator('#analysisThread')).to_contain_text('Synthetic analysis complete.')
 
 
 def test_multimodal_synthetic_discovery_examples(page):
@@ -2515,6 +2555,23 @@ def test_dashboard_resolves_and_decodes_subject_clarid_in_timeline(page) -> None
     expect(popover).to_contain_text("Codebook 0.04")
     for width in (1440, 390):
         page.set_viewport_size({"width": width, "height": 900})
+        assert page.locator('.dashboard-timeline-domain').evaluate_all('''chips => chips.every(chip => {
+            const bounds = chip.getBoundingClientRect();
+            return [...chip.children].every(child => {
+                const box = child.getBoundingClientRect();
+                return box.left >= bounds.left && box.right <= bounds.right
+                    && box.top >= bounds.top && box.bottom <= bounds.bottom;
+            });
+        })''')
+        for selector in ('.dashboard-timeline-event-header', '.dashboard-timeline-table-wrap'):
+            element = page.locator(selector)
+            assert element.evaluate('''el => {
+                const box = el.getBoundingClientRect();
+                const parent = el.parentElement.getBoundingClientRect();
+                return box.right <= parent.right && box.left >= parent.left;
+            }'''), selector
+        assert page.locator('.dashboard-timeline-event-header').evaluate(
+            'el => el.scrollWidth <= el.clientWidth')
         assert popover.evaluate("el => el.scrollWidth <= el.clientWidth")
         assert popover.locator(".clarid-decoded-summary").evaluate(
             "el => getComputedStyle(el).whiteSpace === 'normal' && el.scrollWidth <= el.clientWidth"
@@ -2576,6 +2633,14 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
 
     expect(page.locator("#queryThread")).to_contain_text("Patients matching disease query")
     expect(page.locator("#queryThread")).to_contain_text("Dataset: Synthetic demo")
+    details = page.locator("#queryThread .query-response-details").last
+    expect(details.locator("summary")).to_be_visible()
+    expect(details).not_to_have_attribute("open", "")
+    expect(details.locator(".query-thread-turn-meta")).to_be_hidden()
+    expect(page.locator("#queryThread [data-chat-copy-content]").last).to_contain_text(
+        "There are 42 patients receiving biologic therapy.")
+    details.locator("summary").click()
+    expect(details.locator(".query-thread-turn-meta")).to_be_visible()
     expect(page.locator("#queryThread")).to_contain_text("Response detail: Detailed")
     expect(page.locator("#queryThread .query-thread-turn-user .analysis-turn-body")).to_have_text("Which patients have Crohn Disease?")
     expect(page.locator("#queryThread .query-thread-turn-user")).to_have_css("background-color", "rgb(248, 250, 252)")
@@ -3141,6 +3206,7 @@ def test_latest_query_details_user_setting_controls_panel_visibility(page) -> No
     expect(page.locator("#queryThread")).to_contain_text("2 patients.")
     expect(page.locator("#queryLatestDetails")).to_be_visible()
 
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator("#userSettingsBtn").click()
     expect(page.locator("#settingsLatestQueryDetails")).to_be_checked()
     page.locator("#settingsLatestQueryDetails").uncheck()
@@ -3149,6 +3215,7 @@ def test_latest_query_details_user_setting_controls_panel_visibility(page) -> No
     _open_query_tab(page)
     expect(page.locator("#queryLatestDetails")).to_be_hidden()
 
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
     page.locator("#userSettingsBtn").click()
     page.locator("#settingsLatestQueryDetails").check()
     page.locator("#userSettingsSaveBtn").click()
@@ -3316,16 +3383,21 @@ def test_analysis_general_question_mode_bypasses_workspace_analysis(page) -> Non
 
 def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(page) -> None:
     expect = playwright.expect
+    page.set_viewport_size({'width': 900, 'height': 900})
     _open_analysis_tab(page)
 
     page.locator("#analysisChatsDrawerBtn").click()
     expect(page.locator("#analysisChatsDrawer")).to_be_visible()
+    page.locator('#analysisSessionList .analysis-chat-menu summary').first.click()
     delete_button = page.locator("#analysisSessionList [data-analysis-session-delete]").first
     expect(delete_button).to_be_visible()
     delete_button.click()
 
     dialog = page.locator("#analysisSessionDeleteDialog")
     expect(dialog).to_be_visible()
+    for button in ('analysisSessionDeleteCloseBtn', 'analysisSessionDeleteOnlyBtn', 'analysisSessionDeleteAllBtn'):
+        assert page.locator(f'#{button}').evaluate('el => getComputedStyle(el).fontSize') == '13px'
+        assert page.locator(f'#{button}').evaluate('el => getComputedStyle(el).paddingTop') == '8px'
     expect(page.locator("#analysisSessionDeleteDialog .analysis-session-delete-dialog-panel")).to_be_visible()
     layers = page.evaluate(
         """() => ({
@@ -3348,6 +3420,73 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
     page.locator("#analysisSessionDeleteCloseBtn").click()
     expect(dialog).to_be_hidden()
     expect(page.locator("#analysisChatsDrawer")).to_be_visible()
+
+
+def test_navigation_rail_account_and_runs(page):
+    expect = playwright.expect
+    expect(page.locator('.app-header #runHistoryDrawerBtn')).to_have_count(0)
+    expect(page.locator('#accountMenu')).to_be_hidden()
+    page.locator('#accountMenuButton').click()
+    expect(page.locator('#userSettingsBtn')).to_be_visible()
+    page.keyboard.press('Escape')
+    expect(page.locator('#accountMenu')).to_be_hidden()
+    expect(page.locator('#accountMenuButton')).to_be_focused()
+    page.locator('#accountMenuButton').click()
+    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
+    page.locator('#userSettingsBtn').click()
+    expect(page.locator('#userSettingsPanel')).to_be_visible()
+    expect(page.locator('#accountMenu')).to_be_hidden()
+    page.locator('#userSettingsCloseBtn').click()
+    page.locator('#runHistoryDrawerBtn').click()
+    expect(page.locator('#runHistoryDrawer')).to_be_visible()
+    page.locator('#jobsDrawerBtn').click()
+    expect(page.locator('#jobsDrawer')).to_be_visible()
+    expect(page.locator('#runHistoryDrawer')).to_be_hidden()
+    page.locator('#jobsDrawerCloseBtn').click()
+    page.locator('#dashboardTabBtn').click()
+    expect(page.locator('#dashboardTab .dashboard-page-tabs')).to_be_visible()
+    page.set_viewport_size({'width': 390, 'height': 844})
+    page.locator('#accountMenuButton').click()
+    expect(page.locator('#userSettingsBtn')).to_be_in_viewport()
+
+
+def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
+    page.set_viewport_size({'width': 1600, 'height': 1000})
+    _open_analysis_tab(page)
+    expect = playwright.expect
+    dock = page.locator('#analysisChatDock')
+    expect(dock).to_be_visible()
+    expect(page.locator('.app-icon-rail #accountAvatar')).to_be_visible()
+    expect(page.locator('#analysisNewSessionTopBtn')).to_have_count(0)
+    expect(page.locator('#analysisChatsDrawerBtn')).to_be_hidden()
+    expect(dock.locator('#accountAvatar')).to_have_count(0)
+    expect(dock.locator('#analysisSessionList')).to_be_visible()
+    assert dock.evaluate('el => Boolean(el.closest(".app-sidebar"))')
+    page.locator('#queryTabBtn').click()
+    expect(dock).to_be_visible()
+    page.locator('#analysisSessionList [data-analysis-session-id]').first.click()
+    expect(page.locator('#analysisTab')).to_have_class('tab-panel active')
+    expect(dock.locator('.analysis-session-main[aria-current="true"]')).to_have_count(1)
+    expect(dock.locator('.analysis-chat-date').first).to_have_text('Today')
+    page.locator('#analysisChatSearch').fill('no-such-conversation-9876')
+    expect(page.locator('#analysisSessionList')).to_contain_text('No matching chats')
+    page.locator('#analysisChatSearch').fill('')
+    page.locator('#analysisSessionList .analysis-chat-menu summary').first.click()
+    page.once('dialog', lambda dialog: dialog.accept('My renamed analysis'))
+    page.locator('[data-analysis-session-rename]').first.click()
+    expect(page.locator('#analysisSessionList')).to_contain_text('My renamed analysis')
+    page.locator('#analysisChatsDrawerCloseBtn').click()
+    expect(dock).to_be_hidden()
+    page.locator('#analysisChatsDrawerBtn').click()
+    expect(dock).to_be_visible()
+    page.set_viewport_size({'width': 900, 'height': 900})
+    expect(dock).to_be_hidden()
+    expect(page.locator('.app-icon-rail #accountAvatar')).to_be_visible()
+    page.locator('#analysisChatsDrawerBtn').click()
+    expect(page.locator('#analysisChatsDrawer')).to_be_visible()
+    expect(page.locator('#analysisChatSearch')).to_be_visible()
+    page.locator('[data-analysis-session-id]').first.click()
+    expect(page.locator('#analysisChatsDrawer')).to_be_hidden()
 
 
 def test_analysis_deterministic_starter_chip_forces_deterministic_mode(page) -> None:
@@ -3877,6 +4016,35 @@ def test_analysis_renders_completed_limma_voom_result(page, adjusted) -> None:
     expect(file_link.locator('.analysis-file-format')).to_have_text('TSV')
     expect(file_link).to_have_attribute('target', '_blank')
 
+    page.route('**/jobs/limma/artifacts/volcano_points.tsv', lambda route: route.fulfill(
+        content_type='text/tab-separated-values', body='"gene_id"\t"log2_fold_change"\t"p_value"\t"adj_p_value"\t"neg_log10_p"\n"ENSG000001"\t2\t0.001\t0.01\t3\n'))
+    page.evaluate('''() => {
+        const original = window.Plotly.newPlot;
+        window.Plotly.newPlot = (el, traces, ...args) => {
+            el.dataset.testPoints = JSON.stringify(traces[0].x);
+            return original(el, traces, ...args);
+        };
+    }''')
+    result.locator('[data-de-view-btn="interactive"]').click()
+    expect(result.locator('[id$="-de-volcano"]')).to_have_attribute('data-test-points', '[2]')
+    latest = page.locator('#analysisThread .is-latest-result')
+    followups = latest.locator('.analysis-result-followups')
+    expect(followups).to_be_visible()
+    assert followups.bounding_box()['y'] > result.bounding_box()['y'] + result.bounding_box()['height']
+    setup = page.locator('#analysisSetupDisclosure')
+    expect(setup).not_to_have_attribute('open', '')
+    technical = latest.locator('.analysis-response-details')
+    expect(technical).not_to_have_attribute('open', '')
+    expect(technical.locator('.analysis-turn-meta')).to_be_hidden()
+    technical.locator(':scope > summary').click()
+    expect(technical.locator('.analysis-turn-meta')).to_be_visible()
+    # Earlier answers remain readable after another turn, as in a conversation.
+    page.locator('[data-analysis-flow-target="prompt"]').click()
+    expect(setup).to_have_attribute('open', '')
+    page.locator('#analysisRunBtn').click()
+    expect(page.locator('#analysisThread .analysis-turn-assistant')).to_have_count(2)
+    expect(page.locator('#analysisThread .is-previous-result .analysis-turn-body')).to_be_visible()
+
 
 def test_analysis_renders_quantitative_assay_wilcoxon_result(page) -> None:
     results = [
@@ -4355,6 +4523,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
     page_auth.wait_for_load_state("networkidle")
 
+    if not page_auth.locator("#adminTabBtn").is_visible(): page_auth.locator("#accountMenuButton").click()
     page_auth.locator("#adminTabBtn").click()
     expect(page_auth.locator("#adminTabBtn")).to_have_class(re.compile(r"\bactive\b"))
     expect(page_auth.locator("#dataTabBtn")).to_be_visible()
@@ -4406,6 +4575,7 @@ def test_admin_can_manage_model_providers_in_app(page_auth) -> None:
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded")
     page_auth.wait_for_load_state("networkidle")
 
+    if not page_auth.locator("#adminTabBtn").is_visible(): page_auth.locator("#accountMenuButton").click()
     page_auth.locator("#adminTabBtn").click()
     page_auth.locator("#modelsTabBtn").click()
     expect(page_auth.locator("#modelsCreateCard")).to_be_visible()
@@ -4437,6 +4607,7 @@ def test_admin_can_manage_model_providers_in_app(page_auth) -> None:
 
     page_auth.on("dialog", lambda dialog: dialog.accept())
     if not page_auth.locator("#modelsTab").is_visible():
+        if not page_auth.locator("#adminTabBtn").is_visible(): page_auth.locator("#accountMenuButton").click()
         page_auth.locator("#adminTabBtn").click()
         page_auth.locator("#modelsTabBtn").click()
     expect(page_auth.locator("#modelsTab")).to_be_visible()

@@ -41,6 +41,7 @@ ETHNICITIES = [
     {"id": "NCIT:C41259", "label": "Hispanic or Latino"},
 ]
 HC_COUNT = 8
+HC_SUBJECT_START = 31  # Reserved once; adding/removing cases must not renumber controls.
 HC_DISEASE = {"diseaseCode": {"id": "NCIT:C94342", "label": "Healthy Control"}}
 
 
@@ -510,11 +511,13 @@ def make_measure(label: str, code_id: str, value: float, unit_id: str, unit_labe
     }
 
 
-def patient_ids() -> list[tuple[str, CohortSpec]]:
+def patient_ids(subject_offset: int = 0) -> list[tuple[str, CohortSpec]]:
     output: list[tuple[str, CohortSpec]] = []
-    current = 1
+    current = subject_offset + 1
     for spec in COHORT_SPECS:
         for _ in range(spec.count):
+            if current >= subject_offset + HC_SUBJECT_START:
+                raise ValueError('Case IDs overlap the reserved synthetic control range.')
             output.append((f"SYN{current:03d}", spec))
             current += 1
     return output
@@ -525,12 +528,12 @@ def synthetic_date_of_birth(reference_date: date, patient_index: int) -> str:
     return reference_date.replace(year=reference_date.year - age_years).isoformat()
 
 
-def build_clinical_records() -> list[dict]:
+def build_clinical_records(subject_offset: int = 0) -> list[dict]:
     records: list[dict] = []
     start_date = date(2024, 1, 1)
     rng = random.Random(314159)
     per_spec_index: dict[tuple[str, str], int] = {}
-    for patient_index, (patient_id, spec) in enumerate(patient_ids()):
+    for patient_index, (patient_id, spec) in enumerate(patient_ids(subject_offset)):
         sex = SEXES[patient_index % len(SEXES)]
         ethnicity = ETHNICITIES[patient_index % len(ETHNICITIES)]
         disease = {"diseaseCode": {"id": spec.disease_id, "label": spec.disease}}
@@ -601,12 +604,12 @@ def build_clinical_records() -> list[dict]:
     return records
 
 
-def build_hc_clinical_records() -> list[dict]:
+def build_hc_clinical_records(subject_offset: int = 0) -> list[dict]:
     records: list[dict] = []
     start_date = date(2024, 1, 1)
     rng = random.Random(161803)
     for patient_index in range(HC_COUNT):
-        patient_id = f"HC{patient_index + 1:03d}"
+        patient_id = f"HC{subject_offset + HC_SUBJECT_START + patient_index:03d}"
         sex = SEXES[patient_index % len(SEXES)]
         ethnicity = ETHNICITIES[patient_index % len(ETHNICITIES)]
         event_date = start_date + timedelta(days=patient_index)
@@ -756,12 +759,13 @@ def build_transcriptomics_matrices(
     *,
     transcriptomics_dir: Path = TRANSCRIPTOMICS_DIR,
     filename_suffix: str = "",
+    subject_offset: int = 0,
 ) -> None:
     transcriptomics_dir.mkdir(parents=True, exist_ok=True)
     sample_meta: dict[str, tuple[int, CohortSpec, int]] = {}
     all_week0: list[str] = []
     medication_samples: dict[str, list[str]] = {}
-    for patient_index, (patient_id, spec) in enumerate(patient_ids()):
+    for patient_index, (patient_id, spec) in enumerate(patient_ids(subject_offset)):
         key = spec.medication.lower().replace(" ", "_")
         medication_samples.setdefault(key, [])
         for visit_index, (visit_label, days) in enumerate(VISITS):
@@ -798,12 +802,13 @@ def build_hc_transcriptomics_matrix(
     *,
     transcriptomics_dir: Path = TRANSCRIPTOMICS_DIR,
     filename_suffix: str = "",
+    subject_offset: int = 0,
 ) -> None:
     transcriptomics_dir.mkdir(parents=True, exist_ok=True)
     sample_ids: list[str] = []
     sample_meta: dict[str, tuple[int, int]] = {}
     for patient_index in range(HC_COUNT):
-        sample_id = f"HC{patient_index + 1:03d}:week_0"
+        sample_id = f"HC{subject_offset + HC_SUBJECT_START + patient_index:03d}:week_0"
         sample_ids.append(sample_id)
         sample_meta[sample_id] = (patient_index, 0)
     write_hc_matrix(
@@ -1140,13 +1145,13 @@ def write_assay_manifest(dataset_root: Path) -> None:
     (assays_root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
-def write_dicom_studies_manifest(dataset_root: Path, clinical_records: list[dict], *, private: bool = False) -> None:
+def write_dicom_studies_manifest(dataset_root: Path, clinical_records: list[dict], *, private: bool = False, uid_namespace: str = '1') -> None:
     sample_ids = _baseline_sample_ids(clinical_records, limit=1 if private else 2)
     if not sample_ids:
         return
     imaging_dir = dataset_root / "assays" / "imaging"
     imaging_dir.mkdir(parents=True, exist_ok=True)
-    uid_prefix = "2" if private else "1"
+    uid_prefix = "2" if private else uid_namespace
     studies = []
     for index, sample_id in enumerate(sample_ids, start=1):
         patient_id, _, timepoint = sample_id.partition(":")
@@ -1180,18 +1185,17 @@ def build_large_dataset(
     gene_count: int,
     *,
     dataset_root: Path = DEFAULT_LARGE_DATASET_ROOT,
-    clinical_records: Optional[list[dict]] = None,
-    hc_clinical_records: Optional[list[dict]] = None,
 ) -> None:
     gene_ids, gene_module_by_id, gene_baselines = extended_gene_panel(gene_count)
     if dataset_root.exists():
-        shutil.rmtree(dataset_root)
+        raise ValueError('Output already exists; choose a new large-dataset directory.')
     clinical_dir = dataset_root / "clinical"
     transcriptomics_dir = dataset_root / "assays" / "transcriptomics"
     clinical_dir.mkdir(parents=True, exist_ok=True)
     transcriptomics_dir.mkdir(parents=True, exist_ok=True)
-    active_clinical_records = clinical_records if clinical_records is not None else json.loads(CLINICAL_PATH.read_text(encoding="utf-8"))
-    active_hc_clinical_records = hc_clinical_records if hc_clinical_records is not None else json.loads(HC_CLINICAL_PATH.read_text(encoding="utf-8"))
+    # Keep the reviewed clinical population and its ClarID metadata together.
+    active_clinical_records = json.loads((DEFAULT_LARGE_DATASET_ROOT / 'clinical/synthetic_longitudinal.json').read_text())
+    active_hc_clinical_records = json.loads((DEFAULT_LARGE_DATASET_ROOT / 'clinical/synthetic_hc_baseline.json').read_text())
     (clinical_dir / "synthetic_longitudinal.json").write_text(json.dumps(active_clinical_records, indent=2), encoding="utf-8")
     (clinical_dir / "synthetic_hc_baseline.json").write_text(json.dumps(active_hc_clinical_records, indent=2), encoding="utf-8")
     build_transcriptomics_matrices(
@@ -1199,12 +1203,14 @@ def build_large_dataset(
         gene_module_by_id,
         gene_baselines,
         transcriptomics_dir=transcriptomics_dir,
+        subject_offset=20000,
     )
     build_hc_transcriptomics_matrix(
         gene_ids,
         gene_module_by_id,
         gene_baselines,
         transcriptomics_dir=transcriptomics_dir,
+        subject_offset=20000,
     )
     write_transcriptomics_readme(
         transcriptomics_dir,
@@ -1212,8 +1218,14 @@ def build_large_dataset(
         large_dataset_root=dataset_root,
     )
     write_placeholder_assay_matrices(dataset_root, active_clinical_records)
-    write_dicom_studies_manifest(dataset_root, active_clinical_records)
+    write_dicom_studies_manifest(dataset_root, active_clinical_records, uid_namespace='3')
     write_assay_manifest(dataset_root)
+
+    # Reviewed subject sidecar matches the fixed 20000-range synthetic population.
+    shutil.copyfile(DEFAULT_LARGE_DATASET_ROOT / 'manifest.json', dataset_root / 'manifest.json')
+    (dataset_root / 'identifiers').mkdir()
+    shutil.copyfile(DEFAULT_LARGE_DATASET_ROOT / 'identifiers/clarid_subjects.csv',
+                    dataset_root / 'identifiers/clarid_subjects.csv')
 
 
 def parse_args() -> argparse.Namespace:
@@ -1261,8 +1273,6 @@ def main() -> None:
         build_large_dataset(
             args.large_gene_count,
             dataset_root=Path(args.large_dataset_root).resolve(),
-            clinical_records=clinical_records,
-            hc_clinical_records=hc_clinical_records,
         )
     if not args.skip_default:
         print(f"Wrote {len(clinical_records)} clinical records to {CLINICAL_PATH}")

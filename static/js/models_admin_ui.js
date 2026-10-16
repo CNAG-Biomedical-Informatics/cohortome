@@ -15,6 +15,25 @@ export function createModelsAdminUi(ctx) {
   } = refs;
   const { onProvidersChanged } = callbacks;
   let currentProviders = [];
+  const saveFeedback = new Map();
+
+  function showSaveFeedback(id, message, saving = false) {
+    saveFeedback.set(id, { message, saving });
+    const card = providerCard(id);
+    const button = card?.querySelector('[data-lm-provider-action="save"]');
+    const status = card?.querySelector('[data-lm-provider-save-status]');
+    if (button) {
+      button.disabled = saving;
+      button.textContent = saving ? "Saving…" : "Save";
+    }
+    if (status) status.textContent = message;
+  }
+
+  modelsListEl?.addEventListener("input", (event) => {
+    const card = event.target.closest("[data-lm-provider-card]");
+    const id = card?.dataset.lmProviderCard;
+    if (id && !saveFeedback.get(id)?.saving) showSaveFeedback(id, "Unsaved changes");
+  });
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -111,8 +130,9 @@ export function createModelsAdminUi(ctx) {
             <span>Enabled</span>
           </label>
           <button type="button" class="query-chip" data-lm-provider-action="test" data-lm-provider="${safeId}">Test connection</button>
-          <button type="button" class="query-chip query-chip-deterministic" data-lm-provider-action="save" data-lm-provider="${safeId}">Save</button>
-          <button type="button" class="query-chip query-chip-llm" data-lm-provider-action="delete" data-lm-provider="${safeId}">Delete</button>
+          <button type="button" class="query-chip query-chip-deterministic" data-lm-provider-action="save" data-lm-provider="${safeId}"${saveFeedback.get(id)?.saving ? " disabled" : ""}>${saveFeedback.get(id)?.saving ? "Saving…" : "Save"}</button>
+          <span class="section-note" data-lm-provider-save-status role="status" aria-live="polite">${escapeHtml(saveFeedback.get(id)?.message || "")}</span>
+          ${id === "system-default" ? "" : `<button type="button" class="query-chip query-chip-llm" data-lm-provider-action="delete" data-lm-provider="${safeId}">Delete</button>`}
         </div>
       ` : `
         <div class="section-note">Managed by ${sourceLabel.toLowerCase()} configuration and read-only here. Change its deployment configuration, then restart the server.</div>
@@ -220,7 +240,9 @@ export function createModelsAdminUi(ctx) {
 
   async function saveModel(id) {
     const card = providerCard(id);
-    if (!card) return;
+    if (!card || saveFeedback.get(id)?.saving) return;
+    let saved = false;
+    showSaveFeedback(id, "Saving settings…", true);
     setStatus(`Saving ${id}...`, true);
     try {
       const response = await fetch(`/lm-providers/${encodeURIComponent(id)}`, {
@@ -238,11 +260,17 @@ export function createModelsAdminUi(ctx) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || "Unable to update model provider.");
+      saved = true;
+      showSaveFeedback(id, "Settings saved.", true);
       await loadModels({ expandId: id });
       await notifyProvidersChanged();
+      showSaveFeedback(id, "Settings saved.");
       setStatus(`Provider ${payload.label || id} updated.`);
     } catch (error) {
-      setStatus(error && error.message ? error.message : "Unable to update model provider.");
+      const message = saved ? "Settings saved, but status refresh failed. Reload to check the connection."
+        : error && error.message ? error.message : "Unable to update model provider.";
+      showSaveFeedback(id, message);
+      setStatus(message);
     }
   }
 

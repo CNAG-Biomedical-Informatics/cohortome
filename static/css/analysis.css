@@ -4,6 +4,31 @@
         gap: 18px;
         align-items: start;
       }
+      #analysisChatDock[hidden] { display: none; }
+      #analysisChatDock { min-width: 0; min-height: 0; }
+      #analysisChatDock .analysis-chats-drawer-panel {
+        position: static; width: auto; height: 100%; min-height: 0;
+        box-shadow: none; border-radius: 0; border: 0; padding: 0; background: transparent;
+      }
+      .analysis-sidebar.analysis-chats-drawer-panel {
+        grid-template-rows: auto auto minmax(0, 1fr);
+      }
+      #analysisChatSearch { padding: 9px 10px; font-size: 13px; border-radius: 8px; min-width: 0; }
+      #analysisSessionList { display: flex; flex-direction: column; gap: 4px; }
+      #analysisSessionList .analysis-session-card {
+        padding: 6px; gap: 4px; border: 0; border-radius: 8px; background: transparent; flex: 0 0 auto;
+      }
+      #analysisSessionList .analysis-session-card.is-active { background: var(--theme-blue-soft, #eff6ff); box-shadow: none; }
+      #analysisSessionList .analysis-session-main { display: block; padding: 5px; font-size: 13px; }
+      #analysisSessionList .analysis-session-title { font-size: 13px; font-weight: 500; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .analysis-chat-date { font-size: 11px; font-weight: 600; color: var(--muted); margin: 14px 6px 4px; }
+      .analysis-chat-status { font-size: 11px; color: var(--muted); }
+      .analysis-chat-menu { position: relative; }
+      .analysis-chat-menu > summary { cursor: pointer; list-style: none; padding: 4px 8px; border-radius: 6px; }
+      .analysis-chat-menu > summary::-webkit-details-marker { display: none; }
+      .analysis-chat-menu > summary:focus-visible { outline: 2px solid var(--accent); }
+      .analysis-chat-menu > div { position: absolute; right: 0; top: 100%; z-index: 3; width: 110px; padding: 4px; border: 1px solid var(--line); background: var(--theme-surface, white); border-radius: 8px; }
+      #analysisSessionList .analysis-chat-menu button { background: transparent; color: var(--ink); box-shadow: none; font-size: 12px; padding: 8px; justify-content: flex-start; }
       .analysis-chats-drawer {
         position: fixed;
         inset: 0;
@@ -915,7 +940,7 @@
         margin-top: 20px;
       }
       .analysis-session-delete-dialog-actions .query-chip {
-        min-height: 42px;
+        min-height: 36px;
       }
       .jobs-group {
         display: flex;
@@ -1528,9 +1553,18 @@
         background: var(--theme-surface, rgba(255, 255, 255, 0.72));
         box-shadow: none;
       }
-      .analysis-turn.is-previous-result > .analysis-turn-label,
-      .analysis-turn.is-previous-result > .analysis-turn-meta {
-        display: none;
+      .analysis-setup-disclosure > summary {
+        cursor: pointer;
+        padding: 12px 0;
+        font-weight: 600;
+      }
+      .analysis-setup-disclosure > summary .section-note {
+        margin-left: 10px;
+        font-weight: 400;
+      }
+      .analysis-setup-disclosure > summary:focus-visible {
+        outline: 2px solid var(--accent, #2563eb);
+        outline-offset: 3px;
       }
       .analysis-result-collapsible {
         display: grid;

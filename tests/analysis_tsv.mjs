@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const source = readFileSync(new URL('../static/js/analysis_tsv.js', import.meta.url), 'utf8');
+const { parseAnalysisTsv } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const quoted = '"gene_id"\t"log2_fold_change"\t"p_value"\t"adj_p_value"\t"neg_log10_p"\r\n"GENE1"\t2\t0.001\t0.01\t3\r\n';
+assert.deepEqual(parseAnalysisTsv(quoted), [{ gene_id:'GENE1', log2_fold_change:'2', p_value:'0.001', adj_p_value:'0.01', neg_log10_p:'3' }]);
+assert.deepEqual(parseAnalysisTsv('gene_id\tvalue\nGENE2\t0\n'), [{gene_id:'GENE2', value:'0'}]);
+assert.deepEqual(parseAnalysisTsv('\uFEFF"id"\t"label"\n"a"\t"quoted ""name""\tand\nnewline"'), [{id:'a',label:'quoted "name"\tand\nnewline'}]);
+assert.throws(() => parseAnalysisTsv('id\n"unfinished'), /Incomplete/);
+console.log('Quoted and unquoted analysis TSV checks passed.');

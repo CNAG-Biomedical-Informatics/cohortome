@@ -790,12 +790,12 @@ export function createQueryUi(ctx) {
       return `
         <article class="analysis-turn query-thread-turn ${toneClass}${index === latestAssistantIndex ? " query-thread-turn-latest" : ""}" data-query-turn-index="${index}">
           <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : isGeneralQuestionMode() ? "Answer" : "Result"}</div>
-          ${turn.pending ? "" : `<div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div>`}
           <div class="analysis-turn-body">
             <div data-chat-copy-content>${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}</div>
             ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
             ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(data.follow_up_suggestions, data.follow_up_suggestion_metadata) : ""}
           </div>
+          ${turn.pending ? "" : `<details class="query-response-details"><summary>Response details</summary><div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div></details>`}
           ${turn.pending ? "" : chatCopyButton()}
         </article>
       `;

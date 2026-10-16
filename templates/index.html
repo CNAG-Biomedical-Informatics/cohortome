@@ -1,6 +1,6 @@
 
 <!doctype html>
-<html lang="en" data-appearance="{{ appearance | default('light') }}">
+<html lang="en" data-appearance="{{ appearance | default('light') }}" data-deployment="{{ 'desktop' if desktop_mode else 'web' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -94,7 +94,7 @@
       </section>
 
       <div id="appShell"{% if auth_enabled %} class="is-hidden"{% endif %}>
-      <div class="hero">
+      <div class="hero app-header">
         <div class="hero-brand">
           {% if branding.logo_url %}
           <img class="hero-logo" src="{{ branding.logo_url }}" alt="{{ branding.logo_alt }}">
@@ -105,15 +105,9 @@
             {% else %}
             <h1>{{ branding.name }}</h1>
             {% endif %}
-            <p>{{ branding.subtitle }}</p>
-            <div class="hero-powered-by">Open-source research workspace</div>
           </div>
         </div>
         <div id="heroAuthUtility" class="hero-utility is-hidden">
-          <div class="hero-auth-copy">
-            <span class="hero-auth-label">Workspace access</span>
-            <strong id="heroAuthIdentity">Signed out</strong>
-          </div>
           <button id="jobsDrawerBtn" type="button" class="query-chip is-hidden" title="Open the background execution queue.">
             <span class="button-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -139,16 +133,6 @@
             <span>Run History</span>
             <span id="runHistoryDrawerCount" class="jobs-drawer-count is-hidden">0</span>
           </button>
-          <button id="heroLogoutBtn" type="button" class="query-chip is-hidden">
-            <span class="button-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <path d="M16 17l5-5-5-5"></path>
-                <path d="M21 12H9"></path>
-              </svg>
-            </span>
-            <span>Sign out</span>
-          </button>
         </div>
       </div>
 
@@ -162,10 +146,18 @@
             </svg>
           </button>
         </div>
-        <div id="userSettingsAuthSummary" class="user-settings-auth-summary">
-          <strong>Authentication</strong>
-          <div class="section-note">Loading authentication details...</div>
-        </div>
+        <div class="user-settings-body">
+        <nav class="user-settings-nav" aria-label="Settings sections">
+          <button type="button" data-settings-section="general" aria-current="page">General</button>
+          <button type="button" data-settings-section="appearance">Appearance &amp; plots</button>
+          <button type="button" data-settings-section="query">Query &amp; AI</button>
+          <button type="button" data-settings-section="analysis">Analysis &amp; Pheno-Ranker</button>
+          <button type="button" data-settings-section="jobs">Jobs &amp; storage</button>
+          <button type="button" data-settings-section="about">Account &amp; About</button>
+        </nav>
+        <div class="user-settings-content">
+        <section data-settings-page="appearance" aria-labelledby="settingsAppearanceTitle" hidden>
+        <h3 id="settingsAppearanceTitle">Appearance &amp; plots</h3>
         <div class="user-settings-grid">
           <div>
             <label for="settingsAppearance">Appearance</label>
@@ -175,6 +167,27 @@
               <option value="system">System</option>
             </select>
           </div>
+          <div>
+            <label for="settings_plot_palette">Plot group colours</label>
+            <select id="settings_plot_palette"><option value="default">Current colours (default)</option><option value="okabe-ito">Okabe–Ito</option><option value="muted">Muted</option></select>
+            <div id="preview_plot_palette" aria-hidden="true"></div>
+          </div>
+          <div>
+            <label for="settings_heatmap_palette">Heatmaps · low to high</label>
+            <select id="settings_heatmap_palette"><option value="default">Current colours (default)</option><option value="viridis">Viridis · purple to yellow</option><option value="cividis">Cividis · blue to yellow</option></select>
+            <div id="preview_heatmap_palette" aria-hidden="true"></div>
+          </div>
+          <div>
+            <label for="settings_diverging_palette">Heatmaps · centred on zero</label>
+            <select id="settings_diverging_palette"><option value="default">Current colours (default)</option><option value="blue-orange">Blue–white–orange</option><option value="purple-green">Purple–white–green</option></select>
+            <div id="preview_diverging_palette" aria-hidden="true"></div>
+            <p class="section-note">Applies to supported interactive plots after saving. Defaults preserve each tool's colours. Static R images, timeline event colours and significance colours are unchanged. Choose Current colours to reset.</p>
+          </div>
+        </div>
+        </section>
+        <section data-settings-page="general" aria-labelledby="settingsGeneralTitle">
+        <h3 id="settingsGeneralTitle">General</h3>
+        <div class="user-settings-grid">
           <div>
             <label for="settingsLandingTabMode">Start behavior</label>
             <select id="settingsLandingTabMode">
@@ -192,8 +205,15 @@
               <option value="pheno">Pheno-Ranker</option>
             </select>
           </div>
+          <label class="user-settings-check"><input id="settingsDashboardAssaysOpen" type="checkbox"> Open Dashboard on assays view</label>
+          <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
+        </div>
+        </section>
+        <section data-settings-page="query" aria-labelledby="settingsQueryTitle" hidden>
+        <h3 id="settingsQueryTitle">Query &amp; AI</h3>
+        <div class="user-settings-grid">
           <div>
-            <label for="settingsQueryDisclosure">Query disclosure</label>
+            <label for="settingsQueryDisclosure">Response detail</label>
             <select id="settingsQueryDisclosure">
               <option value="detailed">Detailed when allowed</option>
               <option value="summary">Summary</option>
@@ -206,8 +226,18 @@
               <option value="planner_only">Planner first</option>
             </select>
           </div>
+          <div class="query-grid-span-2">
+            <label for="settingsLlmProvider">AI provider</label>
+            <select id="settingsLlmProvider"><option value="system-default">System default</option></select>
+          </div>
+          <label class="user-settings-check"><input id="settingsLatestQueryDetails" type="checkbox"> Latest query details</label>
+        </div>
+        </section>
+        <section data-settings-page="jobs" aria-labelledby="settingsJobsTitle" hidden>
+        <h3 id="settingsJobsTitle">Jobs &amp; storage</h3>
+        <div class="user-settings-grid">
           <div>
-            <label for="settingsRunRetention">Run retention</label>
+            <label for="settingsRunRetention">Keep generated runs for</label>
             <select id="settingsRunRetention">
               <option value="7">7 days</option>
               <option value="30">30 days</option>
@@ -217,29 +247,41 @@
               <option value="0">Forever</option>
             </select>
           </div>
+          <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
+          <label class="user-settings-check"><input id="settingsJobNotifications" type="checkbox"> Notify when background runs finish or fail (while this app is open)</label>
+        </div>
+        <div class="user-settings-danger">
+          <strong>Delete saved data</strong>
+          <p class="section-note">These actions delete data, not preferences. Each requires confirmation.</p>
+          <div class="user-settings-danger-actions">
+            <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
+            <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete generated runs</button>
+            <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
+          </div>
+        </div>
+        </section>
+        <section data-settings-page="analysis" aria-labelledby="settingsAnalysisTitle" hidden>
+        <h3 id="settingsAnalysisTitle">Analysis &amp; Pheno-Ranker</h3>
+        <div class="user-settings-grid">
           <div>
-            <label for="settingsPhenoDefaultMetric">Pheno metric</label>
+            <label for="settingsPhenoDefaultMetric">Pheno-Ranker similarity metric</label>
             <select id="settingsPhenoDefaultMetric">
               <option value="">Default</option>
               <option value="hamming">Hamming</option>
               <option value="jaccard">Jaccard</option>
             </select>
           </div>
-          <div class="query-grid-span-2">
-            <label for="settingsLlmProvider">AI provider</label>
-            <select id="settingsLlmProvider">
-              <option value="system-default">System default</option>
-            </select>
-          </div>
-          <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
-          <label class="user-settings-check"><input id="settingsJobNotifications" type="checkbox"> Notify when background runs finish or fail (while this app is open)</label>
-          <label class="user-settings-check"><input id="settingsLatestQueryDetails" type="checkbox"> Latest query details</label>
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderGraph" type="checkbox"> Render Pheno graph</label>
-          <label class="user-settings-check"><input id="settingsDashboardAssaysOpen" type="checkbox"> Open Dashboard on assays view</label>
-          <label class="user-settings-check"><input id="settingsDatasetCompactView" type="checkbox"> Compact dataset cards</label>
+        </div>
+        </section>
+        <section data-settings-page="about" aria-labelledby="settingsAccountTitle" hidden>
+        <h3 id="settingsAccountTitle">Account &amp; About</h3>
+        <div id="userSettingsAuthSummary" class="user-settings-auth-summary">
+          <strong>Authentication</strong>
+          <div class="section-note">Loading authentication details...</div>
         </div>
         <details id="settingsAbout">
           <summary>About COHORTome</summary>
@@ -249,18 +291,16 @@
           <button id="aboutCopyReport" type="button" disabled>Copy version report</button>
           <span id="aboutCopyStatus" role="status"></span>
         </details>
-        <div class="user-settings-danger">
-          <strong>Danger zone</strong>
-          <div class="user-settings-danger-actions">
-            <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
-            <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete generated runs</button>
-            <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
-          </div>
+        </section>
         </div>
+        </div>
+        <div class="user-settings-footer">
         <div id="userSettingsStatus" class="section-note">Preferences are saved per signed-in user.</div>
+        <span id="userSettingsDirty" role="status" aria-live="polite"></span>
         <div class="user-settings-actions">
-          <button id="userSettingsResetBtn" type="button" class="secondary-btn">Reset</button>
-          <button id="userSettingsSaveBtn" type="button">Save</button>
+          <button id="userSettingsResetBtn" type="button" class="secondary-btn">Restore defaults</button>
+          <button id="userSettingsSaveBtn" type="button">Save changes</button>
+        </div>
         </div>
       </div>
 
@@ -269,14 +309,14 @@
         <aside class="analysis-sidebar analysis-chats-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="analysisChatsDrawerTitle">
           <div class="analysis-sidebar-header">
             <div class="analysis-sidebar-copy">
-              <strong id="analysisChatsDrawerTitle">Analysis Chats</strong>
-              <div class="section-note" style="margin:6px 0 0;">One thread per analytical path, scope, or dataset.</div>
+              <strong id="analysisChatsDrawerTitle">Chats</strong>
             </div>
             <button id="analysisChatsDrawerCloseBtn" type="button" class="query-chip">Close</button>
-            <button id="analysisNewSessionBtn" type="button" class="query-chip action">New analysis</button>
+            <button id="analysisNewSessionBtn" type="button" class="query-chip action" aria-label="New chat">New</button>
           </div>
+          <input id="analysisChatSearch" type="search" aria-label="Search chats" placeholder="Search chats">
           <div id="analysisSessionList" class="analysis-session-list">
-            <div class="empty">No analysis sessions yet.</div>
+            <div class="empty">No chats yet.</div>
           </div>
         </aside>
       </div>
@@ -286,7 +326,7 @@
         <div class="analysis-session-delete-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="analysisSessionDeleteTitle">
           <div class="analysis-session-delete-dialog-header">
             <div>
-              <strong id="analysisSessionDeleteTitle">Delete analysis session</strong>
+              <strong id="analysisSessionDeleteTitle">Delete chat</strong>
               <div class="section-note">Choose whether to remove only the chat while keeping generated runs, or delete the generated results, logs, and artifacts too.</div>
             </div>
             <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip">Cancel</button>
@@ -304,7 +344,10 @@
 
       <div class="app-workbench">
         <aside class="app-sidebar" aria-label="Primary navigation">
+          <button id="analysisChatsDrawerBtn" type="button" class="app-sidebar-settings" aria-label="Show chats">Chats</button>
+          <div id="analysisChatDock" hidden></div>
           <nav class="tab-bar app-sidebar-nav" aria-label="Application sections">
+        <div class="app-nav-heading">Workspace</div>
         <div class="app-nav-group">
         <button id="dashboardTabBtn" class="tab-btn app-nav-parent active" type="button" aria-current="page" aria-expanded="true">
           <span class="tab-btn-icon" aria-hidden="true">
@@ -318,6 +361,10 @@
           <span>Dashboard</span>
         </button>
         <div class="dashboard-subtabs app-sidebar-subnav">
+          <button id="dashboardPatientsBtn" type="button" class="dashboard-subtab">
+            <span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg></span>
+            <span>Patient overview</span>
+          </button>
           <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -392,6 +439,7 @@
           </span>
           <span>Query</span>
         </button>
+        <div class="app-nav-heading">Tools</div>
         <button id="analysisTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -406,9 +454,10 @@
         <button id="phenoTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m16 18 6-6-6-6"></path>
-              <path d="m8 6-6 6 6 6"></path>
-              <path d="M14.5 4 9.5 20"></path>
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="18" cy="8" r="3"></circle>
+              <circle cx="10" cy="19" r="3"></circle>
+              <path d="m9 6 6 1M7 9l2 7m7-5-4 6"></path>
             </svg>
           </span>
           <span>Pheno-Ranker</span>
@@ -488,6 +537,13 @@
               </span>
               <span>Settings</span>
             </button>
+            <div class="app-sidebar-account">
+              <span id="accountAvatar" class="account-avatar" aria-hidden="true">LU</span>
+              <div class="account-copy">
+                <strong id="heroAuthIdentity">Signed out</strong>
+                <button id="heroLogoutBtn" type="button" class="account-signout is-hidden">Sign out</button>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -501,6 +557,19 @@
       </div>
 
       <section id="dashboardTab" class="tab-panel active">
+        <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
+          <div class="controls">
+            <h2>Patient overview</h2>
+            <p>Find a patient to see the samples and assays available in their dataset.</p>
+            <div class="patient-lookup">
+              <label for="patientOverviewSearch">Patient ID or ClarID</label>
+              <input id="patientOverviewSearch" type="search" role="combobox" autocomplete="off" aria-autocomplete="list" aria-controls="patientOverviewMatches" aria-expanded="false" placeholder="Start typing an identifier…">
+              <div id="patientOverviewMatches" role="listbox" aria-label="Matching patients" hidden></div>
+            </div>
+            <div id="patientOverviewStatus" class="section-note" role="status">Select a workspace, then search by patient ID or ClarID. Up to 12 matches are shown.</div>
+          </div>
+          <div id="patientOverviewDetail"></div>
+        </section>
         <section id="dashboardTimelinePanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame dashboard-timeline-panel-frame">
             <div class="dashboard-timeline-main">
@@ -1278,18 +1347,9 @@
             <div class="analysis-chat-bar">
               <div class="analysis-chat-current">
                 <span>Current chat</span>
-                <strong id="analysisCurrentChatTitle">New analysis</strong>
+                <strong id="analysisCurrentChatTitle">New chat</strong>
                 <small id="analysisCurrentChatMeta">No turns yet.</small>
               </div>
-              <button id="analysisChatsDrawerBtn" type="button" class="query-chip">
-                <span class="button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-                  </svg>
-                </span>
-                <span>Chats</span>
-              </button>
-              <button id="analysisNewSessionTopBtn" type="button" class="query-chip action">New chat</button>
             </div>
             <div class="analysis-workspace-bar">
               <div id="analysisStatus" class="analysis-workspace-status"></div>
@@ -1317,6 +1377,8 @@
                 <span class="analysis-flow-step-copy"><span>Results</span><strong>Empty</strong></span>
               </button>
             </div>
+            <details id="analysisSetupDisclosure" class="analysis-setup-disclosure" open>
+              <summary>Edit setup <span class="section-note">Method, patients and inputs</span></summary>
             <div id="analysisDatasetScope" class="section-note">Workspace dataset: current selection.</div>
             <details id="analysisWorkspaceSetup" class="analysis-setup-card">
               <summary class="analysis-setup-summary">
@@ -1482,18 +1544,6 @@
               <button id="associationOpenBtn" type="button" class="query-chip query-chip-deterministic">Use these measurements</button>
               <p id="associationStatus" class="section-note" role="status">Choose two measurements to fill the analysis prompt. Review the question and scope, then select Run analysis. Keep A/B comparison off.</p>
             </details>
-              <details id="analysisFraming" class="section-card">
-                <summary>Question this analysis addresses</summary>
-                <label for="analysisStudyMode">Analysis purpose</label>
-                <select id="analysisStudyMode"><option value="exploratory">Exploratory</option><option value="hypothesis_driven">Hypothesis-driven</option></select>
-                <label for="analysisResearchQuestion">Biological or research question</label>
-                <textarea id="analysisResearchQuestion" maxlength="2000" rows="2" placeholder="What do you want to learn in this cohort? Optional for exploration."></textarea>
-                <div id="analysisHypothesisFields" hidden>
-                  <label for="analysisHypothesis">Hypothesis specified before this run</label>
-                  <textarea id="analysisHypothesis" maxlength="2000" rows="2" placeholder="State the expected association or difference, including direction if relevant."></textarea>
-                </div>
-                <p class="section-note">Saved with each submission. Changes apply to later runs only. This note does not configure the statistical model, get sent to a language model, or constitute formal preregistration.</p>
-              </details>
               <p id="analysisRunReview" class="section-note" role="status"></p>
               <div class="query-row">
                 <details id="analysisRequestDetails" class="analysis-request-details">
@@ -1511,6 +1561,7 @@
               </div>
               <div id="analysisComposerStatus" class="query-status is-hidden"></div>
             </div>
+            </details>
             <div class="analysis-history-header analysis-results-header">
               <span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><path d="M3.05 11a9 9 0 1 1 .5 4"></path><path d="M3 4v7h7"></path></svg></span><span>Results & follow-up</span></span>
               <small>Generated responses, plots, and follow-up prompts appear here.</small>

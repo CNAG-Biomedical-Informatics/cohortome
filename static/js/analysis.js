@@ -1,4 +1,5 @@
 import { chatCopyButton } from "./shared.js";
+import { parseAnalysisTsv } from "./analysis_tsv.js";
 
 export function createAnalysisUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -32,9 +33,20 @@ export function createAnalysisUi(ctx) {
     currentDatasetSelectionKey,
     assayDatasetOverlap,
     renderAnalysisCatalogAssayPanel,
+    prepareScriptForRun,
   } = callbacks;
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
+
+  function openAnalysisSetup() {
+    const setup = document.getElementById("analysisSetupDisclosure");
+    if (setup) setup.open = true;
+  }
+
+  document.getElementById("analysisFlowBar")?.addEventListener("click", (event) => {
+    const step = event.target.closest("[data-analysis-flow-target]");
+    if (step && step.dataset.analysisFlowTarget !== "results") openAnalysisSetup();
+  }, true);
 
   function isGeneralQuestionMode() {
     return state.analysisContextMode === "general";
@@ -49,7 +61,6 @@ export function createAnalysisUi(ctx) {
 
   function renderAnalysisContextMode() {
     const general = isGeneralQuestionMode();
-    document.getElementById("analysisFraming").hidden = general;
     document.getElementById("analysisMeasurementComparison").hidden = general;
     [[analysisContextWorkspaceBtnEl, !general], [analysisContextGeneralBtnEl, general]].forEach(([button, active]) => {
       if (!button) return;
@@ -800,6 +811,7 @@ export function createAnalysisUi(ctx) {
       type: "scatter",
       mode: "lines",
       name: item.label || `Series ${index + 1}`,
+      meta: { cohortome_group: index },
       line: {
         color: ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
         width: 3,
@@ -834,6 +846,7 @@ export function createAnalysisUi(ctx) {
       type: "scatter",
       mode: "lines+markers",
       name: item.label || `Patient ${index + 1}`,
+      meta: { cohortome_group: index },
       showlegend: false,
       opacity: 0.35,
       line: {
@@ -879,6 +892,7 @@ export function createAnalysisUi(ctx) {
       mode: "lines+markers",
       name: item.label || `Series ${index + 1}`,
       showlegend: item.showLegend !== false,
+      meta: { cohortome_group: index },
       opacity: item.opacity !== undefined ? item.opacity : 1,
       line: {
         color: item.lineColor || ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
@@ -1010,17 +1024,7 @@ export function createAnalysisUi(ctx) {
       throw new Error("Unable to load interactive plot data.");
     }
     const text = await response.text();
-    const lines = String(text || "").split(/\r?\n/).filter((line) => line.trim());
-    if (!lines.length) return [];
-    const headers = lines[0].split("\t").map((item) => item.trim());
-    return lines.slice(1).map((line) => {
-      const values = line.split("\t");
-      const row = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] !== undefined ? values[index] : "";
-      });
-      return row;
-    });
+    return parseAnalysisTsv(text);
   }
 
   async function loadJsonArtifact(url) {
@@ -2001,6 +2005,7 @@ export function createAnalysisUi(ctx) {
   function renderAnalysisThread() {
     renderAnalysisStarterPrompts();
     if (!state.analysisTurns.length) {
+      openAnalysisSetup();
       analysisThreadEl.innerHTML = '<div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>';
       return;
     }
@@ -2040,7 +2045,8 @@ export function createAnalysisUi(ctx) {
       if (notable.length) contextParts.push(...notable);
       const isErrorTurn = String(turn.payload && turn.payload.intent ? turn.payload.intent : "").trim() === "analysis_error"
         || String(turn.payload && turn.payload.data && turn.payload.data.source ? turn.payload.data.source : "").trim() === "error";
-      const followUpsHtml = renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots));
+      const followUpsHtml = turnIndex === latestAssistantIndex && turn.payload?.data?.execution !== "queued"
+        ? renderAnalysisFollowUps(getAnalysisFollowUpPrompts(turn.payload, turn.showPlots)) : "";
       const turnClass = isErrorTurn ? "analysis-turn analysis-turn-error" : "analysis-turn analysis-turn-assistant";
       const generalAnswer = turn.contextMode === "general" || String(turn.payload && turn.payload.intent ? turn.payload.intent : "") === "general_llm";
       const turnLabel = isErrorTurn ? (generalAnswer ? "Model Error" : "Analysis Error") : (generalAnswer ? "Answer" : "Analysis result");
@@ -2058,13 +2064,9 @@ export function createAnalysisUi(ctx) {
       const framingHtml = !generalAnswer && framing ? `<details class="query-section analysis-framing-result"><summary>${framing.mode === "hypothesis_driven" ? "Hypothesis-driven" : "Exploratory"} · Research question</summary><p>${escapeHtml(framing.question || "No research question recorded.")}</p>${framing.mode === "hypothesis_driven" ? `<p><strong>Hypothesis:</strong> ${escapeHtml(framing.hypothesis || "Not recorded")}</p>` : ""}<p class="section-note">Captured at submission: ${escapeHtml(framing.captured_at || "Not recorded")}. User-specified framing, not formal preregistration.</p></details>` : "";
       const audit = turn.payload?.data?.implementation_audit;
       const auditHtml = audit ? `<details class="query-section"><summary>Analysis implementation</summary><p>${escapeHtml(audit.note)}</p>${renderArtifactDownloads("Source snapshot", [{name: audit.filename, url: audit.url}])}<p>SHA-256: <code>${escapeHtml(audit.sha256)}</code></p></details>` : "";
-      const resultHtml = `<div class="analysis-result-content">${framingHtml}<div class="analysis-turn-body" data-chat-copy-content>${renderQueryReply(turn.payload)}</div>${chatCopyButton()}${visualHtml}${contextHtml}${followupHtml}${auditHtml}${dataHtml}</div>`;
-      const intentInfo = analysisIntentPresentation(turn.payload && turn.payload.intent ? turn.payload.intent : "analysis");
-      const summaryText = contextParts.length ? contextParts.slice(0, 2).join(" | ") : String(turn.payload && turn.payload.reply ? turn.payload.reply : "").replace(/\s+/g, " ").slice(0, 140);
-      const compactResultHtml = turnIndex === latestAssistantIndex
-        ? resultHtml
-        : `<details class="analysis-result-collapsible"><summary><span class="analysis-result-collapsible-title">${escapeHtml(intentInfo.label)}</span><span class="analysis-result-collapsible-note">${escapeHtml(summaryText || "Open result")}</span></summary>${resultHtml}</details>`;
-      return `<article class="${turnClass}${turnIndex === latestAssistantIndex ? " is-latest-result" : " is-previous-result"}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div>${compactResultHtml}</article>`;
+      const detailsHtml = `<details class="query-section analysis-response-details"><summary>${generalAnswer ? "Response details" : "Method and technical details"}</summary><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div>${framingHtml}${auditHtml}${dataHtml}</details>`;
+      const resultHtml = `<div class="analysis-result-content"><div class="analysis-turn-body" data-chat-copy-content>${renderQueryReply(turn.payload)}</div>${chatCopyButton()}${visualHtml}${contextHtml}${followupHtml}${detailsHtml}</div>`;
+      return `<article class="${turnClass}${turnIndex === latestAssistantIndex ? " is-latest-result" : " is-previous-result"}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div>${resultHtml}</article>`;
     }).join("");
     mountAnalysisPlots();
   }
@@ -2093,18 +2095,6 @@ export function createAnalysisUi(ctx) {
     if (!isGeneralQuestionMode() && document.getElementById("analysisMethodSelect").value === "summary") state.analysisExecutionMode = "deterministic";
     const prompt = analysisPromptEl.value.trim();
     const generalQuestion = isGeneralQuestionMode();
-    const framing = generalQuestion ? null : {
-      mode: document.getElementById("analysisStudyMode").value,
-      question: document.getElementById("analysisResearchQuestion").value.trim(),
-      hypothesis: document.getElementById("analysisStudyMode").value === "hypothesis_driven" ? document.getElementById("analysisHypothesis").value.trim() : "",
-      captured_at: new Date().toISOString(),
-    };
-    if (framing && framing.mode === "hypothesis_driven" && (!framing.question || !framing.hypothesis)) {
-      document.getElementById("analysisFraming").open = true;
-      document.getElementById(!framing.question ? "analysisResearchQuestion" : "analysisHypothesis").focus();
-      setAnalysisBlockedStatus("Enter the research question and hypothesis before a hypothesis-driven run, or choose Exploratory.");
-      return;
-    }
     if (!prompt) {
       setAnalysisBlockedStatus("Enter an analysis prompt first.");
       return;
@@ -2175,11 +2165,12 @@ export function createAnalysisUi(ctx) {
     setAnalysisComposerStatus(generalQuestion ? "Waiting for a general answer." : "Running analysis. Results will appear below.");
     if (analysisMetaEl) analysisMetaEl.innerHTML = "";
     state.analysisExamplesPinnedOpen = false;
-    state.analysisTurns.push({ role: "user", prompt, framing, scope: generalQuestion ? "" : currentScope, compareScope: generalQuestion ? "" : compareScope, contextMode: generalQuestion ? "general" : "workspace" });
+    state.analysisTurns.push({ role: "user", prompt, scope: generalQuestion ? "" : currentScope, compareScope: generalQuestion ? "" : compareScope, contextMode: generalQuestion ? "general" : "workspace" });
+    const setupDisclosure = document.getElementById("analysisSetupDisclosure");
+    if (setupDisclosure) setupDisclosure.open = false;
     state.analysisTurns.push({
       role: "assistant",
       pending: true,
-      framing,
       contextMode: generalQuestion ? "general" : "workspace",
       pendingLabel: generalQuestion ? "Asking model" : "Preparing response",
       pendingDetail: generalQuestion
@@ -2191,6 +2182,10 @@ export function createAnalysisUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ render: true });
     startAnalysisProgressUpdates(generalQuestion ? false : compareMode, showPlots);
     try {
+      if (!generalQuestion && state.analysisSelectedCatalogItemId === "synthetic-custom-script") {
+        await prepareScriptForRun();
+        if (requestIsStale()) return;
+      }
       const response = await fetch(generalQuestion ? "/llm/general" : "/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2238,7 +2233,7 @@ export function createAnalysisUi(ctx) {
       const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
       stopAnalysisProgressUpdates();
       renderAnalysisMeta(payload);
-      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, framing, showPlots: finalShowPlots, contextMode: generalQuestion ? "general" : "workspace" };
+      state.analysisTurns[state.analysisTurns.length - 1] = { role: "assistant", payload, showPlots: finalShowPlots, contextMode: generalQuestion ? "general" : "workspace" };
       renderAnalysisThread();
       if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       syncCurrentAnalysisSessionFromUi({ render: true });
@@ -2261,10 +2256,10 @@ export function createAnalysisUi(ctx) {
       }
     } catch (error) {
       if (requestIsStale()) return;
+      openAnalysisSetup();
       state.analysisTurns[state.analysisTurns.length - 1] = {
         role: "assistant",
         contextMode: generalQuestion ? "general" : "workspace",
-        framing,
         payload: {
           intent: "analysis_error",
           reply: error && error.message ? error.message : "Analysis failed.",
@@ -2371,6 +2366,8 @@ export function createAnalysisUi(ctx) {
     handleAnalysisFollowUpsClick(event) {
       const button = event.target.closest("[data-analysis-followup-prompt]");
       if (!button || !analysisThreadEl.contains(button)) return;
+      openAnalysisSetup();
+      document.getElementById("analysisRequestDetails").open = true;
       analysisPromptEl.value = button.dataset.analysisFollowupPrompt || "";
       state.analysisSelectedCatalogItemId = "";
       state.analysisExecutionMode = button.dataset.analysisFollowupMode === "llm_only" ? "llm_only" : "auto";

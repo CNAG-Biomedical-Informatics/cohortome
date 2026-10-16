@@ -19,6 +19,8 @@ def test_demo_reproducible_and_linked(tmp_path):
     records = json.loads((first / 'clinical/fictional_participants.json').read_text())
     assert len(records) == 90
     patients = {r['patient_id'] for r in records}
+    checked_in = Path(__file__).resolve().parents[1] / 'synthetic_autoimmune_demo/clinical/fictional_participants.json'
+    assert patients == {r['patient_id'] for r in json.loads(checked_in.read_text())}
     assert len(patients) == 90
     assert all(r['info']['synthetic'] for r in records)
     manifest = json.loads((first / 'assays/manifest.json').read_text())

@@ -47,7 +47,7 @@ def build(output):
     for group, disease, code in groups:
         for j in range(30):
             i = len(people)
-            pid = f"DEMOAI{i + 1:03d}"
+            pid = f"DEMOAI{30000 + i + 1:05d}"
             age = 25 + (j * 7) % 40
             sex = "Female" if j % 2 else "Male"
             latent = rng.gauss(0, 0.35)

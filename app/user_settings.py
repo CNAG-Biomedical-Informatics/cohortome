@@ -11,6 +11,9 @@ USER_SETTINGS_FILENAME = "settings.json"
 
 DEFAULT_USER_SETTINGS: Dict[str, Any] = {
     "appearance": "light",
+    "plot_palette": "default",
+    "heatmap_palette": "default",
+    "diverging_palette": "default",
     "version": 1,
     "landing_tab_mode": "fixed",
     "landing_tab": "dashboard",
@@ -32,6 +35,9 @@ DEFAULT_USER_SETTINGS: Dict[str, Any] = {
 
 _ALLOWED_VALUES = {
     "appearance": {"light", "dark", "system"},
+    "plot_palette": {"default", "okabe-ito", "muted"},
+    "heatmap_palette": {"default", "viridis", "cividis"},
+    "diverging_palette": {"default", "blue-orange", "purple-green"},
     "landing_tab_mode": {"fixed", "last"},
     "landing_tab": {"dashboard", "datasets", "query", "analysis", "pheno"},
     "query_disclosure_default": {"summary", "detailed"},

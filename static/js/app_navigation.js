@@ -11,6 +11,8 @@ export function createNavigationUi(ctx) {
     analysisTabBtnEl,
     phenoTabBtnEl,
     dashboardClinicalBtnEl,
+    dashboardPatientsBtnEl,
+    dashboardPatientsPanelEl,
     dashboardAssaysBtnEl,
     dashboardImagingBtnEl,
     dashboardMultimodalBtnEl,
@@ -41,6 +43,7 @@ export function createNavigationUi(ctx) {
     if (tabName === "dashboard") {
       const helperText = {
         clinical: "Browse patients and orient yourself in the loaded clinical dataset",
+        patients: "Find a patient and inspect their available samples and assays",
         assays: "Inspect laboratory assays and transcriptomics quick summaries",
         imaging: "Review imaging studies, DICOM viewer status, and derived measurements",
         multimodal: "Review cross-modal readiness, sample-level feature joins, missingness, and provenance",
@@ -130,7 +133,9 @@ export function createNavigationUi(ctx) {
   }
 
   function setDashboardSubtab(subtabName) {
-    state.currentDashboardSubtab = ["assays", "imaging", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
+    state.currentDashboardSubtab = ["patients", "assays", "imaging", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
+    dashboardPatientsBtnEl && dashboardPatientsBtnEl.classList.toggle("active", state.currentDashboardSubtab === "patients");
+    dashboardPatientsPanelEl && dashboardPatientsPanelEl.classList.toggle("active", state.currentDashboardSubtab === "patients");
     dashboardImagingBtnEl && dashboardImagingBtnEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardImagingPanelEl && dashboardImagingPanelEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");

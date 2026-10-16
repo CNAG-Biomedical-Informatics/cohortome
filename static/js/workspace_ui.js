@@ -315,6 +315,7 @@ export function createWorkspaceUi(ctx) {
       return;
     }
     state.loadInFlight = true;
+    window.dispatchEvent(new Event('cohortome:workspace-changing'));
     if (loadStatusEl) {
       delete loadStatusEl.dataset.datasetStoreBlocker;
     }

@@ -1,0 +1,243 @@
+/* Shared web/desktop navigation; working-panel styles stay independent. */
+body:has(#appShell:not(.is-hidden)) {
+  background: var(--bg);
+}
+main:has(> #appShell:not(.is-hidden)) {
+  max-width: 1680px;
+  padding-top: 10px;
+}
+.app-workbench { gap: 24px; }
+.app-header {
+  min-height: 60px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.app-header::after { display: none; }
+.app-header .hero-brand { gap: 10px; min-width: 0; }
+.app-header .hero-logo {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-header .hero-copy h1 { margin: 0; font-size: 1.5rem; }
+.app-header .hero-utility {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+}
+.app-header .query-chip {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.81rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+.app-header .query-chip:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.app-header .query-chip:focus-visible {
+  outline: 2px solid var(--theme-blue-ink, var(--accent));
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .app-header { align-items: stretch; gap: 8px; }
+  .app-header .hero-brand { flex-direction: row; align-items: center; }
+  .app-header .hero-utility { justify-content: flex-start; }
+}
+.app-sidebar {
+  padding: 12px 10px;
+  gap: 12px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 3%, var(--bg));
+  box-shadow: none;
+  backdrop-filter: none;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+}
+.app-sidebar-nav { gap: 3px; }
+.app-sidebar:has(#analysisChatDock:not([hidden])) > #analysisChatsDrawerBtn { display: none; }
+@media (min-width: 901px) {
+  .app-workbench { grid-template-columns: 248px minmax(0, 1fr); }
+  .app-sidebar {
+    height: calc(100dvh - 110px);
+    min-height: 540px;
+    grid-template-rows: minmax(160px, 1fr) minmax(0, auto) auto;
+    overflow: hidden;
+  }
+  .app-sidebar:has(#analysisChatDock[hidden]) { grid-template-rows: auto minmax(0, 1fr) auto; }
+  .app-sidebar-nav { max-height: 38dvh; overflow-y: auto; border-top: 1px solid var(--line); padding-top: 10px; }
+  .app-sidebar .analysis-sidebar-header { gap: 6px; }
+  .app-sidebar .analysis-sidebar-header button { width: auto; font-size: 12px; padding: 6px 10px; min-height: 30px; }
+  .app-sidebar .analysis-sidebar-header strong { font-size: 13px; font-weight: 600; }
+}
+.app-nav-heading {
+  padding: 16px 10px 6px;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.app-nav-heading:first-child { padding-top: 4px; }
+.app-sidebar .tab-btn,
+.app-sidebar .app-sidebar-settings {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  border-color: transparent;
+  box-shadow: none;
+}
+.app-sidebar .tab-btn-icon,
+.app-sidebar .tab-btn-icon svg,
+.app-sidebar .button-icon {
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+.app-sidebar .tab-btn:hover:not(.is-disabled):not([aria-disabled="true"]),
+.app-sidebar .app-sidebar-settings:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-color: transparent;
+  color: var(--ink);
+}
+.app-sidebar .tab-btn.active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--theme-blue-ink, var(--accent-deep));
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.app-sidebar .tab-btn:focus-visible,
+.app-sidebar .dashboard-subtab:focus-visible,
+.app-sidebar .app-sidebar-settings:focus-visible {
+  outline: 2px solid var(--theme-blue-ink, var(--accent));
+  outline-offset: 2px;
+}
+.app-sidebar-subnav {
+  margin: 2px 0 6px 19px;
+  padding-left: 10px;
+  gap: 2px;
+}
+.app-sidebar-subnav .dashboard-subtab {
+  min-height: 32px;
+  padding: 6px 9px;
+  border-radius: 4px;
+  font-size: 0.81rem;
+  font-weight: 400;
+}
+.app-sidebar-subnav .dashboard-subtab.active {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+.app-nav-group:has(> #adminTabBtn:not(.is-hidden)) {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.app-sidebar-utility { gap: 2px; padding-top: 10px; }
+.app-project-status {
+  margin: 6px 10px 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.app-project-status:empty { display: none; }
+.app-project-section { grid-column: 1 / -1; }
+.app-project-section > summary { cursor: pointer; padding: 8px 10px; }
+.app-project-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.app-sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 8px 4px;
+  border-top: 1px solid var(--line);
+}
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0f766e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.account-copy { min-width: 0; display: grid; gap: 3px; }
+.app-sidebar-account #heroAuthIdentity {
+  font-size: 0.81rem;
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.account-signout {
+  width: fit-content;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.account-signout:hover { color: var(--ink); text-decoration: underline; background: transparent; }
+.account-signout:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.has-icon-rail.app-workbench { grid-template-columns: 48px 232px minmax(0, 1fr); gap: 14px; }
+.app-icon-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; position: sticky; top: 18px; height: calc(100dvh - 110px); min-height: 360px; }
+.app-icon-rail > button { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); box-shadow: none; font-size: 0; }
+.app-icon-rail > button > span:not(.button-icon):not(.tab-btn-icon):not(.account-avatar):not(#jobsDrawerCount) { display: none; }
+.app-icon-rail .button-icon, .app-icon-rail .tab-btn-icon, .app-icon-rail svg { width: 20px; height: 20px; flex-shrink: 0; }
+.app-icon-rail > button:hover, .app-icon-rail > button.active { background: color-mix(in srgb, var(--ink) 7%, var(--bg)); color: var(--ink); }
+.app-icon-rail > button:focus-visible, .account-menu :is(button,a):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-icon-rail > .rail-runs { margin-top: auto; }
+.app-icon-rail #jobsDrawerCount { position: absolute; top: -2px; right: -3px; font-size: 10px; min-width: 16px; }
+.app-icon-rail #accountMenuButton { padding: 4px; }
+.app-icon-rail .account-avatar { width: 32px; }
+.has-icon-rail:has(#analysisChatDock:not([hidden])) #analysisChatsDrawerBtn { display: none; }
+.has-icon-rail .app-sidebar { grid-template-rows: minmax(0, 1fr) auto; height: calc(100dvh - 110px); min-height: 360px; overflow: hidden; }
+.has-icon-rail:has(#analysisChatDock[hidden]) { grid-template-columns: 48px minmax(0, 1fr); }
+.has-icon-rail:has(#analysisChatDock[hidden]) .app-sidebar { display: none; }
+.dashboard-page-tabs.dashboard-subtabs { display: flex; flex-wrap: wrap; margin: 0 0 16px; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--line); gap: 6px; }
+.dashboard-page-tabs .dashboard-subtab { width: auto; font-size: 12px; min-height: 32px; padding: 6px 10px; }
+.account-menu { position: fixed; z-index: 150; width: 280px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--bg)); color: var(--ink); box-shadow: 0 8px 32px #0003; }
+.account-menu[hidden] { display: none; }
+.account-menu .app-sidebar-account { border: 0; padding: 10px; margin-bottom: 6px; }
+.account-menu :is(button,a) { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; min-height: 34px; font-size: 13px; text-align: left; background: transparent; color: var(--ink); border: 0; box-shadow: none; border-radius: 6px; }
+.account-menu :is(button,a):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.account-menu svg, .account-menu .button-icon, .account-menu .tab-btn-icon { width: 18px; height: 18px; }
+.account-menu .app-nav-group { margin: 0; padding: 0; border: 0; }
+.account-menu .account-signout { margin-top: 6px; }
+@media (max-width: 900px) {
+  .has-icon-rail.app-workbench { grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+  .has-icon-rail .app-sidebar { display: none; }
+  .app-icon-rail { height: calc(100dvh - 110px); }
+  .app-sidebar { padding: 8px; max-height: none; overflow-y: visible; }
+  .app-sidebar-nav > .app-nav-heading { display: none; }
+  .app-nav-group:has(> #adminTabBtn:not(.is-hidden)) {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .app-sidebar-utility { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-sidebar-utility .deployment-brand,
+  .app-sidebar-utility .app-nav-heading,
+  .app-project-status { grid-column: 1 / -1; }
+}

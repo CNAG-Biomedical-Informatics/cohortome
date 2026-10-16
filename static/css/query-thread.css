@@ -264,6 +264,22 @@
         gap: 8px;
         margin-bottom: 12px;
       }
+      .query-response-details {
+        margin-top: 10px;
+        font-size: 0.8125rem;
+      }
+      .query-response-details > summary {
+        cursor: pointer;
+        color: var(--muted);
+        width: fit-content;
+      }
+      .query-response-details > summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      .query-response-details .query-thread-turn-meta {
+        margin: 10px 0 0;
+      }
       #queryTab.query-tab-empty .controls {
         gap: 12px;
       }

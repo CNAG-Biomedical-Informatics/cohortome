@@ -305,6 +305,7 @@ def index(request: Request) -> HTMLResponse:
             "branding": branding_settings(),
             "appearance": load_user_settings(request_user_id(request)).get("appearance", "light") if user else "light",
             "auth_enabled": auth_enabled(),
+            "desktop_mode": app_env("COHORTOME_DESKTOP_MODE").strip().lower() in {"1", "true", "yes", "on"},
         },
     )
 

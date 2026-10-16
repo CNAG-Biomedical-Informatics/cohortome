@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "COHORTome Desktop Preview",
+  "version": "0.1.0",
+  "identifier": "org.cnag.cohortome.preview",
+  "build": { "frontendDist": "placeholder" },
+  "app": { "withGlobalTauri": true, "windows": [], "security": { "capabilities": [] } },
+  "bundle": { "active": false }
+}

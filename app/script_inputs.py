@@ -131,7 +131,14 @@ def prepare_inputs(data_dir, selected_patient_ids="", compare_selected_patient_i
                  "# Generated code must raise an error (Python) or use stop() (R) when required inputs are absent; do not merely print a message and exit successfully.\n"
                  "# Do not silently impute values, drop covariates or change the requested model. Explain proposed statistical choices to the user.\n")
     template += "# No network or package installation. 90 seconds, 512 MiB RAM.\n# Save CSV, TXT or PNG to /work/output (max 8 files, 4 MiB total).\n"
-    template += "\n".join("# " + line for line in json.dumps(contract, indent=2).splitlines()) + "\n\n"
+    # Keep the full contract for validation/audit, not thousands of IDs in code.
+    template_contract = {**contract, "assays": {
+        modality: {key: value for key, value in assay.items()
+                   if key not in {"feature_ids", "feature_annotations"}}
+        for modality, assay in assays.items()
+    }}
+    template += "# Feature IDs are the matrix row names; inspect them in code when needed.\n"
+    template += "\n".join("# " + line for line in json.dumps(template_contract, indent=2).splitlines()) + "\n\n"
     if language == "r":
         template += "patients <- read.csv('/input/patients.csv', stringsAsFactors=FALSE)\nclinical <- read.csv('/input/clinical.csv', stringsAsFactors=FALSE)\nsamples <- read.csv('/input/samples.csv', stringsAsFactors=FALSE)\nassays <- list()\n"
         for modality in assays:

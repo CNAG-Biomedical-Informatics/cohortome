@@ -70,6 +70,9 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
         "/user-settings",
         json={
             "landing_tab": "analysis",
+            "plot_palette": "okabe-ito",
+            "heatmap_palette": "cividis",
+            "diverging_palette": "purple-green",
             "query_disclosure_default": "summary",
             "analysis_auto_open_jobs": False,
             "job_notifications": False,
@@ -93,6 +96,8 @@ def test_user_settings_persist_for_local_fallback_user(monkeypatch, tmp_path):
     assert payload["dataset_compact_view"] is True
     assert payload["llm_provider_id"] == "cnag-120b"
     persisted = user_settings_module.load_user_settings("local")
+    for key, value in {"plot_palette": "okabe-ito", "heatmap_palette": "cividis", "diverging_palette": "purple-green"}.items():
+        assert payload[key] == persisted[key] == value
     assert persisted["landing_tab"] == "analysis"
     assert persisted["job_notifications"] is False
     assert persisted["latest_query_details"] is False

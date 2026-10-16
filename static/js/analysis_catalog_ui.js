@@ -615,7 +615,9 @@ export function createAnalysisCatalogUi(ctx) {
         detail: worker && worker.available
           ? `${workerCount} background ${workerCount === 1 ? "worker is" : "workers are"} online.`
           : worker
-            ? "No background worker is online. Start Redis and an Analysis worker, then check again."
+            ? worker.backend === "local"
+              ? "The desktop background worker is offline. Restart the desktop app, then check again."
+              : "No background worker is online. Start Redis and an Analysis worker, then check again."
             : "Checking the Analysis queue and background worker.",
         complete: Boolean(worker && worker.available),
         action: "check-worker",
@@ -911,6 +913,13 @@ export function createAnalysisCatalogUi(ctx) {
     const item = currentAnalysisCatalogItem();
     const setupState = selectedAnalysisSetupState(item);
     const hasItem = Boolean(item);
+    const runReview = document.getElementById("analysisRunReview");
+    const blocked = hasItem && !setupState.ready && state.analysisContextMode !== "general";
+    if (blocked && runReview) runReview.textContent = `Cannot run yet: ${setupState.message}`;
+    if (analysisRunBtnEl) {
+      analysisRunBtnEl.setAttribute("aria-describedby", "analysisRunReview");
+      analysisRunBtnEl.title = blocked ? setupState.message : "";
+    }
     const setupSteps = Array.isArray(setupState.steps)
       ? setupState.steps.filter((step) => step.key !== "prompt")
       : [];
@@ -922,8 +931,7 @@ export function createAnalysisCatalogUi(ctx) {
     const requirementsReady = association ? comparisonReady : !hasItem || incompleteSetupCount === 0;
     const resultsLabel = analysisFlowResultsLabel();
     const hasPrompt = Boolean(analysisPromptEl && analysisPromptEl.value.trim());
-    const hypothesisReady = document.getElementById("analysisStudyMode").value !== "hypothesis_driven" || Boolean(document.getElementById("analysisResearchQuestion").value.trim() && document.getElementById("analysisHypothesis").value.trim());
-    const reviewReady = hasPrompt && hypothesisReady;
+    const reviewReady = hasPrompt;
     const lastSubmission = (state.analysisTurns || []).slice().reverse().find(turn => turn.role === "user");
     const showingCurrentResult = lastSubmission && lastSubmission.prompt === analysisPromptEl.value.trim()
       && ["Generated", "Job queued", "Error"].includes(resultsLabel);
@@ -947,7 +955,7 @@ export function createAnalysisCatalogUi(ctx) {
         state: requirementsReady ? "is-ready" : "is-blocked",
       },
       prompt: {
-        value: state.analysisInFlight ? "Running" : !hypothesisReady ? "Add hypothesis" : !patientsReady || !requirementsReady ? "Waiting for setup" : hasPrompt ? "Ready to review" : "Enter request",
+        value: state.analysisInFlight ? "Running" : !patientsReady || !requirementsReady ? "Waiting for setup" : hasPrompt ? "Ready to review" : "Enter request",
         state: state.analysisInFlight ? "is-running" : !reviewReady ? "is-blocked" : !patientsReady || !requirementsReady ? "is-neutral" : "is-ready",
       },
       results: {
@@ -1377,6 +1385,7 @@ export function createAnalysisCatalogUi(ctx) {
   }
 
   return {
+    prepareScriptForRun: () => scriptEditor.prepareForRun(),
     initializeExampleToggle,
     renderStarterPanelVisibility,
     renderQueryStarterPrompts,

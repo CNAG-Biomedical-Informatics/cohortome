@@ -48,6 +48,9 @@ class GeneralLlmRequest(BaseModel):
 
 
 class UserSettingsResponse(BaseModel):
+    plot_palette: Literal["default", "okabe-ito", "muted"] = "default"
+    heatmap_palette: Literal["default", "viridis", "cividis"] = "default"
+    diverging_palette: Literal["default", "blue-orange", "purple-green"] = "default"
     appearance: Literal["light", "dark", "system"] = "light"
     version: int = 1
     landing_tab_mode: Literal["fixed", "last"] = "fixed"
@@ -69,6 +72,9 @@ class UserSettingsResponse(BaseModel):
 
 
 class UserSettingsUpdateRequest(BaseModel):
+    plot_palette: Literal["default", "okabe-ito", "muted"] | None = None
+    heatmap_palette: Literal["default", "viridis", "cividis"] | None = None
+    diverging_palette: Literal["default", "blue-orange", "purple-green"] | None = None
     appearance: Literal["light", "dark", "system"] | None = None
     landing_tab_mode: Literal["fixed", "last"] | None = None
     landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None

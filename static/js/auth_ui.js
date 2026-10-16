@@ -10,6 +10,7 @@ export function createAuthUi(ctx) {
     authOidcLoginLabelEl,
     heroAuthUtilityEl,
     heroAuthIdentityEl,
+    accountAvatarEl,
     heroLogoutBtnEl,
     datasetsTabBtnEl,
     adminTabBtnEl,
@@ -182,6 +183,7 @@ export function createAuthUi(ctx) {
       runHistoryDrawerBtnEl && runHistoryDrawerBtnEl.classList.remove("is-hidden");
       if (heroAuthIdentityEl) {
         heroAuthIdentityEl.textContent = "Local user";
+        if (accountAvatarEl) accountAvatarEl.textContent = "LU";
       }
       datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
@@ -207,6 +209,13 @@ export function createAuthUi(ctx) {
     if (authenticated) {
       if (heroAuthIdentityEl) {
         heroAuthIdentityEl.textContent = `${state.authState.user.display_name || state.authState.user.username} (${state.authState.user.role || "user"})`;
+        if (accountAvatarEl) {
+          const name = String(state.authState.user.display_name || state.authState.user.username || '').trim();
+          const parts = name.split(/\s+/).filter(Boolean);
+          accountAvatarEl.textContent = (parts.length > 1
+            ? Array.from(parts[0])[0] + Array.from(parts[parts.length - 1])[0]
+            : Array.from(name).slice(0, 2).join('')).toLocaleUpperCase() || '?';
+        }
       }
       if (authGateStatusEl) {
         authGateStatusEl.textContent = oidcMode
@@ -230,6 +239,7 @@ export function createAuthUi(ctx) {
     } else {
       if (heroAuthIdentityEl) {
         heroAuthIdentityEl.textContent = "Signed out";
+        if (accountAvatarEl) accountAvatarEl.textContent = '?';
       }
       datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
       adminTabBtnEl && adminTabBtnEl.classList.add("is-hidden");

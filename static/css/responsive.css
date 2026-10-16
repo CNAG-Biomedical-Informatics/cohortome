@@ -71,7 +71,7 @@
           display: none;
           width: auto;
         }
-        .app-sidebar-nav .app-nav-group:has(> .app-nav-parent.active) .app-sidebar-subnav {
+        .app-sidebar-nav .app-nav-group:has(> .app-nav-parent[aria-expanded="true"]) .app-sidebar-subnav {
           display: grid;
         }
         .dashboard-subtab {

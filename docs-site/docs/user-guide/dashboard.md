@@ -36,6 +36,31 @@ The clinical dashboard gives a workspace-level summary of:
 
 This is the fastest way to sanity-check that the right datasets are loaded before you start filtering in `Query` or interpreting in `Analysis`.
 
+## Patient overview
+
+Open **Dashboard → Patient overview** and start typing a patient ID or ClarID.
+The search shows up to 12 matches from the active datasets. Select a match with
+the mouse, or use the arrow keys and Enter. Each result identifies its source
+dataset; matching identifiers from different datasets are not combined.
+
+The patient card shows clinical record and assay counts, followed by one row
+per linked sample identifier and assay. Collection date, visit, specimen
+material, and sample ClarID appear only when supplied in sample metadata.
+Unknown fields say **Not recorded**. Patient linkage is labelled as a metadata
+table, exact identifier, or an explicitly declared dataset ID convention.
+
+This is an inventory of data available in COHORTome, not a record of every assay
+ever performed. Sample identifiers do not necessarily denote distinct biological
+specimens. Unavailable assays and missing linkage are reported under inventory
+limitations, not counted as successful matches. Imaging remains in its own view.
+The inventory reads matrix headers and linkage metadata; it does not scan assay
+values or perform quality control.
+
+Patient search and details require **Detailed** access to all datasets in the
+workspace. With a single dataset active, **Open clinical timeline** opens the
+selected patient's timeline. In a multi-dataset workspace, apply the patient's
+dataset on its own first to avoid combining overlapping identifiers.
+
 ## Timeline
 
 Use Timeline to inspect dated clinical records and available samples. **Show

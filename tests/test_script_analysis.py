@@ -12,13 +12,17 @@ from app import script_sandbox
 
 
 def test_prepared_objects_scope_and_template_contains_no_records():
-    prepared = prepare_inputs(str(DEMO_ROOT), 'DEMOAI031', 'DEMOAI061', True)
+    prepared = prepare_inputs(str(DEMO_ROOT), 'DEMOAI30031', 'DEMOAI30061', True)
     patients = list(csv.DictReader(io.StringIO(prepared['files']['patients.csv'])))
-    assert [(r['patient_id'], r['cohort']) for r in patients] == [('DEMOAI031', 'A'), ('DEMOAI061', 'B')]
-    assert 'DEMOAI031' not in prepared['template']
-    assert 'DEMOAI061' not in prepared['template']
+    assert [(r['patient_id'], r['cohort']) for r in patients] == [('DEMOAI30031', 'A'), ('DEMOAI30061', 'B')]
+    assert 'DEMOAI30031' not in prepared['template']
+    assert 'DEMOAI30061' not in prepared['template']
     assert 'patients = pd.read_csv' in prepared['template']
     assert 'assays[' in prepared['template']
+    assert '"feature_ids"' not in prepared['template']
+    assert '"feature_annotations"' not in prepared['template']
+    assert len(prepared['template'].splitlines()) < 200
+    assert any(assay['feature_ids'] for assay in prepared['contract']['assays'].values())
     assert prepared['contract_id'] != prepare_inputs(str(DEMO_ROOT))['contract_id']
     assert prepared['contract']['assays']['transcriptomics']['samples'] == 2
     assert prepared['contract']['assays']['transcriptomics']['cohort_a_samples'] == 1
@@ -35,7 +39,7 @@ def test_missing_comparison_group_has_actionable_message():
     with pytest.raises(RuntimeError, match='Choose Cohort A in Patients'):
         prepare_inputs(DEMO_ROOT, compare_mode=True)
     with pytest.raises(RuntimeError, match='Choose Cohort B in Patients'):
-        prepare_inputs(DEMO_ROOT, 'DEMOAI031', compare_mode=True)
+        prepare_inputs(DEMO_ROOT, 'DEMOAI30031', compare_mode=True)
     prepared = prepare_inputs(DEMO_ROOT)
     assert prepared['contract']['compare_mode'] is False
     assert prepared['contract']['cohort_b'] == 0
@@ -48,7 +52,7 @@ def test_r_template_uses_same_data_and_different_contract():
     assert r['contract_id'] != python['contract_id']
     assert "patients <- read.csv" in r['template']
     assert 'check.names=FALSE' in r['template']
-    assert 'DEMOAI001' not in r['template']
+    assert 'DEMOAI30001' not in r['template']
     assert r['contract']['packages']['limma'] == '3.54.1'
 
 
@@ -58,7 +62,7 @@ def test_only_exact_approved_demo_and_valid_scopes(tmp_path):
     with pytest.raises(RuntimeError, match='do not belong'):
         prepare_inputs(DEMO_ROOT, 'unknown')
     with pytest.raises(RuntimeError, match='disjoint'):
-        prepare_inputs(DEMO_ROOT, 'DEMOAI031', 'DEMOAI031:baseline', True)
+        prepare_inputs(DEMO_ROOT, 'DEMOAI30031', 'DEMOAI30031:baseline', True)
     with pytest.raises(RuntimeError, match='selected assays'):
         prepare_inputs(DEMO_ROOT, assay_ids=['unknown'])
 

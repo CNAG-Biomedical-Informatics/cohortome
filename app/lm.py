@@ -115,11 +115,33 @@ def _managed_registry_lock_path():
     return LLM_PROVIDER_REGISTRY_PATH.with_name(f".{LLM_PROVIDER_REGISTRY_PATH.name}.lock")
 
 
+def _desktop_default_editable() -> bool:
+    return _truthy(app_env("COHORTOME_DESKTOP_MODE"))
+
+
+def initialize_desktop_default_provider() -> None:
+    """Seed once in the isolated desktop runtime, never overwrite user settings."""
+    if not _desktop_default_editable():
+        raise RuntimeError("Desktop provider initialization requires desktop mode.")
+    with advisory_file_lock(_managed_registry_lock_path()):
+        providers = _read_managed_registry_unlocked()
+        if any(item["id"] == DEFAULT_LLM_PROVIDER_ID for item in providers):
+            return
+        providers.append(_canonical_managed_provider({
+            "id": DEFAULT_LLM_PROVIDER_ID,
+            "label": "System default (LM Studio)",
+            "base_url": "http://127.0.0.1:1234/v1",
+            "enabled": False,
+            "data_boundary": "external",
+        }))
+        _write_managed_registry_unlocked(providers)
+
+
 def _canonical_managed_provider(raw: Dict[str, Any]) -> Dict[str, Any]:
     provider_id = str(raw.get("id") or "").strip().lower()
     if not _SAFE_LLM_PROVIDER_ID_RE.fullmatch(provider_id):
         raise ValueError("Provider ID must start with a lowercase letter or number and contain only lowercase letters, numbers, dots, underscores, or hyphens (maximum 64 characters).")
-    if provider_id == DEFAULT_LLM_PROVIDER_ID:
+    if provider_id == DEFAULT_LLM_PROVIDER_ID and not _desktop_default_editable():
         raise ValueError("The system-default provider is managed by environment configuration.")
 
     base_url = str(raw.get("base_url") or "").strip().rstrip("/")
@@ -202,7 +224,7 @@ def _managed_registry_providers() -> tuple[list[Dict[str, Any]], str]:
 
 
 def _readonly_provider_ids() -> set[str]:
-    provider_ids = {DEFAULT_LLM_PROVIDER_ID}
+    provider_ids = set() if _desktop_default_editable() else {DEFAULT_LLM_PROVIDER_ID}
     provider_ids.update(str(item.get("id") or "").strip().lower() for item in _configured_registry_providers())
     return provider_ids
 
@@ -245,6 +267,8 @@ def update_managed_lm_provider(provider_id: str, updates: Dict[str, Any]) -> Dic
 
 def delete_managed_lm_provider(provider_id: str) -> None:
     normalized_id = str(provider_id or "").strip().lower()
+    if normalized_id == DEFAULT_LLM_PROVIDER_ID and _desktop_default_editable():
+        raise ValueError("The default provider cannot be deleted. Disable it instead.")
     if normalized_id in _readonly_provider_ids():
         raise ValueError("This provider is managed by environment configuration and cannot be deleted in the app.")
     with advisory_file_lock(_managed_registry_lock_path()):
@@ -266,7 +290,9 @@ def llm_providers(include_disabled: bool = True) -> list[Dict[str, Any]]:
             seen.add(item["id"])
     managed, _registry_error = _managed_registry_providers()
     for item in managed:
-        if item["id"] not in seen:
+        if item["id"] == DEFAULT_LLM_PROVIDER_ID and _desktop_default_editable() and item["id"] not in _readonly_provider_ids():
+            providers = [item if provider["id"] == item["id"] else provider for provider in providers]
+        elif item["id"] not in seen:
             providers.append(item)
             seen.add(item["id"])
     if not include_disabled:

@@ -3,10 +3,10 @@
   "source": "synthetic-private",
   "studies": [
     {
-      "study_id": "private-mri-prv001-week0",
-      "label": "Private synthetic MRI baseline PRV001",
-      "patient_id": "PRV001",
-      "sample_id": "PRV001:week_0",
+      "study_id": "private-mri-priv10001-week0",
+      "label": "Private synthetic MRI baseline PRIV10001",
+      "patient_id": "PRIV10001",
+      "sample_id": "PRIV10001:week_0",
       "timepoint": "week_0",
       "modality": "MR",
       "study_instance_uid": "1.2.826.0.1.3680043.10.54321.2.1",

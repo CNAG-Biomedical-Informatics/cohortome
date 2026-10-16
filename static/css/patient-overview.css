@@ -1,0 +1,58 @@
+.patient-lookup { position: relative; max-width: 680px; display: grid; gap: 8px; }
+#patientOverviewMatches {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+  max-height: 320px; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--panel-strong); box-shadow: var(--shadow);
+}
+#patientOverviewMatches button { display: grid; gap: 4px; text-align: left; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; padding: 10px 14px; }
+#patientOverviewMatches button span { font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+#patientOverviewMatches button:hover, #patientOverviewMatches [aria-selected="true"] { background: var(--accent-soft); }
+.patient-overview-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.patient-overview-heading h2 { margin: 6px 0; overflow-wrap: anywhere; }
+.patient-source, .patient-clarid { font-size: 0.82rem; color: var(--muted); overflow-wrap: anywhere; }
+.patient-overview-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 8px 0 14px; }
+.patient-overview-stats > div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.patient-overview-stats strong { font-size: 1.25rem; font-weight: 600; }
+.patient-overview-stats span { font-size: 0.78rem; color: var(--muted); }
+.patient-inventory-scroll {
+  overflow: auto; max-width: 100%; max-height: 560px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.patient-inventory { width: 100%; min-width: 780px; border-collapse: separate; border-spacing: 0; font-size: 0.84rem; }
+.patient-inventory caption { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 0.78rem; }
+.patient-inventory th, .patient-inventory td { text-align: left; padding: 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.patient-inventory thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--theme-surface, #f1f5f9);
+  font-weight: 600; white-space: nowrap; font-size: 0.78rem; color: var(--muted);
+}
+.patient-inventory thead th:first-child { left: 0; z-index: 4; }
+.patient-inventory td { min-width: 115px; max-width: 300px; overflow-wrap: anywhere; }
+.patient-inventory small { display: block; color: var(--muted); margin-top: 4px; font-size: 0.75rem; font-weight: 400; line-height: 1.45; }
+.patient-inventory tbody:nth-of-type(even) { background: color-mix(in srgb, var(--ink) 2%, transparent); }
+.patient-inventory tbody + tbody tr:first-child > * { border-top: 2px solid var(--line); }
+.patient-inventory tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.patient-inventory .inventory-sample {
+  position: sticky; left: 0; z-index: 1; background: var(--theme-surface, #fff);
+  min-width: 170px; max-width: 240px; border-right: 1px solid var(--line); font-weight: 500;
+}
+.inventory-sample-label { display: flex; gap: 8px; align-items: flex-start; }
+.inventory-sample-label svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--muted); }
+.inventory-sample code { overflow-wrap: anywhere; white-space: normal; font-size: 0.8rem; }
+.inventory-assay { display: flex; gap: 10px; align-items: flex-start; min-width: 200px; }
+.inventory-modality { font-weight: 600; }
+.inventory-modality-icon {
+  display: inline-flex; padding: 6px; width: 32px; height: 32px; flex-shrink: 0;
+  border-radius: 7px; background: var(--utility-soft); color: var(--utility);
+}
+.inventory-modality-icon[data-modality="transcriptomics"],
+.inventory-modality-icon[data-modality="genotyping"] { background: var(--accent-soft); color: var(--theme-blue-ink, #1d4ed8); }
+.inventory-modality-icon[data-modality="methylation"] { background: var(--theme-purple-soft, #f3e8ff); color: var(--theme-purple-ink, #7e22ce); }
+.inventory-modality-icon[data-modality="flow_cytometry"],
+.inventory-modality-icon[data-modality="serology"] { background: var(--handoff-soft); color: var(--theme-teal-ink, #115e59); }
+.inventory-link { display: inline-block; padding: 3px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 0.75rem; }
+.inventory-missing { color: var(--muted); }
+.inventory-legend { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+.patient-inventory-warning { font-size: 0.84rem; color: var(--muted); }
+.patient-inventory-warning summary { cursor: pointer; }
+.patient-overview-card > button { justify-self: start; width: auto; }
+@media (max-width: 640px) { .patient-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

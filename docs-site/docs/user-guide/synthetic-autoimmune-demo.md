@@ -7,6 +7,29 @@ simulated, not copied, anonymized, or fitted to patient-level study records.
 
 The existing default dataset remains available for longitudinal demonstrations.
 
+## Synthetic identifiers
+
+The numeric part of each synthetic patient ID is also its ClarID subject ID.
+Prefixes are readable labels; they do not restart the numeric counter.
+
+| Fixture | Source patient IDs | ClarID subject numbers |
+| --- | --- | --- |
+| Default | `SYN001`–`SYN030`, `HC031`–`HC038` | 1–38 |
+| Private synthetic fixture | `PRIV10001` | 10001 |
+| Large synthetic fixture | `SYN20001`–`SYN20030`, `HC20031`–`HC20038` | 20001–20038 |
+| Autoimmune demo | `DEMOAI30001`–`DEMOAI30090` | 30001–30090 |
+
+Sample IDs retain the source patient ID and their visit suffix. The ClarID
+generator reads the numeric suffix rather than assigning numbers by row order,
+and rejects duplicate numbers or IDs outside each fixture's reserved range.
+These conventions apply only to bundled synthetic data, not PRECISESADS.
+
+Older synthetic cohorts, projects and runs are not migrated after renumbering.
+Prepare the synthetic query stores again and create new selections. Regenerate
+subject sidecars with `scripts/generate_synthetic_clarids.py` and clarid-tools
+0.04 after changing a fixture population. For a new large fixture, pass a fresh
+directory using `--large-dataset-root`; the generator refuses to overwrite one.
+
 ## Contents
 
 | Component | Synthetic content |

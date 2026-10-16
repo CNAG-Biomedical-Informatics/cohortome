@@ -9,12 +9,13 @@ import argparse
 import csv
 from datetime import date
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = {"private_dataset": 10000, "dataset-large": 20000,
+FIXTURES = {"default_dataset": 0, "private_dataset": 10000, "dataset-large": 20000,
             "synthetic_autoimmune_demo": 30000}
 CONDITIONS = {"Healthy Control": "Z00.0", "Crohn Disease": "K50.9",
               "Ulcerative Colitis": "K51.9", "Rheumatoid Arthritis": "M06.9",
@@ -47,7 +48,15 @@ def subject_rows(root, offset):
     for record in sorted(records, key=lambda r: r.get("info", {}).get("event_date") or "9999"):
         patients.setdefault(record.get("patient_id") or record["id"], record)
     rows = []
-    for number, (pid, record) in enumerate(sorted(patients.items()), offset + 1):
+    seen = set()
+    for pid, record in sorted(patients.items()):
+        match = re.fullmatch(r'[A-Z]+(\d+)', pid)
+        if not match:
+            raise ValueError('Synthetic patient IDs must have a numeric suffix.')
+        number = int(match[1])
+        if not offset < number < offset + 10000 or number in seen:
+            raise ValueError('Synthetic subject numbers must be unique within their reserved range.')
+        seen.add(number)
         label = record["diseases"][0]["diseaseCode"]["label"]
         info = record.get("info", {})
         birth = info.get("phenopacket", {}).get("dateOfBirth")

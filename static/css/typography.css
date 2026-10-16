@@ -1,0 +1,53 @@
+/* Interface hierarchy, without scaling tables, plots or conversation content. */
+.app-content {
+  --workspace-title-size: 1.125rem;
+  --workspace-section-size: 0.9375rem;
+  --workspace-description-size: 0.875rem;
+}
+.app-content h2:not(.query-thread-turn *, .analysis-turn-body *) {
+  font-size: var(--workspace-title-size);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+.app-content h3:not(.query-thread-turn *, .analysis-turn-body *) {
+  font-size: var(--workspace-section-size);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  letter-spacing: 0;
+}
+.app-content p:not(.query-thread-turn *, .analysis-turn-body *),
+.app-content .section-note:not(.query-thread-turn *, .analysis-turn-body *) {
+  font-size: var(--workspace-description-size);
+  line-height: 1.5;
+}
+.app-content .section-note:not(.query-thread-turn *, .analysis-turn-body *) {
+  margin-bottom: 12px;
+}
+.app-content label:not(.query-thread-turn *, .analysis-turn-body *) {
+  letter-spacing: 0.04em;
+}
+.app-content .metric-card strong { font-size: 1.5rem; }
+.app-content .context-pill strong { font-size: 0.875rem; }
+
+/* Shared text actions: colour indicates purpose, not a different size hierarchy.
+   Leave navigation, icon-only controls and plot toolbars to their own styles. */
+.job-completion-notice button,
+.analysis-session-delete-dialog button,
+.app-content button:not(.icon-button, .chat-copy-button, .query-sort-button,
+  .js-plotly-plot *, .analysis-flow-step, .context-mode-option) {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 6px;
+}
+.job-completion-notice button,
+.analysis-session-delete-dialog button {
+  width: auto;
+  box-shadow: none;
+}

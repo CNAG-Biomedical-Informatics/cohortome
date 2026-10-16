@@ -3,6 +3,7 @@ import { createAppRefs } from "/static/js/app_refs.js";
 import { createAppState } from "/static/js/app_state.js";
 import { nowIso, shortTimestamp, currentStorageNamespace, createAnalysisSession, createSelectionMetadata, formatNumber } from "/static/js/app_helpers.js";
 import { createNavigationUi } from "/static/js/app_navigation.js";
+import { initializeNavigationShell } from "/static/js/navigation_shell.js";
 import { createWorkspaceUi } from "/static/js/workspace_ui.js";
 import { createAuthUi } from "/static/js/auth_ui.js";
 import { createUsersAdminUi } from "/static/js/users_admin_ui.js";
@@ -18,6 +19,8 @@ import { createQueryUi } from "/static/js/query.js";
 import { createAnalysisUi } from "/static/js/analysis.js";
 import { createUserSettingsUi } from "/static/js/user_settings.js";
 import { createDeploymentBrandingUi } from "/static/js/deployment_branding.js";
+import { createProjectsUi } from "/static/js/projects.js";
+import { createPatientOverview } from "/static/js/patient_overview.js";
 
 const refs = createAppRefs(document);
 const state = createAppState();
@@ -355,12 +358,35 @@ function setAnalysisSidebarCollapsed(collapsed, options = {}) {
 
 function initializeAnalysisSidebarCollapsed() {
   setAnalysisSidebarCollapsed(false, { persist: false });
+  const wide = window.matchMedia("(min-width: 901px)");
+  const dock = document.getElementById("analysisChatDock");
+  const panel = refs.analysisChatsDrawerEl.querySelector(".analysis-chats-drawer-panel");
+  const update = () => {
+    (wide.matches ? dock : refs.analysisChatsDrawerEl).appendChild(panel);
+    dock.hidden = !wide.matches;
+    panel.setAttribute("role", wide.matches ? "complementary" : "dialog");
+    if (wide.matches) panel.removeAttribute("aria-modal");
+    else panel.setAttribute("aria-modal", "true");
+    refs.analysisChatsDrawerCloseBtnEl.textContent = wide.matches ? "Hide" : "Close";
+    refs.analysisChatsDrawerEl.classList.add("is-hidden");
+    refs.analysisChatsDrawerEl.setAttribute("aria-hidden", "true");
+    refs.analysisChatsDrawerBtnEl.setAttribute("aria-expanded", String(wide.matches));
+  };
+  wide.addEventListener("change", update);
+  update();
 }
 
 function setAnalysisChatsDrawerOpen(open) {
   if (!refs.analysisChatsDrawerEl) return;
+  const dock = document.getElementById("analysisChatDock");
+  if (dock?.querySelector(".analysis-chats-drawer-panel")) {
+    dock.hidden = !open;
+    refs.analysisChatsDrawerBtnEl.setAttribute("aria-expanded", String(open));
+    return;
+  }
   refs.analysisChatsDrawerEl.classList.toggle("is-hidden", !open);
   refs.analysisChatsDrawerEl.setAttribute("aria-hidden", open ? "false" : "true");
+  refs.analysisChatsDrawerBtnEl.setAttribute("aria-expanded", String(open));
 }
 
 function stopQueryProgressUpdates() {
@@ -653,6 +679,7 @@ analysisUi = createAnalysisUi({
     renderQueryReply,
   },
   callbacks: {
+    prepareScriptForRun: () => analysisCatalogUi.prepareScriptForRun(),
     renderAnalysisStarterPrompts: () => analysisCatalogUi.renderAnalysisStarterPrompts(),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     startAnalysisProgressUpdates,
@@ -694,6 +721,7 @@ analysisSessionsUi = createAnalysisSessionsUi({
   callbacks: {
     createAnalysisSession: makeAnalysisSession,
     currentAnalysisSession,
+    currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
     getStorageNamespace: () => currentStorageNamespace(state.authState),
     renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
@@ -1100,7 +1128,6 @@ function bindEvents() {
       document.getElementById("analysisMethodPicker").scrollIntoView({ block: "center" });
     } else if (target === "prompt") {
       document.getElementById("analysisRequestDetails").open = true;
-      document.getElementById("analysisFraming").open = true;
       refs.analysisPromptEl && refs.analysisPromptEl.focus();
       refs.analysisPromptEl && refs.analysisPromptEl.scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (target === "requirements") {
@@ -1131,16 +1158,21 @@ function bindEvents() {
     }
   });
   refs.analysisNewSessionBtnEl && refs.analysisNewSessionBtnEl.addEventListener("click", () => {
+    document.getElementById("analysisChatSearch").value = "";
     analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
-    setAnalysisChatsDrawerOpen(false);
-  });
-  refs.analysisNewSessionTopBtnEl && refs.analysisNewSessionTopBtnEl.addEventListener("click", () => {
-    analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
+    navigationUi.setActiveTab("analysis");
+    if (!document.getElementById("analysisChatDock").contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
   });
 
-  refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("dashboard"));
+  refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => {
+    navigationUi.setActiveTab("dashboard");
+  });
   refs.datasetsTabBtnEl && refs.datasetsTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("datasets"));
-  refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("admin"));
+  refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => {
+    if (refs.adminTabBtnEl.classList.contains("active")) {
+      refs.adminTabBtnEl.setAttribute("aria-expanded", String(refs.adminTabBtnEl.getAttribute("aria-expanded") !== "true"));
+    } else navigationUi.setActiveTab("admin");
+  });
   refs.dataTabBtnEl && refs.dataTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("data"));
   refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("users");
@@ -1328,13 +1360,6 @@ function bindEvents() {
     // Method selection and completed runs handle mode resets explicitly.
     analysisCatalogUi.renderAnalysisCatalogAssayPanel();
     analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
-  });
-  ["analysisStudyMode", "analysisResearchQuestion", "analysisHypothesis"].forEach(id => {
-    document.getElementById(id).addEventListener("input", () => {
-      document.getElementById("analysisHypothesisFields").hidden = document.getElementById("analysisStudyMode").value !== "hypothesis_driven";
-      analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: false });
-      analysisCatalogUi.renderAnalysisFlowBar();
-    });
   });
   refs.analysisContextWorkspaceBtnEl && refs.analysisContextWorkspaceBtnEl.addEventListener("click", () => {
     analysisUi.setContextMode("workspace");
@@ -1590,6 +1615,8 @@ function bindEvents() {
       return;
     }
     analysisSessionsUi.selectAnalysisSession(button.dataset.analysisSessionId || "");
+    navigationUi.setActiveTab("analysis");
+    if (!document.getElementById("analysisChatDock").contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
   });
 
   refs.phenoExamplesEl && refs.phenoExamplesEl.addEventListener("click", (event) => {
@@ -1673,7 +1700,7 @@ function applyStoredTabPreferences() {
   try {
     const savedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
     const savedDashboardSubtab = window.localStorage.getItem(DASHBOARD_SUBTAB_STORAGE_KEY);
-    if (savedDashboardSubtab && ["clinical", "assays", "multimodal", "timeline"].includes(savedDashboardSubtab)) {
+    if (savedDashboardSubtab && ["patients", "clinical", "assays", "imaging", "multimodal", "timeline"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
     if (savedTab && ["dashboard", "cohort", "assays", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
@@ -1703,6 +1730,7 @@ function initializeUiShell() {
   queryUi.renderQueryStarterPrompts();
   analysisCatalogUi.renderAnalysisStarterPrompts();
   initializeAnalysisSidebarCollapsed();
+  initializeNavigationShell();
   navigationUi.setDashboardSubtab(state.currentDashboardSubtab);
   applyStoredTabPreferences();
   phenoUi.updatePhenoExplainActions();
@@ -1727,6 +1755,12 @@ function initializeUiShell() {
 
 async function bootstrap() {
   bindEvents();
+  createPatientOverview({state, navigation:navigationUi, escapeHtml,
+    scope:() => datasetsUi.currentDatasetSelectionKey(),
+    openTimeline:async (patientId) => {
+      navigationUi.setDashboardSubtab('timeline');
+      await workspaceUi.loadPatient(patientId);
+    }});
   initializeUiShell();
   window.__cohortomeLoadPatients = (options) => workspaceUi.loadPatients(options);
   window.__cohortomeAskQuery = () => queryUi.askQuery();
@@ -1742,6 +1776,8 @@ async function bootstrap() {
   await workspaceUi.loadPatients({ respectAdminGate: false, targetDatasetIds: state.currentDatasetIds.slice() });
   await authUi.refreshUserWorkspaceState();
   userSettingsUi.applyUserSettings({ applyNavigation: true });
+  createProjectsUi({state, refs, sessions:analysisSessionsUi, query:queryUi,
+    workspace:workspaceUi, datasets:datasetsUi, navigation:navigationUi});
 }
 
 void bootstrap();

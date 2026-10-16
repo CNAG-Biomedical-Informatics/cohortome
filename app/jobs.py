@@ -46,6 +46,8 @@ def _now_iso() -> str:
 
 
 def jobs_enabled() -> bool:
+    if app_env("COHORTOME_JOBS_BACKEND") == "local":
+        return True
     try:
         import redis  # noqa: F401
         import rq  # noqa: F401
@@ -198,7 +200,8 @@ def _read_json(path: Path) -> Dict[str, Any]:
 
 
 def _write_json(path: Path, payload: Dict[str, Any]) -> None:
-    _write_private_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    from app.state_io import atomic_write_json
+    atomic_write_json(path, payload, file_mode=0o600)
 
 
 def _artifact_inventory(path: Path) -> List[Dict[str, Any]]:
@@ -643,6 +646,9 @@ def _rq_queue():
 
 
 def analysis_worker_status() -> Dict[str, Any]:
+    if app_env("COHORTOME_JOBS_BACKEND") == "local":
+        from app.local_jobs import status
+        return status()
     status: Dict[str, Any] = {
         "available": False,
         "dependencies_available": jobs_enabled(),
@@ -699,6 +705,9 @@ def analysis_worker_available() -> bool:
 
 
 def enqueue_analysis_job(job_id: str, user_id: str, timeout_seconds: int) -> str:
+    if app_env("COHORTOME_JOBS_BACKEND") == "local":
+        from app.local_jobs import enqueue
+        return enqueue("analysis", job_id, user_id, timeout_seconds)
     queue = _rq_queue()
     rq_job = queue.enqueue(
         run_analysis_job,
@@ -712,6 +721,9 @@ def enqueue_analysis_job(job_id: str, user_id: str, timeout_seconds: int) -> str
 
 
 def enqueue_pheno_job(job_id: str, user_id: str, timeout_seconds: int) -> str:
+    if app_env("COHORTOME_JOBS_BACKEND") == "local":
+        from app.local_jobs import enqueue
+        return enqueue("pheno", job_id, user_id, timeout_seconds)
     queue = _rq_queue()
     rq_job = queue.enqueue(
         run_pheno_job,
@@ -780,7 +792,10 @@ def submit_analysis_job(
     except Exception as exc:
         update_job_record(record["job_id"], user_id, status="failed", error=str(exc))
         raise RuntimeError(f"Unable to submit background job. {exc}") from exc
-    record = update_job_record(record["job_id"], user_id, rq_job_id=rq_job_id)
+    if rq_job_id:
+        record = update_job_record(record["job_id"], user_id, rq_job_id=rq_job_id)
+    else:
+        record = load_job_record(record["job_id"], user_id)
     return public_job_payload(record, user_id=user_id)
 
 
@@ -839,7 +854,10 @@ def submit_pheno_job(
     except Exception as exc:
         update_job_record(record["job_id"], user_id, status="failed", error=str(exc))
         raise RuntimeError(f"Unable to submit background job. {exc}") from exc
-    record = update_job_record(record["job_id"], user_id, rq_job_id=rq_job_id)
+    if rq_job_id:
+        record = update_job_record(record["job_id"], user_id, rq_job_id=rq_job_id)
+    else:
+        record = load_job_record(record["job_id"], user_id)
     return public_job_payload(record, user_id=user_id)
 
 

@@ -38,6 +38,8 @@ export function createAnalysisSessionsUi(ctx) {
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
   let pendingDeleteSessionId = "";
   let deleteInFlight = false;
+  const chatSearch = document.getElementById("analysisChatSearch");
+  chatSearch?.addEventListener("input", renderAnalysisSessionList);
 
   function analysisSessionsStorageKey() {
     const namespace = typeof getStorageNamespace === "function" ? String(getStorageNamespace() || "").trim() : "";
@@ -52,9 +54,9 @@ export function createAnalysisSessionsUi(ctx) {
       || (session.compareMode ? "Compare cohorts" : "")
       || (String(session.scope || "").trim() ? "Scoped analysis" : "")
       || session.promptDraft
-      || "New analysis";
+      || "New chat";
     const trimmed = String(raw).trim();
-    if (!trimmed) return "New analysis";
+    if (!trimmed) return "New chat";
     return trimmed.length > 56 ? `${trimmed.slice(0, 56)}...` : trimmed;
   }
 
@@ -118,7 +120,7 @@ export function createAnalysisSessionsUi(ctx) {
       const linkedText = linkedJobs.length
         ? ` This chat has ${linkedJobs.length} linked generated run${linkedJobs.length === 1 ? "" : "s"}${activeJobs.length ? `, including ${activeJobs.length} active` : ""}.`
         : "";
-      analysisSessionDeleteSummaryEl.textContent = `Delete analysis session "${analysisSessionTitle(session)}"?${linkedText}`;
+      analysisSessionDeleteSummaryEl.textContent = `Delete chat "${analysisSessionTitle(session)}"?${linkedText}`;
     }
     setDeleteDialogOpen(true);
   }
@@ -141,9 +143,9 @@ export function createAnalysisSessionsUi(ctx) {
     }
   }
 
-  async function upsertAnalysisSessionToBackend(session) {
+  async function upsertAnalysisSessionToBackend(session, strict = false) {
     try {
-      await fetch("/analysis-sessions", {
+      const response = await fetch("/analysis-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -170,7 +172,13 @@ export function createAnalysisSessionsUi(ctx) {
           updated_at: session.updatedAt || "",
         }),
       });
+      if (strict && !response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail || '');
+        throw new Error(`Unable to save the current analysis conversation (${response.status}). ${detail}`);
+      }
     } catch (_error) {
+      if (strict) throw _error;
     }
   }
 
@@ -279,40 +287,50 @@ export function createAnalysisSessionsUi(ctx) {
     if (!analysisSessionListEl) return;
     renderCurrentAnalysisChatBar();
     if (!state.analysisSessions.length) {
-      analysisSessionListEl.innerHTML = '<div class="empty">No analysis sessions yet.</div>';
+      analysisSessionListEl.innerHTML = '<div class="empty">No chats yet.</div>';
       return;
     }
-    const ordered = state.analysisSessions.slice().sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+    const search = (chatSearch?.value || "").trim().toLocaleLowerCase();
+    const ordered = state.analysisSessions.filter(session => !search ||
+      [analysisSessionTitle(session), session.promptDraft, ...(session.turns || []).filter(turn => turn.role === "user").map(turn => turn.prompt)]
+        .join(" ").toLocaleLowerCase().includes(search))
+      .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    let previousGroup = "";
     analysisSessionListEl.innerHTML = ordered.map((session) => {
-      const dataDir = String(session.dataDir || "").trim();
-      const dirLabel = dataDir ? dataDir.split("/").filter(Boolean).slice(-1)[0] : "No dataset";
-      const turnCount = Array.isArray(session.turns) ? session.turns.length : 0;
       const active = session.id === state.currentAnalysisSessionId ? " is-active" : "";
       const workspaceLabel = analysisWorkspaceStatusLabel(session);
+      const date = new Date(session.updatedAt);
+      const group = date >= today ? "Today" : date >= yesterday ? "Yesterday" : "Older";
+      const heading = group !== previousGroup ? `<h4 class="analysis-chat-date">${group}</h4>` : "";
+      previousGroup = group;
+      const turns = session.turns || [];
+      const last = turns.filter(turn => turn.role === "assistant").at(-1);
+      const activeRun = turns.find(turn => turn.pending || ["queued", "running"].includes(turn.payload?.data?.job_status)
+        || turn.payload?.data?.execution === "queued");
+      const status = activeRun ? (activeRun.pending || activeRun.payload?.data?.job_status === "running" ? "Running" : "Queued")
+        : last?.payload?.intent === "analysis_error" || last?.payload?.data?.job_status === "failed" ? "Failed" : workspaceLabel;
       return `
+        ${heading}
         <div class="analysis-session-card${active}">
-          <button type="button" class="analysis-session-main" data-analysis-session-id="${escapeHtml(session.id)}">
+          <button type="button" class="analysis-session-main" data-analysis-session-id="${escapeHtml(session.id)}" ${active ? 'aria-current="true"' : ''} title="${escapeHtml(analysisSessionTitle(session))}">
             <div class="analysis-session-title">${escapeHtml(analysisSessionTitle(session))}</div>
-            <div class="analysis-session-meta">
-              <div>${escapeHtml(dirLabel)}</div>
-              <div>${escapeHtml(analysisSessionScopeSummary(session))}</div>
-              ${workspaceLabel ? `<div>${escapeHtml(workspaceLabel)}</div>` : ""}
-              <div>${escapeHtml(String(turnCount))} turns • ${escapeHtml(shortTimestamp(session.updatedAt))}</div>
-            </div>
+            ${status ? `<small class="analysis-chat-status">${escapeHtml(status)}</small>` : ''}
           </button>
-          <div class="analysis-session-actions">
-            <button type="button" class="analysis-session-icon" data-analysis-session-rename="${escapeHtml(session.id)}" title="Rename analysis">✎</button>
-            <button type="button" class="analysis-session-icon" data-analysis-session-delete="${escapeHtml(session.id)}" title="Delete analysis">×</button>
-          </div>
+          <details class="analysis-chat-menu"><summary aria-label="Actions for ${escapeHtml(analysisSessionTitle(session))}">⋯</summary><div>
+            <button type="button" data-analysis-session-rename="${escapeHtml(session.id)}">Rename</button>
+            <button type="button" data-analysis-session-delete="${escapeHtml(session.id)}">Delete</button>
+          </div></details>
         </div>
       `;
-    }).join("");
+    }).join("") || '<div class="empty">No matching chats.</div>';
   }
 
   function renderCurrentAnalysisChatBar() {
     const session = currentAnalysisSession();
     if (analysisCurrentChatTitleEl) {
-      analysisCurrentChatTitleEl.textContent = session ? analysisSessionTitle(session) : "New analysis";
+      analysisCurrentChatTitleEl.textContent = session ? analysisSessionTitle(session) : "New chat";
     }
     if (analysisCurrentChatMetaEl) {
       if (!session) {
@@ -329,11 +347,6 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     session.promptDraft = analysisPromptEl.value;
-    session.framing = {
-      mode: document.getElementById("analysisStudyMode").value,
-      question: document.getElementById("analysisResearchQuestion").value.trim(),
-      hypothesis: document.getElementById("analysisHypothesis").value.trim(),
-    };
     session.contextMode = state.analysisContextMode === "general" ? "general" : "workspace";
     session.datasetId = typeof currentDatasetSelectionKey === "function"
       ? String(currentDatasetSelectionKey() || "").trim()
@@ -360,11 +373,6 @@ export function createAnalysisSessionsUi(ctx) {
   function applyAnalysisSession(session) {
     state.analysisExamplesPinnedOpen = false;
     analysisPromptEl.value = session.promptDraft || "";
-    const framing = session.framing || {};
-    document.getElementById("analysisStudyMode").value = framing.mode === "hypothesis_driven" ? "hypothesis_driven" : "exploratory";
-    document.getElementById("analysisResearchQuestion").value = framing.question || "";
-    document.getElementById("analysisHypothesis").value = framing.hypothesis || "";
-    document.getElementById("analysisHypothesisFields").hidden = framing.mode !== "hypothesis_driven";
     state.analysisContextMode = session.contextMode === "general" ? "general" : "workspace";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
     state.analysisMeasurement = session.measurement || "";
@@ -568,6 +576,14 @@ export function createAnalysisSessionsUi(ctx) {
   });
 
   return {
+    async flushCurrentForProject() {
+      if (!state.currentDatasetIds.length) return;
+      ensureAnalysisSessionsLoaded();
+      syncCurrentAnalysisSessionFromUi({render: false});
+      const session = currentAnalysisSession();
+      if (session) await upsertAnalysisSessionToBackend(session, true);
+      return session;
+    },
     persistAnalysisSessions,
     loadAnalysisSessionsFromBackend,
     renderAnalysisSessionList,
