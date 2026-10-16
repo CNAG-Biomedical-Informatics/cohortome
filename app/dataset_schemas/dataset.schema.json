@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COHORTome dataset manifest v1",
+  "type": "object",
+  "required": ["schema_version", "clinical"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "clinical": {
+      "type": "object",
+      "required": ["representation"],
+      "properties": {"representation": {"enum": ["person", "snapshot"]}}
+    },
+    "identifiers": {
+      "type": "object",
+      "properties": {
+        "clarid_subjects": {
+          "type": "object",
+          "required": ["file", "codebook_version", "tools_version"],
+          "properties": {
+            "entity": {"const": "subject"},
+            "file": {"type": "string", "pattern": "\\S"},
+            "delimiter": {"enum": [",", ";", "\t", "\\t"]},
+            "codebook_version": {"type": "string", "pattern": "\\S"},
+            "tools_version": {"type": "string", "pattern": "\\S"}
+          }
+        }
+      }
+    }
+  }
+}

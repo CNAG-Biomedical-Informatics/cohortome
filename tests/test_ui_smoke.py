@@ -2599,6 +2599,119 @@ def test_dashboard_exposes_timeline_for_person_representation(page) -> None:
     expect(page.locator("#dashboardTimeline")).to_contain_text("Patient records")
 
 
+def test_query_chats_persist_in_shared_list_and_reopen(page):
+    _open_query_tab(page)
+    _mock_query_reply(page)
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    page.locator('#analysisNewSessionBtn').click()
+    expect(page.locator('#newChatChoices')).to_be_visible()
+    page.locator('#newQueryChatBtn').click()
+    question = 'Which patients have Crohn Disease?'
+    page.locator('#question').fill(question)
+    page.locator('#askBtn').click()
+    expect(page.locator('#queryThread')).to_contain_text('Patients matching disease query')
+    expect(page.locator('#askBtn')).to_be_enabled()
+    row = page.locator('[data-query-session-id]').filter(has_text=question).first
+    expect(row).to_be_visible()
+    expect(row.locator('svg')).to_be_visible()
+    chat_id = row.get_attribute('data-query-session-id')
+    page.reload(wait_until='networkidle')
+    row = page.locator(f'[data-query-session-id="{chat_id}"]')
+    expect(row).to_be_visible()
+    row.click()
+    expect(page.locator('#queryTab')).to_have_class(re.compile(r'\bactive\b'))
+    expect(page.locator('#queryThread')).to_contain_text('Patients matching disease query')
+    expect(page.locator('#queryThread [data-query-action]')).to_have_count(0)
+    expect(page.locator('#queryChatContextNotice')).to_contain_text('Saved results')
+    row.locator('..').locator('summary').click()
+    page.once('dialog', lambda dialog: dialog.accept('My saved Query'))
+    page.locator(f'[data-query-rename="{chat_id}"]').click()
+    expect(page.locator(f'[data-query-session-id="{chat_id}"]')).to_contain_text('My saved Query')
+    page.locator('#analysisNewSessionBtn').click()
+    page.locator('#newAnalysisChatBtn').click()
+    expect(page.locator('#analysisTab')).to_have_class('tab-panel active')
+    expect(page.locator('[data-query-session-id]').first).to_be_visible()
+    expect(page.locator('[data-analysis-session-id]').first).to_be_visible()
+    page.locator(f'[data-query-session-id="{chat_id}"]').click()
+    page.locator(f'[data-query-session-id="{chat_id}"]').locator('..').locator('summary').click()
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator(f'[data-query-delete="{chat_id}"]').click()
+    expect(page.locator(f'[data-query-session-id="{chat_id}"]')).to_have_count(0)
+    expect(page.locator('#queryThread')).not_to_contain_text('Patients matching disease query')
+
+
+def test_query_chat_save_failure_retry_and_conflict_recovery(page):
+    _open_query_tab(page)
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    def fail_save(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=503, content_type='application/json', body='{"detail":"Temporary save failure"}')
+        else:
+            route.continue_()
+    page.route('**/query-sessions', fail_save)
+    page.locator('#question').fill('Draft to retain')
+    expect(page.locator('#queryChatPersistence')).to_have_text('Not saved')
+    page.locator('#analysisChatsDrawerCloseBtn').click()
+    expect(page.locator('#queryChatMessage')).to_contain_text('Temporary save failure')
+    expect(page.locator('#question')).to_have_value('Draft to retain')
+    page.unroute('**/query-sessions', fail_save)
+    page.locator('#queryChatSaveRetry').click()
+    expect(page.locator('#queryChatPersistence')).to_have_text('Saved')
+    expect(page.locator('#queryCurrentChatTitle')).to_have_text('Draft to retain')
+    expect(page.locator('#queryChatMessage')).to_be_hidden()
+    page.locator('#analysisChatsDrawerBtn').click()
+    chat_id = page.locator('[data-query-session-id][aria-current="true"]').get_attribute('data-query-session-id')
+    base_url = page.url.rstrip('/')
+    saved = page.request.get(f'{base_url}/query-sessions/{chat_id}').json()
+    saved.update(title='Changed in another window', title_custom=True)
+    assert page.request.post(f'{base_url}/query-sessions', data=saved).ok
+    page.locator('#question').fill('Unsaved conflicting draft')
+    expect(page.locator('#queryChatPersistence')).to_have_text('Not saved')
+    expect(page.locator('#queryChatSaveRetry')).to_have_text('Reload saved chat')
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator('#queryChatSaveRetry').click()
+    expect(page.locator('#queryCurrentChatTitle')).to_have_text('Changed in another window')
+    expect(page.locator('#question')).to_have_value('Draft to retain')
+    expect(page.locator('#queryChatPersistence')).to_have_text('Saved')
+
+
+def test_restored_query_chat_general_history_excludes_workspace(page):
+    _mock_available_lm(page)
+    page.reload(wait_until='networkidle')
+    _open_query_tab(page)
+    _mock_query_reply(page)
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    page.locator('#question').fill('Which patients have Crohn Disease?')
+    page.locator('#askBtn').click()
+    expect(page.locator('#queryThread')).to_contain_text('Patients matching disease query')
+    expect(page.locator('#askBtn')).to_be_enabled()
+    chat_id = page.locator('[data-query-session-id][aria-current="true"]').get_attribute('data-query-session-id')
+    page.reload(wait_until='networkidle')
+    page.locator(f'[data-query-session-id="{chat_id}"]').click()
+    page.locator('#queryContextGeneralBtn').click()
+    captured = []
+    def answer(route):
+        captured.append(route.request.post_data_json)
+        route.fulfill(status=200, content_type='application/json', body=json.dumps({
+            'intent': 'general_llm', 'reply': 'A general answer.', 'data': {'source': 'general_llm'}}))
+    page.route('**/llm/general', answer)
+    page.locator('#question').fill('What is a cohort?')
+    page.locator('#askBtn').click()
+    expect(page.locator('#queryThread')).to_contain_text('A general answer.')
+    expect(page.locator('#askBtn')).to_be_enabled()
+    assert captured == [{'prompt': 'What is a cohort?', 'history': []}]
+    page.reload(wait_until='networkidle')
+    page.locator(f'[data-query-session-id="{chat_id}"]').click()
+    expect(page.locator('#queryContextGeneralBtn')).to_have_attribute('aria-pressed', 'true')
+    page.locator('#question').fill('Explain that again')
+    page.locator('#askBtn').click()
+    expect(page.locator('#askBtn')).to_be_enabled()
+    assert captured[-1]['history'] == [{'role': 'user', 'content': 'What is a cohort?'}, {'role': 'assistant', 'content': 'A general answer.'}]
+
+
 def test_query_result_focus_error_and_reset(page) -> None:
     _open_query_tab(page)
     expect = playwright.expect
@@ -2638,7 +2751,7 @@ def test_query_deterministic_reply_renders_and_handoff_to_analysis(page) -> None
     expect(details).not_to_have_attribute("open", "")
     expect(details.locator(".query-thread-turn-meta")).to_be_hidden()
     expect(page.locator("#queryThread [data-chat-copy-content]").last).to_contain_text(
-        "There are 42 patients receiving biologic therapy.")
+        "Patients matching disease query")
     details.locator("summary").click()
     expect(details.locator(".query-thread-turn-meta")).to_be_visible()
     expect(page.locator("#queryThread")).to_contain_text("Response detail: Detailed")
@@ -3424,10 +3537,23 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
 
 def test_navigation_rail_account_and_runs(page):
     expect = playwright.expect
+    expect(page.locator('.app-header #globalContextBar')).to_be_visible()
+    expect(page.locator('.app-content #globalContextBar')).to_have_count(0)
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    compose = page.get_by_role('button', name='New chat', exact=True)
+    expect(compose).to_be_visible()
+    assert compose.bounding_box()['width'] <= 36
+    assert compose.bounding_box()['y'] == pytest.approx(
+        page.locator('#analysisChatsDrawerCloseBtn').bounding_box()['y'], abs=3)
+    expect(page.get_by_role('button', name='Hide chats', exact=True)).to_be_visible()
+    compose.focus()
+    expect(compose).to_be_focused()
+    assert compose.evaluate('el => getComputedStyle(el).outlineStyle') != 'none'
     expect(page.locator('.app-header #runHistoryDrawerBtn')).to_have_count(0)
     expect(page.locator('#accountMenu')).to_be_hidden()
     page.locator('#accountMenuButton').click()
     expect(page.locator('#userSettingsBtn')).to_be_visible()
+    expect(page.locator('#heroLogoutBtn')).to_be_hidden()
     page.keyboard.press('Escape')
     expect(page.locator('#accountMenu')).to_be_hidden()
     expect(page.locator('#accountMenuButton')).to_be_focused()
@@ -3445,9 +3571,149 @@ def test_navigation_rail_account_and_runs(page):
     page.locator('#jobsDrawerCloseBtn').click()
     page.locator('#dashboardTabBtn').click()
     expect(page.locator('#dashboardTab .dashboard-page-tabs')).to_be_visible()
+    assert page.locator('.dashboard-page-tabs .dashboard-subtab.active').evaluate(
+        'el => getComputedStyle(el).borderRadius') == '0px'
     page.set_viewport_size({'width': 390, 'height': 844})
+    assert page.locator('#globalContextBar').evaluate('el => el.scrollWidth <= el.clientWidth')
     page.locator('#accountMenuButton').click()
     expect(page.locator('#userSettingsBtn')).to_be_in_viewport()
+
+
+def test_bulk_chat_selection_and_clear_history_scope(page):
+    expect = playwright.expect
+    base = page.url.rstrip('/')
+    for kind in ('query', 'analysis'):
+        assert page.request.post(base + f'/{kind}-sessions', data={
+            'id': 'bulk-' + kind, 'title': 'Bulk ' + kind, 'dataset_id': 'default',
+        }).ok
+    assert page.request.post(base + '/chat-folders/pin', data={'kind': 'query', 'chat_id': 'bulk-query', 'pinned': True}).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#analysisNewSessionBtn').click()
+    page.locator('#selectChatsBtn').click()
+    for kind in ('query', 'analysis'):
+        page.locator(f'[data-select-chat="{kind}:bulk-{kind}"]').first.check()
+    expect(page.locator('.chat-selection-bar')).to_contain_text('2 selected')
+    page.once('dialog', lambda dialog: dialog.dismiss())
+    page.locator('[data-delete-selected]').click()
+    expect(page.locator('[data-select-chat="query:bulk-query"]').first).to_be_checked()
+    page.once('dialog', lambda dialog: dialog.accept())
+    with page.expect_request(lambda request: request.method == 'DELETE' and '/analysis-sessions/bulk-analysis' in request.url) as deleted_request:
+        page.locator('[data-delete-selected]').click()
+    assert 'keep_generated_jobs=true' in deleted_request.value.url
+    expect(page.locator('#chatFolderStatus')).to_contain_text('Deleted 2 chats')
+    for kind in ('query', 'analysis'):
+        saved = page.request.get(base + f'/{kind}-sessions').json()['sessions']
+        assert not any(item['id'] == 'bulk-' + kind for item in saved)
+    assert page.request.post(base + '/query-sessions', data={'id': 'bulk-pinned', 'title': 'Keep pinned', 'dataset_id': 'default'}).ok
+    assert page.request.post(base + '/chat-folders/pin', data={'kind': 'query', 'chat_id': 'bulk-pinned', 'pinned': True}).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('#userDeleteChatsBtn').evaluate('(el) => el.click()')
+    expect(page.locator('#clearChatsDialog')).to_be_visible()
+    page.locator('#clearChatsKind').select_option('query')
+    count = int(page.locator('#clearChatsCount').inner_text().split()[0])
+    page.locator('#clearChatsPinned').check()
+    expect(page.locator('#clearChatsCount')).to_contain_text(f'{count + 1} chats')
+    page.locator('#clearChatsCancel').click()
+    assert page.request.get(base + '/query-sessions/bulk-pinned').ok
+    assert page.request.post(base + '/chat-folders/pin', data={'kind': 'query', 'chat_id': 'bulk-pinned', 'pinned': False}).ok
+    assert page.request.delete(base + '/query-sessions/bulk-pinned').ok
+
+
+def test_shared_chat_folders_move_pin_rename_search_and_delete(page):
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    base = page.url.rstrip('/')
+    assert page.request.post(base + '/query-sessions', data={'id': 'folder-query', 'title': 'Folder Query', 'title_custom': True, 'dataset_id': 'default'}).ok
+    assert page.request.post(base + '/analysis-sessions', data={'id': 'folder-analysis', 'title': 'Folder Analysis', 'dataset_id': 'default'}).ok
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#analysisChatSearch')).to_be_hidden()
+    page.locator('#analysisNewSessionBtn').click()
+    page.once('dialog', lambda dialog: dialog.accept('Research'))
+    page.locator('#newChatFolderBtn').click()
+    folder = page.locator('.chat-folder').filter(has=page.locator('[data-folder-toggle]', has_text='Research'))
+    expect(folder).to_be_visible()
+    expect(folder.locator('[data-chat-kind="folder"] .chat-menu-icon svg')).to_have_count(1)
+    expect(folder.locator('[data-folder-rename] .chat-menu-icon svg')).to_have_count(1)
+    expect(folder.locator('[data-folder-delete] .chat-menu-icon svg')).to_have_count(1)
+    folder_button = folder.locator('[data-folder-toggle]')
+    assert folder_button.locator('svg').bounding_box()['x'] - folder_button.bounding_box()['x'] < 10
+    folder_id = folder.get_attribute('data-folder-id')
+    for kind in ('query', 'analysis'):
+        chat_id = 'folder-' + kind
+        page.locator(f'[data-{kind}-session-id="{chat_id}"]').first.locator('..').locator('summary').click()
+        page.locator(f'[data-chat-move="{chat_id}"]').first.click()
+        expect(page.locator('#chatMoveDialog')).to_be_visible()
+        page.locator('#chatMoveDestination').select_option(folder_id)
+        page.locator('#chatMoveConfirm').click()
+        expect(page.locator('#chatMoveDialog')).not_to_be_visible()
+        expect(folder.locator(f'[data-{kind}-session-id="{chat_id}"]')).to_be_visible()
+        assert folder.locator(f'[data-{kind}-session-id="{chat_id}"]').bounding_box()['x'] > folder_button.bounding_box()['x'] + 16
+    folder.locator('[data-query-session-id="folder-query"]').locator('..').locator('summary').click()
+    folder.locator('[data-chat-pin="folder-query"]').click()
+    expect(page.locator('[aria-label="Pinned"] [data-query-session-id="folder-query"]')).to_be_visible()
+    expect(folder.locator('[data-query-session-id="folder-query"]')).to_be_visible()
+    folder.locator('.chat-folder-heading summary').click()
+    folder.locator('[data-chat-kind="folder"]').click()
+    expect(page.locator('[aria-label="Pinned"] [data-folder-open]')).to_have_count(1)
+    shortcut = page.locator('[aria-label="Pinned"] [data-folder-open]')
+    assert shortcut.locator('svg').bounding_box()['x'] - shortcut.bounding_box()['x'] < 10
+    folder.locator('.chat-folder-heading summary').click()
+    page.once('dialog', lambda dialog: dialog.accept('Exploration'))
+    folder.locator('[data-folder-rename]').click()
+    expect(page.locator('[data-folder-toggle]', has_text='Exploration')).to_be_visible()
+    page.reload(wait_until='networkidle')
+    folder = page.locator(f'[data-folder-id="{folder_id}"]')
+    expect(folder.locator('[data-query-session-id="folder-query"]')).to_be_visible()
+    expect(folder.locator('[data-analysis-session-id="folder-analysis"]')).to_be_visible()
+    folder.locator('[data-folder-toggle]').click()
+    expect(folder.locator('.chat-folder-body')).to_be_hidden()
+    page.locator('#chatSearchToggle').click()
+    page.locator('#analysisChatSearch').fill('Folder Analysis')
+    expect(folder.locator('[data-analysis-session-id="folder-analysis"]')).to_be_visible()
+    page.keyboard.press('Escape')
+    expect(page.locator('#analysisChatSearch')).to_be_hidden()
+    expect(page.locator('#chatSearchToggle')).to_be_focused()
+    folder.locator('.chat-folder-heading summary').click()
+    page.once('dialog', lambda dialog: dialog.accept())
+    folder.locator('[data-folder-delete]').click()
+    expect(folder).to_have_count(0)
+    expect(page.locator('[aria-label="Unfiled"] [data-analysis-session-id="folder-analysis"]')).to_be_visible()
+    expect(page.locator('[aria-label="Pinned"] [data-query-session-id="folder-query"]')).to_be_visible()
+    expect(page.locator('[data-folder-open]')).to_have_count(0)
+    assert page.request.post(base + '/chat-folders/pin', data={'kind': 'query', 'chat_id': 'folder-query', 'pinned': False}).ok
+    assert page.request.delete(base + '/query-sessions/folder-query').ok
+    assert page.request.delete(base + '/analysis-sessions/folder-analysis').ok
+
+
+def test_chat_sidebar_resize_drag_keyboard_and_reload(page):
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1500, 'height': 1000})
+    divider = page.get_by_role('separator', name='Chats width')
+    expect(divider).to_be_visible()
+    initial = int(divider.get_attribute('aria-valuenow'))
+    box = divider.bounding_box()
+    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + 60)
+    page.mouse.down()
+    page.mouse.move(box['x'] + box['width'] / 2 + 70, box['y'] + 60)
+    page.mouse.up()
+    expect(divider).to_have_attribute('aria-valuenow', str(initial + 70))
+    assert page.locator('.app-sidebar').bounding_box()['width'] == pytest.approx(initial + 70, abs=1)
+    divider.focus()
+    page.keyboard.press('ArrowRight')
+    expected = initial + 80
+    expect(divider).to_have_attribute('aria-valuenow', str(expected))
+    page.reload(wait_until='networkidle')
+    expect(divider).to_have_attribute('aria-valuenow', str(expected))
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    expect(divider).to_be_visible()
+    page.locator('#analysisChatsDrawerCloseBtn').click()
+    expect(divider).to_be_hidden()
+    page.locator('#analysisChatsDrawerBtn').click()
+    expect(divider).to_be_visible()
+    page.set_viewport_size({'width': 390, 'height': 844})
+    expect(divider).to_be_hidden()
 
 
 def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
@@ -3468,6 +3734,7 @@ def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
     expect(page.locator('#analysisTab')).to_have_class('tab-panel active')
     expect(dock.locator('.analysis-session-main[aria-current="true"]')).to_have_count(1)
     expect(dock.locator('.analysis-chat-date').first).to_have_text('Today')
+    page.locator('#chatSearchToggle').click()
     page.locator('#analysisChatSearch').fill('no-such-conversation-9876')
     expect(page.locator('#analysisSessionList')).to_contain_text('No matching chats')
     page.locator('#analysisChatSearch').fill('')
@@ -3484,6 +3751,8 @@ def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
     expect(page.locator('.app-icon-rail #accountAvatar')).to_be_visible()
     page.locator('#analysisChatsDrawerBtn').click()
     expect(page.locator('#analysisChatsDrawer')).to_be_visible()
+    expect(page.get_by_role('button', name='Close chats', exact=True)).to_be_visible()
+    expect(page.locator('#analysisChatsDrawerCloseBtn svg')).to_be_visible()
     expect(page.locator('#analysisChatSearch')).to_be_visible()
     page.locator('[data-analysis-session-id]').first.click()
     expect(page.locator('#analysisChatsDrawer')).to_be_hidden()

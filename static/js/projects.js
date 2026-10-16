@@ -1,6 +1,6 @@
 // One resume format for browser download/upload and native file dialogs.
 export function createProjectsUi({state, refs, sessions, query, workspace, datasets, navigation}) {
-  const host = document.querySelector('.app-sidebar-utility');
+  const rail = document.querySelector('.app-icon-rail');
   const save = document.createElement('button'), open = document.createElement('button');
   save.textContent = 'Save project…'; open.textContent = 'Open project…';
   for (const [button, path] of [
@@ -16,17 +16,46 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
   save.id = 'saveProjectBtn'; open.id = 'openProjectBtn';
   const status = document.createElement('p'); status.setAttribute('role', 'status');
   status.className = 'app-project-status';
-  const section = document.createElement('details');
-  section.className = 'app-project-section';
-  const heading = document.createElement('summary');
+  const toggle = document.createElement('button');
+  toggle.type = 'button'; toggle.id = 'projectsMenuBtn'; toggle.className = 'rail-projects';
+  toggle.title = 'Projects — save or open';
+  toggle.setAttribute('aria-label', toggle.title);
+  toggle.setAttribute('aria-haspopup', 'dialog');
+  toggle.setAttribute('aria-controls', 'projectsMenu');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.append(save.querySelector('.button-icon').cloneNode(true));
+  rail.insertBefore(toggle, document.getElementById('runHistoryDrawerBtn'));
+  const section = document.createElement('div');
+  section.id = 'projectsMenu'; section.className = 'account-menu app-project-menu';
+  section.hidden = true; section.setAttribute('role', 'dialog');
+  section.setAttribute('aria-label', 'Projects');
+  const heading = document.createElement('p');
   heading.className = 'app-nav-heading'; heading.textContent = 'Projects';
-  section.append(heading, save, open);
-  const account = host.querySelector('.app-sidebar-account');
-  host.insertBefore(section, account);
-  host.insertBefore(status, account);
+  const hint = document.createElement('p');
+  hint.className = 'app-project-hint'; hint.textContent = 'Save or reopen your working state. Data files are not included.';
+  section.append(heading, hint, save, open, status);
+  document.body.append(section);
+  function showMenu(visible, focus = false) {
+    section.hidden = !visible;
+    toggle.setAttribute('aria-expanded', String(visible));
+    if (visible) {
+      const bounds = toggle.getBoundingClientRect();
+      section.style.left = `${Math.max(8, Math.min(bounds.right + 8, window.innerWidth - section.offsetWidth - 8))}px`;
+      section.style.bottom = `${Math.max(8, Math.min(window.innerHeight - bounds.bottom, window.innerHeight - section.offsetHeight - 8))}px`;
+      if (focus) save.focus();
+    }
+  }
+  toggle.addEventListener('click', () => showMenu(section.hidden, true));
+  document.addEventListener('click', event => {
+    if (!section.contains(event.target) && !toggle.contains(event.target)) showMenu(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !section.hidden) { showMenu(false); toggle.focus(); }
+  });
+  window.addEventListener('resize', () => showMenu(false));
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.cohortome,application/json'; input.hidden = true;
-  host.append(input);
+  section.append(input);
   let busy = false, projectName = 'My project';
   const native = () => window.__COHORTOME_DESKTOP__ && window.__TAURI__?.core;
   function idle() {
@@ -41,11 +70,12 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
     return payload;
   }
   async function run(action) {
+    showMenu(true);
     try {
       idle(); busy = true; save.disabled = open.disabled = true;
       await action();
     } catch (error) { status.textContent = error.message; }
-    finally { busy = false; save.disabled = open.disabled = false; }
+    finally { busy = false; save.disabled = open.disabled = false; showMenu(true); }
   }
   async function saveProject() {
     if (!state.currentDatasetIds.length) throw new Error('Select and apply a dataset before saving a project.');

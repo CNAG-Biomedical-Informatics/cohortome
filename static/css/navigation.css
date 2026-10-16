@@ -15,9 +15,19 @@ main:has(> #appShell:not(.is-hidden)) {
   background: transparent;
   box-shadow: none;
   overflow: visible;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 .app-header::after { display: none; }
-.app-header .hero-brand { gap: 10px; min-width: 0; }
+.app-header .hero-brand { flex: 0 0 auto; gap: 10px; min-width: 0; }
+.app-header .context-bar { flex: 1 1 600px; min-width: 0; max-width: 840px; margin: 0 auto; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.app-header .context-pill { padding: 0 12px; background: transparent; text-align: center; }
+.app-header .context-pill span { font-size: 11px; text-transform: none; letter-spacing: 0; margin-bottom: 2px; }
+.app-header .context-pill strong { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-header .hero-utility:empty { display: none; }
 .app-header .hero-logo {
   width: 36px;
   height: 36px;
@@ -158,9 +168,8 @@ main:has(> #appShell:not(.is-hidden)) {
   overflow-wrap: anywhere;
 }
 .app-project-status:empty { display: none; }
-.app-project-section { grid-column: 1 / -1; }
-.app-project-section > summary { cursor: pointer; padding: 8px 10px; }
-.app-project-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.app-project-menu .app-nav-heading { margin: 4px 10px; }
+.app-project-hint { margin: 6px 10px 10px; font-size: .75rem; color: var(--muted); }
 .app-sidebar-account {
   display: flex;
   align-items: center;
@@ -200,14 +209,18 @@ main:has(> #appShell:not(.is-hidden)) {
 }
 .account-signout:hover { color: var(--ink); text-decoration: underline; background: transparent; }
 .account-signout:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.has-icon-rail.app-workbench { grid-template-columns: 48px 232px minmax(0, 1fr); gap: 14px; }
+.has-icon-rail.app-workbench { grid-template-columns: 48px var(--chat-sidebar-width, 232px) 6px minmax(0, 1fr); gap: 8px; }
+.chat-width-divider { position: sticky; top: 18px; height: calc(100dvh - 110px); min-height: 360px; cursor: col-resize; touch-action: none; border-radius: 3px; }
+.chat-width-divider:hover, .chat-width-divider:focus-visible, .is-resizing-chats .chat-width-divider { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.chat-width-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.is-resizing-chats { user-select: none; cursor: col-resize; }
 .app-icon-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; position: sticky; top: 18px; height: calc(100dvh - 110px); min-height: 360px; }
 .app-icon-rail > button { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); box-shadow: none; font-size: 0; }
 .app-icon-rail > button > span:not(.button-icon):not(.tab-btn-icon):not(.account-avatar):not(#jobsDrawerCount) { display: none; }
 .app-icon-rail .button-icon, .app-icon-rail .tab-btn-icon, .app-icon-rail svg { width: 20px; height: 20px; flex-shrink: 0; }
 .app-icon-rail > button:hover, .app-icon-rail > button.active { background: color-mix(in srgb, var(--ink) 7%, var(--bg)); color: var(--ink); }
 .app-icon-rail > button:focus-visible, .account-menu :is(button,a):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.app-icon-rail > .rail-runs { margin-top: auto; }
+.app-icon-rail > .rail-projects { margin-top: auto; }
 .app-icon-rail #jobsDrawerCount { position: absolute; top: -2px; right: -3px; font-size: 10px; min-width: 16px; }
 .app-icon-rail #accountMenuButton { padding: 4px; }
 .app-icon-rail .account-avatar { width: 32px; }
@@ -215,10 +228,24 @@ main:has(> #appShell:not(.is-hidden)) {
 .has-icon-rail .app-sidebar { grid-template-rows: minmax(0, 1fr) auto; height: calc(100dvh - 110px); min-height: 360px; overflow: hidden; }
 .has-icon-rail:has(#analysisChatDock[hidden]) { grid-template-columns: 48px minmax(0, 1fr); }
 .has-icon-rail:has(#analysisChatDock[hidden]) .app-sidebar { display: none; }
-.dashboard-page-tabs.dashboard-subtabs { display: flex; flex-wrap: wrap; margin: 0 0 16px; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--line); gap: 6px; }
-.dashboard-page-tabs .dashboard-subtab { width: auto; font-size: 12px; min-height: 32px; padding: 6px 10px; }
+.has-icon-rail:has(#analysisChatDock[hidden]) .chat-width-divider { display: none; }
+.dashboard-page-tabs.dashboard-subtabs { display: flex; flex-wrap: wrap; margin: 0 0 12px; padding: 0; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); gap: 12px; background: transparent; }
+.dashboard-page-tabs .dashboard-subtab { width: auto; font-size: 12px; min-height: 36px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); box-shadow: none; }
+.dashboard-page-tabs .dashboard-subtab.active { background: transparent; border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.dashboard-page-tabs .dashboard-subtab:hover { background: transparent; color: var(--ink); }
+.dashboard-page-tabs .dashboard-subtab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.analysis-sidebar-header .chat-header-action { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-height: 32px; padding: 6px; border-radius: 6px; background: transparent; color: var(--muted); border-color: transparent; box-shadow: none; }
+.app-sidebar .analysis-sidebar-header .chat-header-action { width: 32px; min-height: 32px; padding: 6px; }
+.analysis-sidebar-header .chat-header-action svg { flex-shrink: 0; }
+.analysis-sidebar-header .chat-header-action:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+.analysis-sidebar-header .chat-header-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .app-header .context-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 0; }
+  .app-header .context-pill:nth-child(odd) { border-left: 0; padding-left: 0; }
+}
 .account-menu { position: fixed; z-index: 150; width: 280px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--bg)); color: var(--ink); box-shadow: 0 8px 32px #0003; }
 .account-menu[hidden] { display: none; }
+.account-menu .is-hidden { display: none !important; }
 .account-menu .app-sidebar-account { border: 0; padding: 10px; margin-bottom: 6px; }
 .account-menu :is(button,a) { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; min-height: 34px; font-size: 13px; text-align: left; background: transparent; color: var(--ink); border: 0; box-shadow: none; border-radius: 6px; }
 .account-menu :is(button,a):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
@@ -226,6 +253,7 @@ main:has(> #appShell:not(.is-hidden)) {
 .account-menu .app-nav-group { margin: 0; padding: 0; border: 0; }
 .account-menu .account-signout { margin-top: 6px; }
 @media (max-width: 900px) {
+  .chat-width-divider { display: none; }
   .has-icon-rail.app-workbench { grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
   .has-icon-rail .app-sidebar { display: none; }
   .app-icon-rail { height: calc(100dvh - 110px); }

@@ -161,6 +161,9 @@ export function createWorkspaceUi(ctx) {
       contextLmModelEl.textContent = "Checking...";
     }
     contextScopeEl.textContent = summarizeScopeForTab(currentTabName());
+    for (const element of [contextDataDirEl, contextCohortEl, contextScopeEl]) {
+      element.title = element.textContent;
+    }
     if (contextAuthEl) {
       if (!state.authState.enabled) {
         contextAuthEl.textContent = "Local user";

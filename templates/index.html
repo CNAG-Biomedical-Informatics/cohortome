@@ -107,6 +107,12 @@
             {% endif %}
           </div>
         </div>
+        <div class="context-bar" id="globalContextBar" aria-label="Workspace status">
+          <div class="context-pill"><span>Datasets</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>
+          <div class="context-pill"><span>Workspace</span><strong id="contextCohort">Loading...</strong></div>
+          <div class="context-pill"><span>LLM</span><strong id="contextLmModel">Checking...</strong></div>
+          <div class="context-pill"><span>Scope</span><strong id="contextScope">Full workspace</strong></div>
+        </div>
         <div id="heroAuthUtility" class="hero-utility is-hidden">
           <button id="jobsDrawerBtn" type="button" class="query-chip is-hidden" title="Open the background execution queue.">
             <span class="button-icon" aria-hidden="true">
@@ -253,8 +259,9 @@
         <div class="user-settings-danger">
           <strong>Delete saved data</strong>
           <p class="section-note">These actions delete data, not preferences. Each requires confirmation.</p>
+          <p class="section-note">Clearing chats keeps generated runs and files. Delete generated runs separately to remove their results and files; active runs are kept.</p>
           <div class="user-settings-danger-actions">
-            <button id="userDeleteChatsBtn" type="button" class="danger-btn">Delete analysis chats</button>
+            <button id="userDeleteChatsBtn" type="button" class="danger-btn">Clear chat history…</button>
             <button id="userDeleteJobsBtn" type="button" class="danger-btn">Delete generated runs</button>
             <button id="userDeleteCohortsBtn" type="button" class="danger-btn">Delete saved cohorts</button>
           </div>
@@ -311,16 +318,38 @@
             <div class="analysis-sidebar-copy">
               <strong id="analysisChatsDrawerTitle">Chats</strong>
             </div>
-            <button id="analysisChatsDrawerCloseBtn" type="button" class="query-chip">Close</button>
-            <button id="analysisNewSessionBtn" type="button" class="query-chip action" aria-label="New chat">New</button>
+            <button id="chatSearchToggle" type="button" class="query-chip chat-header-action" aria-label="Search chats" title="Search chats" aria-expanded="false" aria-controls="analysisChatSearch"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg></button>
+            <button id="analysisChatsDrawerCloseBtn" type="button" class="query-chip chat-header-action" aria-label="Close chats" title="Close chats">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m7-11-3 3 3 3"/></svg>
+            </button>
+            <button id="analysisNewSessionBtn" type="button" class="query-chip chat-header-action" aria-label="New chat" title="New chat" aria-expanded="false" aria-controls="newChatChoices">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7"/><path d="m16 3 5 5M10 14l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/></svg>
+            </button>
           </div>
-          <input id="analysisChatSearch" type="search" aria-label="Search chats" placeholder="Search chats">
-          <div id="analysisSessionList" class="analysis-session-list">
+          <div id="newChatChoices" class="new-chat-choices" hidden aria-label="Choose chat type">
+            <button id="newQueryChatBtn" type="button">Query chat</button>
+            <button id="newAnalysisChatBtn" type="button">Analysis chat</button>
+            <button id="newChatFolderBtn" type="button">New folder</button>
+            <button id="selectChatsBtn" type="button">Select chats…</button>
+          </div>
+          <input id="analysisChatSearch" type="search" aria-label="Search chats" placeholder="Search chats" hidden>
+          <div id="analysisSessionList" class="analysis-session-list chat-session-list">
             <div class="empty">No chats yet.</div>
           </div>
+          <div id="queryChatSaveStatus" role="status" class="chat-save-status" hidden></div>
+          <div id="chatFolderStatus" role="status" class="chat-folder-status" hidden></div>
         </aside>
       </div>
 
+      <dialog id="chatMoveDialog" class="chat-move-dialog" aria-labelledby="chatMoveTitle">
+        <form method="dialog">
+          <strong id="chatMoveTitle">Move chat</strong>
+          <label for="chatMoveDestination">Folder</label>
+          <select id="chatMoveDestination"></select>
+          <p id="chatMoveError" role="status"></p>
+          <div class="chat-move-actions"><button value="cancel">Cancel</button><button id="chatMoveConfirm" type="button">Move</button></div>
+        </form>
+      </dialog>
       <div id="analysisSessionDeleteDialog" class="analysis-session-delete-dialog is-hidden" aria-hidden="true">
         <div class="analysis-session-delete-dialog-backdrop" data-analysis-session-delete-close="true"></div>
         <div class="analysis-session-delete-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="analysisSessionDeleteTitle">
@@ -433,8 +462,7 @@
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="7"></circle>
-              <path d="m21 21-4.35-4.35"></path>
+              <path d="M4 4h16v12H9l-5 4Z"></path>
             </svg>
           </span>
           <span>Query</span>
@@ -548,13 +576,6 @@
         </aside>
 
         <div class="app-content">
-
-      <div class="context-bar" id="globalContextBar">
-        <div class="context-pill"><span>Datasets</span><strong id="contextDataDir">{{ default_data_dir }}</strong></div>
-        <div class="context-pill"><span>Workspace</span><strong id="contextCohort">Loading...</strong></div>
-        <div class="context-pill"><span>LLM</span><strong id="contextLmModel">Checking...</strong></div>
-        <div class="context-pill"><span>Scope</span><strong id="contextScope">Full workspace</strong></div>
-      </div>
 
       <section id="dashboardTab" class="tab-panel active">
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
@@ -922,7 +943,8 @@
           </div>
           <div class="analysis-history-header">
             <div class="query-thread-header-copy">
-              <span>Query Thread</span>
+              <strong id="queryCurrentChatTitle">New Query chat</strong>
+              <small id="queryChatPersistence" role="status"></small>
             </div>
             <div class="query-thread-mode" aria-label="Query thread mode">
               <span id="queryThreadModeLabel" class="query-thread-mode-label">Workspace mode</span>
@@ -937,6 +959,11 @@
                 </span>
               </button>
             </div>
+          </div>
+          <div id="queryChatContextNotice" class="query-chat-notice" hidden></div>
+          <div id="queryChatMessage" class="query-chat-notice" hidden>
+            <span id="queryChatMessageText"></span>
+            <button id="queryChatSaveRetry" type="button" class="query-chip" hidden>Retry save</button>
           </div>
           <div id="queryThread" class="analysis-thread">
             <div class="empty">Ask a query to start a conversational thread. Recent text history is kept, but previous-result memory is opt-in.</div>
@@ -1008,7 +1035,7 @@
                       <path d="M14 11v6"></path>
                     </svg>
                   </span>
-                  <span>Clear thread</span>
+                  <span>New Query chat</span>
                 </button>
               </div>
             </div>

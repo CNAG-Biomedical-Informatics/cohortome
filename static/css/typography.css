@@ -37,7 +37,7 @@
 .job-completion-notice button,
 .analysis-session-delete-dialog button,
 .app-content button:not(.icon-button, .chat-copy-button, .query-sort-button,
-  .js-plotly-plot *, .analysis-flow-step, .context-mode-option) {
+  .js-plotly-plot *, .analysis-flow-step, .context-mode-option, .dashboard-subtab) {
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.35;

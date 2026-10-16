@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COHORTome assay manifest v1",
+  "type": "object",
+  "required": ["version", "assays"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "assays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assay_id", "modality", "data_type", "file", "feature_namespace", "feature_id_column", "sample_id_column"],
+        "properties": {
+          "assay_id": {"type": "string", "pattern": "\\S"},
+          "label": {"type": "string"},
+          "modality": {"type": "string", "pattern": "\\S"},
+          "data_type": {"type": "string", "pattern": "\\S"},
+          "file": {"type": "string", "pattern": "\\S"},
+          "feature_namespace": {"type": "string", "pattern": "\\S"},
+          "feature_id_column": {"type": "string", "pattern": "\\S"},
+          "sample_id_column": {"const": "matrix_columns"},
+          "level": {"const": "sample"},
+          "sample_metadata_file": {"type": "string", "pattern": "\\S"},
+          "patient_linkage": {"enum": ["sample_metadata_file", "exact_sample_id"]},
+          "patient_id_column": {"enum": ["patient_id", "derived_from_sample_id_prefix"]},
+          "feature_count": {"type": "integer", "minimum": 1}
+        },
+        "anyOf": [
+          {"required": ["sample_metadata_file"]},
+          {"required": ["patient_linkage"], "properties": {"patient_linkage": {"const": "exact_sample_id"}}},
+          {"required": ["patient_id_column"], "properties": {"patient_id_column": {"const": "derived_from_sample_id_prefix"}}}
+        ],
+        "allOf": [{
+          "if": {"required": ["patient_linkage"], "properties": {"patient_linkage": {"const": "sample_metadata_file"}}},
+          "then": {"required": ["sample_metadata_file"]}
+        }]
+      }
+    }
+  }
+}

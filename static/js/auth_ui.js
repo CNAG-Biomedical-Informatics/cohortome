@@ -451,6 +451,8 @@ export function createAuthUi(ctx) {
   }
 
   async function logoutLocal() {
+    // A local-owner deployment has no login session to end.
+    if (!state.authState.enabled) return;
     try {
       await fetch("/auth/logout", { method: "POST" });
     } catch (_error) {

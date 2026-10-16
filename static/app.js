@@ -16,6 +16,9 @@ import { createAnalysisSessionsUi } from "/static/js/analysis_sessions.js";
 import { createSavedCohortsUi } from "/static/js/saved_cohorts.js";
 import { createPhenoUi } from "/static/js/pheno.js";
 import { createQueryUi } from "/static/js/query.js";
+import { createQuerySessionsUi } from "/static/js/query_sessions.js";
+import { createChatFoldersUi } from "/static/js/chat_folders.js";
+import { createChatDeletionUi } from "/static/js/chat_deletion.js";
 import { createAnalysisUi } from "/static/js/analysis.js";
 import { createUserSettingsUi } from "/static/js/user_settings.js";
 import { createDeploymentBrandingUi } from "/static/js/deployment_branding.js";
@@ -83,6 +86,9 @@ let analysisSessionsUi;
 let savedCohortsUi;
 let phenoUi;
 let queryUi;
+let querySessionsUi;
+let chatFoldersUi;
+let chatDeletionUi;
 let analysisUi;
 let userSettingsUi;
 
@@ -100,6 +106,8 @@ function makeAnalysisSession(overrides = {}) {
 
 function clearDatasetScopedContent(options = {}) {
   const signedOut = options.signedOut === true;
+  if (signedOut) querySessionsUi?.clear();
+  if (signedOut) { chatDeletionUi?.clear(); chatFoldersUi?.clear(); }
   const clearSelection = options.clearSelection === true;
   const nextScopeId = String(options.nextScopeId || "").trim();
   state.workspaceRevision += 1;
@@ -367,7 +375,9 @@ function initializeAnalysisSidebarCollapsed() {
     panel.setAttribute("role", wide.matches ? "complementary" : "dialog");
     if (wide.matches) panel.removeAttribute("aria-modal");
     else panel.setAttribute("aria-modal", "true");
-    refs.analysisChatsDrawerCloseBtnEl.textContent = wide.matches ? "Hide" : "Close";
+    const closeChatsLabel = wide.matches ? "Hide chats" : "Close chats";
+    refs.analysisChatsDrawerCloseBtnEl.setAttribute("aria-label", closeChatsLabel);
+    refs.analysisChatsDrawerCloseBtnEl.title = closeChatsLabel;
     refs.analysisChatsDrawerEl.classList.add("is-hidden");
     refs.analysisChatsDrawerEl.setAttribute("aria-hidden", "true");
     refs.analysisChatsDrawerBtnEl.setAttribute("aria-expanded", String(wide.matches));
@@ -545,6 +555,7 @@ navigationUi = createNavigationUi({
   },
   callbacks: {
     effectiveQueryGranularityCeiling: (datasetIds) => datasetsUi.effectiveQueryGranularityCeiling(datasetIds),
+    renderChatList: () => analysisSessionsUi?.renderAnalysisSessionList(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     closeJobSurfaces: () => {
       if (jobsUi) {
@@ -654,6 +665,9 @@ queryUi = createQueryUi({
   },
   callbacks: {
     renderQueryStarterPrompts: () => analysisCatalogUi.renderQueryStarterPrompts(),
+    saveQueryChat: () => querySessionsUi?.save(),
+    detachQueryChat: () => querySessionsUi?.detach(),
+    queryContinuationIssue: () => querySessionsUi?.continuationIssue(),
     renderQueryExecutionMode: () => analysisCatalogUi.renderQueryExecutionMode(),
     startQueryProgressUpdates,
     stopQueryProgressUpdates,
@@ -719,6 +733,13 @@ analysisSessionsUi = createAnalysisSessionsUi({
     nowIso,
   },
   callbacks: {
+    queryChatEntries: () => querySessionsUi?.entries() || [],
+    chatOrganizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
+    organizeChats: (items, row, search) => {
+      const renderRow = (item, dates) => chatDeletionUi ? chatDeletionUi.row(item, row(item, dates)) : row(item, dates);
+      return (chatDeletionUi?.toolbar() || '') + (chatFoldersUi ? chatFoldersUi.organize(items, renderRow, search) : items.map(item => renderRow(item)).join(''));
+    },
+    renderQueryChatCard: (item) => querySessionsUi.renderCard(item),
     createAnalysisSession: makeAnalysisSession,
     currentAnalysisSession,
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
@@ -735,6 +756,30 @@ analysisSessionsUi = createAnalysisSessionsUi({
   state,
   constants: {
     ANALYSIS_SESSIONS_STORAGE_KEY,
+  },
+});
+
+querySessionsUi = createQuerySessionsUi({ state, refs, query: queryUi, escapeHtml,
+  organizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
+  openQuery: () => navigationUi.setActiveTab('query'),
+  closeDrawer: () => {
+    if (!document.getElementById('analysisChatDock').contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
+  },
+  renderList: () => analysisSessionsUi.renderAnalysisSessionList(),
+});
+
+chatFoldersUi = createChatFoldersUi({ escapeHtml, renderList: () => analysisSessionsUi.renderAnalysisSessionList() });
+chatDeletionUi = createChatDeletionUi({ state, escapeHtml,
+  render: () => analysisSessionsUi.renderAnalysisSessionList(),
+  entries: () => [...state.analysisSessions, ...querySessionsUi.entries()],
+  pins: () => chatFoldersUi.pins(),
+  prepare: async () => {
+    if (!await querySessionsUi.save()) throw new Error('Save or resolve the current Query chat before deleting.');
+    await analysisSessionsUi.flushCurrentForProject();
+  },
+  forget: item => {
+    if (item.chatKind === 'query') querySessionsUi.forgetDeletedChats([item.id]);
+    else analysisSessionsUi.forgetDeletedChats([item.id]);
   },
 });
 
@@ -898,7 +943,11 @@ authUi = createAuthUi({
     renderAnalysisCatalog: () => analysisCatalogUi.renderAnalysisCatalog(),
     createAnalysisSession: makeAnalysisSession,
     ensureAnalysisSessionsLoaded: () => analysisSessionsUi.ensureAnalysisSessionsLoaded(),
-    loadAnalysisSessionsFromBackend: () => analysisSessionsUi.loadAnalysisSessionsFromBackend(),
+    loadAnalysisSessionsFromBackend: async () => {
+      await chatFoldersUi.load();
+      await querySessionsUi.load();
+      return analysisSessionsUi.loadAnalysisSessionsFromBackend();
+    },
     applyAnalysisSession: (session) => analysisSessionsUi.applyAnalysisSession(session),
     loadDatasets: () => datasetsUi.loadDatasets(),
     loadPatients: (options) => workspaceUi.loadPatients(options),
@@ -1043,7 +1092,7 @@ function bindEvents() {
     });
   });
   refs.userDeleteChatsBtnEl && refs.userDeleteChatsBtnEl.addEventListener("click", () => {
-    void userSettingsUi.deleteUserData("chats");
+    chatDeletionUi.open();
   });
   refs.userDeleteJobsBtnEl && refs.userDeleteJobsBtnEl.addEventListener("click", () => {
     void userSettingsUi.deleteUserData("jobs");
@@ -1100,12 +1149,7 @@ function bindEvents() {
     refs.queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
   });
   refs.queryClearBtnEl && refs.queryClearBtnEl.addEventListener("click", () => {
-    queryUi.resetQueryWorkspace();
-    state.queryFollowMemoryEnabled = false;
-    if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.add("is-hidden");
-    refs.queryDiseaseBuilderBtnEl && refs.queryDiseaseBuilderBtnEl.classList.remove("is-active");
-    analysisCatalogUi.renderQueryExecutionMode();
-    refs.questionEl && refs.questionEl.focus();
+    void querySessionsUi.newChat();
   });
 
   refs.analysisRunBtnEl && refs.analysisRunBtnEl.addEventListener("click", () => {
@@ -1158,10 +1202,33 @@ function bindEvents() {
     }
   });
   refs.analysisNewSessionBtnEl && refs.analysisNewSessionBtnEl.addEventListener("click", () => {
+    const choices = document.getElementById('newChatChoices');
+    choices.hidden = !choices.hidden;
+    refs.analysisNewSessionBtnEl.setAttribute('aria-expanded', String(!choices.hidden));
+    if (!choices.hidden) document.getElementById('newQueryChatBtn').focus();
+  });
+  const closeNewChatChoices = () => {
+    document.getElementById('newChatChoices').hidden = true;
+    refs.analysisNewSessionBtnEl.setAttribute('aria-expanded', 'false');
+  };
+  document.getElementById('newQueryChatBtn').addEventListener('click', () => {
+    closeNewChatChoices();
+    void querySessionsUi.newChat();
+  });
+  document.getElementById('newAnalysisChatBtn').addEventListener('click', () => {
+    closeNewChatChoices();
     document.getElementById("analysisChatSearch").value = "";
     analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
     navigationUi.setActiveTab("analysis");
     if (!document.getElementById("analysisChatDock").contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.getElementById('newChatChoices').hidden) {
+      closeNewChatChoices(); refs.analysisNewSessionBtnEl.focus();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#newChatChoices, #analysisNewSessionBtn')) closeNewChatChoices();
   });
 
   refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => {
@@ -1745,6 +1812,8 @@ function initializeUiShell() {
   savedCohortsUi.renderPhenoSavedCohortsSelection();
   analysisSessionsUi.ensureAnalysisSessionsLoaded();
   void analysisSessionsUi.loadAnalysisSessionsFromBackend();
+  void querySessionsUi.load();
+  void chatFoldersUi.load();
   analysisUi.renderAnalysisCompareMode();
   analysisUi.renderAnalysisContextMode();
   dashboardUi.renderAnalysisCompareScopeSummary();

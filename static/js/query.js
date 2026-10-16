@@ -200,6 +200,7 @@ export function createQueryUi(ctx) {
   }
 
   function setQueryContextMode(value) {
+    if (state.queryInFlight) return;
     state.queryContextMode = value === "general" ? "general" : "workspace";
     if (isGeneralQuestionMode()) {
       state.queryExecutionMode = "auto";
@@ -731,6 +732,7 @@ export function createQueryUi(ctx) {
   }
 
   function resetQueryWorkspace() {
+    callbacks.detachQueryChat?.();
     state.queryHistory = [];
     state.queryTurns = [];
     queryPromptLibraryOpen = true;
@@ -789,10 +791,10 @@ export function createQueryUi(ctx) {
         : "";
       return `
         <article class="analysis-turn query-thread-turn ${toneClass}${index === latestAssistantIndex ? " query-thread-turn-latest" : ""}" data-query-turn-index="${index}">
-          <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : isGeneralQuestionMode() ? "Answer" : "Result"}</div>
+          <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : turn.contextMode === "general" ? "Answer" : "Result"}</div>
           <div class="analysis-turn-body">
             <div data-chat-copy-content>${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}</div>
-            ${!turn.pending && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
+            ${!turn.pending && !turn.restored && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
             ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(data.follow_up_suggestions, data.follow_up_suggestion_metadata) : ""}
           </div>
           ${turn.pending ? "" : `<details class="query-response-details"><summary>Response details</summary><div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div></details>`}
@@ -980,6 +982,12 @@ export function createQueryUi(ctx) {
 
   async function askQuery() {
     if (state.queryInFlight) return;
+    const continuationIssue = callbacks.queryContinuationIssue?.();
+    if (continuationIssue || state.queryTurns.length >= 200) {
+      queryStatusEl.className = 'query-status';
+      queryStatusEl.textContent = continuationIssue || 'This chat has reached 100 questions. Start a new Query chat to continue.';
+      return;
+    }
     const question = questionEl.value.trim();
     const queryMode = state.queryExecutionMode;
     const granularityMode = state.queryGranularityMode;
@@ -1014,9 +1022,18 @@ export function createQueryUi(ctx) {
       }
       : { patientIds: [], recordIds: [], resultHandle: "", idType: "patient" };
     const workspaceRevision = state.workspaceRevision;
-    const requestIsStale = () => !generalQuestion && workspaceRevision !== state.workspaceRevision;
+    const requestIsStale = () => workspaceRevision !== state.workspaceRevision;
     state.queryInFlight = true;
     askBtnEl.disabled = true;
+    const chatSaved = await callbacks.saveQueryChat?.();
+    if (requestIsStale()) return;
+    if (chatSaved === false) {
+      state.queryInFlight = false;
+      askBtnEl.disabled = false;
+      queryStatusEl.className = 'query-status';
+      queryStatusEl.textContent = 'Unable to save this chat. Check the message in Chats before retrying.';
+      return;
+    }
     queryStatusEl.className = "query-status loading";
     queryStatusEl.textContent = generalQuestion ? "Waiting for the model..." : "Running query. Waiting for response...";
     queryReplyEl.innerHTML = generalQuestion
@@ -1037,7 +1054,6 @@ export function createQueryUi(ctx) {
         : "Interpreting the cohort question and selecting the right query path.",
       payload: { reply: "Running query..." },
     });
-    state.queryTurns = state.queryTurns.slice(-16);
     questionEl.value = "";
     renderTopDiseaseChips();
     renderQueryThread();
@@ -1085,6 +1101,7 @@ export function createQueryUi(ctx) {
         if (queryActionsEl) queryActionsEl.innerHTML = "";
         state.queryTurns[state.queryTurns.length - 1] = {
           role: "assistant",
+          contextMode: generalQuestion ? "general" : "workspace",
           payload: { intent: "query_error", reply: String(error.detail || "Query failed."), data: { source: "error", provider: "deterministic" } },
       };
       renderQueryThread();
@@ -1139,10 +1156,12 @@ export function createQueryUi(ctx) {
       queryStatusEl.className = "query-status";
       queryStatusEl.textContent = "Network error.";
     } finally {
+      if (requestIsStale()) return;
+      await callbacks.saveQueryChat?.();
       stopQueryProgressUpdates();
       state.queryInFlight = false;
       askBtnEl.disabled = false;
-      questionEl.focus();
+      if (queryTabEl.classList.contains('active')) questionEl.focus();
     }
   }
 
@@ -1448,6 +1467,15 @@ export function createQueryUi(ctx) {
   }
 
   return {
+    markRestoredChat() {
+      for (const turn of state.queryTurns) {
+        if (turn.role !== 'assistant') continue;
+        turn.restored = true;
+        const handle = queryResultPage(turn.payload).resultHandle;
+        turn.payload = payloadWithoutQueryResultHandle(turn.payload, handle);
+      }
+      renderQueryThread();
+    },
     renderQueryReply,
     renderQueryReason,
     renderQueryActions,

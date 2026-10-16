@@ -1,3 +1,5 @@
+import { addChatMenuIcons } from './chat_folders.js';
+
 export function createAnalysisSessionsUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
   const {
@@ -286,25 +288,27 @@ export function createAnalysisSessionsUi(ctx) {
   function renderAnalysisSessionList() {
     if (!analysisSessionListEl) return;
     renderCurrentAnalysisChatBar();
-    if (!state.analysisSessions.length) {
+    const allSessions = [...state.analysisSessions, ...(callbacks.queryChatEntries?.() || [])];
+    if (!allSessions.length && !callbacks.organizeChats) {
       analysisSessionListEl.innerHTML = '<div class="empty">No chats yet.</div>';
       return;
     }
     const search = (chatSearch?.value || "").trim().toLocaleLowerCase();
-    const ordered = state.analysisSessions.filter(session => !search ||
+    const ordered = allSessions.filter(session => !search ||
       [analysisSessionTitle(session), session.promptDraft, ...(session.turns || []).filter(turn => turn.role === "user").map(turn => turn.prompt)]
         .join(" ").toLocaleLowerCase().includes(search))
       .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
     let previousGroup = "";
-    analysisSessionListEl.innerHTML = ordered.map((session) => {
-      const active = session.id === state.currentAnalysisSessionId ? " is-active" : "";
+    const renderRow = (session, showDate = true) => {
+      const active = session.id === state.currentAnalysisSessionId && !document.getElementById('queryTab').classList.contains('active') ? " is-active" : "";
       const workspaceLabel = analysisWorkspaceStatusLabel(session);
       const date = new Date(session.updatedAt);
       const group = date >= today ? "Today" : date >= yesterday ? "Yesterday" : "Older";
-      const heading = group !== previousGroup ? `<h4 class="analysis-chat-date">${group}</h4>` : "";
+      const heading = showDate && group !== previousGroup ? `<h4 class="analysis-chat-date">${group}</h4>` : "";
       previousGroup = group;
+      if (session.chatKind === 'query') return heading + callbacks.renderQueryChatCard(session);
       const turns = session.turns || [];
       const last = turns.filter(turn => turn.role === "assistant").at(-1);
       const activeRun = turns.find(turn => turn.pending || ["queued", "running"].includes(turn.payload?.data?.job_status)
@@ -315,16 +319,21 @@ export function createAnalysisSessionsUi(ctx) {
         ${heading}
         <div class="analysis-session-card${active}">
           <button type="button" class="analysis-session-main" data-analysis-session-id="${escapeHtml(session.id)}" ${active ? 'aria-current="true"' : ''} title="${escapeHtml(analysisSessionTitle(session))}">
-            <div class="analysis-session-title">${escapeHtml(analysisSessionTitle(session))}</div>
+            <div class="analysis-session-title"><span class="chat-type-icon" title="Analysis chat" aria-label="Analysis chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 3v17h17M9 16v-4m5 4V6m5 10V9"/></svg></span>${escapeHtml(analysisSessionTitle(session))}</div>
             ${status ? `<small class="analysis-chat-status">${escapeHtml(status)}</small>` : ''}
           </button>
           <details class="analysis-chat-menu"><summary aria-label="Actions for ${escapeHtml(analysisSessionTitle(session))}">⋯</summary><div>
+            ${callbacks.chatOrganizationActions?.('analysis', session.id) || ''}
             <button type="button" data-analysis-session-rename="${escapeHtml(session.id)}">Rename</button>
             <button type="button" data-analysis-session-delete="${escapeHtml(session.id)}">Delete</button>
           </div></details>
         </div>
       `;
-    }).join("") || '<div class="empty">No matching chats.</div>';
+    };
+    analysisSessionListEl.innerHTML = callbacks.organizeChats
+      ? callbacks.organizeChats(ordered, renderRow, search)
+      : ordered.map(session => renderRow(session)).join('') || '<div class="empty">No matching chats.</div>';
+    addChatMenuIcons(analysisSessionListEl);
   }
 
   function renderCurrentAnalysisChatBar() {
@@ -594,6 +603,16 @@ export function createAnalysisSessionsUi(ctx) {
     createAndSelectAnalysisSession,
     ensureAnalysisSessionsLoaded,
     resetAnalysisSessionsAfterBulkDelete,
+    forgetDeletedChats(ids) {
+      state.analysisSessions = state.analysisSessions.filter(item => !ids.includes(item.id));
+      if (!state.analysisSessions.length) resetAnalysisSessionsAfterBulkDelete();
+      else if (ids.includes(state.currentAnalysisSessionId)) {
+        state.currentAnalysisSessionId = state.analysisSessions[0].id;
+        applyAnalysisSession(state.analysisSessions[0]);
+      }
+      persistAnalysisSessions();
+      renderAnalysisSessionList();
+    },
     renameAnalysisSession,
     deleteAnalysisSessionById,
     prepareAnalysisSessionForDataDir,

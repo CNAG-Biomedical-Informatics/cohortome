@@ -127,6 +127,19 @@ class AssayExpressionRequest(BaseModel):
     compare_selected_patient_ids: str = Field(default="", description="Optional comma-separated scope IDs for cohort B filtering.")
 
 
+class QuerySessionRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    revision: int = Field(default=0, ge=0)
+    title: str = Field(default="", max_length=200)
+    title_custom: bool = False
+    dataset_id: str = Field(default="", max_length=2000)
+    prompt_draft: str = Field(default="", max_length=20000)
+    context_mode: Literal["workspace", "general"] = "workspace"
+    execution_mode: Literal["auto", "planner_only", "deterministic_only"] = "auto"
+    history: List[Dict[str, Any]] = Field(default_factory=list, max_length=16)
+    turns: List[Dict[str, Any]] = Field(default_factory=list, max_length=200)
+
+
 class AnalysisSessionRequest(BaseModel):
     script_draft: Dict[str, Any] = Field(default_factory=dict)
     measurement: str = Field(default="", max_length=512)

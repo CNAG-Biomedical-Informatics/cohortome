@@ -130,6 +130,7 @@ export function createNavigationUi(ctx) {
     }
     renderTabHelperText(tabName);
     renderGlobalContext();
+    callbacks.renderChatList?.();
   }
 
   function setDashboardSubtab(subtabName) {

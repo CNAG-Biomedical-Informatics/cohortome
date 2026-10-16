@@ -53,6 +53,7 @@ export function initializeNavigationShell() {
   document.body.append(menu);
   sidebar.querySelector('.app-sidebar-nav').remove();
   workbench.classList.add('has-icon-rail');
+  initializeChatResize(workbench, sidebar);
   function setOpen(open, restoreFocus = false) {
     menu.hidden = !open;
     avatarButton.setAttribute('aria-expanded', String(open));
@@ -75,4 +76,62 @@ export function initializeNavigationShell() {
     if (action && action.id !== 'adminTabBtn') setOpen(false);
   });
   window.addEventListener('resize', () => setOpen(false));
+}
+
+function initializeChatResize(workbench, sidebar) {
+  const divider = document.createElement('div');
+  divider.className = 'chat-width-divider';
+  divider.tabIndex = 0;
+  divider.setAttribute('role', 'separator');
+  divider.setAttribute('aria-orientation', 'vertical');
+  divider.setAttribute('aria-label', 'Chats width');
+  divider.setAttribute('aria-controls', 'analysisChatDock');
+  divider.title = 'Drag to resize Chats. Use arrow keys when focused.';
+  sidebar.after(divider);
+  const storageKey = 'cohortome.chatSidebarWidth';
+  let width = 232;
+  let drag = null;
+  try { width = Number(localStorage.getItem(storageKey)) || width; } catch (_) { /* Storage is optional. */ }
+  if (!Number.isFinite(width)) width = 232;
+  let preferredWidth = width;
+  function setWidth(value) {
+    const maximum = Math.max(200, Math.min(420, (workbench.clientWidth || 920) - 500));
+    width = Math.round(Math.max(200, Math.min(maximum, value)));
+    workbench.style.setProperty('--chat-sidebar-width', `${width}px`);
+    divider.setAttribute('aria-valuemin', '200');
+    divider.setAttribute('aria-valuemax', String(maximum));
+    divider.setAttribute('aria-valuenow', String(width));
+  }
+  function persist() {
+    preferredWidth = width;
+    try { localStorage.setItem(storageKey, String(width)); } catch (_) { /* Keep in-memory width. */ }
+  }
+  setWidth(width);
+  divider.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    drag = { x: event.clientX, width };
+    divider.setPointerCapture(event.pointerId);
+    divider.focus();
+    workbench.classList.add('is-resizing-chats');
+    event.preventDefault();
+  });
+  divider.addEventListener('pointermove', event => {
+    if (drag) setWidth(drag.width + event.clientX - drag.x);
+  });
+  function finish() {
+    if (!drag) return;
+    drag = null;
+    workbench.classList.remove('is-resizing-chats');
+    persist();
+  }
+  divider.addEventListener('pointerup', finish);
+  divider.addEventListener('pointercancel', finish);
+  divider.addEventListener('lostpointercapture', finish);
+  divider.addEventListener('keydown', event => {
+    const step = event.shiftKey ? 25 : 10;
+    const values = { ArrowLeft: width - step, ArrowRight: width + step, Home: 200, End: 420 };
+    if (!(event.key in values)) return;
+    event.preventDefault(); setWidth(values[event.key]); persist();
+  });
+  window.addEventListener('resize', () => setWidth(preferredWidth));
 }

@@ -4,6 +4,65 @@ sidebar_position: 1
 
 # Query
 
+## Saved chats
+
+The left sidebar lists Query and Analysis chats together, ordered by recent
+activity. A speech bubble identifies Query chats; a chart identifies Analysis
+chats. Use the compose icon beside **Chats** to choose a new Query or Analysis
+chat. Select a chat to reopen it, or use its three-dot menu to rename or delete it.
+Drag the divider to the right of Chats to adjust its width. The width is remembered
+on this device. You can also focus the divider and use the left/right arrow keys.
+
+Use the magnifying-glass button beside **Chats** to open search. Escape clears
+the search and closes the field.
+
+### Folders and pins
+
+To delete several chats, choose **Select chats…** from the compose menu, check
+the chats, and choose **Delete selected…**. The count includes selections hidden
+by search or collapsed folders. Pinned shortcuts refer to the same chat and are
+counted once. Confirmation is required.
+
+In Settings, **Clear chat history…** lets you choose Query, Analysis, or both
+across folders and workspaces. Pinned chats are excluded unless explicitly included.
+Chat deletion removes messages and inline results, but keeps source datasets,
+saved cohorts, and generated runs and files in Run history. Use the separate
+**Delete generated runs** action in Settings to clean up those files; active runs
+are kept.
+
+Choose **New folder** from the compose menu to create a personal folder. Query
+and Analysis chats can share a folder. In a chat's three-dot menu, choose
+**Move to folder…**, then select a folder or **Unfiled**. Folder menus offer
+rename and deletion. Deleting a folder moves its chats to Unfiled; it does not
+delete conversations, cohorts or runs.
+
+Choose **Pin** on a chat or folder to add a shortcut in **Pinned**. The original
+chat stays in its folder, and moving it does not remove the pin. **Unpin** only
+removes the shortcut. Folder names, assignments and pins are saved for your user
+on this installation. Folders do not select datasets, grant access, add model
+context or change a chat's original workspace. They are separate from saved
+`.cohortome` project files.
+
+Query saves your questions, replies and draft to your account on this installation.
+Desktop saves them for the local owner. The conversation header shows its title
+and whether changes are saving, saved or not saved. A save failure stays visible
+above the conversation even when the sidebar is closed; use **Retry save** after
+a temporary failure. If another window changed the chat, **Reload saved chat**
+asks before discarding this window's unsaved changes. Do not close the app until
+save failures are resolved. Chats are not portable data bundles.
+The current limit is 100 questions per Query chat and 2 MB of saved content.
+
+Reopened replies are saved snapshots. Rerun a query to use result pagination,
+exports or cohort actions; saved result handles are not reactivated automatically.
+Continuing a chat requires its original, unchanged workspace. Dataset access and
+response-detail policy are checked again when retrieving it. Deleting a Query
+chat does not delete saved cohorts or Analysis runs.
+
+**General question** and **Workspace** messages retain separate model histories,
+including after reopening. A general question does not send the workspace part
+of the conversation to the model. Only recent messages are used as model history,
+even though the chat retains earlier replies.
+
 ## Sort and export patient or sample tables
 
 Click a column heading to sort **all matching rows**, including rows on later
@@ -47,7 +106,8 @@ When you submit a question, the introductory prompt library closes so the
 response has more space. The result keeps its provenance, execution labels,
 cohort actions and suggested follow-ups visible. Use **Prompts** beside the
 follow-up composer to reopen the examples without returning to the top of the
-conversation. **Clear thread** restores the initial view.
+conversation. **New Query chat** starts a separate conversation and keeps the old
+one in the sidebar.
 
 :::tip Best use
 Start here to select the group you want to analyze.

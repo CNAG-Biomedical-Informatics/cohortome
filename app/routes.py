@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from app import query_sessions
+from app.schemas import QuerySessionRequest
+from app.chat_folders import router as chat_folders_router
 
 import os
 import re
@@ -1221,6 +1224,8 @@ def login_local(request: Request, payload: LoginRequest) -> Dict:
 
 
 def logout_local(request: Request) -> Dict:
+    if not auth_enabled():
+        return get_auth_status(request)
     session = getattr(request, "session", None)
     if session is not None:
         session.clear()
@@ -2006,6 +2011,70 @@ def get_dicom_status(request: Request, dataset_id: str = "", data_dir: str = DEF
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def _query_session_access(item: Dict, request: Request) -> None:
+    if item.get("dataset_id"):
+        selected = resolve_dataset_ids(request, item["dataset_id"])
+        if effective_query_granularity_ceiling(selected) != item.get("granularity_ceiling"):
+            raise HTTPException(status_code=403, detail="Response-detail policy changed. Start a new Query chat.")
+
+
+def get_query_sessions(request: Request) -> Dict:
+    require_authenticated(request)
+    sessions = []
+    for item in query_sessions.list_sessions(request_user_id(request)):
+        try:
+            _query_session_access(item, request)
+        except HTTPException:
+            # Do not disclose even titles after access to a source is revoked.
+            continue
+        sessions.append({key: item.get(key) for key in ("id", "title", "updated_at", "dataset_id")})
+    return {"sessions": sessions}
+
+
+def get_query_session(session_id: str, request: Request) -> Dict:
+    require_authenticated(request)
+    item = query_sessions.get_session(request_user_id(request), session_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Query chat not found.")
+    _query_session_access(item, request)
+    status = _analysis_session_workspace_status(item, request) if item.get("dataset_id") else {"state": "current"}
+    return {**item, "workspace_status": status}
+
+
+def save_query_session(payload: QuerySessionRequest, request: Request) -> Dict:
+    require_authenticated(request)
+    item = payload.model_dump()
+    if len(json.dumps(item).encode("utf-8")) > 2_000_000:
+        raise HTTPException(status_code=413, detail="Chat is too large to save. Start a new chat.")
+    user_id = request_user_id(request)
+    existing = query_sessions.get_session(user_id, payload.id)
+    if existing:
+        _query_session_access(existing, request)
+        if payload.dataset_id != existing.get("dataset_id"):
+            raise HTTPException(status_code=409, detail="A chat cannot change its original workspace. Start a new chat.")
+        item["workspace_fingerprint"] = existing.get("workspace_fingerprint", {})
+        item["granularity_ceiling"] = existing.get("granularity_ceiling", "")
+    elif payload.dataset_id:
+        selected = resolve_dataset_ids(request, payload.dataset_id)
+        directory = resolve_dataset_dir(request, payload.dataset_id)
+        item["dataset_id"] = dataset_scope_id(selected)
+        item["workspace_fingerprint"] = workspace_fingerprint_for_data_dir(directory, dataset_id=item["dataset_id"], dataset_ids=selected)
+        item["granularity_ceiling"] = effective_query_granularity_ceiling(selected)
+    if not payload.dataset_id and (any(turn.get("contextMode") != "general" for turn in payload.turns) or any(turn.get("context_mode") != "general" for turn in payload.history)):
+        raise HTTPException(status_code=400, detail="Workspace messages require a dataset.")
+    try:
+        return query_sessions.save_session(user_id, item)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def remove_query_session(session_id: str, request: Request) -> Dict:
+    require_authenticated(request)
+    if not query_sessions.delete_session(request_user_id(request), session_id):
+        raise HTTPException(status_code=404, detail="Query chat not found.")
+    return {"deleted": True, "id": session_id}
+
+
 def get_analysis_sessions(request: Request) -> Dict:
     require_authenticated(request)
     sessions = []
@@ -2432,6 +2501,11 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/assays/expression", get_assay_expression, methods=["POST"], tags=["assays"], summary="Summarize assay expression", description="Returns scoped gene expression summaries for one assay, optionally comparing cohort A and cohort B.")
     app.add_api_route("/dicom/studies", get_dicom_studies, methods=["GET"], tags=["dicom"], summary="List DICOM studies in scope", description="Returns DICOM studies configured for the current workspace with OHIF launch URLs.", response_model=DicomStudiesResponse)
     app.add_api_route("/dicom/status", get_dicom_status, methods=["GET"], tags=["dicom"], summary="Get DICOM integration status", description="Returns DICOM/OHIF/Orthanc configuration status for the current workspace.", response_model=DicomStatusResponse)
+    app.include_router(chat_folders_router)
+    app.add_api_route("/query-sessions", get_query_sessions, methods=["GET"], tags=["query"])
+    app.add_api_route("/query-sessions", save_query_session, methods=["POST"], tags=["query"])
+    app.add_api_route("/query-sessions/{session_id}", get_query_session, methods=["GET"], tags=["query"])
+    app.add_api_route("/query-sessions/{session_id}", remove_query_session, methods=["DELETE"], tags=["query"])
     app.add_api_route("/analysis-sessions", get_analysis_sessions, methods=["GET"], tags=["analysis"], summary="List saved analysis sessions", description="Returns persisted analysis sessions for the current user.")
     app.add_api_route("/analysis-sessions", create_or_update_analysis_session, methods=["POST"], tags=["analysis"], summary="Create or update an analysis session", description="Persists analysis session state, including prompt draft, scopes, and prior turns.")
     app.add_api_route("/analysis-sessions/{session_id}", update_analysis_session_title, methods=["PATCH"], tags=["analysis"], summary="Rename an analysis session", description="Updates the title of a saved analysis session.")

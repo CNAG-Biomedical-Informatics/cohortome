@@ -24,6 +24,11 @@ Use groups as the default way to grant dataset access. Use direct allowed users 
 
 ## Dataset structure
 
+Before importing a prepared directory, run the read-only
+[dataset package validator](dataset-packages.md). It checks the existing
+manifests, clinical identities, assay tables and patient links without creating
+a database. Schemas and validation limitations are documented there.
+
 Each dataset has its own root directory, for example:
 
 ```text

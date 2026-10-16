@@ -37,10 +37,14 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             page.route('https://cdn.plot.ly/**', lambda route: route.fulfill(content_type='application/javascript',
                 body='window.Plotly={newPlot:async()=>{},react:async()=>{},purge:()=>{},Plots:{resize:()=>{}}};'))
             page.goto(url)
-            expect(page.locator('.app-project-section > summary')).to_be_visible(timeout=30000)
+            expect(page.locator('#projectsMenuBtn')).to_be_visible(timeout=30000)
             expect(page.locator('#saveProjectBtn')).to_be_hidden()
-            page.locator('.app-project-section > summary').click()
+            assert page.locator('#projectsMenuBtn').evaluate('(el) => el.nextElementSibling.id') == 'runHistoryDrawerBtn'
+            page.locator('#projectsMenuBtn').click()
             expect(page.locator('#saveProjectBtn')).to_be_visible()
+            page.keyboard.press('Escape')
+            expect(page.locator('#projectsMenu')).to_be_hidden()
+            expect(page.locator('#projectsMenuBtn')).to_be_focused()
             expect(page.locator('.app-sidebar-account #heroAuthIdentity')).to_have_text('Local user')
             expect(page.locator('#accountAvatar')).to_have_text('LU')
             expect(page.locator('#heroLogoutBtn')).to_be_hidden()
@@ -63,6 +67,10 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             page.screenshot(path=str(tmp_path / 'navigation-dark.png'))
             page.set_viewport_size({'width': 390, 'height': 844})
             expect(page.locator('.app-sidebar')).to_be_hidden()
+            page.locator('#projectsMenuBtn').click()
+            expect(page.locator('#saveProjectBtn')).to_be_visible()
+            assert page.locator('#projectsMenu').evaluate('(el) => el.getBoundingClientRect().right <= innerWidth')
+            page.keyboard.press('Escape')
             assert page.locator('.app-sidebar').evaluate('(el) => el.getBoundingClientRect().right <= innerWidth')
             page.evaluate("document.documentElement.dataset.theme = 'light'")
             page.set_viewport_size({'width': 1440, 'height': 960})
@@ -84,12 +92,13 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             expect(page.locator('#patientOverviewDetail')).to_be_empty()
             page.locator('#queryTabBtn').click()
             page.locator('#question').fill('Review the synthetic lupus cohort')
+            page.locator('#projectsMenuBtn').click()
             page.once('dialog', lambda dialog: dialog.accept('Synthetic project'))
             try:
                 with page.expect_download(timeout=10000) as download:
                     page.locator('#saveProjectBtn').click()
             except Exception:
-                print('Project save status:', page.locator('.app-sidebar-utility [role=status]').inner_text())
+                print('Project save status:', page.locator('#projectsMenu [role=status]').inner_text())
                 raise
             target = tmp_path / 'review.cohortome'
             download.value.save_as(target)
@@ -100,9 +109,9 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             assert project['analysis_session_id'], page.request.get(url + '/analysis-sessions').text()
             page.locator('#question').fill('Replace this draft')
             page.once('dialog', lambda dialog: dialog.accept())
-            page.locator('.app-sidebar-utility input[type=file]').set_input_files(target)
+            page.locator('#projectsMenu input[type=file]').set_input_files(target)
             expect(page.locator('#question')).to_have_value('Review the synthetic lupus cohort', timeout=20000)
-            expect(page.locator('.app-sidebar-utility [role=status]')).to_contain_text('Opened Synthetic project')
+            expect(page.locator('#projectsMenu [role=status]')).to_contain_text('Opened Synthetic project')
             browser.close()
     finally:
         child.terminate()

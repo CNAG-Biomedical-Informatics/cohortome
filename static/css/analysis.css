@@ -11,8 +11,47 @@
         box-shadow: none; border-radius: 0; border: 0; padding: 0; background: transparent;
       }
       .analysis-sidebar.analysis-chats-drawer-panel {
-        grid-template-rows: auto auto minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
       }
+      .new-chat-choices { display: flex; flex-wrap: wrap; gap: 4px; }
+      .new-chat-choices[hidden] { display: none; }
+      .new-chat-choices button { padding: 8px; font-size: 12px; background: var(--theme-surface); color: var(--ink); border: 1px solid var(--line); box-shadow: none; border-radius: 6px; }
+      .new-chat-choices button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      #analysisChatSearch { grid-row: 3; }
+      #analysisChatSearch[hidden] { display: none; }
+      .chat-folder-status { grid-row: 6; font-size: 12px; color: var(--muted); }
+      .chat-folder-status[hidden] { display: none; }
+      .chat-folder { flex: 0 0 auto; min-width: 0; }
+      .chat-folder-heading { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+      .chat-folder-heading > button { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; padding: 6px; border: 0; background: transparent; color: var(--ink); box-shadow: none; font-size: 12px; text-align: left; }
+      .chat-folder-heading > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .chat-folder-heading svg { width: 16px; height: 16px; flex-shrink: 0; }
+      .chat-folder-heading > button { justify-content: flex-start; }
+      .chat-folder-heading > button small { margin-left: auto; color: var(--muted); }
+      #analysisSessionList .chat-folder-shortcut { display: flex; align-items: center; gap: 6px; text-align: left; padding: 6px; font-size: 13px; color: var(--ink); background: transparent; border: 0; box-shadow: none; }
+      .chat-folder-shortcut svg { width: 16px; height: 16px; flex-shrink: 0; }
+      #analysisSessionList .chat-folder-shortcut { justify-content: flex-start; }
+      .chat-folder-shortcut span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .chat-folder-heading > button:focus-visible { outline: 2px solid var(--accent); }
+      .chat-folder-body { padding-left: 20px; }
+      .chat-folder-body[hidden] { display: none; }
+      #analysisSessionList .analysis-session-card:has(.chat-delete-check) { grid-template-columns: auto minmax(0, 1fr) auto; }
+      #analysisSessionList .chat-delete-check { width: 16px; height: 16px; margin: 4px; align-self: center; }
+      .chat-selection-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; font-size: 12px; }
+      .chat-selection-bar span { flex-basis: 100%; color: var(--muted); }
+      #analysisSessionList .chat-selection-bar button { width: auto; padding: 6px 8px; font-size: 12px; }
+      #clearChatsDialog label { display: block; margin: 12px 0; }
+      #clearChatsDialog input { width: auto; }
+      .chat-move-dialog { width: min(360px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 20px; color: var(--ink); background: var(--panel, var(--bg)); }
+      .chat-move-dialog::backdrop { background: #0006; }
+      .chat-move-dialog form { display: grid; gap: 12px; }
+      .chat-move-actions { display: flex; justify-content: flex-end; gap: 8px; }
+      .chat-move-actions button { width: auto; padding: 7px 12px; font-size: 13px; }
+      .chat-type-icon { display: inline-flex; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; color: var(--muted); }
+      .chat-type-icon svg { width: 16px; height: 16px; }
+      .chat-session-list { grid-row: 4; min-height: 0; }
+      .chat-session-list[hidden], .chat-save-status[hidden] { display: none !important; }
+      .chat-save-status { grid-row: 5; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
       #analysisChatSearch { padding: 9px 10px; font-size: 13px; border-radius: 8px; min-width: 0; }
       #analysisSessionList { display: flex; flex-direction: column; gap: 4px; }
       #analysisSessionList .analysis-session-card {
@@ -24,10 +63,12 @@
       .analysis-chat-date { font-size: 11px; font-weight: 600; color: var(--muted); margin: 14px 6px 4px; }
       .analysis-chat-status { font-size: 11px; color: var(--muted); }
       .analysis-chat-menu { position: relative; }
+      .analysis-chat-menu button { display: flex; align-items: center; gap: 8px; }
+      .chat-menu-icon, .chat-menu-icon svg { display: block; width: 16px; height: 16px; flex-shrink: 0; }
       .analysis-chat-menu > summary { cursor: pointer; list-style: none; padding: 4px 8px; border-radius: 6px; }
       .analysis-chat-menu > summary::-webkit-details-marker { display: none; }
       .analysis-chat-menu > summary:focus-visible { outline: 2px solid var(--accent); }
-      .analysis-chat-menu > div { position: absolute; right: 0; top: 100%; z-index: 3; width: 110px; padding: 4px; border: 1px solid var(--line); background: var(--theme-surface, white); border-radius: 8px; }
+      .analysis-chat-menu > div { position: absolute; right: 0; top: 100%; z-index: 3; width: 150px; padding: 4px; border: 1px solid var(--line); background: var(--theme-surface, white); border-radius: 8px; }
       #analysisSessionList .analysis-chat-menu button { background: transparent; color: var(--ink); box-shadow: none; font-size: 12px; padding: 8px; justify-content: flex-start; }
       .analysis-chats-drawer {
         position: fixed;
@@ -61,14 +102,22 @@
       }
       .analysis-sidebar-header {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: start;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        align-items: center;
         gap: 10px;
       }
       .analysis-sidebar-header #analysisNewSessionBtn {
-        grid-column: 1 / -1;
+        grid-column: 3;
+        grid-row: 1;
+        display: inline-flex;
+        align-items: center;
+        width: 32px;
+        height: 32px;
+        padding: 6px;
         justify-content: center;
       }
+      .analysis-sidebar-header #analysisChatsDrawerCloseBtn { grid-column: 4; grid-row: 1; }
+      .analysis-sidebar-header #chatSearchToggle { grid-column: 2; grid-row: 1; }
       .analysis-sidebar-toggle {
         width: 34px;
         height: 34px;
