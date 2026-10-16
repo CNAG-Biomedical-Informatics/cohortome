@@ -9,6 +9,24 @@ import TabItem from '@theme/TabItem';
 
 `Pheno-Ranker` compares patients or subsets using phenotypic similarity.
 
+## Saved chats
+
+Choose **New → Pheno-Ranker chat** in the shared sidebar. Keep using the normal
+scope, setup and run controls; an LLM is not required. Run settings, completed
+results, queued-job references and result explanations are saved in the chat.
+Expand **Chat history** to reopen an earlier result in the existing interactive
+plots and tables. Reopening a result does not run Pheno-Ranker again.
+
+Chats support the same folders, pinning, search, rename and deletion controls as
+Query and Analysis. Deleting a chat keeps generated files and runs in Run history.
+If those files are later removed, the chat cannot reconstruct the interactive
+result. Queued entries check the job when opened; they are not live job monitors.
+
+A chat stays bound to its original workspace. Apply that workspace before
+continuing; start a new chat if its source data changed. Save errors are shown
+beside the chat title. **Save chat** retries a save; **Reload saved** can discard
+unsaved edits after a conflict with another window.
+
 :::warning
 Despite the historical wording around cohort mode, current Pheno-Ranker workflows are fundamentally sample-level.
 :::

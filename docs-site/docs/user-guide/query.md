@@ -6,10 +6,11 @@ sidebar_position: 1
 
 ## Saved chats
 
-The left sidebar lists Query and Analysis chats together, ordered by recent
-activity. A speech bubble identifies Query chats; a chart identifies Analysis
-chats. Use the compose icon beside **Chats** to choose a new Query or Analysis
-chat. Select a chat to reopen it, or use its three-dot menu to rename or delete it.
+The left sidebar lists Query, Analysis and Pheno-Ranker chats together, ordered by recent
+activity. A speech bubble identifies Query chats, a chart identifies Analysis
+chats, and a connected-node icon identifies Pheno-Ranker chats. Use the compose
+icon beside **Chats** to choose a chat type. Select a chat to reopen it, or use
+its three-dot menu to rename or delete it.
 Drag the divider to the right of Chats to adjust its width. The width is remembered
 on this device. You can also focus the divider and use the left/right arrow keys.
 

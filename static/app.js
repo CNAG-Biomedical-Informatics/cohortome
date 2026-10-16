@@ -17,6 +17,7 @@ import { createSavedCohortsUi } from "/static/js/saved_cohorts.js";
 import { createPhenoUi } from "/static/js/pheno.js";
 import { createQueryUi } from "/static/js/query.js";
 import { createQuerySessionsUi } from "/static/js/query_sessions.js";
+import { createPhenoSessionsUi } from "/static/js/pheno_sessions.js";
 import { createChatFoldersUi } from "/static/js/chat_folders.js";
 import { createChatDeletionUi } from "/static/js/chat_deletion.js";
 import { createAnalysisUi } from "/static/js/analysis.js";
@@ -87,6 +88,7 @@ let savedCohortsUi;
 let phenoUi;
 let queryUi;
 let querySessionsUi;
+let phenoSessionsUi;
 let chatFoldersUi;
 let chatDeletionUi;
 let analysisUi;
@@ -107,6 +109,7 @@ function makeAnalysisSession(overrides = {}) {
 function clearDatasetScopedContent(options = {}) {
   const signedOut = options.signedOut === true;
   if (signedOut) querySessionsUi?.clear();
+  if (signedOut) phenoSessionsUi?.clear();
   if (signedOut) { chatDeletionUi?.clear(); chatFoldersUi?.clear(); }
   const clearSelection = options.clearSelection === true;
   const nextScopeId = String(options.nextScopeId || "").trim();
@@ -735,7 +738,8 @@ analysisSessionsUi = createAnalysisSessionsUi({
     nowIso,
   },
   callbacks: {
-    queryChatEntries: () => querySessionsUi?.entries() || [],
+    queryChatEntries: () => [...(querySessionsUi?.entries() || []), ...(phenoSessionsUi?.entries() || [])],
+    renderPhenoChatCard: item => phenoSessionsUi.renderCard(item),
     chatOrganizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
     organizeChats: (items, row, search) => {
       const renderRow = (item, dates) => chatDeletionUi ? chatDeletionUi.row(item, row(item, dates)) : row(item, dates);
@@ -773,14 +777,17 @@ querySessionsUi = createQuerySessionsUi({ state, refs, query: queryUi, escapeHtm
 chatFoldersUi = createChatFoldersUi({ escapeHtml, renderList: () => analysisSessionsUi.renderAnalysisSessionList() });
 chatDeletionUi = createChatDeletionUi({ state, escapeHtml,
   render: () => analysisSessionsUi.renderAnalysisSessionList(),
-  entries: () => [...state.analysisSessions, ...querySessionsUi.entries()],
+  entries: () => [...state.analysisSessions, ...querySessionsUi.entries(), ...(phenoSessionsUi?.entries() || [])],
   pins: () => chatFoldersUi.pins(),
   prepare: async () => {
+    if (phenoUi.chatBusy()) throw new Error('Wait for Pheno-Ranker to finish before deleting chats.');
+    if (!await phenoSessionsUi.save()) throw new Error('Save or resolve the Pheno-Ranker chat first.');
     if (!await querySessionsUi.save()) throw new Error('Save or resolve the current Query chat before deleting.');
     await analysisSessionsUi.flushCurrentForProject();
   },
   forget: item => {
     if (item.chatKind === 'query') querySessionsUi.forgetDeletedChats([item.id]);
+    else if (item.chatKind === 'pheno') phenoSessionsUi.forgetDeletedChats([item.id]);
     else analysisSessionsUi.forgetDeletedChats([item.id]);
   },
 });
@@ -799,6 +806,11 @@ phenoUi = createPhenoUi({
     nextFrame: () => workspaceUi.nextFrame(),
   },
   callbacks: {
+    phenoChatIssue: () => phenoSessionsUi?.issue() || '',
+    beforePhenoChatRun: () => phenoSessionsUi?.beforeRun() ?? true,
+    onPhenoChatResult: payload => phenoSessionsUi?.record('result', payload),
+    onPhenoChatQueued: payload => phenoSessionsUi?.record('queued', payload),
+    onPhenoChatExplanation: payload => { void phenoSessionsUi?.record('explanation', payload); },
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
@@ -838,6 +850,12 @@ phenoUi = createPhenoUi({
     onReferenceFilesLoaded: (files) => { state.phenoReferenceFiles = files.slice(); },
   },
   state,
+});
+
+phenoSessionsUi = createPhenoSessionsUi({state, refs, pheno:phenoUi, escapeHtml,
+  renderList:() => analysisSessionsUi.renderAnalysisSessionList(),
+  openTab:() => navigationUi.setActiveTab('pheno'),
+  actions:(kind,id) => chatFoldersUi?.actions(kind,id) || '',
 });
 
 jobsUi = createJobsUi({
@@ -948,6 +966,7 @@ authUi = createAuthUi({
     loadAnalysisSessionsFromBackend: async () => {
       await chatFoldersUi.load();
       await querySessionsUi.load();
+      await phenoSessionsUi.load();
       return analysisSessionsUi.loadAnalysisSessionsFromBackend();
     },
     applyAnalysisSession: (session) => analysisSessionsUi.applyAnalysisSession(session),
@@ -1216,6 +1235,10 @@ function bindEvents() {
   document.getElementById('newQueryChatBtn').addEventListener('click', () => {
     closeNewChatChoices();
     void querySessionsUi.newChat();
+  });
+  document.getElementById('newPhenoChatBtn').addEventListener('click', () => {
+    closeNewChatChoices();
+    void phenoSessionsUi.newChat();
   });
   document.getElementById('newAnalysisChatBtn').addEventListener('click', () => {
     closeNewChatChoices();
@@ -1810,6 +1833,7 @@ function initializeUiShell() {
   analysisSessionsUi.ensureAnalysisSessionsLoaded();
   void analysisSessionsUi.loadAnalysisSessionsFromBackend();
   void querySessionsUi.load();
+  void phenoSessionsUi.load();
   void chatFoldersUi.load();
   analysisUi.renderAnalysisCompareMode();
   analysisUi.renderAnalysisContextMode();

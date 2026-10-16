@@ -1099,12 +1099,24 @@ export function createDashboardUi(ctx) {
     const orthancReachable = Boolean(orthanc.reachable);
     const orthancLabel = orthancChecked ? (orthancReachable ? "Reachable" : "Unreachable") : "Not checked";
     const orthancMessage = String(orthanc.message || "").trim();
+    const studies = state.dicomStudiesState || [];
+    const bundledCount = studies.filter(study => study.local_viewer_url).length;
+    if (bundledCount && bundledCount === studies.length) {
+      dicomDashboardHealthEl.innerHTML = `<div class="dicom-health-grid">
+        <div class="dicom-health-card"><span class="assay-kpi-label">Viewer</span><strong>Bundled OHIF</strong><small>Opens inside COHORTome</small></div>
+        <div class="dicom-health-card"><span class="assay-kpi-label">Studies</span><strong>${escapeHtml(String(bundledCount))} available</strong><small>Bundled synthetic images</small></div>
+        <div class="dicom-health-card"><span class="assay-kpi-label">Image access</span><strong>Through COHORTome</strong><small>Dataset permissions checked on every request</small></div>
+        <div class="dicom-health-card"><span class="assay-kpi-label">External services</span><strong>Not required</strong><small>No Docker or Orthanc service needed for these studies</small></div>
+      </div>`;
+      renderAssayDashboardOverview(state.assayDatasetsState || []);
+      return;
+    }
     dicomDashboardHealthEl.innerHTML = `
       <div class="dicom-health-grid">
         <div class="dicom-health-card">
-          <span class="assay-kpi-label">Viewer</span>
+          <span class="assay-kpi-label">External viewer</span>
           <strong>${enabled ? "Enabled" : "Disabled"}</strong>
-          <small>Open studies in OHIF</small>
+          <small>${bundledCount ? `${bundledCount} studies use bundled OHIF; external viewing applies to the remaining studies` : 'Open studies in OHIF'}</small>
         </div>
         <div class="dicom-health-card">
           <span class="assay-kpi-label">Study manifest</span>

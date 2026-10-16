@@ -1826,6 +1826,18 @@ def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(p
     expect(page.locator("#phenoExplainCard")).to_be_hidden()
     expect(page.locator("#phenoAlignmentCard")).to_be_hidden()
 
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    chat = page.locator('[data-pheno-session-id]').filter(has_text='Cluster these three records by disease').first
+    expect(chat).to_be_visible()
+    chat_id = chat.get_attribute('data-pheno-session-id')
+    page.locator('#analysisNewSessionBtn').click()
+    page.locator('#newPhenoChatBtn').click()
+    expect(page.locator('#phenoPrompt')).to_have_value('')
+    page.locator(f'[data-pheno-session-id="{chat_id}"]').first.click()
+    expect(page.locator('#phenoPrompt')).to_have_value('Cluster these three records by disease')
+    expect(page.locator('#phenoStatus')).to_contain_text('Saved cohort run')
+    expect(page.locator('#phenoMdsPlot')).to_have_attribute('data-plotly-ready', 'true')
+
 
 def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
     _mock_pheno_reference_ids(page)
@@ -2322,6 +2334,34 @@ def test_analysis_method_picker_without_llm(page):
     playwright.expect(picker).to_be_hidden()
     playwright.expect(page.locator('#analysisFlowBar')).to_be_hidden()
     playwright.expect(page.locator('#analysisPrompt')).to_be_visible()
+
+
+def test_bundled_imaging_status_does_not_require_external_services(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    page.route('**/dicom/studies?*', lambda route: route.fulfill(json={
+        'enabled': False, 'studies': [{'study_instance_uid':'1.2.3', 'label':'Synthetic MRI',
+        'local_viewer_url':'/local-viewer/open/default/1.2.3', 'modality':'MR', 'series':[]}]}))
+    page.route('**/dicom/status?*', lambda route: route.fulfill(json={
+        'enabled':False, 'study_count':1, 'orthanc':{'checked':True,'reachable':False}}))
+    page.route('**/local-viewer/open/default/1.2.3', lambda route: route.fulfill(
+        content_type='text/html', body='<p>Synthetic viewer placeholder</p>'))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardImagingBtn').click()
+    health = page.locator('#dicomDashboardHealth')
+    playwright.expect(health).to_contain_text('Bundled OHIF')
+    playwright.expect(health).to_contain_text('Not required')
+    playwright.expect(health).not_to_contain_text('Disabled')
+    playwright.expect(health).not_to_contain_text('Unreachable')
+    page.get_by_role('button',name='View images',exact=True).click()
+    playwright.expect(page.locator('.local-imaging-viewer')).to_be_visible()
+    close = page.get_by_role('button',name='Close viewer',exact=True)
+    assert close.bounding_box()['width'] < 180
+    close.click()
+    playwright.expect(page.locator('.local-imaging-viewer')).to_have_count(0)
 
 
 def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:

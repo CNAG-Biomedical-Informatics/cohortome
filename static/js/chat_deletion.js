@@ -10,7 +10,7 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
   dialog.innerHTML = `<h3 id="clearChatsTitle">Clear chat history</h3>
     <p>Applies across all folders and workspaces, regardless of search. Folders are kept.</p>
     <p>Messages and inline results are removed. Generated runs and files remain in Run history. Datasets and saved cohorts are kept.</p>
-    <label>Chat type <select id="clearChatsKind"><option value="both">Query and Analysis</option><option value="query">Query only</option><option value="analysis">Analysis only</option></select></label>
+    <label>Chat type <select id="clearChatsKind"><option value="both">All chat types</option><option value="query">Query only</option><option value="analysis">Analysis only</option><option value="pheno">Pheno-Ranker only</option></select></label>
     <label><input id="clearChatsPinned" type="checkbox"> Include pinned chats</label>
     <p id="clearChatsCount"></p><p role="status" id="clearChatsStatus"></p>
     <div class="chat-move-actions"><button type="button" id="clearChatsCancel">Cancel</button><button type="button" id="clearChatsConfirm" class="danger-btn">Delete chats…</button></div>`;
@@ -38,8 +38,7 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
       message('Wait for the current operation to finish before deleting chats.'); return;
     }
     if (!items.length) return;
-    const queries = items.filter(item => item.chatKind === 'query').length;
-    if (!window.confirm(`Delete ${items.length} chats (${queries} Query, ${items.length - queries} Analysis)? This cannot be undone. Chat messages and inline results will be removed. Datasets, saved cohorts, generated runs and their files are kept. Background jobs are not cancelled.`)) return;
+    if (!window.confirm(`Delete ${items.length} chats? This cannot be undone. Chat messages and inline results will be removed. Datasets, saved cohorts, generated runs and their files are kept. Background jobs are not cancelled.`)) return;
     busy = true; updateCount(); render();
     const version = epoch;
     const deleted = [];

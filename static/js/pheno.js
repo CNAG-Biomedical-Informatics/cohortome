@@ -974,6 +974,7 @@ export function createPhenoUi(ctx) {
   }
 
   async function requestPhenoPlan(revealPlan = true) {
+    if (callbacks.phenoChatIssue?.()) { phenoStatusEl.textContent = callbacks.phenoChatIssue(); return null; }
     if (state.planInFlight) {
       return null;
     }
@@ -1300,6 +1301,7 @@ export function createPhenoUi(ctx) {
   }
 
   function renderPhenoExplainDetail(payload) {
+    callbacks.onPhenoChatExplanation?.({...payload, chat_run_job_id:state.runState?.jobId});
     const matches = Array.isArray(payload.matches) ? payload.matches : [];
     if (!matches.length) {
       renderPhenoExplainPlaceholder("No explanation could be generated for this run.");
@@ -2596,6 +2598,7 @@ export function createPhenoUi(ctx) {
     }
     renderPhenoExplainPlaceholder("Use Explain results to summarize the top patient matches from rank.txt.");
     renderPhenoBackgroundJobBanner();
+    if (!options.restoringChat) await callbacks.onPhenoChatResult?.(source);
   }
 
   async function loadCompletedPhenoJob(jobPayload, resultPayload = null) {
@@ -2614,7 +2617,7 @@ export function createPhenoUi(ctx) {
     renderPhenoAlignmentPlaceholder("Loading alignment details...");
     phenoLogsEl.textContent = "Loading stored logs...";
     phenoPreviewsEl.innerHTML = renderActivityCard("Loading plots", "Restoring interactive plots and output files from the completed background run.");
-    await applyPhenoRunPayload(result, { statusPrefix: "Loaded" });
+    await applyPhenoRunPayload(result, { statusPrefix: "Loaded", restoringChat: true });
   }
 
   function scrollPhenoResultIntoView() {
@@ -2628,6 +2631,8 @@ export function createPhenoUi(ctx) {
   }
 
   async function runPhenoRanker(usePromptPlanner = true) {
+    if (state.chatPreparing) return;
+    if (callbacks.phenoChatIssue?.()) { phenoStatusEl.textContent = callbacks.phenoChatIssue(); return; }
     if (usePromptPlanner && phenoPromptEl.value.trim() && !state.manualOverrides && !hasPhenoGraphCutoffInput()) {
       const payload = await requestPhenoPlan(false);
       if (!payload || !payload.plan) {
@@ -2676,6 +2681,11 @@ export function createPhenoUi(ctx) {
     }
 
     const workspaceVersion = state.workspaceVersion;
+    state.chatPreparing = true;
+    try {
+      if (callbacks.beforePhenoChatRun && !await callbacks.beforePhenoChatRun()) return;
+    } finally { state.chatPreparing = false; }
+    if (workspaceVersion !== state.workspaceVersion) return;
     state.inFlight = true;
     updatePhenoRunAvailability();
     renderPhenoFlowBar();
@@ -2742,6 +2752,7 @@ export function createPhenoUi(ctx) {
       }
 
       if (payload && payload.data && payload.data.execution === "queued") {
+        await callbacks.onPhenoChatQueued?.(payload);
         seedQueuedPhenoBackgroundJob(payload);
         state.runState = null;
         updatePhenoExplainActions();
@@ -2873,6 +2884,10 @@ export function createPhenoUi(ctx) {
   }
 
   return {
+    chatBusy: () => state.chatPreparing || state.inFlight || state.planInFlight || state.explainInFlight || state.explainLlmInFlight,
+    restoreChatSetup: restorePhenoRunMetadata,
+    restoreChatResult: payload => applyPhenoRunPayload(payload, {restoringChat:true, statusPrefix:'Saved'}),
+    restoreChatExplanation: renderPhenoExplainDetail,
     updatePhenoMode,
     updatePhenoGraphOptions,
     renderSelectedPatientIdsSummary,

@@ -302,13 +302,14 @@ export function createAnalysisSessionsUi(ctx) {
     const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
     let previousGroup = "";
     const renderRow = (session, showDate = true) => {
-      const active = session.id === state.currentAnalysisSessionId && !document.getElementById('queryTab').classList.contains('active') ? " is-active" : "";
+      const active = session.id === state.currentAnalysisSessionId && document.getElementById('analysisTab').classList.contains('active') ? " is-active" : "";
       const workspaceLabel = analysisWorkspaceStatusLabel(session);
       const date = new Date(session.updatedAt);
       const group = date >= today ? "Today" : date >= yesterday ? "Yesterday" : "Older";
       const heading = showDate && group !== previousGroup ? `<h4 class="analysis-chat-date">${group}</h4>` : "";
       previousGroup = group;
       if (session.chatKind === 'query') return heading + callbacks.renderQueryChatCard(session);
+      if (session.chatKind === 'pheno') return heading + callbacks.renderPhenoChatCard(session);
       const turns = session.turns || [];
       const last = turns.filter(turn => turn.role === "assistant").at(-1);
       const activeRun = turns.find(turn => turn.pending || ["queued", "running"].includes(turn.payload?.data?.job_status)

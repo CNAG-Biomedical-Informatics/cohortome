@@ -22,13 +22,13 @@ class FolderName(BaseModel):
 
 
 class ChatMove(BaseModel):
-    kind: Literal["query", "analysis"]
+    kind: Literal["query", "analysis", "pheno"]
     chat_id: str = Field(min_length=1, max_length=200)
     folder_id: str = Field(default="", max_length=100)
 
 
 class ChatPin(BaseModel):
-    kind: Literal["query", "analysis", "folder"]
+    kind: Literal["query", "analysis", "pheno", "folder"]
     chat_id: str = Field(min_length=1, max_length=200)
     pinned: bool
 
@@ -68,7 +68,7 @@ def change_folders(user_id, operation, *, folder_id="", name="", kind="", chat_i
             data["pinned"] = [key for key in data.get("pinned", []) if key != f"folder:{folder_id}"]
         elif operation in {"move", "pin"}:
             chat = (next((item for item in data["folders"] if item["id"] == chat_id), None) if kind == "folder"
-                    else get_session(user_id, chat_id) if kind == "query" else get_analysis_session(chat_id, user_id=user_id))
+                    else get_session(user_id, chat_id, kind) if kind in {"query", "pheno"} else get_analysis_session(chat_id, user_id=user_id))
             if chat is None:
                 raise HTTPException(status_code=404, detail="Chat not found. Save it before moving it.")
             key = f"{kind}:{chat_id}"

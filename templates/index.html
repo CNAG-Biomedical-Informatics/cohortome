@@ -329,6 +329,7 @@
           <div id="newChatChoices" class="new-chat-choices" hidden aria-label="Choose chat type">
             <button id="newQueryChatBtn" type="button">Query chat</button>
             <button id="newAnalysisChatBtn" type="button">Analysis chat</button>
+            <button id="newPhenoChatBtn" type="button">Pheno-Ranker chat</button>
             <button id="newChatFolderBtn" type="button">New folder</button>
             <button id="selectChatsBtn" type="button">Select chats…</button>
           </div>
@@ -1065,6 +1066,8 @@
       </section>
 
       <section id="phenoTab" class="tab-panel">
+        <div class="analysis-chat-bar"><div class="analysis-chat-current"><strong id="phenoChatTitle">New Pheno-Ranker chat</strong><span id="phenoChatStatus" role="status"></span></div><button id="phenoChatSave" class="query-chip" type="button">Save chat</button><button id="phenoChatReload" class="query-chip" type="button">Reload saved</button></div>
+        <details><summary>Chat history</summary><div id="phenoChatHistory"></div></details>
         <div class="controls">
           <label for="phenoMode">Pheno-Ranker</label>
           <div id="phenoFlowBar" class="analysis-flow-bar pheno-flow-bar" aria-label="Pheno-Ranker workflow">
