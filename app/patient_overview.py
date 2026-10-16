@@ -1,5 +1,6 @@
 """Dataset-scoped patient lookup and sample inventory, without matrix scans."""
 import csv
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -46,13 +47,13 @@ def inside(root, relative):
     return path
 
 
-def sample_inventory(root, patient_id):
+def sample_inventory(root, patient_id=None, include_imaging=False):
     root = Path(root)
     rows, warnings = [], []
     for item in _assay_manifest_items_for_root(root):
         assay_id = str(item.get('assay_id') or '')
         label = str(item.get('label') or assay_id or 'Assay')
-        if str(item.get('modality', '')).lower() == 'imaging':
+        if str(item.get('modality', '')).lower() == 'imaging' and not include_imaging:
             continue  # Imaging studies are not biosamples.
         declared = item.get('sample_metadata_file') or item.get('patient_linkage') == 'exact_sample_id' or item.get('patient_id_column') == 'derived_from_sample_id_prefix'
         if not declared:
@@ -68,7 +69,9 @@ def sample_inventory(root, patient_id):
             links = _manifest_assay_sample_patient_links(root, item, samples)
             if links.get('unlinked_sample_ids'):
                 warnings.append(f"{label}: {len(links['unlinked_sample_ids'])} sample identifiers have no patient link and cannot be assigned here.")
-            selected = [s for s in samples if links['links'].get(s) == patient_id]
+            selected = [s for s in samples if links['links'].get(s)
+                        and (patient_id is None or links['links'][s] == patient_id)]
+            selected_set = set(selected)
             metadata = {}
             if selected and item.get('sample_metadata_file'):
                 with inside(root, item['sample_metadata_file']).open(encoding='utf-8-sig', newline='') as handle:
@@ -77,13 +80,13 @@ def sample_inventory(root, patient_id):
                     handle.seek(0)
                     for row in csv.DictReader(handle, delimiter=delimiter):
                         sid = str(row.get('sample_id') or '').strip()
-                        if sid in selected:
+                        if sid in selected_set:
                             if sid in metadata:
                                 raise ValueError('Ambiguous metadata')
                             metadata[sid] = row
             for sid in selected:
                 meta = metadata.get(sid, {})
-                rows.append(dict(sample_id=sid, assay_id=assay_id, assay=label,
+                rows.append(dict(patient_id=links['links'][sid], sample_id=sid, assay_id=assay_id, assay=label,
                     modality=item.get('modality') or 'assay', data_type=item.get('data_type') or 'Not recorded',
                     linkage=links['linkage_source'], visit=meta.get('visit_id') or '',
                     collection_date=meta.get('collection_date') or '', material=meta.get('material') or '',
@@ -92,6 +95,30 @@ def sample_inventory(root, patient_id):
             warnings.append(f'{label}: sample inventory unavailable; not included in counts.')
     rows.sort(key=lambda r: (r['sample_id'], r['assay']))
     return rows, warnings
+
+
+@router.get('/timeline')
+def timeline(request: Request, workspace: str):
+    """Workspace availability from clinical records and declared assay links.
+
+    Read each assay header/metadata once, never matrix values or once per patient.
+    Imaging here means linked derived measurements, not remote DICOM studies.
+    """
+    from app.bff import dashboard_summary
+    patients, warnings = [], []
+    for identifier, root, label in sources(request, workspace):
+        ensure_query_store(root)
+        summary = dashboard_summary(root)
+        by_id = {row['patient_id']: dict(row, samples=[]) for row in summary['timelines']}
+        inventory, issues = sample_inventory(root, include_imaging=True)
+        warnings.extend(f'{label}: {issue}' for issue in issues)
+        for sample in inventory:
+            pid = sample['patient_id']
+            by_id.setdefault(pid, dict(patient_id=pid, events=[], visit_count=0, samples=[]))['samples'].append(sample)
+        for pid, row in by_id.items():
+            patients.append(dict(row, source_patient_id=pid, dataset_id=identifier,
+                                 dataset_label=label, patient_id=json.dumps([identifier, pid], separators=(',', ':'))))
+    return dict(timelines=patients, warnings=warnings)
 
 
 @router.get('/search')

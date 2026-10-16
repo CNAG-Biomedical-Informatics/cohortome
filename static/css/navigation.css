@@ -208,6 +208,10 @@ main:has(> #appShell:not(.is-hidden)) {
   font-weight: 400;
 }
 .account-signout:hover { color: var(--ink); text-decoration: underline; background: transparent; }
+.patient-view-switch { display: flex; gap: 6px; margin: 12px 0; }
+.patient-view-switch button { width: auto; padding: 6px 12px; }
+.patient-view-switch [aria-pressed="true"] { background: var(--theme-blue-soft); color: var(--ink); border-color: var(--accent); }
+#patientOverviewDetail[hidden] { display: none; }
 .account-signout:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .has-icon-rail.app-workbench { grid-template-columns: 48px var(--chat-sidebar-width, 232px) 6px minmax(0, 1fr); gap: 8px; }
 .chat-width-divider { position: sticky; top: 18px; height: calc(100dvh - 110px); min-height: 360px; cursor: col-resize; touch-action: none; border-radius: 3px; }

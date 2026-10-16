@@ -967,6 +967,21 @@
         max-width: 280px;
         margin: 0;
       }
+      .timeline-clinical-label { display: block; margin-bottom: 6px; color: var(--ink); }
+      .timeline-scope-controls, .timeline-pagination { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .timeline-scope-controls > strong { flex-basis: 100%; }
+      .timeline-scope-controls label { font-size: 12px; }
+      .timeline-scope-controls button, .timeline-pagination button { width: auto; }
+      .timeline-patient-picker { border: 1px solid var(--line); padding: 12px; border-radius: 8px; display: grid; gap: 8px; }
+      #timelinePatientSelection { display: flex; gap: 8px 16px; flex-wrap: wrap; max-height: 140px; overflow-y: auto; }
+      #timelinePatientSelection label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+      #timelinePatientSelection input { width: 16px; height: 16px; }
+      .timeline-assay-badge { display: inline-block; padding: 3px 8px; border: 1px solid var(--line); border-left: 4px solid var(--assay-color); border-radius: 4px; text-transform: capitalize; margin-bottom: 6px; }
+      .timeline-record-details { margin-top: 8px; max-width: 320px; }
+      .timeline-record-details summary { cursor: pointer; color: var(--muted); }
+      .timeline-record-details p { font-size: 12px; overflow-wrap: anywhere; }
+      .dashboard-timeline-table .timeline-undated-heading th { position: static; background: var(--theme-surface); padding-top: 18px; }
+      .timeline-undated-heading small { display: block; color: var(--muted); font-weight: normal; text-transform: none; }
       .dashboard-timeline-table-wrap {
         max-height: 360px;
         overflow: auto;
@@ -975,6 +990,7 @@
         background: var(--theme-surface, #ffffff);
       }
       .dashboard-timeline-table {
+        table-layout: auto;
         width: 100%;
         border-collapse: collapse;
         font-size: 0.86rem;

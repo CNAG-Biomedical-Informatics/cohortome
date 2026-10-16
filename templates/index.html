@@ -392,21 +392,9 @@
         <div class="dashboard-subtabs app-sidebar-subnav">
           <button id="dashboardPatientsBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg></span>
-            <span>Patient overview</span>
+            <span>Patients</span>
           </button>
-          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab">
-            <span class="dashboard-subtab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19h16"></path>
-                <path d="M6 15V5"></path>
-                <path d="M18 15V5"></path>
-                <path d="M6 9h12"></path>
-                <circle cx="10" cy="9" r="1.5"></circle>
-                <circle cx="15" cy="9" r="1.5"></circle>
-              </svg>
-            </span>
-            <span>Timeline</span>
-          </button>
+          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab"><span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg></span><span>Timeline</span></button>
           <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -580,8 +568,8 @@
       <section id="dashboardTab" class="tab-panel active">
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
           <div class="controls">
-            <h2>Patient overview</h2>
-            <p>Find a patient to see the samples and assays available in their dataset.</p>
+            <h2>Patients</h2>
+            <p>Choose a patient to explore available data and its clinical timeline.</p>
             <div class="patient-lookup">
               <label for="patientOverviewSearch">Patient ID or ClarID</label>
               <input id="patientOverviewSearch" type="search" role="combobox" autocomplete="off" aria-autocomplete="list" aria-controls="patientOverviewMatches" aria-expanded="false" placeholder="Start typing an identifier…">
@@ -589,6 +577,10 @@
             </div>
             <div id="patientOverviewStatus" class="section-note" role="status">Select a workspace, then search by patient ID or ClarID. Up to 12 matches are shown.</div>
           </div>
+          <nav class="patient-view-switch" aria-label="Patient views">
+            <button id="patientOverviewViewBtn" type="button" class="query-chip" aria-pressed="true">Overview</button>
+            <button id="patientTimelineBtn" type="button" class="query-chip" disabled>View this patient's timeline</button>
+          </nav>
           <div id="patientOverviewDetail"></div>
         </section>
         <section id="dashboardTimelinePanel" class="dashboard-subpanel">
@@ -603,8 +595,8 @@
                       <h3>Inspection</h3>
                     </div>
                   </div>
-                  <div class="section-note">Click a timeline event or use an Events table inspect button to review one record or timepoint.</div>
-                  <div id="detail" class="empty">Inspect a timeline event to review its evidence.</div>
+                  <div class="section-note">Click a patient span, a timeline marker or Inspect to review the patient and their available data.</div>
+                  <div id="detail" class="empty">Select a patient in the plot to see their information.</div>
                 </div>
               </div>
             </div>
@@ -673,7 +665,7 @@
             <section id="dicomDashboardPanel" class="dicom-dashboard-panel">
               <div class="assay-modality-section-header">
                 <strong>DICOM imaging</strong>
-                <span class="query-chip badge">OHIF launch, DICOMweb pixels</span>
+                <span class="query-chip badge">Studies and viewer access</span>
               </div>
               <div id="dicomDashboardHealth" class="dicom-health-panel">
                 <div class="empty">DICOM viewer status not checked.</div>
@@ -697,7 +689,7 @@
             <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
               <div class="assay-modality-section-header">
                 <strong>Multimodal analysis readiness</strong>
-                <span class="query-chip badge">Workspace QC, overlap, suggestions</span>
+                <span class="query-chip badge">Coverage and linkage</span>
               </div>
               <div id="multimodalReadinessStatus" class="query-status assay-status-strip">Checking multimodal readiness...</div>
               <div id="multimodalReadinessContent" class="multimodal-readiness-content">

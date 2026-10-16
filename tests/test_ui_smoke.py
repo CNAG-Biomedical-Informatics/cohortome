@@ -2345,7 +2345,11 @@ def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     expect(page.locator("#dicomDashboardHealth")).to_contain_text("Reachable")
     expect(page.locator("#dicomDashboardHealth")).to_contain_text("http://ohif.example")
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("Synthetic MRI baseline SYN001")
-    expect(page.locator("#dicomDashboardStudies a", has_text="Open in OHIF")).to_have_attribute(
+    expect(page.locator('.imaging-coverage-summary')).to_contain_text('Studies by imaging modality')
+    expect(page.locator('.imaging-coverage-summary .assay-coverage-row')).to_contain_text('1 study')
+    expect(page.locator('.dicom-study-card details')).not_to_have_attribute('open', '')
+    expect(page.locator('.dicom-study-card .assay-overview-icon')).to_be_visible()
+    expect(page.locator("#dicomDashboardStudies a", has_text="View images")).to_have_attribute(
         "href",
         "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
     )
@@ -2356,9 +2360,23 @@ def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     expect(page.locator("#dashboardMultimodalBtn")).to_have_class(re.compile("active"))
     expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Multimodal feature matrix")
     expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Sample-level matrix")
+    expect(page.locator('#multimodalReadinessContent .assay-coverage-chart')).to_contain_text('Patients by data type')
+    expect(page.locator('#multimodalReadinessContent .assay-coverage-row')).to_have_count(4)
+    expect(page.locator('.cross-modal-pair')).to_have_count(2)
+    expect(page.locator('.cross-modal-pair').first.locator('svg')).to_have_count(2)
+    expect(page.locator('.cross-modal-pair-count').first).to_contain_text('1 shared patient')
+    expect(page.locator('.cross-modal-pair-samples').first).to_have_text('1 matching sample ID')
+    page.locator('#multimodalReadinessContent summary', has_text='Detailed coverage counts').click()
+    expect(page.locator('.multimodal-readiness-table')).to_be_visible()
+    expect(page.locator('#multimodalReadinessContent')).to_contain_text('same visit or specimen')
+    page.set_viewport_size({'width': 390, 'height': 844})
+    for selector in ('#multimodalReadinessContent', '#dicomDashboardStudies'):
+        # Hidden panels are checked after their respective navigation is opened.
+        page.locator('#dashboardMultimodalBtn' if 'Readiness' in selector else '#dashboardImagingBtn').click()
+        assert page.locator(selector).evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
-def test_dashboard_assays_panel_filters_modalities(page) -> None:
+def test_dashboard_assays_panel_filters_modalities(page, tmp_path) -> None:
     _mock_dashboard_load(page)
     _mock_multimodal_assay_datasets(page)
     _mock_dicom_studies(page)
@@ -2374,6 +2392,22 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     page.locator("#dashboardAssaysBtn").click()
 
     expect(page.locator("#assayDashboardOverview")).to_contain_text("Assays")
+    expect(page.locator('#assayDashboardOverview .assay-coverage-chart')).to_contain_text('Patients by modality')
+    expect(page.locator('.assay-coverage-row').first.locator('svg')).to_be_visible()
+    expect(page.locator('#assayDashboardCards .assay-linkage').first).to_contain_text('5 of 5 assay patients')
+    details = page.locator('#assayDashboardCards details.assay-technical-details').first
+    expect(details).not_to_have_attribute('open', '')
+    details.locator('summary').click()
+    expect(details.locator('.assay-summary-grid')).to_be_visible()
+    details.locator('summary').click()
+    page.evaluate('window.scrollTo(0, 0)')
+    page.screenshot(path=str(tmp_path / 'assay-overview-light.png'))
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    page.screenshot(path=str(tmp_path / 'assay-overview-dark.png'))
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert page.locator('#assayDashboardOverview .assay-coverage-chart').evaluate('el => el.scrollWidth <= el.clientWidth')
+    page.evaluate("document.documentElement.dataset.theme = 'light'")
+    page.set_viewport_size({'width': 1400, 'height': 900})
     expect(page.locator("#assayModalityTabs")).to_contain_text("Transcriptomics")
     expect(page.locator("#assayModalityTabs")).not_to_contain_text("Imaging")
     expect(page.locator("#assayModalityTabs")).to_contain_text("Immune-cell abundance")
@@ -2390,11 +2424,9 @@ def test_dashboard_assays_panel_filters_modalities(page) -> None:
     expect(page.locator("#multimodalReadinessPanel")).to_be_visible()
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Multimodal analysis readiness")
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Imaging features")
-    expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Review DICOM studies in OHIF")
-    expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Requirements met")
-    page.locator("[data-readiness-analysis-key='imaging_feature_summary']").click()
-    expect(page.locator("#analysisTab")).to_have_class(re.compile("active"))
-    expect(page.locator("#analysisPrompt")).to_have_value(re.compile("Summarize the derived imaging features"))
+    expect(page.locator("#multimodalReadinessPanel")).not_to_contain_text("Suggested next steps")
+    expect(page.locator("[data-readiness-analysis-key]")).to_have_count(0)
+    expect(page.locator('#multimodalCompareShortcut')).to_be_visible()
 
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardMultimodalBtn").click()
@@ -2465,143 +2497,63 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
 
 
-def test_dashboard_timeline_filters_events_and_selects_patient(page) -> None:
+def test_timeline_filters_by_available_modalities_including_undated(page):
     _mock_dashboard_load(page)
-    _mock_assay_datasets(page)
+    patients = []
+    for ds, pid, samples in [
+        ('alpha', 'P1', [dict(sample_id='S1', assay='Proteins', assay_id='protein', modality='proteomics', collection_date='')]),
+        ('beta', 'P1', [dict(sample_id='S2', assay='RNA', assay_id='rna', modality='transcriptomics', collection_date='2025-01-02')]),
+        ('alpha', 'P2', [dict(sample_id='S3', assay='Proteins', assay_id='protein', modality='olink', collection_date='2025-01-03'),
+                         dict(sample_id='S4', assay='RNA', assay_id='rna', modality='transcriptomics', collection_date='')]),
+    ]:
+        patients.append(dict(patient_id=json.dumps([ds, pid], separators=(',', ':')), source_patient_id=pid,
+            dataset_id=ds, dataset_label=ds, samples=samples,
+            events=[dict(event_date='2025-01-01', event_type='Visit', domains=[dict(label='Disease', examples=['Example disease'])])]))
+    page.route('**/patient-overview/timeline?*', lambda route: route.fulfill(
+        status=200, content_type='application/json', body=json.dumps(dict(timelines=patients, warnings=[]))))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardTimelineBtn').click()
     expect = playwright.expect
-
-    page.locator("#datasetsTabBtn").click()
-    page.locator("#loadBtn").click()
-    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
-    page.locator("#dashboardTabBtn").click()
-    page.locator("#dashboardTimelineBtn").click()
-
-    expect(page.locator("#dashboard-plot-timeline")).to_have_attribute("data-plotly-ready", "true")
-    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Disease")
-    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Treatment")
-    expect(page.locator("#dashboard-timeline-controls")).to_contain_text("Assay")
-    expect(page.locator("#dashboard-timeline-controls-label")).to_have_text("Show events")
-    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
-    page.locator("#dashboard-timeline-controls input[value='diseases']").uncheck()
-    expect(page.locator("#dashboard-timeline-controls input[value='diseases']")).not_to_be_checked()
-    page.evaluate(
-        """
-        () => {
-          const plot = document.getElementById("dashboard-plot-timeline");
-          plot._plotlyHandlers.plotly_click({ points: [{ customdata: "SYN002" }] });
-        }
-        """
-    )
-    expect(page.locator("#detail")).to_contain_text("SYN002")
-    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
-    expect(page.locator("[data-dashboard-select-patient]:checked")).to_have_count(0)
-    page.locator("[data-dashboard-select-patient='SYN002']").first.check()
-    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("1 patient selected")
-    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("Whole patients")
-    expect(page.locator("[data-dashboard-event-patient='SYN001']").first).to_be_visible()
-    page.locator("[data-dashboard-event-inspect]").first.click()
-    expect(page.locator("#detail")).to_contain_text("Timeline inspector")
-    expect(page.locator(".dashboard-timeline-table tbody tr.is-inspected")).to_have_count(1)
-    expect(page.locator("[data-dashboard-event-inspect][aria-pressed='true']")).to_have_count(1)
-    page.locator("#dashboardTimelineEventSearch").fill("SYN001")
-    expect(page.locator("#dashboard-timeline-event-count")).to_contain_text("matching events")
-    page.locator("[data-dashboard-select-patient='SYN001']").first.check()
-    expect(page.locator("#dashboard-timeline-selection-status")).to_contain_text("2 patients selected")
-    page.locator("#dashboardTimelineUseAnalysisBtn").click()
-    expect(page.locator("#analysisSelectedPatientIds")).to_have_value("SYN001,SYN002")
-    page.locator("#dashboardTabBtn").click()
-    page.locator("#dashboardTimelineBtn").click()
-    page.locator("#dashboardTimelineClearSelectionBtn").click()
-    expect(page.locator("#dashboard-timeline-actions")).not_to_be_visible()
-    for value in page.locator("#dashboard-timeline-controls input:enabled:checked").evaluate_all(
-        "inputs => inputs.map(input => input.value)"
-    ):
-        page.locator(f"#dashboard-timeline-controls input[value='{value}']").uncheck()
-    expect(page.locator("#dashboard-timeline-controls input:checked:enabled")).to_have_count(0)
-    expect(page.locator("#dashboard-timeline-event-table")).to_contain_text("No events match")
-    page.locator("#dashboard-timeline-controls input[value='treatments']").check()
-    expect(page.locator("#dashboard-timeline-event-table tbody tr")).to_have_count(1)
+    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(3)
+    expect(page.locator('#timelineHasData')).not_to_contain_text('Disease')
+    page.locator('#timelineHasData input[value="proteomics"]').check()
+    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(2)
+    expect(page.locator('#timelineAvailability')).not_to_contain_text('P1 · beta')
+    expect(page.locator('#timelineAvailability tbody tr').first.locator('td').nth(2)).to_contain_text('Proteomics')
+    # Required data filters retain clinical markers.
+    expect(page.locator('#dashboard-timeline-controls')).to_have_count(0)
+    expect(page.locator('#dashboardTimeline')).not_to_contain_text('Show markers')
+    expect(page.locator('#dashboardTimeline')).to_contain_text('Click a plot legend item')
+    page.locator('#timelineHasData input[value="transcriptomics"]').check()
+    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(1)
+    expect(page.locator('#timelineAvailability')).to_contain_text('P2 · alpha')
+    page.locator('#timelineAvailability button').click()
+    expect(page.locator('#detail')).to_contain_text('Proteins')
+    expect(page.locator('#detail')).to_contain_text('RNA')
+    page.locator('#timelineShowAll').click()
+    page.locator('#timelineDatasetFilter').select_option('beta')
+    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(1)
+    expect(page.locator('#timelineAvailability')).to_contain_text('P1 · beta')
 
 
-def test_dashboard_resolves_and_decodes_subject_clarid_in_timeline(page) -> None:
+def test_timeline_availability_error_is_visible_and_retryable(page):
     _mock_dashboard_load(page)
-    _mock_assay_datasets(page)
-    expect = playwright.expect
-
-    page.locator("#datasetsTabBtn").click()
-    page.locator("#loadBtn").click()
-    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
-    page.locator("#dashboardTabBtn").click()
-    page.locator("#dashboardTimelineBtn").click()
-
-    search = page.locator("#dashboardTimelineEventSearch")
-    search.fill("SyntheticStudy00001CASE")
-    expect(page.locator("#dashboard-timeline-event-count")).to_contain_text(
-        "ClarID recognized as patient SYN001"
-    )
-    expect(page.locator("#dashboard-timeline-event-table tbody tr")).to_have_count(2)
-    expect(page.locator("#dashboard-timeline-event-table tbody")).to_contain_text("SYN001")
-    expect(page.locator("#dashboard-timeline-event-table tbody")).not_to_contain_text("SYN002")
-
-    badge = page.locator("#dashboard-timeline-event-table [data-clarid-toggle]").first
-    badge.click()
-    expect(badge).to_have_attribute("aria-expanded", "true")
-    popover = badge.locator("xpath=..").locator(".clarid-popover")
-    expect(popover).to_be_visible()
-    assert popover.evaluate("element => getComputedStyle(element).position") == "static"
-    expect(popover).to_contain_text("SyntheticStudy · Case · Crohn's disease, unspecified (K50.9) · Female · Age40to49")
-    expect(popover).to_contain_text("SyntheticStudy-00001-Case-K50.9-Female-A40_49")
-    expect(popover).to_contain_text("SyntheticStudy00001CASE")
-    expect(popover).to_contain_text("Codebook 0.04")
-    for width in (1440, 390):
-        page.set_viewport_size({"width": width, "height": 900})
-        assert page.locator('.dashboard-timeline-domain').evaluate_all('''chips => chips.every(chip => {
-            const bounds = chip.getBoundingClientRect();
-            return [...chip.children].every(child => {
-                const box = child.getBoundingClientRect();
-                return box.left >= bounds.left && box.right <= bounds.right
-                    && box.top >= bounds.top && box.bottom <= bounds.bottom;
-            });
-        })''')
-        for selector in ('.dashboard-timeline-event-header', '.dashboard-timeline-table-wrap'):
-            element = page.locator(selector)
-            assert element.evaluate('''el => {
-                const box = el.getBoundingClientRect();
-                const parent = el.parentElement.getBoundingClientRect();
-                return box.right <= parent.right && box.left >= parent.left;
-            }'''), selector
-        assert page.locator('.dashboard-timeline-event-header').evaluate(
-            'el => el.scrollWidth <= el.clientWidth')
-        assert popover.evaluate("el => el.scrollWidth <= el.clientWidth")
-        assert popover.locator(".clarid-decoded-summary").evaluate(
-            "el => getComputedStyle(el).whiteSpace === 'normal' && el.scrollWidth <= el.clientWidth"
-        )
-    page.locator("#dashboard-timeline-event-table [data-clarid-toggle]").nth(1).hover()
-    expect(page.locator("#dashboard-timeline-event-table .clarid-popover:visible")).to_have_count(1)
-
-
-def test_dashboard_exposes_timeline_for_person_representation(page) -> None:
-    _mock_dashboard_load(page, clinical_representation="person")
-    _mock_assay_datasets(page)
-    expect = playwright.expect
-
-    page.locator("#dashboardTimelineBtn").click()
-    expect(page.locator("#dashboardTimelinePanel")).to_have_class(re.compile(r".*active.*"))
-    page.locator("#datasetsTabBtn").click()
-    page.locator("#loadBtn").click()
-    expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
-    page.locator("#dashboardTabBtn").click()
-
-    expect(page.locator("#dashboardTimelineBtn")).to_be_visible()
-    expect(page.locator("#dashboardTimelineBtn")).to_have_class(re.compile(r".*active.*"))
-    expect(page.locator("#dashboardTimelinePanel")).to_have_class(re.compile(r".*active.*"))
-    expect(page.locator("#dashboardTimeline")).to_contain_text("Clinical coverage")
-    expect(page.locator("#dashboardTimeline")).to_contain_text("Patient records")
+    page.route('**/patient-overview/timeline?*', lambda route: route.fulfill(
+        status=403, content_type='application/json', body=json.dumps(dict(detail='Detailed access required.'))))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardTimelineBtn').click()
+    playwright.expect(page.locator('#dashboard-plot-timeline')).to_contain_text('Detailed access required.')
+    playwright.expect(page.locator('#timelineRetry')).to_be_visible()
 
 
 def test_query_chats_persist_in_shared_list_and_reopen(page):
     _open_query_tab(page)
-    _mock_query_reply(page)
     expect = playwright.expect
     page.set_viewport_size({'width': 1400, 'height': 900})
     page.locator('#analysisNewSessionBtn').click()

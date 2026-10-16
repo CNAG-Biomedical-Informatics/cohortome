@@ -22,7 +22,39 @@ The Docker deployment includes an optional `dicom` profile:
 - `ohif`: browser viewer
 - `web`: COHORTome, which lists authorized studies and creates OHIF launch URLs
 
-COHORTome does not copy OHIF, Cornerstone, or Orthanc source code into the app. They run as separate services.
+In this deployment mode, OHIF and Orthanc run as separate services.
+
+## Bundled viewer prototype
+
+The source app also has a local OHIF prototype for the bundled default synthetic
+dataset. Prepare its browser assets once with:
+
+```bash
+python3 scripts/dicom/prepare_bundled_viewer.py
+```
+
+This extracts a pinned OHIF image into ignored `runtime/ohif`. Docker is needed
+for this preparation step, not for viewing images afterwards. With these assets
+present, Dashboard → Imaging offers **View images** for the default synthetic
+studies. The viewer opens over the workspace; **Close viewer** returns to it.
+Each study has one viewing action: it prefers the bundled viewer when available
+for that study; otherwise it uses the enabled external OHIF configuration. It
+does not automatically retry a failed local request against an external service.
+
+Metadata and pixel requests use COHORTome's authentication, dataset authorization
+and Detailed-access checks on every request. Patient responses are marked
+`no-store`; the OHIF service worker is disabled and the viewer's network policy
+blocks external connections. Previously displayed pixels cannot be recalled from
+a user's screen when access is revoked. This prototype deliberately rejects
+other dataset roots and is not ready for restricted images.
+
+The extracted assets occupy about 115 MiB, including about 96 MiB under the ONNX
+runtime directory. This is not an installer-size measurement. The current pinned
+Docker build needs asset-path adaptation to run below `/local-viewer`; a release
+should build OHIF for that path directly. Desktop WebKit rendering, installer
+packaging, upstream licence and dependency notices, and additional imaging
+formats still need verification before distribution. No optional-download
+manager is being introduced.
 
 ## Enable local DICOM viewing
 

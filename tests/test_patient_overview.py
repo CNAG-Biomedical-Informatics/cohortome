@@ -76,4 +76,5 @@ def test_search_and_detail_require_authorized_detailed_access(client, monkeypatc
     monkeypatch.setattr(overview, 'require_authenticated', denied if status == 401 else lambda _: {})
     monkeypatch.setattr(overview, '_require_detailed_assay_access', denied)
     assert client.get('/patient-overview/search', params=dict(workspace='a', q='P1')).status_code == status
+    assert client.get('/patient-overview/timeline', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/detail', params=dict(workspace='a', dataset_id='a', patient_id='P1')).status_code == status

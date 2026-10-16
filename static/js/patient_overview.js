@@ -6,12 +6,19 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const status = document.getElementById('patientOverviewStatus');
   const detail = document.getElementById('patientOverviewDetail');
   let timer, controller, generation = 0, matches = [], active = -1;
+  const timelineButton = document.getElementById('patientTimelineBtn');
+  function clearSelection() {
+    state.patientOverviewSelection = null;
+    timelineButton.disabled = true;
+    if (state.currentDashboardSubtab === 'timeline') navigation.setDashboardSubtab('patients');
+  }
   const value = text => esc(String(text || 'Not recorded'));
   function close() {
     list.hidden = true; input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant'); active = -1;
   }
   function reset() {
+    clearSelection();
     clearTimeout(timer); controller?.abort(); generation++;
     close(); matches = []; list.replaceChildren(); detail.replaceChildren(); input.value = '';
     status.textContent = 'Search by patient ID or ClarID. Up to 12 matches are shown.';
@@ -36,12 +43,11 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
       <p class="section-note">This inventory describes data available here, not every assay ever performed. Sample identifiers are those supplied by the dataset; they do not necessarily represent distinct biological specimens.</p>
       ${rows.length ? patientInventoryMarkup(rows, esc) : '<p>No linked assay samples are available in this dataset.</p>'}
       ${data.warnings.length ? `<details class="patient-inventory-warning"><summary>Inventory limitations (${data.warnings.length})</summary><ul>${data.warnings.map(w => `<li>${value(w)}</li>`).join('')}</ul></details>` : ''}
-      ${state.currentDatasetIds.length === 1 ? '<button type="button" class="query-chip" data-patient-timeline>Open clinical timeline</button>' : '<p class="section-note">To view the clinical timeline without combining identifiers across datasets, apply this dataset on its own.</p>'}
       </section>`;
-    detail.querySelector('[data-patient-timeline]')?.addEventListener('click', () => openTimeline(p.patient_id));
   }
   async function choose(index) {
     const match = matches[index]; if (!match) return;
+    clearSelection();
     clearTimeout(timer); controller?.abort(); controller = new AbortController();
     const ticket = ++generation, selectedScope = scope();
     close(); input.value = match.patient_id; detail.replaceChildren();
@@ -49,12 +55,15 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     try {
       const data = await request('detail', {workspace:selectedScope, dataset_id:match.dataset_id, patient_id:match.patient_id}, controller.signal);
       if (ticket !== generation || selectedScope !== scope()) return;
+      state.patientOverviewSelection = { patientId: match.patient_id, datasetId: match.dataset_id, samples: data.samples };
+      timelineButton.disabled = false;
       render(data); status.textContent = `Showing ${match.patient_id} in ${match.dataset_label}.`;
     } catch (error) {
       if (ticket === generation && error.name !== 'AbortError') status.textContent = error.message;
     }
   }
   input.addEventListener('input', () => {
+    clearSelection();
     clearTimeout(timer); controller?.abort(); generation++; close(); detail.replaceChildren();
     const q = input.value.trim(); matches = [];
     if (!q) { status.textContent = 'Start typing a patient ID or ClarID.'; return; }
@@ -92,6 +101,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   });
   document.addEventListener('click', event => { if (!event.target.closest('.patient-lookup')) close(); });
   window.addEventListener('cohortome:workspace-changing', reset);
+  document.getElementById('patientOverviewViewBtn').addEventListener('click', () => navigation.setDashboardSubtab('patients'));
+  timelineButton.addEventListener('click', () => {
+    if (state.patientOverviewSelection && !timelineButton.disabled) void openTimeline(state.patientOverviewSelection.patientId, state.patientOverviewSelection.datasetId);
+  });
   document.getElementById('dashboardPatientsBtn').addEventListener('click', () => {
     navigation.setDashboardSubtab('patients'); input.focus();
   });

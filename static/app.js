@@ -119,8 +119,10 @@ function clearDatasetScopedContent(options = {}) {
   state.selectedPatientId = null;
   state.dashboardSummaryState = null;
   state.dashboardSummary = null;
-  state.dashboardTimelineSelectedPatientIds = [];
-  state.dashboardTimelineInspectedEventKey = "";
+  state.timelinePatientFilter = '';
+  state.timelinePatientSearch = '';
+  state.timelineDatasetFilter = '';
+  state.timelinePage = 0;
   state.savedCohorts = [];
   state.phenoRankerPatientIds = [];
   state.phenoReferenceFiles = [];
@@ -1266,15 +1268,14 @@ function bindEvents() {
   refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
   refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
   refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
+  refs.dashboardTimelineBtnEl?.addEventListener('click', () => {
+    state.timelinePatientFilter = ''; state.timelinePatientSearch = ''; state.timelineDatasetFilter = ''; state.timelinePage = 0;
+    navigationUi.setDashboardSubtab('timeline');
+    dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
+  });
   refs.dashboardAssaysBtnEl && refs.dashboardAssaysBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("assays"));
   refs.dashboardImagingBtnEl && refs.dashboardImagingBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("imaging"));
   refs.dashboardMultimodalBtnEl && refs.dashboardMultimodalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("multimodal"));
-  refs.dashboardTimelineBtnEl && refs.dashboardTimelineBtnEl.addEventListener("click", () => {
-    navigationUi.setDashboardSubtab("timeline");
-    if (state.dashboardSummaryState) {
-      dashboardUi.renderDashboard(state.dashboardSummaryState);
-    }
-  });
 
   refs.userCreateBtnEl && refs.userCreateBtnEl.addEventListener("click", () => {
     void usersAdminUi.createAuthUser();
@@ -1485,10 +1486,6 @@ function bindEvents() {
     }
     const card = event.target.closest(".patient-card");
     if (!card || !refs.patientsEl.contains(card)) {
-      return;
-    }
-    if (state.currentDashboardSubtab === "timeline") {
-      dashboardUi.toggleTimelinePatientSelection(card.dataset.patientId);
       return;
     }
     void workspaceUi.loadPatient(card.dataset.patientId);
@@ -1826,9 +1823,12 @@ async function bootstrap() {
   bindEvents();
   createPatientOverview({state, navigation:navigationUi, escapeHtml,
     scope:() => datasetsUi.currentDatasetSelectionKey(),
-    openTimeline:async (patientId) => {
+    openTimeline:async (patientId, datasetId) => {
+      state.timelinePatientFilter = JSON.stringify([datasetId, patientId]);
+      state.timelineDatasetFilter = ''; state.timelinePatientSearch = ''; state.timelinePage = 0;
       navigationUi.setDashboardSubtab('timeline');
-      await workspaceUi.loadPatient(patientId);
+      if (state.currentDatasetIds.length === 1) await workspaceUi.loadPatient(patientId);
+      else dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
     }});
   initializeUiShell();
   window.__cohortomeLoadPatients = (options) => workspaceUi.loadPatients(options);

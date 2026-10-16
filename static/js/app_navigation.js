@@ -135,8 +135,12 @@ export function createNavigationUi(ctx) {
 
   function setDashboardSubtab(subtabName) {
     state.currentDashboardSubtab = ["patients", "assays", "imaging", "multimodal", "timeline"].includes(subtabName) ? subtabName : "clinical";
-    dashboardPatientsBtnEl && dashboardPatientsBtnEl.classList.toggle("active", state.currentDashboardSubtab === "patients");
-    dashboardPatientsPanelEl && dashboardPatientsPanelEl.classList.toggle("active", state.currentDashboardSubtab === "patients");
+    const patientView = state.currentDashboardSubtab === 'patients';
+    dashboardPatientsBtnEl && dashboardPatientsBtnEl.classList.toggle("active", patientView);
+    dashboardPatientsPanelEl && dashboardPatientsPanelEl.classList.toggle("active", patientView);
+    document.getElementById('patientOverviewDetail').hidden = state.currentDashboardSubtab === 'timeline';
+    document.getElementById('patientOverviewViewBtn').setAttribute('aria-pressed', String(state.currentDashboardSubtab !== 'timeline'));
+    dashboardTimelineBtnEl?.setAttribute('aria-pressed', String(state.currentDashboardSubtab === 'timeline'));
     dashboardImagingBtnEl && dashboardImagingBtnEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardImagingPanelEl && dashboardImagingPanelEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardClinicalBtnEl && dashboardClinicalBtnEl.classList.toggle("active", state.currentDashboardSubtab === "clinical");

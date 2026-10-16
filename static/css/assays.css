@@ -200,13 +200,14 @@
         gap: 12px;
       }
       .assay-dashboard-card {
+        align-content: start;
         padding: 20px;
-        border-radius: 22px;
-        border: 1px solid rgba(14, 165, 233, 0.14);
+        border-radius: 12px;
+        border: 1px solid var(--line);
         background:
           linear-gradient(180deg, var(--theme-surface, rgba(255, 255, 255, 0.96)), var(--theme-surface, rgba(248, 250, 252, 0.92))),
           radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 35%);
-        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+        box-shadow: none;
         display: grid;
         gap: 16px;
       }
@@ -237,6 +238,11 @@
         word-break: break-word;
       }
       .assay-modality-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
         width: auto;
         max-width: 100%;
         white-space: normal;
@@ -248,6 +254,29 @@
         flex-wrap: wrap;
         gap: 8px;
         margin-top: -4px;
+      }
+      .assay-overview-icon { width: 20px; height: 20px; flex: 0 0 20px; color: var(--accent); }
+      .assay-coverage-chart { grid-column: 1 / -1; display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+      .assay-coverage-chart > .section-note { margin: -6px 0 0; }
+      .assay-coverage-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(60px, 2fr) minmax(45px, auto); gap: 14px; align-items: center; font-size: 12px; }
+      .assay-coverage-row > span { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+      .assay-coverage-row > strong { text-align: right; font-variant-numeric: tabular-nums; }
+      .assay-coverage-track { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+      .assay-coverage-track > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+      .assay-linkage { display: grid; gap: 8px; font-size: 12px; }
+      .assay-linkage > div:first-child { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+      .assay-linkage span, .assay-linkage small { color: var(--muted); font-size: 12px; }
+      .assay-dashboard-card .assay-kpi { padding: 10px 12px; border-radius: 8px; background: transparent; border-color: var(--line); }
+      .assay-dashboard-card .assay-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .assay-dashboard-card .assay-kpi-label { text-transform: none; letter-spacing: 0; }
+      .assay-dashboard-card .assay-kpi-value { font-size: 20px; font-variant-numeric: tabular-nums; color: var(--ink); }
+      details.assay-technical-details { display: block; padding: 10px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+      .assay-technical-details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      .assay-technical-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+      .assay-technical-details .assay-summary-grid { margin-top: 12px; }
+      @media (max-width: 600px) {
+        .assay-coverage-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+        .assay-coverage-row .assay-coverage-track { grid-row: 2; grid-column: 1 / -1; }
       }
       .assay-kpi-grid {
         display: grid;
@@ -532,6 +561,7 @@
         gap: 18px;
       }
       .dicom-study-card {
+        align-content: start;
         padding: 20px;
         border-radius: 18px;
         border: 1px solid rgba(15, 118, 110, 0.16);
@@ -550,6 +580,27 @@
         font-size: 0.82rem;
         overflow-wrap: anywhere;
         word-break: break-word;
+      }
+      .imaging-coverage-summary { grid-column: 1 / -1; display: grid; gap: 8px; }
+      .cross-modal-pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+      .cross-modal-pair { display: grid; align-content: start; gap: 14px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--theme-surface, transparent); }
+      .cross-modal-pair-types { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+      .cross-modal-pair-types > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+      .cross-modal-pair-connector { color: var(--muted); }
+      .cross-modal-pair-count { display: flex; align-items: baseline; gap: 8px; }
+      .cross-modal-pair-count strong { font-size: 1.5rem; line-height: 1.2; font-weight: 650; font-variant-numeric: tabular-nums; }
+      .cross-modal-pair-count span, .cross-modal-pair-samples { font-size: 12px; color: var(--muted); }
+      .cross-modal-pair-samples { border-top: 1px solid var(--line); padding-top: 10px; }
+      .dicom-study-card .assay-card-eyebrow { display: flex; align-items: center; gap: 8px; }
+      .dicom-study-card .assay-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .missingness-track { grid-column: 1 / -1; }
+      .missingness-track i { background: var(--muted); }
+      #dashboardImagingPanel details p { overflow-wrap: anywhere; }
+      #dashboardMultimodalPanel details > summary,
+      #dashboardImagingPanel details > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      @media (max-width: 700px) {
+        .dicom-study-grid { grid-template-columns: minmax(0, 1fr); }
+        .dicom-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       .dicom-card-actions {
         margin-top: 0;
@@ -601,3 +652,32 @@
         display: grid;
         gap: 8px;
       }
+.local-imaging-viewer {
+  width: 96vw;
+  height: 94vh;
+  max-width: none;
+  max-height: none;
+  padding: 10px;
+  background: #080d16;
+  border: 1px solid #394658;
+  border-radius: 8px;
+}
+.local-imaging-viewer[open] { display: flex; flex-direction: column; gap: 8px; }
+.local-imaging-viewer > button {
+  align-self: flex-end;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  border: 1px solid #526176;
+  border-radius: 6px;
+  background: #182333;
+  color: #f1f5f9;
+  box-shadow: none;
+}
+.local-imaging-viewer > button:hover { background: #28374b; }
+.local-imaging-viewer > button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.local-imaging-viewer iframe { width: 100%; flex: 1; border: 0; min-height: 0; }

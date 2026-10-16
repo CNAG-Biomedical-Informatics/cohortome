@@ -1993,11 +1993,22 @@ def get_dicom_studies(request: Request, dataset_id: str = "", data_dir: str = DE
     try:
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         status = dicom_status(resolved_dir)
+        studies = dicom_studies(resolved_dir)
+        from app.local_viewer import ASSETS, SYNTHETIC_ROOT
+        from urllib.parse import quote
+        if (ASSETS / 'index.html').is_file():
+            ids = _route_dataset_ids(request, dataset_id, data_dir)
+            for study in studies:
+                source_id = study.get('source_dataset_id') or (ids[0] if len(ids) == 1 else '')
+                if source_id and source_id in ids:
+                    root = Path(_resolve_route_dataset_dir(request, source_id, '')).resolve()
+                    if root == SYNTHETIC_ROOT.resolve():
+                        study['local_viewer_url'] = '/local-viewer/open/' + quote(source_id, safe='') + '/' + quote(study['study_instance_uid'], safe='')
         return {
             "enabled": bool(status.get("enabled")),
             "ohif_public_url": str(status.get("ohif_public_url") or ""),
             "dicomweb_public_url": str(status.get("dicomweb_public_url") or ""),
-            "studies": dicom_studies(resolved_dir),
+            "studies": studies,
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

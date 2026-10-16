@@ -55,8 +55,7 @@ export function createDashboardUi(ctx) {
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
-  const { timelineSelectedPatientSet, toggleTimelinePatientSelection,
-    renderDashboardTimeline, timelinePanelMarkup } = createTimelineUi({
+  const { renderDashboardTimeline, timelinePanelMarkup } = createTimelineUi({
     state, refs,
     helpers: { escapeHtml, clinicalRepresentation, normalizedClarid,
       claridIdentityMarkup, dashboardPlotLayout, mountPlot },
@@ -378,13 +377,12 @@ export function createDashboardUi(ctx) {
   }
 
   function summaryCard(patient) {
-    const timelineSelected = state.currentDashboardSubtab === "timeline" && timelineSelectedPatientSet().has(String(patient.patient_id || ""));
-    const activeClass = state.selectedPatientId === patient.patient_id || timelineSelected ? "active" : "";
+    const activeClass = state.selectedPatientId === patient.patient_id ? "active" : "";
     const datasetNames = Array.isArray(patient.dataset_names) ? patient.dataset_names : [];
     const datasetBadge = isMultiDatasetWorkspace() && datasetNames.length
       ? `<span class="pill">${escapeHtml(datasetNames.join(", "))}</span>`
       : "";
-    const selectionBadge = timelineSelected ? '<span class="pill">selected</span>' : "";
+    const selectionBadge = '';
     const compactTimeline = state.currentDashboardSubtab === "timeline";
     const recordCount = Number(patient.clinical_record_count ?? patient.visit_count ?? 0);
     const recordText = `${recordCount} ${clinicalRecordLabel(patient, recordCount)}`;
@@ -1106,7 +1104,7 @@ export function createDashboardUi(ctx) {
         <div class="dicom-health-card">
           <span class="assay-kpi-label">Viewer</span>
           <strong>${enabled ? "Enabled" : "Disabled"}</strong>
-          <small>${escapeHtml(ohifUrl || "No OHIF URL configured")}</small>
+          <small>Open studies in OHIF</small>
         </div>
         <div class="dicom-health-card">
           <span class="assay-kpi-label">Study manifest</span>
@@ -1121,9 +1119,13 @@ export function createDashboardUi(ctx) {
         <div class="dicom-health-card">
           <span class="assay-kpi-label">DICOMweb</span>
           <strong>${dicomwebUrl ? "Configured" : "Missing"}</strong>
-          <small>${escapeHtml(dicomwebUrl || "No DICOMweb URL configured")}</small>
+          <small>Image access service</small>
         </div>
       </div>
+      <details class="assay-card-section"><summary>Connection details</summary>
+        <p>OHIF: ${escapeHtml(ohifUrl || "Not configured")}</p>
+        <p>DICOMweb: ${escapeHtml(dicomwebUrl || "Not configured")}</p>
+      </details>
     `;
     renderAssayDashboardOverview(state.assayDatasetsState || []);
   }
@@ -1138,6 +1140,7 @@ export function createDashboardUi(ctx) {
     const source = payload && typeof payload === "object" ? payload : {};
     const enabled = Boolean(source.enabled);
     const studies = Array.isArray(source.studies) ? source.studies : [];
+    const localAvailable = studies.some(study => study.local_viewer_url);
     state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
     state.dicomStudiesState = studies;
     dicomDashboardStatusEl.className = "query-status";
@@ -1149,10 +1152,17 @@ export function createDashboardUi(ctx) {
       renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
-    dicomDashboardStatusEl.textContent = enabled
+    dicomDashboardStatusEl.textContent = localAvailable
+      ? `Loaded ${studies.length} studies. Bundled viewing is available for synthetic images.`
+      : enabled
       ? `Loaded ${studies.length} DICOM stud${studies.length === 1 ? "y" : "ies"} for OHIF viewing.`
       : `DICOM visualization is disabled. ${studies.length} configured stud${studies.length === 1 ? "y" : "ies"} found.`;
-    dicomDashboardStudiesEl.innerHTML = studies.map((study) => {
+    const modalityCounts = new Map();
+    studies.forEach(study => { const key = String(study.modality || 'Not recorded'); modalityCounts.set(key, (modalityCounts.get(key) || 0) + 1); });
+    dicomDashboardStudiesEl.innerHTML = `<section class="imaging-coverage-summary">
+      ${renderCoverageBars('Studies by imaging modality', Array.from(modalityCounts, ([label, count]) => ({label, count, modality:'imaging'})), 'studies')}
+      <p class="section-note">Configured study inventory—not a count of unique patients or a check of image quality.</p>
+    </section>` + studies.map((study) => {
       const series = Array.isArray(study.series) ? study.series : [];
       const instanceCount = series.reduce((total, item) => total + Number(item && item.instance_count ? item.instance_count : 0), 0);
       const ohifUrl = String(study.ohif_url || "").trim();
@@ -1163,28 +1173,46 @@ export function createDashboardUi(ctx) {
         <article class="dicom-study-card">
           <div class="assay-card-header">
             <div>
-              <div class="assay-card-eyebrow">DICOM study</div>
+              <div class="assay-card-eyebrow">${assayOverviewIcon('imaging')} DICOM study</div>
               <strong class="assay-card-title">${escapeHtml(title)}</strong>
             </div>
             <span class="query-chip badge assay-modality-badge">${escapeHtml(String(study.modality || "DICOM"))}</span>
           </div>
-          ${subtitle ? `<div class="section-note">${escapeHtml(subtitle)}</div>` : ""}
+          ${subtitle ? `<div class="section-note">Patient / sample / timepoint: ${escapeHtml(subtitle)}</div>` : '<div class="section-note">Patient linkage not recorded.</div>'}
           <div class="assay-kpi-grid">
             <div class="assay-kpi"><span class="assay-kpi-label">Series</span><strong class="assay-kpi-value">${escapeHtml(String(series.length))}</strong></div>
             <div class="assay-kpi"><span class="assay-kpi-label">Instances</span><strong class="assay-kpi-value">${escapeHtml(String(instanceCount))}</strong></div>
           </div>
-          <div class="assay-card-section">
-            <strong>StudyInstanceUID</strong>
+          <details class="assay-card-section">
+            <summary>Study identifier</summary>
             <code class="dicom-uid">${escapeHtml(String(study.study_instance_uid || ""))}</code>
-          </div>
+          </details>
           <div class="query-row dicom-card-actions">
-            ${canOpen
-        ? `<a class="button-like" href="${escapeHtml(ohifUrl)}" target="_blank" rel="noopener">Open in OHIF</a>`
-        : '<button type="button" disabled>Open in OHIF</button>'}
+            ${study.local_viewer_url
+        ? `<button type="button" data-local-viewer="${escapeHtml(study.local_viewer_url)}">View images</button>`
+        : canOpen
+          ? `<a class="button-like" href="${escapeHtml(ohifUrl)}" target="_blank" rel="noopener" title="Opens the configured external viewer">View images</a>`
+          : '<button type="button" disabled title="No viewer is configured for this study">View images</button>'}
           </div>
         </article>
       `;
     }).join("");
+    dicomDashboardStudiesEl.querySelectorAll('[data-local-viewer]').forEach(button => {
+      button.addEventListener('click', () => {
+        const url = new URL(button.dataset.localViewer, window.location.origin);
+        if (url.origin !== window.location.origin || !url.pathname.startsWith('/local-viewer/open/')) return;
+        const dialog = document.createElement('dialog');
+        dialog.className = 'local-imaging-viewer';
+        const close = document.createElement('button');
+        close.type = 'button'; close.textContent = 'Close viewer';
+        const frame = document.createElement('iframe');
+        frame.title = 'OHIF imaging viewer'; frame.src = url.href;
+        dialog.append(close, frame);
+        close.addEventListener('click', () => dialog.close());
+        dialog.addEventListener('close', () => { dialog.remove(); button.focus(); });
+        document.body.append(dialog); dialog.showModal(); close.focus();
+      });
+    });
     renderAssayDashboardOverview(state.assayDatasetsState || []);
   }
 
@@ -1267,14 +1295,19 @@ export function createDashboardUi(ctx) {
     const patientIds = new Set();
     const sampleIds = new Set();
     let featureTotal = 0;
-    let clinicalOverlap = 0;
     items.forEach((item) => {
       (Array.isArray(item.patient_ids) ? item.patient_ids : []).forEach((id) => patientIds.add(String(id || "").trim()));
       (Array.isArray(item.sample_ids) ? item.sample_ids : []).forEach((id) => sampleIds.add(String(id || "").trim()));
       featureTotal += Number(item.feature_count || item.gene_count || 0);
-      clinicalOverlap += Number(item.clinical_overlap_patient_count || 0);
     });
     const modalities = Array.from(assayModalityCounts(items).keys()).sort((left, right) => formatAssayModality(left).localeCompare(formatAssayModality(right)));
+    const coverage = modalities.map(modality => {
+      const assays = items.filter(item => normalizedAssayModality(item.modality) === modality);
+      const known = assays.every(item => Array.isArray(item.patient_ids));
+      const patients = new Set(assays.flatMap(item => item.patient_ids || []).map(String).filter(id => id.trim()));
+      return { modality, count: known ? patients.size : null };
+    });
+    const largest = Math.max(1, ...coverage.map(item => item.count || 0));
     assayDashboardOverviewEl.innerHTML = `
       <section class="assay-overview-summary">
         <div class="assay-overview-copy">
@@ -1287,9 +1320,14 @@ export function createDashboardUi(ctx) {
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(patientIds.size))}</strong></div>
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(featureTotal))}</strong></div>
         </div>
-        <div class="assay-overview-tags">
-          ${modalities.map((modality) => `<span class="query-chip badge">${escapeHtml(formatAssayModality(modality))}</span>`).join("")}
-          <span class="query-chip badge">Clinical overlap ${escapeHtml(String(clinicalOverlap))}</span>
+        <div class="assay-coverage-chart">
+          <strong>Patients by modality</strong>
+          <p class="section-note">Unique patients within each modality; a patient can appear in several rows.</p>
+          ${coverage.map(({ modality, count }) => `<div class="assay-coverage-row">
+            <span>${assayOverviewIcon(modality)}${escapeHtml(formatAssayModality(modality))}</span>
+            <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null ? 0 : count / largest * 100}%"></i></div>
+            <strong>${count === null ? 'Not reported' : escapeHtml(formatNumber(count))}</strong>
+          </div>`).join('')}
         </div>
       </section>
     `;
@@ -1345,6 +1383,17 @@ export function createDashboardUi(ctx) {
     `;
   }
 
+  function renderCoverageBars(title, rows, unit) {
+    const validCount = value => value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0;
+    const max = Math.max(1, ...rows.filter(row => validCount(row.count)).map(row => Number(row.count)));
+    return `<div class="assay-coverage-chart"><strong>${escapeHtml(title)}</strong>
+      ${rows.map(row => `<div class="assay-coverage-row">
+        <span>${assayOverviewIcon(row.modality)}${escapeHtml(String(row.label))}</span>
+        <div class="assay-coverage-track" aria-hidden="true"><i style="width:${validCount(row.count) ? Number(row.count) / max * 100 : 0}%"></i></div>
+        <strong>${validCount(row.count) ? escapeHtml(formatNumber(Number(row.count))) + ' ' + escapeHtml(Number(row.count) === 1 ? (unit === 'studies' ? 'study' : 'patient') : unit) : 'Not reported'}</strong>
+      </div>`).join('') || '<p class="empty">No coverage reported.</p>'}</div>`;
+  }
+
   function renderReadinessCoverageTable(modalities) {
     const rows = (Array.isArray(modalities) ? modalities : []).map((item) => `
       <tr>
@@ -1358,13 +1407,16 @@ export function createDashboardUi(ctx) {
     `).join("");
     return `
       <div class="assay-card-section">
-        <strong>Coverage</strong>
+        ${renderCoverageBars('Patients by data type', (Array.isArray(modalities) ? modalities : []).map(item => ({label:item.label || item.key || 'Modality', modality:item.key, count:item.patient_count})), 'patients')}
+        <p class="section-note">Patients can appear in more than one data type. Counts are not additive; shared patients are shown below.</p>
+        <details><summary>Detailed coverage counts</summary>
         <div class="assay-table-wrap">
           <table class="assay-table multimodal-readiness-table">
             <thead><tr><th>Modality</th><th>Resources</th><th>Patients</th><th>Samples</th><th>Features</th><th>Clinical overlap</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="6">No modalities found.</td></tr>'}</tbody>
           </table>
         </div>
+        </details>
       </div>
     `;
   }
@@ -1376,14 +1428,20 @@ export function createDashboardUi(ctx) {
       .slice(0, 6);
     const content = useful.length
       ? useful.map((item) => `
-        <div class="multimodal-overlap-row">
-          <span>${escapeHtml(String(item.left_label || item.left))} + ${escapeHtml(String(item.right_label || item.right))}</span>
-          <strong>${escapeHtml(String(item.patient_overlap_count || 0))} patients</strong>
-          <small>${escapeHtml(String(item.sample_overlap_count || 0))} exact samples</small>
-        </div>
+        <article class="cross-modal-pair">
+          <div class="cross-modal-pair-types">
+            <span>${assayOverviewIcon(item.left)}${escapeHtml(String(item.left_label || item.left))}</span>
+            <span class="cross-modal-pair-connector" aria-label="and">+</span>
+            <span>${assayOverviewIcon(item.right)}${escapeHtml(String(item.right_label || item.right))}</span>
+          </div>
+          <div class="cross-modal-pair-count"><strong>${escapeHtml(String(item.patient_overlap_count ?? '—'))}</strong> <span>shared ${Number(item.patient_overlap_count) === 1 ? 'patient' : 'patients'}</span></div>
+          <div class="cross-modal-pair-samples">${escapeHtml(String(item.sample_overlap_count ?? 'Not reported'))} matching sample ${Number(item.sample_overlap_count) === 1 ? 'ID' : 'IDs'}</div>
+        </article>
       `).join("")
       : '<div class="empty">No cross-modal overlap is currently available.</div>';
-    return `<div class="assay-card-section"><strong>Cross-modal overlap</strong><div class="multimodal-overlap-list">${content}</div></div>`;
+    return `<div class="assay-card-section"><strong>Cross-modal overlap</strong>
+      <p class="section-note">Up to six pairs with the most shared patients. Patient overlap does not imply the same visit or specimen; exact samples require matching identifiers.</p>
+      <div class="cross-modal-pairs">${content}</div></div>`;
   }
 
   function renderReadinessIssues(issues) {
@@ -1401,51 +1459,6 @@ export function createDashboardUi(ctx) {
     `;
   }
 
-  function readinessAnalysisPrompt(item) {
-    const key = String(item && item.key ? item.key : "").trim();
-    const prompts = {
-      dicom_review: "Review the DICOM studies available in this workspace. Summarize which patients and samples have viewer-ready studies, which linkage checks matter, and what imaging review steps are feasible next.",
-      imaging_feature_summary: "Summarize the derived imaging features in this workspace, including patient overlap, exact sample/timepoint overlap, missingness, value ranges, and which imaging analyses are feasible next.",
-      transcriptomics_summary: "Summarize the transcriptomics assay data in this workspace, including sample coverage, clinical overlap, available datasets, missingness considerations, and which expression analyses are feasible next.",
-      patient_level_cross_modal: "Review this workspace for patient-level multimodal analysis readiness. Summarize which clinical, imaging, DICOM, and assay modalities overlap by patient and what exploratory association analyses are feasible.",
-      visit_matched_multimodal: "Review the visit-matched multimodal data in this workspace. Summarize exact sample/timepoint overlap, missingness, available feature groups, and which sample-level analyses are feasible.",
-    };
-    return prompts[key] || `Review the ${String(item && item.label ? item.label : "multimodal")} readiness suggestion and summarize what analysis steps are feasible in this workspace.`;
-  }
-
-  function openReadinessSuggestionInAnalysis(item) {
-    if (typeof sendPromptToAnalysis !== "function" || !item || !item.enabled) return;
-    sendPromptToAnalysis(readinessAnalysisPrompt(item), {
-      statusMessage: `Analysis prompt prepared from multimodal readiness: ${String(item.label || "suggested next step")}. Review it and run when ready.`,
-    });
-  }
-
-  function bindReadinessSuggestionActions(suggestions) {
-    if (!multimodalReadinessContentEl || typeof sendPromptToAnalysis !== "function") return;
-    const items = Array.isArray(suggestions) ? suggestions : [];
-    multimodalReadinessContentEl.querySelectorAll("[data-readiness-analysis-key]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const key = String(button.getAttribute("data-readiness-analysis-key") || "").trim();
-        const item = items.find((candidate) => String(candidate && candidate.key ? candidate.key : "").trim() === key);
-        openReadinessSuggestionInAnalysis(item);
-      });
-    });
-  }
-
-  function renderReadinessSuggestions(suggestions) {
-    const items = Array.isArray(suggestions) ? suggestions : [];
-    const content = items.length
-      ? items.map((item) => `
-        <article class="multimodal-suggestion${item.enabled ? "" : " disabled"}">
-          <strong>${escapeHtml(String(item.label || "Suggested analysis"))}</strong>
-          <span class="query-chip badge">${escapeHtml(item.enabled ? "Requirements met" : "Missing data")}</span>
-          <small>${escapeHtml(String(item.reason || ""))}</small>
-          ${item.enabled ? `<button type="button" class="query-chip action multimodal-suggestion-action" data-readiness-analysis-key="${escapeHtml(String(item.key || ""))}">Open in Analysis</button>` : ""}
-        </article>
-      `).join("")
-      : '<div class="empty">No suggestions available.</div>';
-    return `<div class="assay-card-section"><strong>Suggested next steps</strong><div class="multimodal-suggestion-grid">${content}</div></div>`;
-  }
 
   function renderMultimodalReadiness(payload) {
     if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
@@ -1462,9 +1475,7 @@ export function createDashboardUi(ctx) {
       ${renderReadinessCoverageTable(modalities)}
       ${renderReadinessOverlaps(source.pairwise_overlaps || [])}
       ${renderReadinessIssues(issues)}
-      ${renderReadinessSuggestions(source.suggestions || [])}
     `;
-    bindReadinessSuggestionActions(source.suggestions || []);
     renderMultimodalReadinessVisibility();
   }
 
@@ -1521,6 +1532,7 @@ export function createDashboardUi(ctx) {
               <span>${escapeHtml(String(item.label || item.key || "Column"))}</span>
               <strong>${escapeHtml(String(item.missing_count || 0))}</strong>
               <small>${escapeHtml((Number(item.missing_fraction || 0) * 100).toFixed(1))}%</small>
+              <div class="assay-coverage-track missingness-track" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, Number(item.missing_fraction || 0) * 100))}%"></i></div>
             </div>
           `).join("")}
         </div>
@@ -1582,7 +1594,7 @@ export function createDashboardUi(ctx) {
       : "No matrix rows available.";
     multimodalMatrixContentEl.innerHTML = `
       ${renderMatrixKpis(metadata)}
-      ${renderMatrixFeatureGroups(source.feature_groups || [])}
+      <details class="assay-card-section"><summary>Feature groups and provenance</summary>${renderMatrixFeatureGroups(source.feature_groups || [])}</details>
       ${renderMatrixMissingness(source.missingness || [])}
       ${renderMatrixWarnings(source.warnings || [])}
       ${renderMatrixPreviewTable(source.columns || [], source.rows || [])}
@@ -1654,15 +1666,39 @@ export function createDashboardUi(ctx) {
     const valueKind = String(item.value_kind || normalizedAssayDataType(item) || item.data_type || "feature_matrix").trim();
     const title = modality === "imaging" ? "Derived DICOM measurements" : `${formatAssayModality(modality)} matrix`;
     return `
-      <div class="assay-card-section">
-        <strong>${escapeHtml(title)}</strong>
+      <details class="assay-card-section assay-technical-details">
+        <summary>${escapeHtml(title)} · technical details</summary>
         <div class="assay-summary-grid">
           <div class="assay-summary-item"><span>Feature type</span><strong>${escapeHtml(featureLabel)}</strong></div>
           <div class="assay-summary-item"><span>Namespace</span><strong>${escapeHtml(namespace.replace(/_/g, " "))}</strong></div>
           <div class="assay-summary-item"><span>Value kind</span><strong>${escapeHtml(formatAssayDataType(valueKind))}</strong></div>
         </div>
-      </div>
+      </details>
     `;
+  }
+
+  function assayOverviewIcon(modality) {
+    const paths = {
+      clinical: 'M9 3h6v3h4v15H5V6h4ZM9 3v5h6V3M8 12h8M8 16h5',
+      dicom: 'M3 4h18v16H3ZM3 16l5-5 5 5 3-3 5 5M15 8h2',
+      transcriptomics: 'M6 3c0 8 12 10 12 18M18 3c0 8-12 10-12 18M8 6h8M8 18h8M10 10h4M10 14h4',
+      methylation: 'M6 3c0 8 12 10 12 18M18 3c0 8-12 10-12 18M8 6h8M8 18h8M19 7h3m-1-2v4',
+      imaging: 'M3 4h18v16H3ZM3 16l5-5 5 5 3-3 5 5M15 8h2',
+    };
+    return `<svg class="assay-overview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[modality] || 'M9 3h6M10 3v6L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2L14 9V3M7 15h10'}"/></svg>`;
+  }
+
+  function renderAssayLinkage(item) {
+    const total = Number(item.patient_count), linked = Number(item.clinical_overlap_patient_count);
+    if (item.patient_count == null || item.clinical_overlap_patient_count == null || !Number.isFinite(total) || !Number.isFinite(linked) || total <= 0 || linked < 0 || linked > total) {
+      return '<div class="assay-linkage"><strong>Clinical linkage</strong><span class="section-note">Coverage not available.</span></div>';
+    }
+    const percent = linked / total * 100;
+    return `<div class="assay-linkage">
+      <div><strong>Clinical linkage</strong><span>${escapeHtml(formatNumber(linked))} of ${escapeHtml(formatNumber(total))} assay patients · ${percent.toFixed(0)}%</span></div>
+      <div class="assay-coverage-track" aria-hidden="true"><i style="width:${percent}%"></i></div>
+      <small>${total === linked ? 'All assay patients have a linked clinical record.' : `${escapeHtml(formatNumber(total - linked))} assay patients have no linked clinical record in this workspace.`}</small>
+    </div>`;
   }
 
   function renderAssayDashboardCard(item) {
@@ -1675,7 +1711,7 @@ export function createDashboardUi(ctx) {
             <div class="assay-card-eyebrow">${escapeHtml(modality === "imaging" ? "Imaging measurements" : isTranscriptomics ? "Expression assay" : `${formatAssayModality(modality)} assay`)}</div>
             <strong class="assay-card-title">${escapeHtml(item.label || item.dataset_name)}</strong>
           </div>
-          <span class="query-chip badge assay-modality-badge">${escapeHtml(formatAssayModality(modality))}</span>
+          <span class="assay-modality-badge">${assayOverviewIcon(modality)}${escapeHtml(formatAssayModality(modality))}</span>
         </div>
         <div class="assay-card-meta">
           <span class="dataset-picker-tag">${escapeHtml(item.dataset_name)}</span>
@@ -1685,8 +1721,8 @@ export function createDashboardUi(ctx) {
           <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count || item.gene_count || 0))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">Clinical overlap</span><strong class="assay-kpi-value">${escapeHtml(String(item.clinical_overlap_patient_count || 0))}</strong></div>
         </div>
+        ${renderAssayLinkage(item)}
         ${isTranscriptomics ? renderTranscriptomicsHighlights(item) : renderGenericAssayHighlights(item)}
         ${renderAssayOverlapSection(item)}
       </article>
@@ -2167,7 +2203,6 @@ export function createDashboardUi(ctx) {
     handleAssayDatasetSelectionChange,
     handleAssayFeatureInput,
     assayDatasetOverlap,
-    toggleTimelinePatientSelection,
     handleClaridAction,
     closeClaridPopovers,
   };

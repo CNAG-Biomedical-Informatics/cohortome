@@ -38,7 +38,7 @@ This is the fastest way to sanity-check that the right datasets are loaded befor
 
 ## Patient overview
 
-Open **Dashboard → Patient overview** and start typing a patient ID or ClarID.
+Open **Dashboard → Patients** and start typing a patient ID or ClarID.
 The search shows up to 12 matches from the active datasets. Select a match with
 the mouse, or use the arrow keys and Enter. Each result identifies its source
 dataset; matching identifiers from different datasets are not combined.
@@ -57,27 +57,37 @@ The inventory reads matrix headers and linkage metadata; it does not scan assay
 values or perform quality control.
 
 Patient search and details require **Detailed** access to all datasets in the
-workspace. With a single dataset active, **Open clinical timeline** opens the
-selected patient's timeline. In a multi-dataset workspace, apply the patient's
-dataset on its own first to avoid combining overlapping identifiers.
+workspace. **View this patient's timeline** opens
+Timeline filtered to that patient. Returning to Patients preserves the inventory.
+In a multi-dataset workspace, the timeline keeps patients separate by dataset,
+even when their source identifiers match.
 
 ## Timeline
 
-Use Timeline to inspect dated clinical records and available samples. **Show
-events** controls which event categories appear in the plot and Events table.
-Click a marker to inspect that event, or a coverage bar to inspect the patient's
-first visible event. The table's Inspect buttons also work without using the plot.
-Drag to zoom; zooming changes the plot only, not the Events table or analysis scope.
+The graphical timeline shows patients by dataset and recorded date. Patient-span
+bars, coloured modality markers, zoom and click-to-inspect remain available.
 
-The **Select patient** checkboxes are separate from inspection and filtering.
-They select whole patients, including records outside the visible dates or event
-categories. Selecting one does not hide other patients' events. **Save cohort**
-and **Open in Analysis** appear when patients are selected; neither action saves
-a time-window restriction. Timepoint-restricted analysis is not implemented by
-this view.
+Use **Has data → Proteomics** to find patients with linked proteomics data.
+Multiple checked types mean the patient must have **all** of them. Clinical visits
+remain visible; click plot legend items to hide or show modality markers without
+changing which patients match. Grey bars span the earliest to latest recorded
+observations; they do not imply continuous monitoring between those dates.
+OLINK assays are grouped under Proteomics; their assay names remain in inspection.
 
-A single dated observation is a point, not a follow-up duration. Undated events
-remain available in the table when their event categories are shown.
+The **Date not recorded** column includes available modalities without a usable
+collection date. These patients are not discarded, and assays are never placed at
+an inferred clinical visit. Dates are calendar dates, not aligned study visits.
+
+Select a dataset or explore all workspace datasets, 40 patients per page.
+Matching patient IDs in different datasets remain separate. Click a marker, span
+or patient name to inspect clinical evidence and linked samples/assays below.
+Patients provides ID/ClarID lookup; Query provides cohort building.
+
+Availability reads assay headers and declared patient linkage metadata, not matrix
+values. Undeclared or invalid links are excluded with a visible warning. Missing
+entries do not prove an assay was never performed. Imaging here means linked
+imaging-derived measurements; DICOM studies remain in Imaging. Detailed access
+is required for every selected dataset.
 
 ## Assays dashboard
 
@@ -117,13 +127,10 @@ belong to [Analysis](analysis.md#compare-two-measurements).
 
 The multimodal dashboard checks how well clinical records and different assays overlap.
 
-`Multimodal analysis readiness` is a QC panel. It reports modality coverage,
-patient-level overlap, exact sample/timepoint overlap, DICOM-clinical linkage
-issues, and deterministic suggestions for what analyses are valid next. It does
-not run cross-modal statistics; it tells you whether the workspace is ready for
-them. Suggestions whose requirements are met include `Open in Analysis`, which
-prefills a focused Analysis prompt for the current workspace but does not run it
-automatically.
+The coverage and linkage panel reports modality coverage, patient-level overlap,
+exact sample/timepoint overlap, and DICOM-clinical linkage issues. Use **Compare
+measurements in Analysis** to move to analysis setup. This panel does not run
+cross-modal statistics or assess the quality of the underlying measurements.
 
 `Multimodal feature matrix` builds a bounded sample-level preview for the full
 workspace. It joins clinical covariates, selected assay features, derived

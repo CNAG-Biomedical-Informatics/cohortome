@@ -12,6 +12,7 @@ from app.env import app_env
 from app.deployment_branding import router as deployment_branding_router
 from app.projects import router as projects_router
 from app.patient_overview import router as patient_overview_router
+from app.local_viewer import router as local_viewer_router
 from app.routes import (
     get_medication_counts,
     get_patient,
@@ -93,3 +94,4 @@ register_routes(app, templates)
 app.include_router(deployment_branding_router)
 app.include_router(projects_router)
 app.include_router(patient_overview_router)
+app.include_router(local_viewer_router)
