@@ -851,13 +851,14 @@ def estimate_pheno_cohort_sample_count(request: Any, user_id: str = DEFAULT_LOCA
                 },
             )
         for cohort in saved_cohorts:
-            if bool(cohort.get("is_full_dataset")):
-                return len(all_record_ids)
             sample_ids = [str(item or "").strip() for item in (cohort.get("sample_ids") or []) if str(item or "").strip()]
             patient_ids = [str(item or "").strip() for item in (cohort.get("patient_ids") or []) if str(item or "").strip()]
             id_type = str(cohort.get("id_type") or "").strip().lower()
             use_patient_ids = id_type == "patient" or (not sample_ids and bool(patient_ids))
-            append_ids(patient_ids if use_patient_ids else sample_ids, patient_level=use_patient_ids)
+            from app.identities import execution_ids
+            from app.datasets import parse_scope_dataset_ids
+            append_ids(execution_ids(patient_ids if use_patient_ids else sample_ids,
+                                     parse_scope_dataset_ids(dataset_id)), patient_level=use_patient_ids)
         return len(resolved_record_ids)
 
     records = load_pheno_ranker_records(data_dir)
@@ -1530,7 +1531,8 @@ def run_pheno_ranker(request: Any) -> Dict:
         reference_paths = resolve_pheno_ranker_reference_paths(request.data_dir)
 
     if selected_saved_cohort_ids:
-        saved_cohorts = get_saved_cohorts_by_ids(selected_saved_cohort_ids, getattr(request, "dataset_id", ""))
+        saved_cohorts = get_saved_cohorts_by_ids(selected_saved_cohort_ids, getattr(request, "dataset_id", ""),
+                                               user_id=getattr(request, 'user_id', DEFAULT_LOCAL_USER_ID))
         found_ids = {str(item.get("id") or "") for item in saved_cohorts}
         missing_cohort_ids = [cohort_id for cohort_id in selected_saved_cohort_ids if cohort_id not in found_ids]
         if missing_cohort_ids:
@@ -1543,14 +1545,13 @@ def run_pheno_ranker(request: Any) -> Dict:
             )
         extracted_reference_paths: List[Path] = []
         for index, cohort in enumerate(saved_cohorts, start=1):
-            if bool(cohort.get("is_full_dataset")):
-                extracted_reference_paths.extend(reference_paths)
-                continue
             cohort_ids = [
                 str(item or "").strip()
                 for item in (cohort.get("sample_ids") or cohort.get("patient_ids") or [])
                 if str(item or "").strip()
             ]
+            from app.identities import execution_ids
+            cohort_ids = execution_ids(cohort_ids, parse_scope_dataset_ids(getattr(request, 'dataset_id', '')))
             if not cohort_ids:
                 continue
             safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(cohort.get("name") or f"cohort_{index}")).strip("._") or f"cohort_{index}"

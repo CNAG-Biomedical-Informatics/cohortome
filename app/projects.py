@@ -50,7 +50,7 @@ class DatasetRef(Strict):
 
 class Project(Draft):
     format: Literal["cohortome-project"]
-    version: Literal[1]
+    version: Literal[2]
     installation: str = Field(max_length=100)
     owner: str = Field(max_length=150)
     saved_at: str = Field(max_length=100)
@@ -115,7 +115,7 @@ def export_project(draft: Draft, request: Request):
     check_session(draft.analysis_session_id, owner, ids)
     cohorts = list_saved_cohorts(dataset_scope_id(ids), user_id=owner)
     runs = [r for r in list_job_records(owner) if r.get("dataset_id") == dataset_scope_id(ids)]
-    return Project(**draft.model_dump(), format="cohortome-project", version=1,
+    return Project(**draft.model_dump(), format="cohortome-project", version=2,
                    installation=installation_id(), owner=owner,
                    saved_at=datetime.now(timezone.utc).isoformat(), datasets=references,
                    cohort_ids=[c["id"] for c in cohorts], run_ids=[r["job_id"] for r in runs])

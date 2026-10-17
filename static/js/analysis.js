@@ -1,5 +1,6 @@
 import { chatCopyButton } from "./shared.js";
 import { parseAnalysisTsv } from "./analysis_tsv.js";
+import { decodeIdentity, displayIdentity } from './identities.js';
 
 export function createAnalysisUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -1820,8 +1821,10 @@ export function createAnalysisUi(ctx) {
   function formatAnalysisScopeLabel(scopeValue) {
     const ids = String(scopeValue || "").split(",").map((item) => item.trim()).filter(Boolean);
     if (!ids.length) return "Full workspace";
-    const usesSampleIds = ids.some((item) => item.includes(":"));
-    const preview = ids.slice(0, 6).join(", ");
+    const usesSampleIds = ids.some(item => decodeIdentity(item)?.kind === 'sample' || (!decodeIdentity(item) && item.includes(':')));
+    const showDataset = new Set(ids.map(id => decodeIdentity(id)?.datasetId).filter(Boolean)).size > 1
+      || (state.analysisScopeMetadata?.dataset_ids || []).length > 1;
+    const preview = ids.slice(0, 6).map(id => displayIdentity(id, showDataset)).join(", ");
     const suffix = ids.length > 6 ? ` ... (+${ids.length - 6} more)` : "";
     return `${ids.length} ${usesSampleIds ? "sample IDs" : "patient IDs"}: ${preview}${suffix}`;
   }
@@ -2128,7 +2131,7 @@ export function createAnalysisUi(ctx) {
     if (!generalQuestion && compareMode) {
       const overlappingIds = overlappingAnalysisScopeIds(currentScopeIds, compareScopeIds);
       if (overlappingIds.length) {
-        const preview = overlappingIds.slice(0, 6).join(", ");
+        const preview = overlappingIds.slice(0, 6).map(id => displayIdentity(id)).join(", ");
         const suffix = overlappingIds.length > 6 ? ` (+${overlappingIds.length - 6} more)` : "";
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = `Cohort A and Cohort B must be disjoint. Remove the overlapping IDs: ${preview}${suffix}.`;

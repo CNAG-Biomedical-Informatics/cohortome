@@ -1,3 +1,5 @@
+import { identityKey, decodeIdentity } from './identities.js';
+
 export function nowIso() {
   return new Date().toISOString();
 }
@@ -63,17 +65,17 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
 export function normalizeSelectionMetadata(source = {}) {
   const item = source && typeof source === "object" ? source : {};
   const members = Array.isArray(item.members) ? item.members : [];
-  const sampleIds = normalizeIdList(members.length ? members.map(m => m.sample_id).filter(Boolean) : item.sample_ids || item.sampleIds || []);
-  const patientIds = normalizeIdList(members.length ? members.map(m => m.patient_id) : item.patient_ids || item.patientIds || []);
+  const datasetIds = normalizeIdList(item.dataset_ids || item.datasetIds || []);
+  const qualify = (values, kind) => normalizeIdList(values).map(id =>
+    decodeIdentity(id) || datasetIds.length !== 1 ? id : identityKey(datasetIds[0], kind, id));
+  const sampleIds = qualify(members.length ? members.filter(m => m.sample_id).map(m => identityKey(m.dataset_id, 'sample', m.sample_id)) : item.sample_ids || item.sampleIds || [], 'sample');
+  const patientIds = qualify(members.length ? members.map(m => identityKey(m.dataset_id, 'patient', m.patient_id)) : item.patient_ids || item.patientIds || [], 'patient');
   const queryResultHandle = String(item.query_result_handle || item.result_handle || item.queryResultHandle || item.resultHandle || "").trim();
   if (!sampleIds.length && !patientIds.length && !queryResultHandle) {
     return {};
   }
-  const derivedPatientIds = patientIds.length
-    ? patientIds
-    : Array.from(new Set(sampleIds.map((value) => value.split(":", 1)[0].trim()).filter(Boolean)));
-  const normalizedSampleIds = members.length ? sampleIds : sampleIds.length ? sampleIds : (derivedPatientIds.length ? derivedPatientIds.slice() : []);
-  const datasetIds = normalizeIdList(item.dataset_ids || item.datasetIds || []);
+  const derivedPatientIds = patientIds;
+  const normalizedSampleIds = sampleIds;
   const sourceInfo = item.source && typeof item.source === "object" ? item.source : {};
   return {
     id: typeof item.id === "string" ? item.id : "",

@@ -1,3 +1,4 @@
+from app.identities import identity_key
 import json
 import pytest
 from fastapi import HTTPException
@@ -17,18 +18,18 @@ def test_saved_cohorts_persist_and_filter_by_data_dir(tmp_path, monkeypatch):
     saved = cohorts_module.save_cohort(
         name="Crohn cohort",
         data_dir="/data/a",
-        ids=["P1", "P2", "P2"],
+        members=[dict(dataset_id="a", patient_id=p) for p in ["P1", "P2"]],
         id_type="patient",
         source_kind="query",
         source_prompt="Which patients have Crohn Disease?",
     )
     assert saved["name"] == "Crohn cohort"
-    assert saved["patient_ids"] == ["P1", "P2"]
+    assert saved["patient_ids"] == [identity_key("a", "patient", p) for p in ["P1", "P2"]]
 
     other = cohorts_module.save_cohort(
         name="Other cohort",
         data_dir="/data/b",
-        ids=["X1"],
+        members=[dict(dataset_id="b", patient_id="X1", sample_id="X1")],
         id_type="original_record",
         source_kind="query",
         source_prompt="Other",
@@ -51,7 +52,7 @@ def test_saved_cohort_delete_is_blocked_when_referenced_by_analysis_session(tmp_
     saved = cohorts_module.save_cohort(
         name="Crohn cohort",
         data_dir="/data/a",
-        sample_ids=["SYN001:week_0", "SYN002:week_0"],
+        members=[dict(dataset_id="a", patient_id=p, sample_id=p + ":week_0") for p in ["SYN001", "SYN002"]],
         patient_ids=["SYN001", "SYN002"],
         id_type="sample",
         source_kind="query",
@@ -122,7 +123,7 @@ def test_analysis_session_preserves_handle_only_scope_metadata(tmp_path, monkeyp
     assert analysis_sessions_module.get_analysis_session("session-handle-scope")["scope_metadata"]["query_result_handle"] == "qr_handle_only_scope"
 
 
-def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path, monkeypatch):
+def test_saved_cohort_retains_fixed_membership_even_when_all_records_selected(tmp_path, monkeypatch):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
     write_json(
@@ -139,13 +140,14 @@ def test_saved_cohort_marks_full_dataset_when_scope_matches_all_records(tmp_path
     saved = cohorts_module.save_cohort(
         name="Full dataset cohort",
         data_dir=str(tmp_path),
-        sample_ids=["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"],
+        members=[dict(dataset_id="a", patient_id=s.split(":")[0], sample_id=s) for s in ["SYN001:week_0", "SYN001:week_2", "SYN002:week_0"]],
         patient_ids=["SYN001", "SYN002"],
         id_type="sample",
         source_kind="query",
     )
 
-    assert saved["is_full_dataset"] is True
+    assert saved["is_full_dataset"] is False
+    assert saved["sample_count"] == 3
 
 
 def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
@@ -154,7 +156,7 @@ def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
     cohorts_module.save_cohort(
         name="Local cohort",
         data_dir="/data/a",
-        ids=["P1"],
+        members=[dict(dataset_id="a", patient_id="P1")],
         id_type="patient",
         source_kind="query",
         user_id="local",
@@ -162,7 +164,7 @@ def test_saved_cohorts_are_user_scoped(tmp_path, monkeypatch):
     cohorts_module.save_cohort(
         name="Alice cohort",
         data_dir="/data/a",
-        ids=["P2"],
+        members=[dict(dataset_id="a", patient_id="P2")],
         id_type="patient",
         source_kind="query",
         user_id="alice",
@@ -178,7 +180,7 @@ def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
     first = cohorts_module.save_cohort(
         name="Crohn cohort",
         data_dir="/data/a",
-        ids=["P1"],
+        members=[dict(dataset_id="a", patient_id="P1")],
         id_type="patient",
         source_kind="query",
         source_prompt="First Crohn cohort",
@@ -186,7 +188,7 @@ def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
     second = cohorts_module.save_cohort(
         name="Crohn cohort",
         data_dir="/data/a",
-        ids=["P2"],
+        members=[dict(dataset_id="a", patient_id="P2")],
         id_type="patient",
         source_kind="query",
         source_prompt="Second Crohn cohort",
@@ -194,7 +196,7 @@ def test_saved_cohorts_auto_suffix_duplicate_names(tmp_path, monkeypatch):
     third_other_dir = cohorts_module.save_cohort(
         name="Crohn cohort",
         data_dir="/data/b",
-        ids=["X1"],
+        members=[dict(dataset_id="b", patient_id="X1", sample_id="X1")],
         id_type="patient",
         source_kind="query",
         source_prompt="Crohn cohort in another dataset",

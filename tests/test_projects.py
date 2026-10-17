@@ -45,7 +45,7 @@ def test_round_trip_is_read_only_until_open_and_contains_no_source_data(client):
 
 
 @pytest.mark.parametrize('field,value', [('owner','another-user'), ('installation','other-installation'),
-    ('version',2), ('analysis_session_id','missing')])
+    ('version',1), ('version',999), ('analysis_session_id','missing')])
 def test_invalid_project_does_not_switch_workspace(client, field, value):
     http, changes = client
     project = exported(http); project[field] = value

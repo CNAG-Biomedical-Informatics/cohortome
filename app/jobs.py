@@ -932,6 +932,7 @@ def run_pheno_job(job_id: str, user_id: str) -> Dict[str, Any]:
         from app.pheno import run_pheno_ranker
 
         request = SimpleNamespace(
+            user_id=user_id,
             prompt=str(record.get("prompt") or ""),
             action=str(record.get("action") or "compare"),
             mode=str(record.get("mode") or "cohort"),

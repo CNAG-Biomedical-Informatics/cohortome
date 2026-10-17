@@ -1,4 +1,10 @@
 // Display labels never replace execution keys or plot-selection IDs.
+export function identityKey(datasetId, kind, sourceId) {
+  if (!datasetId || !sourceId || !['patient', 'sample'].includes(kind)) throw new Error('Incomplete dataset identity.');
+  const bytes = new TextEncoder().encode(JSON.stringify([datasetId, kind, sourceId]));
+  return 'cohortome-v1-' + btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+}
+
 export function decodeIdentity(value) {
   const raw = String(value || "");
   if (!raw.startsWith("cohortome-v1-")) return null;

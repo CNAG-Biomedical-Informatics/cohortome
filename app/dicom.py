@@ -110,6 +110,10 @@ def _normalize_study(item: Dict[str, Any], source_dataset_id: str = "") -> Dict[
     }
     if source_dataset_id:
         study["source_dataset_id"] = source_dataset_id
+        from app.identities import identity_key
+        for field, kind in [('patient_id', 'patient'), ('sample_id', 'sample')]:
+            if study[field]:
+                study[field] = identity_key(source_dataset_id, kind, study[field])
     return study
 
 
@@ -141,7 +145,7 @@ def dicom_manifest_paths(data_dir: str) -> List[Path]:
 def dicom_studies(data_dir: str) -> List[Dict[str, Any]]:
     dataset_root = Path(data_dir).expanduser().resolve()
     studies: List[Dict[str, Any]] = []
-    seen_uids: set[str] = set()
+    seen_uids: set[tuple[str, str]] = set()
     for source_dataset_id, root in _candidate_roots(dataset_root):
         manifest_path = root / DICOM_STUDIES_MANIFEST
         payload = _read_json(manifest_path)
@@ -153,9 +157,10 @@ def dicom_studies(data_dir: str) -> List[Dict[str, Any]]:
             if not normalized:
                 continue
             uid = str(normalized.get("study_instance_uid") or "")
-            if uid in seen_uids:
+            identity = (source_dataset_id, uid)
+            if identity in seen_uids:
                 continue
-            seen_uids.add(uid)
+            seen_uids.add(identity)
             studies.append(normalized)
     return studies
 

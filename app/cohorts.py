@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from app.bff import ensure_data_dir, extract_patient_id, normalize_value, read_bff_records
 from app.config import DEFAULT_LOCAL_USER_ID, STATE_ROOT_DIR
 from app.state_io import advisory_file_lock, atomic_write_json
 from app.user_state import normalize_user_id
@@ -35,34 +34,15 @@ def _read_saved_cohorts(user_id: str = DEFAULT_LOCAL_USER_ID) -> List[Dict[str, 
     for item in items:
         if not isinstance(item, dict):
             continue
-        sample_ids = [str(value).strip() for value in item.get("sample_ids", []) if str(value).strip()]
-        patient_ids = [str(value).strip() for value in item.get("patient_ids", []) if str(value).strip()]
-        dataset_ids = [str(value).strip() for value in item.get("dataset_ids", []) if str(value).strip()]
-        members = item.get('members')
-        if members is not None:
-            members = [qualified_member(m) for m in members]
-            patient_ids = sorted({m['patient_id'] for m in members})
-            sample_ids = sorted({m['sample_id'] for m in members if m.get('sample_id')})
-        if members is None and not sample_ids and patient_ids:
-            sample_ids = list(patient_ids)
-        if members is None and not patient_ids and sample_ids:
-            patient_ids = sorted({value.split(":", 1)[0].strip() for value in sample_ids if value.split(":", 1)[0].strip()})
-        if not dataset_ids:
-            dataset_id = str(item.get("dataset_id") or "").strip()
-            dataset_ids = [dataset_id] if dataset_id else []
-        normalized_item = dict(item)
-        if members is not None:
-            normalized_item['members'] = members
-        normalized_item["dataset_id"] = str(item.get("dataset_id") or "").strip()
-        normalized_item["dataset_ids"] = dataset_ids
-        normalized_item["sample_ids"] = sample_ids
-        normalized_item["patient_ids"] = patient_ids
-        normalized_item["sample_count"] = len(sample_ids)
-        normalized_item["patient_count"] = len(patient_ids)
-        if members is not None:
-            normalized_item['patient_count'] = len({(m['dataset_id'], m['patient_id']) for m in members})
-            normalized_item['sample_count'] = len({(m['dataset_id'], m['sample_id']) for m in members if m.get('sample_id')})
-        normalized_item["is_full_dataset"] = bool(item.get("is_full_dataset"))
+        # Pre-identity cohorts cannot safely identify members; no legacy migration.
+        if item.get('membership_version') != 2 or not item.get('members'):
+            continue
+        members = [qualified_member(m) for m in item['members']]
+        normalized_item = dict(item, members=members,
+            patient_ids=sorted({m['patient_key'] for m in members}),
+            sample_ids=sorted({m['sample_key'] for m in members if m.get('sample_key')}))
+        normalized_item['patient_count'] = len(normalized_item['patient_ids'])
+        normalized_item['sample_count'] = len(normalized_item['sample_ids'])
         normalized.append(normalized_item)
     return normalized
 
@@ -104,12 +84,6 @@ def get_saved_cohorts_by_ids(
         if str(item.get("id") or "") in wanted
     ]
     matched.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
-    for item in matched:
-        from app.datasets import parse_scope_dataset_ids
-        execution_datasets = parse_scope_dataset_ids(dataset_id) if dataset_id else item.get('dataset_ids') or []
-        if item.get('members') and len(execution_datasets) > 1:
-            item['patient_ids'] = sorted({m['patient_key'] for m in item['members']})
-            item['sample_ids'] = sorted({m['sample_key'] for m in item['members'] if m.get('sample_key')})
     return matched
 
 
@@ -129,45 +103,6 @@ def _dedupe_cohort_name(name: str, dataset_id: str, items: List[Dict[str, Any]])
         suffix += 1
 
 
-def _dataset_scope_metadata(data_dir: str) -> Dict[str, Any]:
-    sample_ids: List[str] = []
-    patient_ids: List[str] = []
-    seen_sample_ids = set()
-    seen_patient_ids = set()
-    for _, _, record in read_bff_records(ensure_data_dir(data_dir)):
-        raw_id = normalize_value(record.get("id"))
-        if isinstance(raw_id, str) and raw_id.strip() and raw_id not in seen_sample_ids:
-            seen_sample_ids.add(raw_id)
-            sample_ids.append(raw_id)
-        patient_id = extract_patient_id(record)
-        if isinstance(patient_id, str) and patient_id.strip() and patient_id not in seen_patient_ids:
-            seen_patient_ids.add(patient_id)
-            patient_ids.append(patient_id)
-    return {
-        "sample_ids": sample_ids,
-        "patient_ids": patient_ids,
-        "sample_id_set": set(sample_ids),
-        "patient_id_set": set(patient_ids),
-    }
-
-
-def _matches_full_dataset_scope(
-    sample_ids: List[str],
-    patient_ids: List[str],
-    data_dir: str,
-    dataset_scope: Dict[str, Any] | None = None,
-) -> bool:
-    if not data_dir:
-        return False
-    try:
-        scope = dataset_scope or _dataset_scope_metadata(data_dir)
-    except FileNotFoundError:
-        return False
-    sample_id_set = {str(item).strip() for item in sample_ids if str(item).strip()}
-    patient_id_set = {str(item).strip() for item in patient_ids if str(item).strip()}
-    return sample_id_set == scope["sample_id_set"] and patient_id_set == scope["patient_id_set"]
-
-
 def save_cohort(
     *,
     name: str,
@@ -183,51 +118,14 @@ def save_cohort(
     user_id: str = DEFAULT_LOCAL_USER_ID,
     members: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
-    if members is not None:
-        members = [qualified_member(m) for m in members]
-    raw_sample_ids = [m['sample_id'] for m in members if m.get('sample_id')] if members is not None else (sample_ids or [])
-    raw_patient_ids = [m['patient_id'] for m in members] if members is not None else (patient_ids or [])
-    if ids is not None:
-        if id_type in {"sample", "original_record"} and not raw_sample_ids:
-            raw_sample_ids = ids
-        if id_type == "patient" and not raw_patient_ids:
-            raw_patient_ids = ids
-
-    normalized_sample_ids = []
-    seen_sample_ids = set()
-    for item in raw_sample_ids:
-        value = str(item or "").strip()
-        if not value or value in seen_sample_ids:
-            continue
-        seen_sample_ids.add(value)
-        normalized_sample_ids.append(value)
-
-    normalized_patient_ids = []
-    seen = set()
-    for item in raw_patient_ids:
-        value = str(item or "").strip()
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        normalized_patient_ids.append(value)
-
-    if members is None and not normalized_sample_ids and normalized_patient_ids:
-        normalized_sample_ids = list(normalized_patient_ids)
-    if members is None and not normalized_patient_ids and normalized_sample_ids:
-        normalized_patient_ids = sorted({value.split(":", 1)[0].strip() for value in normalized_sample_ids if value.split(":", 1)[0].strip()})
-
-    if not normalized_sample_ids and not normalized_patient_ids:
-        raise ValueError("A saved cohort requires at least one ID.")
-
+    if members is None:
+        raise ValueError('Saved cohorts require dataset-qualified members. Recreate this cohort.')
+    members = [qualified_member(m) for m in members]
+    if not members:
+        raise ValueError('A saved cohort requires at least one member.')
+    normalized_sample_ids = sorted({m['sample_key'] for m in members if m.get('sample_key')})
+    normalized_patient_ids = sorted({m['patient_key'] for m in members})
     is_full_dataset = False
-    try:
-        dataset_scope = _dataset_scope_metadata(data_dir)
-        is_full_dataset = (
-            set(normalized_sample_ids) == dataset_scope["sample_id_set"]
-            and set(normalized_patient_ids) == dataset_scope["patient_id_set"]
-        )
-    except FileNotFoundError:
-        is_full_dataset = False
 
     normalized_dataset_id = str(dataset_id or data_dir).strip()
     normalized_dataset_ids = []

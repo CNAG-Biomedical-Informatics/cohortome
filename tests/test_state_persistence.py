@@ -24,7 +24,7 @@ def test_concurrent_saved_cohort_writes_preserve_records_and_unique_names(tmp_pa
         return cohorts.save_cohort(
             name="Concurrent cohort",
             data_dir="/unavailable/test-dataset",
-            ids=[f"P{index}"],
+            members=[dict(dataset_id='test', patient_id=f'P{index}')],
             id_type="patient",
             source_kind="test",
         )

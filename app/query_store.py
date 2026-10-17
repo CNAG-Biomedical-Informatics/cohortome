@@ -2218,6 +2218,9 @@ def _manifest_assay_matrix_preview(data_dir: str, dataset_name: str, feature_lim
             reader = csv.reader(handle, delimiter=delimiter)
             header = next(reader, [])
             sample_ids = [str(value or "").strip() for value in header[1:] if str(value or "").strip()]
+            if item.get('_source_dataset_id'):
+                from app.identities import identity_key
+                sample_ids = [identity_key(item['_source_dataset_id'], 'sample', sid) for sid in sample_ids]
             features: List[Dict[str, Any]] = []
             sample_values: Dict[str, Dict[str, Any]] = {sample_id: {} for sample_id in sample_ids}
             for raw_row in reader:

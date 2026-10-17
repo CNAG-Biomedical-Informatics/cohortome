@@ -19,6 +19,22 @@ def qualified_member(member):
     return result
 
 
+def execution_ids(values, dataset_ids):
+    """Adapt qualified selections to a source-local runner without changing storage."""
+    result = []
+    for value in values:
+        decoded = decode_identity(value)
+        if decoded:
+            if decoded[0] not in dataset_ids:
+                raise ValueError('A selected ID belongs to a dataset outside this workspace.')
+            value = decoded[2] if len(dataset_ids) == 1 else value
+        elif len(dataset_ids) > 1:
+            raise ValueError('Selections across datasets require dataset-qualified IDs.')
+        if value not in result:
+            result.append(value)
+    return result
+
+
 def decode_identity(value):
     if not isinstance(value, str) or not value.startswith('cohortome-v1-'):
         return None

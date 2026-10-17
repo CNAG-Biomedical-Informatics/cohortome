@@ -3,6 +3,7 @@ import { fallbackCopyText } from "./shared.js";
 import { createTimelineUi } from "./timeline.js";
 import { modalityIcon, modalityColor } from './modalities.js';
 import { createMultimodalCoverage } from './multimodal_coverage.js';
+import { displayIdentity, decodeIdentity, identityKey } from './identities.js';
 
 export function createDashboardUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -616,9 +617,9 @@ export function createDashboardUi(ctx) {
         .map((item) => item.trim())
         .filter(Boolean);
     const countLabel = selectedCohort
-      ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      ? `${selectedCohort.patient_count ?? (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count ?? 0} samples`
       : metadata && (metadata.patient_count || metadata.sample_count)
-        ? `${metadata.patient_count || 0} patients / ${metadata.sample_count || ids.length} samples`
+        ? `${metadata.patient_count ?? 0} patients / ${metadata.sample_count ?? 0} samples`
       : `${ids.length} ${ids.length === 1 ? "ID" : "IDs"}`;
     const metadataSource = metadata && metadata.source && metadata.source.kind
       ? String(metadata.source.kind).replace(/_/g, " ")
@@ -697,9 +698,9 @@ export function createDashboardUi(ctx) {
         .map((item) => item.trim())
         .filter(Boolean);
     const countLabel = selectedCohort
-      ? `${selectedCohort.patient_count || (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count || ids.length} samples`
+      ? `${selectedCohort.patient_count ?? (selectedCohort.patient_ids || []).length} patients / ${selectedCohort.sample_count ?? 0} samples`
       : metadata && (metadata.patient_count || metadata.sample_count)
-        ? `${metadata.patient_count || 0} patients / ${metadata.sample_count || ids.length} samples`
+        ? `${metadata.patient_count ?? 0} patients / ${metadata.sample_count ?? 0} samples`
       : `${ids.length} IDs`;
     const metadataSource = metadata && metadata.source && metadata.source.kind
       ? String(metadata.source.kind).replace(/_/g, " ")
@@ -1064,7 +1065,11 @@ export function createDashboardUi(ctx) {
   }
 
   function currentAssayScopeOverlap(patientIds) {
-    const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map((item) => String(item)));
+    const qualifyPatient = value => {
+      const id = String(value).trim();
+      return decodeIdentity(id) || state.currentDatasetIds.length !== 1 ? id : identityKey(state.currentDatasetIds[0], 'patient', id);
+    };
+    const datasetPatientIds = new Set((Array.isArray(patientIds) ? patientIds : []).map(qualifyPatient));
     const selectedCohortA = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
       : null;
@@ -1083,8 +1088,8 @@ export function createDashboardUi(ctx) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-    const overlapA = scopeA.filter((item) => datasetPatientIds.has(item)).length;
-    const overlapB = scopeB.filter((item) => datasetPatientIds.has(item)).length;
+    const overlapA = scopeA.filter((item) => datasetPatientIds.has(qualifyPatient(item))).length;
+    const overlapB = scopeB.filter((item) => datasetPatientIds.has(qualifyPatient(item))).length;
     return { overlapA, overlapB, scopeASize: scopeA.length, scopeBSize: scopeB.length };
   }
 
@@ -1185,7 +1190,7 @@ export function createDashboardUi(ctx) {
       const ohifUrl = String(study.ohif_url || "").trim();
       const canOpen = enabled && ohifUrl;
       const title = String(study.label || study.study_description || study.study_instance_uid || "DICOM study").trim();
-      const subtitle = [study.patient_id, study.sample_id, study.timepoint].map((item) => String(item || "").trim()).filter(Boolean).join(" • ");
+      const subtitle = [displayIdentity(study.patient_id), displayIdentity(study.sample_id), study.timepoint].map((item) => String(item || "").trim()).filter(Boolean).join(" • ");
       return `
         <article class="dicom-study-card">
           <div class="assay-card-header">

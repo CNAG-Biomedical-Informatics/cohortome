@@ -1669,6 +1669,7 @@ def general_llm_app(request: GeneralLlmRequest, raw_request: Request) -> Dict:
 def _resolve_saved_analysis_members(request, raw_request, selected_ids):
     """Reauthorize membership and bind it to the execution workspace identity."""
     from app.cohort_members import resolve_members
+    from app.identities import execution_ids
     roots = {identifier: resolve_dataset_dir(raw_request, identifier) for identifier in selected_ids}
     for metadata_field, ids_field in [('scope_metadata', 'selected_patient_ids'),
                                        ('compare_scope_metadata', 'compare_selected_patient_ids')]:
@@ -1677,6 +1678,11 @@ def _resolve_saved_analysis_members(request, raw_request, selected_ids):
         metadata = getattr(request, metadata_field)
         cohort_id = str(metadata.get('id') or '')
         if not cohort_id:
+            try:
+                ids = execution_ids([v.strip() for v in getattr(request, ids_field).split(',') if v.strip()], selected_ids)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+            setattr(request, ids_field, ','.join(ids))
             continue
         if effective_query_granularity_ceiling(selected_ids) != 'detailed':
             raise HTTPException(403, 'Saved cohorts require Detailed access to every source dataset.')
@@ -1684,12 +1690,9 @@ def _resolve_saved_analysis_members(request, raw_request, selected_ids):
         if not cohort or not cohort.get('dataset_ids') or not set(cohort['dataset_ids']).issubset(selected_ids):
             raise HTTPException(409, 'Saved cohort is missing or belongs to a different workspace.')
         try:
-            if cohort.get('members') is not None:
-                members = resolve_members(roots, members=cohort['members'], id_type=cohort['id_type'])
-                field = ('patient_key' if cohort['id_type'] == 'patient' else 'sample_key') if len(selected_ids) > 1 else ('patient_id' if cohort['id_type'] == 'patient' else 'sample_id')
-                ids = [m[field] for m in members]
-            else:
-                ids = cohort['patient_ids'] if cohort['id_type'] == 'patient' else cohort['sample_ids']
+            members = resolve_members(roots, members=cohort['members'], id_type=cohort['id_type'])
+            field = 'patient_key' if cohort['id_type'] == 'patient' else 'sample_key'
+            ids = execution_ids([m[field] for m in members], selected_ids)
         except FileNotFoundError:
             raise HTTPException(409, 'Cohort source data are unavailable.') from None
         except ValueError as exc:
@@ -2275,7 +2278,7 @@ def run_inline_pheno_ranker_job(payload: PhenoRankerRequest, user_id: str) -> Di
     job_id = str(record.get("job_id") or "").strip()
     update_job_record(job_id, user_id, status="running", error="")
     try:
-        request_payload = SimpleNamespace(**payload.model_dump(), job_dir_override=str(job_dir(job_id, user_id, create=True)))
+        request_payload = SimpleNamespace(**payload.model_dump(), user_id=user_id, job_dir_override=str(job_dir(job_id, user_id, create=True)))
         result = run_pheno_ranker(request_payload)
         result.setdefault("data", {})
         result["data"]["job_id"] = job_id
@@ -2318,6 +2321,14 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
             "ai_provider_access": selected_ai_provider_access(raw_request, selected_ids),
         }
     )
+    from app.identities import execution_ids
+    try:
+        payload.selected_patient_ids = ','.join(execution_ids(
+            [v.strip() for v in payload.selected_patient_ids.split(',') if v.strip()], selected_ids))
+        if payload.patient_id:
+            payload.patient_id = execution_ids([payload.patient_id], selected_ids)[0]
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     active_pheno_job = active_feature_job(user_id, "pheno")
     if active_pheno_job:
         label = str(active_pheno_job.get("job_code") or active_pheno_job.get("job_id") or "").strip()

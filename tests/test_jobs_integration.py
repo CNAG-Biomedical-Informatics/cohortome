@@ -95,6 +95,7 @@ def test_analysis_job_submission_creates_user_scoped_record_and_returns_queued_p
         {
             "id": "session-1",
             "title": "Scoped analysis",
+            "dataset_id": "default",
             "turns": [],
             "history": [],
         },

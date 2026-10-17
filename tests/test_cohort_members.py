@@ -42,6 +42,34 @@ def test_identity_keys_are_stable_typed_and_collision_safe():
     assert identity_key('étude', 'patient', 'P,01:雪') == identity_key('étude', 'patient', 'P,01:雪')
 
 
+def test_single_dataset_members_keep_keys_until_runner_boundary(sources, monkeypatch):
+    from app.identities import execution_ids
+    monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *args: ['study-a'])
+    saved = routes.create_saved_cohort(SavedCohortRequest(dataset_id='study-a',
+        members=[dict(dataset_id='study-a', patient_id='P001')], id_type='patient'), SimpleNamespace())
+    key = identity_key('study-a', 'patient', 'P001')
+    assert saved['patient_ids'] == [key]
+    assert cohorts.list_saved_cohorts('study-a')[0]['patient_ids'] == [key]
+    assert _normalize_scope_metadata(saved)['patient_ids'] == [key]
+    assert execution_ids([key], ['study-a']) == ['P001']
+    assert execution_ids([key], list(sources)) == [key]
+    with pytest.raises(ValueError, match='outside'):
+        execution_ids([key], ['study-b'])
+    with pytest.raises(ValueError, match='qualified'):
+        execution_ids(['P001'], list(sources))
+    request = AnalysisRequest(prompt='Summary', selected_patient_ids=key)
+    routes._resolve_saved_analysis_members(request, SimpleNamespace(), ['study-a'])
+    assert request.selected_patient_ids == 'P001'
+
+
+def test_old_cohort_records_are_not_reinterpreted(sources):
+    cohorts._write_saved_cohorts([{'id':'old', 'patient_ids':['P001'], 'dataset_id':'study-a'}])
+    assert cohorts.list_saved_cohorts() == []
+    with pytest.raises(ValueError, match='Recreate'):
+        cohorts.save_cohort(name='Old', data_dir=sources['study-a'],
+            patient_ids=['P001'], id_type='patient', source_kind='test')
+
+
 @pytest.mark.parametrize('id_type', ['patient', 'sample'])
 def test_save_reopen_export_duplicate_source_ids(sources, id_type):
     members = [dict(dataset_id=d, patient_id='P001', **({'sample_id':'P001:V1'} if id_type == 'sample' else {})) for d in sources]

@@ -179,7 +179,7 @@ def test_pheno_scope_expansion_derives_record_ids_from_patient_ids() -> None:
     assert payload["expanded_record_count"] == 3
 
 
-def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, monkeypatch):
+def test_pheno_saved_cohort_extracts_fixed_membership_for_job_owner(tmp_path, monkeypatch):
     reference_path = tmp_path / "reference.json"
     reference_path.write_text("[]", encoding="utf-8")
     fake_bin = tmp_path / "pheno-ranker"
@@ -194,7 +194,7 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
     monkeypatch.setattr(
         pheno_module,
         "get_saved_cohorts_by_ids",
-        lambda cohort_ids, data_dir: [
+        lambda cohort_ids, data_dir, user_id: [
             {
                 "id": "cohort_full",
                 "name": "Full dataset",
@@ -202,16 +202,17 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
                 "patient_ids": ["SYN001", "SYN002"],
                 "is_full_dataset": True,
             }
-        ],
+        ] if user_id == 'alice' else [],
     )
 
     jq_calls = []
 
-    def _unexpected_jq(*args, **kwargs):
-        jq_calls.append((args, kwargs))
-        raise AssertionError("jq_extract_records should not be called for a full-dataset saved cohort")
+    def _extract(paths, ids, target):
+        jq_calls.append(ids)
+        target.write_text('[]')
+        return ['jq', 'selection'], SimpleNamespace(returncode=0, stdout='', stderr=''), []
 
-    monkeypatch.setattr(pheno_module, "jq_extract_records", _unexpected_jq)
+    monkeypatch.setattr(pheno_module, "jq_extract_records", _extract)
 
     executed_commands = []
 
@@ -223,6 +224,7 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
 
     payload = pheno_module.run_pheno_ranker(
         SimpleNamespace(
+            user_id='alice',
             action="compare",
             mode="cohort",
             data_dir=str(tmp_path),
@@ -242,10 +244,10 @@ def test_pheno_saved_full_dataset_cohort_skips_jq_subset_extraction(tmp_path, mo
         )
     )
 
-    assert jq_calls == []
+    assert jq_calls == [["SYN001:week_0", "SYN002:week_0"]]
     assert executed_commands
-    assert str(reference_path) in executed_commands[0]
-    assert payload["pre_commands"] == []
+    assert str(reference_path) not in executed_commands[0]
+    assert payload["pre_commands"] == ['jq selection']
 
 
 def test_generate_mds_points_skips_oversized_matrix(tmp_path, monkeypatch):

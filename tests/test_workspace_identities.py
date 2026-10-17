@@ -70,6 +70,31 @@ def test_external_assay_header_qualifies_links_without_rewriting_matrix(tmp_path
     assert matrix.read_text() == 'feature\tS1\nmarker\t12\n'
 
 
+def test_external_preview_uses_same_sample_keys_as_clinical(tmp_path, monkeypatch):
+    (tmp_path / 'matrix.tsv').write_text('feature\tS1\tS2\nmarker\t12\t19\n')
+    monkeypatch.setattr(query_store, '_manifest_assay_item', lambda *args: {
+        'file':'matrix.tsv', '_source_dataset_id':'a'})
+    monkeypatch.setattr(query_store, '_manifest_item_root', lambda *args: tmp_path)
+    preview = query_store._manifest_assay_matrix_preview(str(tmp_path), 'a::assay', 1)
+    expected = [identity_key('a', 'sample', sid) for sid in ['S1', 'S2']]
+    assert preview['sample_ids'] == expected
+    assert preview['sample_values'] == {expected[0]: {'marker':12}, expected[1]: {'marker':19}}
+
+
+def test_imaging_studies_do_not_merge_across_datasets(tmp_path, monkeypatch):
+    from app import dicom
+    roots = [(name, tmp_path / name) for name in ['a', 'b']]
+    for _, root in roots:
+        (root / 'assays/imaging').mkdir(parents=True)
+        (root / dicom.DICOM_STUDIES_MANIFEST).write_text(json.dumps({'studies':[
+            {'study_instance_uid':'1.2.3', 'patient_id':'P001', 'sample_id':'S1'}]}))
+    monkeypatch.setattr(dicom, '_candidate_roots', lambda _: roots)
+    studies = dicom.dicom_studies(str(tmp_path))
+    assert len(studies) == 2
+    assert {s['patient_id'] for s in studies} == {identity_key(d, 'patient', 'P001') for d in ['a', 'b']}
+    assert {s['sample_id'] for s in studies} == {identity_key(d, 'sample', 'S1') for d in ['a', 'b']}
+
+
 def test_mds_patient_linkage_is_explicit(tmp_path):
     from app.pheno import generate_mds_points
     import csv

@@ -4343,7 +4343,7 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
     expect = playwright.expect
 
     flow_labels = page.locator("#analysisFlowBar .analysis-flow-step-copy > span")
-    assert flow_labels.all_text_contents() == ["Analysis", "Setup", "Prompt", "Results"]
+    assert flow_labels.all_text_contents() == ["Method", "Patients", "Inputs", "Review", "Results"]
     page.locator("#analysisCatalogBrowseBtn").click()
     page.locator("#analysisCatalogDrawerList [data-analysis-catalog-id='transcriptomics-deseq2-differential-expression']").click()
 
@@ -4368,7 +4368,7 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
     expect(checklist.locator("[data-analysis-setup-step='worker']")).to_contain_text("online")
     expect(checklist.locator("[data-analysis-setup-step='prompt']")).to_contain_text("Done")
     expect(page.locator("#analysisRunBtn")).to_be_enabled()
-    expect(page.locator("#analysisFlowBar [data-analysis-flow-target='requirements']")).to_contain_text("ready")
+    expect(page.locator("#analysisFlowBar [data-analysis-flow-target='requirements']")).to_contain_text("Ready")
 
 
 def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
