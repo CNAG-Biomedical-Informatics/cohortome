@@ -22,7 +22,7 @@ Query and Analysis. Deleting a chat keeps generated files and runs in Run histor
 If those files are later removed, the chat cannot reconstruct the interactive
 result. Queued entries check the job when opened; they are not live job monitors.
 
-A chat stays bound to its original workspace. Apply that workspace before
+A chat stays bound to its original workspace. Choose **Load this chat’s datasets** before
 continuing; start a new chat if its source data changed. Save errors are shown
 beside the chat title. **Save chat** retries a save; **Reload saved** can discard
 unsaved edits after a conflict with another window.
@@ -104,11 +104,20 @@ The tab provides:
 
 - interactive heatmap
 - interactive MDS
+- optional interactive UMAP
 - interactive graph, when graph rendering is enabled
 - deterministic explanation
 - LLM explanation
 
-Selections from MDS or graph views can be copied, saved as cohorts, or opened in Analysis.
+Selections from MDS, UMAP or graph views can be copied, saved as cohorts, or opened in Analysis.
+
+Enable **Render UMAP** in Settings to add a UMAP projection to subsequent
+cohort runs. It is off by default and requires the optional `cohortome[umap]`
+installation in the app and worker environment. It uses precomputed Hamming
+distances or `1 − Jaccard similarity`, one CPU, seed 42, up to 30 neighbours and
+minimum distance 0.3. At least three records are required. Parameters and package
+versions are saved in `umap_metadata.json`. UMAP emphasizes local neighbourhoods;
+distances between clusters should not be interpreted as original distances.
 
 For graph runs, optional edge-weight cutoffs can be set in the advanced setup:
 

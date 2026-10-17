@@ -1,4 +1,5 @@
 import { patientInventoryMarkup } from '/static/js/patient_inventory.js';
+import { modalityIcon, modalityLabel, modalityColor } from './modalities.js';
 
 // Availability is dataset-scoped. Clinical properties are inspector details.
 export function createTimelineUi({state, refs, helpers, callbacks}) {
@@ -7,11 +8,8 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
   let data = null, scopeKey = '', pending = null, generation = 0;
   let required = [], active = '';
   const modality = value => String(value || 'assay').toLowerCase() === 'olink' ? 'proteomics' : String(value || 'assay').toLowerCase();
-  const label = value => ({clinical: 'Clinical', imaging: 'Imaging-derived', proteomics: 'Proteomics',
-    transcriptomics: 'Transcriptomics', methylation: 'Methylation'})[value] || value.replaceAll('_', ' ');
-  const colour = value => ({clinical:'#64748b', transcriptomics:'#2563eb', proteomics:'#0891b2',
-    methylation:'#7c3aed', imaging:'#0f766e', flow_cytometry:'#b45309', serology:'#be185d',
-    genotyping:'#15803d'})[value] || '#64748b';
+  const label = value => value === 'imaging' ? 'Imaging-derived' : modalityLabel(value);
+  const colour = value => modalityColor(value, true);
   const scope = () => state.currentDatasetIds.length === 1 ? state.currentDatasetIds[0]
     : 'scope--' + state.currentDatasetIds.slice().sort().join('--');
   const patientLabel = p => p.source_patient_id + ' · ' + p.dataset_label;
@@ -78,7 +76,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     const modalities = [...new Set(all.flatMap(p => events(p).map(e => e.modality)))].sort();
     function controls(id, values, change) {
       const el = document.getElementById(id);
-      el.innerHTML = modalities.map(m => '<label class="dashboard-timeline-domain" style="--timeline-domain-color:' + colour(m) + '"><input type="checkbox" value="' + esc(m) + '"' + (values.includes(m) ? ' checked' : '') + '><span class="dashboard-timeline-domain-dot"></span><span>' + esc(label(m)) + '</span></label>').join('');
+      el.innerHTML = modalities.map(m => '<label class="dashboard-timeline-domain" style="--timeline-domain-color:' + colour(m) + '"><input type="checkbox" value="' + esc(m) + '"' + (values.includes(m) ? ' checked' : '') + '>' + modalityIcon(m) + '<span>' + esc(label(m)) + '</span></label>').join('');
       el.onchange = () => change([...el.querySelectorAll('input:checked')].map(i => i.value));
     }
     controls('timelineHasData', required, values => {required = values; state.timelinePage = 0; renderDashboardTimeline(summary);});
@@ -105,7 +103,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     table.innerHTML = '<table class="dashboard-timeline-table"><thead><tr><th>Patient / dataset</th><th>Available data</th><th>Date not recorded</th></tr></thead><tbody>'
       + visible.map((p,i) => {
         const es = events(p);
-        const badges = list => [...new Set(list.map(e => e.modality))].map(m => '<span class="pill" style="border-color:' + colour(m) + '">' + esc(label(m)) + '</span>').join(' ') || '—';
+        const badges = list => [...new Set(list.map(e => e.modality))].map(m => '<span class="pill" style="border-color:' + colour(m) + '">' + modalityIcon(m) + esc(label(m)) + '</span>').join(' ') || '—';
         return '<tr' + (active === p.patient_id ? ' class="is-inspected"' : '') + '><td><button type="button" class="query-chip" data-timeline-inspect="' + i + '">' + esc(patientLabel(p)) + '</button></td><td>' + badges(es) + '</td><td>' + badges(es.filter(e => time(e.date) === null)) + '</td></tr>';
       }).join('') + '</tbody></table>';
     table.querySelectorAll('[data-timeline-inspect]').forEach(b => {b.onclick = () => inspect(visible[Number(b.dataset.timelineInspect)], null, summary);});

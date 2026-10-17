@@ -614,7 +614,7 @@ def transcriptomics_expression_by_medication_context(
         and str(item.get("data_type") or "").strip() == "raw_counts"
     ]
     scope_ids = parse_scope_ids(selected_patient_ids) + parse_scope_ids(compare_selected_patient_ids)
-    scope_patient_ids = derive_scope_patient_ids(scope_ids)
+    scope_patient_ids = derive_scope_patient_ids(scope_ids, data_dir=data_dir)
     scope_patient_id_set = {item for item in scope_patient_ids if item}
     if len(datasets) < 2:
         return {
@@ -1183,14 +1183,25 @@ def parse_scope_ids(value: str) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def derive_scope_patient_ids(scope_ids: List[str]) -> List[str]:
+def derive_scope_patient_ids(scope_ids: List[str], data_dir: str = "") -> List[str]:
+    from app.identities import decode_identity
+    sample_patients = {}
+    if data_dir and any((decode_identity(item) or (None, None, None))[1] == 'sample' for item in scope_ids):
+        sample_patients = {str(record.get('id') or ''): extract_record_patient_id(record)
+                           for _, _, record in read_bff_records(ensure_data_dir(data_dir))}
     derived: List[str] = []
     seen = set()
     for item in scope_ids:
         normalized = item.strip()
         if not normalized:
             continue
-        patient_id = normalized.split(":", 1)[0].strip()
+        identity = decode_identity(normalized)
+        if identity:
+            patient_id = normalized if identity[1] == 'patient' else sample_patients.get(normalized)
+            if not patient_id:
+                raise ValueError('A selected sample has no patient linkage in this workspace.')
+        else:
+            patient_id = normalized.split(":", 1)[0].strip()
         if patient_id and patient_id not in seen:
             seen.add(patient_id)
             derived.append(patient_id)

@@ -1,6 +1,8 @@
 import { formatAssayModality, formatAssayDataType } from "./assay_labels.js";
 import { fallbackCopyText } from "./shared.js";
 import { createTimelineUi } from "./timeline.js";
+import { modalityIcon, modalityColor } from './modalities.js';
+import { createMultimodalCoverage } from './multimodal_coverage.js';
 
 export function createDashboardUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -54,6 +56,7 @@ export function createDashboardUi(ctx) {
     setDashboardSubtab,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
+  const multimodalCoverage = createMultimodalCoverage({state, escapeHtml, saveIdsAsCohort});
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
   const { renderDashboardTimeline, timelinePanelMarkup } = createTimelineUi({
     state, refs,
@@ -1115,14 +1118,17 @@ export function createDashboardUi(ctx) {
       <div class="dicom-health-grid">
         <div class="dicom-health-card">
           <span class="assay-kpi-label">External viewer</span>
-          <strong>${enabled ? "Enabled" : "Disabled"}</strong>
-          <small>${bundledCount ? `${bundledCount} studies use bundled OHIF; external viewing applies to the remaining studies` : 'Open studies in OHIF'}</small>
+          <strong>${enabled ? "Enabled" : "Not enabled"}</strong>
+          <small>${bundledCount ? `${bundledCount} studies open in bundled OHIF; the external viewer applies only to other studies` : enabled ? 'Use View images on a study below' : 'Study information is available, but external image viewing is not enabled'}</small>
         </div>
         <div class="dicom-health-card">
-          <span class="assay-kpi-label">Study manifest</span>
-          <strong>${manifestFound ? "Found" : "Missing"}</strong>
-          <small>${escapeHtml(String(studyCount))} configured stud${studyCount === 1 ? "y" : "ies"}</small>
+          <span class="assay-kpi-label">Study records</span>
+          <strong>${escapeHtml(String(studyCount))} listed</strong>
+          <small>${manifestFound ? "Listing a study does not confirm that its images are accessible" : "No study list configured"}</small>
         </div>
+      </div>
+      <details class="assay-card-section"><summary>External service details</summary>
+        <div class="dicom-health-grid">
         <div class="dicom-health-card">
           <span class="assay-kpi-label">Orthanc</span>
           <strong>${escapeHtml(orthancLabel)}</strong>
@@ -1134,7 +1140,6 @@ export function createDashboardUi(ctx) {
           <small>Image access service</small>
         </div>
       </div>
-      <details class="assay-card-section"><summary>Connection details</summary>
         <p>OHIF: ${escapeHtml(ohifUrl || "Not configured")}</p>
         <p>DICOMweb: ${escapeHtml(dicomwebUrl || "Not configured")}</p>
       </details>
@@ -1337,7 +1342,7 @@ export function createDashboardUi(ctx) {
           <p class="section-note">Unique patients within each modality; a patient can appear in several rows.</p>
           ${coverage.map(({ modality, count }) => `<div class="assay-coverage-row">
             <span>${assayOverviewIcon(modality)}${escapeHtml(formatAssayModality(modality))}</span>
-            <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null ? 0 : count / largest * 100}%"></i></div>
+            <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null ? 0 : count / largest * 100}%;background:${modalityColor(modality)}"></i></div>
             <strong>${count === null ? 'Not reported' : escapeHtml(formatNumber(count))}</strong>
           </div>`).join('')}
         </div>
@@ -1383,25 +1388,13 @@ export function createDashboardUi(ctx) {
     multimodalMatrixPanelEl.setAttribute("aria-hidden", "false");
   }
 
-  function renderReadinessKpis(workspace) {
-    const source = workspace && typeof workspace === "object" ? workspace : {};
-    return `
-      <div class="assay-kpi-grid multimodal-kpi-grid">
-        <div class="assay-kpi"><span class="assay-kpi-label">Clinical patients</span><strong class="assay-kpi-value">${escapeHtml(String(source.patient_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Modalities</span><strong class="assay-kpi-value">${escapeHtml(String(source.modality_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Multimodal patients</span><strong class="assay-kpi-value">${escapeHtml(String(source.multimodal_patient_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Exact sample overlap</span><strong class="assay-kpi-value">${escapeHtml(String(source.exact_sample_overlap_count || 0))}</strong></div>
-      </div>
-    `;
-  }
-
   function renderCoverageBars(title, rows, unit) {
     const validCount = value => value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0;
     const max = Math.max(1, ...rows.filter(row => validCount(row.count)).map(row => Number(row.count)));
     return `<div class="assay-coverage-chart"><strong>${escapeHtml(title)}</strong>
       ${rows.map(row => `<div class="assay-coverage-row">
         <span>${assayOverviewIcon(row.modality)}${escapeHtml(String(row.label))}</span>
-        <div class="assay-coverage-track" aria-hidden="true"><i style="width:${validCount(row.count) ? Number(row.count) / max * 100 : 0}%"></i></div>
+        <div class="assay-coverage-track" aria-hidden="true"><i style="width:${validCount(row.count) ? Number(row.count) / max * 100 : 0}%;background:${modalityColor(row.modality)}"></i></div>
         <strong>${validCount(row.count) ? escapeHtml(formatNumber(Number(row.count))) + ' ' + escapeHtml(Number(row.count) === 1 ? (unit === 'studies' ? 'study' : 'patient') : unit) : 'Not reported'}</strong>
       </div>`).join('') || '<p class="empty">No coverage reported.</p>'}</div>`;
   }
@@ -1420,7 +1413,7 @@ export function createDashboardUi(ctx) {
     return `
       <div class="assay-card-section">
         ${renderCoverageBars('Patients by data type', (Array.isArray(modalities) ? modalities : []).map(item => ({label:item.label || item.key || 'Modality', modality:item.key, count:item.patient_count})), 'patients')}
-        <p class="section-note">Patients can appear in more than one data type. Counts are not additive; shared patients are shown below.</p>
+        <p class="section-note">Patients may appear in several types.</p>
         <details><summary>Detailed coverage counts</summary>
         <div class="assay-table-wrap">
           <table class="assay-table multimodal-readiness-table">
@@ -1433,33 +1426,11 @@ export function createDashboardUi(ctx) {
     `;
   }
 
-  function renderReadinessOverlaps(overlaps) {
-    const useful = (Array.isArray(overlaps) ? overlaps : [])
-      .filter((item) => item && item.left !== "clinical" && item.right !== "clinical")
-      .sort((left, right) => Number(right.patient_overlap_count || 0) - Number(left.patient_overlap_count || 0))
-      .slice(0, 6);
-    const content = useful.length
-      ? useful.map((item) => `
-        <article class="cross-modal-pair">
-          <div class="cross-modal-pair-types">
-            <span>${assayOverviewIcon(item.left)}${escapeHtml(String(item.left_label || item.left))}</span>
-            <span class="cross-modal-pair-connector" aria-label="and">+</span>
-            <span>${assayOverviewIcon(item.right)}${escapeHtml(String(item.right_label || item.right))}</span>
-          </div>
-          <div class="cross-modal-pair-count"><strong>${escapeHtml(String(item.patient_overlap_count ?? '—'))}</strong> <span>shared ${Number(item.patient_overlap_count) === 1 ? 'patient' : 'patients'}</span></div>
-          <div class="cross-modal-pair-samples">${escapeHtml(String(item.sample_overlap_count ?? 'Not reported'))} matching sample ${Number(item.sample_overlap_count) === 1 ? 'ID' : 'IDs'}</div>
-        </article>
-      `).join("")
-      : '<div class="empty">No cross-modal overlap is currently available.</div>';
-    return `<div class="assay-card-section"><strong>Cross-modal overlap</strong>
-      <p class="section-note">Up to six pairs with the most shared patients. Patient overlap does not imply the same visit or specimen; exact samples require matching identifiers.</p>
-      <div class="cross-modal-pairs">${content}</div></div>`;
-  }
 
   function renderReadinessIssues(issues) {
     const items = Array.isArray(issues) ? issues : [];
     if (!items.length) {
-      return '<div class="assay-card-section"><strong>Linkage checks</strong><div class="query-status">No multimodal linkage issues detected.</div></div>';
+      return '';
     }
     return `
       <div class="assay-card-section">
@@ -1483,11 +1454,11 @@ export function createDashboardUi(ctx) {
       ? `Readiness checked across ${modalities.length} modality layer${modalities.length === 1 ? "" : "s"}.`
       : "No multimodal readiness data available.";
     multimodalReadinessContentEl.innerHTML = `
-      ${renderReadinessKpis(source.workspace || {})}
+      <section class="multimodal-coverage"></section>
       ${renderReadinessCoverageTable(modalities)}
-      ${renderReadinessOverlaps(source.pairwise_overlaps || [])}
       ${renderReadinessIssues(issues)}
     `;
+    void multimodalCoverage.load(multimodalReadinessContentEl.querySelector('.multimodal-coverage'), state.currentDatasetScopeId);
     renderMultimodalReadinessVisibility();
   }
 
@@ -1504,12 +1475,8 @@ export function createDashboardUi(ctx) {
     const source = metadata && typeof metadata === "object" ? metadata : {};
     const missingPct = `${(Number(source.missing_fraction || 0) * 100).toFixed(1)}%`;
     return `
-      <div class="assay-kpi-grid multimodal-kpi-grid">
-        <div class="assay-kpi"><span class="assay-kpi-label">Rows</span><strong class="assay-kpi-value">${escapeHtml(String(source.row_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Columns</span><strong class="assay-kpi-value">${escapeHtml(String(source.column_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Feature groups</span><strong class="assay-kpi-value">${escapeHtml(String(source.feature_group_count || 0))}</strong></div>
-        <div class="assay-kpi"><span class="assay-kpi-label">Missing cells</span><strong class="assay-kpi-value">${escapeHtml(missingPct)}</strong></div>
-      </div>
+      <p class="section-note"><strong>${Number(source.row_count || 0) ? escapeHtml(missingPct) + ' missing values' : 'Missingness not assessed'}</strong> · ${escapeHtml(String(source.feature_group_count || 0))} feature groups</p>
+      <details><summary>About missingness</summary><p>Calculated across selected non-identifier columns, not every source feature. Missing values can reflect unmatched sample identifiers or absent measurements; they are not a quality-control verdict.</p></details>
     `;
   }
 
@@ -1527,24 +1494,23 @@ export function createDashboardUi(ctx) {
     return `<div class="assay-card-section"><strong>Provenance</strong><div class="multimodal-feature-group-list">${content}</div></div>`;
   }
 
-  function renderMatrixMissingness(missingness) {
+  function renderMatrixMissingness(missingness, rowCount) {
     const rows = (Array.isArray(missingness) ? missingness : [])
       .filter((item) => Number(item.missing_count || 0) > 0)
       .sort((left, right) => Number(right.missing_fraction || 0) - Number(left.missing_fraction || 0))
       .slice(0, 6);
     if (!rows.length) {
-      return '<div class="assay-card-section"><strong>Missingness</strong><div class="query-status">No missing values in selected preview columns.</div></div>';
+      return `<p class="section-note">${rowCount ? 'No missing values in the selected matrix columns.' : 'No sample rows available to assess missingness.'}</p>`;
     }
     return `
       <div class="assay-card-section">
-        <strong>Missingness</strong>
-        <div class="multimodal-overlap-list">
+        <p class="section-note">Up to six columns with the most missing values.</p>
+        <div class="missingness-list">
           ${rows.map((item) => `
-            <div class="multimodal-overlap-row">
-              <span>${escapeHtml(String(item.label || item.key || "Column"))}</span>
-              <strong>${escapeHtml(String(item.missing_count || 0))}</strong>
-              <small>${escapeHtml((Number(item.missing_fraction || 0) * 100).toFixed(1))}%</small>
-              <div class="assay-coverage-track missingness-track" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, Number(item.missing_fraction || 0) * 100))}%"></i></div>
+            <div class="missingness-row">
+              <span class="missingness-label">${escapeHtml(String(item.label || item.key || "Column"))}</span>
+              <span class="missingness-value">${escapeHtml((Number(item.missing_fraction || 0) * 100).toFixed(1))}% missing <small>${escapeHtml(String(item.missing_count || 0))} of ${escapeHtml(String(rowCount))} rows</small></span>
+              <div class="missingness-bar" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, Number(item.missing_fraction || 0) * 100))}%"></i></div>
             </div>
           `).join("")}
         </div>
@@ -1565,36 +1531,6 @@ export function createDashboardUi(ctx) {
     `;
   }
 
-  function renderMatrixPreviewTable(columns, rows) {
-    const columnItems = Array.isArray(columns) ? columns : [];
-    const rowItems = Array.isArray(rows) ? rows : [];
-    if (!columnItems.length || !rowItems.length) {
-      return '<div class="assay-card-section"><strong>Preview</strong><div class="empty">No matrix rows available.</div></div>';
-    }
-    return `
-      <div class="assay-card-section">
-        <strong>Preview</strong>
-        <div class="assay-table-wrap multimodal-matrix-table-wrap">
-          <table class="assay-table multimodal-matrix-table">
-            <thead>
-              <tr>${columnItems.map((column) => `<th title="${escapeHtml(String(column.key || ""))}">${escapeHtml(String(column.label || column.key || "Column"))}</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-              ${rowItems.map((row) => {
-                const values = row && typeof row.values === "object" ? row.values : {};
-                return `<tr>${columnItems.map((column) => {
-                  const key = String(column.key || "");
-                  const value = values[key];
-                  return `<td>${escapeHtml(value === null || typeof value === "undefined" ? "" : String(value))}</td>`;
-                }).join("")}</tr>`;
-              }).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
   function renderMultimodalMatrix(payload) {
     if (!multimodalMatrixStatusEl || !multimodalMatrixContentEl) return;
     const source = payload && typeof payload === "object" ? payload : {};
@@ -1607,9 +1543,8 @@ export function createDashboardUi(ctx) {
     multimodalMatrixContentEl.innerHTML = `
       ${renderMatrixKpis(metadata)}
       <details class="assay-card-section"><summary>Feature groups and provenance</summary>${renderMatrixFeatureGroups(source.feature_groups || [])}</details>
-      ${renderMatrixMissingness(source.missingness || [])}
+      ${renderMatrixMissingness(source.missingness || [], Number(metadata.row_count || 0))}
       ${renderMatrixWarnings(source.warnings || [])}
-      ${renderMatrixPreviewTable(source.columns || [], source.rows || [])}
     `;
     renderMultimodalMatrixVisibility();
   }
@@ -1690,14 +1625,7 @@ export function createDashboardUi(ctx) {
   }
 
   function assayOverviewIcon(modality) {
-    const paths = {
-      clinical: 'M9 3h6v3h4v15H5V6h4ZM9 3v5h6V3M8 12h8M8 16h5',
-      dicom: 'M3 4h18v16H3ZM3 16l5-5 5 5 3-3 5 5M15 8h2',
-      transcriptomics: 'M6 3c0 8 12 10 12 18M18 3c0 8-12 10-12 18M8 6h8M8 18h8M10 10h4M10 14h4',
-      methylation: 'M6 3c0 8 12 10 12 18M18 3c0 8-12 10-12 18M8 6h8M8 18h8M19 7h3m-1-2v4',
-      imaging: 'M3 4h18v16H3ZM3 16l5-5 5 5 3-3 5 5M15 8h2',
-    };
-    return `<svg class="assay-overview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[modality] || 'M9 3h6M10 3v6L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2L14 9V3M7 15h10'}"/></svg>`;
+    return modalityIcon(modality);
   }
 
   function renderAssayLinkage(item) {

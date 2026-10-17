@@ -1,3 +1,5 @@
+import { modalityIcon } from './modalities.js';
+
 export function createDatasetsUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
   const accessLabel = (visibility) => desktop ? "Available in this desktop workspace"
@@ -52,17 +54,17 @@ export function createDatasetsUi(ctx) {
     clinical: {
       label: "Clinical data",
       legendLabel: "Clinical",
-      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4V2h6v2"></path><path d="M12 9v7"></path><path d="M8.5 12.5h7"></path></svg>',
+      svg: modalityIcon('clinical', ''),
     },
     assay: {
       label: "Assay data",
       legendLabel: "Assay data",
-      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
+      svg: modalityIcon('assay', ''),
     },
   };
   datasetTraitDefinitions.imaging = {
     label: "Imaging data", legendLabel: "Imaging",
-    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="12" cy="12" r="5"></circle><path d="M12 9v6M9 12h6"></path></svg>',
+    svg: modalityIcon('imaging', ''),
   };
   const datasetTraitOrder = ["private", "cross_sectional", "longitudinal", "clinical", "assay", "imaging"];
 

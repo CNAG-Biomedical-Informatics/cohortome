@@ -1,4 +1,5 @@
 // Display names only. Backend catalogs remain authoritative for capabilities.
+import { modalityLabel } from './modalities.js';
 const ASSAY_LABELS = Object.freeze({
   transcriptomics: "Transcriptomics",
   methylation: "DNA methylation",
@@ -19,9 +20,7 @@ const ASSAY_LABELS = Object.freeze({
 });
 
 export function formatAssayModality(value) {
-  const text = String(value || "assay").trim();
-  if (!text) return "Assays";
-  return ASSAY_LABELS[text] || text.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return modalityLabel(value);
 }
 
 export function formatAssayDataType(value) {

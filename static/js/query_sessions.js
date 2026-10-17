@@ -1,5 +1,6 @@
+import { addWorkspaceRestoreAction } from './workspace_restore.js';
 // Query persistence uses the same user-owned server storage as Analysis, not browser storage.
-export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuery, closeDrawer, renderList, organizationActions }) {
+export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuery, closeDrawer, renderList, organizationActions, restoreWorkspace }) {
   const list = document.getElementById('analysisSessionList');
   const search = document.getElementById('analysisChatSearch');
   const status = document.getElementById('queryChatSaveStatus');
@@ -17,7 +18,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
   let editVersion = 0;
   let saveState = '';
   let conflict = false;
-  const dataset = () => String(refs.dataDirEl.dataset.scopeId || refs.dataDirEl.value || '').trim();
+  const dataset = () => String(refs.dataDirEl.dataset.scopeId || '').trim();
   const title = item => item.title || 'New Query chat';
   function message(text = '', retryable = false) {
     status.textContent = text; status.hidden = !text;
@@ -45,6 +46,9 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     const context = issue || (restored ? 'Saved results. Rerun a query to refresh tables and cohort actions.' : '');
     contextNotice.textContent = context ? `${context}${source ? ` Original workspace: ${record?.name || source}.` : ''}` : '';
     contextNotice.hidden = !context;
+    const chatId = current?.id;
+    addWorkspaceRestoreAction(contextNotice, { scope: source, currentScope: dataset(),
+      restore: restoreWorkspace, reopen: () => open(chatId, true) });
     renderList();
   }
   function renderCard(item) {

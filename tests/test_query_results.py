@@ -544,6 +544,9 @@ def test_save_and_analysis_resolve_full_handle_membership(monkeypatch, tmp_path)
     record = _record(monkeypatch, tmp_path)
     _route_context(monkeypatch)
     captured = {}
+    from app import cohort_members
+    monkeypatch.setattr(cohort_members, 'source_inventory', lambda root: (
+        {f'P{index:04d}' for index in range(607)}, {}))
 
     def fake_save_cohort(**kwargs):
         captured["saved"] = kwargs
@@ -561,6 +564,8 @@ def test_save_and_analysis_resolve_full_handle_membership(monkeypatch, tmp_path)
     )
     assert saved["patient_count"] == 607
     assert len(captured["saved"]["patient_ids"]) == 607
+    assert len(captured['saved']['members']) == 607
+    assert {m['dataset_id'] for m in captured['saved']['members']} == {'dataset-a'}
 
     monkeypatch.setattr(routes_module, "selected_lm_provider_id", lambda request: "")
     monkeypatch.setattr(routes_module, "selected_ai_provider_access", lambda request, ids: "blocked")

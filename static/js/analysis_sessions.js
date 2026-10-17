@@ -1,4 +1,5 @@
 import { addChatMenuIcons } from './chat_folders.js';
+import { addWorkspaceRestoreAction } from './workspace_restore.js';
 
 export function createAnalysisSessionsUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -356,11 +357,17 @@ export function createAnalysisSessionsUi(ctx) {
     const settings = options || {};
     const session = currentAnalysisSession();
     if (!session) return;
+    const activeScope = typeof currentDatasetSelectionKey === "function"
+      ? String(currentDatasetSelectionKey() || "").trim() : "";
+    // A reopened chat may be inspected from another workspace, but current
+    // controls must not overwrite its original selections or result context.
+    if (session.datasetId && activeScope && session.datasetId !== activeScope) return;
     session.promptDraft = analysisPromptEl.value;
     session.contextMode = state.analysisContextMode === "general" ? "general" : "workspace";
-    session.datasetId = typeof currentDatasetSelectionKey === "function"
-      ? String(currentDatasetSelectionKey() || "").trim()
-      : (session.datasetId || "");
+    if (!session.datasetId) {
+      session.datasetId = typeof currentDatasetSelectionKey === "function"
+        ? String(currentDatasetSelectionKey() || "").trim() : "";
+    }
     session.catalogItemId = state.analysisSelectedCatalogItemId || "";
     session.measurement = state.analysisMeasurement || "";
     session.scriptDraft = state.analysisScriptDraft || {};
@@ -371,7 +378,7 @@ export function createAnalysisSessionsUi(ctx) {
     session.compareScopeMetadata = state.analysisCompareScopeMetadata && typeof state.analysisCompareScopeMetadata === "object" ? state.analysisCompareScopeMetadata : {};
     session.savedCohortIdA = state.analysisSelectedSavedCohortId || "";
     session.savedCohortIdB = state.analysisCompareSavedCohortId || "";
-    session.dataDir = dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : session.dataDir;
+    if (!session.dataDir) session.dataDir = dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "";
     session.history = state.analysisHistory;
     session.turns = state.analysisTurns;
     session.updatedAt = settings.touch === false ? session.updatedAt : nowIso();
@@ -424,6 +431,9 @@ export function createAnalysisSessionsUi(ctx) {
     analysisStatusEl.textContent = workspaceStatus.state === "stale" || workspaceStatus.state === "unavailable"
       ? String(workspaceStatus.message || "This analysis session no longer matches the current workspace.")
       : `Loaded analysis session: ${analysisSessionTitle(session)}.`;
+    addWorkspaceRestoreAction(analysisStatusEl, { scope: session.datasetId,
+      currentScope: currentDatasetSelectionKey(), restore: callbacks.restoreWorkspace,
+      reopen: () => selectAnalysisSession(sessionId) });
   }
 
   function createAndSelectAnalysisSession(overrides) {

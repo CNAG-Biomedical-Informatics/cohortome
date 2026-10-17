@@ -413,6 +413,7 @@ def _assay_scope_tokens(value: str) -> List[str]:
 
 
 def _resolve_assay_scope(value: str) -> Dict[str, List[str]]:
+    from app.identities import decode_identity
     sample_ids: List[str] = []
     patient_ids: List[str] = []
     seen_samples = set()
@@ -420,6 +421,12 @@ def _resolve_assay_scope(value: str) -> Dict[str, List[str]]:
     for item in _assay_scope_tokens(value):
         normalized = str(item or "").strip()
         if not normalized:
+            continue
+        decoded = decode_identity(normalized)
+        if decoded:
+            target = sample_ids if decoded[1] == 'sample' else patient_ids
+            if normalized not in target:
+                target.append(normalized)
             continue
         if ":" in normalized and normalized not in seen_samples:
             seen_samples.add(normalized)
@@ -510,6 +517,11 @@ def _export_manifest_count_like_matrix(
     sample_table_rows: List[Dict[str, Any]] = []
     for source_index, sample_id in enumerate(source_sample_ids, start=1):
         patient_id = patient_links[sample_id]
+        source_sample_id = sample_id
+        if item.get('_source_dataset_id'):
+            from app.identities import identity_key
+            sample_id = identity_key(item['_source_dataset_id'], 'sample', sample_id)
+            patient_id = identity_key(item['_source_dataset_id'], 'patient', patient_id)
         belongs_to_a = sample_id in cohort_a_samples or patient_id in cohort_a_patients
         belongs_to_b = sample_id in cohort_b_samples or patient_id in cohort_b_patients
         if belongs_to_a and belongs_to_b:
@@ -521,7 +533,7 @@ def _export_manifest_count_like_matrix(
         row = {"sample_id": sample_id, "patient_id": patient_id, "cohort": cohort,
                "group_label": "Cohort A" if cohort == "A" else "Cohort B"}
         for covariate in covariates:
-            row[covariate] = metadata[sample_id][covariate]
+            row[covariate] = metadata[source_sample_id][covariate]
         sample_table_rows.append(row)
 
     if not selected_columns:

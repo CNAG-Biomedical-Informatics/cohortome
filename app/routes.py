@@ -784,7 +784,7 @@ def export_saved_cohort(cohort_id: str, request: Request):
     if set(cohort.get("dataset_ids") or []) != set(selected_ids):
         raise HTTPException(409, "Saved cohort dataset scope is inconsistent.")
     exports.check_size(len(cohort.get("patient_ids") or []) + len(cohort.get("sample_ids") or []))
-    patients = get_patients(request, dataset_id=scope_id)
+    patients = [] if cohort.get('members') is not None else get_patients(request, dataset_id=scope_id)
     return exports.attachment(exports.cohort_bundle(cohort, patients), "saved-cohort.zip", "application/zip")
 
 
@@ -1461,6 +1461,12 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
         patient_ids = list(membership["patient_ids"])
         id_type = str(membership["id_type"] or id_type)
     try:
+        from app.cohort_members import resolve_members
+        roots = {identifier: resolve_dataset_dir(raw_request, identifier) for identifier in selected_ids}
+        members = resolve_members(
+            roots, members=[m.model_dump() for m in request.members] if request.members is not None and not request.result_handle else None,
+            patient_ids=patient_ids, sample_ids=sample_ids, id_type=id_type,
+        )
         item = save_cohort(
             name=request.name,
             dataset_id=dataset_scope_id(selected_ids),
@@ -1472,7 +1478,10 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
             source_kind=request.source_kind,
             source_prompt=request.source_prompt,
             user_id=request_user_id(raw_request),
+            members=members,
         )
+    except FileNotFoundError:
+        raise HTTPException(status_code=409, detail='Cohort source data are unavailable. Restore the original workspace before saving.') from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return item
@@ -1657,6 +1666,38 @@ def general_llm_app(request: GeneralLlmRequest, raw_request: Request) -> Dict:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+def _resolve_saved_analysis_members(request, raw_request, selected_ids):
+    """Reauthorize membership and bind it to the execution workspace identity."""
+    from app.cohort_members import resolve_members
+    roots = {identifier: resolve_dataset_dir(raw_request, identifier) for identifier in selected_ids}
+    for metadata_field, ids_field in [('scope_metadata', 'selected_patient_ids'),
+                                       ('compare_scope_metadata', 'compare_selected_patient_ids')]:
+        if metadata_field == 'compare_scope_metadata' and not request.compare_mode:
+            continue
+        metadata = getattr(request, metadata_field)
+        cohort_id = str(metadata.get('id') or '')
+        if not cohort_id:
+            continue
+        if effective_query_granularity_ceiling(selected_ids) != 'detailed':
+            raise HTTPException(403, 'Saved cohorts require Detailed access to every source dataset.')
+        cohort = next((c for c in list_saved_cohorts(user_id=request_user_id(raw_request)) if c['id'] == cohort_id), None)
+        if not cohort or not cohort.get('dataset_ids') or not set(cohort['dataset_ids']).issubset(selected_ids):
+            raise HTTPException(409, 'Saved cohort is missing or belongs to a different workspace.')
+        try:
+            if cohort.get('members') is not None:
+                members = resolve_members(roots, members=cohort['members'], id_type=cohort['id_type'])
+                field = ('patient_key' if cohort['id_type'] == 'patient' else 'sample_key') if len(selected_ids) > 1 else ('patient_id' if cohort['id_type'] == 'patient' else 'sample_id')
+                ids = [m[field] for m in members]
+            else:
+                ids = cohort['patient_ids'] if cohort['id_type'] == 'patient' else cohort['sample_ids']
+        except FileNotFoundError:
+            raise HTTPException(409, 'Cohort source data are unavailable.') from None
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        setattr(request, ids_field, ','.join(dict.fromkeys(ids)))
+        setattr(request, metadata_field, cohort)
+
+
 def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     requested_dataset_id = str(request.dataset_id or "").strip()
@@ -1670,6 +1711,7 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
             raise HTTPException(status_code=409, detail="No active workspace. Select and apply a dataset before running Analysis.")
         selected_ids = resolve_dataset_ids(raw_request, dataset_scope_id(active_ids))
     resolved_scope_id = dataset_scope_id(selected_ids)
+    _resolve_saved_analysis_members(request, raw_request, selected_ids)
     resolved_dir = resolve_dataset_dir(raw_request, resolved_scope_id)
     selected_patient_ids = str(request.selected_patient_ids or "")
     scope_metadata_handle = (
@@ -1689,6 +1731,8 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
     if str(request.analysis_session_id or "").strip():
         session = get_analysis_session(request.analysis_session_id, user_id=request_user_id(raw_request))
         if session:
+            if session.get('dataset_id') != resolved_scope_id:
+                raise HTTPException(409, "Apply this chat's original workspace or start a new Analysis chat.")
             workspace_status = _analysis_session_workspace_status(session, raw_request)
             if workspace_status["state"] in {"stale", "unavailable"}:
                 raise HTTPException(status_code=409, detail=workspace_status["message"] or "This analysis session is no longer aligned with the current workspace.")
@@ -1850,6 +1894,7 @@ def get_analysis_code(digest: str, request: Request) -> FileResponse:
 def prepare_analysis_script(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+    _resolve_saved_analysis_members(request, raw_request, selected_ids)
     if effective_query_granularity_ceiling(selected_ids) != "detailed":
         raise HTTPException(status_code=403, detail="Script preparation requires Detailed workspace access.")
     resolved_dir = resolve_dataset_dir(raw_request, dataset_scope_id(selected_ids))
@@ -1873,6 +1918,7 @@ def prepare_analysis_script(request: AnalysisRequest, raw_request: Request) -> D
 def get_analysis_measurements(request: AnalysisRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
     selected_ids = resolve_dataset_ids(raw_request, request.dataset_id)
+    _resolve_saved_analysis_members(request, raw_request, selected_ids)
     if effective_query_granularity_ceiling(selected_ids) != "detailed":
         raise HTTPException(status_code=403, detail="Measurement setup requires Detailed in-app access.")
     resolved_dir = resolve_dataset_dir(raw_request, dataset_scope_id(selected_ids))
@@ -2104,6 +2150,8 @@ def create_or_update_analysis_session(request: AnalysisSessionRequest, raw_reque
         existing = get_analysis_session(request.id, user_id=user_id)
         selected_ids = resolve_dataset_ids(raw_request, request.dataset_id or request.data_dir)
         resolved_scope_id = dataset_scope_id(selected_ids)
+        if existing and existing.get('dataset_id') != resolved_scope_id:
+            raise HTTPException(409, "An Analysis chat keeps its original workspace. Start a new chat for a different workspace.")
         resolved_dir = resolve_dataset_dir(raw_request, request.dataset_id or request.data_dir)
         payload["dataset_id"] = resolved_scope_id
         payload["data_dir"] = resolved_dir
@@ -2215,6 +2263,7 @@ def run_inline_pheno_ranker_job(payload: PhenoRankerRequest, user_id: str) -> Di
             "align": bool(payload.align),
             "render_heatmap": bool(payload.render_heatmap),
             "render_mds": bool(payload.render_mds),
+            "render_umap": bool(payload.render_umap),
             "render_graph": bool(payload.render_graph),
             "graph_min_weight": payload.graph_min_weight,
             "graph_max_weight": payload.graph_max_weight,
@@ -2314,6 +2363,7 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
                     "align": payload.align,
                     "render_heatmap": payload.render_heatmap,
                     "render_mds": payload.render_mds,
+                    "render_umap": payload.render_umap,
                     "render_graph": payload.render_graph,
                     "graph_min_weight": payload.graph_min_weight,
                     "graph_max_weight": payload.graph_max_weight,

@@ -106,6 +106,23 @@ function makeAnalysisSession(overrides = {}) {
   return createAnalysisSession(overrides, refs.dataDirEl && refs.dataDirEl.value ? refs.dataDirEl.value.trim() : "");
 }
 
+async function restoreChatWorkspace(scope) {
+  if (state.loadInFlight || state.queryInFlight || state.analysisInFlight) {
+    throw new Error('Wait for the current operation to finish before changing workspace.');
+  }
+  const ids = scope.startsWith('scope--') ? scope.slice('scope--'.length).split('--') : [scope];
+  if (!ids.length || ids.some(id => !state.availableDatasets.some(item => item.dataset_id === id))) {
+    throw new Error('An original dataset is unavailable or you no longer have access to it.');
+  }
+  state.pendingDatasetIds = ids;
+  // Use the normal loading path: it checks data availability and permissions
+  // before persisting the selection. Never restore only a subset of the scope.
+  await workspaceUi.loadPatients();
+  if (state.currentDatasetScopeId !== scope) {
+    throw new Error('The original workspace could not be loaded. Check its availability in Datasets.');
+  }
+}
+
 function clearDatasetScopedContent(options = {}) {
   const signedOut = options.signedOut === true;
   if (signedOut) querySessionsUi?.clear();
@@ -738,6 +755,7 @@ analysisSessionsUi = createAnalysisSessionsUi({
     nowIso,
   },
   callbacks: {
+    restoreWorkspace: restoreChatWorkspace,
     queryChatEntries: () => [...(querySessionsUi?.entries() || []), ...(phenoSessionsUi?.entries() || [])],
     renderPhenoChatCard: item => phenoSessionsUi.renderCard(item),
     chatOrganizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
@@ -766,6 +784,7 @@ analysisSessionsUi = createAnalysisSessionsUi({
 });
 
 querySessionsUi = createQuerySessionsUi({ state, refs, query: queryUi, escapeHtml,
+  restoreWorkspace: restoreChatWorkspace,
   organizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
   openQuery: () => navigationUi.setActiveTab('query'),
   closeDrawer: () => {
@@ -853,8 +872,9 @@ phenoUi = createPhenoUi({
 });
 
 phenoSessionsUi = createPhenoSessionsUi({state, refs, pheno:phenoUi, escapeHtml,
+  restoreWorkspace: restoreChatWorkspace,
   renderList:() => analysisSessionsUi.renderAnalysisSessionList(),
-  openTab:() => navigationUi.setActiveTab('pheno'),
+  openTab:(savedChat = false) => navigationUi.setActiveTab('pheno', {savedChat}),
   actions:(kind,id) => chatFoldersUi?.actions(kind,id) || '',
 });
 

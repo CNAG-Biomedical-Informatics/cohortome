@@ -787,7 +787,7 @@ def _mock_pheno_plan(page, expected_mode: str, patient_id: str = "", selected_id
     page.route("**/pheno-ranker/plan", handler)
 
 
-def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request_capture: dict | None = None) -> None:
+def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request_capture: dict | None = None, umap=False) -> None:
     ids = (
         ["C1_SYN001:week_0", "C1_SYN002:week_0", "C2_SYN003:week_0"]
         if prefixed_ids
@@ -820,6 +820,7 @@ def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request
                     "files": [
                         {"name": "matrix.txt", "url": "/pheno-ranker/results/job-cohort/matrix.txt", "size": 120},
                         {"name": "mds_points.tsv", "url": "/pheno-ranker/results/job-cohort/mds_points.tsv", "size": 110},
+                        *([{"name": "umap_points.tsv", "url": "/pheno-ranker/results/job-cohort/umap_points.tsv", "size": 110}] if umap else []),
                     ],
                     "stderr": "",
                     "command": "pheno cohort command",
@@ -839,6 +840,8 @@ def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request
         "**/pheno-ranker/results/job-cohort/mds_points.tsv",
         lambda route: route.fulfill(status=200, content_type="text/plain", body=mds_text),
     )
+    page.route('**/pheno-ranker/results/job-cohort/umap_points.tsv',
+        lambda route: route.fulfill(status=200, content_type='text/plain', body=mds_text))
 
 
 def _mock_patient_run(page) -> None:
@@ -1809,6 +1812,97 @@ def test_pheno_plan_followups_disclose_planning_path_before_click(
     assert plan_calls["count"] == 1
 
 
+def test_bundled_viewer_renders_synthetic_brain(page, tmp_path):
+    from PIL import Image, ImageStat
+    if not Path('runtime/ohif/index.html').is_file():
+        pytest.skip('Bundled OHIF assets are not installed.')
+    # The normal UI fixture copies datasets to temporary roots; the prototype
+    # viewer intentionally serves only the bundled synthetic root. Isolate its
+    # rendering check from authorization (covered in test_local_viewer.py).
+    with closing(socket.socket()) as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    code = f'''from fastapi import FastAPI
+from app import local_viewer as viewer
+import uvicorn
+viewer.require_authenticated = lambda request: {{}}
+viewer._require_detailed_assay_access = lambda *args: ['default']
+viewer._resolve_route_dataset_dir = lambda *args: viewer.SYNTHETIC_ROOT
+app = FastAPI()
+app.include_router(viewer.router)
+uvicorn.run(app, host='127.0.0.1', port={port}, log_level='error')
+'''
+    process = subprocess.Popen([sys.executable, '-c', code], env={**os.environ, 'COHORTOME_RUNTIME_ROOT': str(tmp_path / 'runtime')})
+    try:
+        base = f'http://127.0.0.1:{port}'
+        for _ in range(50):
+            try:
+                urllib.request.urlopen(base + '/openapi.json', timeout=1)
+                break
+            except OSError:
+                time.sleep(.1)
+        page.goto(base + '/local-viewer/open/default/1.2.826.0.1.3680043.10.54321.1.1', wait_until='networkidle')
+        canvas = page.locator('canvas').first
+        playwright.expect(canvas).to_be_visible(timeout=30000)
+        screenshot = tmp_path / 'synthetic-brain.png'
+        for _ in range(20):
+            canvas.screenshot(path=str(screenshot))
+            image = Image.open(screenshot).convert('L')
+            image = image.crop((image.width // 4, image.height // 4, image.width * 3 // 4, image.height * 3 // 4))
+            if ImageStat.Stat(image).stddev[0] > 20:
+                break
+            page.wait_for_timeout(500)
+        assert ImageStat.Stat(image).stddev[0] > 20, 'Viewer mounted but the central image area remained blank.'
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
+
+
+def test_pheno_umap_opt_in_setting_and_plot(page):
+    base = page.url.rstrip('/')
+    assert page.request.patch(base + '/user-settings', data={'pheno_render_umap': True}).ok
+    page.reload(wait_until='networkidle')
+    _mock_pheno_reference_ids(page)
+    _open_pheno_tab(page)
+    _mock_pheno_plan(page, expected_mode='cohort', selected_ids='SYN001:week_0,SYN002:week_0,SYN003:week_0')
+    captured = {}
+    _mock_cohort_run(page, request_capture=captured, umap=True)
+    page.locator('#phenoPrompt').fill('Compare the cohort')
+    page.locator('#phenoRunBtn').click()
+    playwright.expect(page.locator('#phenoUmapPlot')).to_have_attribute('data-plotly-ready', 'true')
+    assert captured['body']['render_umap'] is True
+    playwright.expect(page.locator('#phenoMdsPlot')).to_have_attribute('data-plotly-ready', 'true')
+    actions = page.locator('[data-pheno-plot-kind="umap"]')
+    assert actions.count() == 3
+    actions.filter(has_text='Open selection in Analysis').click()
+    playwright.expect(page.locator('#phenoStatus')).to_contain_text('UMAP plot first')
+    page.evaluate("""() => {
+      document.getElementById('phenoMdsPlot')._plotlyHandlers.plotly_selected({points: [{customdata: ['SYN002:week_0', 'SYN002']}]});
+      document.getElementById('phenoUmapPlot')._plotlyHandlers.plotly_selected({points: [{customdata: ['SYN001:week_0', 'SYN001']}]});
+    }""")
+    playwright.expect(page.locator('#phenoUmapSelectionNote')).to_have_text('Selected 1 UMAP points.')
+    page.evaluate("document.getElementById('phenoUmapPlot')._plotlyHandlers.plotly_deselect()")
+    playwright.expect(page.locator('#phenoMdsSelectionNote')).to_have_text('Selected 1 MDS points.')
+    actions.filter(has_text='Open selection in Analysis').click()
+    playwright.expect(page.locator('#phenoStatus')).to_contain_text('UMAP plot first')
+    page.evaluate("document.getElementById('phenoUmapPlot')._plotlyHandlers.plotly_click({points: [{customdata: ['SYN001:week_0', 'SYN001']}]})")
+    page.evaluate("Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async text => {window.copiedIds = text;}}})")
+    actions.filter(has_text='Copy selected IDs').click()
+    playwright.expect(actions.filter(has_text='Copied')).to_be_visible()
+    assert page.evaluate('window.copiedIds') == 'SYN001:week_0'
+    page.once('dialog', lambda dialog: dialog.accept('UMAP test selection'))
+    with page.expect_response(lambda response: response.url.endswith('/saved-cohorts') and response.request.method == 'POST') as saved_response:
+        actions.filter(has_text='Save cohort').click()
+    assert saved_response.value.ok
+    saved = saved_response.value.json()
+    assert saved['members'][0]['patient_id'] == 'SYN001'
+    assert saved['members'][0]['sample_id'] == 'SYN001:week_0'
+    actions.filter(has_text='Open selection in Analysis').click()
+    playwright.expect(page.locator('#analysisSelectedPatientIds')).to_have_value('SYN001:week_0')
+    playwright.expect(page.locator('#analysisStatus')).to_contain_text('selected UMAP subgroup')
+    assert page.request.patch(base + '/user-settings', data={'pheno_render_umap': False}).ok
+
+
 def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(page) -> None:
     _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
@@ -2336,6 +2430,59 @@ def test_analysis_method_picker_without_llm(page):
     playwright.expect(page.locator('#analysisPrompt')).to_be_visible()
 
 
+def test_multimodal_multiway_coverage_and_exact_combinations(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_multimodal_readiness(page)
+    patients = [dict(patient_id=f'P{i}', dataset_id='default', dataset_label='Synthetic',
+                     has_clinical=True, modalities=modalities) for i, modalities in enumerate([
+        ['clinical', 'transcriptomics', 'methylation', 'proteomics'],
+        ['clinical', 'transcriptomics', 'methylation', 'proteomics', 'serology'],
+        ['clinical', 'transcriptomics', 'methylation'],
+        ['transcriptomics', 'methylation', 'proteomics'],
+    ])]
+    page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={'patients':patients, 'warnings':[]}))
+    page.route('**/patient-overview/detail?*', lambda route: route.fulfill(json={'samples':[], 'warnings':[]}))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardMultimodalBtn').click()
+    panel = page.locator('.multimodal-coverage')
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('4 matching patients')
+    for modality in ['transcriptomics', 'methylation', 'proteomics']:
+        panel.locator(f'input[value="{modality}"]').check()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
+    playwright.expect(panel.locator('[data-combination]')).to_have_count(3)
+    panel.locator('.coverage-mode').select_option('exact')
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
+    playwright.expect(panel.locator('[data-combination]')).to_have_count(2)
+    panel.locator('input[value="clinical"]').check()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    playwright.expect(panel.locator('[data-combination]')).to_have_count(1)
+    panel.locator('.coverage-mode').select_option('includes')
+    panel.locator('[data-combination="0"]').click()
+    playwright.expect(panel.locator('input[value="serology"]')).to_be_checked()
+    saved = []
+    def save_cohort(route):
+        saved.append(route.request.post_data_json)
+        route.fulfill(json={'id':'coverage-cohort'})
+    page.route('**/saved-cohorts', save_cohort)
+    page.once('dialog', lambda dialog: dialog.accept('Triple-omics cohort'))
+    panel.get_by_role('button', name='Save cohort', exact=True).click()
+    playwright.expect(panel.locator('.coverage-save-status')).to_have_text('Cohort saved.')
+    assert saved[0]['members'] == [{'dataset_id':'default', 'patient_id':'P1'}]
+    assert saved[0]['id_type'] == 'patient'
+    assert 'only' in saved[0]['source_prompt']
+    assert 'Clinical required' in saved[0]['source_prompt']
+    panel.locator('.coverage-patients summary').click()
+    playwright.expect(panel.locator('.coverage-patient-list')).to_contain_text('P1')
+    panel.get_by_role('button', name='Inspect', exact=True).click()
+    playwright.expect(panel.locator('.coverage-inspector')).to_contain_text('P1 · Synthetic')
+    page.set_viewport_size({'width':390, 'height':844})
+    assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+
+
 def test_bundled_imaging_status_does_not_require_external_services(page):
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
@@ -2364,6 +2511,25 @@ def test_bundled_imaging_status_does_not_require_external_services(page):
     playwright.expect(page.locator('.local-imaging-viewer')).to_have_count(0)
 
 
+def test_external_imaging_disabled_explains_study_availability(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_dicom_studies(page)
+    page.route('**/dicom/status?*', lambda route: route.fulfill(json={
+        'enabled': False, 'manifest_found': True, 'study_count': 1,
+        'dicomweb_public_url': 'http://example.org', 'orthanc': {'checked': False}}))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardImagingBtn').click()
+    health = page.locator('#dicomDashboardHealth')
+    playwright.expect(health).to_contain_text('external image viewing is not enabled')
+    playwright.expect(health).to_contain_text('Listing a study does not confirm')
+    playwright.expect(health.locator('details')).not_to_have_attribute('open', '')
+    playwright.expect(health.get_by_text('DICOMweb', exact=True)).not_to_be_visible()
+
+
 def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
@@ -2389,6 +2555,14 @@ def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     expect(page.locator('.imaging-coverage-summary .assay-coverage-row')).to_contain_text('1 study')
     expect(page.locator('.dicom-study-card details')).not_to_have_attribute('open', '')
     expect(page.locator('.dicom-study-card .assay-overview-icon')).to_be_visible()
+    expect(page.locator('#dashboardImagingBtn [data-modality-icon="imaging"]')).to_have_count(1)
+    assert page.evaluate("""async () => {
+        const m = await import('/static/js/modalities.js');
+        return m.modalityKey('olink') === 'proteomics'
+            && m.modalityKey('imaging_derived') === 'imaging'
+            && m.modalityLabel('flow_cytometry') === 'Immune-cell abundance'
+            && m.modalityIcon('dicom') === m.modalityIcon('imaging');
+    }""")
     expect(page.locator("#dicomDashboardStudies a", has_text="View images")).to_have_attribute(
         "href",
         "http://ohif.example/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.10.54321.1.1",
@@ -2398,17 +2572,16 @@ def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
     page.locator("#dashboardMultimodalBtn").click()
 
     expect(page.locator("#dashboardMultimodalBtn")).to_have_class(re.compile("active"))
-    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Multimodal feature matrix")
+    expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Missingness in selected features")
+    expect(page.locator('.multimodal-matrix-table')).to_have_count(0)
+    expect(page.locator('.missingness-row')).to_have_count(1)
+    expect(page.locator('.missingness-value')).to_contain_text('50.0% missing')
     expect(page.locator("#multimodalMatrixPanel")).to_contain_text("Sample-level matrix")
     expect(page.locator('#multimodalReadinessContent .assay-coverage-chart')).to_contain_text('Patients by data type')
     expect(page.locator('#multimodalReadinessContent .assay-coverage-row')).to_have_count(4)
-    expect(page.locator('.cross-modal-pair')).to_have_count(2)
-    expect(page.locator('.cross-modal-pair').first.locator('svg')).to_have_count(2)
-    expect(page.locator('.cross-modal-pair-count').first).to_contain_text('1 shared patient')
-    expect(page.locator('.cross-modal-pair-samples').first).to_have_text('1 matching sample ID')
+    expect(page.locator('.cross-modal-pair')).to_have_count(0)
     page.locator('#multimodalReadinessContent summary', has_text='Detailed coverage counts').click()
     expect(page.locator('.multimodal-readiness-table')).to_be_visible()
-    expect(page.locator('#multimodalReadinessContent')).to_contain_text('same visit or specimen')
     page.set_viewport_size({'width': 390, 'height': 844})
     for selector in ('#multimodalReadinessContent', '#dicomDashboardStudies'):
         # Hidden panels are checked after their respective navigation is opened.
@@ -2590,6 +2763,64 @@ def test_timeline_availability_error_is_visible_and_retryable(page):
     page.locator('#dashboardTimelineBtn').click()
     playwright.expect(page.locator('#dashboard-plot-timeline')).to_contain_text('Detailed access required.')
     playwright.expect(page.locator('#timelineRetry')).to_be_visible()
+
+
+def test_chat_dataset_load_failure_keeps_chat_and_allows_retry(page):
+    page.evaluate("""async () => {
+      const {addWorkspaceRestoreAction} = await import('/static/js/workspace_restore.js');
+      const panel = document.createElement('div');
+      panel.id = 'restore-test';
+      document.body.append(panel);
+      window.restoreChecks = {attempts: 0, reopened: 0};
+      addWorkspaceRestoreAction(panel, {scope: 'scope--a--b', currentScope: 'a',
+        restore: async scope => {
+          if (scope !== 'scope--a--b') throw new Error('Wrong scope');
+          if (++window.restoreChecks.attempts === 1) throw new Error('Dataset B is unavailable.');
+        }, reopen: async () => { window.restoreChecks.reopened++; }});
+    }""")
+    panel = page.locator('#restore-test')
+    panel.get_by_role('button', name='Load this chat’s datasets').click()
+    playwright.expect(panel).to_contain_text('Dataset B is unavailable.')
+    assert page.evaluate('window.restoreChecks.reopened') == 0
+    panel.get_by_role('button', name='Retry loading datasets').click()
+    playwright.expect(panel.get_by_role('button')).to_have_count(0)
+    assert page.evaluate('window.restoreChecks.reopened') == 1
+
+
+@pytest.mark.parametrize('kind,notice,title', [
+    ('query', '#queryChatContextNotice', '#queryCurrentChatTitle'),
+    ('analysis', '#analysisStatus', '#analysisCurrentChatTitle'),
+    ('pheno', '#phenoChatStatus', '#phenoChatTitle'),
+])
+def test_chat_explicitly_loads_original_datasets(page, kind, notice, title):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    expect = playwright.expect
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    base = page.url.rstrip('/')
+    chat_id = f'restore-workspace-{kind}'
+    assert page.request.post(base + f'/{kind}-sessions', data={
+        'id': chat_id, 'title': 'Restore my workspace',
+        'title_custom': True, 'dataset_id': 'default',
+    }).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#datasetPicker [data-dataset-checkbox="default"]').uncheck()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_have_text('Workspace unloaded.')
+    page.locator(f'[data-{kind}-session-id="{chat_id}"]').click()
+    button = page.locator(notice).get_by_role('button', name='Load this chat’s datasets')
+    try:
+        expect(button).to_be_visible()
+    except AssertionError:
+        raise AssertionError(page.locator(notice).inner_text()) from None
+    assert page._cohortome_dataset_state['current_ids'] == []
+    button.click()
+    expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    expect(page.locator(title)).to_have_text('Restore my workspace')
+    expect(button).to_have_count(0)
+    assert page._cohortome_dataset_state['current_ids'] == ['default']
+    assert page.request.delete(base + f'/{kind}-sessions/{chat_id}').ok
 
 
 def test_query_chats_persist_in_shared_list_and_reopen(page):

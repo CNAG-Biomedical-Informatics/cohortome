@@ -75,14 +75,15 @@ export function createSavedCohortsUi(ctx) {
           ? item.dataset_ids
           : (item.dataset_id ? [item.dataset_id] : []);
         const datasetLabels = datasetLabelsForIds(datasetIds);
-        const preview = sampleIds.slice(0, 4).join(", ");
-        const suffix = sampleIds.length > 4 ? ` ... (+${sampleIds.length - 4} more)` : "";
+        const memberLabels = item.members?.length ? item.members.map(m => `${m.sample_id || m.patient_id} · ${datasetLabelsForIds([m.dataset_id])[0] || m.dataset_id}`) : sampleIds;
+        const preview = memberLabels.slice(0, 4).join(", ");
+        const suffix = memberLabels.length > 4 ? ` ... (+${memberLabels.length - 4} more)` : "";
         const source = item.source && item.source.kind ? item.source.kind : "manual";
         const isActiveHere = cohortIsActiveInCurrentUi(item.id);
         return `
           <div class="saved-cohort-card">
             <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
-            <small>${escapeHtml(String(patientIds.length || item.patient_count || 0))} patients • ${escapeHtml(String(sampleIds.length || item.sample_count || 0))} samples • source: ${escapeHtml(source)}</small>
+            <small>${escapeHtml(String(item.patient_count ?? patientIds.length))} patients • ${escapeHtml(String(item.sample_count ?? sampleIds.length))} samples • source: ${escapeHtml(source)}</small>
             ${datasetLabels.length ? `<small>${escapeHtml(datasetLabels.join(", "))}</small>` : ""}
             <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
             <div class="saved-cohort-actions">
@@ -215,6 +216,7 @@ export function createSavedCohortsUi(ctx) {
           dataset_ids: currentDatasetIds(),
           sample_ids: sampleIds,
           patient_ids: patientIds,
+          members: Array.isArray(options.members) ? options.members : undefined,
           id_type: sampleIds.length ? "sample" : "patient",
           source_kind: sourceKind,
           source_prompt: sourcePrompt,
@@ -286,7 +288,9 @@ export function createSavedCohortsUi(ctx) {
       : (Array.isArray(item && item.patient_ids) ? item.patient_ids : []);
     if (!item || !ids.length) return;
     try {
-      await navigator.clipboard.writeText(ids.join(","));
+      await navigator.clipboard.writeText(item.members?.length
+        ? ['dataset_id\tpatient_id\tsample_id', ...item.members.map(m => [m.dataset_id, m.patient_id, m.sample_id || ''].join('\t'))].join('\n')
+        : ids.join(","));
       setSavedCohortStatus(`Copied ${ids.length} IDs from ${item.name}.`);
     } catch (_error) {
       setSavedCohortStatus("Unable to copy saved cohort IDs.");

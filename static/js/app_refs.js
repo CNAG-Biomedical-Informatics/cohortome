@@ -31,6 +31,7 @@ export function createAppRefs(doc = document) {
     settingsPhenoAdvancedOpenEl: doc.getElementById("settingsPhenoAdvancedOpen"),
     settingsPhenoRenderHeatmapEl: doc.getElementById("settingsPhenoRenderHeatmap"),
     settingsPhenoRenderMdsEl: doc.getElementById("settingsPhenoRenderMds"),
+    settingsPhenoRenderUmapEl: doc.getElementById("settingsPhenoRenderUmap"),
     settingsPhenoRenderGraphEl: doc.getElementById("settingsPhenoRenderGraph"),
     settingsDashboardAssaysOpenEl: doc.getElementById("settingsDashboardAssaysOpen"),
     settingsDatasetCompactViewEl: doc.getElementById("settingsDatasetCompactView"),

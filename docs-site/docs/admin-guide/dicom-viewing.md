@@ -94,7 +94,7 @@ PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
 
 The generator reads each dataset's `assays/imaging/dicom_studies.json` manifest
 and writes matching `.dcm` files under `assays/imaging/dicom/`. The bundled
-fixtures use pydicom's visible `MR_small.dcm` test image as a source image, then
+fixtures use a deterministic 256×256 procedural brain phantom, then
 assign COHORTome-specific Study/Series/SOP Instance UIDs, patient IDs, sample IDs,
 study descriptions, and synthetic profile metadata.
 
@@ -112,7 +112,7 @@ The default fixture intentionally contains two kinds of studies:
 
 :::warning Synthetic pixels
 The bundled MS brain MRI examples use MS-like metadata, but their pixels are
-derived from pydicom test data. They are for OHIF/metadata smoke testing only
+generated entirely from geometric shapes and fixed noise, without patient images. They are for OHIF/metadata testing only
 and are not realistic MS lesion images.
 :::
 

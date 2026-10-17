@@ -62,8 +62,9 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
 
 export function normalizeSelectionMetadata(source = {}) {
   const item = source && typeof source === "object" ? source : {};
-  const sampleIds = normalizeIdList(item.sample_ids || item.sampleIds || []);
-  const patientIds = normalizeIdList(item.patient_ids || item.patientIds || []);
+  const members = Array.isArray(item.members) ? item.members : [];
+  const sampleIds = normalizeIdList(members.length ? members.map(m => m.sample_id).filter(Boolean) : item.sample_ids || item.sampleIds || []);
+  const patientIds = normalizeIdList(members.length ? members.map(m => m.patient_id) : item.patient_ids || item.patientIds || []);
   const queryResultHandle = String(item.query_result_handle || item.result_handle || item.queryResultHandle || item.resultHandle || "").trim();
   if (!sampleIds.length && !patientIds.length && !queryResultHandle) {
     return {};
@@ -71,7 +72,7 @@ export function normalizeSelectionMetadata(source = {}) {
   const derivedPatientIds = patientIds.length
     ? patientIds
     : Array.from(new Set(sampleIds.map((value) => value.split(":", 1)[0].trim()).filter(Boolean)));
-  const normalizedSampleIds = sampleIds.length ? sampleIds : (derivedPatientIds.length ? derivedPatientIds.slice() : []);
+  const normalizedSampleIds = members.length ? sampleIds : sampleIds.length ? sampleIds : (derivedPatientIds.length ? derivedPatientIds.slice() : []);
   const datasetIds = normalizeIdList(item.dataset_ids || item.datasetIds || []);
   const sourceInfo = item.source && typeof item.source === "object" ? item.source : {};
   return {
@@ -79,6 +80,7 @@ export function normalizeSelectionMetadata(source = {}) {
     name: typeof item.name === "string" ? item.name : "",
     dataset_id: typeof item.dataset_id === "string" ? item.dataset_id : (typeof item.datasetId === "string" ? item.datasetId : ""),
     dataset_ids: datasetIds,
+    members: members.map(m => ({dataset_id:m.dataset_id, patient_id:m.patient_id, patient_key:m.patient_key, ...(m.sample_id ? {sample_id:m.sample_id, sample_key:m.sample_key} : {})})),
     data_dir: typeof item.data_dir === "string" ? item.data_dir : (typeof item.dataDir === "string" ? item.dataDir : ""),
     id_type: typeof item.id_type === "string" ? item.id_type : (typeof item.idType === "string" ? item.idType : (sampleIds.length ? "sample" : "patient")),
     query_result_handle: queryResultHandle,
@@ -106,6 +108,7 @@ export function createSelectionMetadata(options = {}) {
     query_result_handle: source.queryResultHandle || source.query_result_handle || source.resultHandle || source.result_handle || "",
     sample_ids: source.sampleIds || source.sample_ids || [],
     patient_ids: source.patientIds || source.patient_ids || [],
+    members: source.members || [],
     sample_count: source.sampleCount ?? source.sample_count,
     patient_count: source.patientCount ?? source.patient_count,
     source: {

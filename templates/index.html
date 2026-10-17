@@ -281,6 +281,7 @@
           <label class="user-settings-check"><input id="settingsPhenoAdvancedOpen" type="checkbox"> Keep Pheno advanced options open</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderHeatmap" type="checkbox"> Render Pheno heatmap</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderMds" type="checkbox"> Render Pheno MDS</label>
+          <label class="user-settings-check"><input id="settingsPhenoRenderUmap" type="checkbox"> Render UMAP</label>
           <label class="user-settings-check"><input id="settingsPhenoRenderGraph" type="checkbox"> Render Pheno graph</label>
         </div>
         </section>
@@ -662,7 +663,7 @@
         <section id="dashboardImagingPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
             <h2>Imaging</h2>
-            <p class="section-note">Review imaging studies in OHIF and inspect externally derived measurements. Images stay in the configured DICOM service.</p>
+            <p class="section-note">Open available images with View images below. Derived measurements are listed separately; these are values produced by an imaging analysis, not the images themselves.</p>
             <section id="dicomDashboardPanel" class="dicom-dashboard-panel">
               <div class="assay-modality-section-header">
                 <strong>DICOM imaging</strong>
@@ -683,14 +684,12 @@
         <section id="dashboardMultimodalPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
             <section class="section-card">
-              <h3>Explore relationships between modalities</h3>
-              <p class="section-note">Review coverage and overlap here, then choose measurements and run a comparison in Analysis.</p>
+              <h3>Multimodal</h3>
               <button id="multimodalCompareShortcut" type="button" class="query-chip query-chip-deterministic">Compare measurements in Analysis</button>
             </section>
             <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
               <div class="assay-modality-section-header">
-                <strong>Multimodal analysis readiness</strong>
-                <span class="query-chip badge">Coverage and linkage</span>
+                <strong>Coverage</strong>
               </div>
               <div id="multimodalReadinessStatus" class="query-status assay-status-strip">Checking multimodal readiness...</div>
               <div id="multimodalReadinessContent" class="multimodal-readiness-content">
@@ -699,12 +698,12 @@
             </section>
             <section id="multimodalMatrixPanel" class="multimodal-matrix-panel">
               <div class="assay-modality-section-header">
-                <strong>Multimodal feature matrix</strong>
-                <span class="query-chip badge">Sample-level preview, provenance, missingness</span>
+                <strong>Missingness in selected features</strong>
+                <span class="query-chip badge">Sample-level matrix</span>
               </div>
               <div id="multimodalMatrixStatus" class="query-status assay-status-strip">Building multimodal feature matrix...</div>
               <div id="multimodalMatrixContent" class="multimodal-matrix-content">
-                <div class="empty">Load a workspace to preview the analysis-ready matrix.</div>
+                <div class="empty">Load a workspace to inspect feature missingness.</div>
               </div>
             </section>
           </div>

@@ -1,9 +1,10 @@
+import { addWorkspaceRestoreAction } from './workspace_restore.js';
 // Persist structured runs, not HTML. Existing renderers restore plots and tables.
-export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, actions}) {
+export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, actions, restoreWorkspace}) {
   let items = [], current = null, chain = Promise.resolve(), epoch = 0, restoring = false, timer, runSetup;
   const panel = document.getElementById('phenoChatHistory');
   const status = document.getElementById('phenoChatStatus');
-  const scope = () => String(refs.dataDirEl.dataset.scopeId || refs.dataDirEl.value || '');
+  const scope = () => String(refs.dataDirEl.dataset.scopeId || '');
   const fields = {prompt:'phenoPrompt', action:'phenoAction', mode:'phenoMode', patient_id:'phenoPatientId',
     selected_patient_ids:'phenoSelectedPatientIds', similarity_metric_cohort:'phenoSimilarityMetric',
     sort_by:'phenoSortBy', max_out:'phenoMaxOut', graph_min_weight:'phenoGraphMinWeight', graph_max_weight:'phenoGraphMaxWeight'};
@@ -94,15 +95,17 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
   async function open(id, discard = false) {
     if (pheno.chatBusy() || restoring) {status.textContent = 'Wait for the current operation to finish.'; return;}
     if (discard) {clearTimeout(timer); await chain;}
-    else if (!issue() && !await save()) return;
+    else if ((current || scope()) && !issue() && !await save()) return;
     const version = epoch;
     try {
       const item = await request('/pheno-sessions/' + encodeURIComponent(id));
       if (version !== epoch) return;
       current = item; pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup(item.setup);
-      openTab(); render(); status.textContent = issue() || 'Saved';
+      openTab(true); render(); status.textContent = issue() || 'Saved';
       const latest = item.turns.map((t,i) => t.kind !== 'explanation' ? i : -1).filter(i => i >= 0).at(-1);
       if (latest !== undefined) await showTurn(latest);
+      addWorkspaceRestoreAction(status, { scope: item.dataset_id, currentScope: scope(),
+        restore: restoreWorkspace, reopen: () => open(id, true) });
     } catch (error) {status.textContent = error.message;}
   }
   async function newChat() {

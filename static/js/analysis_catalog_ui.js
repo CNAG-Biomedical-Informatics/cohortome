@@ -58,6 +58,8 @@ export function createAnalysisCatalogUi(ctx) {
     host: analysisCatalogAssayPanelEl, state, escapeHtml,
     getContext: () => ({
       prompt: "Measurement setup",
+      scope_metadata: state.analysisScopeMetadata || {},
+      compare_scope_metadata: state.analysisCompareScopeMetadata || {},
       dataset_id: currentDatasetSelectionKey(),
       selected_patient_ids: document.getElementById("analysisSelectedPatientIds").value.trim(),
       compare_selected_patient_ids: document.getElementById("analysisCompareSelectedPatientIds").value.trim(),
@@ -73,6 +75,8 @@ export function createAnalysisCatalogUi(ctx) {
   const scriptEditor = analysisCatalogAssayPanelEl ? createScriptEditor({
     host: analysisCatalogAssayPanelEl, state,
     getContext: () => ({prompt: "Prepare custom script", dataset_id: currentDatasetSelectionKey(),
+      scope_metadata: state.analysisScopeMetadata || {},
+      compare_scope_metadata: state.analysisCompareScopeMetadata || {},
       script_language: state.analysisScriptDraft?.language || "python",
       selected_patient_ids: document.getElementById("analysisSelectedPatientIds").value.trim(),
       compare_selected_patient_ids: document.getElementById("analysisCompareSelectedPatientIds").value.trim(),

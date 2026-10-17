@@ -122,7 +122,15 @@ def cohort_bundle(cohort, patients):
     for sample_id in sample_ids:
         rows.append({"member_type": "sample", "member_id": sample_id,
                      **identity_columns(by_sample.get(sample_id))})
-    columns = ("member_type", "member_id", "patient_id", "subject_clarid", "dataset_ids")
+    members = cohort.get('members')
+    if members is not None:
+        check_size(len(members))
+        rows = [dict(member_type='sample' if m.get('sample_id') else 'patient',
+                     member_id=m.get('sample_id') or m['patient_id'], dataset_id=m['dataset_id'],
+                     patient_id=m['patient_id'], sample_id=m.get('sample_id', ''),
+                     patient_key=m['patient_key'], sample_key=m.get('sample_key', '')) for m in members]
+    columns = (("member_type", "member_id", "dataset_id", "patient_id", "sample_id", "patient_key", "sample_key") if members is not None
+               else ("member_type", "member_id", "patient_id", "subject_clarid", "dataset_ids"))
     table = table_bytes(rows, columns)
     meta = metadata("saved_cohort", cohort.get("dataset_ids") or [], len(rows),
                     cohort_id=cohort.get("id"), name=cohort.get("name"),
@@ -131,6 +139,10 @@ def cohort_bundle(cohort, patients):
                     patient_ids=patient_ids, sample_ids=sample_ids,
                     source={key: (cohort.get("source") or {}).get(key, "") for key in ("kind", "prompt")},
                     membership_note="Saved membership is exported as stored, not recomputed. ClarID and exact sample links are from the current authorized workspace. This is not a full workspace backup.")
+    if members is not None:
+        meta['members'] = members
+        meta['membership_version'] = 2
+        meta['membership_note'] = 'Dataset-qualified membership as saved. Source IDs are unchanged; no cross-dataset identity linkage is inferred.'
     meta_bytes = json_bytes(meta)
     if len(table) + len(meta_bytes) > MAX_EXPORT_BYTES:
         raise HTTPException(413, "Export exceeds 32 MiB. Select a smaller cohort.")

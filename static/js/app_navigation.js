@@ -1,3 +1,5 @@
+import { modalityIcon } from './modalities.js';
+
 export function createNavigationUi(ctx) {
   const { refs, state, constants, callbacks } = ctx;
   const {
@@ -35,6 +37,10 @@ export function createNavigationUi(ctx) {
   } = refs;
   const { ACTIVE_TAB_STORAGE_KEY, DASHBOARD_SUBTAB_STORAGE_KEY, TAB_HELPER_TEXT } = constants;
   const { effectiveQueryGranularityCeiling, renderGlobalContext, closeJobSurfaces } = callbacks;
+  for (const [button, modality] of [[dashboardClinicalBtnEl, 'clinical'], [dashboardAssaysBtnEl, 'assay'], [dashboardImagingBtnEl, 'imaging']]) {
+    const icon = button?.querySelector('.dashboard-subtab-icon, .button-icon');
+    if (icon) icon.innerHTML = modalityIcon(modality, '');
+  }
 
   function renderTabHelperText(tabName) {
     if (!tabHelperTextEl) {
@@ -71,12 +77,12 @@ export function createNavigationUi(ctx) {
       : "Pheno-Ranker requires Detailed workspace access.";
   }
 
-  function setActiveTab(tabName) {
+  function setActiveTab(tabName, { savedChat = false } = {}) {
     if (tabName === "admin") {
       const current = currentTabName();
       tabName = ["data", "users", "models"].includes(current) ? current : "data";
     }
-    if (tabName === "pheno" && !phenoTabAvailable()) {
+    if (tabName === "pheno" && !savedChat && !phenoTabAvailable()) {
       renderPhenoTabAvailability();
       if (loadStatusEl) {
         loadStatusEl.className = "load-status";

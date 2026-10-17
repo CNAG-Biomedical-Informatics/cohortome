@@ -1,4 +1,5 @@
 import { downloadFile, chatCopyButton } from "./shared.js";
+import { decodeIdentity, displayIdentity } from "./identities.js";
 
 export function createQueryUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -352,7 +353,7 @@ export function createQueryUi(ctx) {
         String(item.patient_id || ""),
         Array.isArray(item.dataset_names) ? item.dataset_names : [],
       ]));
-      const showDataset = isMultiDatasetWorkspace();
+      const showDataset = resultRows.some((item) => decodeIdentity(item.patient_id || item.sample_id || item.record_id));
       const patientsById = new Map(currentPatients.map((patient) => [String(patient.patient_id), patient]));
       const patientsBySample = new Map();
       currentPatients.forEach((patient) => (patient.original_record_ids || []).forEach((id) => {
@@ -367,12 +368,12 @@ export function createQueryUi(ctx) {
         return `<td>${(patient && claridIdentityMarkup?.(patient)) || '<span class="section-note">Not available</span>'}</td>`;
       };
       const rows = resultRows.slice(0, QUERY_RESULT_PAGE_SIZE).map((item, index) => sampleLevel ? `
-        <tr><td class="query-result-id-cell">${escapeHtml(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td>${claridCell(item, index)}</tr>
+        <tr><td class="query-result-id-cell">${escapeHtml(displayIdentity(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td>${claridCell(item, index)}</tr>
       ` : `
         <tr>
-          <td class="query-result-id-cell">${escapeHtml(String(item.patient_id || resultPage.patientIds[index] || ""))}</td>
+          <td class="query-result-id-cell">${escapeHtml(displayIdentity(item.patient_id || resultPage.patientIds[index] || "", false))}</td>
           ${claridCell(item, index)}
-          ${showDataset ? `<td>${escapeHtml((provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
+          ${showDataset ? `<td>${escapeHtml(decodeIdentity(item.patient_id)?.datasetId || (provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
           <td>${escapeHtml(String(item.sex || ""))}</td>
           <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
           <td>${escapeHtml(String(item.medication_count ?? ""))}</td>

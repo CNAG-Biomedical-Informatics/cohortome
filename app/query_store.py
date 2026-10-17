@@ -845,13 +845,27 @@ def _connect_workspace(dataset_ids: List[str]):
         db_path, _, _ = _dataset_store_paths(normalized[0])
         return duckdb.connect(str(db_path), read_only=True)
     con = duckdb.connect()
+    from app.identities import identity_key
+    con.create_function('cohortome_identity', identity_key, ['VARCHAR', 'VARCHAR', 'VARCHAR'], 'VARCHAR')
     aliases: List[str] = []
     multi_dataset = len(normalized) > 1
     for index, dataset_id in enumerate(normalized):
         alias = f"ds{index}"
-        aliases.append(alias)
         db_path, _, _ = _dataset_store_paths(dataset_id)
         con.execute(f"ATTACH {_sql_literal(str(db_path))} AS {alias} (READ_ONLY)")
+        scoped = f'scoped_ds{index}'
+        con.execute(f'CREATE SCHEMA {scoped}')
+        for table in ['patients', 'patient_diseases', 'patient_medications', 'patient_clarids',
+                      'timepoints', 'disease_events', 'medication_events', 'assay_samples', 'transcript_counts']:
+            if not _relation_exists(con, f'{alias}.{table}'):
+                continue
+            columns = {row[0] for row in con.execute(f'DESCRIBE {alias}.{table}').fetchall()}
+            replacements = [f"cohortome_identity({_sql_literal(dataset_id)}, '{kind}', {column}) AS {column}"
+                            for column, kind in [('patient_id', 'patient'), ('original_id', 'sample'), ('sample_id', 'sample')]]
+            replacements = [expression for expression in replacements if expression.rsplit(' AS ', 1)[1] in columns]
+            projection = '* REPLACE (' + ', '.join(replacements) + ')' if replacements else '*'
+            con.execute(f'CREATE VIEW {scoped}.{table} AS SELECT {projection} FROM {alias}.{table}')
+        aliases.append(scoped)
     patient_rows_sql = _union_select(
         aliases,
         """
@@ -1844,6 +1858,11 @@ def _assay_matrix_stats(root: Path, item: Dict[str, Any]) -> Dict[str, Any] | No
     except ValueError:
         return None
     links = dict(linkage.get("links") or {})
+    if item.get('_source_dataset_id'):
+        from app.identities import identity_key
+        dataset = item['_source_dataset_id']
+        sample_ids = [identity_key(dataset, 'sample', value) for value in sample_ids]
+        links = {identity_key(dataset, 'sample', sid): identity_key(dataset, 'patient', pid) for sid, pid in links.items()}
     patient_ids = sorted({str(value or "").strip() for value in links.values() if str(value or "").strip()})
     return {
         "sample_ids": sample_ids,
@@ -2363,6 +2382,12 @@ def _external_assay_header(data_dir: str, item: Dict[str, Any]) -> Tuple[Path, s
     links = {str(key): str(value) for key, value in dict(linkage.get("links") or {}).items() if str(value)}
     if len(links) != len(sample_ids):
         raise ValueError("Every assay sample must have explicit patient linkage before it can be queried.")
+    if item.get('_source_dataset_id'):
+        from app.identities import identity_key
+        dataset = item['_source_dataset_id']
+        links = {identity_key(dataset, 'sample', sid): identity_key(dataset, 'patient', pid)
+                 for sid, pid in links.items()}
+        sample_ids = [identity_key(dataset, 'sample', sid) for sid in sample_ids]
     return path, delimiter, sample_ids, links
 
 

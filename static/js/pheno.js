@@ -1,3 +1,5 @@
+import { displayIdentity } from "./identities.js";
+
 export function createPhenoUi(ctx) {
   const {
     refs,
@@ -96,6 +98,8 @@ export function createPhenoUi(ctx) {
     runState: null,
     selectedAlignmentKey: "",
     selectedMdsRecordIds: [],
+    selectedUmapRecordIds: [],
+    projectionPatientIds: new Map(),
     selectedHeatmapRecordIds: [],
     selectedGraphRecordIds: [],
     manualOverrides: false,
@@ -672,7 +676,8 @@ export function createPhenoUi(ctx) {
       if (!recordId) {
         continue;
       }
-      const patientId = recordId.includes(":") ? recordId.split(":")[0] : recordId;
+      const patientId = state.projectionPatientIds.get(recordId)
+        || (recordId.includes(":") ? recordId.split(":")[0] : recordId);
       if (patientId && !patientIds.includes(patientId)) {
         patientIds.push(patientId);
       }
@@ -789,6 +794,7 @@ export function createPhenoUi(ctx) {
   }
 
   function getPhenoPlotSelection(kind) {
+    if (kind === "umap") return state.selectedUmapRecordIds;
     if (kind === "heatmap") {
       return state.selectedHeatmapRecordIds;
     }
@@ -817,6 +823,8 @@ export function createPhenoUi(ctx) {
     state.runState = null;
     state.selectedAlignmentKey = "";
     state.selectedMdsRecordIds = [];
+    state.selectedUmapRecordIds = [];
+    state.projectionPatientIds.clear();
     state.selectedHeatmapRecordIds = [];
     state.selectedGraphRecordIds = [];
     state.tableState = null;
@@ -1695,12 +1703,15 @@ export function createPhenoUi(ctx) {
   async function renderPhenoPreviews(files, runOptions = {}) {
     const items = Array.isArray(files) ? files : [];
     const mdsPointsFile = items.find((file) => file.name === "mds_points.tsv");
+    const umapPointsFile = items.find((file) => file.name === "umap_points.tsv");
     const matrixFile = items.find((file) => file.name === "matrix.txt");
     const graphFile = items.find((file) => file.name === "graph.json");
     state.selectedMdsRecordIds = [];
+    state.selectedUmapRecordIds = [];
+    state.projectionPatientIds.clear();
     state.selectedHeatmapRecordIds = [];
     state.selectedGraphRecordIds = [];
-    if (!mdsPointsFile && !matrixFile && !graphFile) {
+    if (!mdsPointsFile && !umapPointsFile && !matrixFile && !graphFile) {
       phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plot data were produced for this run. Expected matrix.txt, mds_points.tsv, and/or graph.json.</div>';
       return;
     }
@@ -1713,7 +1724,9 @@ export function createPhenoUi(ctx) {
     const graphCard = graphFile
       ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Graph</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="graph">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="graph">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="graph">Copy selected IDs</button></div></div><div class="pheno-graph-controls"><label class="pheno-graph-threshold-label" for="phenoGraphThreshold"><span id="phenoGraphThresholdLabel">Displayed edges</span><input id="phenoGraphThreshold" type="range" min="0" max="0" step="1" value="0"></label><label class="pheno-graph-select-label" for="phenoGraphTopK"><span>Neighbors per node</span><select id="phenoGraphTopK"><option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="9999">All</option></select></label><label class="pheno-graph-select-label" for="phenoGraphEdgeLabels"><span>Edge values</span><select id="phenoGraphEdgeLabels"><option value="off">Off</option><option value="selected" selected>Selected</option><option value="visible">Visible</option></select></label><label class="pheno-graph-checkbox"><input id="phenoGraphLargestComponent" type="checkbox" checked> Largest component only</label><div id="phenoGraphThresholdMeta" class="section-note-inline">Loading graph filter…</div></div><div id="phenoGraphCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoGraphPlot" class="pheno-mds-plot pheno-graph-plot"></div><div class="section-note" id="phenoGraphSelectionNote">Line width and opacity encode edge value. Click an edge to inspect it or switch Edge values to Visible.</div></div></details>`
       : "";
-    phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard + graphCard;
+    const umapCard = umapPointsFile ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive UMAP</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="umap">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="umap">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="umap">Copy selected IDs</button></div></div><div id="phenoUmapCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoUmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoUmapSelectionNote">Select points with box or lasso to reuse them in Analysis or save them as a cohort.</div><p class="section-note">UMAP emphasizes local neighbourhoods. Distances between clusters do not directly represent the original distances.</p></div></details>` : '';
+    phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard + umapCard + graphCard;
+    if (umapPointsFile) void renderInteractivePhenoMdsPlot(umapPointsFile, 'UMAP');
     if (mdsPointsFile) {
       void renderInteractivePhenoMdsPlot(mdsPointsFile);
     }
@@ -1725,9 +1738,11 @@ export function createPhenoUi(ctx) {
     }
   }
 
-  async function renderInteractivePhenoMdsPlot(file) {
-    const plotEl = document.getElementById("phenoMdsPlot");
-    const noteEl = document.getElementById("phenoMdsSelectionNote");
+  async function renderInteractivePhenoMdsPlot(file, method = 'MDS') {
+    const prefix = method === 'UMAP' ? 'phenoUmap' : 'phenoMds';
+    const selectionKey = method === 'UMAP' ? 'selectedUmapRecordIds' : 'selectedMdsRecordIds';
+    const plotEl = document.getElementById(prefix + "Plot");
+    const noteEl = document.getElementById(prefix + "SelectionNote");
     if (!plotEl) {
       return;
     }
@@ -1769,7 +1784,10 @@ export function createPhenoUi(ctx) {
         plotEl.innerHTML = '<div class="empty">No valid MDS coordinates were available for this run.</div>';
         return;
       }
-      renderPhenoCohortLegend("phenoMdsCohortLegend", points.map((item) => item.record_id));
+      renderPhenoCohortLegend(prefix + "CohortLegend", points.map((item) => item.record_id));
+      points.forEach(item => {
+        if (item.patient_id) state.projectionPatientIds.set(normalizePhenoSelectedRecordId(item.record_id), item.patient_id);
+      });
       const cohortGroups = new Map();
       points.forEach((item) => {
         if (!cohortGroups.has(item.cohort.key)) {
@@ -1787,14 +1805,14 @@ export function createPhenoUi(ctx) {
         name: group.label,
         x: group.points.map((item) => item.x),
         y: group.points.map((item) => item.y),
-        text: group.points.map((item) => item.record_id),
-        customdata: group.points.map((item) => [item.record_id, item.patient_id, group.label]),
+        text: group.points.map((item) => displayIdentity(item.record_id)),
+        customdata: group.points.map((item) => [item.record_id, item.patient_id, group.label, displayIdentity(item.record_id), displayIdentity(item.patient_id)]),
         textposition: "top center",
         textfont: {
           size: 12,
           color: window.CohortomeTheme.colors().ink,
         },
-        hovertemplate: "<b>%{customdata[0]}</b><br>Patient %{customdata[1]}<br>%{customdata[2]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
+        hovertemplate: "<b>%{customdata[3]}</b><br>Patient %{customdata[4]}<br>%{customdata[2]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
         marker: {
           size: 10,
           color: group.color,
@@ -1822,17 +1840,17 @@ export function createPhenoUi(ctx) {
         margin: { l: 40, r: 20, t: 10, b: 40 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(255,255,255,0.86)",
-        dragmode: "lasso",
+        dragmode: 'lasso',
         showlegend: false,
-        xaxis: { title: "MDS Coordinate 1", zeroline: false },
-        yaxis: { title: "MDS Coordinate 2", zeroline: false },
+        xaxis: { title: `${method} Coordinate 1`, zeroline: false },
+        yaxis: { title: `${method} Coordinate 2`, zeroline: false },
       }, {
         responsive: true,
         displaylogo: false,
-        modeBarButtonsToRemove: ["select2d", "autoScale2d"],
+        modeBarButtonsToRemove: ["autoScale2d"],
       });
       const applySelectedPlotPoints = (selected) => {
-        state.selectedMdsRecordIds = normalizePhenoSelectedRecordIds((Array.isArray(selected) ? selected : [])
+        state[selectionKey] = normalizePhenoSelectedRecordIds((Array.isArray(selected) ? selected : [])
           .map((point) => {
             if (Array.isArray(point.customdata) && point.customdata[0]) {
               return String(point.customdata[0]).trim();
@@ -1843,8 +1861,8 @@ export function createPhenoUi(ctx) {
             return "";
           }));
         if (noteEl) {
-          noteEl.textContent = state.selectedMdsRecordIds.length
-            ? `Selected ${state.selectedMdsRecordIds.length} MDS points.`
+          noteEl.textContent = state[selectionKey].length
+            ? `Selected ${state[selectionKey].length} ${method} points.`
             : "Select points with box or lasso to reuse them in Analysis.";
         }
       };
@@ -1855,7 +1873,7 @@ export function createPhenoUi(ctx) {
         applySelectedPlotPoints(Array.isArray(event && event.points) ? event.points : []);
       });
       plotEl.on("plotly_deselect", () => {
-        state.selectedMdsRecordIds = [];
+        state[selectionKey] = [];
         if (noteEl) {
           noteEl.textContent = "Select points with box or lasso to reuse them in Analysis.";
         }
@@ -1905,13 +1923,14 @@ export function createPhenoUi(ctx) {
         x: xLabels,
         y: yLabels,
         z: zValues,
+        text: yLabels.map((y) => xLabels.map((x) => `${escapeHtml(displayIdentity(y))} vs ${escapeHtml(displayIdentity(x))}`)),
         colorscale: [
           [0.0, "#4575b4"],
           [0.5, "#ffffbf"],
           [1.0, "#d73027"],
         ],
         hoverongaps: false,
-        hovertemplate: `<b>%{y}</b> vs <b>%{x}</b><br>${metricLabel} %{z:.4f}<extra></extra>`,
+        hovertemplate: `<b>%{text}</b><br>${metricLabel} %{z:.4f}<extra></extra>`,
         colorbar: {
           title: metricLabel,
         },
@@ -1923,11 +1942,15 @@ export function createPhenoUi(ctx) {
         xaxis: {
           title: "Reference / comparison IDs",
           tickangle: -40,
+          tickvals: xLabels,
+          ticktext: xLabels.map((id) => displayIdentity(id)),
           automargin: true,
         },
         yaxis: {
           title: "Reference / comparison IDs",
           autorange: "reversed",
+          tickvals: yLabels,
+          ticktext: yLabels.map((id) => displayIdentity(id)),
           automargin: true,
         },
       }, {
@@ -1990,7 +2013,7 @@ export function createPhenoUi(ctx) {
           data: {
             ...(node && node.data ? node.data : {}),
             id,
-            label: id,
+            label: displayIdentity(id),
             cohort_label: cohort.label,
             cohort_color: cohort.color,
           },
@@ -2442,7 +2465,7 @@ export function createPhenoUi(ctx) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap"
         ? "Select heatmap cells first."
-        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
+        : (kind === "graph" ? "Select graph nodes first." : `Select cohort points in the ${kind === 'umap' ? 'UMAP' : 'MDS'} plot first.`);
       flashPhenoActionFeedback(triggerButton, "No IDs");
       return;
     }
@@ -2463,7 +2486,7 @@ export function createPhenoUi(ctx) {
         ? `Copied ${selectedIds.length} heatmap-selected IDs.`
         : (kind === "graph"
           ? `Copied ${selectedIds.length} selected graph node IDs.`
-          : `Copied ${selectedIds.length} selected cohort record IDs from the MDS plot.`);
+          : `Copied ${selectedIds.length} selected cohort record IDs from the ${kind === 'umap' ? 'UMAP' : 'MDS'} plot.`);
       flashPhenoActionFeedback(triggerButton, "Copied");
     } catch (_error) {
       phenoStatusEl.className = "pheno-status";
@@ -2478,7 +2501,7 @@ export function createPhenoUi(ctx) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap"
         ? "Select heatmap cells first."
-        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
+        : (kind === "graph" ? "Select graph nodes first." : `Select cohort points in the ${kind === 'umap' ? 'UMAP' : 'MDS'} plot first.`);
       return;
     }
     analysisSelectedPatientIdsEl.value = selectedIds.join(",");
@@ -2496,7 +2519,7 @@ export function createPhenoUi(ctx) {
         ? "Summarize the main clinical patterns in the selected heatmap subgroup and tell me what stands out."
         : (kind === "graph"
           ? "Summarize the main clinical patterns in the selected graph subgroup and tell me what stands out."
-          : "Summarize the main clinical patterns in the selected MDS subgroup and tell me what stands out.");
+          : `Summarize the main clinical patterns in the selected ${kind === 'umap' ? 'UMAP' : 'MDS'} subgroup and tell me what stands out.`);
     }
     renderAnalysisScopeSummary();
     setActiveTab("analysis");
@@ -2506,7 +2529,7 @@ export function createPhenoUi(ctx) {
       ? `Loaded ${selectedIds.length} sample IDs from the selected heatmap subgroup into Analysis.`
       : (kind === "graph"
         ? `Loaded ${selectedIds.length} sample IDs from the selected graph subgroup into Analysis.`
-        : `Loaded ${selectedIds.length} sample IDs from the selected MDS subgroup into Analysis.`);
+        : `Loaded ${selectedIds.length} sample IDs from the selected ${kind === 'umap' ? 'UMAP' : 'MDS'} subgroup into Analysis.`);
   }
 
   async function saveSelectedPhenoPlotIdsAsCohort(kind, triggerButton) {
@@ -2515,7 +2538,7 @@ export function createPhenoUi(ctx) {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = kind === "heatmap"
         ? "Select heatmap cells first."
-        : (kind === "graph" ? "Select graph nodes first." : "Select cohort points in the MDS plot first.");
+        : (kind === "graph" ? "Select graph nodes first." : `Select cohort points in the ${kind === 'umap' ? 'UMAP' : 'MDS'} plot first.`);
       flashPhenoActionFeedback(triggerButton, "No IDs");
       return;
     }
@@ -2526,7 +2549,7 @@ export function createPhenoUi(ctx) {
       sourceKind: "pheno_ranker_selection",
       sourcePrompt: kind === "heatmap"
         ? "Selected subgroup from Pheno-Ranker heatmap"
-        : (kind === "graph" ? "Selected subgroup from Pheno-Ranker graph" : "Selected subgroup from Pheno-Ranker MDS"),
+        : (kind === "graph" ? "Selected subgroup from Pheno-Ranker graph" : `Selected subgroup from Pheno-Ranker ${kind === 'umap' ? 'UMAP' : 'MDS'}`),
       statusTarget: "pheno",
     });
     if (saved) {
@@ -2591,6 +2614,14 @@ export function createPhenoUi(ctx) {
     setPhenoResultWorkspaceVisible(true);
     await renderPhenoOutputPreview(source.files);
     await renderPhenoPreviews(source.files, source);
+    const projectionErrors = (source.plots || []).filter(item => String(item.returncode) !== '0');
+    if (projectionErrors.length) {
+      const warning = document.createElement('p');
+      warning.className = 'section-note';
+      warning.setAttribute('role', 'status');
+      warning.textContent = projectionErrors.map(item => `${item.script}: ${item.stderr}`).join(' ');
+      phenoPreviewsEl.prepend(warning);
+    }
     if (source.mode === "patient" && state.runState.alignmentAvailable) {
       renderPhenoAlignmentPlaceholder("Click one row in rank.txt to inspect matched variables for that pair.");
     } else {
@@ -2728,6 +2759,7 @@ export function createPhenoUi(ctx) {
           align: phenoAlignEl.checked,
           render_heatmap: phenoRenderHeatmapEl.checked,
           render_mds: phenoRenderMdsEl.checked,
+          render_umap: ctx.state?.userSettings?.pheno_render_umap === true,
           render_graph: Boolean(phenoRenderGraphEl && phenoRenderGraphEl.checked),
           graph_min_weight: parseOptionalNumberInput(phenoGraphMinWeightEl),
           graph_max_weight: parseOptionalNumberInput(phenoGraphMaxWeightEl),
@@ -2869,7 +2901,7 @@ export function createPhenoUi(ctx) {
     }
     const kind = button.dataset.phenoPlotKind === "heatmap"
       ? "heatmap"
-      : (button.dataset.phenoPlotKind === "graph" ? "graph" : "mds");
+      : (button.dataset.phenoPlotKind === "graph" ? "graph" : (button.dataset.phenoPlotKind === "umap" ? "umap" : "mds"));
     if (button.dataset.phenoPlotAction === "copy") {
       void copySelectedPhenoPlotIds(kind, button);
       return;

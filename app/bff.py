@@ -131,6 +131,9 @@ def first_list_item(record: Dict[str, Any], key: str) -> Dict[str, Any]:
 
 
 def split_record_id(record: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    if record.get('_cohortome_source'):
+        source_id = record['_cohortome_source'].get('sample_id', '')
+        return record.get('patient_id'), source_id.split(':', 1)[-1]
     record_id = normalize_value(record.get("id"))
     if not isinstance(record_id, str):
         return None, None
@@ -141,6 +144,8 @@ def split_record_id(record: Dict[str, Any]) -> Tuple[Optional[str], Optional[str
 
 
 def extract_patient_id(record: Dict[str, Any]) -> Optional[str]:
+    if record.get('_cohortome_source'):
+        return record.get('patient_id')
     patient_node = get_patient_node(record)
     split_patient_id, _ = split_record_id(record)
     patient_id = select_first(
@@ -436,6 +441,15 @@ def merge_evidence(target: EvidenceInventory, source: EvidenceInventory) -> Evid
 
 
 def read_bff_records(data_dir: Path) -> Iterable[Tuple[Path, int, Dict[str, Any]]]:
+    # Source files stay unchanged. A merged workspace gives every record a
+    # dataset-qualified execution identity before any grouping/filtering occurs.
+    from app.identities import identity_key
+    manifest_path = data_dir.parent / 'manifest.json'
+    source_files = {}
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        if len(manifest.get('dataset_ids') or []) > 1:
+            source_files = {item['target']: item['dataset_id'] for item in manifest.get('clinical_files', [])}
     for path in sorted(data_dir.glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, list):
@@ -447,6 +461,18 @@ def read_bff_records(data_dir: Path) -> Iterable[Tuple[Path, int, Dict[str, Any]
 
         for index, record in enumerate(records):
             if isinstance(record, dict):
+                # This field is reserved for runtime provenance, never trusted
+                # when supplied by a source file.
+                record = {key: value for key, value in record.items() if key != '_cohortome_source'}
+                dataset = source_files.get(path.name)
+                if dataset:
+                    pid, sid = extract_patient_id(record), str(normalize_value(record.get('id')) or '')
+                    record = dict(record)
+                    record['_cohortome_source'] = dict(dataset_id=dataset, patient_id=pid, sample_id=sid)
+                    if pid:
+                        record['patient_id'] = identity_key(dataset, 'patient', pid)
+                    if sid:
+                        record['id'] = identity_key(dataset, 'sample', sid)
                 yield path, index, record
 
 

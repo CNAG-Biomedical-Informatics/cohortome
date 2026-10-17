@@ -9,7 +9,7 @@ import subprocess
 
 
 PACKAGES = ("fastapi", "uvicorn", "duckdb", "numpy", "pydantic", "jinja2",
-            "PyYAML", "itsdangerous", "python-dotenv", "redis", "rq", "pydicom")
+            "PyYAML", "itsdangerous", "python-dotenv", "redis", "rq", "pydicom", "umap-learn")
 R_PACKAGES = ("limma", "edgeR", "DESeq2", "ggplot2")
 
 

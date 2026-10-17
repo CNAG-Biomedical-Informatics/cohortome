@@ -94,6 +94,7 @@ export function createAppState() {
       pheno_advanced_open: false,
       pheno_render_heatmap: true,
       pheno_render_mds: true,
+      pheno_render_umap: false,
       pheno_render_graph: true,
       dashboard_assays_open: false,
       dataset_compact_view: false,

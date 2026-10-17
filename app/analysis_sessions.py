@@ -103,12 +103,18 @@ def _normalize_scope_metadata(value: Any) -> Dict[str, Any]:
         return {}
     sample_ids = _normalize_id_list(value.get("sample_ids"))
     patient_ids = _normalize_id_list(value.get("patient_ids"))
+    from app.identities import qualified_member
+    members = [qualified_member(m) for m in (value.get('members') or [])
+               if isinstance(m, dict) and m.get('dataset_id') and m.get('patient_id')]
+    if members:
+        patient_ids = sorted({m['patient_id'] for m in members})
+        sample_ids = sorted({m['sample_id'] for m in members if m.get('sample_id')})
     query_result_handle = str(value.get("query_result_handle") or "").strip()
     if not sample_ids and not patient_ids and not query_result_handle:
         return {}
-    if not patient_ids and sample_ids:
+    if not members and not patient_ids and sample_ids:
         patient_ids = sorted({item.split(":", 1)[0].strip() for item in sample_ids if item.split(":", 1)[0].strip()})
-    if not sample_ids and patient_ids:
+    if not members and not sample_ids and patient_ids:
         sample_ids = list(patient_ids)
     source = value.get("source") if isinstance(value.get("source"), dict) else {}
     return {
@@ -116,13 +122,14 @@ def _normalize_scope_metadata(value: Any) -> Dict[str, Any]:
         "name": str(value.get("name") or "").strip(),
         "dataset_id": str(value.get("dataset_id") or "").strip(),
         "dataset_ids": _normalize_id_list(value.get("dataset_ids")),
+        "members": members,
         "data_dir": str(value.get("data_dir") or "").strip(),
         "id_type": str(value.get("id_type") or ("sample" if sample_ids and any(":" in item for item in sample_ids) else "patient")).strip(),
         "query_result_handle": query_result_handle,
         "sample_ids": sample_ids,
         "patient_ids": patient_ids,
-        "sample_count": len(sample_ids),
-        "patient_count": len(patient_ids),
+        "sample_count": len({m['sample_key'] for m in members if m.get('sample_key')}) if members else len(sample_ids),
+        "patient_count": len({m['patient_key'] for m in members}) if members else len(patient_ids),
         "is_full_dataset": bool(value.get("is_full_dataset")),
         "source": {
             "kind": str(source.get("kind") or value.get("source_kind") or "").strip(),

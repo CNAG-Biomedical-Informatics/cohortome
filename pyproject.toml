@@ -28,6 +28,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+umap = [
+  "umap-learn>=0.5.7,<0.6",
+]
 test = [
   "pytest>=8.3,<9",
   "httpx>=0.28,<0.29",

@@ -300,6 +300,7 @@ def test_run_pheno_ranker_route_queues_large_cohort_background_run(tmp_path, mon
             mode="cohort",
             dataset_id="default",
             selected_saved_cohort_ids=["cohort-a"],
+            render_umap=True,
         ),
         request,
     )
@@ -312,6 +313,7 @@ def test_run_pheno_ranker_route_queues_large_cohort_background_run(tmp_path, mon
     assert captured["user_id"] == "alice"
     assert captured["payload"]["dataset_id"] == "default"
     assert captured["payload"]["selected_saved_cohort_ids"] == ["cohort-a"]
+    assert captured["payload"]["render_umap"] is True
     assert captured["payload"]["resolved_sample_count"] == 1801
 
 

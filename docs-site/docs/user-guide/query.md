@@ -55,6 +55,11 @@ The current limit is 100 questions per Query chat and 2 MB of saved content.
 
 Reopened replies are saved snapshots. Rerun a query to use result pagination,
 exports or cohort actions; saved result handles are not reactivated automatically.
+
+If you changed the active datasets, choose **Load this chat’s datasets** to load
+the original set and reopen the chat. This does not import data or rerun results.
+Every original dataset must still be available and authorized. If the source data
+changed, start a new chat rather than continuing from stale results.
 Continuing a chat requires its original, unchanged workspace. Dataset access and
 response-detail policy are checked again when retrieving it. Deleting a Query
 chat does not delete saved cohorts or Analysis runs.

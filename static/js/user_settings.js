@@ -18,6 +18,7 @@ const DEFAULT_USER_SETTINGS = {
   pheno_advanced_open: false,
   pheno_render_heatmap: true,
   pheno_render_mds: true,
+  pheno_render_umap: false,
   pheno_render_graph: true,
   dashboard_assays_open: false,
   dataset_compact_view: false,
@@ -61,6 +62,7 @@ function normalizeUserSettings(raw) {
     pheno_advanced_open: Boolean(source.pheno_advanced_open),
     pheno_render_heatmap: source.pheno_render_heatmap !== false,
     pheno_render_mds: source.pheno_render_mds !== false,
+    pheno_render_umap: source.pheno_render_umap === true,
     pheno_render_graph: source.pheno_render_graph !== false,
     dashboard_assays_open: Boolean(source.dashboard_assays_open),
     dataset_compact_view: Boolean(source.dataset_compact_view),
@@ -125,6 +127,7 @@ export function createUserSettingsUi(ctx) {
     settingsPhenoAdvancedOpenEl,
     settingsPhenoRenderHeatmapEl,
     settingsPhenoRenderMdsEl,
+    settingsPhenoRenderUmapEl,
     settingsPhenoRenderGraphEl,
     settingsDashboardAssaysOpenEl,
     settingsDatasetCompactViewEl,
@@ -243,6 +246,7 @@ export function createUserSettingsUi(ctx) {
     if (settingsPhenoAdvancedOpenEl) settingsPhenoAdvancedOpenEl.checked = settings.pheno_advanced_open;
     if (settingsPhenoRenderHeatmapEl) settingsPhenoRenderHeatmapEl.checked = settings.pheno_render_heatmap;
     if (settingsPhenoRenderMdsEl) settingsPhenoRenderMdsEl.checked = settings.pheno_render_mds;
+    if (settingsPhenoRenderUmapEl) settingsPhenoRenderUmapEl.checked = settings.pheno_render_umap;
     if (settingsPhenoRenderGraphEl) settingsPhenoRenderGraphEl.checked = settings.pheno_render_graph;
     if (settingsDashboardAssaysOpenEl) settingsDashboardAssaysOpenEl.checked = settings.dashboard_assays_open;
     if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
@@ -287,6 +291,7 @@ export function createUserSettingsUi(ctx) {
       pheno_advanced_open: settingsPhenoAdvancedOpenEl ? settingsPhenoAdvancedOpenEl.checked : DEFAULT_USER_SETTINGS.pheno_advanced_open,
       pheno_render_heatmap: settingsPhenoRenderHeatmapEl ? settingsPhenoRenderHeatmapEl.checked : DEFAULT_USER_SETTINGS.pheno_render_heatmap,
       pheno_render_mds: settingsPhenoRenderMdsEl ? settingsPhenoRenderMdsEl.checked : DEFAULT_USER_SETTINGS.pheno_render_mds,
+      pheno_render_umap: Boolean(settingsPhenoRenderUmapEl?.checked),
       pheno_render_graph: settingsPhenoRenderGraphEl ? settingsPhenoRenderGraphEl.checked : DEFAULT_USER_SETTINGS.pheno_render_graph,
       dashboard_assays_open: settingsDashboardAssaysOpenEl ? settingsDashboardAssaysOpenEl.checked : DEFAULT_USER_SETTINGS.dashboard_assays_open,
       dataset_compact_view: settingsDatasetCompactViewEl ? settingsDatasetCompactViewEl.checked : DEFAULT_USER_SETTINGS.dataset_compact_view,

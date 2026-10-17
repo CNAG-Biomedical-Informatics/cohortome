@@ -256,6 +256,22 @@
         margin-top: -4px;
       }
       .assay-overview-icon { width: 20px; height: 20px; flex: 0 0 20px; color: var(--accent); }
+      .multimodal-coverage { min-width: 0; }
+      .coverage-selectors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; margin: 16px 0; }
+      .coverage-selectors label { display: grid; grid-template-columns: 16px 20px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 46px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--theme-surface, transparent); font-size: .85rem; line-height: 1.35; }
+      .coverage-selectors input[type="checkbox"] { width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--accent); }
+      .coverage-selectors label > span { min-width: 0; overflow-wrap: anywhere; }
+      .coverage-selectors label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--theme-surface, white)); }
+      .coverage-selectors label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .coverage-match-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: .85rem; }
+      .coverage-match-mode select { width: auto; max-width: 100%; margin: 0; }
+      .coverage-result { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+      .coverage-intersections { max-height: 420px; overflow: auto; margin-bottom: 16px; }
+      .coverage-intersections th { vertical-align: bottom; }
+      .coverage-intersections td:first-child { white-space: nowrap; }
+      .coverage-dot { text-align: center; font-size: 22px; }
+      .coverage-bar { display: inline-block; height: 8px; background: var(--accent); border-radius: 3px; margin-left: 8px; }
+      .coverage-patient-list { margin-top: 12px; }
       .assay-coverage-chart { grid-column: 1 / -1; display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
       .assay-coverage-chart > .section-note { margin: -6px 0 0; }
       .assay-coverage-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(60px, 2fr) minmax(45px, auto); gap: 14px; align-items: center; font-size: 12px; }
@@ -582,19 +598,15 @@
         word-break: break-word;
       }
       .imaging-coverage-summary { grid-column: 1 / -1; display: grid; gap: 8px; }
-      .cross-modal-pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
-      .cross-modal-pair { display: grid; align-content: start; gap: 14px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--theme-surface, transparent); }
-      .cross-modal-pair-types { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
-      .cross-modal-pair-types > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
-      .cross-modal-pair-connector { color: var(--muted); }
-      .cross-modal-pair-count { display: flex; align-items: baseline; gap: 8px; }
-      .cross-modal-pair-count strong { font-size: 1.5rem; line-height: 1.2; font-weight: 650; font-variant-numeric: tabular-nums; }
-      .cross-modal-pair-count span, .cross-modal-pair-samples { font-size: 12px; color: var(--muted); }
-      .cross-modal-pair-samples { border-top: 1px solid var(--line); padding-top: 10px; }
       .dicom-study-card .assay-card-eyebrow { display: flex; align-items: center; gap: 8px; }
       .dicom-study-card .assay-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .missingness-track { grid-column: 1 / -1; }
-      .missingness-track i { background: var(--muted); }
+      .missingness-list { display: grid; gap: 16px; margin: 16px 0; }
+      .missingness-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; }
+      .missingness-label { overflow-wrap: anywhere; align-self: center; font-size: .85rem; }
+      .missingness-value { text-align: right; font-size: .85rem; font-variant-numeric: tabular-nums; }
+      .missingness-value small { display: block; color: var(--muted); font-size: .75rem; }
+      .missingness-bar { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 4px; background: var(--theme-line, #e2e8f0); }
+      .missingness-bar i { display: block; height: 100%; background: var(--muted); border-radius: inherit; }
       #dashboardImagingPanel details p { overflow-wrap: anywhere; }
       #dashboardMultimodalPanel details > summary,
       #dashboardImagingPanel details > summary { cursor: pointer; color: var(--muted); font-size: 12px; }

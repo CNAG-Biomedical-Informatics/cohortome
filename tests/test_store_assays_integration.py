@@ -1133,10 +1133,11 @@ def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
         metadata_path = dataset_root / item["sample_metadata_file"]
         assert metadata_path.is_file()
         assert metadata_path.read_text(encoding="utf-8").splitlines()[0] == "sample_id\tpatient_id"
-        matrices.append(matrix_path.read_text(encoding="utf-8"))
+        # The fixtures share measurements, not patient/sample identifiers.
+        matrices.append(matrix_path.read_text(encoding="utf-8").splitlines()[1:])
 
     assert matrices[0] == matrices[1]
-    assert matrices[0].splitlines()[1].startswith("cg00000029;")
+    assert matrices[0][0].startswith("cg00000029;")
 
 
 def test_synthetic_compact_assay_fixtures_have_complete_analysis_ready_linkage():
@@ -1224,7 +1225,9 @@ def test_synthetic_compact_assay_fixtures_have_complete_analysis_ready_linkage()
             assert stats["unlinked_sample_count"] == 0
             assert stats["linkage_source"] == "sample_metadata_file"
 
-            payload = (matrix_path.read_text(encoding="utf-8"), metadata_path.read_text(encoding="utf-8"))
+            # Linkage is checked above within each dataset. The larger fixture
+            # deliberately has different source IDs, but the same measurements.
+            payload = matrix_lines[1:]
             if assay_id in generated_payloads:
                 assert generated_payloads[assay_id] == payload
             else:

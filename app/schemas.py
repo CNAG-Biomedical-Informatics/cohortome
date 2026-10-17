@@ -65,6 +65,7 @@ class UserSettingsResponse(BaseModel):
     pheno_advanced_open: bool = False
     pheno_render_heatmap: bool = True
     pheno_render_mds: bool = True
+    pheno_render_umap: bool = False
     pheno_render_graph: bool = True
     dashboard_assays_open: bool = False
     dataset_compact_view: bool = False
@@ -88,6 +89,7 @@ class UserSettingsUpdateRequest(BaseModel):
     pheno_advanced_open: bool | None = None
     pheno_render_heatmap: bool | None = None
     pheno_render_mds: bool | None = None
+    pheno_render_umap: bool | None = None
     pheno_render_graph: bool | None = None
     dashboard_assays_open: bool | None = None
     dataset_compact_view: bool | None = None
@@ -187,6 +189,7 @@ class PhenoRankerRequest(BaseModel):
     align: bool = Field(default=True, description="Whether to compute term alignment details.")
     render_heatmap: bool = Field(default=True, description="Whether to generate the interactive heatmap artifact.")
     render_mds: bool = Field(default=True, description="Whether to generate the interactive MDS artifact.")
+    render_umap: bool = Field(default=False, description="Opt-in cohort UMAP projection of precomputed distances.")
     render_graph: bool = Field(default=True, description="Whether to generate the interactive Cytoscape graph artifact.")
     graph_min_weight: float | None = Field(default=None, description="Optional minimum edge weight for Pheno-Ranker graph export.")
     graph_max_weight: float | None = Field(default=None, description="Optional maximum edge weight for Pheno-Ranker graph export.")
@@ -225,7 +228,14 @@ class PhenoRankerPlanRequest(BaseModel):
     selected_patient_ids: str = Field(default="", description="Optional comma-separated scope IDs already selected in the UI.")
 
 
+class CohortMember(BaseModel):
+    dataset_id: str = Field(min_length=1, max_length=200)
+    patient_id: str = Field(min_length=1, max_length=512)
+    sample_id: str = Field(default="", max_length=512)
+
+
 class SavedCohortRequest(BaseModel):
+    members: List[CohortMember] | None = Field(default=None, max_length=100000)
     name: str = Field(default="", description="User-facing saved cohort name.")
     dataset_id: str = Field(default="", description="Dataset ID or multi-dataset scope ID where the cohort was created.")
     dataset_ids: List[str] = Field(default_factory=list)
@@ -236,6 +246,11 @@ class SavedCohortRequest(BaseModel):
     id_type: str = Field(default="sample", description="Canonical ID level used by the cohort payload.")
     source_kind: str = Field(default="manual", description="How the cohort was created, for example manual or query.")
     source_prompt: str = Field(default="", description="Source prompt when the cohort came from Query.")
+
+
+class QualifiedCohortMember(CohortMember):
+    patient_key: str
+    sample_key: str = ""
 
 
 class LoginRequest(BaseModel):
@@ -425,6 +440,7 @@ class SavedCohortSourceResponse(BaseModel):
 
 
 class SavedCohortResponse(FlexibleModel):
+    members: List[QualifiedCohortMember] | None = None
     id: str
     name: str
     dataset_id: str = ""

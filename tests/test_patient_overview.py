@@ -77,4 +77,28 @@ def test_search_and_detail_require_authorized_detailed_access(client, monkeypatc
     monkeypatch.setattr(overview, '_require_detailed_assay_access', denied)
     assert client.get('/patient-overview/search', params=dict(workspace='a', q='P1')).status_code == status
     assert client.get('/patient-overview/timeline', params=dict(workspace='a')).status_code == status
+    assert client.get('/patient-overview/coverage', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/detail', params=dict(workspace='a', dataset_id='a', patient_id='P1')).status_code == status
+
+
+def test_coverage_is_dataset_scoped_and_includes_assay_only_patients(client, tmp_path, monkeypatch):
+    from app import dicom
+    path = str(tmp_path / 'coverage.duckdb')
+    con = duckdb.connect(path)
+    con.execute('CREATE TABLE patients(patient_id TEXT)')
+    con.execute("INSERT INTO patients VALUES ('P1')")
+    con.close()
+    monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root-a', 'A'), ('b', 'root-b', 'B')])
+    monkeypatch.setattr(overview, 'ensure_query_store', lambda _: None)
+    monkeypatch.setattr(overview, '_connect', lambda _: duckdb.connect(path, read_only=True))
+    monkeypatch.setattr(dicom, 'dicom_studies', lambda _: [])
+    monkeypatch.setattr(overview, 'sample_inventory', lambda root, **kw: ([
+        dict(patient_id='P1', modality=m) for m in (['transcriptomics', 'methylation', 'proteomics'] if root == 'root-a' else ['serology'])
+    ] + [dict(patient_id='P2', modality='transcriptomics')], ['Missing linkage']))
+    payload = client.get('/patient-overview/coverage', params={'workspace':'scope'}).json()
+    patients = payload['patients']
+    assert len(patients) == 4
+    assert patients[0]['modalities'] == ['clinical', 'methylation', 'proteomics', 'transcriptomics']
+    assert patients[2]['modalities'] == ['clinical', 'serology']
+    assert not patients[1]['has_clinical']
+    assert len(payload['warnings']) == 2

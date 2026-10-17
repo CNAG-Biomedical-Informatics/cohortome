@@ -139,6 +139,36 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150))
     return {'matches': matches}
 
 
+@router.get('/coverage')
+def coverage(request: Request, workspace: str):
+    """Patient-level availability; never infer specimen or visit equivalence."""
+    from app.dicom import dicom_studies
+    patients, warnings = [], []
+    for identifier, root, label in sources(request, workspace):
+        try:
+            ensure_query_store(root)
+            con = _connect(root)
+            try:
+                clinical_ids = {row[0] for row in con.execute('SELECT patient_id FROM patients').fetchall()}
+            finally:
+                con.close()
+        except (FileNotFoundError, QueryStoreNotReadyError):
+            raise HTTPException(409, 'Coverage is unavailable until the dataset stores are ready.') from None
+        available = {pid: {'clinical'} for pid in clinical_ids}
+        inventory, issues = sample_inventory(root, include_imaging=True)
+        warnings.extend(f'{label}: {issue}' for issue in issues)
+        for sample in inventory:
+            available.setdefault(sample['patient_id'], set()).add(sample['modality'])
+        for study in dicom_studies(root):
+            pid = str(study.get('patient_id') or '').strip()
+            if pid:
+                available.setdefault(pid, set()).add('dicom')
+        for pid, modalities in sorted(available.items()):
+            patients.append(dict(patient_id=pid, dataset_id=identifier, dataset_label=label,
+                                 modalities=sorted(modalities), has_clinical=pid in clinical_ids))
+    return dict(patients=patients, warnings=warnings)
+
+
 @router.get('/detail')
 def detail(request: Request, workspace: str, dataset_id: str, patient_id: str = Query(max_length=512)):
     available = {identifier: (root, label) for identifier, root, label in sources(request, workspace)}

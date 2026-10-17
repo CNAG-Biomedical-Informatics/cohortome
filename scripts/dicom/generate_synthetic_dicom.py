@@ -8,9 +8,8 @@ from pathlib import Path
 
 import numpy as np
 import pydicom
-from pydicom.data import get_testdata_file
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
-from pydicom.uid import ExplicitVRLittleEndian
+from pydicom.uid import ExplicitVRLittleEndian, MRImageStorage
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +18,7 @@ DEFAULT_DATASETS = [
     ROOT / "dataset-large",
     ROOT / "private_dataset",
 ]
-SOURCE_DICOM_NAME = "MR_small.dcm"
+SOURCE_DICOM_NAME = "procedural-brain-phantom-v1"
 SYNTHETIC_LESION_PROFILES = {
     "ms_brain_mild": [
         (24, 40, 2, 650),
@@ -43,10 +42,51 @@ def _read_manifest(dataset_root: Path) -> dict:
 
 
 def _source_image() -> FileDataset:
-    source_path = get_testdata_file(SOURCE_DICOM_NAME)
-    if not source_path:
-        raise RuntimeError(f"pydicom test fixture {SOURCE_DICOM_NAME} is not available.")
-    return pydicom.dcmread(source_path)
+    """An anatomical-style phantom, not a patient scan or disease simulation."""
+    size = 256
+    y, x = np.mgrid[-1:1:complex(size), -1:1:complex(size)]
+    radius = np.sqrt((x / .76) ** 2 + (y / .91) ** 2)
+    angle = np.arctan2(y / .91, x / .76)
+    pixels = np.zeros((size, size), dtype=float)
+    pixels[(radius < 1) & (radius > .94)] = 480  # scalp
+    pixels[(radius <= .94) & (radius > .89)] = 75  # dark skull
+    pixels[(radius <= .89) & (radius > .85)] = 160  # CSF rim
+    brain = radius <= .85
+    folds = np.sin(26 * angle + 6 * np.sin(5 * angle) + 22 * radius)
+    cortex = brain & (radius > .67 + .035 * folds)
+    pixels[brain] = 700
+    pixels[cortex] = 490
+    sulci = cortex & (folds > .77) & (radius > .72)
+    pixels[sulci] = 145
+    # Two ventricular horns and interhemispheric fissure.
+    ventricles = (((np.abs(x) - .13) / .085) ** 2 + ((y + .04) / .28) ** 2 < 1)
+    pixels[ventricles] = 95
+    pixels[(np.abs(x) < .012) & brain & (np.abs(y) > .28)] = 140
+    # Smooth bias field and fixed noise give visible texture without source data.
+    rng = np.random.default_rng(42)
+    pixels[brain] += (22 * np.sin(35 * x) * np.cos(27 * y) + 45 * y + rng.normal(0, 9, pixels.shape))[brain]
+    pixels = np.clip(pixels, 0, 1200).astype('<u2')
+    meta = FileMetaDataset()
+    meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    ds = FileDataset('', {}, file_meta=meta, preamble=b'\0' * 128)
+    ds.SOPClassUID = MRImageStorage
+    ds.Modality = 'MR'
+    ds.Rows = ds.Columns = size
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = 'MONOCHROME2'
+    ds.BitsAllocated = ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+    ds.PixelSpacing = [1, 1]
+    ds.SliceThickness = 3
+    ds.ImagePositionPatient = [-128, -128, 0]
+    ds.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+    ds.RescaleIntercept = 0
+    ds.RescaleSlope = 1
+    ds.WindowCenter = 450
+    ds.WindowWidth = 1000
+    ds.PixelData = pixels.tobytes()
+    return ds
 
 
 def _copy_attr(target: Dataset, source: Dataset, name: str) -> None:
@@ -57,6 +97,7 @@ def _copy_attr(target: Dataset, source: Dataset, name: str) -> None:
 def _pixel_data(source: FileDataset, profile: str) -> tuple[bytes, int, int]:
     pixels = source.pixel_array.astype(np.int32, copy=True)
     for row, column, radius, boost in SYNTHETIC_LESION_PROFILES.get(profile, []):
+        row, column, radius = row * 4, column * 4, radius * 4
         yy, xx = np.ogrid[: pixels.shape[0], : pixels.shape[1]]
         distance = ((yy - row) ** 2 + (xx - column) ** 2) ** 0.5
         mask = distance <= radius
@@ -99,7 +140,7 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     ds.SeriesDescription = str(series.get("series_description") or "Synthetic COHORTome series")
     ds.BodyPartExamined = str(study.get("body_part") or ("BRAIN" if profile.startswith("ms_brain") else "SYNTHETIC"))
     ds.Manufacturer = "COHORTome"
-    ds.ManufacturerModelName = "pydicom MR_small fixture"
+    ds.ManufacturerModelName = "Procedural brain phantom"
     ds.ImageType = ["DERIVED", "SECONDARY", "COHORTOME"]
     ds.ProtocolName = ds.SeriesDescription
     ds.ScanningSequence = "SE"
@@ -108,7 +149,7 @@ def _write_instance(path: Path, source: FileDataset, study: dict, series: dict, 
     ds.MagneticFieldStrength = "1.5"
     ds.ImagedNucleus = "1H"
     ds.DerivationDescription = (
-        f"Synthetic COHORTome fixture using visible pixel data from pydicom {SOURCE_DICOM_NAME}; "
+        f"Entirely procedural synthetic phantom ({SOURCE_DICOM_NAME}), not a patient scan or validated disease model; "
         f"profile={profile or 'source'}."
     )
     for name in [

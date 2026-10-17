@@ -44,11 +44,6 @@
   display: inline-flex; padding: 6px; width: 32px; height: 32px; flex-shrink: 0;
   border-radius: 7px; background: var(--utility-soft); color: var(--utility);
 }
-.inventory-modality-icon[data-modality="transcriptomics"],
-.inventory-modality-icon[data-modality="genotyping"] { background: var(--accent-soft); color: var(--theme-blue-ink, #1d4ed8); }
-.inventory-modality-icon[data-modality="methylation"] { background: var(--theme-purple-soft, #f3e8ff); color: var(--theme-purple-ink, #7e22ce); }
-.inventory-modality-icon[data-modality="flow_cytometry"],
-.inventory-modality-icon[data-modality="serology"] { background: var(--handoff-soft); color: var(--theme-teal-ink, #115e59); }
 .inventory-link { display: inline-block; padding: 3px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 0.75rem; }
 .inventory-missing { color: var(--muted); }
 .inventory-legend { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }

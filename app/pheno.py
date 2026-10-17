@@ -856,7 +856,7 @@ def estimate_pheno_cohort_sample_count(request: Any, user_id: str = DEFAULT_LOCA
             sample_ids = [str(item or "").strip() for item in (cohort.get("sample_ids") or []) if str(item or "").strip()]
             patient_ids = [str(item or "").strip() for item in (cohort.get("patient_ids") or []) if str(item or "").strip()]
             id_type = str(cohort.get("id_type") or "").strip().lower()
-            use_patient_ids = id_type == "patient" or (patient_ids and not any(":" in item for item in sample_ids))
+            use_patient_ids = id_type == "patient" or (not sample_ids and bool(patient_ids))
             append_ids(patient_ids if use_patient_ids else sample_ids, patient_level=use_patient_ids)
         return len(resolved_record_ids)
 
@@ -1308,7 +1308,7 @@ def serialize_pheno_result(
     }
 
 
-def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "") -> Dict[str, str]:
+def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "", record_patients=None) -> Dict[str, str]:
     output_path = matrix_path.parent / "mds_points.tsv"
     try:
         with matrix_path.open("r", encoding="utf-8") as handle:
@@ -1357,7 +1357,14 @@ def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "") -
             writer = csv.writer(handle, delimiter="\t")
             writer.writerow(["record_id", "patient_id", "x", "y"])
             for index, label in enumerate(labels):
-                patient_id = label.split(":", 1)[0]
+                source_label = re.sub(r'^C\d+_', '', label)
+                from app.identities import decode_identity
+                if source_label in (record_patients or {}) or decode_identity(source_label):
+                    # A sample key does not encode its patient. Use the actual
+                    # input linkage, never infer one from the sample name.
+                    patient_id = (record_patients or {}).get(source_label, '')
+                else:
+                    patient_id = source_label.split(":", 1)[0]
                 writer.writerow([label, patient_id, f"{coordinates[index, 0]:.10f}", f"{coordinates[index, 1]:.10f}"])
         return {
             "script": "mds_points",
@@ -1510,7 +1517,11 @@ def run_pheno_ranker(request: Any) -> Dict:
                 f"{'' if len(selected_ids) == 1 else 's'} for Pheno-Ranker."
             )
 
-    use_temp_reference = bool(request.disease_filter.strip())
+    from app.datasets import parse_scope_dataset_ids
+    multi_dataset = len(parse_scope_dataset_ids(getattr(request, 'dataset_id', ''))) > 1
+    use_temp_reference = bool(request.disease_filter.strip()) or multi_dataset
+    if multi_dataset and not records:
+        records = load_pheno_ranker_records(request.data_dir)
     if use_temp_reference:
         temp_reference_path = job_dir / "reference.json"
         temp_reference_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1668,8 +1679,14 @@ def run_pheno_ranker(request: Any) -> Dict:
 
     plot_runs: List[Dict[str, str]] = []
     if mode == "cohort" and output_path.exists():
+        if getattr(request, 'render_umap', False):
+            from app.pheno_umap import generate_umap_points
+            plot_runs.append(generate_umap_points(output_path, effective_similarity_metric,
+                {str(record.get('id') or ''): extract_record_patient_id(record) for record in records},
+                limit=pheno_max_sample_cap()))
         if request.render_mds:
-            plot_runs.append(generate_mds_points(output_path, effective_similarity_metric))
+            plot_runs.append(generate_mds_points(output_path, effective_similarity_metric,
+                {str(record.get('id') or ''): extract_record_patient_id(record) for record in records}))
 
     pre_commands: List[str] = []
     pre_commands.extend(" ".join(item) for item in saved_cohort_extract_commands)
