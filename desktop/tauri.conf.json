@@ -5,5 +5,5 @@
   "identifier": "org.cnag.cohortome.preview",
   "build": { "frontendDist": "placeholder" },
   "app": { "withGlobalTauri": true, "windows": [], "security": { "capabilities": [] } },
-  "bundle": { "active": false }
+  "bundle": { "active": false, "icon": ["icons/icon.png", "icons/icon.ico"] }
 }

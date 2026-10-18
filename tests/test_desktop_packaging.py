@@ -1,8 +1,18 @@
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
 from app import local_jobs
+
+
+def test_windows_resource_icon_exists():
+    desktop = Path(__file__).parents[1] / "desktop"
+    config = json.loads((desktop / "tauri.conf.json").read_text())
+    icons = [desktop / name for name in config["bundle"]["icon"] if name.endswith(".ico")]
+    assert icons
+    for icon in icons:
+        assert icon.read_bytes()[:4] == b"\x00\x00\x01\x00"
 
 
 def load_packager():
