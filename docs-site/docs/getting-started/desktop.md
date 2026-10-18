@@ -3,6 +3,8 @@ title: Installation
 ---
 
 import DeploymentNotice from '@site/src/components/DeploymentNotice';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 **Desktop is the recommended installation for individual use.**
 
@@ -94,12 +96,90 @@ Background analyses use a desktop-managed queue without Redis. Keep the app
 open until a job finishes. Closing it interrupts active work; completed results
 remain in the local runtime.
 
-Desktop keeps its state separately from a web deployment. The development
-launcher uses `runtime/desktop-preview/`; packaged-release storage locations
-will be documented with the release. **Save project** writes a small `.cohortome` file referring to the
+Desktop keeps its state separately from a web deployment. **Save project**
+writes a small `.cohortome` file referring to the
 installation's datasets and saved work. It does not bundle source data or result
 files and is not a backup or a transfer between installations. Protect project
 files like other research exports.
+
+## Storage, updates, and removal
+
+### Where desktop data is stored
+
+The packaged app stores chats, saved cohorts, settings, dataset registrations,
+prepared DuckDB stores, job logs and managed results in a **per-user data folder**,
+separate from the installed program. Model-provider settings and saved API keys
+also live there.
+
+<Tabs groupId="desktop-os">
+<TabItem value="linux" label="Linux" default>
+
+`~/.local/share/org.cnag.cohortome.preview/`
+
+If `XDG_DATA_HOME` is set, the folder is
+`$XDG_DATA_HOME/org.cnag.cohortome.preview/` instead. In a file manager, press
+**Ctrl+H** to show hidden folders, or enter the path directly.
+
+</TabItem>
+<TabItem value="macos" label="macOS">
+
+`~/Library/Application Support/org.cnag.cohortome.preview/`
+
+In Finder, use **Go → Go to Folder…** to enter the path.
+
+</TabItem>
+<TabItem value="windows" label="Windows">
+
+`%LOCALAPPDATA%\org.cnag.cohortome.preview\`
+
+Paste the path into File Explorer's address bar.
+
+</TabItem>
+</Tabs>
+
+:::info[Current preview builds]
+
+These paths use the current application identifier, `org.cnag.cohortome.preview`.
+Linux packaging is being tested; macOS and Windows installers are not yet
+available. Running `python3 desktop/run.py` from source stores backend data in
+the checkout's `runtime/desktop-preview/` instead. The source and packaged apps
+do not share saved work automatically.
+
+:::
+
+Dataset files you register remain in their original locations. Exports and
+`.cohortome` files are saved wherever you choose. Bundled synthetic datasets
+belong to the program bundle; prepared stores and saved work belong to the
+data folder above.
+
+### Update or uninstall
+
+Close COHORTome before replacing or removing its program files. For the current
+Linux portable build, remove the extracted application directory, including
+`engine/`. **This does not remove the per-user data folder.**
+
+Keeping that folder preserves saved work for reopening under the same operating
+system account and application identifier. Dataset paths must still be available;
+moving or changing datasets can require rebuilding their stores and can invalidate
+saved project references. Platform-specific installer removal options will be
+documented when those installers are available.
+
+### Reset or remove saved work
+
+1. Close the app and back up its data folder and any source datasets you need.
+2. To start fresh without losing the backup, move the data folder to a separate
+   backup location. COHORTome creates a fresh one on its next launch.
+3. Delete the old folder only when you no longer need its saved work. Files
+   outside that folder—original datasets, exports and project files—are unchanged.
+
+:::caution[Project files are not backups]
+
+Deleting the data folder removes chats, cohorts, settings, provider credentials,
+prepared stores and managed results. A `.cohortome` file cannot restore them:
+it references that installation's saved work. Back up the data folder itself,
+with the app closed, and keep source datasets separately.
+
+:::
 
 <details>
 <summary>Desktop and centralized Web: differences</summary>

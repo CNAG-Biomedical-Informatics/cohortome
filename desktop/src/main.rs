@@ -94,8 +94,11 @@ fn main() {
             let executable = std::env::current_exe()?;
             let backend_name = if cfg!(windows) { "cohortome-backend.exe" } else { "cohortome-backend" };
             let portable = executable.parent().unwrap().join("engine").join(backend_name);
-            let resource = app.path().resource_dir()?.join("engine").join(backend_name);
-            let packaged = [portable, resource].into_iter().find(|path| path.is_file());
+            let packaged = if portable.is_file() { Some(portable) } else {
+                app.path().resource_dir().ok()
+                    .map(|path| path.join("engine").join(backend_name))
+                    .filter(|path| path.is_file())
+            };
             let mut command = if let Some(backend) = packaged {
                 let mut command = Command::new(backend);
                 command.arg("--runtime-dir").arg(app.path().app_local_data_dir()?);

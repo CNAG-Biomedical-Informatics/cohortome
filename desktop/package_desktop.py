@@ -1,4 +1,4 @@
-"""Build a Linux test bundle, not a release installer. Run in a clean build venv."""
+"""Build a Linux/macOS test bundle, not an installer. Run in a clean build venv."""
 import argparse
 import hashlib
 import json
@@ -69,8 +69,8 @@ def main():
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and tar.gz")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
     args = parser.parse_args()
-    if sys.platform != "linux":
-        parser.error("This first packaging test targets Linux only")
+    if sys.platform not in {"linux", "darwin"}:
+        parser.error("Packaging currently targets Linux and macOS; Windows is not ready")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="cohortome-freeze-") as temporary:
@@ -99,7 +99,9 @@ def main():
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
                         str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"], check=True)
         shutil.copy2(ROOT / "desktop/target/release/cohortome-desktop", output / "cohortome-desktop")
-    manifest = {"kind": "linux-packaging-test", "architecture": platform.machine(),
+        if sys.platform == "darwin":
+            subprocess.run(["codesign", "--force", "--sign", "-", str(output / "cohortome-desktop")], check=True)
+    manifest = {"kind": "desktop-packaging-test", "platform": sys.platform, "architecture": platform.machine(),
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
                 "not_bundled": ["Perl/Pheno-Ranker", "jq", "R/Bioconductor", "UMAP", "OHIF", "Docker"],

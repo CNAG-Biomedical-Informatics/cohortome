@@ -6,7 +6,7 @@ from app import local_jobs
 
 
 def load_packager():
-    spec = importlib.util.spec_from_file_location("package_linux", Path(__file__).parents[1] / "desktop/package_linux.py")
+    spec = importlib.util.spec_from_file_location("package_desktop", Path(__file__).parents[1] / "desktop/package_desktop.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

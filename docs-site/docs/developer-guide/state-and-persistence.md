@@ -51,7 +51,10 @@ reopening fully.
 
 Web uses `COHORTOME_RUNTIME_ROOT`; a source launch defaults to `runtime/`.
 The Desktop development launcher uses `runtime/desktop-preview/`.
-Packaged-release locations will be documented with the release.
+Packaged Desktop uses the operating system's per-user application-data directory.
+See [Desktop storage, updates, and removal](../getting-started/desktop#storage-updates-and-removal)
+for the exact paths, uninstall behaviour and reset instructions. Removing the
+portable app does not remove its saved data.
 
 | Runtime area | Contents |
 | --- | --- |

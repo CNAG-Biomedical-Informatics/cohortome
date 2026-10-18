@@ -23,7 +23,7 @@ def main():
         root = Path(temporary)
         # Deliberately use spaces in both installation and writable-state paths.
         engine = root / "installed app/engine"
-        shutil.copytree(args.engine.resolve(), engine)
+        shutil.copytree(args.engine.resolve(), engine, symlinks=True)
         binary = engine / "cohortome-backend"
         runtime = root / "user state"
         environment = {"PATH": "", "HOME": str(root), "LANG": "C.UTF-8",

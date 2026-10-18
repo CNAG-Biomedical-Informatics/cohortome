@@ -1,4 +1,4 @@
-# Python 3.12 packaging-test environment. R/Perl/UMAP are a later increment.
+# Python 3.12 Linux/macOS packaging tests. R/Perl/UMAP are a later increment.
 altgraph==0.17.5
 annotated-types==0.8.0
 anyio==4.15.1
