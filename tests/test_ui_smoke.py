@@ -493,6 +493,7 @@ def _install_dataset_lifecycle_routes(page):
             "query_granularity_ceiling": "detailed",
             "ai_provider_access": "detailed_allowed",
             "clinical_representation": "snapshot",
+            "study_design": "longitudinal",
             "clinical_record_count": 4,
             "assay_file_count": 2,
             "content_tags": ["2 patients", "4 timepoints", "2 matrices"],
@@ -510,6 +511,7 @@ def _install_dataset_lifecycle_routes(page):
             "query_granularity_ceiling": "detailed",
             "ai_provider_access": "detailed_allowed",
             "clinical_representation": "person",
+            "study_design": "cross_sectional",
             "clinical_record_count": 2,
             "assay_file_count": 0,
             "content_tags": ["2 patients", "2 person records"],
@@ -671,6 +673,7 @@ window.Plotly = {
 def _open_pheno_tab(page) -> None:
     _ensure_detailed_workspace(page)
     page.locator("#phenoTabBtn").click()
+    page.locator('#phenoPromptDetails > summary').click()
     page.locator("#phenoPrompt").wait_for()
 
 
@@ -785,6 +788,105 @@ def _mock_pheno_plan(page, expected_mode: str, patient_id: str = "", selected_id
         )
 
     page.route("**/pheno-ranker/plan", handler)
+
+
+def test_pheno_default_setup_is_compact(page):
+    _ensure_detailed_workspace(page)
+    page.locator('#phenoTabBtn').click()
+    expect = playwright.expect
+    expect(page.locator('#phenoFlowBar')).to_have_count(0)
+    for selector in ('#phenoPrompt', '#phenoIncludeTerms', '#phenoSimilarityMetric', '#phenoPlanBtn', '#phenoLmStatus'):
+        expect(page.locator(selector)).to_be_hidden()
+    expect(page.locator('#phenoReadiness')).to_be_visible()
+    expect(page.locator('#phenoRunBtn')).to_be_visible()
+    page.locator('[data-pheno-mode="patient"]').click()
+    expect(page.locator('#phenoPatientId')).to_be_visible()
+    expect(page.locator('#phenoIncludeTerms')).to_be_hidden()
+    page.locator('#phenoAdvancedOptions > summary').click()
+    expect(page.locator('#phenoIncludeTerms')).to_be_visible()
+    page.locator('#phenoAdvancedOptions > summary').click()
+    page.screenshot(path='/tmp/cohortome-pheno-compact.png', full_page=True)
+
+
+def test_pheno_closest_prompt_guides_patient_selection(page):
+    _mock_pheno_reference_ids(page)
+    page.reload(wait_until='networkidle')
+    _open_pheno_tab(page)
+    _mock_pheno_plan(page, 'patient')
+    page.locator('[data-pheno-prompt="Find closest matches by disease"]').click()
+    page.locator('#phenoRunBtn').click()
+    playwright.expect(page.locator('#phenoPlanStatus')).to_contain_text('Choose a patient or visit')
+    playwright.expect(page.locator('#phenoPatientId')).to_be_visible()
+    playwright.expect(page.locator('#phenoPatientChoices option')).to_have_count(3)
+    page.locator('#phenoPatientId').fill('SYN001:week_0')
+    playwright.expect(page.locator('#phenoPatientId')).to_have_value('SYN001:week_0')
+
+
+def test_pheno_mode_cards_run_without_typed_prompt(page):
+    _mock_pheno_reference_ids(page)
+    page.reload(wait_until='networkidle')
+    _open_pheno_tab(page)
+    expect = playwright.expect
+    captured = {}
+    _mock_cohort_run(page, request_capture=captured)
+    page.route('**/pheno-ranker/plan', lambda route: route.fulfill(status=500, json={'detail': 'Planner must not be called'}))
+    page.locator('#phenoPrompt').fill('')
+    page.locator('[data-pheno-mode="patient"]').click()
+    expect(page.locator('[data-pheno-mode="patient"]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('#phenoPatientId')).to_be_visible()
+    expect(page.locator('#phenoRunBtn')).to_be_disabled()
+    expect(page.locator('#phenoReadiness')).to_contain_text('Choose a patient or visit')
+    page.locator('#phenoPatientId').fill('NOT-IN-DATA')
+    expect(page.locator('#phenoRunBtn')).to_be_disabled()
+    expect(page.locator('#phenoReadiness')).to_contain_text('not in the loaded reference data')
+    page.locator('#phenoPatientId').fill('SYN001:week_0')
+    expect(page.locator('#phenoRunBtn')).to_be_enabled()
+    expect(page.locator('#phenoReadiness')).to_contain_text('Ready to run')
+    expect(page.locator('#phenoReadiness')).to_contain_text('Target: SYN001:week_0')
+    expect(page.locator('#phenoReadiness')).to_contain_text('Reference: Full workspace')
+    page.locator('[data-pheno-mode="cohort"]').click()
+    expect(page.locator('#phenoPatientId')).not_to_be_visible()
+    page.locator('#phenoPrompt').fill('')
+    expect(page.locator('#phenoRunBtn')).to_be_enabled()
+    expect(page.locator('#phenoReadiness')).to_contain_text('Cohort comparison')
+    page.locator('#phenoRunBtn').click()
+    expect(page.locator('#phenoStatus')).to_contain_text('Completed cohort run')
+    assert captured['body']['mode'] == 'cohort'
+    assert captured['body']['prompt']
+
+
+def test_pheno_multiple_runs_append_and_keep_failures(page):
+    _open_pheno_tab(page)
+    _mock_cohort_run(page)
+    expect = playwright.expect
+    page.locator('[data-pheno-mode="cohort"]').click()
+    page.locator('#phenoRunBtn').click()
+    expect(page.locator('#phenoStatus')).to_contain_text('Completed cohort run')
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    chat_id = page.locator('[data-pheno-session-id][aria-label]').first.get_attribute('data-pheno-session-id')
+    pending = []
+    page.route('**/pheno-ranker/run', lambda route: pending.append(route))
+    page.locator('#phenoRunBtn').click()
+    expect(page.locator('.pheno-run-progress')).to_be_visible()
+    expect(page.locator('[data-pheno-reply="0"]')).to_contain_text('Completed run')
+    expect(page.locator('[data-pheno-turn="0"]')).to_be_visible()
+    expect(page.locator('#phenoChatHistory > .analysis-turn-user')).to_have_count(2)
+    pending[0].fulfill(json={'job_id':'job-second', 'mode':'cohort', 'files':[], 'plots':[], 'command':'second run', 'stderr':''})
+    expect(page.locator('.pheno-run-progress')).to_have_count(0)
+    expect(page.locator('[data-pheno-result-host="1"] #phenoResultWorkspace')).to_be_visible()
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    page.locator('#phenoRunBtn').click()
+    expect(page.locator('.pheno-run-progress')).to_be_visible()
+    pending[1].fulfill(status=500, json={'detail':'Synthetic failure'})
+    expect(page.locator('[data-pheno-reply="2"]')).to_contain_text('could not complete')
+    expect(page.locator('#phenoChatHistory > .analysis-turn-user')).to_have_count(3)
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    saved = page.request.get(page.url.rstrip('/') + '/pheno-sessions/' + chat_id).json()
+    assert [t['kind'] for t in saved['turns']] == ['result', 'result', 'error']
+    page.locator('[data-pheno-turn="0"]').click()
+    expect(page.locator('[data-pheno-result-host="0"] #phenoResultWorkspace')).to_be_visible()
+    expect(page.locator('#phenoMdsPlot')).to_have_attribute('data-plotly-ready', 'true')
+    expect(page.locator('[data-pheno-reply="2"]')).to_contain_text('could not complete')
 
 
 def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request_capture: dict | None = None, umap=False) -> None:
@@ -1921,16 +2023,46 @@ def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(p
     expect(page.locator("#phenoAlignmentCard")).to_be_hidden()
 
     expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    expect(page.locator('#phenoChatSave')).to_be_hidden()
+    expect(page.locator('#phenoChatReload')).to_be_hidden()
     chat = page.locator('[data-pheno-session-id]').filter(has_text='Cluster these three records by disease').first
     expect(chat).to_be_visible()
     chat_id = chat.get_attribute('data-pheno-session-id')
     page.locator('#analysisNewSessionBtn').click()
     page.locator('#newPhenoChatBtn').click()
     expect(page.locator('#phenoPrompt')).to_have_value('')
+    expect(page.locator('#phenoChatTitle')).to_have_text('New chat')
     page.locator(f'[data-pheno-session-id="{chat_id}"]').first.click()
     expect(page.locator('#phenoPrompt')).to_have_value('Cluster these three records by disease')
     expect(page.locator('#phenoStatus')).to_contain_text('Saved cohort run')
     expect(page.locator('#phenoMdsPlot')).to_have_attribute('data-plotly-ready', 'true')
+
+
+def test_pheno_chat_recovery_controls_only_appear_on_save_errors(page) -> None:
+    _mock_pheno_reference_ids(page)
+    _open_pheno_tab(page)
+    expect = playwright.expect
+    expect(page.locator('#phenoChatSave')).to_be_hidden()
+    expect(page.locator('#phenoChatReload')).to_be_hidden()
+    page.locator('#phenoPrompt').fill('Recovery controls test')
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+
+    def conflict(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=409, json={'detail': 'Chat changed in another window.'})
+        else:
+            route.continue_()
+
+    page.route('**/pheno-sessions', conflict)
+    page.locator('#phenoPrompt').fill('Unsaved edit')
+    expect(page.locator('#phenoChatStatus')).to_contain_text('Not saved:')
+    expect(page.locator('#phenoChatSave')).to_be_visible()
+    expect(page.locator('#phenoChatReload')).to_be_visible()
+    page.unroute('**/pheno-sessions', conflict)
+    page.locator('#phenoChatSave').click()
+    expect(page.locator('#phenoChatStatus')).to_have_text('Saved')
+    expect(page.locator('#phenoChatSave')).to_be_hidden()
+    expect(page.locator('#phenoChatReload')).to_be_hidden()
 
 
 def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
@@ -1947,6 +2079,91 @@ def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
     expect(page.locator("#phenoExplainCard")).to_be_visible()
     expect(page.locator("#phenoAlignmentCard")).to_be_visible()
     expect(page.locator("#phenoOutputPreview")).to_contain_text("rank.txt loaded as TSV")
+    pending = []
+    page.route('**/pheno-ranker/explain-llm/**', lambda route: pending.append(route))
+    page.locator('#phenoExplainLlmBtn').click()
+    progress = page.locator('.pheno-explanation-progress')
+    expect(progress).to_be_visible()
+    expect(progress).to_contain_text('Explaining results with LLM')
+    expect(progress).to_have_attribute('aria-busy', 'true')
+    assert progress.locator('.analysis-turn-body').evaluate('el => parseFloat(getComputedStyle(el).columnGap)') >= 12
+    expect(page.locator('#phenoExplainLlmBtn')).to_be_disabled()
+    pending[0].fulfill(json={
+        'source': 'lm_studio', 'target_id': 'SYN001:week_0', 'top_n': 1,
+        'llm_reply': 'Closest match: SYN002, with Jaccard similarity 0.8.',
+        'matches': [{'reference_id': 'SYN002', 'metrics': {'Jaccard': '0.8'},
+                     'alignment': {'top_shared_items': [{'label': 'Shared disease', 'bucket': 'diseases'}]}}],
+    })
+    reply = page.locator('#phenoChatHistory > .analysis-turn-assistant').last
+    expect(reply).to_contain_text('Closest match: SYN002')
+    expect(progress).to_have_count(0)
+    expect(reply.locator('.pheno-explain-match-card')).to_be_hidden()
+    reply.locator('.pheno-explain-evidence summary').click()
+    expect(reply.locator('.pheno-explain-match-card')).to_be_visible()
+    expect(reply).to_contain_text('Shared disease')
+    prompts = page.locator('#phenoChatHistory > .analysis-turn-user')
+    expect(prompts).to_have_count(2)
+    expect(prompts.last).to_contain_text('Explain these results with LLM')
+    assert prompts.last.bounding_box()['x'] > reply.bounding_box()['x']
+    expect(page.locator('#phenoChatHistory [data-pheno-result-host] #phenoResultWorkspace')).to_be_visible()
+    page.route('**/pheno-ranker/explain/**', lambda route: route.fulfill(status=500, json={'detail': 'Explanation unavailable; try again.'}))
+    page.locator('#phenoExplainBtn').click()
+    expect(progress).to_contain_text('Explanation unavailable; try again.')
+    expect(progress).to_have_attribute('aria-busy', 'false')
+    expect(page.locator('#phenoExplainBtn')).to_be_enabled()
+
+
+def test_cohort_library_search_members_and_navigation(page) -> None:
+    items = [dict(id=f'cohort-{i}', name=f'Cohort {i:02d}', dataset_id='secondary',
+        dataset_ids=['secondary'], patient_count=51, sample_count=0,
+        created_at='2026-10-18T10:00:00Z',
+        members=[dict(dataset_id='secondary', patient_id=f'P{j}', sample_id='') for j in range(51)])
+        for i in range(14)]
+    page.route('**/saved-cohorts/library', lambda route: route.fulfill(json={'cohorts': items}))
+    page.locator('#cohortsTabBtn').click()
+    playwright.expect(page.locator('#cohortsTab')).to_be_visible()
+    playwright.expect(page.locator('.cohort-library-card')).to_have_count(12)
+    page.locator('#cohortLibraryPages button', has_text='Next').click()
+    playwright.expect(page.locator('.cohort-library-card')).to_have_count(2)
+    page.locator('#cohortLibrarySearch').fill('Cohort 03')
+    playwright.expect(page.locator('.cohort-library-card')).to_have_count(1)
+    playwright.expect(page.locator('.cohort-library-card')).to_contain_text('Datasets not loaded')
+    page.locator('[data-saved-cohort-action="inspect"]').click()
+    playwright.expect(page.locator('#cohortMembersDialog tbody tr')).to_have_count(50)
+    page.locator('#cohortMembersDialog [data-next]').click()
+    playwright.expect(page.locator('#cohortMembersDialog tbody tr')).to_have_count(1)
+    playwright.expect(page.locator('#cohortMembersDialog')).to_contain_text('P50')
+    page.locator('#cohortMembersDialog [data-close]').click()
+    page.locator('.cohort-library-more summary').click()
+    playwright.expect(page.locator('[data-saved-cohort-action="export-molecular"]')).to_be_visible()
+    page.locator('#datasetsTabBtn').click()
+    playwright.expect(page.locator('#cohortsTab')).not_to_be_visible()
+    page.locator('#cohortsTabBtn').click()
+    playwright.expect(page.locator('#cohortsTab')).to_be_visible()
+
+
+def test_cohort_library_loads_sources_and_hands_off(page) -> None:
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    cohort = dict(id='cohort-library', name='Library cohort', dataset_id='secondary',
+        dataset_ids=['secondary'], id_type='patient', patient_count=1, sample_count=0,
+        patient_ids=['SYN001'], sample_ids=[], created_at='2026-10-18T10:00:00Z',
+        members=[dict(dataset_id='secondary', patient_id='SYN001')])
+    page.route('**/saved-cohorts/library', lambda route: route.fulfill(json={'cohorts': [cohort]}))
+    page.route('**/saved-cohorts?*', lambda route: route.fulfill(json={'cohorts': [cohort]}))
+    page.locator('#cohortsTabBtn').click()
+    playwright.expect(page.locator('#cohortLibraryList')).to_contain_text('Datasets not loaded')
+    assert page._cohortome_dataset_state['select_requests'] == []
+    page.locator('[data-saved-cohort-action="load-datasets"]').click()
+    playwright.expect(page.locator('#cohortLibraryStatus')).to_contain_text('Datasets loaded.')
+    assert page._cohortome_dataset_state['current_ids'] == ['secondary']
+    page.locator('#cohortLibraryList [data-saved-cohort-action="load-analysis"]').click()
+    playwright.expect(page.locator('#analysisTab')).to_be_visible()
+    playwright.expect(page.locator('#analysisSelectedSavedCohortSelection')).to_contain_text('Library cohort')
+    page.locator('#cohortsTabBtn').click()
+    page.locator('#cohortLibraryList [data-saved-cohort-action="load-pheno"]').click()
+    playwright.expect(page.locator('#phenoTab')).to_be_visible()
+    playwright.expect(page.locator('#phenoSavedCohortsSelection')).to_contain_text('Library cohort')
 
 
 def test_dashboard_load_renders_clinical_overview(page) -> None:
@@ -1985,8 +2202,8 @@ def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) 
     expect(default_card.get_by_role("img", name="Imaging data")).to_be_visible()
     expect(secondary_card.locator("[data-dataset-trait='imaging']")).to_have_count(0)
     expect(default_card.locator("[data-dataset-trait='private']")).to_have_count(0)
-    expect(default_card.get_by_role("img", name="Longitudinal clinical records")).to_have_attribute(
-        "title", "Longitudinal clinical records"
+    expect(default_card.get_by_role("img", name="Longitudinal study design")).to_have_attribute(
+        "title", "Longitudinal study design"
     )
     expect(default_card.get_by_role("img", name="Clinical data")).to_be_visible()
     expect(default_card.get_by_role("img", name="Assay data")).to_be_visible()
@@ -1996,7 +2213,7 @@ def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) 
     private_icon = secondary_card.get_by_role("img", name="Private data")
     expect(private_icon).to_be_visible()
     expect(private_icon).to_have_attribute("title", "Private data")
-    expect(secondary_card.get_by_role("img", name="Cross-sectional clinical records")).to_be_visible()
+    expect(secondary_card.get_by_role("img", name="Cross-sectional study design")).to_be_visible()
     expect(secondary_card.get_by_role("img", name="Clinical data")).to_be_visible()
     expect(secondary_card.get_by_role("img", name="Assay data")).to_have_count(0)
 
@@ -2823,6 +3040,39 @@ def test_chat_explicitly_loads_original_datasets(page, kind, notice, title):
     assert page.request.delete(base + f'/{kind}-sessions/{chat_id}').ok
 
 
+@pytest.mark.parametrize('kind,title_selector,row_selector', [
+    ('Query', '#queryCurrentChatTitle', '[data-query-session-id]'),
+    ('Analysis', '#analysisCurrentChatTitle', '[data-analysis-session-id]'),
+    ('Pheno', '#phenoChatTitle', '[data-pheno-session-id]'),
+])
+def test_new_chats_share_header_and_appear_immediately(page, kind, title_selector, row_selector):
+    _open_query_tab(page)
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    page.locator('#analysisNewSessionBtn').click()
+    page.locator(f'#new{kind}ChatBtn').click()
+    playwright.expect(page.locator(title_selector)).to_have_text('New chat')
+    playwright.expect(page.locator(row_selector).filter(has_text='New chat').first).to_be_visible()
+    playwright.expect(page.locator('.tab-panel.active .analysis-chat-bar')).to_have_count(1)
+
+
+def test_analysis_chat_save_failure_is_visible_and_retryable(page):
+    _open_query_tab(page)
+    def fail_save(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=503, json={'detail': 'Temporary save failure'})
+        else:
+            route.continue_()
+    page.route('**/analysis-sessions', fail_save)
+    page.locator('#analysisNewSessionBtn').click()
+    page.locator('#newAnalysisChatBtn').click()
+    playwright.expect(page.locator('#analysisChatPersistence')).to_have_text('Not saved')
+    playwright.expect(page.locator('#analysisChatSaveMessage')).to_contain_text('Temporary save failure')
+    page.unroute('**/analysis-sessions', fail_save)
+    page.locator('#analysisChatSaveRetry').click()
+    playwright.expect(page.locator('#analysisChatPersistence')).to_have_text('Saved')
+    playwright.expect(page.locator('#analysisChatSaveMessage')).to_be_hidden()
+
+
 def test_query_chats_persist_in_shared_list_and_reopen(page):
     _open_query_tab(page)
     expect = playwright.expect
@@ -2833,7 +3083,7 @@ def test_query_chats_persist_in_shared_list_and_reopen(page):
     question = 'Which patients have Crohn Disease?'
     page.locator('#question').fill(question)
     page.locator('#askBtn').click()
-    expect(page.locator('#queryThread')).to_contain_text('Patients matching disease query')
+    expect(page.locator('#queryThread')).to_contain_text('5 patients match this query')
     expect(page.locator('#askBtn')).to_be_enabled()
     row = page.locator('[data-query-session-id]').filter(has_text=question).first
     expect(row).to_be_visible()
@@ -2844,7 +3094,7 @@ def test_query_chats_persist_in_shared_list_and_reopen(page):
     expect(row).to_be_visible()
     row.click()
     expect(page.locator('#queryTab')).to_have_class(re.compile(r'\bactive\b'))
-    expect(page.locator('#queryThread')).to_contain_text('Patients matching disease query')
+    expect(page.locator('#queryThread')).to_contain_text('5 patients match this query')
     expect(page.locator('#queryThread [data-query-action]')).to_have_count(0)
     expect(page.locator('#queryChatContextNotice')).to_contain_text('Saved results')
     row.locator('..').locator('summary').click()
@@ -3656,12 +3906,19 @@ def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
 
     expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
     expect(page.locator("#analysisThread")).to_contain_text("Deterministic")
-    expect(page.locator("#analysisThread .analysis-turn-user")).to_have_css("background-color", "rgb(248, 250, 252)")
+    expect(page.locator("#analysisThread .analysis-turn-user")).to_have_css("background-color", "rgb(219, 234, 254)")
     expect(page.locator("#analysisThread .analysis-turn-user")).to_have_css("background-image", "none")
     expect(page.locator("#analysisThread .analysis-turn-user .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
     expect(page.locator("#analysisThread .analysis-turn-assistant")).to_have_css("background-color", "rgb(255, 255, 255)")
     expect(page.locator("#analysisThread .analysis-turn-assistant")).to_have_css("background-image", "none")
     expect(page.locator("#analysisThread .analysis-turn-assistant .analysis-turn-body")).to_have_css("color", "rgb(19, 34, 56)")
+    user = page.locator("#analysisThread .analysis-turn-user")
+    assistant = page.locator("#analysisThread .analysis-turn-assistant")
+    assert user.bounding_box()['x'] > assistant.bounding_box()['x']
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    expect(user).to_have_css("background-color", "rgb(38, 70, 110)")
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert user.evaluate('el => el.scrollWidth <= el.clientWidth')
 
 
 def test_analysis_general_question_mode_bypasses_workspace_analysis(page) -> None:
@@ -3840,8 +4097,19 @@ def test_bulk_chat_selection_and_clear_history_scope(page):
     expect(page.locator('#clearChatsCount')).to_contain_text(f'{count + 1} chats')
     page.locator('#clearChatsCancel').click()
     assert page.request.get(base + '/query-sessions/bulk-pinned').ok
-    assert page.request.post(base + '/chat-folders/pin', data={'kind': 'query', 'chat_id': 'bulk-pinned', 'pinned': False}).ok
-    assert page.request.delete(base + '/query-sessions/bulk-pinned').ok
+    page.locator('#userDeleteChatsBtn').evaluate('(el) => el.click()')
+    page.locator('#clearChatsPinned').check()
+    page.route('**/query-sessions/bulk-pinned', lambda route: route.fulfill(
+        status=500, json={'detail': 'Test deletion failure'}))
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator('#clearChatsConfirm').click()
+    expect(page.locator('#clearChatsStatus')).to_contain_text('Test deletion failure')
+    expect(page.locator('#clearChatsDialog')).to_be_visible()
+    page.unroute('**/query-sessions/bulk-pinned')
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator('#clearChatsConfirm').click()
+    expect(page.locator('#clearChatsDialog')).not_to_be_visible()
+    assert page.request.get(base + '/query-sessions/bulk-pinned').status == 404
 
 
 def test_shared_chat_folders_move_pin_rename_search_and_delete(page):
@@ -4953,13 +5221,14 @@ def test_pheno_manual_metric_override_skips_planner_and_shows_notice(page) -> No
     _mock_cohort_run(page, metric="jaccard", request_capture=request_capture)
 
     page.locator("#phenoPrompt").fill("Compare all patients by phenotypicFeatures and diseases")
-    page.locator("#phenoTab summary").filter(has_text="Setup").click()
-    page.locator("#phenoTab summary").filter(has_text="Advanced options").click()
+    page.locator("#phenoSetupDetails").evaluate('el => el.open = true')
+    page.locator("#phenoTab summary").filter(has_text="Customize comparison").click()
     page.locator("#phenoSimilarityMetric").select_option("jaccard")
 
-    expect(page.locator("#phenoPlanStatus")).to_contain_text("Settings changed after preview")
+    expect(page.locator("#phenoPlanStatus")).to_contain_text("Ready to run with the selected settings")
     expect(page.locator("#phenoPlan")).to_contain_text('"similarity_metric_cohort": "jaccard"')
     expect(page.locator("#phenoPrompt")).to_have_value(re.compile("Use jaccard cohort similarity"))
+    page.locator('#phenoTechnicalDetails > summary').click()
     page.locator("#phenoPlanBtn").click()
     expect(page.locator("#phenoPlanStatus")).to_contain_text("Previewing current form settings")
     expect(page.locator("#phenoSimilarityMetric")).to_have_value("jaccard")

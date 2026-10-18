@@ -1,237 +1,119 @@
+"""Capture real UI states from bundled synthetic data in a disposable runtime.
+
+Run: PYTHONPATH=.deps:. python3 scripts/capture_docs_screenshots.py
+Requires Playwright/Chromium and the repository frontend dependencies.
+Does not use native.env, the Desktop runtime, private datasets, or a live LLM.
+"""
 from __future__ import annotations
 
-import json
 import os
+from pathlib import Path
+import secrets
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
-from contextlib import closing
-from pathlib import Path
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
-
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-SCREENSHOT_DIR = ROOT / "docs-site" / "static" / "img" / "screenshots"
-
-
-def _free_port() -> int:
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-
-
-def _wait_for_server(url: str, timeout: float = 20.0) -> None:
-    deadline = time.time() + timeout
-    last_error: Exception | None = None
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(url) as response:  # noqa: S310
-                if response.status < 500:
-                    return
-        except Exception as exc:
-            last_error = exc
-            time.sleep(0.2)
-    raise RuntimeError(f"Timed out waiting for server at {url}") from last_error
-
-
-def _spawn_server() -> tuple[subprocess.Popen, str]:
-    port = _free_port()
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT)
-    env["COHORTOME_AUTH_MODE"] = "local"
-    env["COHORTOME_SESSION_SECRET"] = "cohortome-docs-screenshot-session"
-    env["COHORTOME_LOCAL_USERS_JSON"] = json.dumps(
-        [
-            {
-                "username": "admin",
-                "password": "admin",
-                "role": "admin",
-                "display_name": "Admin User",
-                "groups": ["admin"],
-            },
-            {
-                "username": "mrueda",
-                "password": "mrueda",
-                "role": "user",
-                "display_name": "mrueda",
-                "groups": ["cnag"],
-            },
-        ]
-    )
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ],
-        cwd=str(ROOT),
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    return process, f"http://127.0.0.1:{port}"
-
-
-def _install_plotly_stub(context) -> None:
-    body = r"""
-window.Plotly = {
-  newPlot: async function(el) {
-    el.dataset.plotlyReady = "true";
-    el.innerHTML = `
-      <svg viewBox="0 0 640 360" width="100%" height="100%" role="img" aria-label="Plot placeholder">
-        <rect x="0" y="0" width="640" height="360" rx="18" fill="#f8fbff"></rect>
-        <line x1="72" y1="36" x2="72" y2="300" stroke="#94a3b8" stroke-width="2"></line>
-        <line x1="72" y1="300" x2="596" y2="300" stroke="#94a3b8" stroke-width="2"></line>
-        <polyline points="86,252 164,228 246,198 330,182 420,142 510,118 584,96" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
-        <circle cx="164" cy="228" r="5" fill="#0ea5e9"></circle>
-        <circle cx="330" cy="182" r="5" fill="#0ea5e9"></circle>
-        <circle cx="510" cy="118" r="5" fill="#0ea5e9"></circle>
-        <text x="88" y="334" font-size="15" fill="#61758c">Illustrative plot preview</text>
-      </svg>
-    `;
-    el.on = function(name, cb) {
-      this._plotlyHandlers = this._plotlyHandlers || {};
-      this._plotlyHandlers[name] = cb;
-    };
-    return el;
-  }
-};
-"""
-    context.route(
-        "https://cdn.plot.ly/**",
-        lambda route: route.fulfill(
-            status=200,
-            content_type="application/javascript",
-            body=body,
-        ),
-    )
-
-
-def _login(page) -> None:
-    page.locator("#authUsername").fill("admin")
-    page.locator("#authPassword").fill("admin")
-    page.locator("#authLoginBtn").click()
-    page.locator("#datasetsTabBtn").wait_for()
-
-
-def _apply_default_workspace(page) -> None:
-    page.locator("#datasetsTabBtn").click()
-    load_button = page.locator("#loadBtn")
-    load_button.wait_for(state="attached")
-    page.wait_for_function(
-        """() => {
-          const button = document.querySelector('#loadBtn');
-          return button && !button.classList.contains('is-loading');
-        }""",
-        timeout=60000,
-    )
-    if load_button.is_visible() and load_button.is_enabled():
-        load_button.click()
-    page.locator("#loadStatus").wait_for()
-    page.wait_for_timeout(1200)
-
-
-def _capture_login(page) -> None:
-    page.locator("#authGate").wait_for()
-    page.screenshot(
-        path=str(SCREENSHOT_DIR / "login-page.png"),
-        clip={"x": 0, "y": 0, "width": 1600, "height": 760},
-    )
-
-
-def _capture_datasets(page) -> None:
-    page.locator("#datasetsTabBtn").click()
-    private_dataset = page.locator("[data-dataset-card='private-dataset']")
-    private_dataset.click()
-    page.wait_for_timeout(250)
-    page.locator("#datasetsTab .dashboard-loader").screenshot(path=str(SCREENSHOT_DIR / "datasets-tab.png"))
-    private_dataset.click()
-    load_button = page.locator("#loadBtn")
-    if load_button.is_visible() and load_button.is_enabled():
-        load_button.click()
-    page.wait_for_timeout(1200)
-
-
-def _capture_workspace(page) -> None:
-    page.locator("#appShell").wait_for()
-    page.screenshot(
-        path=str(SCREENSHOT_DIR / "workspace-shell.png"),
-        clip={"x": 0, "y": 0, "width": 1600, "height": 1000},
-    )
-
-
-def _capture_query(page) -> None:
-    page.locator("#queryTabBtn").click()
-    page.locator("#question").fill("Which patients have Crohn Disease?")
-    page.locator("#askBtn").click()
-    try:
-        page.locator("#queryThread .query-thread-turn-assistant").wait_for(timeout=15000)
-    except PlaywrightTimeoutError:
-        pass
-    page.wait_for_timeout(500)
-    page.locator("#queryTab .controls").screenshot(path=str(SCREENSHOT_DIR / "query-tab.png"))
-
-
-def _capture_analysis(page) -> None:
-    page.locator("#analysisTabBtn").click()
-    page.locator("#analysisPrompt").fill("Show a Kaplan-Meier curve for time to Clinical relapse > 0")
-    page.locator("#analysisRunBtn").click()
-    try:
-        page.locator("#analysisThread .analysis-turn-assistant").wait_for(timeout=15000)
-    except PlaywrightTimeoutError:
-        pass
-    page.wait_for_timeout(800)
-    page.locator("#analysisTab .analysis-main").screenshot(path=str(SCREENSHOT_DIR / "analysis-tab.png"))
-
-
-def _capture_pheno(page) -> None:
-    page.locator("#phenoTabBtn").click()
-    page.locator("#phenoPrompt").wait_for()
-    page.wait_for_timeout(500)
-    page.locator("#phenoTab .controls").screenshot(path=str(SCREENSHOT_DIR / "pheno-tab.png"))
+OUTPUT = ROOT / 'docs-site/static/img/screenshots'
 
 
 def main() -> int:
-    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    process, base_url = _spawn_server()
-    try:
-        _wait_for_server(base_url)
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch()
-            context = browser.new_context(viewport={"width": 1600, "height": 1400})
-            _install_plotly_stub(context)
-            page = context.new_page()
-            page.goto(base_url, wait_until="networkidle")
-
-            _capture_login(page)
-            _login(page)
-            _apply_default_workspace(page)
-            _capture_workspace(page)
-            _capture_datasets(page)
-            _capture_query(page)
-            _capture_analysis(page)
-            _capture_pheno(page)
-
-            context.close()
-            browser.close()
-    finally:
-        process.terminate()
+    plotly = ROOT / 'node_modules/plotly.js-dist-min/plotly.min.js'
+    if not plotly.is_file():
+        raise RuntimeError('Install the repository frontend dependencies first (npm ci).')
+    with tempfile.TemporaryDirectory(prefix='cohortome-docs-') as runtime:
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith(('COHORTOME_', 'LM_STUDIO_', 'UVICORN_'))}
+        env.update(PYTHONPATH=os.pathsep.join([str(ROOT / '.deps'), str(ROOT)]),
+                   COHORTOME_RUNTIME_ROOT=runtime, COHORTOME_AUTH_MODE='none',
+                   COHORTOME_DESKTOP_MODE='true', COHORTOME_JOBS_BACKEND='local',
+                   COHORTOME_JOBS_REDIS_URL='redis://127.0.0.1:1/0',
+                   COHORTOME_SESSION_SECRET=secrets.token_urlsafe(32), LM_STUDIO_ENABLED='false')
+        # Only the bundled fixture is registered. No machine-local registry is read.
+        subprocess.run([sys.executable, '-c', """
+from app.datasets import DATASET_REGISTRY_PATH, _seed_dataset_records
+from app.state_io import atomic_write_json
+from app.query_store import prepare_dataset_query_store
+atomic_write_json(DATASET_REGISTRY_PATH, [d for d in _seed_dataset_records() if d['dataset_id'] == 'default'])
+prepare_dataset_query_store('default')
+"""], cwd=ROOT, env=env, check=True)
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        url = f'http://127.0.0.1:{port}'
+        server = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app',
+                                   '--host', '127.0.0.1', '--port', str(port)],
+                                  cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+            for _ in range(100):
+                try:
+                    with urllib.request.urlopen(url, timeout=1):
+                        break
+                except OSError:
+                    if server.poll() is not None:
+                        raise RuntimeError('Screenshot server stopped before startup.')
+                    time.sleep(.2)
+            else:
+                raise RuntimeError('Screenshot server did not start.')
+            OUTPUT.mkdir(parents=True, exist_ok=True)
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch()
+                context = browser.new_context(viewport={'width': 1440, 'height': 1000}, reduced_motion='reduce')
+                context.route('https://cdn.plot.ly/**', lambda route: route.fulfill(
+                    path=str(plotly), content_type='application/javascript'))
+                page = context.new_page()
+                page.goto(url, wait_until='networkidle')
+                response = page.request.post(url + '/datasets/select', data={'dataset_ids': ['default']})
+                assert response.ok, response.status
+                page.reload(wait_until='networkidle')
+
+                def capture(name):
+                    page.evaluate('window.scrollTo(0, 0)')
+                    page.screenshot(path=str(OUTPUT / name), animations='disabled')
+
+                page.locator('#dashboardTabBtn').click()
+                expect(page.locator('#contextCohort')).not_to_contain_text('Loading')
+                page.wait_for_timeout(750)
+                capture('workspace-shell.png')
+                page.locator('#datasetsTabBtn').click()
+                expect(page.locator('#datasetPicker [data-dataset-checkbox]')).to_have_count(1)
+                capture('datasets-tab.png')
+                page.locator('#queryTabBtn').click()
+                page.locator('#question').fill('Which patients have Crohn Disease?')
+                page.locator('#askBtn').click()
+                expect(page.locator('#queryThread .query-thread-turn-assistant').last).to_contain_text('5 patients', timeout=30000)
+                capture('query-tab.png')
+                page.locator('#queryContextGeneralBtn').click()
+                expect(page.locator('#queryContextGeneralBtn')).to_have_attribute('aria-pressed', 'true')
+                page.locator('#question').fill('What is infliximab?')
+                page.locator('#queryTab .context-mode-switch').screenshot(
+                    path=str(OUTPUT / 'query-general-mode.png'), animations='disabled')
+                page.locator('#queryContextWorkspaceBtn').click()
+                page.locator('#analysisTabBtn').click()
+                capture('analysis-tab.png')
+                page.locator('#phenoTabBtn').click()
+                expect(page.locator('[data-pheno-mode="cohort"]')).to_be_visible()
+                expect(page.locator('#phenoStatus')).not_to_have_text('No workspace loaded.')
+                capture('pheno-tab.png')
+                page.locator('[data-pheno-mode="patient"]').click()
+                expect(page.locator('#phenoPatientId')).to_be_visible()
+                capture('pheno-patient-setup.png')
+                browser.close()
+        finally:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
+    print('Captured seven synthetic-only screenshots; temporary runtime removed.')
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

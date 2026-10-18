@@ -2,10 +2,21 @@
 sidebar_position: 1
 ---
 
+import DeploymentNotice from '@site/src/components/DeploymentNotice';
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 # Datasets And Access
+
+<DeploymentNotice mode="both" title="Desktop and Web">
+
+Dataset registration, store preparation, classification, and LLM data-access
+policies apply to both. Visibility, allowed users, and groups govern access
+between users on Web; Desktop has one local owner. A local owner still needs to
+control what dataset context may be sent to a model.
+
+</DeploymentNotice>
 
 <div className="pnQuickHero">
   <div className="pnEyebrow">Data administration</div>
@@ -18,7 +29,7 @@ import TabItem from '@theme/TabItem';
 
 Each dataset has its own registration, access rules, and prepared query store.
 
-:::tip Recommended policy
+:::tip[Web: recommended access policy]
 Use groups as the default way to grant dataset access. Use direct allowed users only for exceptions.
 :::
 
@@ -194,7 +205,8 @@ being built. It is enabled only after the store is ready. A normal build
 failure removes the incomplete store and registration, so users never see a
 half-prepared dataset as available.
 
-:::warning Restricted data
+:::warning[Restricted data]
+
 Do not place restricted releases under the repository, Docker build context, or
 a public volume. Start with `admin_only`, `private`, and `blocked` AI access.
 Change those policies only after access, provider, and permitted-output review.
@@ -255,13 +267,21 @@ server first persists an empty selection; the browser then clears clinical,
 assay, multimodal, DICOM, cohort, Query, Pheno-Ranker, and Analysis state. The
 application does not silently select the first available dataset afterward.
 
-:::note Active versus pending
+:::note[Active versus pending]
+
 An **Active** marker identifies the server-persisted workspace. Checked boxes
 identify the pending selection. They can differ while a change is being
 reviewed or after an attempted switch fails.
 :::
 
 ## Access model
+
+<DeploymentNotice mode="web" title="Web only">
+
+The access rules below, including groups and direct user assignments, apply to
+multi-user Web deployments. They are not a Desktop account-management workflow.
+
+</DeploymentNotice>
 
 Dataset access is granted through:
 

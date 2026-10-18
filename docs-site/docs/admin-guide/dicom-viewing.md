@@ -6,12 +6,12 @@ sidebar_position: 4
 
 COHORTome can launch DICOM studies in OHIF while keeping pixel storage in Orthanc or another DICOMweb service. This integration is optional and disabled by default.
 
-:::danger Local development only
+:::warning[Bundled Orthanc has authentication disabled]
+
 The bundled Orthanc configuration disables authentication and exposes
-development ports. Use it only with the public synthetic fixtures. Before using
-real patient images, read [Real-Data Security](./real-data-security) and deploy
-an authenticated, network-restricted institutional DICOMweb service or reverse
-proxy.
+development ports. For restricted images, configure an authenticated,
+network-restricted DICOMweb service or reverse proxy. See
+[Security configuration](./real-data-security).
 :::
 
 ## Runtime services
@@ -110,7 +110,8 @@ The default fixture intentionally contains two kinds of studies:
   deliberately non-flat and patient-specific so OHIF rendering failures are
   easier to catch.
 
-:::warning Synthetic pixels
+:::warning[Synthetic pixels]
+
 The bundled MS brain MRI examples use MS-like metadata, but their pixels are
 generated entirely from geometric shapes and fixed noise, without patient images. They are for OHIF/metadata testing only
 and are not realistic MS lesion images.

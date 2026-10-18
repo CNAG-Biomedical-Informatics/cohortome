@@ -1,3 +1,7 @@
+export function downloadIcon() {
+  return '<span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></span>';
+}
+
 export function chatCopyButton() {
   return '<button type="button" class="chat-copy-button" data-chat-copy title="Copy message" aria-label="Copy message"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><span class="chat-copy-status" aria-live="polite"></span></button>';
 }
@@ -57,13 +61,26 @@ export function renderActivityCard(label, detail) {
   `;
 }
 
-export async function downloadFile(url, filename) {
-  const response = await fetch(url, { cache: "no-store" });
+export async function downloadFile(url, filename, options = {}) {
+  const response = await fetch(url, { ...options, cache: "no-store" });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(typeof error.detail === "string" ? error.detail : "Download unavailable. Check your access and try again.");
   }
   const blob = await response.blob();
+  if (window.__COHORTOME_DESKTOP__) {
+    const native = window.__TAURI__?.core;
+    if (!native) throw new Error('Desktop file saving is unavailable. Restart COHORTome and try again.');
+    if (blob.size > 32 * 1024 * 1024) throw new Error('Export exceeds the 32 MiB download limit.');
+    try {
+      const saved = await native.invoke('save_export_file', await blob.arrayBuffer(), {
+        headers: {'x-cohortome-filename': filename},
+      });
+      return saved ? 'saved' : 'cancelled';
+    } catch (error) {
+      throw new Error(typeof error === 'string' ? error : error.message || 'Unable to save the export.');
+    }
+  }
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
@@ -71,7 +88,12 @@ export async function downloadFile(url, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  return 'started';
+}
+
+export function downloadStatus(result) {
+  return result === 'saved' ? 'File saved.' : result === 'cancelled' ? 'Save cancelled.' : 'Download started.';
 }
 
 export function fallbackCopyText(text) {

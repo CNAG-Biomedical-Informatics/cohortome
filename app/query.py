@@ -1590,7 +1590,10 @@ def _validate_semantic_query_plan(plan: Dict[str, Any]) -> Optional[Dict[str, An
         return None
 
     validated_filters: List[Dict[str, Any]] = []
-    for item in filters[:6]:
+    # Bound the complete plan; truncation changes AND/OR query semantics.
+    if len(filters) > 50:
+        return None
+    for item in filters:
         if not isinstance(item, dict):
             return None
         domain = str(item.get("domain", "")).strip().lower()
@@ -1782,7 +1785,8 @@ def _semantic_query_plan(
                     "Inventory does not need feature or cohorts; summary needs feature; compare needs feature and both cohorts. "
                     "Use string operators only for patient_id/disease/treatment and numeric operators only for medication_count/visit_count. "
                     "Use only assay modalities and feature identifiers listed in the catalog. "
-                    "If the question uses a category term such as biologics, expand it into explicit treatment filters using the known treatments in the catalog."
+                    "If the question uses a category term such as biologics, expand it into all matching explicit treatment filters using the known treatments in the catalog. "
+                    "Use at most 50 filters; if more are needed, return unsupported rather than an incomplete selection."
                 ),
             },
             {
@@ -2339,6 +2343,18 @@ def _answer_query_impl(
         }
 
     scope_context = _build_query_scope_context(data_dir, scoped_patient_ids=active_scoped_patient_ids)
+
+    medication_question = re.match(
+        r"^(?:how many|which)\s+patients?\s+(?:take|takes|are taking|receive|receives|received|are on|on|use|uses|using|treated with)\s+.+",
+        text, flags=re.IGNORECASE,
+    )
+    if medication_question and scope_context.patient_rows and not scope_context.medication_counts:
+        return {
+            "query": query,
+            "intent": "treatment_data_unavailable",
+            "reply": "No treatment records are available for the current selection. This does not establish that no patients take the medication.",
+            "data": {"source": "deterministic", "treatment_data_available": False},
+        }
 
     if mode in {"planner_only", "llm_only"}:
         if normalized_ai_provider_access == "blocked":

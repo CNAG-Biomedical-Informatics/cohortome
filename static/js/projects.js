@@ -74,7 +74,7 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
     try {
       idle(); busy = true; save.disabled = open.disabled = true;
       await action();
-    } catch (error) { status.textContent = error.message; }
+    } catch (error) { status.textContent = error?.message || String(error || 'Unable to complete the project operation.'); }
     finally { busy = false; save.disabled = open.disabled = false; showMenu(true); }
   }
   async function saveProject() {
@@ -83,7 +83,7 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
     if (!name?.trim()) return;
     const session = await sessions.flushCurrentForProject();
     const tab = document.querySelector('.tab-panel.active')?.id.replace(/Tab$/, '') || 'dashboard';
-    const body = {name:name.trim(), view:['dashboard','datasets','query','analysis','pheno'].includes(tab) ? tab : 'dashboard',
+    const body = {name:name.trim(), view:['dashboard','datasets','cohorts','query','analysis','pheno'].includes(tab) ? tab : 'dashboard',
       analysis_session_id:session?.datasetId === datasets.currentDatasetSelectionKey() ? session.id : '',
       query_prompt:refs.questionEl.value, query_context:state.queryContextMode,
       conversation:state.queryTurns.filter(t => !t.pending).slice(-16).map(t => ({

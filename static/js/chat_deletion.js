@@ -61,6 +61,7 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
       }
       selecting = false; selected.clear();
       message(`Deleted ${deleted.length} chats. Generated runs and saved cohorts were kept.`);
+      if (dialog.open) dialog.close();
     } catch (error) {
       message(`Deleted ${deleted.length} of ${items.length} chats. ${error.message} Remaining chats were kept.`);
     } finally { busy = false; updateCount(); render(); }

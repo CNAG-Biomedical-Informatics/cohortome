@@ -14,6 +14,17 @@ import app.datasets as datasets_module
 import app.user_state as user_state_module
 
 
+@pytest.mark.parametrize('prompt', ['Find closest matches by disease', 'Find closest'])
+def test_closest_matches_requires_patient_selection(tmp_path, prompt):
+    clinical = tmp_path / 'clinical'
+    clinical.mkdir()
+    write_json(clinical, 'records.json', [{'id': 'SYN001:week_0', 'patient_id': 'SYN001'}])
+    result = pheno_module.plan_pheno_ranker(prompt, str(tmp_path))
+    assert result['plan']['mode'] == 'patient'
+    assert result['plan']['patient_id'] == ''
+    assert result['plan']['invalid_patient_id'] == ''
+
+
 def test_pheno_plan_marks_unknown_patient_token_as_blocking(tmp_path):
     clinical_dir = tmp_path / "clinical"
     clinical_dir.mkdir()
@@ -823,7 +834,13 @@ def test_pheno_llm_explain_and_wrapper_metadata(monkeypatch, tmp_path):
     explicit_error = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
     assert explicit_error["source"] == "llm_error"
 
-    monkeypatch.setattr(pheno_module, "http_json", lambda *args, **kwargs: {"choices": [{"message": {"content": "  Explanation  "}}]})
+    def brief_explanation(*args, **kwargs):
+        instruction = args[1]['messages'][0]['content']
+        assert 'at most 150 words' in instruction
+        assert 'exactly three short bullet points' in instruction
+        assert 'Do not infer that an unrecorded feature is clinically absent' in instruction
+        return {"choices": [{"message": {"content": "  Explanation  "}}]}
+    monkeypatch.setattr(pheno_module, "http_json", brief_explanation)
     success = pheno_module.explain_pheno_ranker_results_llm(tmp_path / "job1")
     assert success["source"] == "lm_studio"
     assert success["model"] == "local-model"

@@ -41,6 +41,17 @@ export function createAnalysisSessionsUi(ctx) {
   const { ANALYSIS_SESSIONS_STORAGE_KEY } = constants;
   let pendingDeleteSessionId = "";
   let deleteInFlight = false;
+  const saveStates = new Map();
+  function renderSaveStatus() {
+    const status = saveStates.get(state.currentAnalysisSessionId) || {};
+    document.getElementById('analysisChatPersistence').textContent = status.label || '';
+    document.getElementById('analysisChatSaveMessage').hidden = !status.error;
+    document.getElementById('analysisChatSaveError').textContent = status.error || '';
+  }
+  document.getElementById('analysisChatSaveRetry').addEventListener('click', () => {
+    const session = currentAnalysisSession();
+    if (session) void upsertAnalysisSessionToBackend(session);
+  });
   const chatSearch = document.getElementById("analysisChatSearch");
   chatSearch?.addEventListener("input", renderAnalysisSessionList);
 
@@ -147,6 +158,9 @@ export function createAnalysisSessionsUi(ctx) {
   }
 
   async function upsertAnalysisSessionToBackend(session, strict = false) {
+    const pending = {label: 'Saving…'};
+    saveStates.set(session.id, pending);
+    renderSaveStatus();
     try {
       const response = await fetch("/analysis-sessions", {
         method: "POST",
@@ -175,13 +189,17 @@ export function createAnalysisSessionsUi(ctx) {
           updated_at: session.updatedAt || "",
         }),
       });
-      if (strict && !response.ok) {
+      if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail || '');
         throw new Error(`Unable to save the current analysis conversation (${response.status}). ${detail}`);
       }
+      if (saveStates.get(session.id) === pending) saveStates.set(session.id, {label: 'Saved'});
     } catch (_error) {
+      if (saveStates.get(session.id) === pending) saveStates.set(session.id, {label: 'Not saved', error: _error.message || 'Unable to save chat.'});
       if (strict) throw _error;
+    } finally {
+      renderSaveStatus();
     }
   }
 
@@ -339,6 +357,7 @@ export function createAnalysisSessionsUi(ctx) {
   }
 
   function renderCurrentAnalysisChatBar() {
+    renderSaveStatus();
     const session = currentAnalysisSession();
     if (analysisCurrentChatTitleEl) {
       analysisCurrentChatTitleEl.textContent = session ? analysisSessionTitle(session) : "New chat";
@@ -437,8 +456,13 @@ export function createAnalysisSessionsUi(ctx) {
   }
 
   function createAndSelectAnalysisSession(overrides) {
+    if (state.analysisInFlight) {
+      analysisStatusEl.textContent = 'Wait for the current analysis to finish before starting another chat.';
+      return;
+    }
     syncCurrentAnalysisSessionFromUi({ touch: false, render: false });
     const session = createAnalysisSession({
+      promptDraft: '',
       ...(overrides || {}),
       datasetId: typeof currentDatasetSelectionKey === "function" ? String(currentDatasetSelectionKey() || "").trim() : "",
     });

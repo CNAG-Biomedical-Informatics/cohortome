@@ -42,6 +42,7 @@ const TAB_HELPER_TEXT = {
   clinical: "Review the clinical workspace overview",
   assay: "Inspect loaded assay modalities, DICOM status, and expression coverage",
   datasets: "Choose the authorized datasets that define your active workspace scope",
+  cohorts: "Find saved patient and sample groups across your datasets",
   data: "Admin-only dataset visibility and access policy management",
   users: "Admin-only local user and group management",
   models: "Admin-only approved LLM endpoint registry and health",
@@ -126,6 +127,7 @@ async function restoreChatWorkspace(scope) {
 function clearDatasetScopedContent(options = {}) {
   const signedOut = options.signedOut === true;
   if (signedOut) querySessionsUi?.clear();
+  if (signedOut) savedCohortsUi?.clearLibrary();
   if (signedOut) phenoSessionsUi?.clear();
   if (signedOut) { chatDeletionUi?.clear(); chatFoldersUi?.clear(); }
   const clearSelection = options.clearSelection === true;
@@ -577,6 +579,7 @@ navigationUi = createNavigationUi({
   },
   callbacks: {
     effectiveQueryGranularityCeiling: (datasetIds) => datasetsUi.effectiveQueryGranularityCeiling(datasetIds),
+    loadCohortLibrary: () => savedCohortsUi?.loadLibrary(),
     renderChatList: () => analysisSessionsUi?.renderAnalysisSessionList(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     closeJobSurfaces: () => {
@@ -661,6 +664,7 @@ savedCohortsUi = createSavedCohortsUi({
     escapeHtml,
   },
   callbacks: {
+    restoreWorkspace: restoreChatWorkspace,
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
@@ -829,7 +833,9 @@ phenoUi = createPhenoUi({
     beforePhenoChatRun: () => phenoSessionsUi?.beforeRun() ?? true,
     onPhenoChatResult: payload => phenoSessionsUi?.record('result', payload),
     onPhenoChatQueued: payload => phenoSessionsUi?.record('queued', payload),
+    onPhenoChatRunError: payload => phenoSessionsUi?.record('error', payload),
     onPhenoChatExplanation: payload => { void phenoSessionsUi?.record('explanation', payload); },
+    onPhenoExplanationStatus: update => phenoSessionsUi?.explanationStatus(update),
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
@@ -874,7 +880,10 @@ phenoUi = createPhenoUi({
 phenoSessionsUi = createPhenoSessionsUi({state, refs, pheno:phenoUi, escapeHtml,
   restoreWorkspace: restoreChatWorkspace,
   renderList:() => analysisSessionsUi.renderAnalysisSessionList(),
-  openTab:(savedChat = false) => navigationUi.setActiveTab('pheno', {savedChat}),
+  openTab:(savedChat = false) => {
+    navigationUi.setActiveTab('pheno', {savedChat});
+    if (!document.getElementById('analysisChatDock').contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
+  },
   actions:(kind,id) => chatFoldersUi?.actions(kind,id) || '',
 });
 
@@ -1280,6 +1289,7 @@ function bindEvents() {
     navigationUi.setActiveTab("dashboard");
   });
   refs.datasetsTabBtnEl && refs.datasetsTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("datasets"));
+  refs.cohortsTabBtnEl?.addEventListener('click', () => navigationUi.setActiveTab('cohorts'));
   refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => {
     if (refs.adminTabBtnEl.classList.contains("active")) {
       refs.adminTabBtnEl.setAttribute("aria-expanded", String(refs.adminTabBtnEl.getAttribute("aria-expanded") !== "true"));
@@ -1351,33 +1361,6 @@ function bindEvents() {
   refs.phenoRunBtnEl && refs.phenoRunBtnEl.addEventListener("click", () => {
     void phenoUi.runPhenoRanker();
   });
-  refs.phenoFlowBarEl && refs.phenoFlowBarEl.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-pheno-flow-target]");
-    if (!button || !refs.phenoFlowBarEl.contains(button)) {
-      return;
-    }
-    const target = String(button.dataset.phenoFlowTarget || "");
-    if (target === "scope" || target === "setup") {
-      if (refs.phenoSetupDetailsEl) {
-        refs.phenoSetupDetailsEl.open = true;
-        refs.phenoSetupDetailsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    } else if (target === "plan") {
-      if (refs.phenoSetupDetailsEl) refs.phenoSetupDetailsEl.open = true;
-      if (refs.phenoPlanDetailsEl) {
-        refs.phenoPlanDetailsEl.open = true;
-        refs.phenoPlanDetailsEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    } else if (target === "run") {
-      refs.phenoRunPanelEl && refs.phenoRunPanelEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      refs.phenoPromptEl && refs.phenoPromptEl.focus();
-    } else if (target === "results") {
-      const resultTarget = refs.phenoResultWorkspaceEl && !refs.phenoResultWorkspaceEl.classList.contains("is-hidden")
-        ? refs.phenoResultWorkspaceEl
-        : refs.phenoResultEmptyStateEl;
-      resultTarget && resultTarget.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  });
   refs.phenoAnalysisBtnEl && refs.phenoAnalysisBtnEl.addEventListener("click", () => {
     phenoUi.sendPhenoMatchesToAnalysis();
   });
@@ -1391,19 +1374,19 @@ function bindEvents() {
     void phenoUi.explainPhenoResultsWithLlm();
   });
   refs.phenoModeEl && refs.phenoModeEl.addEventListener("change", () => {
-    phenoUi.markPhenoManualOverride();
     phenoUi.updatePhenoMode();
-    phenoUi.renderPhenoFlowBar();
+    phenoUi.markPhenoManualOverride();
+    phenoUi.updatePhenoRunAvailability();
   });
   refs.phenoActionEl && refs.phenoActionEl.addEventListener("change", () => {
     phenoUi.markPhenoManualOverride();
     phenoUi.updatePhenoMode();
-    phenoUi.renderPhenoFlowBar();
+    phenoUi.updatePhenoRunAvailability();
   });
   refs.phenoSelectedPatientIdsEl && refs.phenoSelectedPatientIdsEl.addEventListener("input", () => {
     phenoUi.markPhenoManualOverride();
     phenoUi.renderSelectedPatientIdsSummary();
-    phenoUi.renderPhenoFlowBar();
+    phenoUi.updatePhenoRunAvailability();
   });
   [
     refs.phenoPatientIdEl,
@@ -1810,7 +1793,7 @@ function applyStoredTabPreferences() {
     if (savedDashboardSubtab && ["patients", "clinical", "assays", "imaging", "multimodal", "timeline"].includes(savedDashboardSubtab)) {
       navigationUi.setDashboardSubtab(savedDashboardSubtab);
     }
-    if (savedTab && ["dashboard", "cohort", "assays", "datasets", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "cohort", "assays", "datasets", "cohorts", "data", "users", "models", "query", "analysis", "pheno"].includes(savedTab)) {
       if (savedTab === "cohort") {
         navigationUi.setDashboardSubtab("clinical");
         navigationUi.setActiveTab("dashboard");
@@ -1843,7 +1826,7 @@ function initializeUiShell() {
   phenoUi.updatePhenoExplainActions();
   phenoUi.updatePhenoResultActions();
   phenoUi.updatePhenoRunAvailability();
-  phenoUi.renderPhenoFlowBar();
+  phenoUi.updatePhenoRunAvailability();
   phenoUi.updatePhenoMode();
   phenoUi.renderSelectedPatientIdsSummary();
   analysisCatalogUi.renderQueryExecutionMode();

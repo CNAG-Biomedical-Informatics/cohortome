@@ -49,7 +49,8 @@ Do not create synthetic visits for a cross-sectional dataset. Likewise, do not
 merge repeated visits into one BFF object merely because they belong to the
 same participant.
 
-:::note Beacon and visit context
+:::note[Beacon and visit context]
+
 Beacon Friendly Format is the clinical interchange model, but Beacon v2 does
 not provide the complete visit model needed for every longitudinal study.
 COHORTome therefore requires an ingestion mapping to preserve participant and

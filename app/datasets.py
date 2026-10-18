@@ -104,6 +104,19 @@ def clinical_representation(root_path: str) -> str:
     return normalize_clinical_representation(clinical.get("representation"))
 
 
+def dataset_study_design(root_path: str) -> str:
+    """Study design is declared, never inferred from clinical record storage."""
+    root = resolve_project_data_dir(root_path)
+    if root.name == "clinical":
+        root = root.parent
+    try:
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    design = manifest.get("study_design") if isinstance(manifest, dict) else None
+    return design if design in ("cross_sectional", "longitudinal") else ""
+
+
 def combined_clinical_representation(representations: List[str]) -> str:
     normalized = {normalize_clinical_representation(item) for item in representations}
     if len(normalized) == 1:
@@ -206,6 +219,7 @@ def dataset_content_metadata(root_path: str) -> Dict[str, Any]:
         "patient_count": patient_count,
         "clinical_record_count": clinical_record_count,
         "clinical_representation": representation,
+        "study_design": dataset_study_design(str(root)),
     }
 
 

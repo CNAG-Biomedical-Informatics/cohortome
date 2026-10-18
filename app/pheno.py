@@ -386,6 +386,7 @@ def is_non_actionable_pheno_request(text: str) -> bool:
     }:
         return True
     action_tokens = (
+        "closest",
         "compare",
         "extract",
         "export",
@@ -428,7 +429,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
             ],
             "follow_up_suggestions": [
                 "Compare all patients by diseases",
-                "Find closest matches to Beacon_5 by phenotype",
+                "Find closest matches by phenotype",
                 "Extract the selected patients",
             ],
         }
@@ -461,6 +462,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
         "versus all others",
         "best matches to",
         "closest matches to",
+        "find closest",
         "similar patients to",
         "matches to",
         "match patient",
@@ -488,7 +490,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
     has_patient_mode_phrase = any(phrase in lowered for phrase in patient_mode_phrases)
     has_implicit_single_patient_phrase = any(phrase in lowered for phrase in implicit_single_patient_phrases)
     single_patient_compare = action == "compare" and len(patient_ids) == 1 and not explicit_cohort
-    patient_mode_without_id = action == "compare" and not patient_ids and has_implicit_single_patient_phrase and not explicit_cohort
+    patient_mode_without_id = action == "compare" and not patient_ids and (has_implicit_single_patient_phrase or has_patient_mode_phrase) and not explicit_cohort
     mode = "patient" if ((patient_ids or patient_like_tokens) and (has_patient_mode_phrase or single_patient_compare)) or patient_mode_without_id else "cohort"
     patient_id = patient_ids[0] if mode == "patient" and patient_ids else ""
     invalid_patient_id = ""
@@ -597,7 +599,7 @@ def plan_pheno_ranker_deterministic(text: str, data_dir: str, selected_patient_i
         "reasoning": reasoning,
         "follow_up_suggestions": [
             "Compare all patients",
-            "Compare patient 107 to all",
+            "Find closest matches by phenotype",
             "Extract patients with Crohn Disease",
         ],
     }
@@ -1192,8 +1194,14 @@ def explain_pheno_ranker_results_llm(job_dir: Path, top_n: int = 3) -> Dict:
                     "Use only the provided JSON evidence. "
                     "Do not invent metrics or variables. "
                     "Use the provided metric_definitions to interpret rank.txt columns correctly. "
-                    "Keep the explanation concise, factual, and clinically readable. "
-                    "Prefer bullet points."
+                    "Write a brief research summary of at most 150 words, aiming for 100–150 words only when the evidence supports it. "
+                    "Use exactly three short bullet points labelled Closest match, Shared features, and Differences or missing data. "
+                    "For Closest match, identify the first ranked reference and its reported score, naming the metric accurately. "
+                    "For Shared features, mention only the two or three most informative shared features supported by the evidence. "
+                    "For Differences or missing data, highlight the main recorded differences or unavailable alignment evidence. "
+                    "Do not infer that an unrecorded feature is clinically absent. "
+                    "Do not repeat the full ranking table, explain every metric, or discuss every match. "
+                    "Do not infer a diagnosis or treatment recommendation from similarity."
                 ),
             },
             {

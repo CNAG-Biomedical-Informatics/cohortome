@@ -1,7 +1,8 @@
 # Synthetic autoimmune demo
 
-This dataset lets reviewers try the cross-sectional autoimmune workflows without
-receiving restricted study data. It contains **no real PRECISESADS data**.
+This cross-sectional dataset lets reviewers try autoimmune research workflows.
+It illustrates the type of use case planned for PRECISESADS, but is not derived
+from its data.
 Participants, measurements, effects, batches and missingness are independently
 simulated, not copied, anonymized, or fitted to patient-level study records.
 

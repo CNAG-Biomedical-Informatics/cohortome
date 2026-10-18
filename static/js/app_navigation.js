@@ -5,6 +5,8 @@ export function createNavigationUi(ctx) {
   const {
     dashboardTabBtnEl,
     datasetsTabBtnEl,
+    cohortsTabBtnEl,
+    cohortsTabEl,
     adminTabBtnEl,
     dataTabBtnEl,
     usersTabBtnEl,
@@ -92,6 +94,10 @@ export function createNavigationUi(ctx) {
     }
     const showDashboard = tabName === "dashboard";
     const showDatasets = tabName === "datasets";
+    const showCohorts = tabName === "cohorts";
+    cohortsTabBtnEl?.classList.toggle('active', showCohorts);
+    cohortsTabBtnEl?.setAttribute('aria-current', showCohorts ? 'page' : 'false');
+    cohortsTabEl?.classList.toggle('active', showCohorts);
     const showData = tabName === "data";
     const showUsers = tabName === "users";
     const showModels = tabName === "models";
@@ -137,6 +143,7 @@ export function createNavigationUi(ctx) {
     renderTabHelperText(tabName);
     renderGlobalContext();
     callbacks.renderChatList?.();
+    if (showCohorts) void callbacks.loadCohortLibrary?.();
   }
 
   function setDashboardSubtab(subtabName) {
@@ -168,6 +175,7 @@ export function createNavigationUi(ctx) {
   }
 
   function currentTabName() {
+    if (cohortsTabEl?.classList.contains('active')) return 'cohorts';
     if (phenoTabEl && phenoTabEl.classList.contains("active")) return "pheno";
     if (datasetsTabEl && datasetsTabEl.classList.contains("active")) return "datasets";
     if (dataTabEl && dataTabEl.classList.contains("active")) return "data";

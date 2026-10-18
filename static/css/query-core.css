@@ -133,6 +133,52 @@
         color: var(--muted);
         font-size: 0.92rem;
       }
+      .cohort-library-heading { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+      .cohort-library-heading span { color: var(--muted); font-size: .82rem; }
+      .cohort-library-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+      .cohort-library-search { position: relative; width: min(100%, 460px); }
+      .cohort-library-search > .button-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+      .cohort-library-search input { margin: 0; padding-left: 38px; font-size: .85rem; border-radius: 8px; }
+      .cohort-library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: stretch; }
+      .cohort-library-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); min-width: 0; }
+      .cohort-card-top { display: flex; gap: 10px; align-items: center; }
+      .cohort-card-symbol { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; color: var(--theme-blue-ink, var(--accent-deep)); background: var(--accent-soft); flex-shrink: 0; }
+      .cohort-card-state { color: var(--muted); font-size: .72rem; display: inline-flex; align-items: center; gap: 6px; }
+      .cohort-card-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+      .cohort-card-state.is-loaded::before { background: var(--theme-green-ink, #15803d); }
+      .app-content .cohort-library-card h3 { margin: 0; font-size: 1rem; line-height: 1.45; overflow-wrap: anywhere; }
+      .cohort-library-datasets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: -6px; }
+      .cohort-library-datasets span { padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+      .cohort-card-counts { display: flex; gap: 28px; margin: 0; padding: 12px 0; border-block: 1px solid var(--line); }
+      .cohort-card-counts > div { display: flex; flex-direction: column-reverse; gap: 2px; min-width: 0; }
+      .cohort-card-counts dt { color: var(--muted); font-size: .75rem; font-weight: 400; }
+      .cohort-card-counts dd { margin: 0; font-size: 1.4rem; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+      .cohort-card-actions.saved-cohort-actions { margin: 0; align-items: center; }
+      .app-content .cohort-library-card button { box-shadow: none; }
+      .cohort-card-footer { margin-top: auto; padding-top: 4px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+      .cohort-card-footer > small { color: var(--muted); font-size: .72rem; }
+      .cohort-card-footer .saved-cohort-actions { margin: 0; gap: 4px; }
+      .cohort-card-use-label { color: var(--muted); font-size: .75rem; align-self: center; }
+      .app-content .cohort-library-card .cohort-card-footer button { border: 0; background: transparent; color: var(--theme-blue-ink, var(--accent-deep)); padding: 6px; font-size: .75rem; }
+      .cohort-library-card .cohort-card-menu { position: relative; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+      .cohort-library-card .cohort-card-manage { margin-left: auto; }
+      .cohort-card-menu > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; color: var(--ink); padding: 8px 12px; font-size: .8125rem; line-height: 1.35; font-weight: 600; border: 1px solid var(--line); border-radius: 8px; }
+      .cohort-card-menu > summary::-webkit-details-marker { display: none; }
+      .cohort-card-manage > summary { padding: 6px; border-color: transparent; color: var(--muted); }
+      .cohort-card-menu > summary:hover, .cohort-card-menu[open] > summary { background: var(--accent-soft); }
+      .cohort-card-menu > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .cohort-card-menu-items { position: absolute; top: calc(100% + 5px); left: 0; z-index: 8; display: grid; gap: 3px; width: 230px; padding: 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-strong); box-shadow: var(--shadow); }
+      .cohort-card-manage .cohort-card-menu-items { right: 0; left: auto; width: 150px; }
+      .app-content .cohort-card-menu-items button { justify-content: flex-start; width: 100%; border: 0; background: transparent; color: var(--ink); font-weight: 500; }
+      .app-content .cohort-card-menu-items button:hover { background: var(--accent-soft); }
+      .app-content .cohort-card-menu-items [data-saved-cohort-action="delete"] { color: var(--theme-red-ink, #b91c1c); }
+      .cohort-library-card .button-icon { width: 16px; height: 16px; }
+      .cohort-library-card .button-icon svg { width: 16px; height: 16px; }
+      .cohort-members-dialog { width: min(850px, calc(100vw - 32px)); max-height: 85vh; }
+      .cohort-members-table { max-height: 60vh; overflow: auto; margin-bottom: 12px; }
+      .cohort-members-table td { overflow-wrap: anywhere; max-width: 300px; }
+      .cohort-members-dialog button { width: auto; font-size: .8125rem; padding: 8px 12px; }
+      #cohortLibraryPages { margin-top: 14px; align-items: center; }
       .saved-cohort-list {
         display: grid;
         gap: 10px;

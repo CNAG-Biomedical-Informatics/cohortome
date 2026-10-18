@@ -151,3 +151,57 @@ def cohort_bundle(cohort, patients):
         archive.writestr("membership.tsv", table)
         archive.writestr("metadata.json", meta_bytes)
     return bounded_bytes(output.getvalue())
+
+
+def clinical_cohort_bundle(cohort, roots):
+    """Current source BFF records for saved patients, separated by dataset."""
+    from app.bff import ensure_data_dir, extract_patient_id, read_bff_records
+    from app.cohort_members import resolve_members
+    try:
+        members = resolve_members(roots, members=cohort['members'], id_type=cohort['id_type'])
+    except (ValueError, FileNotFoundError, OSError):
+        raise HTTPException(409, 'Cohort source records or sample links are unavailable. Review the cohort before exporting.') from None
+    files, datasets, links = {}, [], []
+    total_bytes = total_records = 0
+    for number, (dataset_id, root) in enumerate(sorted(roots.items()), start=1):
+        wanted = {m['patient_id'] for m in members if m['dataset_id'] == dataset_id}
+        if not wanted:
+            continue
+        records, found = [], set()
+        filename = f'datasets/{number}/clinical.json'
+        try:
+            for _, _, record in read_bff_records(ensure_data_dir(root)):
+                pid = str(extract_patient_id(record) or '').strip()
+                if pid not in wanted:
+                    continue
+                encoded = json_bytes(record)
+                total_bytes += len(encoded) + 2
+                if total_bytes > MAX_EXPORT_BYTES:
+                    raise HTTPException(413, 'Clinical export exceeds 32 MiB. Select a smaller cohort.')
+                total_records += 1
+                check_size(total_records)
+                links.append(dict(dataset_id=dataset_id, patient_id=pid,
+                                  clinical_file=filename, record_index=len(records)))
+                records.append(encoded)
+                found.add(pid)
+        except (OSError, ValueError):
+            raise HTTPException(409, 'Clinical source data could not be read. Review the dataset before exporting.') from None
+        files[filename] = b'[\n' + b',\n'.join(records) + b'\n]'
+        datasets.append(dict(dataset_id=dataset_id, clinical_file=filename,
+            patient_count=len(wanted), clinical_record_count=len(records),
+            patients_without_clinical_records=sorted(wanted - found)))
+    files['clinical-records.tsv'] = table_bytes(links, ('dataset_id', 'patient_id', 'clinical_file', 'record_index'))
+    files['members.json'] = json_bytes(members)
+    files['manifest.json'] = json_bytes(metadata('cohort_clinical_data', list(roots), total_records,
+        cohort_id=cohort['id'], name=cohort['name'], datasets=datasets,
+        selection='All current clinical records for the saved patients, including all visits, even for sample-based cohorts.',
+        omitted=['Assay matrices', 'Raw sequencing files', 'DICOM images'],
+        provenance='Current registered source data, not a snapshot of previous analysis inputs. Original BFF fields and source IDs are retained; records are separated by dataset. Runtime provenance fields are excluded.',
+        linkage='clinical-records.tsv uses zero-based array indices. members.json records saved membership, not a complete sample inventory.'))
+    if sum(map(len, files.values())) > MAX_EXPORT_BYTES:
+        raise HTTPException(413, 'Clinical export exceeds 32 MiB. Select a smaller cohort.')
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for filename, content in files.items():
+            archive.writestr(filename, content)
+    return bounded_bytes(output.getvalue())

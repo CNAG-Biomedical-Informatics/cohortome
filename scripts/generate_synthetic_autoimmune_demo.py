@@ -10,7 +10,7 @@ import random
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = "Synthetic autoimmune demo — not real PRECISESADS data"
+LABEL = "Synthetic autoimmune demo"
 SEED = 20260907
 IFN = "IFI27 IFI44 IFI44L IFIT1 IFIT2 IFIT3 ISG15 MX1 OAS1 RSAD2".split()
 INFLAMMATION = "IL6 TNF CXCL8 CCL2 IL1B S100A8 S100A9 NFKB1 PTGS2 CXCL10".split()
@@ -33,6 +33,7 @@ def build(output):
         raise ValueError("Output already exists; choose a new directory.")
     rng = random.Random(SEED)
     write_json(output / "manifest.json", {"schema_version": 1, "name": LABEL,
+               "study_design": "cross_sectional",
                "clinical": {"representation": "snapshot"},
                "identifiers": {"clarid_subjects": {
                    "entity": "subject", "file": "identifiers/clarid_subjects.csv",

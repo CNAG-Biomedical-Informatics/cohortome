@@ -567,7 +567,7 @@ export function createDashboardUi(ctx) {
     dashboardEl.innerHTML = `
       <section class="section-card dashboard-hero">
         <h2>Clinical dashboard</h2>
-        <p>Key workspace metrics and quick patterns before drilling into one patient.</p>
+        <details class="view-help"><summary>About this view</summary><p>Counts and clinical distributions describe the active workspace. Open Patients to inspect an individual record.</p></details>
         <div class="assay-kpi-grid">
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Timepoints" : "Clinical records"}</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(recordCount))}</strong></div>
@@ -1344,7 +1344,7 @@ export function createDashboardUi(ctx) {
         </div>
         <div class="assay-coverage-chart">
           <strong>Patients by modality</strong>
-          <p class="section-note">Unique patients within each modality; a patient can appear in several rows.</p>
+          <details class="view-help"><summary>How these counts work</summary><p>Counts are unique patients within each modality. A patient can appear in several rows, so row counts should not be added together.</p></details>
           ${coverage.map(({ modality, count }) => `<div class="assay-coverage-row">
             <span>${assayOverviewIcon(modality)}${escapeHtml(formatAssayModality(modality))}</span>
             <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null ? 0 : count / largest * 100}%;background:${modalityColor(modality)}"></i></div>

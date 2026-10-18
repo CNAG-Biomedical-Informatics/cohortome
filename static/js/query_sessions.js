@@ -19,7 +19,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
   let saveState = '';
   let conflict = false;
   const dataset = () => String(refs.dataDirEl.dataset.scopeId || '').trim();
-  const title = item => item.title || 'New Query chat';
+  const title = item => item.title || 'New chat';
   function message(text = '', retryable = false) {
     status.textContent = text; status.hidden = !text;
     messageText.textContent = text; messageBox.hidden = !text;
@@ -37,7 +37,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     return payload;
   }
   function render() {
-    currentTitle.textContent = current ? title(current) : 'New Query chat';
+    currentTitle.textContent = current ? title(current) : 'New chat';
     persistence.textContent = saveState;
     const restored = current?.turns?.some(turn => turn.restored);
     const issue = continuationIssue();
@@ -88,7 +88,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     const first = state.queryTurns.find(turn => turn.role === 'user');
     const data = {
       id: current.id, revision: current.revision, dataset_id: current.dataset_id,
-      title: current.title_custom ? current.title : String(first?.prompt || refs.questionEl.value || 'New Query chat').slice(0, 100),
+      title: current.title_custom ? current.title : String(first?.prompt || refs.questionEl.value || 'New chat').slice(0, 100),
       title_custom: Boolean(current.title_custom),
       prompt_draft: refs.questionEl.value, context_mode: state.queryContextMode,
       execution_mode: state.queryExecutionMode, history: state.queryHistory,
@@ -139,6 +139,10 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     if (state.queryInFlight) { message('Wait for the current query to finish before starting another chat.'); return; }
     if (!await save()) return;
     query.resetQueryWorkspace();
+    if (dataset()) {
+      snapshot();
+      await save();
+    }
     search.value = ''; render();
     openQuery(); closeDrawer(); refs.questionEl.focus();
   }

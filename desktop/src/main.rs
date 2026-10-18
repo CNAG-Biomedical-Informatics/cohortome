@@ -4,6 +4,38 @@ use tauri_plugin_dialog::DialogExt;
 use std::io::{Read, Write};
 
 #[tauri::command]
+async fn save_export_file(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
+    let filename = request.headers().get("x-cohortome-filename")
+        .and_then(|value| value.to_str().ok()).ok_or("Missing export filename")?.to_owned();
+    if filename.len() > 120 || filename.starts_with('.')
+        || !filename.bytes().all(|ch| ch.is_ascii_alphanumeric() || b"-_.".contains(&ch)) {
+        return Err("Invalid export filename".into());
+    }
+    let extension = std::path::Path::new(&filename).extension()
+        .and_then(|value| value.to_str()).ok_or("Missing file extension")?.to_owned();
+    if !["zip", "tsv", "csv", "json"].contains(&extension.as_str()) {
+        return Err("Unsupported export format".into());
+    }
+    let bytes = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) if bytes.len() <= 32 * 1024 * 1024 => bytes.clone(),
+        _ => return Err("Expected a binary export up to 32 MiB".into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(file) = app.dialog().file().add_filter("Export file", &[extension.as_str()])
+            .set_file_name(&filename).blocking_save_file() else { return Ok(false); };
+        let mut path = file.into_path().map_err(|e| e.to_string())?;
+        if path.extension().is_none() { path.set_extension(&extension); }
+        if path.extension().and_then(|value| value.to_str()) != Some(extension.as_str()) || path.is_symlink() {
+            return Err(format!("Choose a regular .{} file", extension));
+        }
+        let mut temporary = tempfile::NamedTempFile::new_in(path.parent().ok_or("Invalid destination")?).map_err(|e| e.to_string())?;
+        temporary.write_all(&bytes).and_then(|_| temporary.as_file().sync_all()).map_err(|e| e.to_string())?;
+        temporary.persist(path).map_err(|e| e.to_string())?;
+        Ok(true)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn save_project_file(app: tauri::AppHandle, text: String) -> Result<bool, String> {
     if text.len() > 1024 * 1024 { return Err("Project exceeds 1 MiB".into()); }
     let value: serde_json::Value = serde_json::from_str(&text).map_err(|_| "Invalid project JSON")?;
@@ -56,7 +88,7 @@ impl Drop for Engine { fn drop(&mut self) { self.stop(); } }
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_project_file, open_project_file])
+        .invoke_handler(tauri::generate_handler![save_project_file, open_project_file, save_export_file])
         .setup(|app| {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
             let python = std::env::var("COHORTOME_DESKTOP_PYTHON").unwrap_or_else(|_| "python3".into());
@@ -76,27 +108,33 @@ fn main() {
             let ready: serde_json::Value = serde_json::from_str(&line)?;
             let url: tauri::Url = ready["url"].as_str().ok_or("Backend did not return a URL")?.parse()?;
             let origin = url.origin();
-            // Only this launched backend may invoke the two native project dialogs.
+            // Only this launched backend may invoke native file dialogs.
             app.add_capability(serde_json::json!({
                 "identifier": "project-dialogs", "windows": ["main"], "local": false,
                 "remote": {"urls": [format!("{}/*", origin.ascii_serialization())]},
-                "permissions": ["allow-save-project-file", "allow-open-project-file"]
+                "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file"]
             }).to_string())?;
             app.manage(engine);
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
-                .initialization_script("window.__COHORTOME_DESKTOP__ = true;")
+                .initialization_script("window.__COHORTOME_DESKTOP__ = true; document.addEventListener('contextmenu', event => event.preventDefault());")
+                .devtools(false)
                 .title("COHORTome — Desktop Preview")
                 .inner_size(1440.0, 960.0).min_inner_size(800.0, 600.0)
                 .on_navigation(move |target| target.origin() == origin)
                 .build()?;
             let file = Submenu::with_items(app, "File", true, &[
+                &MenuItem::with_id(app, "newQueryChatBtn", "New Query Chat", true, None::<&str>)?,
+                &MenuItem::with_id(app, "newAnalysisChatBtn", "New Analysis Chat", true, None::<&str>)?,
+                &MenuItem::with_id(app, "newPhenoChatBtn", "New Pheno-Ranker Chat", true, None::<&str>)?,
+                &PredefinedMenuItem::separator(app)?,
                 &MenuItem::with_id(app, "openProjectBtn", "Open Project…", true, Some("CmdOrCtrl+O"))?,
                 &MenuItem::with_id(app, "saveProjectBtn", "Save Project As…", true, Some("CmdOrCtrl+Shift+S"))?,
-                &MenuItem::with_id(app, "datasetsTabBtn", "Datasets", true, None::<&str>)?,
-                &MenuItem::with_id(app, "userSettingsBtn", "Settings", true, Some("CmdOrCtrl+,"))?,
+                &PredefinedMenuItem::separator(app)?,
                 &PredefinedMenuItem::quit(app, None)?,
             ])?;
             let view = Submenu::new(app, "View", true)?;
+            view.append(&MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?)?;
+            view.append(&PredefinedMenuItem::separator(app)?)?;
             for (id, label, shortcut) in [
                 ("dashboardTabBtn", "Dashboard", "CmdOrCtrl+1"),
                 ("queryTabBtn", "Query", "CmdOrCtrl+2"),
@@ -105,18 +143,59 @@ fn main() {
             ] {
                 view.append(&MenuItem::with_id(app, id, label, true, Some(shortcut))?)?;
             }
+            let dashboard = Submenu::new(app, "Dashboard Sections", true)?;
+            for (id, label) in [
+                ("dashboardClinicalBtn", "Clinical"), ("dashboardPatientsBtn", "Patients"),
+                ("dashboardTimelineBtn", "Timeline"), ("dashboardAssaysBtn", "Assays"),
+                ("dashboardImagingBtn", "Imaging"), ("dashboardMultimodalBtn", "Multimodal"),
+            ] {
+                dashboard.append(&MenuItem::with_id(app, id, label, true, None::<&str>)?)?;
+            }
+            view.append(&dashboard)?;
+            view.append(&PredefinedMenuItem::separator(app)?)?;
+            for (id, label) in [
+                ("datasetsTabBtn", "Datasets"), ("cohortsTabBtn", "Cohorts"),
+                ("analysisChatsDrawerBtn", "Chats"), ("jobsDrawerBtn", "Jobs"),
+                ("runHistoryDrawerBtn", "Run History"),
+            ] {
+                view.append(&MenuItem::with_id(app, id, label, true, None::<&str>)?)?;
+            }
             let edit = Submenu::with_items(app, "Edit", true, &[
+                &PredefinedMenuItem::undo(app, None)?, &PredefinedMenuItem::redo(app, None)?,
+                &PredefinedMenuItem::separator(app)?, &PredefinedMenuItem::cut(app, None)?,
                 &PredefinedMenuItem::copy(app, None)?, &PredefinedMenuItem::paste(app, None)?,
                 &PredefinedMenuItem::select_all(app, None)?,
             ])?;
-            app.set_menu(Menu::with_items(app, &[&file, &edit, &view])?)?;
+            let tools = Submenu::with_items(app, "Tools", true, &[
+                &MenuItem::with_id(app, "userSettingsBtn", "Settings…", true, Some("CmdOrCtrl+,"))?,
+                &MenuItem::with_id(app, "modelsTabBtn", "Model Configuration", true, None::<&str>)?,
+            ])?;
+            let help = Submenu::with_items(app, "Help", true, &[
+                &MenuItem::with_id(app, "documentation", "Documentation (Online)", true, None::<&str>)?,
+                &MenuItem::with_id(app, "journeys", "User Journeys (Online)", true, None::<&str>)?,
+                &PredefinedMenuItem::separator(app)?,
+                &MenuItem::with_id(app, "about", "About COHORTome", true, None::<&str>)?,
+            ])?;
+            app.set_menu(Menu::with_items(app, &[&file, &edit, &view, &tools, &help])?)?;
             Ok(())
         })
         .on_menu_event(|app, event| {
             let id = event.id().as_ref();
-            if ["openProjectBtn", "saveProjectBtn", "datasetsTabBtn", "userSettingsBtn", "dashboardTabBtn", "queryTabBtn", "analysisTabBtn", "phenoTabBtn"].contains(&id) {
+            if let Some(script) = menu_script(id) {
                 if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.eval(&format!("document.getElementById('{}')?.click()", id));
+                    let _ = window.eval(&script);
+                }
+            } else if let Some(url) = help_url(id) {
+                // Fixed public documentation URLs only; never a webview-supplied command.
+                #[cfg(target_os = "linux")]
+                let result = Command::new("xdg-open").arg(url).spawn();
+                #[cfg(target_os = "macos")]
+                let result = Command::new("open").arg(url).spawn();
+                #[cfg(target_os = "windows")]
+                let result = Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+                match result {
+                    Ok(mut child) => { std::thread::spawn(move || { let _ = child.wait(); }); }
+                    Err(_) => { app.dialog().message(format!("Could not open your browser. Visit {url}")).show(|_| {}); }
                 }
             }
         })
@@ -126,4 +205,45 @@ fn main() {
             if let Some(engine) = app.try_state::<Engine>() { engine.stop(); }
         }
     });
+}
+
+fn help_url(id: &str) -> Option<&'static str> {
+    match id {
+        "documentation" => Some("https://mrueda.github.io/cohortome/"),
+        "journeys" => Some("https://mrueda.github.io/cohortome/docs/user-guide/user-journeys"),
+        _ => None,
+    }
+}
+
+fn menu_script(id: &str) -> Option<String> {
+    if id == "reload" {
+        return Some("window.location.reload()".into());
+    }
+    if id == "about" {
+        return Some("(() => { if(document.getElementById('userSettingsPanel')?.classList.contains('is-hidden')) document.getElementById('userSettingsBtn')?.click(); document.querySelector('[data-settings-section=about]')?.click(); const about=document.getElementById('settingsAbout'); if(about){about.open=true; about.scrollIntoView({block:'nearest'});} })()".into());
+    }
+    if ["dashboardClinicalBtn", "dashboardPatientsBtn", "dashboardTimelineBtn", "dashboardAssaysBtn", "dashboardImagingBtn", "dashboardMultimodalBtn"].contains(&id) {
+        return Some(format!("if(!document.getElementById('dashboardTab')?.classList.contains('active')) document.getElementById('dashboardTabBtn')?.click(); document.getElementById('{}')?.click()", id));
+    }
+    if ["newQueryChatBtn", "newAnalysisChatBtn", "newPhenoChatBtn", "openProjectBtn", "saveProjectBtn",
+        "datasetsTabBtn", "cohortsTabBtn", "userSettingsBtn", "modelsTabBtn", "dashboardTabBtn",
+        "queryTabBtn", "analysisTabBtn", "phenoTabBtn", "analysisChatsDrawerBtn", "jobsDrawerBtn", "runHistoryDrawerBtn"].contains(&id) {
+        return Some(format!("document.getElementById('{}')?.click()", id));
+    }
+    None
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::*;
+    #[test]
+    fn menu_routes_only_known_actions() {
+        assert_eq!(menu_script("reload").as_deref(), Some("window.location.reload()"));
+        assert!(menu_script("newPhenoChatBtn").unwrap().contains(".click()"));
+        assert!(menu_script("cohortsTabBtn").is_some());
+        assert!(menu_script("dashboardImagingBtn").unwrap().contains("dashboardTabBtn"));
+        assert!(menu_script("about").unwrap().contains("about.open=true"));
+        assert!(menu_script("arbitrary-input").is_none());
+        assert!(help_url("arbitrary-input").is_none());
+    }
 }

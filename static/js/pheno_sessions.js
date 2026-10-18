@@ -3,7 +3,16 @@ import { addWorkspaceRestoreAction } from './workspace_restore.js';
 export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, actions, restoreWorkspace}) {
   let items = [], current = null, chain = Promise.resolve(), epoch = 0, restoring = false, timer, runSetup;
   const panel = document.getElementById('phenoChatHistory');
+  const resultWorkspace = document.getElementById('phenoResultWorkspace');
+  const resultHome = resultWorkspace.parentElement;
+  let activeResult = -1;
+  let explanationProgress = null;
+  let runProgress = null;
   const status = document.getElementById('phenoChatStatus');
+  function recovery(failed = false, conflict = false) {
+    document.getElementById('phenoChatSave').classList.toggle('is-hidden', !failed);
+    document.getElementById('phenoChatReload').classList.toggle('is-hidden', !conflict);
+  }
   const scope = () => String(refs.dataDirEl.dataset.scopeId || '');
   const fields = {prompt:'phenoPrompt', action:'phenoAction', mode:'phenoMode', patient_id:'phenoPatientId',
     selected_patient_ids:'phenoSelectedPatientIds', similarity_metric_cohort:'phenoSimilarityMetric',
@@ -19,7 +28,11 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
   }
   async function request(url, options) {
     const response = await fetch(url, options), data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to save Pheno-Ranker chat.');
+    if (!response.ok) {
+      const error = new Error(typeof data.detail === 'string' ? data.detail : 'Unable to save Pheno-Ranker chat.');
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
   function issue() {
@@ -29,14 +42,38 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     return '';
   }
   function render() {
-    document.getElementById('phenoChatTitle').textContent = current?.title || 'New Pheno-Ranker chat';
-    panel.innerHTML = (current?.turns || []).map((turn,index) => `<div class="query-section"><strong>${esc(turn.setup?.prompt || turn.label || 'Run')}</strong>
-      <p>${esc(turn.kind === 'queued' ? 'Background job submitted. Open this entry to check its result.' : turn.kind === 'explanation' ? (turn.payload.llm_reply || 'Saved result explanation') : 'Completed run')}</p>
-      <button type="button" class="query-chip" data-pheno-turn="${index}">${turn.kind === 'explanation' ? 'Show explanation' : 'Show results'}</button></div>`).join('');
+    document.getElementById('phenoChatTitle').textContent = current?.title || 'New chat';
+    // Move, do not clone, the live renderer: plots and their event handlers stay intact.
+    resultHome.append(resultWorkspace);
+    panel.innerHTML = (current?.turns || []).map((turn,index) => {
+      const explanation = turn.kind === 'explanation';
+      const prompt = explanation ? (turn.payload.llm_reply ? 'Explain these results with LLM' : 'Explain these results')
+        : (turn.setup?.prompt || turn.label || 'Run Pheno-Ranker');
+      const content = turn.kind === 'error' ? `<p role="alert">${esc(turn.payload.message)}</p><details><summary>Details</summary><pre>${esc(turn.payload.detail || '')}</pre></details>`
+        : explanation ? pheno.explanationMarkup(turn.payload)
+        : `<p>${esc(turn.kind === 'queued' ? 'Background job submitted.' : 'Completed run')}</p>
+          <button type="button" class="query-chip" data-pheno-turn="${index}">${turn.kind === 'queued' ? 'Check result' : 'Show results'}</button>
+          <div data-pheno-result-host="${index}"></div>`;
+      return `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(prompt)}</p></div></article>
+        <article class="analysis-turn analysis-turn-assistant" data-pheno-reply="${index}"><div class="analysis-turn-label">${explanation ? 'Explanation' : 'Pheno-Ranker'}</div>${content}</article>`;
+    }).join('');
+    if (runProgress) {
+      panel.insertAdjacentHTML('beforeend', `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(runProgress.prompt || 'Run Pheno-Ranker')}</p></div></article>
+        <article class="analysis-turn analysis-turn-pending pheno-run-progress" role="status" aria-live="polite" aria-busy="true"><div class="analysis-turn-label">Pheno-Ranker</div><div class="analysis-turn-body"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>Running Pheno-Ranker…</span></div></article>`);
+    }
+    if (explanationProgress) {
+      panel.insertAdjacentHTML('beforeend', `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(explanationProgress.request)}</p></div></article>
+        <article class="analysis-turn ${explanationProgress.error ? 'analysis-turn-error' : 'analysis-turn-pending'} pheno-explanation-progress" role="status" aria-live="polite" aria-busy="${!explanationProgress.error}"><div class="analysis-turn-label">Pheno-Ranker</div><div class="analysis-turn-body">${explanationProgress.error ? '' : '<div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>'}${esc(explanationProgress.message)}</div></article>`);
+    }
+    const host = panel.querySelector(`[data-pheno-result-host="${activeResult}"]`);
+    if (host) {
+      host.append(resultWorkspace);
+      panel.querySelector(`[data-pheno-turn="${activeResult}"]`).hidden = true;
+    }
     renderList();
   }
   function ensure() {
-    if (!current) current = {id:crypto.randomUUID(), revision:0, dataset_id:scope(), title:setup().prompt.slice(0,100) || 'New Pheno-Ranker chat', turns:[]};
+    if (!current) current = {id:crypto.randomUUID(), revision:0, dataset_id:scope(), title:setup().prompt.slice(0,100) || 'New chat', turns:[]};
     return current;
   }
   function save() {
@@ -46,7 +83,7 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     if (issue()) {status.textContent = issue(); return Promise.resolve(false);}
     const target = ensure(), version = epoch;
     target.setup = setup();
-    if (!target.title_custom) target.title = (target.turns[0]?.setup?.prompt || target.setup.prompt || 'New Pheno-Ranker chat').slice(0,100);
+    if (!target.title_custom) target.title = (target.turns[0]?.setup?.prompt || target.setup.prompt || 'New chat').slice(0,100);
     const data = JSON.parse(JSON.stringify(target));
     chain = chain.then(async () => {
       if (version !== epoch) return false;
@@ -56,8 +93,8 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
         if (version !== epoch) return false;
         target.revision = saved.revision;
         items = [saved, ...items.filter(item => item.id !== saved.id)];
-        status.textContent = 'Saved'; render(); return true;
-      } catch (error) {status.textContent = 'Not saved: ' + error.message; return false;}
+        recovery(); status.textContent = 'Saved'; render(); return true;
+      } catch (error) {if (version === epoch) {recovery(true, error.status === 409 && target.revision > 0); status.textContent = 'Not saved: ' + error.message;} return false;}
     });
     return chain;
   }
@@ -66,7 +103,7 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     try {const data = await request('/pheno-sessions'); if (version === epoch) {items = data.sessions; render();}}
     catch (error) {if (version === epoch) status.textContent = error.message;}
   }
-  function detach() {clearTimeout(timer); epoch++; current = null; runSetup = null; status.textContent = ''; render();}
+  function detach() {clearTimeout(timer); epoch++; current = null; runSetup = null; activeResult = -1; explanationProgress = null; runProgress = null; recovery(); status.textContent = ''; render();}
   async function showTurn(index) {
     if (pheno.chatBusy() || restoring) return;
     const turn = current?.turns[index]; if (!turn) return;
@@ -87,6 +124,8 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
         }
         pheno.restoreChatSetup(turn.setup || current.setup);
         await pheno.restoreChatResult(result);
+        activeResult = index;
+        render();
       }
       status.textContent = issue() || 'Saved result. Generated files are loaded from run history.';
     } catch (error) {status.textContent = 'Cannot reopen result: ' + error.message;}
@@ -100,9 +139,9 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     try {
       const item = await request('/pheno-sessions/' + encodeURIComponent(id));
       if (version !== epoch) return;
-      current = item; pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup(item.setup);
+      current = item; activeResult = -1; explanationProgress = null; runProgress = null; recovery(); pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup(item.setup);
       openTab(true); render(); status.textContent = issue() || 'Saved';
-      const latest = item.turns.map((t,i) => t.kind !== 'explanation' ? i : -1).filter(i => i >= 0).at(-1);
+      const latest = item.turns.map((t,i) => ['result','queued'].includes(t.kind) ? i : -1).filter(i => i >= 0).at(-1);
       if (latest !== undefined) await showTurn(latest);
       addWorkspaceRestoreAction(status, { scope: item.dataset_id, currentScope: scope(),
         restore: restoreWorkspace, reopen: () => open(id, true) });
@@ -112,13 +151,21 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     if (pheno.chatBusy() || restoring) {status.textContent = 'Wait for the current operation to finish.'; return;}
     if (!issue() && !await save()) return;
     detach(); pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup({}); openTab();
+    document.getElementById('analysisChatSearch').value = '';
+    if (scope()) {ensure(); await save();}
+    render();
     refs.phenoPromptEl.focus();
   }
   async function record(kind, payload) {
     if (restoring || issue()) return;
+    if (kind === 'explanation') explanationProgress = null;
+    else runProgress = null;
     const chat = ensure();
     if (kind === 'result' && chat.turns.some(t => t.kind === kind && t.payload.job_id === payload.job_id)) return;
-    chat.turns.push({kind, payload, setup:kind === 'explanation' ? setup() : (runSetup || setup())}); render(); await save();
+    chat.turns.push({kind, payload, setup:kind === 'explanation' ? setup() : (runSetup || setup())});
+    if (kind === 'result') activeResult = chat.turns.length - 1;
+    render(); await save();
+    panel.lastElementChild?.scrollIntoView({block:'start', behavior:'smooth'});
   }
   panel.addEventListener('click', event => {const b=event.target.closest('[data-pheno-turn]'); if(b) void showTurn(Number(b.dataset.phenoTurn));});
   document.getElementById('phenoChatSave').addEventListener('click', () => void save());
@@ -155,7 +202,24 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
   }
   window.addEventListener('cohortome:workspace-changing', detach);
   return {save, load, newChat, issue, record, forgetDeletedChats:forget,
-    async beforeRun() {const saved = await save(); if (saved) runSetup = setup(); return saved;},
+    explanationStatus(update) {
+      explanationProgress = update.error
+        ? {request: explanationProgress?.request || 'Explain results', message: update.error, error: true}
+        : {request: update.llm ? 'Explain these results with LLM' : 'Explain these results',
+           message: update.llm ? 'Explaining results with LLM…' : 'Explaining results…', error: false};
+      render();
+      panel.lastElementChild?.scrollIntoView({block:'nearest', behavior:'smooth'});
+    },
+    async beforeRun() {
+      const saved = await save();
+      if (saved) {
+        runSetup = setup(); runProgress = runSetup; activeResult = -1; explanationProgress = null;
+        resultWorkspace.classList.add('is-hidden');
+        render();
+        panel.lastElementChild?.scrollIntoView({block:'nearest', behavior:'smooth'});
+      }
+      return saved;
+    },
     clear() {items=[]; detach();},
     entries:() => items.map(item => ({...item, chatKind:'pheno', updatedAt:item.updated_at})),
     renderCard(item) {

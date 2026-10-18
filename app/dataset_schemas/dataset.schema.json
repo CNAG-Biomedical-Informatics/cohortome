@@ -6,6 +6,7 @@
   "properties": {
     "schema_version": {"type": "integer", "const": 1},
     "name": {"type": "string", "minLength": 1},
+    "study_design": {"enum": ["cross_sectional", "longitudinal"]},
     "clinical": {
       "type": "object",
       "required": ["representation"],

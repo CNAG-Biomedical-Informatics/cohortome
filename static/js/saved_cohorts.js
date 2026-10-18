@@ -1,4 +1,6 @@
-import { downloadFile } from "./shared.js";
+import { downloadFile, downloadIcon, downloadStatus } from "./shared.js";
+import { openMolecularExport } from './cohort_export.js';
+import { createCohortLibrary } from './cohort_library.js';
 
 export function createSavedCohortsUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -33,12 +35,22 @@ export function createSavedCohortsUi(ctx) {
   } = callbacks;
   let analysisNotice = "";
   let phenoNotice = "";
+  const library = createCohortLibrary({escapeHtml, datasetLabels: datasetLabelsForIds,
+    activeIds: currentDatasetIds, restoreWorkspace: callbacks.restoreWorkspace,
+    reloadScope: async id => {
+      await loadSavedCohorts();
+      if (id && !state.savedCohorts.some(item => item.id === id)) {
+        throw new Error('This cohort is no longer available in the workspace. Refresh its dataset access.');
+      }
+    }, onAction: handleSavedCohortAction});
+  const findCohort = id => state.savedCohorts.find(item => item.id === id) || library.find(id);
 
   function noticeForMode(mode) {
     return mode === "pheno" ? phenoNotice : analysisNotice;
   }
 
   function setNoticeForMode(mode, message) {
+    if (callbacks.currentTabName() === 'cohorts') library.say(message);
     if (mode === "pheno") {
       phenoNotice = String(message || "").trim();
     } else {
@@ -90,7 +102,10 @@ export function createSavedCohortsUi(ctx) {
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
               ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="export" data-saved-cohort-id="${escapeHtml(item.id)}" title="Membership TSV and metadata JSON">Export ZIP</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="rename" data-saved-cohort-id="${escapeHtml(item.id)}">Rename</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="export-clinical" data-saved-cohort-id="${escapeHtml(item.id)}">${downloadIcon()}Export clinical data</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="export-molecular" data-saved-cohort-id="${escapeHtml(item.id)}">${downloadIcon()}Export molecular data</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="export" data-saved-cohort-id="${escapeHtml(item.id)}" title="Membership TSV and metadata JSON only; no clinical records or assay matrices">${downloadIcon()}Export membership</button>
               ${isActiveHere ? `<span class="query-chip badge" title="Detach this cohort from the current Analysis or Pheno state before deleting it here.">In use here</span>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
             </div>
@@ -124,12 +139,14 @@ export function createSavedCohortsUi(ctx) {
   }
 
   function renderSavedCohorts() {
+    library.render();
     renderSavedCohortsInto(savedCohortsEl, "analysis");
     renderSavedCohortsInto(phenoSavedCohortsEl, "pheno");
     renderPhenoSavedCohortsSelection();
   }
 
   function setSavedCohortStatus(message) {
+    if (callbacks.currentTabName() === 'cohorts') { library.say(message); return; }
     if (callbacks.currentTabName() === "pheno") {
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = message;
@@ -147,6 +164,7 @@ export function createSavedCohortsUi(ctx) {
       if (!response.ok) {
         state.savedCohorts = [];
         renderSavedCohorts();
+        if (callbacks.currentTabName() === 'cohorts') await library.load();
         return;
       }
       const payload = await response.json();
@@ -156,6 +174,7 @@ export function createSavedCohortsUi(ctx) {
       state.savedCohorts = [];
       renderSavedCohorts();
     }
+    if (callbacks.currentTabName() === 'cohorts') await library.load();
   }
 
   async function saveLatestQueryAsCohort() {
@@ -249,6 +268,32 @@ export function createSavedCohortsUi(ctx) {
     }
   }
 
+  async function renameSavedCohort(cohortId) {
+    const item = findCohort(cohortId);
+    if (!item) return;
+    const name = window.prompt("Cohort name", item.name || "");
+    if (name === null || name.trim() === item.name) return;
+    const mode = callbacks.currentTabName() === "pheno" ? "pheno" : "analysis";
+    try {
+      if (!name.trim() || name.trim().length > 200) throw new Error("Cohort name must contain 1–200 characters.");
+      const response = await fetch(`/saved-cohorts/${encodeURIComponent(cohortId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : "Unable to rename cohort.");
+      Object.assign(item, payload);
+      if (library.find(cohortId)) Object.assign(library.find(cohortId), payload);
+      setNoticeForMode(mode, `Renamed cohort to "${payload.name}".`);
+      renderAnalysisScopeSummary();
+      renderAnalysisCompareScopeSummary();
+    } catch (error) {
+      setNoticeForMode(mode, error.message || "Unable to rename cohort.");
+    }
+    renderSavedCohorts();
+  }
+
   async function deleteSavedCohortById(cohortId) {
     const targetMode = callbacks.currentTabName() === "pheno" ? "pheno" : "analysis";
     if (cohortIsActiveInCurrentUi(cohortId)) {
@@ -282,7 +327,7 @@ export function createSavedCohortsUi(ctx) {
   }
 
   async function copySavedCohortIds(cohortId) {
-    const item = state.savedCohorts.find((entry) => entry.id === cohortId);
+    const item = findCohort(cohortId);
     const ids = Array.isArray(item && item.sample_ids) && item.sample_ids.length
       ? item.sample_ids
       : (Array.isArray(item && item.patient_ids) ? item.patient_ids : []);
@@ -397,11 +442,16 @@ export function createSavedCohortsUi(ctx) {
   function handleSavedCohortAction(button) {
     const cohortId = button.dataset.savedCohortId;
     if (!cohortId) return;
-    if (button.dataset.savedCohortAction === "export") {
+    if (button.dataset.savedCohortAction === 'export-molecular') return void openMolecularExport(cohortId, escapeHtml);
+    if (button.dataset.savedCohortAction === "rename") return void renameSavedCohort(cohortId);
+    if (["export", "export-clinical"].includes(button.dataset.savedCohortAction)) {
+      const clinical = button.dataset.savedCohortAction === "export-clinical";
+      const item = findCohort(cohortId);
+      if (clinical && !window.confirm(`Export clinical BFF records for ${item?.patient_count ?? "the selected"} patients?\n\nIncludes all available visits from the cohort's source datasets, not only selected samples. Missing clinical records are listed in the manifest. Assay matrices and raw files are not included.\n\nMaximum: 100,000 records / 32 MiB. Handle this download as research data.`)) return;
       button.disabled = true;
       setSavedCohortStatus("Preparing cohort download…");
-      void downloadFile(`/saved-cohorts/${encodeURIComponent(cohortId)}/export`, "saved-cohort.zip")
-        .then(() => setSavedCohortStatus("Cohort download prepared."))
+      void downloadFile(`/saved-cohorts/${encodeURIComponent(cohortId)}/export${clinical ? "?include=clinical" : ""}`, clinical ? "cohort-clinical-data.zip" : "saved-cohort.zip")
+        .then(result => setSavedCohortStatus(downloadStatus(result)))
         .catch((error) => setSavedCohortStatus(error.message))
         .finally(() => { button.disabled = false; });
       return;
@@ -414,6 +464,8 @@ export function createSavedCohortsUi(ctx) {
   }
 
   return {
+    loadLibrary: library.load,
+    clearLibrary: library.clear,
     renderPhenoSavedCohortsSelection,
     renderSavedCohorts,
     loadSavedCohorts,

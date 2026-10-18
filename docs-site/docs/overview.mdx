@@ -4,134 +4,79 @@ sidebar_position: 1
 
 # COHORTome
 
-:::tip[In one sentence]
-COHORTome helps research teams connect clinical and assay
-data captured once or over time, find groups of patients, and run traceable
-analyses without replacing the systems that store the source data.
-:::
+Explore clinical records, assays, and imaging; find patient groups; and run
+analyses with their settings and results saved together. Optional LLM assistance
+helps with queries and result explanations.
 
-<picture>
-  <source media="(max-width: 700px)" srcSet="/img/cohortome-research-journey-mobile.svg" />
-  <img
-    src="/img/cohortome-research-journey.svg"
-    alt="Approved clinical, assay, and imaging data enter COHORTome, where patient records are linked, a cohort is found, and a reviewed analysis is saved with its history."
-  />
-</picture>
+![COHORTome workspace with sidebar navigation and clinical summaries from bundled synthetic data](/img/screenshots/workspace-shell.png)
 
-COHORTome is a generic open-source tool that can be deployed alongside different
-approved data systems. Its first consortium-scale deployment is planned in the
-context of the
-[3TR consortium](https://www.ihi.europa.eu/projects-results/project-factsheets/3tr).
-In that deployment, COHORTome will receive authorized releases from the 3TR Omics DM
-Warehouse without depending on how the warehouse stores its files. The warehouse
-keeps and distributes data; COHORTome provides the research workspace.
+*The shared research interface. Screenshots in these guides use bundled synthetic data.*
 
-[PRECISESADS](https://www.ihi.europa.eu/projects-results/project-factsheets/precisesads)
-is held in the Omics DM Warehouse and is the first real reference implementation,
-with scientific collaboration from FPS in Granada. Public synthetic fixtures
-remain available for development, demonstration, and automated testing.
+## Choose where to work
 
-## What COHORTome does
+| | Desktop | Web |
+| --- | --- | --- |
+| Best for | Individual work on your computer | Teams using shared, centrally managed data |
+| Accounts | One local owner; no login | User accounts and dataset permissions |
+| Start | [Desktop guide](./getting-started/desktop) | [Web deployment](./admin-guide/starting-and-stopping) |
 
-- brings approved clinical and assay datasets into one research workspace
-- supports both cross-sectional studies and longitudinal follow-up
-- connects records from the same patient, sample, visit, or time point
-- shows what data are available, what are missing, and which modalities overlap
-- helps researchers find and save groups of patients for follow-up analysis
-- runs reviewed statistical and bioinformatics methods and keeps their outputs
-- compares patients or samples by phenotype through Pheno-Ranker
-- opens linked medical images in OHIF while the original pixels remain in the
-  imaging archive
-- can use approved language models to help plan a query or explain a result
+**Desktop is recommended for individual use.** Check the
+[installation guide](./getting-started/desktop) for release availability.
+**Web is recommended only for centralized deployments with multiple users and
+dataset permissions.** Both use the same research interface. Web is not a
+federated analysis system.
 
-## How responsibilities are divided
+## Try a first task
 
-| Layer | Responsibility |
+1. **Load data.** Open [Datasets](./user-guide/datasets), select a bundled dataset,
+   and apply it.
+2. **Explore.** Use [Dashboard](./user-guide/dashboard) to check patients,
+   available measurements, and modality coverage.
+3. **Find a group.** In [Query](./user-guide/query), ask
+   “Which patients have Crohn Disease?” using the default synthetic dataset.
+4. **Keep or analyze it.** Save the result as a cohort, open it in
+   [Analysis](./user-guide/analysis), or compare profiles in
+   [Pheno-Ranker](./user-guide/pheno-ranker).
+
+For complete examples, follow the [five user journeys](./user-guide/user-journeys).
+The [synthetic autoimmune demo](./user-guide/synthetic-autoimmune-demo) includes
+molecular measurements for assay-based examples.
+
+## Where do I go?
+
+| I want to… | Open |
 | --- | --- |
-| Sources | The Omics DM Warehouse and other approved systems keep and distribute the original data. |
-| Preparing data | COHORTome organizes clinical and assay information and connects patient, sample, and visit identifiers. |
-| Controlling access | COHORTome decides which registered datasets a user may open and what information may be sent to an approved model. |
-| Exploring | Researchers review timelines, clinical and assay summaries, medical images, missing data, and overlap between modalities. |
-| Finding cohorts | Researchers ask questions, inspect the method used, and save reusable groups of patients or samples. |
-| Analyzing | COHORTome runs reviewed clinical, omics, pathway, and phenotype-similarity methods. |
-| Keeping evidence | COHORTome retains the data scope, settings, logs, plots, tables, files, and run history needed to understand a result. |
+| Inspect one patient's records and linked assays | Dashboard → Patients |
+| See when observations and assays were collected | Dashboard → Timeline |
+| Find patients with several modalities | Dashboard → Multimodal |
+| Find, save, or export a patient group | Query, then Cohorts |
+| Run a statistical or molecular analysis | Analysis |
+| Compare phenotypic profiles | Pheno-Ranker |
+| Reopen a conversation or completed run | Chats or Run history |
 
-The diagram below shows how the components connect. Source systems keep
-the originals; COHORTome prepares authorized releases for exploration and analysis.
+## Using an LLM
 
-<picture>
-  <source media="(max-width: 700px)" srcSet="/img/cohortome-platform-workflow-mobile.svg" />
-  <img
-    src="/img/cohortome-platform-workflow.svg"
-    alt="Source systems feed COHORTome, where records are prepared, access is checked, and researchers explore patients, find cohorts, and run analyses."
-    loading="lazy"
-  />
-</picture>
+Supported queries and analyses work without an LLM. When a model is used, the
+reply identifies whether it planned the query or generated an explanation.
 
-## Core workflow
+**Workspace** questions use permitted dataset context. **General question**
+does not attach workspace data. A model running on your computer or trusted
+local network is different from an external service; configure that boundary
+explicitly. See [Governed AI](./concepts/governed-ai).
 
-1. An administrator registers an approved dataset and prepares it for searching.
-2. A researcher chooses one or more datasets they are allowed to use.
-3. The Dashboard shows the patient timeline, available assays, missing data,
-   and overlap between modalities.
-4. Query helps the researcher find a group of patients or samples and shows how
-   that group was selected.
-5. The researcher saves the group as a cohort and opens it in Analysis.
-6. Analysis runs a reviewed method and keeps the settings, logs, plots, tables,
-   and generated files with the result.
-7. Where permitted, an approved language model can help plan the next question
-   or explain the output without taking control of access or execution.
+<details>
+<summary>Research context and limits</summary>
 
-## Governed AI
+COHORTome is a research workbench, not a primary data warehouse or clinical
+decision system. It consumes approved data releases and keeps their provenance.
 
-An approved language model can help you find cohorts, plan analyses, and
-interpret results using the data you are allowed to access.
+Its first consortium-scale deployment is planned within 3TR, with PRECISESADS
+as the first real reference implementation. See
+[3TR and PRECISESADS](./project/3tr-and-precisesads) for the scientific context.
 
-Administrators choose which model services are approved, including services
-that run locally or inside a private network. Rules attached to each dataset
-determine whether detailed information, a limited summary, or nothing at all
-may be sent. COHORTome can still answer supported questions without a model and tells
-the researcher which route produced the result.
+Synthetic results demonstrate software behavior, not biological findings.
+Data preparation and quality review remain necessary before analysis.
+See [Scope and boundaries](./project/scope-and-boundaries) for current limits,
+and [Architecture](./developer-guide/architecture) for the component design.
 
-Read [Governed AI](./concepts/governed-ai) for model access rules and how we
-plan to evaluate model responses.
-
-## Current status
-
-COHORTome currently provides workspaces with dataset access controls, a longitudinal dashboard,
-clinical and assay exploration, Query, saved cohorts, Analysis sessions,
-transcriptomics workflows, Pheno-Ranker, configurable LLM providers,
-checks for missing data and overlap between assays, and optional OHIF/DICOMweb integration.
-
-The multimodal feature matrix lets you preview selected clinical and assay
-measurements together. It does not yet run a validated statistical or
-machine-learning analysis across modalities. PRECISESADS ingestion, the publication
-demonstrator, and formal LLM evaluation are active project work.
-
-See [Platform Scope And Boundaries](./project/scope-and-boundaries) for a precise
-description of available features and planned work.
-
-## What COHORTome is not
-
-- the 3TR Omics DM Warehouse or another primary storage system
-- an ADEx replacement
-- a raw DICOM archive or MRI segmentation pipeline
-- an arbitrary notebook or command-execution service
-- an autonomous clinical decision-support system
-- evidence that synthetic disease or treatment effects are biologically real
-
-## Choose a path
-
-| Goal | Start here |
-| --- | --- |
-| Start or stop an installation | [Starting and stopping](./admin-guide/starting-and-stopping) |
-| Understand the 3TR and PRECISESADS role | [3TR And PRECISESADS](./project/3tr-and-precisesads) |
-| Understand one-time and repeated observations | [Cross-sectional And Longitudinal Data](./concepts/cross-sectional-and-longitudinal) |
-| Load and inspect a workspace | [Datasets](./user-guide/datasets) and [Dashboard](./user-guide/dashboard) |
-| Discover and save cohorts | [Query](./user-guide/query) |
-| Run a curated method | [Analysis](./user-guide/analysis) |
-| Configure data access | [Datasets And Access](./admin-guide/datasets-and-access) |
-| Configure approved models | [Model Providers](./admin-guide/model-providers) |
-| Prepare a real-data deployment | [Real-Data Security](./admin-guide/real-data-security) |
-| Understand the implementation | [Architecture](./developer-guide/architecture) |
-| Understand the publication evidence plan | [Evaluation And Evidence](./validation/evaluation-and-evidence) |
+</details>

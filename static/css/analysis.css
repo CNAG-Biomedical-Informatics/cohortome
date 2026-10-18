@@ -45,6 +45,14 @@
       .chat-move-dialog { width: min(360px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 20px; color: var(--ink); background: var(--panel, var(--bg)); }
       .chat-move-dialog::backdrop { background: #0006; }
       .chat-move-dialog form { display: grid; gap: 12px; }
+      .cohort-export-dialog { width: min(620px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; }
+      .cohort-export-assays { display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
+      .cohort-export-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; text-transform: none; letter-spacing: 0; }
+      .cohort-export-option input { width: auto; flex: 0 0 auto; margin-top: 4px; }
+      .cohort-export-option span { min-width: 0; overflow-wrap: anywhere; }
+      .cohort-export-option strong { font-size: .85rem; }
+      .cohort-export-option small { display: block; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+      .cohort-export-dialog button { width: auto; padding: 8px 12px; font-size: .8125rem; border-radius: 8px; }
       .chat-move-actions { display: flex; justify-content: flex-end; gap: 8px; }
       .chat-move-actions button { width: auto; padding: 7px 12px; font-size: 13px; }
       .chat-type-icon { display: inline-flex; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; color: var(--muted); }
@@ -57,9 +65,18 @@
       #analysisSessionList .analysis-session-card {
         padding: 6px; gap: 4px; border: 0; border-radius: 8px; background: transparent; flex: 0 0 auto;
       }
-      #analysisSessionList .analysis-session-card.is-active { background: var(--theme-blue-soft, #eff6ff); box-shadow: none; }
+      #analysisSessionList .analysis-session-card.is-active {
+        background: #c8dcfa;
+        box-shadow: inset 3px 0 0 #2563eb;
+      }
+      :root[data-theme="dark"] #analysisSessionList .analysis-session-card.is-active {
+        background: #26466e;
+        box-shadow: inset 3px 0 0 #93c5fd;
+      }
       #analysisSessionList .analysis-session-main { display: block; padding: 5px; font-size: 13px; }
       #analysisSessionList .analysis-session-title { font-size: 13px; font-weight: 500; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #analysisSessionList .analysis-session-card.is-active .analysis-session-title { font-weight: 600; }
+      #analysisSessionList .analysis-session-card.is-active .chat-type-icon { color: var(--theme-blue-ink, #1d4ed8); }
       .analysis-chat-date { font-size: 11px; font-weight: 600; color: var(--muted); margin: 14px 6px 4px; }
       .analysis-chat-status { font-size: 11px; color: var(--muted); }
       .analysis-chat-menu { position: relative; }
@@ -1551,9 +1568,20 @@
         box-shadow: var(--shadow);
       }
       .analysis-turn-user {
-        border-color: rgba(148, 163, 184, 0.28);
-        background: var(--theme-surface, #f8fafc);
+        width: fit-content;
+        max-width: min(85%, 760px);
+        margin-left: auto;
+        border-color: transparent;
+        background: #dbeafe;
         color: var(--ink);
+        box-shadow: none;
+        overflow-wrap: anywhere;
+      }
+      :root[data-theme="dark"] .analysis-turn-user {
+        background: #26466e;
+      }
+      @media (max-width: 600px) {
+        .analysis-turn-user { max-width: 95%; }
       }
       .analysis-turn-user > .analysis-turn-label {
         color: var(--theme-blue-ink, #334155);

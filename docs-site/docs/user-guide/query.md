@@ -4,495 +4,117 @@ sidebar_position: 1
 
 # Query
 
-## Saved chats
-
-The left sidebar lists Query, Analysis and Pheno-Ranker chats together, ordered by recent
-activity. A speech bubble identifies Query chats, a chart identifies Analysis
-chats, and a connected-node icon identifies Pheno-Ranker chats. Use the compose
-icon beside **Chats** to choose a chat type. Select a chat to reopen it, or use
-its three-dot menu to rename or delete it.
-Drag the divider to the right of Chats to adjust its width. The width is remembered
-on this device. You can also focus the divider and use the left/right arrow keys.
-
-Use the magnifying-glass button beside **Chats** to open search. Escape clears
-the search and closes the field.
-
-### Folders and pins
-
-To delete several chats, choose **Select chats…** from the compose menu, check
-the chats, and choose **Delete selected…**. The count includes selections hidden
-by search or collapsed folders. Pinned shortcuts refer to the same chat and are
-counted once. Confirmation is required.
-
-In Settings, **Clear chat history…** lets you choose Query, Analysis, or both
-across folders and workspaces. Pinned chats are excluded unless explicitly included.
-Chat deletion removes messages and inline results, but keeps source datasets,
-saved cohorts, and generated runs and files in Run history. Use the separate
-**Delete generated runs** action in Settings to clean up those files; active runs
-are kept.
-
-Choose **New folder** from the compose menu to create a personal folder. Query
-and Analysis chats can share a folder. In a chat's three-dot menu, choose
-**Move to folder…**, then select a folder or **Unfiled**. Folder menus offer
-rename and deletion. Deleting a folder moves its chats to Unfiled; it does not
-delete conversations, cohorts or runs.
-
-Choose **Pin** on a chat or folder to add a shortcut in **Pinned**. The original
-chat stays in its folder, and moving it does not remove the pin. **Unpin** only
-removes the shortcut. Folder names, assignments and pins are saved for your user
-on this installation. Folders do not select datasets, grant access, add model
-context or change a chat's original workspace. They are separate from saved
-`.cohortome` project files.
-
-Query saves your questions, replies and draft to your account on this installation.
-Desktop saves them for the local owner. The conversation header shows its title
-and whether changes are saving, saved or not saved. A save failure stays visible
-above the conversation even when the sidebar is closed; use **Retry save** after
-a temporary failure. If another window changed the chat, **Reload saved chat**
-asks before discarding this window's unsaved changes. Do not close the app until
-save failures are resolved. Chats are not portable data bundles.
-The current limit is 100 questions per Query chat and 2 MB of saved content.
-
-Reopened replies are saved snapshots. Rerun a query to use result pagination,
-exports or cohort actions; saved result handles are not reactivated automatically.
-
-If you changed the active datasets, choose **Load this chat’s datasets** to load
-the original set and reopen the chat. This does not import data or rerun results.
-Every original dataset must still be available and authorized. If the source data
-changed, start a new chat rather than continuing from stale results.
-Continuing a chat requires its original, unchanged workspace. Dataset access and
-response-detail policy are checked again when retrieving it. Deleting a Query
-chat does not delete saved cohorts or Analysis runs.
-
-**General question** and **Workspace** messages retain separate model histories,
-including after reopening. A general question does not send the workspace part
-of the conversation to the model. Only recent messages are used as model history,
-even though the chat retains earlier replies.
-
-## Sort and export patient or sample tables
-
-Click a column heading to sort **all matching rows**, including rows on later
-pages. Click again to reverse the order. Visits and medication counts sort
-numerically; identifiers sort as text. Missing values stay last. Changing the
-sort returns to page one, without changing cohort membership.
-
-Choose **Export all · TSV** or **Export all · CSV** beside a result table to
-download every row in the selected order, not just the visible page. Patient
-tables include identifiers, available subject ClarIDs, dataset IDs, sex, visits
-and medication counts. Sample tables include sample IDs and unambiguous subject
-links/ClarIDs where available. These are clinical result exports, not downloads
-of the underlying molecular matrices.
-
-**Metadata JSON** downloads a separate companion file with dataset IDs, query
-creation/export times, the workspace fingerprint token, sort settings and the
-original query text. Older results may not have stored the query text. Metadata
-does not include server paths, user credentials or internal cursor secrets.
-User-entered query text is retained, so review it before sharing the file.
-
-Exports use your existing Detailed-access permissions and recheck authorization
-at download time. Expired results or changed workspace/policy bindings must be
-queried again. Summary-only results do not offer patient-level exports.
-
-Files use UTF-8. Import identifier columns as text to preserve leading zeros.
-Potential spreadsheet formulas are prefixed with an apostrophe; dataset-ID
-cells contain JSON arrays. Sorting/export supports up to 100,000 result rows;
-downloads are limited to 32 MiB and fail explicitly rather than truncate.
-Downloads are generated in memory, not retained as server-side export files.
-
-Use `Query` to find patients or samples and save them as a cohort.
-
-Patient result tables include a **ClarID** column. Click its label to inspect
-the decoded fields or copy the human-readable code or stub. Sample tables use
-**Subject ClarID** for the linked patient's code, not a biosample identifier.
-An absent or ambiguous recorded link displays **Not available**; COHORTome
-does not infer the patient from a sample name. These labels use the authorized
-patient inventory and do not add identifiers to Summary responses.
+Find patients or samples, inspect the result, and save a reusable cohort.
 
-When you submit a question, the introductory prompt library closes so the
-response has more space. The result keeps its provenance, execution labels,
-cohort actions and suggested follow-ups visible. Use **Prompts** beside the
-follow-up composer to reopen the examples without returning to the top of the
-conversation. **New Query chat** starts a separate conversation and keeps the old
-one in the sidebar.
+## Find your first group
 
-:::tip Best use
-Start here to select the group you want to analyze.
-:::
+With the default synthetic dataset loaded:
 
-## What Query can do
+1. Open **Query**.
+2. Ask **Which patients have Crohn Disease?**
+3. Review the reply and matching patients.
+4. Choose **Save cohort** or **Open in Analysis**.
 
-- list patients or samples in the current workspace
-- filter by disease or medication
-- support deterministic and LLM-planned prompts
-- save subsets as saved cohorts when the current Query thread allows detailed handoff
-- open the current result in Analysis when the current Query thread allows detailed handoff
+![Query conversation showing a synthetic patient search and its result](/img/screenshots/query-tab.png)
 
-![Query tab with a subset result and workflow actions](/img/screenshots/query-tab.png)
+*Your questions appear on the right; replies appear on the left. Result details are folded by default.*
 
-## Typical use cases
+The exact disease query above works without an LLM. Questions such as
+“How many patients take biologics?” may use an approved model to translate the
+drug category into explicit filters. Missing treatment records are reported as
+missing data—not evidence that nobody takes a treatment.
 
-Common examples include:
+## Choose the right context
 
-- `Tell me the list of patients in the workspace`
-- `How many patients take biologics?`
-- `Which patients have Crohn Disease?`
-- `Which patients do not have Crohn Disease but take Infliximab?`
+| Context | Use it for |
+| --- | --- |
+| **Workspace** | Questions about the loaded datasets; finding and saving cohorts |
+| **General question** | Asking the model a general question without attaching workspace data |
+| **Prompt scope: previous result** | Refining the last supported patient selection |
+| **Prompt scope: workspace** | Starting a fresh search across the workspace |
 
-### Compact external assays
+General questions require a model and do not create cohorts. Supported workspace
+queries remain available without one.
 
-Approved immune-cell abundance and quantitative-serology assays can be queried
-without loading their measurements into DuckDB. Query reads the matrix
-registered for the assay and returns summary statistics.
+## Read, sort, and reuse results
 
-Examples:
+Click a table heading to sort all matching rows, not just the visible page.
+Click again to reverse the order. Use the page controls for long lists.
 
-- `List the available serology markers`
-- `List the available immune-cell populations`
-- `Summarize FEATURE in serology`
-- `Summarize FEATURE in flow cytometry for this cohort`
-- `Compare FEATURE in serology between Disease A and Healthy Control`
+- **Save cohort:** keep the full matching group for later.
+- **Open in Analysis:** use the group as analysis input.
+- **Export all · TSV / CSV:** download the full result table.
+- **Metadata JSON:** download the query and dataset context.
 
-Feature summaries report sample count, missingness, mean, median, minimum, and
-maximum. Comparisons report descriptive cohort means and their difference. They
-do not apply covariate adjustment or hypothesis testing. Use an Analysis tool
-for statistical tests, and check that its model is appropriate for your study.
+These actions require Detailed access. Summary-only replies do not expose
+patient-level exports or cohort handoffs. To export clinical records or molecular
+measurements, use the [Cohorts library](saved-cohorts-and-handoffs.md).
 
-A comparison resolves cohorts from recorded disease labels. When a requested
-control label is absent, Query can use patients with no recorded disease as a
-control proxy and says so in the result. Verify that proxy against study design
-before interpreting it as a healthy-control group.
+<details>
+<summary>How was the answer produced?</summary>
 
-The deterministic route is available whenever the assay and workspace policy
-allow local detailed access. An LLM may select the same constrained operations
-only when AI-provider policy permits the assay catalog to be shared; the model
-does not execute SQL or receive the returned measurement rows.
+Open the reply's details to inspect its execution route:
 
-## Choose the question context
+| Label | Meaning |
+| --- | --- |
+| **Deterministic** | Local query logic produced the answer |
+| **LLM-planned** | A model proposed a constrained plan; COHORTome executed it |
+| **LLM answer** | A model wrote the answer using the permitted context |
 
-The composer has an explicit context switch:
+Follow-up buttons show their route with a text label and colour before selection.
+In-app response detail and model-context permissions are separate: seeing a
+detailed result does not mean that detail was sent to a model.
+See [Governed AI](../concepts/governed-ai.md).
 
-- `Workspace` asks about the active data and can use deterministic or
-  model-planned execution under the workspace policy.
-- `General question` asks the selected approved model without supplying an
-  active dataset, patient list, assay inventory, or other workspace context.
+</details>
 
-General questions are useful for quick background explanations such as “What
-is aspirin?” They also work when no dataset is selected. Their result is marked
-`No workspace context`, and their conversation history is kept separate from
-workspace questions.
+<details>
+<summary>Chats, folders, and pins</summary>
 
-COHORTome does not automatically turn an unsupported workspace question into a
-general one. This keeps a question that may contain private study details from
-being sent under a different context than the user selected.
+Use **New → Query chat** in the sidebar to start another conversation.
+Query, Analysis, and Pheno-Ranker chats share folders and search. Their icons
+identify the tool. The three-dot menu offers rename, move, pin, and deletion.
 
-:::caution General questions still leave the browser
-The question text and recent General-question history are sent to the selected
-model provider. Do not paste confidential or patient-level information into an
-external provider.
-:::
+Drag the Chats divider to resize it. The magnifying-glass button opens chat
+search; Escape clears and closes it. Folders organize conversations, not datasets
+or access permissions.
 
-## Result types
+Changes save automatically. Wait for **Saved**; use **Retry save** after a failure.
+**Reload saved chat** asks before discarding unsaved edits from this window.
+Query currently retains up to 100 questions and 2 MB per chat.
 
-Query can return:
+Deleting chats keeps datasets, saved cohorts, and generated runs/files.
+Settings → **Clear chat history** lets you choose chat types and whether to
+include pinned chats. Generated files have a separate cleanup action.
 
-- patient-level lists
-- sample-level lists
-- counts
-- deterministic summaries
+</details>
 
-### Large lists
+<details>
+<summary>Reopen a chat after changing datasets</summary>
 
-Large patient or sample lists are paged. Query shows the first 50 matches and
-the total result size, then offers `Load more` when additional rows are
-available. It does not place the complete list in the chat reply.
+Choose **Load this chat’s datasets** to restore its original dataset selection.
+This does not import data or rerun results. The datasets must remain available
+and authorized. If source data changed, start a new chat.
 
-The complete ordered membership stays temporarily on the COHORTome server
-behind an opaque result handle. The handle lasts for one hour and remains bound
-to the user, workspace, and current access policy. COHORTome rechecks those
-conditions when another page is requested or the result is handed to another
-tool.
+Saved replies are snapshots. Rerun a query to use result pagination, exports,
+or cohort actions. Workspace and General-question model histories remain separate.
 
-Count questions are intentionally smaller: `How many ...?` returns the count,
-not a hidden patient list or a reusable result handle. Ask `Which patients ...?`
-when you need a subset that can be inspected, refined, saved, or analyzed.
+</details>
 
-The wording matters:
+<details>
+<summary>Identifiers and export details</summary>
 
-- `patients`
-  - patient-level result
-- `samples`, `biosamples`, `specimens`, `records`
-  - sample-level result
-
-:::info Wording matters
-If you ask for `patients`, the answer should be patient-oriented.
-
-If you ask for `samples`, `records`, or `timepoints`, the answer should be sample-oriented.
-:::
-
-## Current terminology
-
-The app now prefers `workspace` for the loaded data scope. That means prompts like these are valid:
-
-- `Tell me the list of patients in the workspace`
-- `How many timepoints are in this workspace?`
-
-## Query disclosure mode
-
-`Query` still has two effective in-app disclosure levels:
-
-- `Summary`
-- `Detailed`
-
-But users no longer switch them manually in the Query tab.
-
-The mode is now applied automatically from the active workspace policy:
-
-- if every selected dataset allows detailed Query, the workspace runs in `Detailed`
-- if any selected dataset is `Summary only`, the workspace runs in `Summary`
-
-The Query header shows the effective mode as a read-only workspace indicator.
-
-After a query, provenance uses two separate badges:
-
-- `Response detail` describes what may be shown to you inside COHORTome.
-- `Model context` appears when a model was consulted and describes what the
-  model actually received.
-
-These values can differ. `Response detail: Detailed` and `Model context: Safe
-summary` means detailed local results are allowed in your session, but only a
-reduced summary was sent to the model.
-
-These badges apply to `Workspace` questions. A `General question` instead shows
-`No workspace context`, because no dataset-derived context was supplied.
-
-## Latest query details
-
-The collapsed `Latest query details` panel shows how the latest answer was
-produced and its structured response metadata. It is visible by default. Turn
-`Latest query details` off in `Settings` when you prefer a simpler Query view;
-this changes only the panel's visibility, not Query execution, model context,
-or disclosure policy.
-
-### Summary
-
-In a workspace with `Summary` access, answers are limited to information such as:
-
-- counts
-- grouped summaries
-- aggregate-style answers
-
-In `Summary`:
-
-- patient and record detail lookups are blocked
-- Query does not expose patient or record IDs to the client
-- Query handoff actions are hidden or disabled
-
-### Detailed
-
-`Detailed` is available only when the workspace policy allows it. In that mode Query can return:
-
-- patient-level answers
-- record-level answers
-- Query handoff actions such as `Open in Analysis` or `Save cohort`
-
-## Prompt scope
-
-`Query` has its own local prompt-scope control.
-
-This is different from the global workspace shown in the top bar:
-
-- global `Scope`
-  - the actual loaded app scope
-- `Query` prompt scope
-  - the scope used for the next Query prompt
-
-The button can show states such as:
-
-- `Prompt scope: workspace`
-- `Prompt scope: previous result (5 patients)`
-- `Prompt scope: waiting for previous result`
-
-:::info
-The top `Scope` pill still refers to the real loaded workspace.
-
-`Prompt scope` is a Query-local refinement layer, not a replacement for the app-wide scope.
-:::
-
-## Query memory
-
-By default, Query runs on the current workspace.
-
-If the user enables `Prompt scope: previous result`, follow-up Query prompts can reuse the last Query subset instead. For a paged result, the backend applies the complete result membership, not only the visible page.
-
-Example:
-
-1. `How many patients have Crohn Disease?`
-2. enable `Prompt scope: previous result`
-3. `How many are female?`
-
-In that situation, the second question is interpreted inside the Crohn subset rather than the full workspace.
-
-:::warning
-Query memory is opt-in.
-
-The app does not silently narrow follow-up prompts unless the user enables the prompt-scope control.
-:::
-
-:::note
-`Prompt scope` is currently available only when the active workspace is in `Detailed`.
-
-It is hidden in `Summary` because aggregate-only results do not create the
-member-level result handle needed for follow-up scope reuse.
-:::
-
-## Full-workspace override
-
-Even when Query memory is enabled, the user can explicitly ask for the broader scope again.
-
-Examples:
-
-- `How many female patients are in the full workspace?`
-- `List all patients in the workspace`
-
-That explicit wording tells Query to ignore the remembered subset and use the full current workspace.
-
-## Deterministic versus LLM-planned
-
-`Query` supports more than one execution style:
-
-- `Deterministic`
-  - direct app logic and known filters
-- `LLM-planned`
-  - the model interprets the language, but the app still tries to execute a structured result
-- `LLM answer`
-  - model-generated answer when there is not a structured deterministic path
-
-In practice:
-
-- exact disease or medication filters often behave deterministically
-- more natural phrasing and mixed conditions often benefit from `Use LLM planner`
-- LLM fallback still uses the current Query prompt scope when one is active
-
-Suggested follow-up questions use the same disclosure before you click them:
-
-- blue `Deterministic` follow-ups run only through deterministic Query logic
-- green `LLM-planned` follow-ups ask the model to create a structured plan, which the app then executes
-
-The text label is always shown alongside the color, and selecting a follow-up pins that execution path for the next query.
-
-:::note
-`Use LLM planner` here describes execution behavior, not a permanent user-facing mode switch. The current Query tab applies in-app disclosure automatically from workspace policy.
-:::
-
-## AI-provider policy
-
-`Query` distinguishes:
-
-- what the user is allowed to see inside COHORTome
-- what COHORTome is allowed to send to AI providers
-
-The dataset/workspace AI-provider policy is separate from the in-app Query mode:
-
-- `Detailed allowed`
-- `Safe summary`
-- `Blocked`
-
-Data classification is applied first: private dataset context can be used by an
-approved local provider when policy allows it, but never by an external
-provider.
-
-Examples:
-
-- a workspace may allow `Detailed` in-app Query answers while still allowing only `Safe summary` context to AI providers
-- a deterministic Query turn may show a rich local answer without sending anything to a provider at all
-
-:::info
-Provider badges appear only when an AI provider was actually used for that Query turn.
-:::
-
-## Query Label Meanings
-
-The Query badges distinguish three different execution paths:
-
-```mermaid
-flowchart TD
-    Q[User prompt] --> D{Deterministic route exists?}
-    D -->|Yes| B[Deterministic]
-    D -->|No| P{LLM planner available and useful?}
-    P -->|Yes| G[LLM-planned<br/>Deterministic execution]
-    P -->|No structured route| A[LLM answer]
-
-    B --> B2[Backend answers from local query logic]
-    G --> G2[LLM translates prompt into a constrained plan<br/>Backend executes the plan locally]
-    A --> A2[LLM answers directly from the permitted context]
-
-    classDef deterministic fill:#dbeafe,stroke:#2563eb,color:#1d4ed8,stroke-width:1.5px;
-    classDef planned fill:#dcfce7,stroke:#16a34a,color:#15803d,stroke-width:1.5px;
-    classDef llm fill:#fef3c7,stroke:#b45309,color:#92400e,stroke-width:1.5px;
-    classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#334155,stroke-width:1.2px;
-
-    class B,B2 deterministic;
-    class G,G2 planned;
-    class A,A2 llm;
-    class Q,D,P neutral;
-```
-
-Read the labels as:
-
-- `Deterministic`
-  - blue
-  - the app answered using local query logic only
-- `LLM-planned`
-  - green
-  - the model translated the language into a constrained internal plan, but the app still executed the result locally
-- `LLM answer`
-  - amber
-  - the model answered directly from the permitted context because no deterministic or structured planned route was used
-
-## Disease shortcuts
-
-The disease selector in Query is a shortcut for deterministic or LLM-planned subset building. It is especially useful for:
-
-- common diseases
-- Healthy Controls
-- quickly opening a subset in Analysis
-
-## Handoff actions
-
-Query results can be reused through the action buttons:
-
-- `Open in Analysis`
-- `Save cohort`
-- `More actions`
-
-These are available only when the current Query thread and current result allow them.
-
-For a paged result, `Save cohort` and `Open in Analysis` use the server-held
-result directly. Saving promotes the temporary result to a durable saved
-cohort; the browser does not have to send hundreds of IDs back to the server.
-
-:::note
-In current Query behavior, `Summary` does not offer handoff actions.
-
-Use a workspace with `Detailed` in-app Query access when the next step is to save, inspect, or hand off the matching subset.
-:::
-
-## Practical advice
-
-Use `Query` when the main question is:
-
-- who is in the current subset
-- how many match a condition
-- which disease or medication filters define the subset you want to analyze next
-
-Use `Prompt scope: previous result` when:
-
-- the user is refining the same subset step by step
-- the next question should stay local to the previous Query result
-
-This currently means using a `Detailed` Query thread.
-
-Leave it at `Prompt scope: workspace` when:
-
-- the user wants a fresh question against the loaded workspace
-- the previous Query result is no longer the intended scope
+Click a **ClarID** label to inspect its decoded fields. **Subject ClarID** on a
+sample row describes the linked patient, not a biosample code.
+
+Exports preserve dataset identifiers and recheck access when downloaded.
+CSV/TSV files use UTF-8; import ID columns as text to preserve leading zeros.
+Potential spreadsheet formulas are prefixed with an apostrophe. The current
+limits are 100,000 result rows and 32 MiB per download; oversized exports fail
+rather than silently truncate.
+
+Metadata includes query text, dataset IDs, timestamps, sort settings, and a
+workspace fingerprint. Review user-entered text before sharing it. Server paths
+and credentials are not included.
+
+</details>

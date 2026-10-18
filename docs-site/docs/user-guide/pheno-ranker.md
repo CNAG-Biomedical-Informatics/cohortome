@@ -2,205 +2,118 @@
 sidebar_position: 3
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 # Pheno-Ranker
 
-`Pheno-Ranker` compares patients or subsets using phenotypic similarity.
+Compare clinical and phenotypic profiles. Choose a mode, select your data, and
+run—no prompt or LLM is required.
 
-## Saved chats
+![Pheno-Ranker cohort comparison setup with two mode buttons and folded optional controls](/img/screenshots/pheno-tab.png)
 
-Choose **New → Pheno-Ranker chat** in the shared sidebar. Keep using the normal
-scope, setup and run controls; an LLM is not required. Run settings, completed
-results, queued-job references and result explanations are saved in the chat.
-Expand **Chat history** to reopen an earlier result in the existing interactive
-plots and tables. Reopening a result does not run Pheno-Ranker again.
+## Compare a cohort
 
-Chats support the same folders, pinning, search, rename and deletion controls as
-Query and Analysis. Deleting a chat keeps generated files and runs in Run history.
-If those files are later removed, the chat cannot reconstruct the interactive
-result. Queued entries check the job when opened; they are not live job monitors.
+1. Choose **Cohort comparison**.
+2. Keep the full workspace, or open **Saved Cohorts** to select a group.
+3. Check the summary above **Run Pheno-Ranker**, then run.
 
-A chat stays bound to its original workspace. Choose **Load this chat’s datasets** before
-continuing; start a new chat if its source data changed. Save errors are shown
-beside the chat title. **Save chat** retries a save; **Reload saved** can discard
-unsaved edits after a conflict with another window.
+Open **Customize comparison** only when you need different terms, metrics, or
+output options. The default view keeps these controls folded.
 
-:::warning
-Despite the historical wording around cohort mode, current Pheno-Ranker workflows are fundamentally sample-level.
+## Find similar patients
+
+1. Choose **Patient ranking**.
+2. Search **Patient or visit to match** and select an available record.
+3. Check the target and reference population in the readiness summary.
+4. Select **Run Pheno-Ranker**.
+
+![Patient ranking setup showing the searchable target field and readiness message](/img/screenshots/pheno-patient-setup.png)
+
+*You select an existing record; you do not need to know the clinical JSON structure.*
+
+:::note[Patients and visits]
+A longitudinal patient can have several records. Choose the relevant visit
+when you want to compare that observation rather than the patient's whole history.
 :::
 
-## Modes
+## Read the result
 
-- patient mode
-- cohort mode
+| Result | What to inspect |
+| --- | --- |
+| Patient ranking | Ranked matches, scores, and shared or differing features |
+| Cohort comparison | Heatmap, MDS projection, and network when enabled |
+| Explain results | Structured evidence computed from the output |
+| Explain with LLM | A brief interpretation; supporting evidence is under **Show details** |
 
-![Pheno-Ranker tab](/img/screenshots/pheno-tab.png)
+LLM explanations are requested as three short bullets: closest match, shared
+features, and differences or missing data. Check them against the computed
+scores. Similarity is not a diagnosis or treatment recommendation.
 
-<Tabs>
-  <TabItem value="patient-mode" label="Patient mode" default>
-    <div>
-      <p>Use patient mode when you want one target patient or sample to be matched against the active workspace references.</p>
+Select points or nodes in supported plots to **save a cohort**, **copy IDs**, or
+**open the selection in Analysis**.
 
-      <p>Typical output:</p>
-      <ul>
-        <li>ranked matches</li>
-        <li>alignment details</li>
-        <li>deterministic or LLM explanation</li>
-      </ul>
-    </div>
+## Keep comparing in one chat
 
-  </TabItem>
-  <TabItem value="cohort-mode" label="Cohort mode">
-    <div>
-      <p>Use cohort mode when you want a selected subset to be compared at the sample level.</p>
+Each run appends your request on the right and its result on the left. Previous
+runs stay in the conversation. **Show results** reopens an earlier run without
+recomputing it; only one run's interactive plots are expanded at a time.
 
-      <p>Important current rule:</p>
-      <ul>
-        <li>this mode still operates on sample-level records</li>
-        <li>if patient IDs are supplied, backend expansion may be needed before the run</li>
-      </ul>
-    </div>
+Use **New → Pheno-Ranker chat** for a separate conversation. Chats use the same
+folders, pins, and search as Query and Analysis.
 
-  </TabItem>
-</Tabs>
+<details>
+<summary>Use a prompt instead</summary>
 
-## What cohort mode really means here
+Expand **Use a prompt instead** to describe the comparison or choose an example.
+A prompt fills the same controls. Editing those controls makes them authoritative
+for the next run.
 
-In the current app, Pheno-Ranker cohort mode still operates on sample-level records.
+Supported requests use deterministic planning; others may need an approved LLM.
+**Technical details** contains the interpreted plan, reasoning, and provider
+information. Follow-up labels identify their planning route before you click.
 
-That means the scope may contain:
+</details>
 
-- one or more sample IDs
-- records coming from multiple reference files
+<details>
+<summary>Plots and metrics</summary>
 
-## Active workspace files
+Jaccard similarity increases with overlap; Hamming distance increases with
+differences. Check the metric before interpreting scores or graph edge cutoffs.
 
-Pheno-Ranker works from the clinical JSON files currently present in the active workspace.
+Enable **Render UMAP** in Settings for subsequent cohort runs. It requires the
+optional UMAP dependencies and at least three records. Projection parameters and
+package versions are saved in the run's metadata. Distances between UMAP
+clusters are not the original distances.
 
-This is why:
+</details>
 
-- one dataset can contribute more than one active workspace file
-- a multi-dataset workspace can produce several Pheno reference files
+<details>
+<summary>Data limitations and identifiers</summary>
 
-:::info
-Do not confuse dataset count with Pheno reference-file count. One dataset may contribute several clinical JSON files.
-:::
+Pheno-Ranker compares the supplied clinical records. Multiple visits or source
+files may contribute separate records; record count is not necessarily patient
+count.
 
-## Current scope behavior
+Exact numeric values can make poor similarity tokens: CRP 9.8 and 10.1 may be
+treated as different features. Review the comparison terms. Clinically justified
+categorization belongs in data preparation, not an automatic interpretation of
+the resulting similarity.
 
-Pheno-Ranker works on sample-level identifiers.
+In multi-file results, prefixes such as `C1_` identify run-local reference
+groups. Use COHORTome's selection and handoff actions to retain the correct
+dataset and patient/sample linkage; do not manually strip identifiers.
 
-That means:
+</details>
 
-- selected records remain sample IDs
-- copied selected IDs should remain sample IDs
-- when sent to Analysis, they should remain sample IDs
+<details>
+<summary>Saved chats, files, and workspace changes</summary>
 
-## Current UX
+Wait for **Saved** beside the chat title. **Retry save** appears after a failure;
+**Reload saved chat** can discard unsaved edits after confirmation.
 
-The tab provides:
+A chat is bound to its original workspace. Use **Load this chat’s datasets**
+when switching back, or start a new chat if the source data changed. Queued
+entries can check for completed results; Jobs shows execution status.
 
-- interactive heatmap
-- interactive MDS
-- optional interactive UMAP
-- interactive graph, when graph rendering is enabled
-- deterministic explanation
-- LLM explanation
+Deleting a chat keeps generated runs and files in Run history. Removing those
+files later can prevent the interactive result from reopening.
 
-Selections from MDS, UMAP or graph views can be copied, saved as cohorts, or opened in Analysis.
-
-Enable **Render UMAP** in Settings to add a UMAP projection to subsequent
-cohort runs. It is off by default and requires the optional `cohortome[umap]`
-installation in the app and worker environment. It uses precomputed Hamming
-distances or `1 − Jaccard similarity`, one CPU, seed 42, up to 30 neighbours and
-minimum distance 0.3. At least three records are required. Parameters and package
-versions are saved in `umap_metadata.json`. UMAP emphasizes local neighbourhoods;
-distances between clusters should not be interpreted as original distances.
-
-For graph runs, optional edge-weight cutoffs can be set in the advanced setup:
-
-- Jaccard graphs usually use a minimum edge weight, because higher values mean stronger similarity
-- Hamming graphs usually use a maximum edge weight, because lower values mean stronger similarity
-
-## Limitation: raw measures are weak phenotypic tokens
-
-Numeric clinical measures are currently carried into `Pheno-Ranker` as observed values.
-
-That is often not ideal for cross-sample similarity because:
-
-- raw values are not directly comparable across all patients or settings
-- very close numeric values may behave like separate phenotypic tokens
-- clinically meaningful patterns are often ordinal or categorical rather than exact-value based
-
-Examples:
-
-- `CRP = 9.8` vs `CRP = 10.1`
-- `Leukocyte Count = 8.9` vs `Leukocyte Count = 9.2`
-
-These are usually better interpreted as:
-
-- normal
-- mildly elevated
-- highly elevated
-
-:::warning
-For measure-driven similarity, the current approach is exploratory. Raw numeric values are often less informative than binned or categorized representations.
-:::
-
-### Recommended preprocessing direction
-
-Before similarity calculation, numeric measures should ideally be transformed into bins or categories such as:
-
-- below normal
-- normal
-- above normal
-- high inflammatory burden
-
-This would make measure-based similarity more clinically meaningful and more stable across samples.
-
-## Prefixes in multi-file runs
-
-When several reference files are passed to Pheno-Ranker, selected IDs may temporarily appear with prefixes like:
-
-```text
-C1_SYN001:week_0
-```
-
-These prefixes indicate reference-file grouping inside the Pheno run. They should be removed when:
-
-- copying IDs
-- handing the selection to Analysis
-
-:::tip
-If you see identifiers like `C1_SYN001:week_0`, treat the `C1_` part as temporary run-local labeling, not part of the underlying sample ID.
-:::
-
-## Explanation modes
-
-The current UI offers two explanation paths:
-
-- `Explain results`
-  - deterministic
-- `Explain with LLM`
-  - model-generated interpretation
-
-The intent is:
-
-- deterministic explanation gives structured evidence from the similarity output
-- LLM explanation gives a narrative interpretation, with deterministic evidence shown as support
-
-:::note
-Read explanation cards alongside the ranks and scores. Check any interpretation
-against those computed results.
-:::
-
-## Planner follow-up questions
-
-After previewing a plan, Pheno-Ranker can show suggested follow-up questions. Their routing is disclosed before selection:
-
-- blue `Deterministic` means the suggestion came from deterministic planning
-- green `LLM-planned` means the suggestion came from the model planner
-
-Selecting one only places it in the prompt editor for review. It does not automatically preview or run a new Pheno-Ranker job.
+</details>

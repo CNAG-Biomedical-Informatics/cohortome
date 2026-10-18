@@ -455,10 +455,7 @@ def sanitize_lm_text(content: str) -> str:
         lowered = line.strip().lower()
         if not lowered:
             return False
-        if re.match(r"^\d+\.\s", lowered):
-            return True
-        if lowered.startswith(("*", "-", "•")):
-            return True
+        # Lists and bold Markdown are valid answers, not evidence of reasoning.
         return any(marker in lowered for marker in reasoning_markers)
 
     first_non_empty = next((line for line in lines if line.strip()), "")

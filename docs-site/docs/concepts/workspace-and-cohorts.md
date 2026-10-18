@@ -6,7 +6,8 @@ sidebar_position: 1
 
 Workspaces and saved cohorts determine which data you are working with.
 
-:::tip Terminology shortcut
+:::tip[Terminology shortcut]
+
 Your `workspace` contains the datasets you have selected and applied.
 
 A `saved cohort` records a selection of patients or samples for reuse.
@@ -69,13 +70,15 @@ In the second example, the workspace spans multiple datasets, while the saved co
 - `Pheno-Ranker`
   - runs inside the active workspace, unless you narrow it with saved cohorts or scope
 
-:::note Query-local scope
+:::note[Query-local scope]
+
 `Query` has a local `Prompt scope` control that can temporarily refine the next Query prompt to the previous Query result.
 
 That local prompt scope is not the same thing as the global workspace shown in the shell.
 :::
 
-:::warning Do not treat workspace and saved cohort as synonyms
+:::warning[Do not treat workspace and saved cohort as synonyms]
+
 This distinction matters more now that one workspace may span multiple datasets.
 
 `Analysis` compare mode is cohort-oriented, while `Datasets` defines the broader workspace.

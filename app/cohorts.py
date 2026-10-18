@@ -173,6 +173,22 @@ def save_cohort(
     return item
 
 
+def rename_saved_cohort(cohort_id: str, name: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> Dict[str, Any]:
+    name = name.strip()
+    if not name or len(name) > 200:
+        raise ValueError('Cohort name must contain 1–200 characters.')
+    with advisory_file_lock(_cohort_store_lock_path(user_id)):
+        items = _read_saved_cohorts(user_id)
+        item = next((entry for entry in items if entry.get('id') == cohort_id), None)
+        if item is None:
+            raise KeyError(cohort_id)
+        item['name'] = _dedupe_cohort_name(name, item['dataset_id'],
+                                         [entry for entry in items if entry['id'] != cohort_id])
+        item['updated_at'] = datetime.now(timezone.utc).isoformat()
+        _write_saved_cohorts(items, user_id)
+        return {key: item[key] for key in ('id', 'name', 'updated_at')}
+
+
 def delete_saved_cohort(cohort_id: str, user_id: str = DEFAULT_LOCAL_USER_ID) -> bool:
     with advisory_file_lock(_cohort_store_lock_path(user_id)):
         items = _read_saved_cohorts(user_id)

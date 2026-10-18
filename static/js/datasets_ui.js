@@ -42,14 +42,14 @@ export function createDatasetsUi(ctx) {
       svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
     },
     cross_sectional: {
-      label: "Cross-sectional clinical records",
+      label: "Cross-sectional study design",
       legendLabel: "Cross-sectional",
-      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3"></circle><path d="M6 20a6 6 0 0 1 12 0"></path></svg>',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 12h6m6 0h6M12 3v5m0 8v5"/><circle cx="12" cy="12" r="3"/></svg>',
     },
     longitudinal: {
-      label: "Longitudinal clinical records",
+      label: "Longitudinal study design",
       legendLabel: "Longitudinal",
-      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 12h4m4 0h4"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>',
     },
     clinical: {
       label: "Clinical data",
@@ -85,10 +85,10 @@ export function createDatasetsUi(ctx) {
     if (normalizeDataClassification(dataset && dataset.data_classification) === "private") {
       keys.push("private");
     }
-    const representation = String(dataset && dataset.clinical_representation ? dataset.clinical_representation : "").trim().toLowerCase();
-    if (representation === "person") {
+    const design = dataset?.study_design;
+    if (design === "cross_sectional") {
       keys.push("cross_sectional");
-    } else if (representation === "snapshot") {
+    } else if (design === "longitudinal") {
       keys.push("longitudinal");
     }
     if (Number(dataset && dataset.clinical_record_count ? dataset.clinical_record_count : 0) > 0) {

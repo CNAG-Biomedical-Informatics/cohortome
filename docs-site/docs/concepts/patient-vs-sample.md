@@ -7,7 +7,8 @@ sidebar_position: 2
 One patient can have several samples or timepoint records. Counting samples
 can therefore give a different answer from counting patients.
 
-:::warning This distinction affects behavior across tabs
+:::warning[This distinction affects behavior across tabs]
+
 The same visible subset may be described in patient language while still preserving sample-level IDs behind the scenes for downstream tools.
 :::
 
@@ -81,7 +82,8 @@ Expected behavior:
 
 When an ID list comes from `Pheno-Ranker`, it should be treated as sample-level unless explicitly transformed.
 
-:::tip Rule of thumb
+:::tip[Rule of thumb]
+
 If you are asking about people, use patient language.
 
 If you are selecting a timepoint, biosample, record, or Pheno-Ranker result, assume sample-level IDs matter.
@@ -104,7 +106,8 @@ Use this shortcut:
 - if you are asking about people, think patient IDs
 - if you are selecting a concrete record, timepoint, or biosample, think sample IDs
 
-:::info Synonyms are supported
+:::info[Synonyms are supported]
+
 The app treats these as patient-like terms:
 
 - `patient`

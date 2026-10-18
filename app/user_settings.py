@@ -40,7 +40,7 @@ _ALLOWED_VALUES = {
     "heatmap_palette": {"default", "viridis", "cividis"},
     "diverging_palette": {"default", "blue-orange", "purple-green"},
     "landing_tab_mode": {"fixed", "last"},
-    "landing_tab": {"dashboard", "datasets", "query", "analysis", "pheno"},
+    "landing_tab": {"dashboard", "datasets", "cohorts", "query", "analysis", "pheno"},
     "query_disclosure_default": {"summary", "detailed"},
     "query_default_mode": {"auto", "planner_only"},
     "run_history_retention_days": {0, 7, 30, 90, 180, 365},

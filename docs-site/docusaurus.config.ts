@@ -84,14 +84,18 @@ const config: Config = {
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'docsSidebar',
-          position: 'left',
+          to: '/docs/overview',
           label: 'Docs',
+          position: 'left',
         },
         {
-          to: '/api/',
-          label: 'API',
+          to: '/docs/getting-started/desktop',
+          position: 'left',
+          label: 'Installation',
+        },
+        {
+          to: '/docs/user-guide/user-journeys',
+          label: 'User guide',
           position: 'left',
         },
         {
@@ -112,8 +116,12 @@ const config: Config = {
               to: '/docs/overview',
             },
             {
-              label: 'Run from source',
-              to: '/docs/admin-guide/local-auth-and-groups',
+              label: 'Desktop',
+              to: '/docs/getting-started/desktop',
+            },
+            {
+              label: 'Web deployment',
+              to: '/docs/admin-guide/starting-and-stopping',
             },
             {
               label: 'DICOM viewing',
@@ -129,12 +137,12 @@ const config: Config = {
               to: '/docs/project/scope-and-boundaries',
             },
             {
-              label: '3TR and PRECISESADS',
-              to: '/docs/project/3tr-and-precisesads',
+              label: 'Citation',
+              to: '/docs/about/citation-and-funding',
             },
             {
-              label: 'Citation and funding',
-              to: '/docs/about/citation-and-funding',
+              label: 'Acknowledgements',
+              to: '/docs/about/acknowledgements',
             },
           ],
         },

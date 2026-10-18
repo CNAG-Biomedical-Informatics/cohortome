@@ -25,8 +25,8 @@ main:has(> #appShell:not(.is-hidden)) {
 .app-header .hero-brand { flex: 0 0 auto; gap: 10px; min-width: 0; }
 .app-header .context-bar { flex: 1 1 600px; min-width: 0; max-width: 840px; margin: 0 auto; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .app-header .context-pill { padding: 0 12px; background: transparent; text-align: center; }
-.app-header .context-pill span { font-size: 11px; text-transform: none; letter-spacing: 0; margin-bottom: 2px; }
-.app-header .context-pill strong { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-header .context-pill span { font-size: 0.8125rem; text-transform: none; letter-spacing: 0; margin-bottom: 3px; }
+.app-header .context-pill strong { font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-header .hero-utility:empty { display: none; }
 .app-header .hero-logo {
   width: 36px;

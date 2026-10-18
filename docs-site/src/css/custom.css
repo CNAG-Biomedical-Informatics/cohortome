@@ -7,6 +7,8 @@
   --ifm-color-primary-lighter: #117b75;
   --ifm-color-primary-lightest: #168d86;
   --ifm-code-font-size: 95%;
+  --ifm-font-family-base: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
   --ifm-heading-letter-spacing: 0;
   --ifm-background-color: #fbfcfb;
   --ifm-navbar-background-color: rgba(255, 255, 255, 0.96);
@@ -88,6 +90,41 @@
   height: auto;
 }
 
+.markdown img[src*="/img/screenshots/"] {
+  border: 1px solid var(--cohortome-line);
+  border-radius: 8px;
+}
+
+.markdown > h1:first-child {
+  font-size: clamp(1.9rem, 4vw, 2.4rem);
+  line-height: 1.2;
+}
+
+.markdown h2 {
+  margin-top: 2.5rem;
+  padding-top: .65rem;
+  border-top: 1px solid var(--cohortome-line);
+  font-size: 1.6rem;
+}
+
+.markdown h3 {
+  font-size: 1.25rem;
+}
+
+.markdown table th {
+  background: var(--cohortome-wash);
+}
+
+.markdown table th,
+.markdown table td {
+  border-color: var(--cohortome-line);
+}
+
+.theme-doc-sidebar-menu .menu__link {
+  border-radius: 4px;
+  font-size: .94rem;
+}
+
 .markdown figure {
   margin: 1.5rem auto 2rem;
   text-align: center;
@@ -138,6 +175,33 @@
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.cohortomeFundingPanel {
+  margin: 1rem 0 1.8rem;
+  padding: clamp(1.2rem, 3vw, 2rem);
+  border: 1px solid var(--cohortome-line);
+  border-radius: 18px;
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 12px 28px rgba(22, 50, 61, .05);
+}
+
+.cohortomeFundingPanel p {
+  color: var(--cohortome-muted);
+}
+
+.cohortomeFundingPanel p:last-child {
+  margin-bottom: 0;
+}
+
+.cohortomeFundingPanel img {
+  display: block;
+  width: min(520px, 100%);
+  height: auto;
+  margin: 1.5rem auto;
+  padding: .75rem;
+  border-radius: 6px;
+  background: #fff;
 }
 
 .cohortomeFundingImage {

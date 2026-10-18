@@ -206,6 +206,7 @@
             <select id="settingsLandingTab">
               <option value="dashboard">Dashboard</option>
               <option value="datasets">Datasets</option>
+              <option value="cohorts">Cohorts</option>
               <option value="query">Query</option>
               <option value="analysis">Analysis</option>
               <option value="pheno">Pheno-Ranker</option>
@@ -383,10 +384,10 @@
         <button id="dashboardTabBtn" class="tab-btn app-nav-parent active" type="button" aria-current="page" aria-expanded="true">
           <span class="tab-btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
             </svg>
           </span>
           <span>Dashboard</span>
@@ -448,6 +449,10 @@
             </svg>
           </span>
           <span>Datasets</span>
+        </button>
+        <button id="cohortsTabBtn" class="tab-btn" type="button">
+          <span class="tab-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v3"/></svg></span>
+          <span>Cohorts</span>
         </button>
         <button id="queryTabBtn" class="tab-btn" type="button">
           <span class="tab-btn-icon" aria-hidden="true">
@@ -571,7 +576,7 @@
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
           <div class="controls">
             <h2>Patients</h2>
-            <p>Choose a patient to explore available data and its clinical timeline.</p>
+            <details class="view-help"><summary>About this view</summary><p>Search by patient ID or ClarID to inspect samples, assays, clinical records, and the patient's timeline. Up to 12 matching patients are shown.</p></details>
             <div class="patient-lookup">
               <label for="patientOverviewSearch">Patient ID or ClarID</label>
               <input id="patientOverviewSearch" type="search" role="combobox" autocomplete="off" aria-autocomplete="list" aria-controls="patientOverviewMatches" aria-expanded="false" placeholder="Start typing an identifier…">
@@ -597,7 +602,7 @@
                       <h3>Inspection</h3>
                     </div>
                   </div>
-                  <div class="section-note">Click a patient span, a timeline marker or Inspect to review the patient and their available data.</div>
+                  <details class="view-help"><summary>How to inspect a patient</summary><p>Click a patient span, a timeline marker, or Inspect to review the patient and their available data.</p></details>
                   <div id="detail" class="empty">Select a patient in the plot to see their information.</div>
                 </div>
               </div>
@@ -710,6 +715,20 @@
         </section>
       </section>
 
+      <section id="cohortsTab" class="tab-panel">
+        <div class="controls">
+          <div class="cohort-library-heading"><h2>Cohorts</h2><span>Saved patient and sample groups</span></div>
+          <div class="cohort-library-toolbar">
+            <div class="cohort-library-search"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg></span><input id="cohortLibrarySearch" type="text" list="cohortLibrarySuggestions" autocomplete="off" aria-label="Search cohorts" placeholder="Choose a cohort or search…"></div>
+            <datalist id="cohortLibrarySuggestions"></datalist>
+            <button id="cohortLibraryRefresh" type="button" class="query-chip" aria-label="Refresh cohorts" title="Refresh cohorts"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2"/></svg></span></button>
+          </div>
+          <details class="view-help"><summary>About saved cohorts</summary><p>Inspect membership, export data, or open a cohort in an analysis tool. Create cohorts from Query, Multimodal, or Pheno-Ranker selections.</p></details>
+          <p id="cohortLibraryStatus" class="section-note" role="status"></p>
+          <div id="cohortLibraryList"></div>
+          <div id="cohortLibraryPages" class="saved-cohort-actions"></div>
+        </div>
+      </section>
       <section id="datasetsTab" class="tab-panel">
         <div class="controls dashboard-loader">
           <div class="dashboard-loader-row dataset-loader-row">
@@ -895,6 +914,7 @@
 
       <section id="queryTab" class="tab-panel">
         <div class="controls">
+          <div class="analysis-chat-bar"><div class="analysis-chat-current"><span>Current chat</span><strong id="queryCurrentChatTitle">New chat</strong><small id="queryChatPersistence" role="status"></small></div></div>
           <div id="lmStatus" class="section-note">LM Studio model: checking...</div>
           <div id="queryStarterTopHost">
             <div id="queryStarterPanel" class="query-starter-panel">
@@ -934,10 +954,6 @@
             </div>
           </div>
           <div class="analysis-history-header">
-            <div class="query-thread-header-copy">
-              <strong id="queryCurrentChatTitle">New Query chat</strong>
-              <small id="queryChatPersistence" role="status"></small>
-            </div>
             <div class="query-thread-mode" aria-label="Query thread mode">
               <span id="queryThreadModeLabel" class="query-thread-mode-label">Workspace mode</span>
               <span id="queryGranularityModeValue" class="query-thread-mode-value">Detailed</span>
@@ -1065,47 +1081,19 @@
       </section>
 
       <section id="phenoTab" class="tab-panel">
-        <div class="analysis-chat-bar"><div class="analysis-chat-current"><strong id="phenoChatTitle">New Pheno-Ranker chat</strong><span id="phenoChatStatus" role="status"></span></div><button id="phenoChatSave" class="query-chip" type="button">Save chat</button><button id="phenoChatReload" class="query-chip" type="button">Reload saved</button></div>
-        <details><summary>Chat history</summary><div id="phenoChatHistory"></div></details>
         <div class="controls">
+        <div class="analysis-chat-bar"><div class="analysis-chat-current"><span>Current chat</span><strong id="phenoChatTitle">New chat</strong><small id="phenoChatStatus" role="status"></small></div><button id="phenoChatSave" class="query-chip is-hidden" type="button">Retry save</button><button id="phenoChatReload" class="query-chip is-hidden" type="button">Reload saved chat</button></div>
           <label for="phenoMode">Pheno-Ranker</label>
-          <div id="phenoFlowBar" class="analysis-flow-bar pheno-flow-bar" aria-label="Pheno-Ranker workflow">
-            <button type="button" class="analysis-flow-step" data-pheno-flow-target="scope">
-              <span class="analysis-flow-step-index">1</span>
-              <span class="analysis-flow-step-copy"><span>Scope</span><strong>Full workspace</strong></span>
-            </button>
-            <button type="button" class="analysis-flow-step" data-pheno-flow-target="setup">
-              <span class="analysis-flow-step-index">2</span>
-              <span class="analysis-flow-step-copy"><span>Setup</span><strong>Cohort compare</strong></span>
-            </button>
-            <button type="button" class="analysis-flow-step" data-pheno-flow-target="plan">
-              <span class="analysis-flow-step-index">3</span>
-              <span class="analysis-flow-step-copy"><span>Plan</span><strong>Not previewed</strong></span>
-            </button>
-            <button type="button" class="analysis-flow-step" data-pheno-flow-target="run">
-              <span class="analysis-flow-step-index">4</span>
-              <span class="analysis-flow-step-copy"><span>Run</span><strong>Needs prompt</strong></span>
-            </button>
-            <button type="button" class="analysis-flow-step" data-pheno-flow-target="results">
-              <span class="analysis-flow-step-index">5</span>
-              <span class="analysis-flow-step-copy"><span>Results</span><strong>Empty</strong></span>
-            </button>
+          <div class="pheno-mode-picker" role="group" aria-label="Pheno-Ranker mode">
+            <button type="button" data-pheno-mode="cohort" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 13a5 5 0 0 1 3 5v3"/></svg><span><strong>Cohort comparison</strong><small>Compare patients with one another</small></span></button>
+            <button type="button" data-pheno-mode="patient" aria-pressed="false"><svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="6" cy="7" r="3"/><path d="M1 21v-3a5 5 0 0 1 10 0v3M13 9h6l-2-2M19 15h-6l2 2"/><circle cx="25" cy="7" r="3"/><path d="M20 21v-3a5 5 0 0 1 10 0v3"/></svg><span><strong>Patient ranking</strong><small>Find similar patients for one patient</small></span></button>
           </div>
-          <details id="phenoSetupDetails" class="pheno-setup-card">
-            <summary class="pheno-setup-summary">
-              <div class="pheno-setup-summary-copy">
-                <strong>Setup</strong>
-                <span class="section-note">Scope, saved cohorts, and advanced run options.</span>
-              </div>
-              <div class="pheno-setup-summary-body">
-                <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
-                <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
-              </div>
-            </summary>
+          <div id="phenoSetupDetails">
             <div class="pheno-setup-body">
-              <div>
-                <label for="phenoSelectedPatientIds">Scope</label>
-                <input id="phenoSelectedPatientIds" placeholder="Full workspace by default, or provide a subset like SYN007,SYN008,SYN009">
+              <div id="phenoPatientField" class="is-hidden">
+                <label for="phenoPatientId">Patient or visit to match</label>
+                <input id="phenoPatientId" list="phenoPatientChoices" placeholder="Search available patient or visit IDs" autocomplete="off">
+                <datalist id="phenoPatientChoices"></datalist>
               </div>
               <details class="pheno-setup-saved-cohorts">
                 <summary class="pheno-setup-saved-cohorts-header">
@@ -1130,11 +1118,19 @@
                         <path d="M18 16h4"></path>
                       </svg>
                     </span>
-                    <span>Advanced options</span>
+                    <span>Customize comparison</span>
                   </span>
                 </summary>
                 <div class="pheno-advanced-grid">
                   <div class="pheno-grid">
+                    <div>
+                      <label for="phenoIncludeTerms">Compare using</label>
+                      <input id="phenoIncludeTerms" placeholder="All supported terms, or diseases,phenotypicFeatures,treatments">
+                    </div>
+                    <div>
+                      <label for="phenoSelectedPatientIds">Manual selection (optional)</label>
+                      <input id="phenoSelectedPatientIds" placeholder="Comma-separated IDs; empty uses the full workspace">
+                    </div>
                     <div>
                       <label for="phenoAction">Action</label>
                       <select id="phenoAction">
@@ -1142,20 +1138,12 @@
                         <option value="extract">Extract patients of interest</option>
                       </select>
                     </div>
-                    <div>
+                    <div class="is-hidden">
                       <label for="phenoMode">Mode</label>
                       <select id="phenoMode">
                         <option value="cohort">Cohort mode (-r)</option>
                         <option value="patient">Patient mode (-r -t)</option>
                       </select>
-                    </div>
-                    <div id="phenoPatientField" class="is-hidden">
-                      <label for="phenoPatientId">Patient ID</label>
-                      <input id="phenoPatientId" placeholder="SYN007:week_0">
-                    </div>
-                    <div>
-                      <label for="phenoIncludeTerms">Include terms</label>
-                      <input id="phenoIncludeTerms" placeholder="diseases,phenotypicFeatures,treatments">
                     </div>
                     <div>
                       <label for="phenoExcludeTerms">Exclude terms</label>
@@ -1202,6 +1190,10 @@
                   </div>
                 </div>
               </details>
+              <details id="phenoTechnicalDetails" class="query-section">
+                <summary>Technical details</summary>
+                <div id="phenoSelectedPatientIdsSummary" class="section-note">Scope: full workspace.</div>
+                <div id="phenoReferenceFilesSummary" class="section-note">Active workspace files: loading...</div>
               <div class="pheno-actions pheno-actions-primary pheno-setup-actions">
                 <button id="phenoPlanBtn" type="button" class="query-chip">
                   <span class="button-icon" aria-hidden="true">
@@ -1218,6 +1210,8 @@
                 </button>
               </div>
               <div id="phenoLmStatus" class="section-note">LM Studio model: checking...</div>
+              <div id="phenoPlanStatus" class="pheno-status"></div>
+              <div id="phenoPlanMeta" class="query-meta"></div>
               <div class="pheno-result-card pheno-setup-plan-card">
                 <details id="phenoPlanDetails">
                   <summary><h3 class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.75c.6.43 1 1.09 1 1.83V18h6v-1.42c0-.74.4-1.4 1-1.83A7 7 0 0 0 12 2z"></path></svg></span><span>Plan preview</span></h3></summary>
@@ -1234,16 +1228,19 @@
                   <div id="phenoPlanFollowups" class="query-followups is-hidden" aria-live="polite"></div>
                 </details>
               </div>
+              </details>
             </div>
-          </details>
+          </div>
           <div id="phenoBackgroundJobBanner" class="saved-cohort-inline-status pheno-background-job-banner is-hidden"></div>
           <div id="phenoRunPanel" class="query-section">
-            <label for="phenoPrompt">Describe run</label>
-            <textarea id="phenoPrompt" rows="3" placeholder="Compare patient SYN007:week_0 to all others and generate MDS"></textarea>
+            <details id="phenoPromptDetails">
+              <summary>Use a prompt instead</summary>
+            <label for="phenoPrompt">Describe a run (optional)</label>
+            <textarea id="phenoPrompt" rows="2" placeholder="Or describe what you want, for example: compare all patients by disease"></textarea>
             <div class="section-note">Prompt types: <span class="query-chip query-chip-deterministic badge">Deterministic</span> <span class="query-chip query-chip-llm badge">LLM answer</span></div>
             <div class="query-examples" id="phenoExamples">
               <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare all patients by phenotypicFeatures and diseases">Compare all by phenotypes and diseases</button>
-              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Find closest matches to SYN005:week_0 by disease">Find closest matches to SYN005:week_0 by disease</button>
+              <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Find closest matches by disease">Find closest matches by disease</button>
               <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Compare patient SYN007:week_0 to all others using phenotypicFeatures">Compare one patient to all</button>
               <button type="button" class="query-chip query-chip-deterministic" data-pheno-prompt="Extract patients SYN001, SYN002, SYN003">Extract selected patients</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the selected patients by disease and explain the best matches">Compare selected patients by disease</button>
@@ -1251,6 +1248,8 @@
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare all patients using the most informative top-level terms and generate both plots">Use the most informative top-level terms</button>
               <button type="button" class="query-chip query-chip-llm" data-pheno-prompt="Compare the current scope and focus on the clinically most relevant similarities">Focus on clinically relevant similarities</button>
             </div>
+            </details>
+            <div id="phenoReadiness" class="pheno-readiness" role="status" aria-live="polite"></div>
             <div class="pheno-actions pheno-actions-primary" style="margin-top:12px;">
               <button id="phenoRunBtn" type="button">
                 <span class="button-icon" aria-hidden="true">
@@ -1262,14 +1261,12 @@
               </button>
             </div>
             <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
-            <div id="phenoPlanStatus" class="pheno-status">Describe a run in natural language. The run applies to the current scope shown above.</div>
-            <div id="phenoPlanMeta" class="query-meta"></div>
           </div>
-          <div id="phenoStatus" class="pheno-status">Choose a mode and run Pheno-Ranker.</div>
+          <div id="phenoStatus" class="pheno-status"></div>
           <div id="phenoResultEmptyState" class="pheno-result-card pheno-empty-state">
             <strong>No run yet.</strong>
-            <div>Preview a plan or run Pheno-Ranker to reveal plots, output preview, explanations, and diagnostics.</div>
           </div>
+          <div id="phenoChatHistory" class="analysis-thread" aria-label="Pheno-Ranker conversation"></div>
           <div id="phenoResultWorkspace" class="is-hidden">
             <div class="pheno-result-grid">
               <div class="pheno-result-card pheno-result-card-full">
@@ -1370,8 +1367,10 @@
                 <span>Current chat</span>
                 <strong id="analysisCurrentChatTitle">New chat</strong>
                 <small id="analysisCurrentChatMeta">No turns yet.</small>
+                <small id="analysisChatPersistence" role="status"></small>
               </div>
             </div>
+            <div id="analysisChatSaveMessage" class="query-chat-notice" hidden><span id="analysisChatSaveError"></span><button id="analysisChatSaveRetry" class="query-chip" type="button">Retry save</button></div>
             <div class="analysis-workspace-bar">
               <div id="analysisStatus" class="analysis-workspace-status"></div>
               <div id="analysisLmStatus" class="analysis-workspace-status">LM Studio model: checking...</div>

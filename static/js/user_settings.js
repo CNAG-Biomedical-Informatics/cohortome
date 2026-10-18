@@ -26,7 +26,7 @@ const DEFAULT_USER_SETTINGS = {
 };
 
 const ALLOWED_LANDING_TAB_MODES = new Set(["fixed", "last"]);
-const ALLOWED_TABS = new Set(["dashboard", "datasets", "query", "analysis", "pheno"]);
+const ALLOWED_TABS = new Set(["dashboard", "datasets", "cohorts", "query", "analysis", "pheno"]);
 const ALLOWED_DISCLOSURE = new Set(["summary", "detailed"]);
 const ALLOWED_QUERY_MODES = new Set(["auto", "planner_only"]);
 const ALLOWED_RUN_RETENTION_DAYS = new Set([0, 7, 30, 90, 180, 365]);

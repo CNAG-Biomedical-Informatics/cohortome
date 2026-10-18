@@ -3,29 +3,12 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
   docsSidebar: [
     'overview',
+    'getting-started/desktop',
     {
       type: 'category',
-      label: 'Project',
+      label: 'User guide',
       items: [
-        'project/3tr-and-precisesads',
-        'project/scope-and-boundaries',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Concepts',
-      items: [
-        'concepts/workspace-and-cohorts',
-        'concepts/patient-vs-sample',
-        'concepts/cross-sectional-and-longitudinal',
-        'concepts/assays-and-modalities',
-        'concepts/governed-ai',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'User Guide',
-      items: [
+        'user-guide/user-journeys',
         'user-guide/datasets',
         'user-guide/synthetic-autoimmune-demo',
         'user-guide/dashboard',
@@ -33,37 +16,18 @@ const sidebars: SidebarsConfig = {
         'user-guide/saved-cohorts-and-handoffs',
         'user-guide/analysis',
         'user-guide/pheno-ranker',
-        'user-guide/user-journeys',
       ],
     },
     {
       type: 'category',
-      label: 'Admin Guide',
+      label: 'Advanced',
+      collapsed: true,
       items: [
         'admin-guide/starting-and-stopping',
-        'admin-guide/datasets-and-access',
-        'admin-guide/local-auth-and-groups',
-        'admin-guide/model-providers',
-        'admin-guide/dicom-viewing',
-        'admin-guide/real-data-security',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Developer Guide',
-      items: [
-        'developer-guide/architecture',
-        'developer-guide/design-decisions',
-        'developer-guide/query-disclosure-modes',
-        'developer-guide/state-and-persistence',
-        'developer-guide/api-reference',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Validation',
-      items: [
-        'validation/evaluation-and-evidence',
+        {type: 'doc', id: 'admin-guide/datasets-and-access', label: 'Dataset configuration'},
+        {type: 'doc', id: 'admin-guide/model-providers', label: 'Model configuration'},
+        {type: 'doc', id: 'admin-guide/dicom-viewing', label: 'Imaging setup'},
+        'developer-guide/technical-reference',
       ],
     },
     {
@@ -72,6 +36,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'about/faq',
         'about/citation-and-funding',
+        'about/acknowledgements',
       ],
     },
   ],

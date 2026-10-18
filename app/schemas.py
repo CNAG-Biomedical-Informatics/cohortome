@@ -54,7 +54,7 @@ class UserSettingsResponse(BaseModel):
     appearance: Literal["light", "dark", "system"] = "light"
     version: int = 1
     landing_tab_mode: Literal["fixed", "last"] = "fixed"
-    landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] = "dashboard"
+    landing_tab: Literal["dashboard", "datasets", "cohorts", "query", "analysis", "pheno"] = "dashboard"
     query_disclosure_default: Literal["summary", "detailed"] = "detailed"
     query_default_mode: Literal["auto", "planner_only"] = "auto"
     latest_query_details: bool = True
@@ -78,7 +78,7 @@ class UserSettingsUpdateRequest(BaseModel):
     diverging_palette: Literal["default", "blue-orange", "purple-green"] | None = None
     appearance: Literal["light", "dark", "system"] | None = None
     landing_tab_mode: Literal["fixed", "last"] | None = None
-    landing_tab: Literal["dashboard", "datasets", "query", "analysis", "pheno"] | None = None
+    landing_tab: Literal["dashboard", "datasets", "cohorts", "query", "analysis", "pheno"] | None = None
     query_disclosure_default: Literal["summary", "detailed"] | None = None
     query_default_mode: Literal["auto", "planner_only"] | None = None
     latest_query_details: bool | None = None
@@ -232,6 +232,19 @@ class CohortMember(BaseModel):
     dataset_id: str = Field(min_length=1, max_length=200)
     patient_id: str = Field(min_length=1, max_length=512)
     sample_id: str = Field(default="", max_length=512)
+
+
+class SavedCohortRenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+class CohortAssaySelection(BaseModel):
+    key: str = Field(min_length=1, max_length=1000)
+    fingerprint: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class CohortMolecularExportRequest(BaseModel):
+    assays: List[CohortAssaySelection] = Field(min_length=1, max_length=32)
 
 
 class SavedCohortRequest(BaseModel):

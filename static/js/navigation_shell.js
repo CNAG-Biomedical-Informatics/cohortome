@@ -5,7 +5,7 @@ export function initializeNavigationShell() {
   const rail = document.createElement('nav');
   rail.className = 'app-icon-rail';
   rail.setAttribute('aria-label', 'Application navigation');
-  for (const id of ['dashboardTabBtn', 'datasetsTabBtn', 'queryTabBtn', 'analysisTabBtn', 'phenoTabBtn']) {
+  for (const id of ['dashboardTabBtn', 'datasetsTabBtn', 'cohortsTabBtn', 'queryTabBtn', 'analysisTabBtn', 'phenoTabBtn']) {
     const button = document.getElementById(id);
     const label = button.textContent.trim();
     button.title = label;

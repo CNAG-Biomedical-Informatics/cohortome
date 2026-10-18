@@ -36,6 +36,7 @@ def exported(client):
 def test_round_trip_is_read_only_until_open_and_contains_no_source_data(client):
     http, changes = client
     project = exported(http)
+    assert project['version'] == 1
     assert project['cohort_ids'] == ['cohort1']
     assert 'data_dir' not in project and 'root_path' not in str(project)
     assert http.post('/projects/inspect', json=project).status_code == 200
@@ -45,7 +46,7 @@ def test_round_trip_is_read_only_until_open_and_contains_no_source_data(client):
 
 
 @pytest.mark.parametrize('field,value', [('owner','another-user'), ('installation','other-installation'),
-    ('version',1), ('version',999), ('analysis_session_id','missing')])
+    ('version',2), ('version',999), ('analysis_session_id','missing')])
 def test_invalid_project_does_not_switch_workspace(client, field, value):
     http, changes = client
     project = exported(http); project[field] = value

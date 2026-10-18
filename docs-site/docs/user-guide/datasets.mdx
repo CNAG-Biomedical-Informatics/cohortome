@@ -4,112 +4,67 @@ sidebar_position: 1
 
 # Datasets
 
-Dataset cards show an **Imaging** icon when registered imaging matrices or a
-non-empty DICOM study manifest are present. The legend explains the icon.
-This indicates data availability, not whether the image server is online;
-check **Dashboard → Imaging** for viewer status. The Assay data icon represents
-laboratory matrices separately.
+Choose the datasets you want to work with. The applied selection is your
+**workspace**; Dashboard, Query, Analysis, and Pheno-Ranker use that selection.
 
-<div className="pnQuickHero">
-  <div className="pnEyebrow">Workspace loading</div>
-  <h2>Select the datasets that define the active clinical and assay workspace.</h2>
-  <div className="pnHeroText">
-    The default dataset is loaded at application startup. Other authorized
-    datasets remain on demand until the user applies a new workspace.
-  </div>
-</div>
+## Load a workspace
 
-The `Datasets` tab defines the active workspace.
+1. Open **Datasets**.
+2. Select one or more datasets.
+3. Click **Apply workspace**.
+4. Check the patient and assay summaries in **Dashboard**.
 
-:::note
-This tab is user-facing. It is different from `Admin > Data`, which controls dataset policy.
+![Dataset selection and workspace status](/img/screenshots/datasets-tab.png)
+
+:::note[Selected is not loaded]
+
+Changing a checkbox does not change the workspace. Pending changes take effect
+only after **Apply workspace** succeeds. At least one dataset must remain selected.
+
 :::
 
-## What the tab does
+## Read a dataset card
 
-This tab is where a user chooses which authorized datasets should be active at the same time.
+Cards show the dataset name, available data types, and study design when recorded.
+Use the legend or hover over an icon for its meaning.
 
-The result is the current workspace used by:
+- A single-timepoint icon indicates a cross-sectional study.
+- Connected timepoints indicate a longitudinal study.
+- Assay icons describe laboratory measurements.
+- The imaging icon indicates linked studies or imaging measurements, not whether
+  the viewer is online. Check **Dashboard → Imaging** for viewer status.
 
-- `Dashboard`
-- `Query`
-- `Analysis`
-- `Pheno-Ranker`
+An absent study-design icon means the design was not declared.
 
-![Datasets tab with active and pending workspace state](/img/screenshots/datasets-tab.png)
+## If a dataset will not load
 
-## Active vs pending selection
+Read the message next to the workspace controls. A missing, stale, or failed
+query store must be prepared in **Admin → Data** before the dataset can load.
+Applying a workspace does not rebuild its stores.
 
-The dataset picker distinguishes two states:
+A failed switch leaves the previous workspace active. Check the active dataset
+names before continuing.
 
-- `Active`
-  - currently applied to the workspace
-- `Pending`
-  - selected in the picker but not yet applied
+:::info[Shared Web installations]
 
-The workspace does not change immediately when a checkbox changes. It changes only when the user clicks:
+You see only datasets your account can access. Ask the administrator to prepare
+a store or grant access. On Desktop, the local owner manages datasets directly.
+Dataset classification and model-sharing policies apply in both.
 
-- `Apply workspace`
-
-The previous active workspace remains usable until the new workspace is applied.
-This matters when a large dataset is selected: the user can still see the
-current default workspace while the pending selection is only a proposal.
-
-:::warning Pending is not active
-If you check or uncheck datasets but do not click `Apply workspace`, the backend is still operating on the previous active workspace.
 :::
 
-## Default versus on-demand datasets
+<details>
+<summary>Dataset metadata and startup behaviour</summary>
 
-Current startup behavior is intentionally simple:
+The default dataset loads at startup. Other datasets load when selected and
+applied.
 
-- `default-dataset` loads at application launch
-- every other dataset is on demand
-- on-demand datasets are loaded only after the user clicks `Apply workspace`
+Study-design icons use the optional `study_design` field in the dataset manifest:
+`cross_sectional` or `longitudinal`. Clinical record representation
+(`person` or `snapshot`) does not determine study design.
 
-If `default-dataset` remains checked while another dataset is pending, the
-default workspace stays visible until the new selection is applied.
+See [study designs](../concepts/cross-sectional-and-longitudinal.md),
+[assays and modalities](../concepts/assays-and-modalities.md), and
+[dataset configuration](../admin-guide/datasets-and-access.mdx).
 
-Large transcriptome fixtures are intended for timing, queue, and workflow tests.
-They should not slow down startup unless the user or admin explicitly selects
-and applies them.
-
-## Why this matters
-
-This avoids a misleading state where the UI would appear to use one set of datasets while the backend is still operating on another.
-
-## Typical workflow
-
-1. open `Datasets`
-2. check one or more authorized datasets
-3. review the pending changes
-4. click `Apply workspace`
-5. move to `Dashboard` or `Query`
-
-## Important rule
-
-The workspace cannot be empty.
-
-At least one dataset must remain selected.
-
-:::tip
-Use `Dashboard` immediately after applying a workspace if you want to confirm that the expected datasets, patients, and assay files are really loaded.
-:::
-
-## When Apply workspace can fail
-
-Applying a workspace requires every selected dataset to have a ready admin-built
-DuckDB store. If a store is missing, stale, or failed, the user flow returns a
-clear readiness message instead of rebuilding stores in the background.
-
-Admins prepare or rebuild stores in `Admin > Data`.
-
-## Notes on permissions
-
-Users only see datasets they are allowed to access.
-
-Access can come from:
-
-- dataset visibility
-- matching group membership
-- direct allowed-user assignment
+</details>

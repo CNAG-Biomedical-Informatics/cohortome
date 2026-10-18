@@ -1,4 +1,4 @@
-import { downloadFile, chatCopyButton } from "./shared.js";
+import { downloadFile, downloadStatus, chatCopyButton } from "./shared.js";
 import { decodeIdentity, displayIdentity } from "./identities.js";
 
 export function createQueryUi(ctx) {
@@ -1422,7 +1422,7 @@ export function createQueryUi(ctx) {
       queryStatusEl.textContent = "Preparing download…";
       void downloadFile(`/query-results/${encodeURIComponent(handle)}/export?${parameters.toString()}`,
         format === "json" ? "query-result-metadata.json" : `query-result.${format}`)
-        .then(() => { queryStatusEl.textContent = "Download prepared."; })
+        .then(result => { queryStatusEl.textContent = downloadStatus(result); })
         .catch((error) => { queryStatusEl.textContent = error.message; })
         .finally(() => { exportButton.disabled = false; });
       return;

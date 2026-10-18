@@ -33,7 +33,13 @@ administrative access without entering credentials.
 The backend binds a random loopback port, requires a per-launch cookie, rejects
 foreign origins, and exits when its parent input closes. The native window cannot
 navigate outside that origin. External links and file downloads still need native
-integration and verification. Do not import restricted data into this preview.
+integration and verification. Restricted datasets require authorization to process
+them locally, protected source files and runtime artifacts, and correctly
+configured dataset and model-provider policies. Keep model access disabled unless
+approved; never label an external provider as local to bypass dataset policy.
+This source preview is not a security certification. See the
+[Desktop restricted-data guidance](../docs-site/docs/getting-started/desktop.md#restricted-data)
+before importing sensitive datasets.
 
 Background jobs run through a desktop-managed queue, one subprocess at a time,
 without Redis. They use the same analysis functions, permissions, result files

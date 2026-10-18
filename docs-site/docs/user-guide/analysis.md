@@ -7,114 +7,91 @@ import TabItem from '@theme/TabItem';
 
 # Analysis
 
-The numbered bar shows **Method → Patients → Inputs → Review → Results**.
-Click a step to reach its controls. Status labels identify missing setup;
-methods without additional inputs show **Not required**. These are setup checks,
-not a guarantee that the statistical model or data will pass execution checks.
+Select a method, choose its patients and measurements, then inspect the result.
+Built-in methods do not require an LLM.
 
-Choose a method under **What analysis would you like to run?** The page shows
-the inputs for that method. **Describe my cohort** and **Associate two
-measurements** do not need a language model. Catalog methods identify whether
-they need a model or are unavailable; their existing input and worker checks
-still apply.
+## Run an analysis
 
-Use **Patients and cohorts** to change the scope. Review the method description,
-required inputs and research question, then run. The generated request remains
-available under **Review or edit the analysis request**. Choose **Write a
-request / follow-up** for direct text entry, or **Browse method details** for
-the full catalog. Selecting a method does not execute it.
+1. Choose a method under **What analysis would you like to run?**
+2. In **Patients**, select the workspace, a subset, or saved cohorts.
+3. In **Inputs**, select the assay, features, or clinical measurement required.
+4. Review the selected data and request.
+5. Run the analysis. Results appear in the chat.
 
-## Custom Python / R scripts (synthetic prototype)
+The step bar follows **Method → Patients → Inputs → Review → Results**.
+Click a step to return to its controls. Selecting a method does not run it.
 
-Select **Custom Python / R script** with only the bundled **Synthetic autoimmune
-demo** loaded. This is available to users with Detailed access, not just admins.
-Other datasets, modified demo files and mixed workspaces are rejected by the
-server. Restricted data cannot be enabled by changing a dataset label.
+![Analysis setup with method and input controls](/img/screenshots/analysis-tab.png)
 
-1. Keep your current patient/cohort selections. Selected demo assays are used;
-   if no assays are selected, all four demo modalities are prepared.
-2. In **Inputs**, choose **Python** or **R**, then **Prepare / reset template**. COHORTome creates `patients`,
-   `clinical`, `samples`, and `assays[modality]` objects. The template documents
-   column types, units/value kinds, feature IDs, matrix orientation and linkage.
-3. Use **Copy template for AI**, describe your question to an external coding
-   assistant, and paste its completed script into the editor. The copied
-   template contains schemas and feature metadata, not patient IDs or values.
-   You can also edit or run the template without any AI.
-4. Review the code and click **Run**. It runs through the background queue.
-   Open the completed run in Analysis for output files, plots and audit details.
+:::note[Ready to run does not mean statistically appropriate]
 
-Before copying, check **Check before copying**: it shows the prepared language,
-package versions, cohort patient counts and matched A/B sample counts for each
-assay. A single-cohort template explicitly says that Cohort B is not used. For
-an A-versus-B question, turn on comparison in **Patients** and attach both groups;
-preparation and copying are blocked if either group is missing. An assay with
-zero samples in one group cannot support that comparison, even when both patient
-cohorts exist. Assays with no samples in the scope are listed as not included.
+Setup checks identify missing inputs. Execution also checks the actual values,
+sample linkage, and model design. Review sample size, confounding, and study
+design before interpreting a result.
 
-The copied template instructs the external AI to use the declared language and
-packages, treat the input contract as authoritative, and explain missing
-requirements instead of inventing groups or substituting a different method.
-It also asks generated scripts to fail explicitly when required inputs are
-missing. These instructions help guide the AI; they do not enforce statistical
-correctness. Review the returned code before running it.
+:::
 
-Changing language, cohorts or assays requires a fresh preparation. The server checks the
-input fingerprint and image identity again at submission and execution. One
-custom run per user may be queued/running at a time. Draft code is saved with
-the Analysis session; resetting the template replaces that draft, not old runs.
+## Select patients
 
-The Python 3.11 environment includes fixed versions of NumPy, pandas, SciPy,
-Matplotlib and statsmodels. The R 4.2.2 environment includes base R, limma 3.54.1,
-edgeR 3.40.2 and ggplot2 3.4.1. Versions are listed in the generated template.
-These are the pinned prototype versions, not a claim to provide the latest releases.
-Administrators add packages when building the image; users do not install them
-during execution. Scripts have no network, package-installation service or access
-to the COHORTome runtime. Limits are 90 seconds, one CPU, 512 MiB RAM and 64
-processes. Scratch space is memory-backed and bounded. Save up to eight files
-(4 MiB total) as CSV, TXT or PNG under `/work/output`; unsupported or oversized
-files are not collected. Logs are truncated. CSV files are script-generated;
-review them before opening them in spreadsheet software.
+<Tabs>
+<TabItem value="single" label="One group" default>
 
-### Audit
+Use the full workspace or one selected cohort for summaries, PCA, and
+single-group analyses. A Query result or Pheno-Ranker selection can also be
+opened in Analysis.
 
-Custom runs retain `analysis.py` or `analysis.R`, `input_contract.json`, exact synthetic input
-files, logs, output files and `audit.json` with script hash and immutable image ID.
-Audit files and results use the existing user ownership and Detailed-access
-checks. A completed process is not evidence that its statistics are appropriate.
+</TabItem>
+<TabItem value="compare" label="Compare two groups">
 
-New direct Analysis replies expose an **Analysis implementation** source snapshot
-and hash. These snapshots are deduplicated and retained independently of subsequent
-source edits. They identify the core Analysis module, not a standalone reproducer
-or an archive of every dependency. Curated background runners retain their adapter
-source; R runners execute retained copies of their R script (and the methylation
-helper where applicable). Existing command logs and result parameters remain
-part of the audit. Older runs cannot acquire historical code retroactively.
+Attach saved cohorts as **Cohort A** and **Cohort B**. The method checks whether
+both groups have the measurements it needs. Two nonempty patient cohorts can
+still have too few linked assay samples.
 
-### Administrator setup
+For single-assay comparisons, both groups must overlap the same selected matrix.
+The app does not merge different transcriptomics matrices into one comparison.
 
-The web app can remain native Uvicorn. Build the separate execution image:
+</TabItem>
+</Tabs>
 
-```bash
-docker build -t cohortome-script-sandbox:prototype-v1 docker/script-sandbox
-```
+Use the app's selection actions to retain dataset and sample IDs.
+A patient cohort and a sample selection are not interchangeable.
+See [patient and sample selection](../concepts/patient-vs-sample.md).
 
-The prototype uses the local Unix Docker socket on the native web/worker host.
-Both processes need permission to inspect the image; the worker creates containers.
-Never mount that socket into the script container. This does **not** wire the
-Docker Compose web/worker services to a host daemon. Deploying that arrangement
-needs a separate design; do not add a Docker socket mount to solve it casually.
+## Reading results
 
-Start Redis and the ordinary Analysis worker using the existing launch recipe.
-Restart web and worker after installing backend changes. Missing Docker/image
-access blocks execution but does not prevent template preparation. There is no
-fallback to running scripts on the host.
+Replies contain the method summary, usable sample and feature counts, plots,
+and any exclusions or limitations. Expand **Result files** for tables, images,
+parameters, logs, and available source snapshots.
 
-The container uses a read-only root and inputs, no network, dropped capabilities,
-non-root execution and `no-new-privileges`, following the controls documented in
-[Docker's container run reference](https://docs.docker.com/reference/cli/docker/container/run/).
-It still shares the host kernel. These checks are a development prototype, not a
-claim of safe multi-tenant arbitrary-code execution. Restricted-data support
-requires a separate threat review and stronger isolation assessment.
+Use **Runs** above the avatar to find a previous execution. The Queue view shows
+background-job status. A chat can hold several runs and follow-up questions.
+
+:::info[Background jobs]
+
+Desktop manages a local queue; keep the app open until the run finishes.
+On Web, an administrator must provide Redis and an active RQ worker.
+External R, Perl, or other tools must be installed where the analysis runs.
+
+:::
+
+## Choose a method
+
+Use **Browse method details** to search the catalog by method, category, or tag.
+A compatible assay selector appears for methods that need one. The catalog
+requires Detailed access to the active datasets.
+
+| Input | Examples |
+| --- | --- |
+| Clinical records | Cohort summary, trajectory, treatment response, Kaplan–Meier |
+| Integer RNA counts | DESeq2; transcriptomics signature workflow |
+| RSEM expected counts | limma-voom |
+| Processed methylation M-values | PCA; limma differential methylation |
+| Quantitative immune-cell or serology values | Feature-wise Wilcoxon comparison |
+| Two linked measurements | Spearman association |
+
+The transcriptomics signature workflow runs DESeq2 followed by Hallmark
+enrichment as one background job. It requires one compatible raw-count matrix;
+it does not accept fractional expected counts.
 
 ## Clinical measurement selection
 
@@ -134,6 +111,7 @@ the run. It is saved with the session and result. Treatment-response requests
 still specify the treatment in the prompt; Kaplan–Meier requests specify the
 event operator and threshold there. Review those choices before running.
 Measurement selection and these clinical runners do not require an LLM.
+
 
 ## Compare two measurements
 
@@ -184,228 +162,16 @@ an overall correlation without a within-group relationship. No p-values,
 significance claims, causal claims or predictive models are provided.
 Synthetic results demonstrate software behaviour only.
 
-## Reading results
-
-Use **Chats** to find earlier Analysis conversations. On desktop-sized screens,
-chats sit beside the narrow application navigation rail. Settings and account
-actions are in the bottom avatar menu. Selecting a chat or choosing **New** opens Analysis.
-Smaller screens use a drawer opened with **Chats**.
-Search by title or request text, or browse Today, Yesterday and Older groups.
-The **⋯** button provides Rename and Delete. A conversation can contain several
-runs; use **Runs** above the avatar when looking for an execution and its files.
-Active runs appear first; **Queue** is available inside Run history.
-
-Completed responses have an **Analysis result** heading. Summary metrics, plots,
-method notes and suggested follow-ups remain together. Expand **Result files**
-to see the available file count and a list labelled by format (such as TSV, PNG
-or JSON). Opening a file uses a new browser tab; the file endpoint determines
-whether it is displayed or downloaded.
-
-Use `Analysis` to summarize data, compare cohorts, run statistical methods, and
-review their results.
-
-:::tip Best use
-Use `Analysis` after you already know what subset or workspace you want to interpret.
-:::
-
-## Main uses
-
-- deterministic workspace summaries
-- LLM-planned comparative analysis
-- trajectories
-- Kaplan-Meier curves
-- transcriptomics expression summaries
-- DESeq2 differential expression on one raw-count dataset
-- methylation matrix QC and PCA on one processed M-value dataset
-- limma differential methylation between two cohorts
-- exploratory immune-cell and quantitative-serology cohort comparisons
-- Hallmark pathway enrichment from a DESeq2-ranked comparison
-- curated external analyses through reviewed runners
-
-![Analysis tab with a plotted result and follow-up queries](/img/screenshots/analysis-tab.png)
-
-## Choose the question context
-
-Analysis has the same explicit context switch as Query:
-
-- `Workspace` uses the active data, scopes, saved cohorts, and Analysis Catalog.
-- `General question` asks the selected approved model without workspace data.
-
-In General-question mode, workspace setup and catalog controls are hidden
-because they are not part of the request. The response is marked `No workspace
-context`, and its history is kept separate from workspace analysis. Switching
-back to `Workspace` restores the research workflow without mixing the two
-conversations.
-
-The typed question and recent General-question history are still sent to the
-selected provider. Do not include confidential or patient-level information
-when that provider is external.
-
-## Two main modes
-
-Within `Workspace` context, Analysis can work in two broad ways:
-
-- single-workspace or single-subset interpretation
-- saved-cohort comparison
-
-<Tabs>
-  <TabItem value="single" label="Single scope" default>
-    <div>
-      <p>Use this mode when you want to interpret:</p>
-      <ul>
-        <li>the full workspace</li>
-        <li>a manually selected scope</li>
-        <li>one saved cohort without explicit A/B comparison</li>
-      </ul>
-
-      <p>Typical questions:</p>
-      <ul>
-        <li>what stands out in this workspace</li>
-        <li>how does this measure change over time</li>
-        <li>what does this Kaplan-Meier curve mean</li>
-      </ul>
-    </div>
-
-  </TabItem>
-  <TabItem value="compare" label="Compare mode">
-    <div>
-      <p>Use this mode when you want explicit A/B interpretation between:</p>
-      <ul>
-        <li><code>Cohort A</code></li>
-        <li><code>Cohort B</code></li>
-      </ul>
-
-      <p>This is the intended place for:</p>
-      <ul>
-        <li>disease and medication burden comparison</li>
-        <li>trajectory comparison</li>
-        <li>Kaplan-Meier A/B analysis</li>
-        <li>clinician-style cohort review</li>
-      </ul>
-    </div>
-
-  </TabItem>
-</Tabs>
-
-## Analysis sessions
-
-Analysis is session-based.
-
-That means each thread can preserve:
-
-- its own prompt history
-- scope
-- compare mode state
-- attached saved cohorts
-- generated turns and plots
-
-This is useful because clinical and assay interpretation often unfolds across several questions rather than one prompt.
-
-## Analysis Catalog and quick prompts
-
-The Analysis tab separates two things:
-
-- `Analysis Catalog`
-  - tools
-  - curated analyses with real setup requirements, validation rules, or structured outputs
-- `Quick prompts`
-  - questions
-  - open-ended summaries, interpretation requests, and clinician-style prompts
-
-The practical rule is simple:
-
-- if it can be naturally asked, it belongs in prompts
-- if it invokes a specific method or runner, it belongs in the catalog
-
-The main tab shows:
-
-- a foldable catalog strip for curated tools
-- a `Browse analyses` drawer with the full catalog
-- a visible quick-prompt area for direct questions
-
-The foldable catalog strip and the drawer share the same browsing state:
-
-- search text
-- active filter
-- selected analysis
-
-Searches and filters therefore stay the same in both places.
-
-The catalog is available only when the active workspace allows `Detailed` in-app access.
-
-In a summary-only workspace, the tab explains that the catalog requires `Detailed` access instead of showing a generic load failure.
-
-Selecting a catalog item does not create a separate execution system. It preconfigures the current Analysis thread with:
-
-- the prompt
-- compare-mode defaults when needed
-- the preferred execution mode
-
-For a curated tool, follow the workflow bar in order:
-
-1. choose the analysis
-2. complete its setup checklist
-3. review the configured prompt
-4. run it and inspect the result
-
-The checklist shows only requirements that apply to that tool, such as Cohort A,
-Cohort B, one compatible assay, minimum cohort overlap, a language model, or a
-background worker. `Next` marks the first incomplete requirement and provides a
-button that opens the relevant control. Completed requirements remain visible
-as `Done`; later requirements wait until the preceding step is complete. Quick
-prompts that do not select a curated tool continue to need no extra setup.
-
-Use quick prompts for summaries such as “what stands out” or an explanation of
-differences between cohorts. Use the catalog to choose a specific method.
-
-## Analysis workflows
-
-Some catalog entries are pre-made workflows rather than single tools.
-
-An Analysis Workflow is a curated project-approved sequence of analysis steps. Users do not assemble these step chains manually; the app exposes only reviewed workflows with fixed execution rules.
-
-Current first workflow:
-
-- `Transcriptomics signature workflow`
-  - runs `DESeq2 differential expression`
-  - then runs `Hallmark pathway enrichment`
-  - stores one background job with step-level artifacts under one workflow result
-
-This keeps the user-facing model simple: one workflow launch, one job in `Jobs`, one combined Analysis result.
-
-The workflow is intentionally pre-made. Users choose the approved workflow, but they do not concatenate arbitrary catalog tools.
-
-For this first workflow, select exactly one compatible raw-count transcriptomics dataset. If more than one compatible transcriptomics dataset is available, choosing a second one replaces the first selection. The workflow does not merge multiple count matrices or compare transcriptomics files against each other.
-
-The workflow result keeps interpretation and plots visible first. Raw output files are folded under `Result files` and can be opened when needed.
 
 ## Assay tool requirements
 
-The current assay catalog tools are method-driven.
+Transcriptomics comparisons require at least two samples per group and one
+sample per patient. These are execution minima, not sample-size recommendations.
+A matrix covering only one treatment group cannot support a comparison with
+patients absent from that matrix.
 
-Examples:
-
-- `DESeq2 differential expression`
-- `Hallmark pathway enrichment`
-- `Methylation QC and PCA`
-- `limma differential methylation`
-- `Immune-cell Wilcoxon cohort comparison`
-- `Serology Wilcoxon cohort comparison`
-
-These tools do not compare two transcriptomics assays against each other.
-
-The transcriptomics comparison tools use:
-
-- one selected transcriptomics assay with the value type required by the method
-- `Cohort A`
-- `Cohort B`
-
-The cohorts define the groups.
-The transcriptomics assay defines the transcriptomics matrix.
-
-Both cohorts must overlap the same selected transcriptomics assay.
-
-### limma-voom adjustment
+<details>
+<summary>limma-voom adjustment and molecular method details</summary>
 
 The limma-voom method accepts fractional RSEM expected counts. An administrator
 can declare numeric and categorical adjustment variables in the assay manifest:
@@ -498,239 +264,142 @@ not copied into the job output. Analysis stores only compact aggregate results
 and records of the inputs and method used.
 
 
-## Catalog search, filters, and suggestions
 
-Search and filter the Analysis Catalog to find a suitable tool.
+</details>
 
-Search matches against:
+## Questions and LLM explanations
 
-- tool name
-- description
-- category
-- runner type
-- tags
+Use **Write a request / follow-up** to type a question. Supported requests run
+directly; model-dependent requests need an approved provider.
 
-Filters are intentionally coarse:
+**Workspace** questions use permitted context from the selected data.
+**General question** sends the question and recent general-question history,
+without attaching workspace data. It does not run a dataset analysis.
 
-- `All`
-- `Clinical`
-- `Assays`
-- `Workflow`
-- `Background jobs`
-- `External`
+:::warning[Text you type is still sent]
 
-Use these filters to shorten the list of tools.
+Do not paste confidential records into a General question sent to an external
+provider. The absence of attached workspace data does not remove sensitive text
+from your own question.
 
-When a selected catalog item requires assay data, a compatible assay selector appears below the catalog search and filters. For single-assay analyses, including transcriptomics, methylation, immune-cell, and quantitative-serology tools, the selector behaves as a single-select control.
-
-The folded catalog in the main tab also shows a `Suggested` strip.
-
-Suggestions are lightweight and local:
-
-- the currently selected tool is favored
-- recently used tools are favored
-- frequently used tools are favored
-- tools that fit the current workspace and setup are ranked higher
-
-Examples of setup-aware suggestions:
-
-- assay tools rank better when a compatible assay is available
-- compare-oriented tools rank better when compare mode is active
-
-:::note
-Suggested tools are a convenience ranking, not a backend recommendation service. They are derived from local browser state for the current user.
 :::
 
-## Starter prompts
-
-Quick prompts still include mode coding:
-
-- `Deterministic`
-- `LLM-planned`
-- `LLM interpretation`
-
-These labels reflect how the request is routed.
-
-For `LLM interpretation` prompts, the app no longer silently falls back to a deterministic clinical summary when the provider cannot be used.
-
-Instead, Analysis returns an explicit provider-policy or provider-unavailable message.
-
-Follow-up questions generated beneath an Analysis result are amber and labeled `LLM interpretation`. Selecting one prepares an LLM-only follow-up for the next run; it does not silently switch back to a deterministic analysis route.
-
-## Compare mode
-
-Compare mode uses:
-
-- `Cohort A`
-- `Cohort B`
-
-These are true saved cohorts, not the full workspace.
-
-Manual workspace scope is allowed for single-analysis workflows, but saved cohorts are the intended model for explicit A/B comparison.
-
-:::warning
-If the comparison matters, prefer saved cohorts over temporary manual scope.
-
-That keeps the session understandable and reduces accidental drift.
-:::
-
-## Follow-up queries
-
-Analysis suggests follow-up questions for several result types, including plots.
-
-Examples:
-
-- Kaplan-Meier follow-ups
-- trajectory follow-ups
-- assay volcano follow-ups
-- A/B comparison follow-ups
-
-Follow-up questions are amber and labeled `LLM interpretation`. Selecting one
-prepares the question; the selected model is called when you run it, subject to
-the workspace's model-access rules.
-
-:::info
-Follow-up chips are generated from the latest result context plus short recent Analysis history, not from an unlimited chat memory.
-:::
-
-## What happens if a saved cohort disappears
-
-Analysis sessions may depend on saved cohorts.
-
-Because of that, the app now protects saved cohorts from deletion when they are still referenced by an Analysis session.
-
-This prevents a session from silently losing the cohort it depends on.
-
-:::note
-If a cohort is still attached in the current page, the UI can block deletion locally. If an older saved Analysis session still references it, the backend will block deletion as well.
-:::
-
-## Workspace context
-
-Analysis always runs inside the current workspace. Saved cohorts narrow that workspace for a particular analysis.
-
-## In-app disclosure and AI providers
-
-Analysis follows the same policy split as Query:
-
-- in-app detail policy
-- AI-provider policy
-
-That means:
-
-- a deterministic Analysis turn may show a local clinical summary without sending it anywhere
-- if AI providers are `Safe summary`, provider-facing Analysis context is reduced to structural/provider-safe context only
-- if AI providers are `Blocked`, Analysis stays local
-- private dataset context is always blocked when the selected provider is external
-- `LLM interpretation` prompts that require a provider may return a policy or availability message instead of silently degrading into a richer local summary
-
-:::note
-The in-app answer the user sees is not automatically the same as what an AI provider would be allowed to receive.
-:::
-
-## Common analyses
-
-Examples of questions that fit well here:
-
-- deterministic workspace summary
-- temporal change over time
-- trajectory of a numeric longitudinal measure
-- Kaplan-Meier time to event
-- transcriptomics expression by medication
-- exploratory volcano comparison
-- curated external runner demo analyses
-
-As a rule:
-
-- summaries and interpretation requests fit best as prompts
-- trajectories, Kaplan-Meier, assay tools, and external runners fit best as catalog analyses
-
-## Curated external analyses
-
-The Analysis Catalog can now describe curated external runners, not only built-in Python analyses.
-
-Current supported idea:
-
-- catalog entries define a `runner_type`
-- the backend dispatches to a reviewed executor
-- catalog entries also define an `execution_backend`
-  - `sync`
-  - `job`
-
-This keeps the catalog stable while allowing future curated integrations such as:
-
-- `Rscript`
-- `Snakemake`
-- `Nextflow`
-- external CLI tools
-- containerized runners
-
-:::warning
-This is not arbitrary pasted-code execution. External analyses are curated and backend-controlled.
-:::
-
-## Background jobs
-
-Longer curated external analyses can now run through a background queue instead of holding the HTTP request open.
-
-Current model:
-
-- queue backend: `RQ + Redis`
-- progress and results: the `Jobs` drawer
-- current queued runner types include curated `Rscript`, `Snakemake`, `Nextflow`, and pre-made Analysis workflows
-
-When a catalog item is configured as a background job:
-
-- the Analysis thread shows that the job was submitted
-- the `Jobs` drawer shows queued, running, completed, failed, or cancelled state
-- completed jobs can be reopened into `Analysis`
-- generated result files are folded under `Result files` in the `Jobs` drawer
-
-If the original Analysis session no longer exists, the app can recover the completed result into a fresh Analysis session shell instead of dropping the result.
-
-## Deleting chats and generated data
-
-There are two deletion options:
-
-- `Delete chat only`
-  - removes the Analysis session record
-- `Delete chat and generated data`
-  - removes the Analysis session
-  - removes linked terminal job data on disk for that session
-
-Current guardrail:
-
-- if linked jobs are still `queued` or `running`, `Delete chat and generated data` is blocked
-
-This keeps active background work from being destroyed mid-run.
-
-## Patient level versus sample level
-
-Analysis may use either patient-level or sample-level scope depending on the analysis type.
-
-Examples:
-
-- broad clinical summaries
-  - often patient-oriented
-- assay comparisons
-  - often sample-aware
-- Pheno-Ranker handoff
-  - should preserve sample IDs
-
-:::warning
-Do not assume all Analysis questions are patient-level. Assay and Pheno-driven paths are often sample-aware.
-:::
-
-## Practical advice
-
-Use `Analysis` when the main question is:
-
-- what stands out in this subset
-- how do these two saved cohorts differ
-- what does this measure or event look like over time
-
-Use saved cohorts instead of manual scope text when:
-
-- the comparison matters
-- you will come back to the same subset later
-- you want the session to remain understandable over time
+Follow-up suggestions marked **LLM interpretation** prepare an explanation
+request. The provider is called when you run it. If policy or availability
+blocks the model, the app reports that rather than substituting another analysis.
+
+Seeing a detailed result in the app does not mean those details were sent to a
+model. See [model access](../concepts/governed-ai.md).
+
+## Chats and saved work
+
+Use **New → Analysis chat** for a separate conversation. Chats save their
+questions, selected cohorts, settings, and results. Folders and pins work as
+they do in Query.
+
+After switching datasets, use **Load this chat’s datasets** to restore the
+original selection. If source data changed, start a new chat. Saved cohorts
+referenced by an Analysis chat cannot be deleted until those references are removed.
+
+Deleting a chat keeps generated runs and files. Use the separate cleanup
+controls in Settings to remove generated data; active jobs cannot be removed
+through completed-artifact cleanup.
+
+## Custom Python / R scripts (synthetic prototype)
+
+Select **Custom Python / R script** with only the bundled **Synthetic autoimmune
+demo** loaded. This is available to users with Detailed access, not just admins.
+Other datasets, modified demo files and mixed workspaces are rejected by the
+server. Restricted data cannot be enabled by changing a dataset label.
+
+1. Keep your current patient/cohort selections. Selected demo assays are used;
+   if no assays are selected, all four demo modalities are prepared.
+2. In **Inputs**, choose **Python** or **R**. Paste an existing script, or use
+   **Generate data-aware template** to obtain an input example. COHORTome creates `patients`,
+   `clinical`, `samples`, and `assays[modality]` objects. The template documents
+   column types, units/value kinds, feature IDs, matrix orientation and linkage.
+3. If using a generated template, use **Copy template for AI**, describe your question to an external coding
+   assistant, and paste its completed script into the editor. The copied
+   template contains schemas and feature metadata, not patient IDs or values.
+   You can also edit or run the template without any AI.
+4. Review the code and click **Run**. It runs through the background queue.
+   Open the completed run in Analysis for output files, plots and audit details.
+
+Use **Check inputs** before running or copying: it shows the prepared language,
+package versions, cohort patient counts and matched A/B sample counts for each
+assay. A single-cohort template explicitly says that Cohort B is not used. For
+an A-versus-B question, turn on comparison in **Patients** and attach both groups;
+preparation and copying are blocked if either group is missing. An assay with
+zero samples in one group cannot support that comparison, even when both patient
+cohorts exist. Assays with no samples in the scope are listed as not included.
+
+The copied template instructs the external AI to use the declared language and
+packages, treat the input contract as authoritative, and explain missing
+requirements instead of inventing groups or substituting a different method.
+It also asks generated scripts to fail explicitly when required inputs are
+missing. These instructions help guide the AI; they do not enforce statistical
+correctness. Review the returned code before running it.
+
+Changing language, cohorts or assays requires a fresh preparation. The server checks the
+input fingerprint and image identity again at submission and execution. One
+custom run per user may be queued/running at a time. Draft code is saved with
+the Analysis session; resetting the template replaces that draft, not old runs.
+
+The Python 3.11 environment includes fixed versions of NumPy, pandas, SciPy,
+Matplotlib and statsmodels. The R 4.2.2 environment includes base R, limma 3.54.1,
+edgeR 3.40.2 and ggplot2 3.4.1. Versions are listed in the generated template.
+These are the pinned prototype versions, not a claim to provide the latest releases.
+Administrators add packages when building the image; users do not install them
+during execution. Scripts have no network, package-installation service or access
+to the COHORTome runtime. Limits are 90 seconds, one CPU, 512 MiB RAM and 64
+processes. Scratch space is memory-backed and bounded. Save up to eight files
+(4 MiB total) as CSV, TXT or PNG under `/work/output`; unsupported or oversized
+files are not collected. Logs are truncated. CSV files are script-generated;
+review them before opening them in spreadsheet software.
+
+<details>
+<summary>Scripts, versions, and audit files</summary>
+
+Custom runs retain `analysis.py` or `analysis.R`, `input_contract.json`, exact synthetic input
+files, logs, output files and `audit.json` with script hash and immutable image ID.
+Audit files and results use the existing user ownership and Detailed-access
+checks. A completed process is not evidence that its statistics are appropriate.
+
+New direct Analysis replies expose an **Analysis implementation** source snapshot
+and hash. These snapshots are deduplicated and retained independently of subsequent
+source edits. They identify the core Analysis module, not a standalone reproducer
+or an archive of every dependency. Curated background runners retain their adapter
+source; R runners execute retained copies of their R script (and the methylation
+helper where applicable). Existing command logs and result parameters remain
+part of the audit. Older runs cannot acquire historical code retroactively.
+
+</details>
+
+<details>
+<summary>Advanced: configure the sandbox</summary>
+
+The web app can remain native Uvicorn. Build the separate execution image:
+
+```bash
+docker build -t cohortome-script-sandbox:prototype-v1 docker/script-sandbox
+```
+
+The prototype uses the local Unix Docker socket on the native web/worker host.
+Both processes need permission to inspect the image; the worker creates containers.
+Never mount that socket into the script container. This does **not** wire the
+Docker Compose web/worker services to a host daemon. Deploying that arrangement
+needs a separate design; do not add a Docker socket mount to solve it casually.
+
+Start Redis and the ordinary Analysis worker using the existing launch recipe.
+Restart web and worker after installing backend changes. Missing Docker/image
+access blocks execution but does not prevent template preparation. There is no
+fallback to running scripts on the host.
+
+The container uses a read-only root and inputs, no network, dropped capabilities,
+non-root execution and `no-new-privileges`, following the controls documented in
+[Docker's container run reference](https://docs.docker.com/reference/cli/docker/container/run/).
+It still shares the host kernel. These checks are a development prototype, not a
+claim of safe multi-tenant arbitrary-code execution. Restricted-data support
+requires a separate threat review and stronger isolation assessment.
+
+</details>

@@ -2,7 +2,18 @@
 sidebar_position: 3
 ---
 
+import DeploymentNotice from '@site/src/components/DeploymentNotice';
+
 # Model Providers
+
+<DeploymentNotice mode="both" title="Desktop and Web">
+
+On Desktop, the local owner configures providers in **Admin > Models**. On Web,
+an administrator does this for the deployment. Dataset classification and LLM
+data-access policies apply to both: a desktop app can still send context to a
+remote provider if permitted.
+
+</DeploymentNotice>
 
 <div className="pnQuickHero">
   <div className="pnEyebrow">AI administration</div>
@@ -112,11 +123,19 @@ Use `api_key_env` for production-like deployments. It keeps secrets out of the
 provider registry file.
 :::
 
-`system-default` and providers loaded from environment variables or a
+On Web, `system-default` and providers loaded from environment variables or a
 configuration file are shown in `Admin > Models`, but they are read-only there.
 This prevents an in-app edit from silently overriding deployment-owned
 configuration. All providers, regardless of source, can be connection-tested
 by an administrator.
+
+<DeploymentNotice mode="desktop" title="Desktop">
+
+The desktop **System default (LM Studio)** provider is editable in
+**Admin > Models**. It starts disabled; save its endpoint, data boundary, and
+enabled state before testing the connection. These settings persist locally.
+
+</DeploymentNotice>
 
 ## Local versus external
 

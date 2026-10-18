@@ -15,7 +15,7 @@ router = APIRouter(prefix='/pheno-sessions', tags=['pheno-ranker'])
 class PhenoChat(BaseModel):
     id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
     revision: int = Field(default=0, ge=0)
-    title: str = Field(default='New Pheno-Ranker chat', max_length=200)
+    title: str = Field(default='New chat', max_length=200)
     title_custom: bool = False
     dataset_id: str = Field(min_length=1, max_length=2000)
     setup: dict = Field(default_factory=dict)

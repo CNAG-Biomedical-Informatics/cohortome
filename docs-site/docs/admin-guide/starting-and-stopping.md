@@ -2,15 +2,43 @@
 sidebar_position: 1
 ---
 
-# Starting and stopping COHORTome
+import DeploymentNotice from '@site/src/components/DeploymentNotice';
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Web deployment
+
+<DeploymentNotice mode="web" title="Web — centralized, multi-user deployments only">
+
+Web is recommended only when you need a centralized system with multiple users
+and managed dataset permissions. For individual use, install
+[Desktop](../getting-started/desktop).
+
+</DeploymentNotice>
+
+Researchers connect through a browser to the same server. Administrators manage
+accounts, dataset permissions, storage, workers, and backups. Web does not
+federate queries across independent installations.
 
 Choose one installation method and keep its configuration in a file. You
 should not need to recreate environment variables in every terminal session.
+
+Use the source tag and instructions for your chosen
+[release](https://github.com/mrueda/cohortome/releases), rather than a moving
+development branch. The commands below run from that source checkout.
+
+:::important[Keep the same runtime]
 
 The web app and background worker must use the same runtime directory, user
 configuration, and Redis service. The runtime holds the registered datasets,
 users, saved cohorts, chats, and results. Changing it can make an existing
 installation appear empty.
+
+:::
+
+<Tabs>
+<TabItem value="docker" label="Docker Compose" default>
 
 ## Docker
 
@@ -44,8 +72,15 @@ Stop the stack:
 docker compose -f docker/docker-compose.yml --env-file docker/.env stop
 ```
 
+:::warning[Preserve saved work]
+
 Stopping keeps the named volumes. Do not use `down -v` when you want to retain
 the installation's saved state. Back up those volumes separately from the code.
+
+:::
+
+</TabItem>
+<TabItem value="native" label="Native Uvicorn">
 
 ## Native Uvicorn installation
 
@@ -132,6 +167,9 @@ needed. The checkout's `.deps` directory is also supported.
 It no longer reads `docker/.env`. Stop that standalone worker with `Ctrl+C` in
 its own terminal; it is not managed by `make stop`.
 
+</TabItem>
+</Tabs>
+
 ## If something is missing
 
 | Symptom | Check first |
@@ -145,3 +183,6 @@ its own terminal; it is not managed by `make stop`.
 
 See [authentication and groups](./local-auth-and-groups) before changing login
 methods. The launcher does not migrate accounts or change authentication for you.
+
+See [Security configuration](./real-data-security) for storage, network, model,
+and DICOM access settings.

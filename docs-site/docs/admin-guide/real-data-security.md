@@ -1,79 +1,94 @@
-# Real-Data Security
+---
+title: Security configuration
+---
 
-:::danger[Do not use the development stack for unrestricted patient data]
-The bundled configuration is designed for synthetic local development. Real
-PRECISESADS, 3TR, or DICOM data requires an institutionally reviewed deployment
-with protected services and approved data handling.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Security configuration
+
+COHORTome controls access through its application routes. Files and connected
+services also need their own access controls.
+
+## Installation access
+
+<Tabs>
+<TabItem value="desktop" label="Desktop" default>
+
+Desktop has one local owner and no application login. Use operating-system
+accounts, file permissions, and storage encryption to control access to datasets
+and saved work. The backend listens on loopback and uses a per-launch cookie.
+
+</TabItem>
+<TabItem value="web" label="Web">
+
+For centralized, multi-user deployments:
+
+- Configure [local or OIDC authentication](local-auth-and-groups.mdx).
+- Assign dataset access through groups or individual permissions.
+- Use HTTPS for browser connections and keep the session secret stable.
+- Restrict direct access to storage, Redis, workers, and connected data services.
+- Check access using accounts with different dataset permissions.
+
+Application login does not protect services that can be reached independently
+of COHORTome.
+
+</TabItem>
+</Tabs>
+
+## Dataset and model policies
+
+Dataset visibility determines who can open a dataset. Model-context policy
+determines what may be sent to a configured provider.
+
+| Setting | Purpose |
+| --- | --- |
+| Dataset visibility, groups, and users | Access within a shared Web installation |
+| Public/private classification | Whether dataset context may reach an external provider |
+| Model-context policy | Detailed context, safe summary, or no dataset context |
+| Provider boundary | Whether the endpoint is local or external |
+
+Private dataset context is blocked for external providers. A local provider
+can receive it only when dataset policy permits. Set the boundary to match the
+actual service; a label does not change where inference runs.
+
+**General question** does not attach workspace records, but sends the user's
+question and recent general-question history to the provider.
+
+See [model configuration](model-providers.mdx) for endpoints and policies.
+
+## Files, exports, and backups
+
+Prepared stores, chats, run outputs, exports, and project files can contain
+patient information. Apply the source dataset's access and retention rules to
+these files and their backups.
+
+Keep research data, runtime state, credentials, and API keys out of source
+repositories and public container images. Back up runtime state and source
+data separately from application code. A saved project references local data
+and results; it is not a backup.
+
+## DICOM services
+
+:::warning[Bundled Orthanc has authentication disabled]
+
+The example Orthanc configuration exposes development ports without
+authentication. Use an authenticated, network-restricted DICOMweb service or
+proxy before loading restricted images.
+
 :::
 
-## Trust boundaries
+COHORTome permissions do not protect a DICOM service exposed through a separate
+URL. Configure access on that service and check that direct study requests
+respect the intended permissions. Image de-identification and pixel review are
+handled outside COHORTome.
 
-COHORTome authorization protects application routes and controls which datasets are
-available in a user's workspace. Every external data or model service must also
-protect access to its data. The deployment needs:
+See [imaging setup](dicom-viewing.md).
 
-- reverse proxy or network gateway
-- institutional identity and authorization
-- encrypted transport
-- protected persistent volumes or managed storage
-- backup and retention policy
-- access and analysis logging
+## Background workers
 
-Application login alone does not secure a directly exposed database, DICOMweb
-archive, model server, Redis instance, or filesystem mount.
+Web workers and Redis may handle sensitive job inputs. Keep them on a protected
+network and restrict access to the runtime and job files.
 
-## Before registering real datasets
-
-1. Confirm the legal basis, data-use agreement, and approved user population.
-2. Keep source data outside Git and outside public container images.
-3. Map project identifiers to the minimum identifiers needed by COHORTome.
-4. Validate patient, sample, visit, time-point, and assay linkage.
-5. Configure dataset groups, disclosure level, and AI-provider policy.
-6. Protect prepared stores, generated artifacts, backups, and logs.
-7. Test access with an authorized user and a deliberately unauthorized user.
-8. Define deletion, retention, and incident-response procedures.
-
-## DICOM warning
-
-The repository's Orthanc configuration enables remote access, disables Orthanc
-authentication, and exposes development ports through Docker Compose. This is
-appropriate only for the public synthetic smoke fixtures.
-
-For real imaging:
-
-- prefer an approved institutional PACS or authenticated DICOMweb service
-- otherwise place Orthanc and OHIF behind an authenticated reverse proxy
-- do not publish DICOM or DICOMweb ports directly
-- de-identify headers and pixel data according to the approved protocol
-- audit pixel access independently of COHORTome metadata access
-- verify that an OHIF URL cannot retrieve a study outside the user's allowed
-  data scope
-
-See [DICOM Viewing](./dicom-viewing) for the local development workflow.
-
-## LLM and model servers
-
-- expose only administrator-approved endpoints
-- prefer local or institutionally controlled providers for restricted data
-- use dataset `safe_summary` or `blocked` policy when detailed context is not
-  approved
-- keep secrets outside provider JSON committed to Git
-- record provider/model identity for evaluated or published outputs
-- test behavior when the provider is unavailable or policy changes
-
-## Redis, workers, and artifacts
-
-Redis and workers handle analysis requests and may receive sensitive data.
-Restrict their network access and protect job payloads. Generated bundles may contain cohort
-IDs, clinical tables, assay matrices, logs, or plots and must follow the same
-classification and retention policy as their source data.
-
-## Repository safety
-
-Never commit:
-
-- restricted PRECISESADS or 3TR exports
-- real patient records or DICOM pixels
-- passwords, session secrets, OIDC client secrets, or model API keys
-- prepared stores or run bundles containing restricted material
-- local user databases or password-reset tokens
+Desktop uses its local queue and does not require Redis. The same file-access
+rules apply to its generated results.

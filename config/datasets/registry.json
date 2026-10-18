@@ -1,7 +1,7 @@
 [
   {
     "dataset_id": "synthetic-autoimmune-demo",
-    "name": "Synthetic autoimmune demo (not real PRECISESADS data)",
+    "name": "Synthetic autoimmune demo",
     "description": "90 fictional RA/SLE/control participants with linked clinical, RNA, methylation, immune-cell and serology data. Independently simulated; not study results.",
     "root_path": "synthetic_autoimmune_demo",
     "enabled": true,

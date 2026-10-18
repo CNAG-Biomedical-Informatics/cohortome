@@ -59,7 +59,7 @@ from app.bff import (
     medication_counts,
 )
 from app.config import DEFAULT_DATA_DIR, branding_logo_path, branding_settings, private_artifact_runtime_is_safe
-from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort
+from app.cohorts import delete_saved_cohort, list_saved_cohorts, save_cohort, rename_saved_cohort
 from app.datasets import (
     authorized_datasets_for_user,
     constrain_ai_provider_access,
@@ -187,6 +187,8 @@ from app.schemas import (
     QueryRequest,
     QueryTurn,
     SavedCohortRequest,
+    SavedCohortRenameRequest,
+    CohortMolecularExportRequest,
     SavedCohortResponse,
     SavedCohortsResponse,
     LoginRequest,
@@ -768,8 +770,7 @@ def export_query_result(handle: str, request: Request, format: str = "tsv", sort
                               "text/csv" if format == "csv" else "text/tab-separated-values")
 
 
-def export_saved_cohort(cohort_id: str, request: Request):
-    from app import exports
+def _authorized_export_cohort(cohort_id: str, request: Request):
     require_authenticated(request)
     cohort = next((item for item in list_saved_cohorts(user_id=request_user_id(request))
                    if item.get("id") == cohort_id), None)
@@ -783,7 +784,35 @@ def export_saved_cohort(cohort_id: str, request: Request):
         raise HTTPException(403, "Cohort export requires Detailed access to every source dataset.")
     if set(cohort.get("dataset_ids") or []) != set(selected_ids):
         raise HTTPException(409, "Saved cohort dataset scope is inconsistent.")
+    return cohort, selected_ids
+
+
+def get_cohort_export_assays(cohort_id: str, request: Request):
+    from app.molecular_exports import inventory
+    cohort, selected_ids = _authorized_export_cohort(cohort_id, request)
+    roots = {identifier: resolve_dataset_dir(request, identifier) for identifier in selected_ids}
+    listing, _ = inventory(cohort, roots)
+    return {'assays': listing, 'sample_scope': cohort['id_type'] != 'patient'}
+
+
+def export_cohort_molecular(cohort_id: str, request: CohortMolecularExportRequest, raw_request: Request):
+    from app import exports
+    from app.molecular_exports import bundle
+    cohort, selected_ids = _authorized_export_cohort(cohort_id, raw_request)
+    roots = {identifier: resolve_dataset_dir(raw_request, identifier) for identifier in selected_ids}
+    return exports.attachment(bundle(cohort, roots, request.assays), 'cohort-molecular-data.zip', 'application/zip')
+
+
+def export_saved_cohort(cohort_id: str, request: Request, include: str = 'membership'):
+    from app import exports
+    cohort, selected_ids = _authorized_export_cohort(cohort_id, request)
+    scope_id = str(cohort.get('dataset_id') or '')
+    if include not in {'membership', 'clinical'}:
+        raise HTTPException(400, 'Unsupported cohort export type.')
     exports.check_size(len(cohort.get("patient_ids") or []) + len(cohort.get("sample_ids") or []))
+    if include == 'clinical':
+        roots = {identifier: resolve_dataset_dir(request, identifier) for identifier in selected_ids}
+        return exports.attachment(exports.clinical_cohort_bundle(cohort, roots), 'cohort-clinical-data.zip', 'application/zip')
     patients = [] if cohort.get('members') is not None else get_patients(request, dataset_id=scope_id)
     return exports.attachment(exports.cohort_bundle(cohort, patients), "saved-cohort.zip", "application/zip")
 
@@ -1434,6 +1463,21 @@ def update_user_settings(request: UserSettingsUpdateRequest, raw_request: Reques
     return patch_user_settings(request.model_dump(exclude_unset=True, exclude_none=True), request_user_id(raw_request))
 
 
+def get_saved_cohort_library(request: Request) -> Dict:
+    user = require_authenticated(request)
+    allowed = {str(item['dataset_id']) for item in authorized_datasets_for_user(user)}
+    visible = []
+    for cohort in list_saved_cohorts(user_id=request_user_id(request)):
+        ids = set(cohort.get('dataset_ids') or [])
+        if not ids or not ids.issubset(allowed):
+            continue
+        if effective_query_granularity_ceiling(sorted(ids)) != 'detailed':
+            continue
+        # The library exposes provenance identifiers, never server directories.
+        visible.append({key: value for key, value in cohort.items() if key != 'data_dir'})
+    return {'cohorts': visible}
+
+
 def get_saved_cohorts(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     selected_ids = resolve_dataset_ids(request, dataset_id or data_dir)
@@ -1485,6 +1529,16 @@ def create_saved_cohort(request: SavedCohortRequest, raw_request: Request) -> Di
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return item
+
+
+def update_saved_cohort_name(cohort_id: str, request: SavedCohortRenameRequest, raw_request: Request) -> Dict:
+    require_authenticated(raw_request)
+    try:
+        return rename_saved_cohort(cohort_id, request.name, user_id=request_user_id(raw_request))
+    except KeyError:
+        raise HTTPException(status_code=404, detail='Saved cohort not found.') from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def remove_saved_cohort(cohort_id: str, request: Request) -> Dict:
@@ -2517,6 +2571,8 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/query-results/{handle}", get_query_result_page, methods=["GET"], tags=["query"], summary="Page through a Query result", description="Returns one bounded page from a short-lived, user-scoped Query result after rechecking workspace authorization and Detailed access.")
     app.add_api_route("/query-results/{handle}/export", export_query_result, methods=["GET"], tags=["query"], summary="Export all rows of an authorized Query result")
     app.add_api_route("/saved-cohorts/{cohort_id}/export", export_saved_cohort, methods=["GET"], tags=["cohorts"], summary="Export saved cohort membership and metadata")
+    app.add_api_route('/saved-cohorts/{cohort_id}/export-assays', get_cohort_export_assays, methods=['GET'], tags=['cohorts'], summary='Preview molecular export availability')
+    app.add_api_route('/saved-cohorts/{cohort_id}/export-molecular', export_cohort_molecular, methods=['POST'], tags=['cohorts'], summary='Export selected molecular matrices')
     app.add_api_route("/lm-status", get_lm_status, methods=["GET"], tags=["auth"], summary="Inspect configured LM status", description="Returns whether LM Studio is enabled plus the current model and base URL.", response_model=LmStatusResponse)
     app.add_api_route("/lm-providers", get_lm_providers, methods=["GET"], tags=["auth"], summary="Inspect approved LLM providers", description="Admin-only registry and health view for approved OpenAI-compatible LLM endpoints.", response_model=LmProvidersResponse)
     app.add_api_route("/lm-providers", create_lm_provider, methods=["POST"], tags=["auth"], summary="Create a managed LLM provider", description="Persists an OpenAI-compatible provider in protected runtime state. The API key is write-only.", response_model=LmProviderResponse)
@@ -2545,8 +2601,10 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"], tags=["datasets"], summary="Update dataset metadata and access", description="Updates dataset metadata, visibility, or access policy. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/datasets/{dataset_id}/prepare-store", prepare_dataset_route, methods=["POST"], tags=["datasets"], summary="Prepare dataset DuckDB store", description="Builds or rebuilds the admin-managed DuckDB store for one dataset. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"], tags=["ui"], summary="Serve the configured branding logo", description="Returns the current instance branding logo file if one is configured.")
+    app.add_api_route('/saved-cohorts/library', get_saved_cohort_library, methods=['GET'], tags=['cohorts'], summary='List accessible saved cohorts across datasets')
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"], tags=["cohorts"], summary="List saved cohorts", description="Returns saved cohorts for the current user within the active dataset workspace.", response_model=SavedCohortsResponse)
     app.add_api_route("/saved-cohorts", create_saved_cohort, methods=["POST"], tags=["cohorts"], summary="Create a saved cohort", description="Persists a saved cohort containing canonical sample IDs and derived patient IDs.", response_model=SavedCohortResponse)
+    app.add_api_route("/saved-cohorts/{cohort_id}", update_saved_cohort_name, methods=["PATCH"], tags=["cohorts"], summary="Rename a saved cohort")
     app.add_api_route("/saved-cohorts/{cohort_id}", remove_saved_cohort, methods=["DELETE"], tags=["cohorts"], summary="Delete a saved cohort", description="Deletes a saved cohort owned by the current user.", response_model=DeleteResponse)
     app.add_api_route("/user-data/analysis-sessions", delete_user_analysis_sessions, methods=["DELETE"], tags=["auth"], summary="Delete current user's analysis chats", description="Deletes all saved analysis chats owned by the current user.")
     app.add_api_route("/user-data/jobs", delete_user_completed_jobs, methods=["DELETE"], tags=["auth"], summary="Delete current user's completed jobs", description="Deletes terminal background jobs and generated artifacts owned by the current user. Active jobs are skipped.")

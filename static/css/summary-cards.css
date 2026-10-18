@@ -1,0 +1,63 @@
+/* Shared summary tiles. Keep page layout and modality/status colours separate. */
+.app-content :is(.assay-kpi, .metric-card, .dicom-health-card, .patient-overview-stats > div) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: none;
+}
+.app-content :is(.assay-kpi-label, .metric-card > span, .patient-overview-stats > div > span) {
+  order: -1;
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.app-content :is(.assay-kpi-value, .metric-card > strong, .dicom-health-card > strong, .patient-overview-stats > div > strong) {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.app-content .dicom-health-card > small {
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.4;
+}
+.app-content :is(.metrics-grid, .assay-kpi-grid, .assay-workspace-kpis, .dicom-health-grid, .patient-overview-stats) {
+  gap: 12px;
+}
+.app-content :is(.metrics-grid, .dicom-health-grid, .patient-overview-stats) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.view-help {
+  margin: 8px 0 12px;
+  color: var(--muted);
+  font-size: .8125rem;
+}
+.view-help > summary { cursor: pointer; width: fit-content; }
+.view-help > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.view-help > p { margin: 8px 0 0; max-width: 75ch; }
+@media (max-width: 900px) {
+  .app-content :is(.metrics-grid, .dicom-health-grid, .patient-overview-stats) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 540px) {
+  .app-content :is(.metrics-grid, .dicom-health-grid, .patient-overview-stats) {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,53 @@
+      #phenoChatHistory .analysis-turn-user {
+        padding: 10px 14px;
+      }
+      #phenoChatHistory .analysis-turn-user p { margin: 0; }
+      #phenoChatHistory .analysis-turn-assistant { min-width: 0; }
+      .pheno-explanation-progress .analysis-turn-body,
+      .pheno-run-progress .analysis-turn-body { display: flex; align-items: center; gap: 12px; }
+      .pheno-explanation-progress .analysis-thinking-dots,
+      .pheno-run-progress .analysis-thinking-dots { flex-shrink: 0; }
+      #phenoChatHistory #phenoExplainDetail { display: none; }
+      .pheno-readiness {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-left: 3px solid var(--line);
+        background: var(--theme-surface, #fff);
+        border-radius: 6px;
+        font-size: 0.84rem;
+        overflow-wrap: anywhere;
+      }
+      .pheno-readiness.is-ready { border-left-color: var(--theme-blue-ink, #2563eb); }
+      .pheno-readiness strong { display: block; margin-bottom: 4px; }
+      .pheno-readiness div { color: var(--muted); }
+      .pheno-mode-picker {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }
+      .pheno-mode-picker button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--theme-surface, #fff);
+        color: var(--ink);
+        box-shadow: none;
+      }
+      .pheno-mode-picker button[aria-pressed="true"] {
+        border-color: var(--theme-blue-ink, #2563eb);
+        background: var(--theme-blue-soft, #dbeafe);
+      }
+      .pheno-mode-picker svg { width: 32px; height: 28px; flex-shrink: 0; }
+      .pheno-mode-picker strong { display: block; font-size: 0.88rem; }
+      .pheno-mode-picker small { display: block; margin-top: 3px; color: var(--muted); font-weight: 400; }
+      @media (max-width: 600px) {
+        .pheno-mode-picker { grid-template-columns: 1fr; }
+      }
       .pheno-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -40,8 +90,7 @@
       .pheno-setup-body {
         display: grid;
         gap: 14px;
-        padding: 0 18px 18px;
-        border-top: 1px solid rgba(148, 163, 184, 0.18);
+        padding: 0;
       }
       .pheno-setup-saved-cohorts {
         display: grid;

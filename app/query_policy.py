@@ -230,6 +230,8 @@ def sample_count_from_data(data: Dict[str, Any]) -> Optional[int]:
 
 
 def shape_summary_reply(intent: str, data: Dict[str, Any], original_reply: str) -> str:
+    if intent == "treatment_data_unavailable":
+        return "No treatment records are available for the current selection. This does not establish that no patients take the medication."
     patient_count = patient_count_from_data(data)
     sample_count = sample_count_from_data(data)
     if intent == "patient_inventory" and patient_count is not None:
@@ -266,7 +268,11 @@ def shape_summary_reply(intent: str, data: Dict[str, Any], original_reply: str) 
     if sample_count is not None:
         noun = "sample" if sample_count == 1 else "samples"
         return "%s %s match this query." % (sample_count, noun)
-    return "A summary is available for this query."
+    if intent in {"llm_error", "llm_unavailable"}:
+        return "The model provider could not complete this query. Check its connection and loaded model, then retry."
+    if intent == "unsupported":
+        return "This query could not be resolved with the available data and permissions. Try a specific disease or medication shown in Dashboard."
+    return "No verified count was produced for this query. Try listing the matching patients or asking about a specific medication shown in Dashboard."
 
 
 def shape_summary_response(payload: Dict[str, Any]) -> Dict[str, Any]:

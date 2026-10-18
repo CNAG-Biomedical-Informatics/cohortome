@@ -1,132 +1,109 @@
 ---
 sidebar_position: 4
+title: Saved cohorts
 ---
 
-# Saved Cohorts And Handoffs
+# Saved cohorts
 
-Saved cohorts are the main reusable objects in the app.
+A saved cohort records a group of patients or samples and their source datasets.
+Use it again in Analysis or Pheno-Ranker, or export its data.
 
-They sit between:
+## Save a group
 
-- `Query`
-- `Analysis`
-- `Pheno-Ranker`
+Choose **Save cohort** from:
 
-## What a saved cohort contains
+- a Query result;
+- a Pheno-Ranker plot selection;
+- matching patients in **Dashboard → Multimodal**.
 
-A saved cohort is more than a label.
+Give the group a descriptive name. Saving a paginated Query result includes
+all matching members, not just the visible page.
 
-It stores:
+## Find and use a saved cohort
 
-- canonical `sample_ids`
-- derived `patient_ids`
-- `dataset_ids`
-- counts for patients and samples
-- source metadata such as:
-  - `query`
-  - `pheno_ranker_selection`
+1. Open **Cohorts** in the left navigation.
+2. Search by cohort name or dataset.
+3. Inspect **Members** to check the selection.
+4. Choose **Use in → Analysis** or **Pheno-Ranker**.
 
-This is why a saved cohort can be reused across tabs without reparsing IDs every time.
+If the source datasets are inactive, choose **Load datasets** first. Opening
+the cohort library alone does not change the workspace.
 
-## Why saved cohorts matter
+Use **Rename** in the three-dot menu to change the name. This does not change
+membership or references from existing chats.
 
-The app distinguishes:
+:::note[Keep dataset and sample identifiers]
 
-- workspace
-  - the currently loaded dataset scope
-- saved cohort
-  - a narrower reusable subset inside that workspace
+Patients with the same source ID in different datasets remain separate.
+Use the built-in transfer actions; do not strip dataset labels or replace a
+sample selection with a patient list. See
+[patients and samples](../concepts/patient-vs-sample.md).
 
-This distinction is important because the same workspace may contain:
+:::
 
-- several datasets
-- several diseases
-- several assay files
+## Rename and export a cohort
 
-A saved cohort gives you a stable subset that can be compared, saved, and revisited later.
+Open **Export** and choose the data you need:
 
-## Where cohorts can be created
+| Export | Contents |
+| --- | --- |
+| Membership | Saved patient/sample IDs and cohort metadata |
+| Clinical data | Current BFF records for the saved patients, including all visits |
+| Molecular data | Selected assay matrices and sample-to-patient links |
 
-Currently the main sources are:
+Desktop opens a save dialog. Web uses the browser download.
+Exports require ownership of the cohort and current Detailed access to every
+source dataset.
 
-- `Query`
-  - from patient/sample subset results
-- `Pheno-Ranker`
-  - from MDS selection
+:::warning[Exports contain research data]
 
-## Main handoffs
+Protect downloaded files according to the source dataset's data-use conditions.
+Permission to view data in COHORTome does not grant permission to redistribute it.
 
-### Query -> Analysis
+:::
 
-Use:
+<details>
+<summary>Clinical and molecular export contents and limits</summary>
 
-- `Open in Analysis`
+**Export membership** downloads IDs and metadata only. **Export clinical data**
+downloads a ZIP with BFF records separated by source dataset, a clinical-record
+index, saved membership, and a manifest. It includes all current clinical visits
+for the saved patients, even when the cohort was created from selected samples.
+Patients without clinical records are listed in the manifest.
 
-This sends the current subset into `Analysis`.
+This initial clinical export excludes assay matrices, raw sequencing files, and
+DICOM images. It reads current source records, not frozen inputs from an earlier
+analysis. Limits are 100,000 clinical records and 32 MiB of uncompressed export
+content; larger requests must use a smaller cohort. Detailed access to every
+source dataset is checked at download time. Protect the downloaded files and
+follow the source dataset's data-use agreement; application access does not grant
+permission to redistribute research data.
 
-The visible Query answer may list patients, but the underlying handoff can still preserve sample-level scope when available.
+**Export molecular data** first lists matrices with declared feature-by-sample
+structure and patient–sample linkage. Choose the assays to include. A patient
+cohort includes every linked sample in each chosen assay; a sample cohort keeps
+only its saved samples. The ZIP contains one TSV matrix per dataset and assay,
+sample-to-patient links, saved membership, and a manifest with the declared
+measurement type, units, feature namespace, and source-data fingerprint. Values
+remain as stored: no normalization, rounding, imputation, or feature filtering is
+applied. Dataset matrices remain separate, even when their source identifiers
+match.
 
-Important rule:
+Assays without supported matrix structure, declared linkage, or matching samples
+are shown as unavailable with a reason. Imaging matrices are not included in this
+export. The source files are capped at 64 MiB each and 128 MiB total; exported
+content is capped at 32 MiB, with at most 100,000 feature rows across 32 assays.
+The package reads current source matrices; it does not recreate the exact inputs
+of an earlier analysis run.
 
-- Query must be running with `Detailed` in-app access
-- `Summary` Query results do not hand off to Analysis
-
-### Query -> Save cohort
-
-Use:
-
-- `Save cohort`
-
-This creates a reusable saved cohort from the current Query result.
-
-Important rule:
-
-- Query must be running with `Detailed` in-app access
-- `Summary` Query results do not expose `Save cohort`
-
-### Query -> Pheno-Ranker
-
-Use:
-
-- `Use IDs in Pheno-Ranker`
-
-This is most useful when the result already has sample-level or record-level IDs.
-
-Important rule:
-
-- Query must be running with `Detailed` in-app access
-- `Summary` Query results do not expose this handoff
-
-### Pheno-Ranker -> Analysis
-
-Selections from MDS or the output area can be sent into `Analysis`.
-
-Important rule:
-
-- Pheno-Ranker selections should remain sample-level when handed to `Analysis`
-
-### Pheno-Ranker -> Save cohort
-
-Selections can also be saved as a cohort.
-
-This is useful when a phenotypic cluster found in Pheno-Ranker should become a reusable comparison group elsewhere in the app.
-
-## Deleting saved cohorts safely
-
-The app now protects against deleting cohorts that are still in use.
-
-Two protections exist:
-
-- local UI protection
-  - a cohort currently attached in the page shows `In use here`
-- backend protection
-  - if a persisted Analysis session still references the cohort, deletion is blocked
-
-This is important because an Analysis chat may depend on a saved cohort long after it was first selected.
+</details>
 
 ## Export a saved cohort
 
-Choose **Export ZIP** on a saved-cohort card. The archive contains:
+<details>
+<summary>Membership archive contents and limits</summary>
+
+Choose **Export membership** from a saved cohort's Export menu. The archive contains:
 
 - `membership.tsv`: separate patient and sample membership rows, with available
   subject ClarIDs and exact sample-to-subject links. Unavailable or ambiguous
@@ -145,12 +122,14 @@ of the saved cohort. The export is limited to 100,000 combined membership rows
 and 32 MiB of uncompressed content. Existing result-file downloads in Analysis
 and Pheno-Ranker are unchanged.
 
-## Best practice
+</details>
 
-Use saved cohorts when:
+## Deleting saved cohorts safely
 
-- a subset will be reused more than once
-- you want explicit A/B comparison in `Analysis`
-- a Pheno-Ranker selection should become part of a later workflow
+Choose **Delete** in the three-dot menu. Cohorts still attached to an Analysis
+chat cannot be deleted. Remove the reference first.
 
-Do not rely only on temporary scope text when the subset is analytically important.
+Deleting a cohort removes the saved selection, not its source records.
+
+For the distinction between a cohort and the loaded workspace, see
+[workspaces and cohorts](../concepts/workspace-and-cohorts.md).
