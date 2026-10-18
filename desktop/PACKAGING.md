@@ -67,6 +67,23 @@ for backup and reset instructions.
 
 ## Still needed before a release
 
+### Linux Pheno-Ranker runtime experiment
+
+The separate **Test Linux CPAN Pheno-Ranker runtime** workflow builds Perl
+5.42.3 and installs Pheno-Ranker 1.09 from checksum-verified CPAN sources.
+It precompiles the Inline::C metrics and runs a cohort comparison after moving
+the runtime to a path with spaces, with an empty PATH and a fresh HOME.
+Choose x86_64 or aarch64 when dispatching it.
+
+This artifact is not yet connected to the desktop bundle. It does not include
+COHORTome's jq, R or UMAP requirements. Transitive CPAN dependencies are resolved
+at build time; their source archives and checksums are retained, but a complete
+dependency lock and redistribution-notice review are still pending. The build
+approach follows Pheno-Ranker's desktop scripts, without copying a local Perl
+installation or requiring the Pheno-Ranker Git checkout.
+
+### Remaining packaging work
+
 - Bundle and test Perl/Pheno-Ranker, `jq`, R/Bioconductor and optional UMAP.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
