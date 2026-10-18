@@ -1,4 +1,4 @@
-"""Build a Linux/macOS test bundle, not an installer. Run in a clean build venv."""
+"""Build a desktop test bundle, not an installer. Run in a clean build venv."""
 import argparse
 import hashlib
 import json
@@ -39,26 +39,26 @@ def stage(destination, chart_modules):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    registry = json.loads((ROOT / "config/datasets/registry.json").read_text())
+    registry = json.loads((ROOT / "config/datasets/registry.json").read_text(encoding="utf-8"))
     registry = [item for item in registry if item["dataset_id"] in {"default", "synthetic-autoimmune-demo"}]
     assert len(registry) == 2
     assert {item["root_path"] for item in registry} == {"default_dataset", "synthetic_autoimmune_demo"}
     (destination / "config/datasets").mkdir(parents=True)
-    (destination / "config/datasets/registry.json").write_text(json.dumps(registry, indent=2))
+    (destination / "config/datasets/registry.json").write_text(json.dumps(registry, indent=2), encoding="utf-8")
     template = destination / "templates/index.html"
-    html = template.read_text()
+    html = template.read_text(encoding="utf-8")
     for package, (version, asset, url) in CHARTS.items():
         vendor = destination / "static/vendor" / package
         vendor.mkdir(parents=True)
         package_dir = chart_modules / package
-        if json.loads((package_dir / "package.json").read_text())["version"] != version:
+        if json.loads((package_dir / "package.json").read_text(encoding="utf-8"))["version"] != version:
             raise ValueError(f"Packaging requires {package}@{version}, matching the web app")
         shutil.copyfile(package_dir / asset, vendor / Path(asset).name)
         for filename in ("LICENSE", "package.json"):
             shutil.copyfile(package_dir / filename, vendor / filename)
         assert url in html
         html = html.replace(url, f"/static/vendor/{package}/{Path(asset).name}")
-    template.write_text(html)
+    template.write_text(html, encoding="utf-8")
     for name in ("backend.py", "server.py", "package_probe.py"):
         shutil.copyfile(ROOT / "desktop" / name, destination / name)
 
@@ -66,11 +66,11 @@ def stage(destination, chart_modules):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
-    parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and tar.gz")
+    parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
     args = parser.parse_args()
-    if sys.platform not in {"linux", "darwin"}:
-        parser.error("Packaging currently targets Linux and macOS; Windows is not ready")
+    if sys.platform not in {"linux", "darwin", "win32"}:
+        parser.error("Packaging targets Linux, macOS and Windows")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="cohortome-freeze-") as temporary:
@@ -98,7 +98,8 @@ def main():
     if args.with_native:
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
                         str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"], check=True)
-        shutil.copy2(ROOT / "desktop/target/release/cohortome-desktop", output / "cohortome-desktop")
+        native = "cohortome-desktop.exe" if os.name == "nt" else "cohortome-desktop"
+        shutil.copy2(ROOT / "desktop/target/release" / native, output / native)
         if sys.platform == "darwin":
             subprocess.run(["codesign", "--force", "--sign", "-", str(output / "cohortome-desktop")], check=True)
     manifest = {"kind": "desktop-packaging-test", "platform": sys.platform, "architecture": platform.machine(),
@@ -109,9 +110,9 @@ def main():
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),
                 "sha256": {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()
                            for path in sorted(output.rglob("*")) if path.is_file()}}
-    (output / "package-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / "package-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     if args.with_native:
-        shutil.make_archive(str(output), "gztar", root_dir=output.parent, base_dir=output.name)
+        shutil.make_archive(str(output), "zip" if os.name == "nt" else "gztar", root_dir=output.parent, base_dir=output.name)
     print(f"Test bundle: {output}")
 
 

@@ -6,11 +6,11 @@ No developer runtime, credentials or research data are copied.
 
 ## GitHub Actions
 
-Open **Actions**, choose the Linux x86_64, Linux aarch64, or macOS Apple Silicon
+Open **Actions**, choose the Linux x86_64, Linux aarch64, macOS Apple Silicon, or Windows x86_64
 package workflow, then **Run workflow**. Each is manual only and does not create
 tags or releases. Keep workflows separate until they are stable.
 
-Each job builds a `.tar.gz`, extracts it, tests its backend from another
+Each job builds a `.tar.gz` (Windows: `.zip`), extracts it, tests its backend from another
 directory and opens its native window (under Xvfb on Linux). Download the test artifact
 from the completed run. Artifacts expire after seven days.
 
@@ -20,6 +20,10 @@ WebKitGTK 4.1 libraries; it is not yet an AppImage. The macOS test archive is no
 yet a DMG or an application bundle. Its executables are ad-hoc signed, not
 Developer ID signed or notarized; a successful CI run does not test Gatekeeper
 behaviour after downloading the archive.
+
+On Windows, run `cohortome-desktop.exe`. The test uses the runner's WebView2
+runtime; this is not an NSIS installer and does not install WebView2. Windows
+state files inherit directory ACLs, rather than Unix file permission modes.
 
 ## Build locally
 
@@ -65,7 +69,7 @@ for backup and reset instructions.
 - Bundle and test Perl/Pheno-Ranker, `jq`, R/Bioconductor and optional UMAP.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
-- Fix Windows-specific filesystem operations, then add Windows jobs and macOS Intel.
+- Confirm the Windows workflow and add macOS Intel coverage.
 - Test successful scientific analyses and native save/open dialogs on the
   installed packages, not just the source application.
 - Review redistribution notices, installer formats, signing and clean-machine

@@ -1811,11 +1811,10 @@ def analysis_app(request: AnalysisRequest, raw_request: Request) -> Dict:
                 packed = json.dumps({"script": request.custom_script, "contract_id": request.input_contract_id,
                                      "image_id": request.sandbox_image_id, "assay_ids": request.custom_assay_ids,
                                      "compare_mode": request.compare_mode, "language": request.script_language})
-                import fcntl
+                from app.state_io import advisory_file_lock
                 from app.jobs import user_jobs_root
                 user_id = request_user_id(raw_request)
-                with (user_jobs_root(user_id) / ".script-submit.lock").open("a") as lock:
-                    fcntl.flock(lock, fcntl.LOCK_EX)
+                with advisory_file_lock(user_jobs_root(user_id) / ".script-submit.lock"):
                     if any(job.get("runner_type") == "container" and job.get("status") in {"queued", "running"}
                            for job in list_job_records(user_id)):
                         raise RuntimeError("You already have a custom script queued or running. Wait for it to finish before submitting another.")

@@ -24,10 +24,16 @@ def main():
         # Deliberately use spaces in both installation and writable-state paths.
         engine = root / "installed app/engine"
         shutil.copytree(args.engine.resolve(), engine, symlinks=True)
-        binary = engine / "cohortome-backend"
+        binary = engine / ("cohortome-backend.exe" if os.name == "nt" else "cohortome-backend")
         runtime = root / "user state"
         environment = {"PATH": "", "HOME": str(root), "LANG": "C.UTF-8",
                        "PYTHONPATH": str(root / "nonexistent"), "PYTHONNOUSERSITE": "1"}
+        if os.name == "nt":
+            for key in ("SystemRoot", "WINDIR"):
+                if key in os.environ:
+                    environment[key] = os.environ[key]
+            environment.update(USERPROFILE=str(root), LOCALAPPDATA=str(root / "local"),
+                               APPDATA=str(root / "roaming"), TEMP=str(root), TMP=str(root))
         probe = subprocess.run([str(binary), "--check-package", "--runtime-dir", str(root / "probe")],
                                cwd=root, env=environment, capture_output=True, text=True, timeout=65)
         assert probe.returncode == 0, probe.stderr

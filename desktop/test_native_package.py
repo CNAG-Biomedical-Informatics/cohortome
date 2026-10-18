@@ -22,12 +22,15 @@ def main():
         command = [str(binary)]
         if args.xvfb:
             command = ["xvfb-run", "-a", *command]
-        process = subprocess.Popen(command, cwd=temporary, env=env, start_new_session=True,
+        process = subprocess.Popen(command, cwd=temporary, env=env, start_new_session=os.name != "nt",
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             output, _ = process.communicate(timeout=90)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False)
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
             output, _ = process.communicate()
             raise RuntimeError("Native startup timed out:\n" + output) from None
         print(output)
