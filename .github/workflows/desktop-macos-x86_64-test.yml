@@ -1,0 +1,60 @@
+name: Test macOS Intel desktop package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: macOS Intel
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: desktop/requirements-desktop-test.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = x86_64
+      - name: Install build dependencies
+        run: |
+          python -m pip install -r desktop/requirements-desktop-test.txt
+          python -m pip install --no-deps --no-build-isolation .
+          npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
+      - name: Build portable test bundle
+        run: |
+          python desktop/package_desktop.py --with-native \
+            --chart-modules "$RUNNER_TEMP/charts/node_modules" \
+            --output "$RUNNER_TEMP/cohortome-macos-x86_64"
+      - name: Extract and test packaged backend
+        run: |
+          mkdir "$RUNNER_TEMP/extracted"
+          tar -xzf "$RUNNER_TEMP/cohortome-macos-x86_64.tar.gz" -C "$RUNNER_TEMP/extracted"
+          python desktop/test_package.py "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/engine"
+      - name: Check ad-hoc signatures
+        run: |
+          codesign --verify --strict "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/cohortome-desktop"
+          codesign --verify --strict "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/engine/cohortome-backend"
+      - name: Test packaged native window
+        run: python desktop/test_native_package.py "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/cohortome-desktop"
+      - name: Record archive checksum
+        run: |
+          cd "$RUNNER_TEMP"
+          shasum -a 256 cohortome-macos-x86_64.tar.gz > cohortome-macos-x86_64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cohortome-macos-x86_64-test
+          path: |
+            ${{ runner.temp }}/cohortome-macos-x86_64.tar.gz
+            ${{ runner.temp }}/cohortome-macos-x86_64.tar.gz.sha256
+            ${{ runner.temp }}/cohortome-macos-x86_64/package-manifest.json
+          retention-days: 7
+          if-no-files-found: error

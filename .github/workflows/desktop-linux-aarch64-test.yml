@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = aarch64
       - name: Install build-host libraries
         run: |
           sudo apt-get update

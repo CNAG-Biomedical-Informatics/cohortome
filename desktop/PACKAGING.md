@@ -6,7 +6,8 @@ No developer runtime, credentials or research data are copied.
 
 ## GitHub Actions
 
-Open **Actions**, choose the Linux x86_64, Linux aarch64, macOS Apple Silicon, or Windows x86_64
+Open **Actions**, choose the Linux x86_64, Linux aarch64, macOS Apple Silicon,
+macOS Intel, or Windows x86_64
 package workflow, then **Run workflow**. Each is manual only and does not create
 tags or releases. Keep workflows separate until they are stable.
 
@@ -69,7 +70,7 @@ for backup and reset instructions.
 - Bundle and test Perl/Pheno-Ranker, `jq`, R/Bioconductor and optional UMAP.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
-- Confirm the Windows workflow and add macOS Intel coverage.
+- Confirm all platform workflows before assembling release installers.
 - Test successful scientific analyses and native save/open dialogs on the
   installed packages, not just the source application.
 - Review redistribution notices, installer formats, signing and clean-machine
