@@ -6,9 +6,9 @@ No developer runtime, credentials or research data are copied.
 
 ## GitHub Actions
 
-Open **Actions → Test Linux desktop packages → Run workflow**. Start with
-**x86_64**; choose **aarch64** or **both** when needed. The workflow is manual
-only and does not create tags or releases.
+Open **Actions → Test Linux x86_64 desktop package → Run workflow**. The workflow
+is manual only and does not create tags or releases. Architectures will have
+separate workflows during initial testing; combine them after they are stable.
 
 Each job builds a `.tar.gz`, extracts it, tests its backend from another
 directory and opens its native window under Xvfb. Download the test artifact

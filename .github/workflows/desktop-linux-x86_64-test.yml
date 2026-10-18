@@ -1,26 +1,16 @@
-name: Test Linux desktop packages
+name: Test Linux x86_64 desktop package
 
 on:
   workflow_dispatch:
-    inputs:
-      platform:
-        description: Linux architecture to test
-        type: choice
-        default: x86_64
-        options: [x86_64, aarch64, both]
 
 permissions:
   contents: read
 
 jobs:
   package:
-    name: Linux ${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
     timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(inputs.platform == 'aarch64' && '[{"os":"ubuntu-24.04-arm","arch":"aarch64"}]' || inputs.platform == 'both' && '[{"os":"ubuntu-22.04","arch":"x86_64"},{"os":"ubuntu-24.04-arm","arch":"aarch64"}]' || '[{"os":"ubuntu-22.04","arch":"x86_64"}]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -45,12 +35,12 @@ jobs:
         run: |
           python desktop/package_linux.py --with-native \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
-            --output "$RUNNER_TEMP/cohortome-linux-${{ matrix.arch }}"
+            --output "$RUNNER_TEMP/cohortome-linux-x86_64"
       - name: Extract and test packaged backend
         run: |
           mkdir "$RUNNER_TEMP/extracted"
-          tar -xzf "$RUNNER_TEMP/cohortome-linux-${{ matrix.arch }}.tar.gz" -C "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py "$RUNNER_TEMP/extracted/cohortome-linux-${{ matrix.arch }}/engine"
+          tar -xzf "$RUNNER_TEMP/cohortome-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/extracted"
+          python desktop/test_package.py "$RUNNER_TEMP/extracted/cohortome-linux-x86_64/engine"
       - name: Test packaged native window
         env:
           COHORTOME_DESKTOP_SMOKE_TEST: '1'
@@ -59,18 +49,18 @@ jobs:
           export XDG_DATA_HOME="$RUNNER_TEMP/native-smoke-state"
           unset PYTHONPATH PERL5LIB PERL5OPT
           cd "$RUNNER_TEMP/extracted"
-          timeout 90s xvfb-run -a "./cohortome-linux-${{ matrix.arch }}/cohortome-desktop" 2>&1 | tee "$RUNNER_TEMP/native-smoke.log"
+          timeout 90s xvfb-run -a "./cohortome-linux-x86_64/cohortome-desktop" 2>&1 | tee "$RUNNER_TEMP/native-smoke.log"
           grep -Fq 'PASS: packaged native window loaded' "$RUNNER_TEMP/native-smoke.log"
       - name: Record archive checksum
         run: |
           cd "$RUNNER_TEMP"
-          sha256sum "cohortome-linux-${{ matrix.arch }}.tar.gz" > "cohortome-linux-${{ matrix.arch }}.tar.gz.sha256"
+          sha256sum "cohortome-linux-x86_64.tar.gz" > "cohortome-linux-x86_64.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: cohortome-linux-${{ matrix.arch }}-test
+          name: cohortome-linux-x86_64-test
           path: |
-            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}.tar.gz
-            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}.tar.gz.sha256
-            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}/package-manifest.json
+            ${{ runner.temp }}/cohortome-linux-x86_64.tar.gz
+            ${{ runner.temp }}/cohortome-linux-x86_64.tar.gz.sha256
+            ${{ runner.temp }}/cohortome-linux-x86_64/package-manifest.json
           retention-days: 7
           if-no-files-found: error
