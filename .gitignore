@@ -26,3 +26,5 @@ frontend/dist/
 docker/.env
 native.env
 .local-notes/
+/build/
+/cohortome.egg-info/

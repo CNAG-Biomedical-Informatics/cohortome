@@ -5,7 +5,9 @@ templates and styles are shared. Tauri opens the local web interface;
 File and View menus invoke its buttons. Project save/open uses shared Python
 and JavaScript, with native file dialogs supplied by Tauri.
 
-This is not an installer. It currently targets Linux development with Python
+For the experimental standalone Linux bundle and manual GitHub Actions workflow,
+see [Packaging tests](PACKAGING.md). The source launcher below is not an installer.
+It currently targets Linux development with Python
 dependencies, Rust and Tauri system libraries installed.
 
 From this repository's root:

@@ -126,7 +126,7 @@ class LocalRunner:
                 if record.get("runner_type") == "container":
                     container_name = "cohortome-script-" + uuid4().hex
                 env["COHORTOME_LOCAL_CONTAINER_NAME"] = container_name
-                command = [sys.executable, "-m", "app.local_jobs", kind, job_id, user_id]
+                command = child_command(kind, job_id, user_id)
                 # Runners already persist governed logs/artifacts. Do not leak
                 # child stdout into the desktop bootstrap protocol or terminal.
                 process = subprocess.Popen(command, env=env, stdin=subprocess.PIPE,
@@ -167,7 +167,12 @@ class LocalRunner:
         self.lock.close()
 
 
-if __name__ == "__main__":
+def child_command(kind, job_id, user_id):
+    entry = ["--job"] if getattr(sys, "frozen", False) else ["-m", "app.local_jobs"]
+    return [sys.executable, *entry, kind, job_id, user_id]
+
+
+def main():
     if os.environ.get("COHORTOME_LOCAL_JOB_CHILD") != "1" or len(sys.argv) != 4:
         raise SystemExit("This entrypoint is only for desktop-managed job processes.")
     def parent_closed():
@@ -192,3 +197,7 @@ if __name__ == "__main__":
     from app.jobs import run_analysis_job, run_pheno_job
     kind, job_id, user_id = sys.argv[1:]
     {"analysis": run_analysis_job, "pheno": run_pheno_job}[kind](job_id, user_id)
+
+
+if __name__ == "__main__":
+    main()

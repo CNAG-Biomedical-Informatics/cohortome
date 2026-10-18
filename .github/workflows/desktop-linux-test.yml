@@ -1,0 +1,76 @@
+name: Test Linux desktop packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Linux architecture to test
+        type: choice
+        default: x86_64
+        options: [x86_64, aarch64, both]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.platform == 'aarch64' && '[{"os":"ubuntu-24.04-arm","arch":"aarch64"}]' || inputs.platform == 'both' && '[{"os":"ubuntu-22.04","arch":"x86_64"},{"os":"ubuntu-24.04-arm","arch":"aarch64"}]' || '[{"os":"ubuntu-22.04","arch":"x86_64"}]') }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: desktop/requirements-linux-test.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install build-host libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth
+      - name: Install build dependencies
+        run: |
+          python -m pip install -r desktop/requirements-linux-test.txt
+          python -m pip install --no-deps --no-build-isolation .
+          npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
+      - name: Build portable test bundle
+        run: |
+          python desktop/package_linux.py --with-native \
+            --chart-modules "$RUNNER_TEMP/charts/node_modules" \
+            --output "$RUNNER_TEMP/cohortome-linux-${{ matrix.arch }}"
+      - name: Extract and test packaged backend
+        run: |
+          mkdir "$RUNNER_TEMP/extracted"
+          tar -xzf "$RUNNER_TEMP/cohortome-linux-${{ matrix.arch }}.tar.gz" -C "$RUNNER_TEMP/extracted"
+          python desktop/test_package.py "$RUNNER_TEMP/extracted/cohortome-linux-${{ matrix.arch }}/engine"
+      - name: Test packaged native window
+        env:
+          COHORTOME_DESKTOP_SMOKE_TEST: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+        run: |
+          export XDG_DATA_HOME="$RUNNER_TEMP/native-smoke-state"
+          unset PYTHONPATH PERL5LIB PERL5OPT
+          cd "$RUNNER_TEMP/extracted"
+          timeout 90s xvfb-run -a "./cohortome-linux-${{ matrix.arch }}/cohortome-desktop" 2>&1 | tee "$RUNNER_TEMP/native-smoke.log"
+          grep -Fq 'PASS: packaged native window loaded' "$RUNNER_TEMP/native-smoke.log"
+      - name: Record archive checksum
+        run: |
+          cd "$RUNNER_TEMP"
+          sha256sum "cohortome-linux-${{ matrix.arch }}.tar.gz" > "cohortome-linux-${{ matrix.arch }}.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cohortome-linux-${{ matrix.arch }}-test
+          path: |
+            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}.tar.gz
+            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}.tar.gz.sha256
+            ${{ runner.temp }}/cohortome-linux-${{ matrix.arch }}/package-manifest.json
+          retention-days: 7
+          if-no-files-found: error

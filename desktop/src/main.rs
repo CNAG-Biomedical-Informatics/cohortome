@@ -91,10 +91,24 @@ fn main() {
         .invoke_handler(tauri::generate_handler![save_project_file, open_project_file, save_export_file])
         .setup(|app| {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-            let python = std::env::var("COHORTOME_DESKTOP_PYTHON").unwrap_or_else(|_| "python3".into());
-            let mut command = Command::new(python);
-            command.arg(root.join("desktop/server.py")).current_dir(root)
-                .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+            let executable = std::env::current_exe()?;
+            let backend_name = if cfg!(windows) { "cohortome-backend.exe" } else { "cohortome-backend" };
+            let portable = executable.parent().unwrap().join("engine").join(backend_name);
+            let resource = app.path().resource_dir()?.join("engine").join(backend_name);
+            let packaged = [portable, resource].into_iter().find(|path| path.is_file());
+            let mut command = if let Some(backend) = packaged {
+                let mut command = Command::new(backend);
+                command.arg("--runtime-dir").arg(app.path().app_local_data_dir()?);
+                command
+            } else if cfg!(debug_assertions) {
+                let python = std::env::var("COHORTOME_DESKTOP_PYTHON").unwrap_or_else(|_| "python3".into());
+                let mut command = Command::new(python);
+                command.arg(root.join("desktop/server.py")).current_dir(root);
+                command
+            } else {
+                return Err("Packaged COHORTome backend is missing. Reinstall the application.".into());
+            };
+            command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
             let mut child = command.spawn()?;
             let stdout = child.stdout.take().unwrap();
             let engine = Engine(Mutex::new(Some(child)));
@@ -115,12 +129,24 @@ fn main() {
                 "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file"]
             }).to_string())?;
             app.manage(engine);
+            let smoke = std::env::var("COHORTOME_DESKTOP_SMOKE_TEST").as_deref() == Ok("1");
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .initialization_script("window.__COHORTOME_DESKTOP__ = true; document.addEventListener('contextmenu', event => event.preventDefault());")
                 .devtools(false)
                 .title("COHORTome — Desktop Preview")
                 .inner_size(1440.0, 960.0).min_inner_size(800.0, 600.0)
                 .on_navigation(move |target| target.origin() == origin)
+                .on_page_load(move |window, payload| {
+                    if smoke && payload.url().path() == "/"
+                        && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                        let handle = window.app_handle().clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_secs(2));
+                            println!("PASS: packaged native window loaded");
+                            handle.exit(0);
+                        });
+                    }
+                })
                 .build()?;
             let file = Submenu::with_items(app, "File", true, &[
                 &MenuItem::with_id(app, "newQueryChatBtn", "New Query Chat", true, None::<&str>)?,

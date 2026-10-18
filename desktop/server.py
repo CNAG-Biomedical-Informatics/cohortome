@@ -1,4 +1,5 @@
-"""Source-only desktop preview: synthetic state and the unchanged web interface."""
+"""Private desktop backend, shared by the source preview and packaged app."""
+import argparse
 import asyncio
 import json
 import os
@@ -8,21 +9,42 @@ import socket
 import sys
 import threading
 
-ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = ROOT / "runtime" / "desktop-preview"
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
 
 
-def main():
+def runtime_directory():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--runtime-dir", type=Path)
+    args = parser.parse_args()
+    if args.runtime_dir:
+        if not args.runtime_dir.is_absolute():
+            parser.error("--runtime-dir must be absolute")
+        return args.runtime_dir.resolve()
+    if not getattr(sys, "frozen", False):
+        return ROOT / "runtime" / "desktop-preview"
+    if sys.platform == "darwin":
+        return Path.home() / "Library/Application Support/org.cnag.cohortome.preview"
+    if os.name == "nt":
+        return Path(os.environ["LOCALAPPDATA"]) / "org.cnag.cohortome.preview"
+    return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "org.cnag.cohortome.preview"
+
+
+def configure_environment(runtime):
     for name in list(os.environ):
         if name.startswith(("COHORTOME_", "LM_STUDIO_", "UVICORN_")):
             del os.environ[name]
-    os.environ.update(COHORTOME_RUNTIME_ROOT=str(RUNTIME), COHORTOME_AUTH_MODE="none",
+    os.environ.update(COHORTOME_RUNTIME_ROOT=str(runtime), COHORTOME_AUTH_MODE="none",
                       COHORTOME_SESSION_SECRET=secrets.token_urlsafe(32),
                       COHORTOME_JOBS_REDIS_URL="redis://127.0.0.1:1/0",
                       COHORTOME_JOBS_BACKEND="local",
                       COHORTOME_DESKTOP_MODE="true",
                       LM_STUDIO_ENABLED="false")
     sys.path.insert(0, str(ROOT))
+
+
+def main():
+    runtime = runtime_directory()
+    configure_environment(runtime)
     import uvicorn
     from starlette.responses import PlainTextResponse, RedirectResponse
     from starlette.requests import Request
@@ -33,7 +55,7 @@ def main():
 
     initialize_desktop_default_provider()
 
-    registry = RUNTIME / "state/datasets/registry.json"
+    registry = runtime / "state/datasets/registry.json"
     if not registry.exists():
         seed = json.loads((ROOT / "config/datasets/registry.json").read_text())
         atomic_write_json(registry, [item for item in seed if item["dataset_id"] in
