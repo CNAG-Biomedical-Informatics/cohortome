@@ -28,3 +28,6 @@ native.env
 .local-notes/
 /build/
 /cohortome.egg-info/
+/PROJECT.md
+/SESSION_NOTES.md
+/README
