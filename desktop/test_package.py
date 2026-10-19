@@ -3,6 +3,7 @@ import argparse
 import csv
 import io
 import json
+import math
 import os
 from pathlib import Path
 import queue
@@ -16,12 +17,13 @@ from urllib.parse import urlsplit
 import httpx
 
 
-def test_pheno(client):
+def test_pheno(client, with_umap=False):
     """Run real Perl comparisons through the frozen app, including Python extraction."""
     response = client.get("/pheno-ranker/patient-ids", params={"dataset_id": "default"})
     assert response.status_code == 200, response.text[:1000]
-    selected = response.json()["record_ids"][:3]
-    assert len(selected) == 3
+    count = 8 if with_umap else 3
+    selected = response.json()["record_ids"][:count]
+    assert len(selected) == count
 
     def artifact(payload, name):
         files = {item["name"]: item for item in payload["files"]}
@@ -32,12 +34,12 @@ def test_pheno(client):
 
     for mode in ("cohort", "patient"):
         request = {"dataset_id": "default", "mode": mode,
-                   "include_terms": ["diseases"], "render_umap": False}
+                   "include_terms": ["diseases"], "render_umap": with_umap and mode == "cohort"}
         if mode == "cohort":
             request.update(selected_patient_ids=",".join(selected), similarity_metric_cohort="jaccard")
         else:
             request.update(patient_id=selected[0], max_out=3)
-        response = client.post("/pheno-ranker/run", json=request, timeout=120)
+        response = client.post("/pheno-ranker/run", json=request, timeout=300 if with_umap else 120)
         assert response.status_code == 200, response.text[:2000]
         result = response.json()
         assert result["returncode"] == 0, result.get("stderr")
@@ -47,11 +49,16 @@ def test_pheno(client):
             records = json.loads(artifact(result, "reference.selected.json"))
             assert {record["id"] for record in records} == set(selected)
             matrix = list(csv.reader(io.StringIO(artifact(result, "matrix.txt")), delimiter="\t"))
-            assert len(matrix) == 4 and set(matrix[0][1:]) == set(selected)
+            assert len(matrix) == count + 1 and set(matrix[0][1:]) == set(selected)
             assert {row[0] for row in matrix[1:]} == set(selected)
-            assert all(len(row) == 4 for row in matrix)
+            assert all(len(row) == count + 1 for row in matrix)
             points = list(csv.DictReader(io.StringIO(artifact(result, "mds_points.tsv")), delimiter="\t"))
-            assert len(points) == 3
+            assert len(points) == count
+            if with_umap:
+                points = list(csv.DictReader(io.StringIO(artifact(result, "umap_points.tsv")), delimiter="\t"))
+                assert len(points) == count
+                assert all(math.isfinite(float(row[axis])) for row in points for axis in ('x', 'y'))
+                print("PASS: packaged UMAP projection")
             graph = json.loads(artifact(result, "graph.json"))
             assert graph
         else:
@@ -65,6 +72,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("engine", type=Path)
     parser.add_argument("--require-pheno", action="store_true", help="Require real packaged Pheno-Ranker analyses")
+    parser.add_argument("--require-r", action="store_true", help="Require real packaged R analysis")
+    parser.add_argument("--require-umap", action="store_true", help="Require packaged Pheno-Ranker UMAP")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="cohortome-relocation-") as temporary:
         root = Path(temporary)
@@ -82,9 +91,11 @@ def main():
             environment.update(USERPROFILE=str(root), LOCALAPPDATA=str(root / "local"),
                                APPDATA=str(root / "roaming"), TEMP=str(root), TMP=str(root))
         probe = subprocess.run([str(binary), "--check-package", "--runtime-dir", str(root / "probe")],
-                               cwd=root, env=environment, capture_output=True, text=True, timeout=65)
+                               cwd=root, env=environment, capture_output=True, text=True, timeout=180)
         assert probe.returncode == 0, probe.stderr
         assert "PASS: packaged job" in probe.stdout, probe.stdout
+        if args.require_r:
+            assert "PASS: packaged R adapter" in probe.stdout, probe.stdout
         print(probe.stdout.strip())
         for restart in (False, True):
             with (root / "stderr.log").open("w+") as errors:
@@ -132,8 +143,8 @@ def main():
                                 assert exported.status_code == 200, exported.text[:200]
                                 assert zipfile.is_zipfile(io.BytesIO(exported.content))
                             assert client.patch("/user-settings", json={"appearance": "dark"}).status_code == 200
-                            if args.require_pheno:
-                                test_pheno(client)
+                            if args.require_pheno or args.require_umap:
+                                test_pheno(client, args.require_umap)
                 finally:
                     child.stdin.close()
                     try:

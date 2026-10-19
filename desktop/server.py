@@ -41,6 +41,9 @@ def configure_environment(runtime):
                       LM_STUDIO_ENABLED="false")
     if getattr(sys, 'frozen', False):
         tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
+        os.environ['COHORTOME_RSCRIPT_BIN'] = str(tools.parents[1] / 'r/bin/Rscript')
+        os.environ['NUMBA_CACHE_DIR'] = str(runtime / 'cache/numba')
+        os.environ['NUMBA_NUM_THREADS'] = '1'
         # Never fall back to a developer checkout or host tools in a package.
         os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / 'pheno-ranker')
         if os.name == 'nt':

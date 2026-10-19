@@ -2,6 +2,11 @@ name: Test Linux ARM64 R runtime
 
 on:
   workflow_dispatch:
+    inputs:
+      extended:
+        description: Include DESeq2 and pathway packages
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -9,7 +14,7 @@ permissions:
 jobs:
   runtime:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -19,8 +24,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends r-base-core r-bioc-limma r-bioc-edger r-cran-jsonlite
+      - name: Install extended build-host packages
+        if: inputs.extended
+        run: |
+          sudo apt-get install -y --no-install-recommends r-base-dev r-bioc-deseq2 r-cran-ggplot2 r-cran-biocmanager libcurl4-openssl-dev libssl-dev libxml2-dev
+          mkdir -p "$RUNNER_TEMP/r-library"
+          echo "R_LIBS_USER=$RUNNER_TEMP/r-library" >> "$GITHUB_ENV"
+          R_LIBS_USER="$RUNNER_TEMP/r-library" Rscript --vanilla -e 'options(repos=c(CRAN="https://cloud.r-project.org")); BiocManager::install(c("apeglm", "fgsea", "msigdbr"), ask=FALSE, update=FALSE, Ncpus=2)'
       - name: Stage and relocation-test R runtime
-        run: python desktop/build_linux_r.py --output "$RUNNER_TEMP/cohortome-r-aarch64"
+        env:
+          EXTENDED: ${{ inputs.extended }}
+        run: |
+          extra=()
+          if [ "$EXTENDED" = true ]; then extra+=(--extended); fi
+          python desktop/build_linux_r.py "${extra[@]}" --output "$RUNNER_TEMP/cohortome-r-aarch64"
       - uses: actions/upload-artifact@v4
         with:
           name: cohortome-r-aarch64-test

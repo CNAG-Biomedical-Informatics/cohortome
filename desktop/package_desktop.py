@@ -59,7 +59,7 @@ def stage(destination, chart_modules):
         assert url in html
         html = html.replace(url, f"/static/vendor/{package}/{Path(asset).name}")
     template.write_text(html, encoding="utf-8")
-    for name in ("backend.py", "server.py", "package_probe.py"):
+    for name in ("backend.py", "server.py", "package_probe.py", "r_package_probe.py"):
         shutil.copyfile(ROOT / "desktop" / name, destination / name)
 
 
@@ -71,8 +71,22 @@ def stage_pheno_runtime(source, engine):
     perl_version = str(manifest.get('perl', ''))
     if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('pheno_ranker') != '1.09':
         raise ValueError('Unsupported or incomplete Pheno runtime')
-    hashes = manifest.get('runtime_sha256') or {}
     executables = ('bin/pheno-ranker', 'perl/bin/perl.exe', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
+    return copy_verified_runtime(source, engine / 'runtimes/pheno', manifest, executables)
+
+
+def stage_r_runtime(source, engine):
+    source = source.resolve()
+    manifest = json.loads((source / 'runtime-manifest.json').read_text())
+    if sys.platform != 'linux' or manifest.get('platform') != 'linux' or manifest.get('architecture') != platform.machine():
+        raise ValueError('R runtime must match this Linux build architecture')
+    if not {'limma', 'edgeR', 'jsonlite'}.issubset(manifest.get('packages', {})):
+        raise ValueError('R runtime is missing core analysis packages')
+    return copy_verified_runtime(source, engine / 'runtimes/r', manifest, ('bin/Rscript', 'R/bin/exec/R'))
+
+
+def copy_verified_runtime(source, destination, manifest, executables):
+    hashes = manifest.get('runtime_sha256') or {}
     for required in executables:
         if required not in hashes:
             raise ValueError('Runtime manifest is missing required executables')
@@ -87,7 +101,7 @@ def stage_pheno_runtime(source, engine):
         path = (source / name).resolve()
         if not path.is_relative_to(source) or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ValueError('Runtime checksum mismatch')
-    shutil.copytree(source, engine / 'runtimes/pheno', symlinks=True)
+    shutil.copytree(source, destination, symlinks=True)
     return manifest
 
 
@@ -97,6 +111,8 @@ def main():
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
     parser.add_argument('--pheno-runtime', type=Path, help='Verified platform-matched Perl/Pheno-Ranker runtime')
+    parser.add_argument('--r-runtime', type=Path, help='Verified Linux R runtime')
+    parser.add_argument('--with-umap', action='store_true', help='Bundle the installed UMAP stack')
     args = parser.parse_args()
     if sys.platform not in {"linux", "darwin", "win32"}:
         parser.error("Packaging targets Linux, macOS and Windows")
@@ -112,9 +128,15 @@ def main():
                    "--paths", str(staging), "--collect-submodules", "app",
                    "--collect-submodules", "uvicorn", "--collect-all", "pydicom",
                    "--copy-metadata", "cohortome", "--exclude-module", "tkinter"]
+        if args.with_umap:
+            # Same dynamic-import handling as Pheno-Ranker Desktop's Python helper.
+            command.extend(['--collect-all', 'umap', '--collect-all', 'pynndescent',
+                            '--collect-submodules', 'scipy._external.array_api_compat.numpy'])
+            for package in ('umap-learn', 'numba', 'llvmlite', 'scikit-learn', 'scipy'):
+                command.extend(['--copy-metadata', package])
         # Include readable analysis implementations for the existing audit export.
         for child in staging.iterdir():
-            if child.name in {"backend.py", "server.py", "package_probe.py"}:
+            if child.name in {"backend.py", "server.py", "package_probe.py", "r_package_probe.py"}:
                 continue
             command.extend(["--add-data", f"{child}:{child.name if child.is_dir() else '.'}"])
         command.append(str(staging / "backend.py"))
@@ -125,6 +147,7 @@ def main():
     shutil.move(str(output / "frozen/cohortome-backend"), output / "engine")
     (output / "frozen").rmdir()
     pheno_manifest = stage_pheno_runtime(args.pheno_runtime, output / 'engine') if args.pheno_runtime else None
+    r_manifest = stage_r_runtime(args.r_runtime, output / 'engine') if args.r_runtime else None
     if args.with_native:
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
                         str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"], check=True)
@@ -136,7 +159,8 @@ def main():
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
                 "pheno_runtime": pheno_manifest,
-                "not_bundled": ([] if pheno_manifest else ["Perl/Pheno-Ranker"]) + ["R/Bioconductor", "UMAP", "OHIF", "Docker"],
+                "r_runtime": r_manifest,
+                "not_bundled": ([] if pheno_manifest else ["Perl/Pheno-Ranker"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ["OHIF", "Docker"],
                 "python_packages": json.loads(subprocess.check_output(
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),
                 "sha256": {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()

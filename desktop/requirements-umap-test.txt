@@ -1,0 +1,12 @@
+# Match the UMAP stack resolved by the successful Pheno-Ranker Windows build.
+# Linux ARM64 experiment; other platforms keep their existing package profiles.
+umap-learn==0.5.9.post2
+scipy==1.18.1
+scikit-learn==1.9.1
+numba==0.68.0
+llvmlite==0.50.0
+pynndescent==0.6.0
+joblib==1.6.0
+threadpoolctl==3.7.0
+tqdm==4.70.1
+cloudpickle==3.1.2

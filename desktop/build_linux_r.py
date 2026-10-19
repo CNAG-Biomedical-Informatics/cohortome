@@ -26,10 +26,30 @@ jsonlite::write_json(list(genes=nrow(result), packages=as.list(sapply(
  c("limma","edgeR","jsonlite"), function(p) as.character(packageVersion(p))))), "probe.json")
 '''
 
+EXTENDED_PROBE = '''
+set.seed(43)
+counts <- matrix(rnbinom(2400, mu=100, size=5), nrow=300)
+rownames(counts) <- paste0("gene", seq_len(nrow(counts)))
+group <- factor(rep(c("A", "B"), each=4))
+dds <- DESeq2::DESeqDataSetFromMatrix(counts, data.frame(group), ~group)
+dds <- DESeq2::DESeq(dds, quiet=TRUE)
+res <- DESeq2::lfcShrink(dds, coef=2, type="apeglm")
+stopifnot(nrow(res)==300, any(is.finite(res$log2FoldChange)))
+stats <- setNames(rnorm(300), rownames(counts))
+pathways <- list(synthetic_one=names(stats)[1:25], synthetic_two=names(stats)[26:60])
+enriched <- fgsea::fgseaMultilevel(pathways, stats, minSize=10, maxSize=100, nproc=1)
+stopifnot(nrow(enriched)==2, all(is.finite(enriched$pval)))
+ggplot2::ggsave("extended.png", ggplot2::ggplot(data.frame(x=stats),
+ ggplot2::aes(x=x)) + ggplot2::geom_histogram(bins=20), width=5, height=4)
+stopifnot(requireNamespace("msigdbr", quietly=TRUE))
+# No MSigDB gene sets are fetched or redistributed by this synthetic test.
+'''
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--extended", action="store_true", help="Include DESeq2, apeglm and pathway packages")
     args = parser.parse_args()
     if platform.system() != "Linux":
         parser.error("This builder targets Linux")
@@ -48,6 +68,9 @@ packages <- lapply(deps, function(p) list(name=p, version=as.character(packageVe
 cat(jsonlite::toJSON(list(home=R.home(), share=R.home("share"), include=R.home("include"),
  doc=R.home("doc"), version=as.character(getRversion()), packages=packages), auto_unbox=TRUE))
 '''
+    if args.extended:
+        expression = expression.replace('required <- c("limma","edgeR","jsonlite")',
+            'required <- c("limma","edgeR","jsonlite","DESeq2","apeglm","fgsea","msigdbr","ggplot2")')
     metadata = json.loads(subprocess.check_output([rscript, "--vanilla", "-e", expression], text=True))
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -106,17 +129,20 @@ exec "$R_HOME/bin/Rscript" "$@"
         relocated = work / "runtime with spaces"
         shutil.move(output, relocated)
         try:
-            subprocess.run([str(relocated / "bin/Rscript"), "--vanilla", "-e", PROBE],
+            subprocess.run([str(relocated / "bin/Rscript"), "--vanilla", "-e", PROBE + (EXTENDED_PROBE if args.extended else "")],
                            cwd=work, env={"PATH": "", "HOME": str(work), "LANG": "C.UTF-8"},
-                           check=True, timeout=120)
+                           check=True, timeout=300 if args.extended else 120)
             if not all((work / name).is_file() and (work / name).stat().st_size
                        for name in ("probe.svg", "probe.png", "probe.json")):
                 raise RuntimeError("R runtime probe did not produce its artifacts")
+            if args.extended and not (work / "extended.png").stat().st_size:
+                raise RuntimeError("Extended R probe did not produce its plot")
         finally:
             shutil.move(relocated, output)
     manifest = {"platform": "linux", "architecture": platform.machine(), "r": metadata["version"],
                 "packages": {p["name"]: p["version"] for p in metadata["packages"]},
-                "verification": "relocated TMM/voom/limma, JSON, PNG and SVG without host R/package paths",
+                "verification": "relocated TMM/voom/limma, JSON, PNG and SVG without host R/package paths" +
+                    ("; DESeq2/apeglm, synthetic fgsea pathways and ggplot2 (no MSigDB data)" if args.extended else ""),
                 "runtime_sha256": {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                                    for p in output.rglob("*") if p.is_file()}}
     (output / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

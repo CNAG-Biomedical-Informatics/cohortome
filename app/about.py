@@ -6,11 +6,12 @@ import platform
 import re
 import shutil
 import subprocess
+from app.r_runtime import rscript_binary
 
 
 PACKAGES = ("fastapi", "uvicorn", "duckdb", "numpy", "pydantic", "jinja2",
             "PyYAML", "itsdangerous", "python-dotenv", "redis", "rq", "pydicom", "umap-learn")
-R_PACKAGES = ("limma", "edgeR", "DESeq2", "ggplot2")
+R_PACKAGES = ("limma", "edgeR", "DESeq2", "apeglm", "fgsea", "msigdbr", "ggplot2", "jsonlite")
 
 
 def _command(args):
@@ -44,7 +45,7 @@ def version_report():
             rows[package + (" (Python client)" if package == "redis" else "")] = _version(metadata.version(package))
         except metadata.PackageNotFoundError:
             rows[package] = "Not installed"
-    rscript = shutil.which("Rscript")
+    rscript = rscript_binary()
     rows.update({name: "Unknown" if rscript else "Not installed" for name in ("R", *R_PACKAGES)})
     if rscript:
         expression = 'cat("R=", as.character(getRversion()), "\\n", sep="");'

@@ -11,6 +11,7 @@ from app.config import CONFIG_DIR
 from app.datasets import clinical_representation
 from app.query_store import assay_dataset_inventory
 from app.env import app_env
+from app.r_runtime import rscript_unavailable_reason
 
 
 ANALYSIS_CATALOG_PATH = CONFIG_DIR / "analysis" / "catalog.yaml"
@@ -226,14 +227,12 @@ def _availability_for_item(
         data_types = ", ".join(item.get("required_data_types") or [])
         suffix = f" ({data_types})" if data_types else ""
         unavailable_reason = f"No compatible {modalities} assay{suffix} is available in the current workspace."
-    elif item.get("runner_type") == "rscript" and not shutil.which("Rscript"):
-        unavailable_reason = "Rscript is not available on this installation."
+    elif item.get("runner_type") in {"rscript", "workflow"}:
+        unavailable_reason = rscript_unavailable_reason(item.get("runner_ref", ""))
     elif item.get("runner_type") == "snakemake" and not shutil.which("snakemake"):
         unavailable_reason = "Snakemake is not available on this installation."
     elif item.get("runner_type") == "nextflow" and not _configured_runtime_available("NEXTFLOW_BIN", "nextflow"):
         unavailable_reason = "Nextflow is not available on this installation."
-    elif item.get("runner_type") == "workflow" and not shutil.which("Rscript"):
-        unavailable_reason = "Rscript is not available on this installation."
     return {
         "available": unavailable_reason == "",
         "unavailable_reason": unavailable_reason,

@@ -15,6 +15,7 @@ from typing import Any, Dict, List
 
 import yaml
 from app.analysis_resources import single_thread_environment
+from app.r_runtime import rscript_binary
 
 from app.bff import (
     ensure_data_dir,
@@ -1999,7 +2000,7 @@ def run_rscript_analysis(
     job_dir: Path | None = None,
     timeout_seconds: int = 30,
 ) -> Dict[str, Any]:
-    binary = shutil.which("Rscript")
+    binary = rscript_binary()
     if not binary:
         raise RuntimeError("Rscript is not available on this installation.")
     script_path = RSCRIPT_RUNNERS.get(str(runner_ref or "").strip())

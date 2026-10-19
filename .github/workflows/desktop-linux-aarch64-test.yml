@@ -27,25 +27,28 @@ jobs:
       - name: Install build-host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev r-base-core r-bioc-limma r-bioc-edger r-cran-jsonlite
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
+          python -m pip install -r desktop/requirements-umap-test.txt
           python -m pip install --no-deps --no-build-isolation .
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
       - name: Build portable test bundle
         run: |
-          python desktop/package_desktop.py --with-native \
+          python desktop/build_linux_r.py --output "$RUNNER_TEMP/r-runtime"
+          python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
+            --r-runtime "$RUNNER_TEMP/r-runtime" \
             --output "$RUNNER_TEMP/cohortome-linux-aarch64"
       - name: Extract and test packaged backend
         run: |
           mkdir "$RUNNER_TEMP/extracted"
           tar -xzf "$RUNNER_TEMP/cohortome-linux-aarch64.tar.gz" -C "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
+          python desktop/test_package.py --require-pheno --require-r --require-umap "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
       - name: Test packaged native window
         run: |
           python desktop/test_native_package.py --xvfb "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/cohortome-desktop"

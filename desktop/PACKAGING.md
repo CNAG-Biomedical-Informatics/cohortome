@@ -4,8 +4,9 @@ This is a test bundle, not a release installer. It contains the Tauri window,
 Python backend, two synthetic datasets and local Plotly/Cytoscape assets.
 No developer runtime, credentials or research data are copied.
 The workflows include a separately built Perl/Pheno-Ranker runtime. Linux
-x86_64 and ARM64 passed the integrated tests; macOS and Windows integration
-is awaiting its first CI verification.
+x86_64, ARM64 and both macOS architectures passed the integrated Perl tests.
+Windows packaging is still being corrected. The Linux ARM64 workflow now also
+includes core R and UMAP; their integrated CI results must be checked separately.
 
 ## GitHub Actions
 
@@ -62,6 +63,11 @@ assets must therefore be tracked before packaging.
   backend, using the bundled Perl runtime. Checks selected records, matrix,
   graph, Python MDS output and ranking without host executables on `PATH`.
 - Native window startup in CI. This is not a full interactive UI test.
+- With `--require-r`: the actual COHORTome limma-voom adapter, using bundled
+  synthetic assays, must retain a model and plot. This is a direct analysis;
+  the background-worker test above still exercises its failure path only.
+- With `--require-umap`: a Pheno-Ranker cohort run must produce finite UMAP
+  coordinates for all selected records.
 
 The packaged app stores state under the platform application-data directory
 (`$XDG_DATA_HOME/org.cnag.cohortome.preview` on Linux, defaulting to
@@ -108,7 +114,7 @@ add `--require-pheno` to the `desktop/test_package.py` command. Building Perl
 requires a compiler, make, curl and the OpenSSL, Expat, zlib and bzip2 development
 libraries; the workflows install them explicitly.
 
-This does not include R or UMAP. Reference record selection uses Python
+The Perl runtime itself does not include R or UMAP. Reference record selection uses Python
 directly. Transitive CPAN dependencies are resolved
 at build time; their source archives and checksums are retained, but a complete
 dependency lock and redistribution-notice review are still pending. The build
@@ -117,8 +123,10 @@ installation or requiring the Pheno-Ranker Git checkout.
 
 ### Remaining packaging work
 
-- Verify the integrated macOS and Windows Perl/Pheno-Ranker builds.
-- Bundle and test R/Bioconductor and optional UMAP.
+- Fix and verify the Windows Perl/Pheno-Ranker build.
+- Verify integrated Linux ARM64 R/UMAP, then extend to other platforms.
+- Verify the extended R runtime and Hallmark gene-set access before claiming
+  complete curated-analysis coverage.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
 - Confirm all platform workflows before assembling release installers.
@@ -141,8 +149,30 @@ The relocation check runs TMM normalization, voom and limma on synthetic counts,
 writes JSON, SVG and PNG, and asserts that R and package search paths belong to
 the moved bundle. A bundled `rm` provides R's temporary-directory cleanup; no
 host R or user R libraries should be used. Linux system/glibc compatibility is
-still required. This experiment is not yet connected to the desktop package.
-DESeq2, apeglm, fgsea, msigdbr and UMAP are not included in this increment.
+still required. This core runtime passed the standalone ARM64 CI test.
+
+To include it in a desktop build, pass `--r-runtime PATH` to
+`package_desktop.py`, then test with `--require-r`. The frozen app explicitly
+uses the bundled R, not a host installation. Analysis readiness checks the
+packages required by each runner; core R alone does not enable DESeq2.
+
+For UMAP, install `desktop/requirements-umap-test.txt` in the build environment,
+package with `--with-umap`, and test with `--require-umap`. These options follow
+the dynamic-import handling used in Pheno-Ranker Desktop. The ARM64 desktop
+workflow includes both core R and UMAP.
+
+The standalone R workflow has an **extended** option. It installs DESeq2,
+apeglm, fgsea, msigdbr and ggplot2 on the CI build host and calls
+`build_linux_r.py --extended`. Its relocation test adds a synthetic DESeq2 fit,
+apeglm shrinkage, fgsea enrichment and a ggplot2 plot. This extended build is
+not yet verified or included in the desktop workflow. Package versions are
+recorded, but build-time resolution is not a complete dependency lock.
+
+The test uses invented gene sets, not MSigDB data. The current Hallmark runner
+calls msigdbr and may need network access to obtain its gene sets. Installing
+the package does not establish offline Hallmark availability or permission to
+redistribute those data. Docker remains a separate requirement for custom
+scripts; Nextflow/Snakemake demonstration runners are not bundled.
 
 The packaging reference is Pheno-Ranker's `app/scripts/` and
 `.github/workflows/desktop-installers.yml`: relocatable Perl, frozen Python,

@@ -4,7 +4,8 @@ from server import configure_environment, runtime_directory
 
 
 def main():
-    configure_environment(runtime_directory())
+    runtime = runtime_directory()
+    configure_environment(runtime)
     from app import jobs, local_jobs
     children = []
     launch = local_jobs.subprocess.Popen
@@ -34,6 +35,11 @@ def main():
     finally:
         local_jobs.stop()
         local_jobs.subprocess.Popen = launch
+    from app.r_runtime import rscript_binary
+    if rscript_binary():
+        from server import ROOT
+        from r_package_probe import check
+        check(ROOT, runtime)
 
 
 if __name__ == "__main__":

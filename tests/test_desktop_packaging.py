@@ -123,3 +123,35 @@ def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch):
     monkeypatch.setattr(module.os, "environ", {"COHORTOME_PHENO_RANKER_BIN": "/host/pheno-ranker"})
     module.configure_environment(tmp_path / "state")
     assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/pheno/bin/pheno-ranker")
+    assert module.os.environ["COHORTOME_RSCRIPT_BIN"] == str(tmp_path / "engine/runtimes/r/bin/Rscript")
+
+
+@pytest.mark.parametrize("damage", [None, "package", "checksum", "architecture"])
+def test_stage_r_runtime(tmp_path, monkeypatch, damage):
+    module = load_packager()
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    source = tmp_path / "r-runtime"
+    hashes = {}
+    for name in ("bin/Rscript", "R/bin/exec/R"):
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"synthetic R fixture")
+        path.chmod(0o755)
+        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = {"platform": "linux", "architecture": module.platform.machine(),
+                "packages": {name: "test" for name in ("limma", "edgeR", "jsonlite")},
+                "runtime_sha256": hashes}
+    if damage == "package":
+        del manifest["packages"]["limma"]
+    elif damage == "architecture":
+        manifest["architecture"] = "wrong"
+    elif damage == "checksum":
+        (source / "bin/Rscript").write_bytes(b"changed")
+    (source / "runtime-manifest.json").write_text(json.dumps(manifest))
+    if damage:
+        with pytest.raises(ValueError):
+            module.stage_r_runtime(source, tmp_path / "engine")
+        assert not (tmp_path / "engine").exists()
+    else:
+        assert module.stage_r_runtime(source, tmp_path / "engine") == manifest
+        assert (tmp_path / "engine/runtimes/r/bin/Rscript").stat().st_mode & 0o111
