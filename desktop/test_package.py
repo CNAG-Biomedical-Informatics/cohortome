@@ -1,5 +1,6 @@
 """Test a frozen backend with no developer PATH, Python packages or user state."""
 import argparse
+import csv
 import io
 import json
 import os
@@ -15,9 +16,55 @@ from urllib.parse import urlsplit
 import httpx
 
 
+def test_pheno(client):
+    """Run real Perl comparisons through the frozen app, including Python extraction."""
+    response = client.get("/pheno-ranker/patient-ids", params={"dataset_id": "default"})
+    assert response.status_code == 200, response.text[:1000]
+    selected = response.json()["record_ids"][:3]
+    assert len(selected) == 3
+
+    def artifact(payload, name):
+        files = {item["name"]: item for item in payload["files"]}
+        assert name in files, f"Missing Pheno output: {name}"
+        response = client.get(files[name]["url"])
+        assert response.status_code == 200 and response.content, name
+        return response.text
+
+    for mode in ("cohort", "patient"):
+        request = {"dataset_id": "default", "mode": mode,
+                   "include_terms": ["diseases"], "render_umap": False}
+        if mode == "cohort":
+            request.update(selected_patient_ids=",".join(selected), similarity_metric_cohort="jaccard")
+        else:
+            request.update(patient_id=selected[0], max_out=3)
+        response = client.post("/pheno-ranker/run", json=request, timeout=120)
+        assert response.status_code == 200, response.text[:2000]
+        result = response.json()
+        assert result["returncode"] == 0, result.get("stderr")
+        assert "runtimes/pheno/bin/pheno-ranker" in result["command"]
+        assert any(step.startswith("internal:extract-selected-records") for step in result["pre_commands"])
+        if mode == "cohort":
+            records = json.loads(artifact(result, "reference.selected.json"))
+            assert {record["id"] for record in records} == set(selected)
+            matrix = list(csv.reader(io.StringIO(artifact(result, "matrix.txt")), delimiter="\t"))
+            assert len(matrix) == 4 and set(matrix[0][1:]) == set(selected)
+            assert {row[0] for row in matrix[1:]} == set(selected)
+            assert all(len(row) == 4 for row in matrix)
+            points = list(csv.DictReader(io.StringIO(artifact(result, "mds_points.tsv")), delimiter="\t"))
+            assert len(points) == 3
+            graph = json.loads(artifact(result, "graph.json"))
+            assert graph
+        else:
+            target = json.loads(artifact(result, "target.json"))
+            assert [record["id"] for record in target] == [selected[0]]
+            assert len(artifact(result, "rank.txt").splitlines()) >= 2
+    print("PASS: packaged Perl cohort matrix, graph, Python MDS and patient ranking with empty PATH")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("engine", type=Path)
+    parser.add_argument("--require-pheno", action="store_true", help="Require real packaged Pheno-Ranker analyses")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="cohortome-relocation-") as temporary:
         root = Path(temporary)
@@ -85,6 +132,8 @@ def main():
                                 assert exported.status_code == 200, exported.text[:200]
                                 assert zipfile.is_zipfile(io.BytesIO(exported.content))
                             assert client.patch("/user-settings", json={"appearance": "dark"}).status_code == 200
+                            if args.require_pheno:
+                                test_pheno(client)
                 finally:
                     child.stdin.close()
                     try:

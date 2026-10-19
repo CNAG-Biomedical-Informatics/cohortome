@@ -112,8 +112,6 @@ def doctor(env):
         except (OSError, subprocess.TimeoutExpired):
             ok = False
         print(("OK: " if ok else "WARNING: unavailable or incomplete: ") + label, flush=True)
-    if not shutil.which("jq", path=env.get("PATH")):
-        print("WARNING: jq is missing; Pheno-Ranker requires it.")
 
 
 def control_path(env):

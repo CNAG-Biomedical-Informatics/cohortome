@@ -17,7 +17,6 @@ RUN apt-get update \
       cpanminus \
       curl \
       git \
-      jq \
       libgsl-dev \
       libcurl4-openssl-dev \
       libfontconfig1-dev \

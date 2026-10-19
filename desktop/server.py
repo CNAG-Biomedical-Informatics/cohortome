@@ -39,6 +39,10 @@ def configure_environment(runtime):
                       COHORTOME_JOBS_BACKEND="local",
                       COHORTOME_DESKTOP_MODE="true",
                       LM_STUDIO_ENABLED="false")
+    if getattr(sys, 'frozen', False):
+        tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
+        # Never fall back to a developer checkout or host tools in a package.
+        os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / 'pheno-ranker')
     sys.path.insert(0, str(ROOT))
 
 

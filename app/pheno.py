@@ -29,7 +29,6 @@ from pathlib import Path
 import numpy as np
 
 PHENO_RANKER_RUNS_DIR = RUNS_ROOT_DIR / "pheno-ranker"
-JQ_BIN = shutil.which("jq") or "jq"
 
 
 def _pheno_ranker_candidate_bins() -> List[Path]:
@@ -614,14 +613,14 @@ def pheno_execution_steps(plan: Dict) -> List[str]:
 
     if action == "extract":
         if selected_scope:
-            steps.append("Extract the current scope from the active reference files with jq into one subset JSON.")
+            steps.append("Extract the current scope from the active reference files into one subset JSON.")
         else:
             steps.append("Extract requires a non-empty scope.")
         return steps
 
     if mode == "cohort":
         if selected_scope:
-            steps.append("Extract the current scope from the active reference files with jq into one subset JSON.")
+            steps.append("Extract the current scope from the active reference files into one subset JSON.")
             steps.append("Run cohort comparison on the extracted subset reference.")
         else:
             steps.append("Run cohort comparison directly on the full reference cohort.")
@@ -629,7 +628,7 @@ def pheno_execution_steps(plan: Dict) -> List[str]:
 
     if mode == "patient":
         if patient_id:
-            steps.append(f"Extract target patient {patient_id} from the active reference files with jq.")
+            steps.append(f"Extract target patient {patient_id} from the active reference files.")
             steps.append("Run patient-vs-reference ranking with -r -t.")
         else:
             steps.append("Patient mode requires exactly one target patient from Patient ID or Scope.")
@@ -1390,42 +1389,34 @@ def generate_mds_points(matrix_path: Path, similarity_metric_cohort: str = "", r
         }
 
 
-def jq_extract_records(reference_paths: List[Path], patient_ids: List[str], output_path: Path) -> tuple[List[str], subprocess.CompletedProcess[str], List[Dict]]:
+def extract_selected_records(reference_paths: List[Path], patient_ids: List[str], output_path: Path) -> tuple[List[str], subprocess.CompletedProcess[str], List[Dict]]:
+    """Select reference records in-process; the returned command describes an internal step."""
     if not patient_ids:
         raise HTTPException(status_code=400, detail="At least one patient ID is required for scoped Pheno-Ranker extraction.")
 
-    jq_filter = (
-        "map(if type==\"array\" then . else [.] end) "
-        "| flatten "
-        "| map(select(type==\"object\" and (((.id // \"\") as $record_id | ($ids | index($record_id))) != null or ((.patient_id // \"\") as $patient_id | ($ids | index($patient_id))) != null)))"
-    )
-    command = [
-        str(JQ_BIN),
-        "-s",
-        "--argjson",
-        "ids",
-        json.dumps(patient_ids, ensure_ascii=True),
-        jq_filter,
-        *[str(path) for path in reference_paths],
-    ]
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    write_step_logs(output_path.parent, f"jq_extract_{output_path.stem}", command, proc)
-    if proc.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "jq extraction failed.",
-                "command": " ".join(command),
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
-            },
-        )
+    command = ["internal:extract-selected-records", "--ids",
+               json.dumps(patient_ids, ensure_ascii=True),
+               *[str(path) for path in reference_paths]]
+    selected_ids = set(patient_ids)
+    parsed = []
     try:
-        parsed = json.loads(proc.stdout or "[]")
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail="jq extraction returned invalid JSON.") from exc
-    if not isinstance(parsed, list):
-        raise HTTPException(status_code=500, detail="jq extraction did not return a JSON array.")
+        for path in reference_paths:
+            with path.open(encoding="utf-8") as source:
+                pending = [json.load(source)]
+            while pending:
+                item = pending.pop()
+                if isinstance(item, list):
+                    pending.extend(reversed(item))
+                elif isinstance(item, dict) and any(
+                    isinstance(item.get(key), str) and item[key] in selected_ids
+                    for key in ("id", "patient_id")
+                ):
+                    parsed.append(item)
+    except (OSError, ValueError) as exc:
+        message = "Could not read Pheno-Ranker reference JSON."
+        proc = subprocess.CompletedProcess(command, 1, stdout="", stderr=message)
+        write_step_logs(output_path.parent, f"extract_{output_path.stem}", command, proc)
+        raise HTTPException(status_code=500, detail=message) from exc
 
     matched_ids = set()
     normalized_records: List[Dict] = []
@@ -1455,6 +1446,8 @@ def jq_extract_records(reference_paths: List[Path], patient_ids: List[str], outp
         raise HTTPException(status_code=404, detail="No records matched the selected patient IDs for Pheno-Ranker.")
 
     output_path.write_text(json.dumps(normalized_records, ensure_ascii=False, indent=2), encoding="utf-8")
+    proc = subprocess.CompletedProcess(command, 0, stdout=f"Selected {len(normalized_records)} records.\n", stderr="")
+    write_step_logs(output_path.parent, f"extract_{output_path.stem}", command, proc)
     return command, proc, normalized_records
 
 
@@ -1564,7 +1557,7 @@ def run_pheno_ranker(request: Any) -> Dict:
                 continue
             safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(cohort.get("name") or f"cohort_{index}")).strip("._") or f"cohort_{index}"
             cohort_reference_path = job_dir / f"reference.saved.{index:02d}.{safe_name}.json"
-            extract_command, extract_proc, _ = jq_extract_records(reference_paths, cohort_ids, cohort_reference_path)
+            extract_command, extract_proc, _ = extract_selected_records(reference_paths, cohort_ids, cohort_reference_path)
             saved_cohort_extract_commands.append(extract_command)
             saved_cohort_extract_procs.append(extract_proc)
             extracted_reference_paths.append(cohort_reference_path)
@@ -1573,7 +1566,7 @@ def run_pheno_ranker(request: Any) -> Dict:
 
     if selected_ids and action == "compare" and mode == "cohort":
         merged_reference_path = job_dir / "reference.selected.json"
-        selected_extract_command, selected_extract_proc, _ = jq_extract_records(reference_paths, selected_ids, merged_reference_path)
+        selected_extract_command, selected_extract_proc, _ = extract_selected_records(reference_paths, selected_ids, merged_reference_path)
         reference_paths = [merged_reference_path]
 
     command = [str(PHENO_RANKER_BIN), "-r", *[str(path) for path in reference_paths]]
@@ -1583,7 +1576,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         if not selected_ids:
             raise HTTPException(status_code=400, detail="Extraction mode requires one or more selected patient IDs.")
         extract_path = job_dir / "reference.selected.json"
-        extract_command, extract_proc, _ = jq_extract_records(reference_paths, selected_ids, extract_path)
+        extract_command, extract_proc, _ = extract_selected_records(reference_paths, selected_ids, extract_path)
         return serialize_pheno_result(job_dir, extract_command, extract_proc, "extract", [], scope_expansion_note=scope_expansion_note)
 
     if mode == "patient":
@@ -1592,7 +1585,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         if target_record is None:
             raise HTTPException(status_code=404, detail=f"Patient not found for Pheno-Ranker target mode: {patient_id}")
         target_path = job_dir / "target.json"
-        extract_command, extract_proc, target_records = jq_extract_records(reference_paths, [patient_id], target_path)
+        extract_command, extract_proc, target_records = extract_selected_records(reference_paths, [patient_id], target_path)
         matched_target_ids = {
             extracted_id
             for record in target_records

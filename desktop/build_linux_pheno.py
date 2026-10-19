@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -109,10 +110,13 @@ exec "$root/perl/bin/perl" "$root/perl/bin/pheno-ranker" "$@"
         launcher.chmod(0o755)
         test_relocated(output, pheno_source / "t/data/individuals.json", work)
         manifest = {"perl": "5.42.3", "pheno_ranker": "1.09", "source": "CPAN",
+                    "platform": "linux", "architecture": platform.machine(),
                     "verification": "relocated cohort CLI with empty PATH and fresh HOME",
                     "dependency_policy": "CPAN dependencies resolved at build time; source archives retained",
                     "sources": {str(p.relative_to(sources)): hashlib.sha256(p.read_bytes()).hexdigest()
                                 for p in sources.rglob("*") if p.is_file()}}
+        manifest['runtime_sha256'] = {str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                      for p in output.rglob('*') if p.is_file()}
         (output / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     shutil.make_archive(str(output), "gztar", root_dir=output.parent, base_dir=output.name)
     print(f"PASS: CPAN runtime built and relocated: {output}")

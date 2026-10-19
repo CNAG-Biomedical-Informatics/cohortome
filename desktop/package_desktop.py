@@ -63,11 +63,38 @@ def stage(destination, chart_modules):
         shutil.copyfile(ROOT / "desktop" / name, destination / name)
 
 
+def stage_pheno_runtime(source, engine):
+    source = source.resolve()
+    manifest = json.loads((source / 'runtime-manifest.json').read_text())
+    if sys.platform != 'linux' or manifest.get('platform') != 'linux' or manifest.get('architecture') != platform.machine():
+        raise ValueError('Pheno runtime must match this Linux build architecture')
+    if manifest.get('perl') != '5.42.3' or manifest.get('pheno_ranker') != '1.09':
+        raise ValueError('Unsupported or incomplete Pheno runtime')
+    hashes = manifest.get('runtime_sha256') or {}
+    for required in ('bin/pheno-ranker', 'perl/bin/perl'):
+        if required not in hashes:
+            raise ValueError('Runtime manifest is missing required executables')
+    for path in source.rglob('*'):
+        if path.is_symlink() and not path.resolve().is_relative_to(source):
+            raise ValueError('Runtime contains an external symlink')
+        if path.is_file() and path.name != 'runtime-manifest.json':
+            name = str(path.relative_to(source))
+            if hashes.get(name) != hashlib.sha256(path.read_bytes()).hexdigest():
+                raise ValueError('Runtime checksum mismatch')
+    for name, digest in hashes.items():
+        path = (source / name).resolve()
+        if not path.is_relative_to(source) or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise ValueError('Runtime checksum mismatch')
+    shutil.copytree(source, engine / 'runtimes/pheno', symlinks=True)
+    return manifest
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
+    parser.add_argument('--pheno-runtime', type=Path, help='Verified Linux runtime from build_linux_pheno.py')
     args = parser.parse_args()
     if sys.platform not in {"linux", "darwin", "win32"}:
         parser.error("Packaging targets Linux, macOS and Windows")
@@ -95,6 +122,7 @@ def main():
         subprocess.run(command, cwd=staging, env=environment, check=True)
     shutil.move(str(output / "frozen/cohortome-backend"), output / "engine")
     (output / "frozen").rmdir()
+    pheno_manifest = stage_pheno_runtime(args.pheno_runtime, output / 'engine') if args.pheno_runtime else None
     if args.with_native:
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
                         str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"], check=True)
@@ -105,7 +133,8 @@ def main():
     manifest = {"kind": "desktop-packaging-test", "platform": sys.platform, "architecture": platform.machine(),
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
-                "not_bundled": ["Perl/Pheno-Ranker", "jq", "R/Bioconductor", "UMAP", "OHIF", "Docker"],
+                "pheno_runtime": pheno_manifest,
+                "not_bundled": ([] if pheno_manifest else ["Perl/Pheno-Ranker"]) + ["R/Bioconductor", "UMAP", "OHIF", "Docker"],
                 "python_packages": json.loads(subprocess.check_output(
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),
                 "sha256": {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()

@@ -216,14 +216,14 @@ def test_pheno_saved_cohort_extracts_fixed_membership_for_job_owner(tmp_path, mo
         ] if user_id == 'alice' else [],
     )
 
-    jq_calls = []
+    extraction_calls = []
 
     def _extract(paths, ids, target):
-        jq_calls.append(ids)
+        extraction_calls.append(ids)
         target.write_text('[]')
-        return ['jq', 'selection'], SimpleNamespace(returncode=0, stdout='', stderr=''), []
+        return ['internal:extract-selected-records', 'selection'], SimpleNamespace(returncode=0, stdout='', stderr=''), []
 
-    monkeypatch.setattr(pheno_module, "jq_extract_records", _extract)
+    monkeypatch.setattr(pheno_module, "extract_selected_records", _extract)
 
     executed_commands = []
 
@@ -255,10 +255,10 @@ def test_pheno_saved_cohort_extracts_fixed_membership_for_job_owner(tmp_path, mo
         )
     )
 
-    assert jq_calls == [["SYN001:week_0", "SYN002:week_0"]]
+    assert extraction_calls == [["SYN001:week_0", "SYN002:week_0"]]
     assert executed_commands
     assert str(reference_path) not in executed_commands[0]
-    assert payload["pre_commands"] == ['jq selection']
+    assert payload["pre_commands"] == ['internal:extract-selected-records selection']
 
 
 def test_generate_mds_points_skips_oversized_matrix(tmp_path, monkeypatch):
@@ -670,20 +670,20 @@ def test_pheno_scope_expansion_and_deterministic_plan_helpers(tmp_path):
 
 def test_pheno_execution_steps_attach_and_llm_planner(monkeypatch, tmp_path):
     assert pheno_module.pheno_execution_steps({"action": "extract", "selected_patient_ids": "SYN001"}) == [
-        "Extract the current scope from the active reference files with jq into one subset JSON."
+        "Extract the current scope from the active reference files into one subset JSON."
     ]
     assert pheno_module.pheno_execution_steps({"action": "extract", "selected_patient_ids": ""}) == [
         "Extract requires a non-empty scope."
     ]
     assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "cohort", "selected_patient_ids": "SYN001"}) == [
-        "Extract the current scope from the active reference files with jq into one subset JSON.",
+        "Extract the current scope from the active reference files into one subset JSON.",
         "Run cohort comparison on the extracted subset reference.",
     ]
     assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "cohort", "selected_patient_ids": ""}) == [
         "Run cohort comparison directly on the full reference cohort."
     ]
     assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "patient", "patient_id": "SYN001"}) == [
-        "Extract target patient SYN001 from the active reference files with jq.",
+        "Extract target patient SYN001 from the active reference files.",
         "Run patient-vs-reference ranking with -r -t.",
     ]
     assert pheno_module.pheno_execution_steps({"action": "compare", "mode": "patient", "patient_id": ""}) == [
@@ -870,7 +870,7 @@ def test_pheno_result_serialization_and_file_helpers(monkeypatch, tmp_path):
         "cohort",
         [{"script": "mds_points", "returncode": "0"}],
         similarity_metric_cohort="jaccard",
-        pre_commands=["jq ..."],
+        pre_commands=["internal:extract-selected-records ..."],
         scope_expansion_note="expanded scope",
     )
     assert payload["job_id"] == "job42"

@@ -3,6 +3,8 @@
 This is a test bundle, not a release installer. It contains the Tauri window,
 Python backend, two synthetic datasets and local Plotly/Cytoscape assets.
 No developer runtime, credentials or research data are copied.
+Linux builds also include a separately built Perl/Pheno-Ranker runtime.
+The macOS and Windows bundles do not yet include it.
 
 ## GitHub Actions
 
@@ -55,6 +57,9 @@ assets must therefore be tracked before packaging.
 - Local chart asset delivery and settings persistence after restart.
 - Real packaged job subprocesses: expected invalid-analysis failure, persisted
   error, queue reuse and clean child exit. This is not a successful scientific run.
+- Linux: real cohort and patient Pheno-Ranker runs through the packaged HTTP
+  backend, using the bundled Perl runtime. Checks selected records, matrix,
+  graph, Python MDS output and ranking without host executables on `PATH`.
 - Native window startup in CI. This is not a full interactive UI test.
 
 The packaged app stores state under the platform application-data directory
@@ -67,7 +72,7 @@ for backup and reset instructions.
 
 ## Still needed before a release
 
-### Linux Pheno-Ranker runtime experiment
+### Linux Pheno-Ranker runtime
 
 The separate **Test Linux CPAN Pheno-Ranker runtime** workflow builds Perl
 5.42.3 and installs Pheno-Ranker 1.09 from checksum-verified CPAN sources.
@@ -75,8 +80,25 @@ It precompiles the Inline::C metrics and runs a cohort comparison after moving
 the runtime to a path with spaces, with an empty PATH and a fresh HOME.
 Choose x86_64 or aarch64 when dispatching it.
 
-This artifact is not yet connected to the desktop bundle. It does not include
-COHORTome's jq, R or UMAP requirements. Transitive CPAN dependencies are resolved
+Both Linux desktop workflows now run this builder and include its output under
+`engine/runtimes/pheno/`. The packager verifies architecture and file checksums
+before copying it. The frozen backend selects this runtime explicitly rather
+than looking for a host installation. The integrated workflow checks still need
+to pass before these bundles can be considered tested.
+
+For a local Linux build, first run:
+
+```bash
+.venv/bin/python desktop/build_linux_pheno.py --output dist/pheno-runtime
+```
+
+Add `--pheno-runtime dist/pheno-runtime` to the packaging command above, then
+add `--require-pheno` to the `desktop/test_package.py` command. Building Perl
+requires a compiler, make, curl and the OpenSSL, Expat, zlib and bzip2 development
+libraries; the workflows install them explicitly.
+
+This does not include R or UMAP. Reference record selection uses Python
+directly. Transitive CPAN dependencies are resolved
 at build time; their source archives and checksums are retained, but a complete
 dependency lock and redistribution-notice review are still pending. The build
 approach follows Pheno-Ranker's desktop scripts, without copying a local Perl
@@ -84,7 +106,8 @@ installation or requiring the Pheno-Ranker Git checkout.
 
 ### Remaining packaging work
 
-- Bundle and test Perl/Pheno-Ranker, `jq`, R/Bioconductor and optional UMAP.
+- Test the integrated Linux Perl/Pheno-Ranker builds; add macOS and Windows runtimes.
+- Bundle and test R/Bioconductor and optional UMAP.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
 - Confirm all platform workflows before assembling release installers.

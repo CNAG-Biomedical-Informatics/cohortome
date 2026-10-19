@@ -1,7 +1,10 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import sys
+
+import pytest
 
 from app import local_jobs
 
@@ -44,3 +47,62 @@ def test_source_worker_keeps_existing_entrypoint(monkeypatch):
     monkeypatch.delattr(sys, "frozen", raising=False)
     assert local_jobs.child_command("pheno", "job-id", "local") == [
         sys.executable, "-m", "app.local_jobs", "pheno", "job-id", "local"]
+
+
+def pheno_runtime_fixture(tmp_path, monkeypatch):
+    module = load_packager()
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    source = tmp_path / "runtime"
+    hashes = {}
+    for name in ("bin/pheno-ranker", "perl/bin/perl", "inline/metrics.so"):
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"synthetic test executable")
+        path.chmod(0o755)
+        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = {"platform": "linux", "architecture": module.platform.machine(),
+                "perl": "5.42.3", "pheno_ranker": "1.09", "runtime_sha256": hashes}
+    (source / "runtime-manifest.json").write_text(json.dumps(manifest))
+    return module, source, manifest
+
+
+def test_stage_verified_pheno_runtime(tmp_path, monkeypatch):
+    module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
+    engine = tmp_path / "engine"
+    assert module.stage_pheno_runtime(source, engine) == manifest
+    executable = engine / "runtimes/pheno/bin/pheno-ranker"
+    assert executable.read_bytes() == b"synthetic test executable"
+    assert executable.stat().st_mode & 0o111
+
+
+@pytest.mark.parametrize("damage", ["checksum", "missing", "unlisted", "architecture", "symlink", "traversal"])
+def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
+    module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
+    if damage == "checksum":
+        (source / "bin/pheno-ranker").write_bytes(b"changed")
+    elif damage == "missing":
+        del manifest["runtime_sha256"]["perl/bin/perl"]
+    elif damage == "unlisted":
+        (source / "extra").touch()
+    elif damage == "architecture":
+        manifest["architecture"] = "wrong-architecture"
+    elif damage == "symlink":
+        (source / "external").symlink_to(tmp_path)
+    elif damage == "traversal":
+        manifest["runtime_sha256"]["../outside"] = "invalid"
+    (source / "runtime-manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        module.stage_pheno_runtime(source, tmp_path / "engine")
+    assert not (tmp_path / "engine").exists()
+
+
+def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("desktop_server", Path(__file__).parents[1] / "desktop/server.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "engine/cohortome-backend"))
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setattr(module.os, "environ", {"COHORTOME_PHENO_RANKER_BIN": "/host/pheno-ranker"})
+    module.configure_environment(tmp_path / "state")
+    assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/pheno/bin/pheno-ranker")
