@@ -19,8 +19,10 @@ def main():
         parser.error("This builder requires Windows and Strawberry Perl")
     perl = str(args.perl.absolute())
     compiler = str(args.compiler.absolute())
-    if not args.perl.is_file() or not args.compiler.is_file():
-        parser.error("Provide existing Strawberry Perl and compiler executables")
+    if not args.perl.is_file():
+        parser.error(f"Perl executable does not exist: {str(args.perl)!r}")
+    if not args.compiler.is_file():
+        parser.error(f"Compiler executable does not exist: {str(args.compiler)!r}")
     # Match Pheno-Ranker's successful Windows workflow: use the selected
     # executable's directory, not Perl's self-reported $^X installation path.
     prefix = Path(perl).absolute().parent.parent

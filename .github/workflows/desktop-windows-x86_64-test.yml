@@ -44,8 +44,13 @@ jobs:
       - name: Stage and relocation-test Perl runtime
         shell: pwsh
         run: |
-          $perlExe = (Get-Command perl -CommandType Application).Source
-          $compilerExe = (Get-Command gcc -CommandType Application).Source
+          $perlExe = (Get-Command perl.exe -CommandType Application | Select-Object -First 1).Source
+          $strawberryRoot = Split-Path (Split-Path (Split-Path $perlExe))
+          $compilerExe = Join-Path $strawberryRoot 'c/bin/gcc.exe'
+          if (-not (Test-Path -LiteralPath $perlExe -PathType Leaf)) { throw "Missing Perl: $perlExe" }
+          if (-not (Test-Path -LiteralPath $compilerExe -PathType Leaf)) { throw "Missing Strawberry compiler: $compilerExe" }
+          Write-Host "Selected Perl: $perlExe"
+          Write-Host "Selected compiler: $compilerExe"
           python desktop/build_windows_pheno.py --perl "$perlExe" --compiler "$compilerExe" --output "$env:RUNNER_TEMP/pheno-runtime"
           if ($LASTEXITCODE -ne 0) { throw 'Perl runtime staging failed' }
       - name: Build portable test bundle
