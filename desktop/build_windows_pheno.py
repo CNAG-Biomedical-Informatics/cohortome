@@ -41,7 +41,9 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     sources = output / "sources"
     sources.mkdir()
-    with tempfile.TemporaryDirectory(prefix="cohortome-strawberry-") as temporary:
+    # Keep relocation on the output volume: cross-drive shutil.move falls
+    # back to copy/delete, which fails on CPAN's read-only installed scripts.
+    with tempfile.TemporaryDirectory(prefix="cohortome-strawberry-", dir=output.parent) as temporary:
         work = Path(temporary)
         cpanm = fetch_source("cpanm", work, sources)
         pheno = fetch_source("pheno", work, sources)
