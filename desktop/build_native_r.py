@@ -113,8 +113,32 @@ exec "$R_HOME/bin/Rscript" "$@"
                 env.update(USERPROFILE=str(work), TEMP=str(work), TMP=str(work))
             script = work / "probe.R"
             script.write_text(PROBE + EXTENDED_PROBE, encoding="utf-8")
-            subprocess.run([str(moved / entry), "--verbose", "--vanilla", str(script)],
-                           cwd=work, env=env, stdin=subprocess.DEVNULL, check=True, timeout=300)
+            command = [str(moved / entry), "--verbose", "--vanilla", str(script)]
+            try:
+                subprocess.run(command, cwd=work, env=env, stdin=subprocess.DEVNULL,
+                               check=True, timeout=300)
+            except subprocess.CalledProcessError:
+                if sys.platform == "win32":
+                    # Diagnose without relaxing the required isolation test or
+                    # turning a diagnostic success into a passing build.
+                    system32 = Path(os.environ["SystemRoot"]) / "System32"
+                    variants = {
+                        "system shell restored": {**env, "COMSPEC": str(system32 / "cmd.exe")},
+                        "system PATH restored": {**env, "COMSPEC": str(system32 / "cmd.exe"),
+                                                 "PATH": str(system32)},
+                        "bundled DLL PATH": {**env, "PATH": str(moved / "R/bin/x64")},
+                        "host environment, bundled R libraries": {**os.environ, **env,
+                                                                 "PATH": os.environ.get("PATH", "")},
+                    }
+                    for label, diagnostic_env in variants.items():
+                        print(f"DIAGNOSTIC: {label}", flush=True)
+                        try:
+                            result = subprocess.run(command, cwd=work, env=diagnostic_env,
+                                                    stdin=subprocess.DEVNULL, timeout=120)
+                            print(f"DIAGNOSTIC RESULT: {label}: {result.returncode}", flush=True)
+                        except subprocess.TimeoutExpired:
+                            print(f"DIAGNOSTIC RESULT: {label}: timed out", flush=True)
+                raise
             for name in ("probe.json", "probe.png", "probe.svg", "extended.png"):
                 assert (work / name).stat().st_size, name
         finally:
