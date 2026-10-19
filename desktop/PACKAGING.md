@@ -4,10 +4,8 @@ This is a test bundle, not a release installer. It contains the Tauri window,
 Python backend, two synthetic datasets and local Plotly/Cytoscape assets.
 No developer runtime, credentials or research data are copied.
 The workflows include a separately built Perl/Pheno-Ranker runtime. Linux
-x86_64, ARM64 and both macOS architectures passed the integrated Perl tests.
-Windows packaging is still being corrected. The Linux ARM64 workflow now also
-passed core R and UMAP integration. Both Linux workflows now build extended R
-and UMAP; those expanded desktop bundles await CI verification.
+x86_64, ARM64, Windows and both macOS architectures passed the integrated Perl
+tests. Both Linux architectures also passed extended R and UMAP integration.
 
 ## GitHub Actions
 
@@ -15,6 +13,20 @@ Open **Actions**, choose the Linux x86_64, Linux aarch64, macOS Apple Silicon,
 macOS Intel, or Windows x86_64
 package workflow, then **Run workflow**. Each is manual only and does not create
 tags or releases. Keep workflows separate until they are stable.
+
+Linux workflows cache the built R and Perl runtime directories after a
+successful job. Cache keys include architecture, Ubuntu baseline, runtime
+builder scripts and that platform's workflow. There are no partial-key
+fallbacks. Application-only changes reuse the runtimes; dependency-recipe
+changes rebuild them. The packager still validates their checksums, and the
+relocated backend, analysis and native-window tests run every time.
+
+Select **clean_build** when dispatching a Linux workflow to bypass both cache
+restore and save. Use this periodically and before a release to check a fresh
+dependency build. Caches are an optimization, not a dependency lock: package
+versions remain recorded in the runtime manifests. The first run for a new
+key still performs the full build; later runs can reuse it. Cache eviction
+also triggers a full build. No runtime state or research data is cached.
 
 Each job builds a `.tar.gz` (Windows: `.zip`), extracts it, tests its backend from another
 directory and opens its native window (under Xvfb on Linux). Download the test artifact
@@ -127,9 +139,8 @@ installation or requiring the Pheno-Ranker Git checkout.
 
 ### Remaining packaging work
 
-- Fix and verify the Windows Perl/Pheno-Ranker build.
-- Verify expanded Linux ARM64 and x86_64 R/UMAP bundles, then extend to other platforms.
-- Verify the extended R runtime and Hallmark gene-set access before claiming
+- Extend R/UMAP packaging to macOS and Windows.
+- Verify Hallmark gene-set access before claiming
   complete curated-analysis coverage.
 - Package or download the viewer and other resources; custom scripts still
   require the separately installed Docker sandbox.
@@ -171,7 +182,7 @@ apeglm, fgsea, msigdbr and ggplot2 on the CI build host and calls
 `build_linux_r.py --extended`. Its relocation test adds a synthetic DESeq2 fit,
 apeglm shrinkage, fgsea enrichment and a ggplot2 plot. This extended build is
 verified on ARM64 as a standalone runtime and is now requested by both Linux
-desktop workflows. Integrated extended-R results are still pending. Package versions are
+desktop workflows. Integrated extended-R tests passed on both Linux architectures. Package versions are
 recorded, but build-time resolution is not a complete dependency lock.
 
 The test uses invented gene sets, not MSigDB data. The current Hallmark runner

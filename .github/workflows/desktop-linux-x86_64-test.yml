@@ -2,6 +2,11 @@ name: Test Linux x86_64 desktop package
 
 on:
   workflow_dispatch:
+    inputs:
+      clean_build:
+        description: Rebuild R and Perl without reading or writing the runtime cache
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,10 +29,19 @@ jobs:
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Restore verified analysis runtimes
+        id: runtimes
+        if: ${{ !inputs.clean_build }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pheno-runtime
+            ${{ runner.temp }}/r-runtime
+          key: analysis-runtimes-ubuntu22-x86_64-v1-${{ hashFiles('desktop/build_unix_pheno.py', 'desktop/build_linux_r.py', '.github/workflows/desktop-linux-x86_64-test.yml') }}
       - name: Install build-host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev r-base-core
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
@@ -35,8 +49,9 @@ jobs:
           python -m pip install --no-deps --no-build-isolation .
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
       - name: Install extended R packages
+        if: steps.runtimes.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get install -y --no-install-recommends r-base-dev libcurl4-openssl-dev libssl-dev libxml2-dev
+          sudo apt-get install -y --no-install-recommends r-base-core r-base-dev libcurl4-openssl-dev libssl-dev libxml2-dev
           mkdir -p "$RUNNER_TEMP/r-library" "$RUNNER_TEMP/r-empty-site"
           echo "R_LIBS_USER=$RUNNER_TEMP/r-library" >> "$GITHUB_ENV"
           echo "R_LIBS_SITE=$RUNNER_TEMP/r-empty-site" >> "$GITHUB_ENV"
@@ -50,10 +65,13 @@ jobs:
             missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
             if (length(missing)) stop("R packages failed to install/load: ", paste(missing, collapse=", "))'
       - name: Build and relocation-test Perl runtime
+        if: steps.runtimes.outputs.cache-hit != 'true'
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
+      - name: Build and relocation-test R runtime
+        if: steps.runtimes.outputs.cache-hit != 'true'
+        run: python desktop/build_linux_r.py --extended --output "$RUNNER_TEMP/r-runtime"
       - name: Build portable test bundle
         run: |
-          python desktop/build_linux_r.py --extended --output "$RUNNER_TEMP/r-runtime"
           python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
