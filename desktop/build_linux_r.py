@@ -59,7 +59,8 @@ def main():
     # Query only package metadata, never workspace inputs or user profiles.
     expression = '''
 required <- c("limma","edgeR","jsonlite")
-stopifnot(all(vapply(required, requireNamespace, logical(1), quietly=TRUE)))
+missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
+if (length(missing)) stop("R packages unavailable: ", paste(missing, collapse=", "))
 ip <- installed.packages()
 deps <- unique(c(required, unlist(tools::package_dependencies(required, ip,
   which=c("Depends","Imports","LinkingTo"), recursive=TRUE))))
