@@ -1575,7 +1575,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         selected_extract_command, selected_extract_proc, _ = extract_selected_records(reference_paths, selected_ids, merged_reference_path)
         reference_paths = [merged_reference_path]
 
-    command = [*pheno_ranker_command(), "-r", *[str(path) for path in reference_paths]]
+    command = [*pheno_ranker_command(), "--no-color", "-r", *[str(path) for path in reference_paths]]
     output_path = job_dir / ("matrix.txt" if mode == "cohort" else "rank.txt")
 
     if action == "extract":
@@ -1667,7 +1667,16 @@ def run_pheno_ranker(request: Any) -> Dict:
         graph_min_weight = None
         graph_max_weight = None
 
-    proc = subprocess.run(command, cwd=job_dir, capture_output=True, text=True, check=False)
+    # Match Pheno-Ranker Desktop: closed stdin and file-backed logs, available
+    # while the process runs rather than only after captured pipes complete.
+    stdout_path = job_dir / "pheno_ranker_main.stdout.txt"
+    stderr_path = job_dir / "pheno_ranker_main.stderr.txt"
+    with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open("w", encoding="utf-8") as stderr:
+        result = subprocess.run(command, cwd=job_dir, stdin=subprocess.DEVNULL,
+                                stdout=stdout, stderr=stderr, text=True, check=False)
+    proc = subprocess.CompletedProcess(command, result.returncode,
+        stdout=stdout_path.read_text(encoding="utf-8", errors="replace"),
+        stderr=stderr_path.read_text(encoding="utf-8", errors="replace"))
     write_step_logs(job_dir, "pheno_ranker_main", command, proc)
     if proc.returncode != 0:
         detail = {

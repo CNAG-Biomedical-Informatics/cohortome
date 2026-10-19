@@ -33,6 +33,7 @@ def test_pheno(client, with_umap=False):
         return response.text
 
     for mode in ("cohort", "patient"):
+        print(f"Checking packaged Pheno-Ranker {mode} run", flush=True)
         request = {"dataset_id": "default", "mode": mode,
                    "include_terms": ["diseases"], "render_umap": with_umap and mode == "cohort"}
         if mode == "cohort":
@@ -145,6 +146,16 @@ def main():
                             assert client.patch("/user-settings", json={"appearance": "dark"}).status_code == 200
                             if args.require_pheno or args.require_umap:
                                 test_pheno(client, args.require_umap)
+                except Exception:
+                    # Only this test's fresh synthetic runtime is inspected.
+                    # Emit diagnostics before TemporaryDirectory removes it.
+                    errors.seek(0)
+                    print("Packaged backend stderr:\n" + errors.read()[-12000:], flush=True)
+                    logs = set(runtime.rglob("*.log")) | set(runtime.rglob("pheno_ranker_main.*.txt"))
+                    for path in sorted(logs):
+                        print(f"Synthetic test log {path.relative_to(runtime)}:\n" +
+                              path.read_text(errors="replace")[-4000:], flush=True)
+                    raise
                 finally:
                     child.stdin.close()
                     try:

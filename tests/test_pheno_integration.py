@@ -227,8 +227,11 @@ def test_pheno_saved_cohort_extracts_fixed_membership_for_job_owner(tmp_path, mo
 
     executed_commands = []
 
-    def _fake_run(command, capture_output, text, check, **kwargs):
+    def _fake_run(command, text, check, **kwargs):
         executed_commands.append(command)
+        assert kwargs["stdin"] == pheno_module.subprocess.DEVNULL
+        assert "--no-color" in command
+        kwargs["stdout"].write("ok")
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 
     monkeypatch.setattr(pheno_module.subprocess, "run", _fake_run)
