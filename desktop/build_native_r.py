@@ -127,6 +127,8 @@ exec "$R_HOME/bin/Rscript" "$@"
                         "system PATH restored": {**env, "COMSPEC": str(system32 / "cmd.exe"),
                                                  "PATH": str(system32)},
                         "bundled DLL PATH": {**env, "PATH": str(moved / "R/bin/x64")},
+                        "host PATH only": {**env, "PATH": os.environ.get("PATH", "")},
+                        "host variables, empty PATH": {**os.environ, **env},
                         "host environment, bundled R libraries": {**os.environ, **env,
                                                                  "PATH": os.environ.get("PATH", "")},
                     }
@@ -138,6 +140,35 @@ exec "$R_HOME/bin/Rscript" "$@"
                             print(f"DIAGNOSTIC RESULT: {label}: {result.returncode}", flush=True)
                         except subprocess.TimeoutExpired:
                             print(f"DIAGNOSTIC RESULT: {label}: timed out", flush=True)
+                    # Find which non-base host settings are necessary, without
+                    # emitting environment values (which could contain secrets).
+                    extras = {k: v for k, v in os.environ.items() if k not in env}
+                    extras["PATH"] = os.environ.get("PATH", "")
+                    candidates = list(extras)
+                    width = max(1, len(candidates) // 2)
+                    while candidates:
+                        for offset in range(0, len(candidates), width):
+                            removed = set(candidates[offset:offset + width])
+                            trial = [k for k in candidates if k not in removed]
+                            trial_env = {**env, **{k: extras[k] for k in trial}}
+                            with (work / "diagnostic.log").open("w") as log:
+                                try:
+                                    result = subprocess.run(command, cwd=work, env=trial_env,
+                                                            stdin=subprocess.DEVNULL, stdout=log,
+                                                            stderr=log, timeout=60)
+                                    passed = result.returncode == 0
+                                except subprocess.TimeoutExpired:
+                                    passed = False
+                            print(f"ENV BISECT: removed {len(removed)} keys; passed={passed}", flush=True)
+                            if passed:
+                                candidates = trial
+                                width = min(width, max(1, len(candidates) // 2))
+                                break
+                        else:
+                            if width == 1:
+                                break
+                            width = max(1, width // 2)
+                    print("REQUIRED HOST KEYS: " + ", ".join(candidates), flush=True)
                 raise
             for name in ("probe.json", "probe.png", "probe.svg", "extended.png"):
                 assert (work / name).stat().st_size, name
