@@ -109,67 +109,16 @@ exec "$R_HOME/bin/Rscript" "$@"
                    "R_LIBS": str(moved / "R/library"), "R_LIBS_USER": "NULL", "R_LIBS_SITE": "NULL",
                    "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1"}
             if sys.platform == "win32":
-                env.update({k: os.environ[k] for k in ("SystemRoot", "WINDIR") if k in os.environ})
+                # Preserve Windows platform metadata, not developer packages or
+                # PATH. Without PROCESSOR_ARCHITECTURE the native R probe crashes.
+                env.update({k: os.environ[k] for k in
+                            ("SystemRoot", "WINDIR", "PROCESSOR_ARCHITECTURE") if k in os.environ})
                 env.update(USERPROFILE=str(work), TEMP=str(work), TMP=str(work))
             script = work / "probe.R"
             script.write_text(PROBE + EXTENDED_PROBE, encoding="utf-8")
             command = [str(moved / entry), "--verbose", "--vanilla", str(script)]
-            try:
-                subprocess.run(command, cwd=work, env=env, stdin=subprocess.DEVNULL,
-                               check=True, timeout=300)
-            except subprocess.CalledProcessError:
-                if sys.platform == "win32":
-                    # Diagnose without relaxing the required isolation test or
-                    # turning a diagnostic success into a passing build.
-                    system32 = Path(os.environ["SystemRoot"]) / "System32"
-                    variants = {
-                        "system shell restored": {**env, "COMSPEC": str(system32 / "cmd.exe")},
-                        "system PATH restored": {**env, "COMSPEC": str(system32 / "cmd.exe"),
-                                                 "PATH": str(system32)},
-                        "bundled DLL PATH": {**env, "PATH": str(moved / "R/bin/x64")},
-                        "host PATH only": {**env, "PATH": os.environ.get("PATH", "")},
-                        "host variables, empty PATH": {**os.environ, **env},
-                        "host environment, bundled R libraries": {**os.environ, **env,
-                                                                 "PATH": os.environ.get("PATH", "")},
-                    }
-                    for label, diagnostic_env in variants.items():
-                        print(f"DIAGNOSTIC: {label}", flush=True)
-                        try:
-                            result = subprocess.run(command, cwd=work, env=diagnostic_env,
-                                                    stdin=subprocess.DEVNULL, timeout=120)
-                            print(f"DIAGNOSTIC RESULT: {label}: {result.returncode}", flush=True)
-                        except subprocess.TimeoutExpired:
-                            print(f"DIAGNOSTIC RESULT: {label}: timed out", flush=True)
-                    # Find which non-base host settings are necessary, without
-                    # emitting environment values (which could contain secrets).
-                    extras = {k: v for k, v in os.environ.items() if k not in env}
-                    extras["PATH"] = os.environ.get("PATH", "")
-                    candidates = list(extras)
-                    width = max(1, len(candidates) // 2)
-                    while candidates:
-                        for offset in range(0, len(candidates), width):
-                            removed = set(candidates[offset:offset + width])
-                            trial = [k for k in candidates if k not in removed]
-                            trial_env = {**env, **{k: extras[k] for k in trial}}
-                            with (work / "diagnostic.log").open("w") as log:
-                                try:
-                                    result = subprocess.run(command, cwd=work, env=trial_env,
-                                                            stdin=subprocess.DEVNULL, stdout=log,
-                                                            stderr=log, timeout=60)
-                                    passed = result.returncode == 0
-                                except subprocess.TimeoutExpired:
-                                    passed = False
-                            print(f"ENV BISECT: removed {len(removed)} keys; passed={passed}", flush=True)
-                            if passed:
-                                candidates = trial
-                                width = min(width, max(1, len(candidates) // 2))
-                                break
-                        else:
-                            if width == 1:
-                                break
-                            width = max(1, width // 2)
-                    print("REQUIRED HOST KEYS: " + ", ".join(candidates), flush=True)
-                raise
+            subprocess.run(command, cwd=work, env=env, stdin=subprocess.DEVNULL,
+                           check=True, timeout=300)
             for name in ("probe.json", "probe.png", "probe.svg", "extended.png"):
                 assert (work / name).stat().st_size, name
         finally:

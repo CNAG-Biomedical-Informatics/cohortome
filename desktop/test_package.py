@@ -87,7 +87,7 @@ def main():
         environment = {"PATH": "", "HOME": str(root), "LANG": "C.UTF-8",
                        "PYTHONPATH": str(root / "nonexistent"), "PYTHONNOUSERSITE": "1"}
         if os.name == "nt":
-            for key in ("SystemRoot", "WINDIR"):
+            for key in ("SystemRoot", "WINDIR", "PROCESSOR_ARCHITECTURE"):
                 if key in os.environ:
                     environment[key] = os.environ[key]
             environment.update(USERPROFILE=str(root), LOCALAPPDATA=str(root / "local"),

@@ -2,6 +2,11 @@ name: Test macOS and Windows R runtimes
 
 on:
   workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Test Windows only (skip both macOS builds)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -11,13 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15
-            platform: macos-arm64
-          - runner: macos-15-intel
-            platform: macos-x86_64
-          - runner: windows-2022
-            platform: windows-x86_64
+        include: ${{ fromJSON(inputs.windows_only && '[{"runner":"windows-2022","platform":"windows-x86_64"}]' || '[{"runner":"macos-15","platform":"macos-arm64"},{"runner":"macos-15-intel","platform":"macos-x86_64"},{"runner":"windows-2022","platform":"windows-x86_64"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
