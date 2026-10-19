@@ -1,6 +1,8 @@
 """Private desktop backend, shared by the source preview and packaged app."""
 import argparse
 import asyncio
+import importlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -10,6 +12,14 @@ import sys
 import threading
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+
+
+def initialize_windows_blas():
+    # First loading BLAS while watch_parent blocks on piped stdin can deadlock
+    # on Windows (numpy/numpy#24290). Load it before any parent-reader thread.
+    # SciPy is optional in bundles without UMAP; broken installations still fail.
+    if sys.platform == "win32" and importlib.util.find_spec("scipy") is not None:
+        importlib.import_module("scipy.linalg")
 
 
 def runtime_directory():
@@ -57,11 +67,14 @@ def configure_environment(runtime):
             for name in ('PERL5LIB', 'PERLLIB', 'PERL5OPT'):
                 os.environ.pop(name, None)
     sys.path.insert(0, str(ROOT))
+    from app.analysis_resources import THREAD_ENV
+    os.environ.update(THREAD_ENV)
 
 
 def main():
     runtime = runtime_directory()
     configure_environment(runtime)
+    initialize_windows_blas()
     import uvicorn
     from starlette.responses import PlainTextResponse, RedirectResponse
     from starlette.requests import Request

@@ -24,6 +24,21 @@ def test_frozen_entrypoint_handles_multiprocessing_before_dispatch(monkeypatch, 
     assert calls == ["freeze_support", "main"]
 
 
+@pytest.mark.parametrize("platform,installed,expected", [
+    ("win32", True, ["scipy.linalg"]), ("win32", False, []), ("linux", True, []),
+])
+def test_blas_startup_load_is_windows_only_and_optional(monkeypatch, platform, installed, expected):
+    spec = importlib.util.spec_from_file_location("desktop_server_test", Path(__file__).parents[1] / "desktop/server.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    calls = []
+    monkeypatch.setattr(module.sys, "platform", platform)
+    monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object() if installed else None)
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: calls.append(name))
+    module.initialize_windows_blas()
+    assert calls == expected
+
+
 def test_stack_diagnostics_are_opt_in(tmp_path, monkeypatch):
     import faulthandler
     spec = importlib.util.spec_from_file_location("desktop_server_test", Path(__file__).parents[1] / "desktop/server.py")
@@ -144,16 +159,19 @@ def test_stage_other_platform_runtimes(tmp_path, monkeypatch, platform_name):
 
 
 def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch):
+    from app.analysis_resources import THREAD_ENV
     spec = importlib.util.spec_from_file_location("desktop_server", Path(__file__).parents[1] / "desktop/server.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "engine/cohortome-backend"))
     monkeypatch.setattr(sys, "path", sys.path.copy())
-    monkeypatch.setattr(module.os, "environ", {"COHORTOME_PHENO_RANKER_BIN": "/host/pheno-ranker"})
+    monkeypatch.setattr(module.os, "environ", {"COHORTOME_PHENO_RANKER_BIN": "/host/pheno-ranker",
+                                             "OPENBLAS_NUM_THREADS": "8"})
     module.configure_environment(tmp_path / "state")
     assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/pheno/bin/pheno-ranker")
     assert module.os.environ["COHORTOME_RSCRIPT_BIN"] == str(tmp_path / "engine/runtimes/r/bin/Rscript")
+    assert all(module.os.environ.get(key) == value for key, value in THREAD_ENV.items())
 
 
 @pytest.mark.parametrize("damage", [None, "package", "checksum", "architecture"])
