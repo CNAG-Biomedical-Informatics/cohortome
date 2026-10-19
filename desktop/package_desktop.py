@@ -66,19 +66,21 @@ def stage(destination, chart_modules):
 def stage_pheno_runtime(source, engine):
     source = source.resolve()
     manifest = json.loads((source / 'runtime-manifest.json').read_text())
-    if sys.platform != 'linux' or manifest.get('platform') != 'linux' or manifest.get('architecture') != platform.machine():
-        raise ValueError('Pheno runtime must match this Linux build architecture')
-    if manifest.get('perl') != '5.42.3' or manifest.get('pheno_ranker') != '1.09':
+    if manifest.get('platform') != sys.platform or manifest.get('architecture') != platform.machine():
+        raise ValueError('Pheno runtime must match this build platform and architecture')
+    perl_version = str(manifest.get('perl', ''))
+    if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('pheno_ranker') != '1.09':
         raise ValueError('Unsupported or incomplete Pheno runtime')
     hashes = manifest.get('runtime_sha256') or {}
-    for required in ('bin/pheno-ranker', 'perl/bin/perl'):
+    executables = ('bin/pheno-ranker.exe', 'perl/bin/perl.exe', 'perl/bin/pheno-ranker', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
+    for required in executables:
         if required not in hashes:
             raise ValueError('Runtime manifest is missing required executables')
     for path in source.rglob('*'):
         if path.is_symlink() and not path.resolve().is_relative_to(source):
             raise ValueError('Runtime contains an external symlink')
         if path.is_file() and path.name != 'runtime-manifest.json':
-            name = str(path.relative_to(source))
+            name = path.relative_to(source).as_posix()
             if hashes.get(name) != hashlib.sha256(path.read_bytes()).hexdigest():
                 raise ValueError('Runtime checksum mismatch')
     for name, digest in hashes.items():
@@ -94,7 +96,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
-    parser.add_argument('--pheno-runtime', type=Path, help='Verified Linux runtime from build_linux_pheno.py')
+    parser.add_argument('--pheno-runtime', type=Path, help='Verified platform-matched Perl/Pheno-Ranker runtime')
     args = parser.parse_args()
     if sys.platform not in {"linux", "darwin", "win32"}:
         parser.error("Packaging targets Linux, macOS and Windows")

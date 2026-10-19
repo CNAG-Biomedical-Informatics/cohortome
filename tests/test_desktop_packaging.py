@@ -75,7 +75,7 @@ def test_stage_verified_pheno_runtime(tmp_path, monkeypatch):
     assert executable.stat().st_mode & 0o111
 
 
-@pytest.mark.parametrize("damage", ["checksum", "missing", "unlisted", "architecture", "symlink", "traversal"])
+@pytest.mark.parametrize("damage", ["checksum", "missing", "unlisted", "architecture", "platform", "symlink", "traversal"])
 def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
     module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
     if damage == "checksum":
@@ -86,6 +86,8 @@ def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
         (source / "extra").touch()
     elif damage == "architecture":
         manifest["architecture"] = "wrong-architecture"
+    elif damage == "platform":
+        manifest["platform"] = "wrong-platform"
     elif damage == "symlink":
         (source / "external").symlink_to(tmp_path)
     elif damage == "traversal":
@@ -94,6 +96,21 @@ def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
     with pytest.raises(ValueError):
         module.stage_pheno_runtime(source, tmp_path / "engine")
     assert not (tmp_path / "engine").exists()
+
+
+@pytest.mark.parametrize("platform_name", ["darwin", "win32"])
+def test_stage_other_platform_runtimes(tmp_path, monkeypatch, platform_name):
+    module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(module.sys, "platform", platform_name)
+    manifest["platform"] = platform_name
+    if platform_name == "win32":
+        manifest["perl"] = "5.42.0"
+        for name in ("bin/pheno-ranker.exe", "perl/bin/perl.exe", "perl/bin/pheno-ranker", "portable.perl"):
+            path = source / name
+            path.write_bytes(b"synthetic Windows fixture")
+            manifest["runtime_sha256"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (source / "runtime-manifest.json").write_text(json.dumps(manifest))
+    assert module.stage_pheno_runtime(source, tmp_path / "engine") == manifest
 
 
 def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch):

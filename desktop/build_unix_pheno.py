@@ -1,4 +1,4 @@
-"""Build and relocation-test a CPAN Pheno-Ranker runtime (Linux, Python 3.12)."""
+"""Build and relocation-test a CPAN Pheno-Ranker runtime (Linux/macOS, Python 3.12)."""
 import argparse
 import hashlib
 import json
@@ -7,6 +7,7 @@ import platform
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
@@ -39,9 +40,13 @@ def test_relocated(output, fixture, work):
     home = work / "clean home"
     home.mkdir()
     env = {"PATH": "", "HOME": str(home), "LANG": "C.UTF-8"}
+    if os.name == "nt":
+        env.update({key: os.environ[key] for key in ("SystemRoot", "WINDIR") if key in os.environ})
+        env.update(USERPROFILE=str(home), TEMP=str(home), TMP=str(home))
     try:
         result = work / "matrix.txt"
-        subprocess.run([str(relocated / "bin/pheno-ranker"), "--reference", str(fixture),
+        launcher = "pheno-ranker.exe" if os.name == "nt" else "pheno-ranker"
+        subprocess.run([str(relocated / "bin" / launcher), "--reference", str(fixture),
                         "--out-file", str(result), "--no-color"],
                        cwd=home, env=env, check=True, timeout=120)
         if not result.is_file() or not result.stat().st_size:
@@ -50,12 +55,54 @@ def test_relocated(output, fixture, work):
         shutil.move(relocated, output)
 
 
+def vendor_macos(output):
+    """Copy non-system dylibs, rewrite relative load paths, then ad-hoc sign."""
+    binaries = [output / "perl/bin/perl", *output.rglob("*.bundle"),
+                *output.rglob("*.dylib"), *output.rglob("*.so")]
+    seen = set()
+    for binary in binaries:
+        if binary in seen:
+            continue
+        seen.add(binary)
+        binary.chmod(binary.stat().st_mode | 0o200)
+        listing = subprocess.check_output(["otool", "-L", str(binary)], text=True)
+        for line in listing.splitlines()[1:]:
+            library = line.strip().split(" (", 1)[0]
+            if not library.startswith("/") or library.startswith(("/usr/lib/", "/System/Library/")):
+                continue
+            source = Path(library)
+            target = output / "lib" / source.name
+            if source.resolve() != target.resolve() and not target.exists():
+                shutil.copy2(source, target)
+                binaries.append(target)
+            relative = os.path.relpath(target, binary.parent)
+            subprocess.run(["install_name_tool", "-change", library,
+                            "@loader_path/" + relative, str(binary)], check=True)
+        if binary.suffix == ".dylib":
+            subprocess.run(["install_name_tool", "-id", "@loader_path/" + binary.name, str(binary)], check=True)
+    for binary in seen:
+        subprocess.run(["codesign", "--force", "--sign", "-", str(binary)], check=True)
+
+
+def write_manifest(output, perl_version):
+    sources = output / "sources"
+    manifest = {"perl": perl_version, "pheno_ranker": "1.09", "source": "CPAN",
+                "platform": sys.platform, "architecture": platform.machine(),
+                "verification": "relocated cohort CLI with empty PATH and fresh HOME",
+                "dependency_policy": "CPAN dependencies resolved at build time; source archives retained",
+                "sources": {p.relative_to(sources).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                            for p in sources.rglob("*") if p.is_file()},
+                "runtime_sha256": {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                                   for p in output.rglob("*") if p.is_file()}}
+    (output / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if os.uname().sysname != "Linux":
-        parser.error("This first runtime builder targets Linux only")
+    if sys.platform not in {"linux", "darwin"}:
+        parser.error("Use build_windows_pheno.py on Windows")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     sources = output / "sources"
@@ -89,7 +136,7 @@ def main():
         # Same Linux library policy as Pheno-Ranker's desktop staging script.
         libraries = output / "lib"
         libraries.mkdir()
-        for binary in [perl, *prefix.rglob("*.so"), *(output / "inline").rglob("*.so")]:
+        for binary in ([perl, *prefix.rglob("*.so"), *(output / "inline").rglob("*.so")] if sys.platform == "linux" else []):
             linked = subprocess.run(["ldd", str(binary)], capture_output=True, text=True, check=False)
             for line in linked.stdout.splitlines():
                 fields = line.split()
@@ -108,16 +155,10 @@ export LD_LIBRARY_PATH="$root/lib"
 exec "$root/perl/bin/perl" "$root/perl/bin/pheno-ranker" "$@"
 ''', encoding="utf-8")
         launcher.chmod(0o755)
+        if sys.platform == "darwin":
+            vendor_macos(output)
         test_relocated(output, pheno_source / "t/data/individuals.json", work)
-        manifest = {"perl": "5.42.3", "pheno_ranker": "1.09", "source": "CPAN",
-                    "platform": "linux", "architecture": platform.machine(),
-                    "verification": "relocated cohort CLI with empty PATH and fresh HOME",
-                    "dependency_policy": "CPAN dependencies resolved at build time; source archives retained",
-                    "sources": {str(p.relative_to(sources)): hashlib.sha256(p.read_bytes()).hexdigest()
-                                for p in sources.rglob("*") if p.is_file()}}
-        manifest['runtime_sha256'] = {str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest()
-                                      for p in output.rglob('*') if p.is_file()}
-        (output / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        write_manifest(output, "5.42.3")
     shutil.make_archive(str(output), "gztar", root_dir=output.parent, base_dir=output.name)
     print(f"PASS: CPAN runtime built and relocated: {output}")
 

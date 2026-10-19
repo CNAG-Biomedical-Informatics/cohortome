@@ -6,7 +6,7 @@ import pytest
 
 
 def builder():
-    spec = importlib.util.spec_from_file_location("build_linux_pheno", Path(__file__).parents[1] / "desktop/build_linux_pheno.py")
+    spec = importlib.util.spec_from_file_location("build_unix_pheno", Path(__file__).parents[1] / "desktop/build_unix_pheno.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

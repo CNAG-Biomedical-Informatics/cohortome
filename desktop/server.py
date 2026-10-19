@@ -42,7 +42,7 @@ def configure_environment(runtime):
     if getattr(sys, 'frozen', False):
         tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
         # Never fall back to a developer checkout or host tools in a package.
-        os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / 'pheno-ranker')
+        os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / ('pheno-ranker.exe' if os.name == 'nt' else 'pheno-ranker'))
     sys.path.insert(0, str(ROOT))
 
 
