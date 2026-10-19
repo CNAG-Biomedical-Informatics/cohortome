@@ -42,13 +42,14 @@ cat(jsonlite::toJSON(list(home=R.home(), version=as.character(getRversion()), pa
     output.mkdir(parents=True, exist_ok=False)
     rhome = output / "R"
     shutil.copytree(metadata["home"], rhome, symlinks=False,
-                    ignore=shutil.ignore_patterns("library", "site-library"))
+                    ignore=shutil.ignore_patterns("library", "site-library", "*.dSYM"))
     # Retain base/recommended packages and choose each required package's
     # resolved version before copying (no deletion of read-only Windows files).
     packages = {p.name: p for p in (Path(metadata["home"]) / "library").iterdir() if p.is_dir()}
     packages.update({p["name"]: Path(p["path"]) for p in metadata["packages"]})
     for name, source in packages.items():
-        shutil.copytree(source, rhome / "library" / name, symlinks=False)
+        shutil.copytree(source, rhome / "library" / name, symlinks=False,
+                        ignore=shutil.ignore_patterns("*.dSYM"))
     for name in ("Renviron.site", "Rprofile.site"):
         (rhome / "etc" / name).write_text("", encoding="utf-8")
     if sys.platform == "darwin":
@@ -76,9 +77,11 @@ exec "$R_HOME/bin/Rscript" "$@"
         launcher.chmod(0o755)
         entry = "bin/Rscript"
     else:
-        # Official Windows R discovers its installation relative to Rscript.exe;
-        # do not add a shell wrapper or require an R registry entry.
-        entry = "R/bin/Rscript.exe"
+        # bin/Rscript.exe is Rfe.c's shell dispatcher (system(cmd)); use the
+        # real executable so an isolated PATH does not require cmd.exe.
+        entry = "R/bin/x64/Rscript.exe"
+        if not (output / entry).is_file():
+            raise RuntimeError("Expected the official Windows x64 Rscript executable")
     with tempfile.TemporaryDirectory(prefix="cohortome-native-r-", dir=output.parent) as temporary:
         work = Path(temporary)
         moved = work / "runtime with spaces"
@@ -93,13 +96,14 @@ exec "$R_HOME/bin/Rscript" "$@"
                 env.update(USERPROFILE=str(work), TEMP=str(work), TMP=str(work))
             script = work / "probe.R"
             script.write_text(PROBE + EXTENDED_PROBE, encoding="utf-8")
-            subprocess.run([str(moved / entry), "--vanilla", str(script)],
+            subprocess.run([str(moved / entry), "--verbose", "--vanilla", str(script)],
                            cwd=work, env=env, stdin=subprocess.DEVNULL, check=True, timeout=300)
             for name in ("probe.json", "probe.png", "probe.svg", "extended.png"):
                 assert (work / name).stat().st_size, name
         finally:
             shutil.move(moved, output)
     manifest = {"platform": sys.platform, "architecture": platform.machine(), "r": metadata["version"],
+                "entrypoint": entry,
                 "packages": {p["name"]: p["version"] for p in metadata["packages"]},
                 "verification": "relocated limma/voom, DESeq2/apeglm, synthetic fgsea, JSON/PNG/SVG; no MSigDB data",
                 "runtime_sha256": {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()

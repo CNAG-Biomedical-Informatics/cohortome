@@ -65,7 +65,7 @@ def vendor_macos(output, executables=None):
                 *output.rglob("*.dylib"), *output.rglob("*.so")]
     seen = set()
     for binary in binaries:
-        if binary in seen:
+        if binary in seen or any(part.endswith(".dSYM") for part in binary.parts):
             continue
         seen.add(binary)
         binary.chmod(binary.stat().st_mode | 0o200)
