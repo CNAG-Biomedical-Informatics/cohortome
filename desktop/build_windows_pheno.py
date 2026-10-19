@@ -49,9 +49,11 @@ def main():
         env.update(PERL_CPANM_HOME=str(work / "cpanm"))
         env["PATH"] = os.pathsep.join([str(prefix / "site/bin"), str(prefix / "bin"),
                                       str(Path(compiler).parent), env.get("PATH", "")])
+        # cpanm recognizes '.' as a local distribution; a drive-letter path
+        # with backslashes can instead be parsed as a CPAN module name.
         subprocess.run([perl, str(cpanm / "bin/cpanm"), "--notest", "--mirror",
                         "https://cpan.metacpan.org", "--mirror-only", "--save-dists", str(sources),
-                        "File::HomeDir", str(pheno)], cwd=work, env=env, check=True)
+                        "File::HomeDir", "."], cwd=pheno, env=env, check=True)
         staged = output / "perl"
         for name in ("bin", "lib", "site", "vendor"):
             if (prefix / name).is_dir():
