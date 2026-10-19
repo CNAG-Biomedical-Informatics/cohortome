@@ -33,7 +33,11 @@ deps <- setdiff(unique(c(required, unlist(tools::package_dependencies(required, 
 packages <- lapply(deps, function(p) list(name=p, version=as.character(packageVersion(p)), path=find.package(p)))
 cat(jsonlite::toJSON(list(home=R.home(), version=as.character(getRversion()), packages=packages), auto_unbox=TRUE))
 '''
-    metadata = json.loads(subprocess.check_output([binary, "--vanilla", "-e", expression], text=True))
+    # Avoid Windows Rscript command-line parsing of multiline/quoted -e input.
+    with tempfile.TemporaryDirectory(prefix="cohortome-r-metadata-") as temporary:
+        script = Path(temporary) / "metadata.R"
+        script.write_text(expression, encoding="utf-8")
+        metadata = json.loads(subprocess.check_output([binary, "--vanilla", str(script)], text=True))
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     rhome = output / "R"
@@ -54,7 +58,9 @@ cat(jsonlite::toJSON(list(home=R.home(), version=as.character(getRversion()), pa
         (rhome / "bin/R").chmod(0o755)
         (output / "lib").mkdir()
         (output / "bin").mkdir()
-        shutil.copy2("/bin/rm", output / "bin/rm")
+        # copy2 also copies Apple's protected file flags; only bytes/mode are needed.
+        shutil.copyfile("/bin/rm", output / "bin/rm")
+        (output / "bin/rm").chmod(0o755)
         vendor_macos(output, [rhome / "bin/exec/R", rhome / "bin/Rscript"])
         launcher = output / "bin/Rscript"
         launcher.write_text('''#!/bin/sh
@@ -85,7 +91,9 @@ exec "$R_HOME/bin/Rscript" "$@"
             if sys.platform == "win32":
                 env.update({k: os.environ[k] for k in ("SystemRoot", "WINDIR") if k in os.environ})
                 env.update(USERPROFILE=str(work), TEMP=str(work), TMP=str(work))
-            subprocess.run([str(moved / entry), "--vanilla", "-e", PROBE + EXTENDED_PROBE],
+            script = work / "probe.R"
+            script.write_text(PROBE + EXTENDED_PROBE, encoding="utf-8")
+            subprocess.run([str(moved / entry), "--vanilla", str(script)],
                            cwd=work, env=env, stdin=subprocess.DEVNULL, check=True, timeout=300)
             for name in ("probe.json", "probe.png", "probe.svg", "extended.png"):
                 assert (work / name).stat().st_size, name

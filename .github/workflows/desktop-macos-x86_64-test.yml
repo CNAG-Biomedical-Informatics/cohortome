@@ -29,7 +29,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
-          python -m pip install -r desktop/requirements-umap-test.txt
+          python -m pip install --only-binary=numba,llvmlite -r desktop/requirements-umap-test.txt
           python -m pip install --no-deps --no-build-isolation .
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
       - name: Build and relocation-test Perl runtime
