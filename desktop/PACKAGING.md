@@ -6,7 +6,8 @@ No developer runtime, credentials or research data are copied.
 The workflows include a separately built Perl/Pheno-Ranker runtime. Linux
 x86_64, ARM64 and both macOS architectures passed the integrated Perl tests.
 Windows packaging is still being corrected. The Linux ARM64 workflow now also
-includes core R and UMAP; their integrated CI results must be checked separately.
+passed core R and UMAP integration. Both Linux workflows now build extended R
+and UMAP; those expanded desktop bundles await CI verification.
 
 ## GitHub Actions
 
@@ -68,6 +69,9 @@ assets must therefore be tracked before packaging.
   the background-worker test above still exercises its failure path only.
 - With `--require-umap`: a Pheno-Ranker cohort run must produce finite UMAP
   coordinates for all selected records.
+- With `--require-extended-r`: also require every curated runner's R packages
+  to load from the relocated desktop bundle. The R builder separately tests
+  DESeq2/apeglm and synthetic fgsea enrichment before packaging.
 
 The packaged app stores state under the platform application-data directory
 (`$XDG_DATA_HOME/org.cnag.cohortome.preview` on Linux, defaulting to
@@ -124,7 +128,7 @@ installation or requiring the Pheno-Ranker Git checkout.
 ### Remaining packaging work
 
 - Fix and verify the Windows Perl/Pheno-Ranker build.
-- Verify integrated Linux ARM64 R/UMAP, then extend to other platforms.
+- Verify expanded Linux ARM64 and x86_64 R/UMAP bundles, then extend to other platforms.
 - Verify the extended R runtime and Hallmark gene-set access before claiming
   complete curated-analysis coverage.
 - Package or download the viewer and other resources; custom scripts still
@@ -159,13 +163,15 @@ packages required by each runner; core R alone does not enable DESeq2.
 For UMAP, install `desktop/requirements-umap-test.txt` in the build environment,
 package with `--with-umap`, and test with `--require-umap`. These options follow
 the dynamic-import handling used in Pheno-Ranker Desktop. The ARM64 desktop
-workflow includes both core R and UMAP.
+workflow passed both core R and UMAP. Both Linux desktop workflows now request
+extended R plus UMAP; x86_64 retains Ubuntu 22.04 and ARM64 Ubuntu 24.04.
 
 The standalone R workflow has an **extended** option. It installs DESeq2,
 apeglm, fgsea, msigdbr and ggplot2 on the CI build host and calls
 `build_linux_r.py --extended`. Its relocation test adds a synthetic DESeq2 fit,
 apeglm shrinkage, fgsea enrichment and a ggplot2 plot. This extended build is
-not yet verified or included in the desktop workflow. Package versions are
+verified on ARM64 as a standalone runtime and is now requested by both Linux
+desktop workflows. Integrated extended-R results are still pending. Package versions are
 recorded, but build-time resolution is not a complete dependency lock.
 
 The test uses invented gene sets, not MSigDB data. The current Hallmark runner

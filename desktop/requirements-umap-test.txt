@@ -1,5 +1,5 @@
 # Match the UMAP stack resolved by the successful Pheno-Ranker Windows build.
-# Linux ARM64 experiment; other platforms keep their existing package profiles.
+# Linux packaging; macOS and Windows keep their existing package profiles.
 umap-learn==0.5.9.post2
 scipy==1.18.1
 scikit-learn==1.9.1

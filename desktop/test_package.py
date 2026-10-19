@@ -74,6 +74,7 @@ def main():
     parser.add_argument("engine", type=Path)
     parser.add_argument("--require-pheno", action="store_true", help="Require real packaged Pheno-Ranker analyses")
     parser.add_argument("--require-r", action="store_true", help="Require real packaged R analysis")
+    parser.add_argument("--require-extended-r", action="store_true", help="Also require all curated R packages to load")
     parser.add_argument("--require-umap", action="store_true", help="Require packaged Pheno-Ranker UMAP")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="cohortome-relocation-") as temporary:
@@ -95,8 +96,10 @@ def main():
                                cwd=root, env=environment, capture_output=True, text=True, timeout=180)
         assert probe.returncode == 0, probe.stderr
         assert "PASS: packaged job" in probe.stdout, probe.stdout
-        if args.require_r:
+        if args.require_r or args.require_extended_r:
             assert "PASS: packaged R adapter" in probe.stdout, probe.stdout
+        if args.require_extended_r:
+            assert "PASS: packaged extended R packages" in probe.stdout, probe.stdout
         print(probe.stdout.strip())
         for restart in (False, True):
             with (root / "stderr.log").open("w+") as errors:

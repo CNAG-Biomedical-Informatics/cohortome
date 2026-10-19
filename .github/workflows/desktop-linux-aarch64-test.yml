@@ -17,7 +17,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: desktop/requirements-desktop-test.txt
+          cache-dependency-path: |
+            desktop/requirements-desktop-test.txt
+            desktop/requirements-umap-test.txt
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -34,11 +36,17 @@ jobs:
           python -m pip install -r desktop/requirements-umap-test.txt
           python -m pip install --no-deps --no-build-isolation .
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
+      - name: Install extended R packages
+        run: |
+          sudo apt-get install -y --no-install-recommends r-base-dev r-bioc-deseq2 r-cran-ggplot2 r-cran-biocmanager libcurl4-openssl-dev libssl-dev libxml2-dev
+          mkdir -p "$RUNNER_TEMP/r-library"
+          echo "R_LIBS_USER=$RUNNER_TEMP/r-library" >> "$GITHUB_ENV"
+          R_LIBS_USER="$RUNNER_TEMP/r-library" Rscript --vanilla -e 'options(repos=c(CRAN="https://cloud.r-project.org")); BiocManager::install(c("apeglm", "fgsea", "msigdbr"), ask=FALSE, update=FALSE, Ncpus=2)'
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
       - name: Build portable test bundle
         run: |
-          python desktop/build_linux_r.py --output "$RUNNER_TEMP/r-runtime"
+          python desktop/build_linux_r.py --extended --output "$RUNNER_TEMP/r-runtime"
           python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
@@ -48,7 +56,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/extracted"
           tar -xzf "$RUNNER_TEMP/cohortome-linux-aarch64.tar.gz" -C "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno --require-r --require-umap "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
+          python desktop/test_package.py --require-pheno --require-extended-r --require-umap "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
       - name: Test packaged native window
         run: |
           python desktop/test_native_package.py --xvfb "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/cohortome-desktop"

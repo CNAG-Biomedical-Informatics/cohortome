@@ -1,5 +1,7 @@
 """Run the real R adapter against bundled synthetic assays in a packaged backend."""
 import csv
+import json
+from pathlib import Path
 
 
 def check(root, runtime):
@@ -9,6 +11,13 @@ def check(root, runtime):
 
     binary = rscript_binary()
     assert binary and "runtimes/r/bin/Rscript" in binary.replace("\\", "/")
+    manifest = json.loads((Path(binary).parent.parent / "runtime-manifest.json").read_text())
+    if "DESeq2" in manifest["packages"]:
+        from app.r_runtime import REQUIREMENTS
+        for reference in REQUIREMENTS:
+            reason = rscript_unavailable_reason(reference)
+            assert not reason, f"{reference}: {reason}"
+        print("PASS: packaged extended R packages load for all curated runners")
     runner = "transcriptomics_limma_voom_differential_expression"
     assert not rscript_unavailable_reason(runner)
     prepare_dataset_query_store("synthetic-autoimmune-demo")
