@@ -16,13 +16,30 @@ from build_unix_pheno import vendor_macos
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--check-installed", action="store_true",
+                        help="Run statistical probes against the build host before packaging")
     args = parser.parse_args()
     if sys.platform not in {"darwin", "win32"}:
         parser.error("Use build_linux_r.py on Linux")
     binary = shutil.which("Rscript")
     if not binary:
         parser.error("Install R and the analysis packages first")
+    if args.check_installed:
+        with tempfile.TemporaryDirectory(prefix="cohortome-r-installed-") as temporary:
+            work = Path(temporary)
+            script = work / "probe.R"
+            # The build host intentionally has external package libraries;
+            # retain the strict library-location assertions for relocation only.
+            installed_probe = "set.seed(42)" + PROBE.split("set.seed(42)", 1)[1]
+            script.write_text(installed_probe + EXTENDED_PROBE,
+                              encoding="utf-8")
+            subprocess.run([binary, "--vanilla", str(script)], cwd=work,
+                           stdin=subprocess.DEVNULL, check=True, timeout=300)
+        print("PASS: installed R statistical probes before relocation")
+        return
+    if args.output is None:
+        parser.error("--output is required unless --check-installed is used")
     expression = '''
 required <- c("limma","edgeR","jsonlite","DESeq2","apeglm","fgsea","msigdbr","ggplot2")
 missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
