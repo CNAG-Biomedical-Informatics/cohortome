@@ -12,13 +12,15 @@ from build_unix_pheno import fetch_source, test_relocated, write_manifest
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--perl", type=Path, required=True, help="Strawberry perl.exe selected by PowerShell")
+    parser.add_argument("--compiler", type=Path, required=True, help="Strawberry gcc.exe selected by PowerShell")
     args = parser.parse_args()
     if os.name != "nt":
         parser.error("This builder requires Windows and Strawberry Perl")
-    perl = shutil.which("perl")
-    compiler = shutil.which("gcc")
-    if not perl or not compiler:
-        parser.error("Set up Strawberry Perl with its compiler first")
+    perl = str(args.perl.absolute())
+    compiler = str(args.compiler.absolute())
+    if not args.perl.is_file() or not args.compiler.is_file():
+        parser.error("Provide existing Strawberry Perl and compiler executables")
     # Match Pheno-Ranker's successful Windows workflow: use the selected
     # executable's directory, not Perl's self-reported $^X installation path.
     prefix = Path(perl).absolute().parent.parent
@@ -43,6 +45,8 @@ def main():
         pheno = fetch_source("pheno", work, sources)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("PERL", "PHENO_RANKER_"))}
         env.update(PERL_CPANM_HOME=str(work / "cpanm"))
+        env["PATH"] = os.pathsep.join([str(prefix / "site/bin"), str(prefix / "bin"),
+                                      str(Path(compiler).parent), env.get("PATH", "")])
         subprocess.run([perl, str(cpanm / "bin/cpanm"), "--notest", "--mirror",
                         "https://cpan.metacpan.org", "--mirror-only", "--save-dists", str(sources),
                         "File::HomeDir", str(pheno)], cwd=work, env=env, check=True)

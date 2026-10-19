@@ -42,7 +42,12 @@ jobs:
           perl-version: '5.42'
           distribution: strawberry
       - name: Stage and relocation-test Perl runtime
-        run: python desktop/build_windows_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
+        shell: pwsh
+        run: |
+          $perlExe = (Get-Command perl -CommandType Application).Source
+          $compilerExe = (Get-Command gcc -CommandType Application).Source
+          python desktop/build_windows_pheno.py --perl "$perlExe" --compiler "$compilerExe" --output "$env:RUNNER_TEMP/pheno-runtime"
+          if ($LASTEXITCODE -ne 0) { throw 'Perl runtime staging failed' }
       - name: Build portable test bundle
         run: |
           python desktop/package_desktop.py --with-native \
