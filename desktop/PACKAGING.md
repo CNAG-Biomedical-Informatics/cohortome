@@ -139,7 +139,8 @@ installation or requiring the Pheno-Ranker Git checkout.
 
 ### Remaining packaging work
 
-- Extend R/UMAP packaging to macOS and Windows.
+- Verify macOS/Windows UMAP and standalone R builds, then integrate R into
+  those desktop bundles.
 - Verify Hallmark gene-set access before claiming
   complete curated-analysis coverage.
 - Package or download the viewer and other resources; custom scripts still
@@ -194,3 +195,23 @@ scripts; Nextflow/Snakemake demonstration runners are not bundled.
 The packaging reference is Pheno-Ranker's `app/scripts/` and
 `.github/workflows/desktop-installers.yml`: relocatable Perl, frozen Python,
 clean-environment tests, then inspection of the actual installers.
+
+### macOS and Windows R builds
+
+The manual **Test macOS and Windows R runtimes** workflow tests Apple Silicon,
+Intel macOS and Windows x86_64 independently. It selects R 4.5.2 and
+Bioconductor 3.22 using `r-lib/actions/setup-r`, installs the analysis packages,
+and stages them with `build_native_r.py`. These builds are not yet verified
+or connected to the complete desktop packages.
+
+The macOS builder reuses the Perl builder's dynamic-library relocation and
+ad-hoc signing. Windows retains the official R directory layout and runs
+Rscript.exe directly. Both run the same synthetic limma/voom, DESeq2/apeglm,
+fgsea and plot checks as Linux after moving the bundle to a path with spaces,
+with empty PATH and isolated R library paths. No MSigDB gene sets are bundled.
+Each manifest records package versions and file hashes; neither a complete
+dependency lock nor a redistribution review is implied.
+
+The three existing macOS/Windows desktop workflows now also request UMAP and
+test it through a packaged Pheno-Ranker cohort run. Their expanded results
+must pass before UMAP is considered verified on those platforms.

@@ -23,7 +23,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: desktop/requirements-desktop-test.txt
+          cache-dependency-path: |
+            desktop/requirements-desktop-test.txt
+            desktop/requirements-umap-test.txt
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -31,6 +33,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
+          python -m pip install -r desktop/requirements-umap-test.txt
           python -m pip install --no-deps --no-build-isolation .
           python -m pip install pytest
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
@@ -55,14 +58,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Perl runtime staging failed' }
       - name: Build portable test bundle
         run: |
-          python desktop/package_desktop.py --with-native \
+          python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
             --output "$RUNNER_TEMP/cohortome-windows-x86_64"
       - name: Extract and test packaged backend
         run: |
           python -m zipfile -e "$RUNNER_TEMP/cohortome-windows-x86_64.zip" "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/engine"
+          python desktop/test_package.py --require-pheno --require-umap "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/engine"
       - name: Test packaged native window
         run: python desktop/test_native_package.py "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/cohortome-desktop.exe"
       - name: Record archive checksum

@@ -59,9 +59,9 @@ def test_relocated(output, fixture, work):
         shutil.move(relocated, output)
 
 
-def vendor_macos(output):
+def vendor_macos(output, executables=None):
     """Copy non-system dylibs, rewrite relative load paths, then ad-hoc sign."""
-    binaries = [output / "perl/bin/perl", *output.rglob("*.bundle"),
+    binaries = [*(executables if executables is not None else [output / "perl/bin/perl"]), *output.rglob("*.bundle"),
                 *output.rglob("*.dylib"), *output.rglob("*.so")]
     seen = set()
     for binary in binaries:

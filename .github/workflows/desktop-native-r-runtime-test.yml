@@ -1,0 +1,51 @@
+name: Test macOS and Windows R runtimes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: macos-arm64
+          - runner: macos-15-intel
+            platform: macos-x86_64
+          - runner: windows-2022
+            platform: windows-x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5.2'
+      - name: Install analysis packages
+        shell: Rscript {0}
+        run: |
+          options(repos=c(CRAN="https://cloud.r-project.org"), Ncpus=2)
+          install.packages("BiocManager")
+          required <- c("limma", "edgeR", "jsonlite", "DESeq2", "apeglm", "fgsea", "msigdbr", "ggplot2")
+          BiocManager::install(required, version="3.22", ask=FALSE, update=FALSE, Ncpus=2)
+          missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
+          if (length(missing)) stop("Packages failed to install/load: ", paste(missing, collapse=", "))
+      - name: Stage and relocation-test R
+        shell: bash
+        run: python desktop/build_native_r.py --output "$RUNNER_TEMP/r-runtime"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r-runtime-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/r-runtime.zip
+            ${{ runner.temp }}/r-runtime.tar.gz
+            ${{ runner.temp }}/r-runtime/runtime-manifest.json
+          retention-days: 7
+          if-no-files-found: error
