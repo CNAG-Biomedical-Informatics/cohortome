@@ -3,10 +3,40 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import runpy
+from types import SimpleNamespace
 
 import pytest
 
 from app import local_jobs
+
+
+@pytest.mark.parametrize("arguments,module_name", [
+    ([], "server"), (["--job"], "app.local_jobs"), (["--check-package"], "package_probe"),
+])
+def test_frozen_entrypoint_handles_multiprocessing_before_dispatch(monkeypatch, arguments, module_name):
+    import multiprocessing
+    calls = []
+    monkeypatch.setattr(multiprocessing, "freeze_support", lambda: calls.append("freeze_support"))
+    monkeypatch.setitem(sys.modules, module_name, SimpleNamespace(main=lambda: calls.append("main")))
+    monkeypatch.setattr(sys, "argv", ["cohortome-backend", *arguments])
+    runpy.run_path(str(Path(__file__).parents[1] / "desktop/backend.py"), run_name="__main__")
+    assert calls == ["freeze_support", "main"]
+
+
+def test_stack_diagnostics_are_opt_in(tmp_path, monkeypatch):
+    import faulthandler
+    spec = importlib.util.spec_from_file_location("desktop_server_test", Path(__file__).parents[1] / "desktop/server.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    calls = []
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda *a, **kw: calls.append((a, kw)))
+    monkeypatch.setattr(sys, "argv", ["backend", "--runtime-dir", str(tmp_path)])
+    assert module.runtime_directory() == tmp_path
+    assert not calls
+    monkeypatch.setattr(sys, "argv", [*sys.argv, "--diagnostic-stacks"])
+    assert module.runtime_directory() == tmp_path
+    assert calls == [((60,), {"repeat": True})]
 
 
 def test_windows_resource_icon_exists():

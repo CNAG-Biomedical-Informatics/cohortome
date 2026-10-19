@@ -15,7 +15,11 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
 def runtime_directory():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runtime-dir", type=Path)
+    parser.add_argument("--diagnostic-stacks", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.diagnostic_stacks:
+        import faulthandler
+        faulthandler.dump_traceback_later(60, repeat=True)
     if args.runtime_dir:
         if not args.runtime_dir.is_absolute():
             parser.error("--runtime-dir must be absolute")

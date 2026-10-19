@@ -9,6 +9,7 @@ from pathlib import Path
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import zipfile
@@ -103,7 +104,10 @@ def main():
         print(probe.stdout.strip())
         for restart in (False, True):
             with (root / "stderr.log").open("w+") as errors:
-                child = subprocess.Popen([str(binary), "--runtime-dir", str(runtime)], cwd=root,
+                command = [str(binary), "--runtime-dir", str(runtime)]
+                if os.name == "nt":
+                    command.append("--diagnostic-stacks")
+                child = subprocess.Popen(command, cwd=root,
                                          env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=errors, text=True)
                 ready = queue.Queue()
@@ -160,15 +164,20 @@ def main():
                               path.read_text(errors="replace")[-4000:], flush=True)
                     raise
                 finally:
+                    failed = sys.exc_info()[0] is not None
                     child.stdin.close()
                     try:
                         code = child.wait(timeout=20)
                     except subprocess.TimeoutExpired:
                         child.kill()
-                        child.wait()
-                        raise AssertionError("Packaged backend did not shut down") from None
-                    child.stdout.close()
-                    assert code == 0, f"Backend exited with {code}"
+                        code = child.wait()
+                        if not failed:
+                            raise AssertionError("Packaged backend did not shut down") from None
+                        print("Backend also failed to shut down after the test error.", flush=True)
+                    finally:
+                        child.stdout.close()
+                    if not failed:
+                        assert code == 0, f"Backend exited with {code}"
         print("PASS: relocated backend, both synthetic stores/queries, cohort save/export, local charts, access guards, settings restart, shutdown")
 
 
