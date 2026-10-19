@@ -128,6 +128,22 @@ installation or requiring the Pheno-Ranker Git checkout.
   compatibility. Building on a particular Linux release does not establish
   compatibility with older distributions.
 
+### Linux ARM64 R experiment
+
+`build_linux_r.py` stages installed R plus `limma`, `edgeR`, `jsonlite` and
+their required packages into a new directory. It does not install or modify
+anything on the host. Use a clean build machine for distributable artifacts.
+The manual **Test Linux ARM64 R runtime** workflow uses Ubuntu packages and
+records their R package versions and runtime file hashes; this is not a locked
+cross-distribution build or a completed redistribution-license review.
+
+The relocation check runs TMM normalization, voom and limma on synthetic counts,
+writes JSON, SVG and PNG, and asserts that R and package search paths belong to
+the moved bundle. A bundled `rm` provides R's temporary-directory cleanup; no
+host R or user R libraries should be used. Linux system/glibc compatibility is
+still required. This experiment is not yet connected to the desktop package.
+DESeq2, apeglm, fgsea, msigdbr and UMAP are not included in this increment.
+
 The packaging reference is Pheno-Ranker's `app/scripts/` and
 `.github/workflows/desktop-installers.yml`: relocatable Perl, frozen Python,
 clean-environment tests, then inspection of the actual installers.
