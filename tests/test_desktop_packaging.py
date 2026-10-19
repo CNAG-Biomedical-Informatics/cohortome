@@ -105,7 +105,7 @@ def test_stage_other_platform_runtimes(tmp_path, monkeypatch, platform_name):
     manifest["platform"] = platform_name
     if platform_name == "win32":
         manifest["perl"] = "5.42.0"
-        for name in ("bin/pheno-ranker.exe", "perl/bin/perl.exe", "perl/bin/pheno-ranker", "portable.perl"):
+        for name in ("bin/pheno-ranker", "perl/bin/perl.exe", "portable.perl"):
             path = source / name
             path.write_bytes(b"synthetic Windows fixture")
             manifest["runtime_sha256"][name] = hashlib.sha256(path.read_bytes()).hexdigest()

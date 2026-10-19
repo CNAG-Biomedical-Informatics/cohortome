@@ -92,8 +92,9 @@ relative load paths, and ad-hoc code signatures.
 Windows uses `build_windows_pheno.py` with Strawberry Perl 5.42.x supplied by
 the setup action on a clean runner. It stages the interpreter, installed CPAN
 modules, runtime DLLs and portable marker, and precompiles Inline::C metrics.
-A small native launcher starts the bundled Perl without `cmd.exe` or PATH
-lookup. The manifest records the exact Perl version and hashes. This is not
+Like Pheno-Ranker Desktop, the app starts the bundled `perl.exe` directly,
+passing the CLI script as an argument, without `cmd.exe` or a separate launcher.
+The manifest records the exact Perl version and hashes. This is not
 yet a pinned Strawberry archive with a complete dependency lock.
 
 For a local Linux build, first run:

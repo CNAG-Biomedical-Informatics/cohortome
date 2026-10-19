@@ -7,6 +7,14 @@ from fastapi import HTTPException
 from app.pheno import extract_selected_records
 
 
+def test_packaged_perl_command_preserves_paths_with_spaces(monkeypatch):
+    import app.pheno as pheno
+    monkeypatch.setattr(pheno, "app_env", lambda key, default="": "C:/Program Files/COHORTome/perl.exe")
+    monkeypatch.setattr(pheno, "PHENO_RANKER_BIN", "C:/Program Files/COHORTome/pheno-ranker")
+    assert pheno.pheno_ranker_command() == [
+        "C:/Program Files/COHORTome/perl.exe", "C:/Program Files/COHORTome/pheno-ranker"]
+
+
 def test_selection_matches_patient_or_record_across_files(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "")
     first = {"id": "SYN001:v1", "patient_id": "SYN001", "label": "Málaga"}

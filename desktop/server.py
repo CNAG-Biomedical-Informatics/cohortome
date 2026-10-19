@@ -42,7 +42,13 @@ def configure_environment(runtime):
     if getattr(sys, 'frozen', False):
         tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
         # Never fall back to a developer checkout or host tools in a package.
-        os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / ('pheno-ranker.exe' if os.name == 'nt' else 'pheno-ranker'))
+        os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / 'pheno-ranker')
+        if os.name == 'nt':
+            os.environ['COHORTOME_PHENO_RANKER_PERL_BIN'] = str(tools.parent / 'perl/bin/perl.exe')
+            os.environ['PHENO_RANKER_INLINE_DIR'] = str(tools.parent / 'inline')
+            os.environ['PATH'] = str(tools.parent / 'perl/bin') + os.pathsep + os.environ.get('PATH', '')
+            for name in ('PERL5LIB', 'PERLLIB', 'PERL5OPT'):
+                os.environ.pop(name, None)
     sys.path.insert(0, str(ROOT))
 
 

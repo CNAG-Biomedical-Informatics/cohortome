@@ -45,8 +45,12 @@ def test_relocated(output, fixture, work):
         env.update(USERPROFILE=str(home), TEMP=str(home), TMP=str(home))
     try:
         result = work / "matrix.txt"
-        launcher = "pheno-ranker.exe" if os.name == "nt" else "pheno-ranker"
-        subprocess.run([str(relocated / "bin" / launcher), "--reference", str(fixture),
+        command = [str(relocated / "bin/pheno-ranker")]
+        if os.name == "nt":
+            command.insert(0, str(relocated / "perl/bin/perl.exe"))
+            env["PHENO_RANKER_INLINE_DIR"] = str(relocated / "inline")
+            env["PATH"] = str(relocated / "perl/bin")
+        subprocess.run([*command, "--reference", str(fixture),
                         "--out-file", str(result), "--no-color"],
                        cwd=home, env=env, check=True, timeout=120)
         if not result.is_file() or not result.stat().st_size:

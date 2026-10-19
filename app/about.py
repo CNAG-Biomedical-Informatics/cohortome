@@ -53,12 +53,13 @@ def version_report():
             name, _, value = line.partition("=")
             if name in ("R", *R_PACKAGES):
                 rows[name] = "Not installed" if value == "missing" else _version(value)
-    from app.pheno import PHENO_RANKER_BIN
+    from app.pheno import PHENO_RANKER_BIN, pheno_ranker_command
     for name, executable in (("Pheno-Ranker", str(PHENO_RANKER_BIN) if PHENO_RANKER_BIN.is_file() else None),
                              ("ClarID tools (preparation tool)", shutil.which("clarid-tools"))):
         rows[name] = "Not found on web server"
         if executable:
-            output = _command([executable, "--version"])
+            command = pheno_ranker_command() if name == "Pheno-Ranker" else [executable]
+            output = _command([*command, "--version"])
             match = re.search(r"\b\d+\.\d+(?:[._]\d+)*(?:[-+][A-Za-z0-9.]+)?\b", output)
             rows[name] = _version(match.group()) if match else "Unknown"
     return {"components": rows, "note": "Web-server software only. External viewers, Redis server and separate workers are not probed. Checkout revision does not include uncommitted edits. No patient, user or deployment configuration is included."}

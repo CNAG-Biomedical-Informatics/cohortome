@@ -19,13 +19,18 @@ def main():
     compiler = shutil.which("gcc")
     if not perl or not compiler:
         parser.error("Set up Strawberry Perl with its compiler first")
-    # Ask Perl itself: setup actions may place wrapper scripts on PATH.
-    perl = subprocess.check_output([perl, "-e", "print $^X"], text=True).strip()
-    prefix = Path(perl).resolve().parent.parent
+    # Match Pheno-Ranker's successful Windows workflow: use the selected
+    # executable's directory, not Perl's self-reported $^X installation path.
+    prefix = Path(perl).absolute().parent.parent
+    runtime_perl = prefix / "bin/perl.exe"
+    version = subprocess.check_output([perl, "-e", 'printf "%vd", $^V'], text=True).strip()
+    staged_version = subprocess.check_output([str(runtime_perl), "-e", 'printf "%vd", $^V'], text=True).strip()
+    if version != staged_version:
+        raise RuntimeError("Selected Perl and staged runtime differ")
+    perl = str(runtime_perl)
     marker = prefix.parent / "portable.perl"
     if not marker.is_file():
-        raise RuntimeError("Strawberry portable.perl marker is required")
-    version = subprocess.check_output([perl, "-e", 'printf "%vd", $^V'], text=True).strip()
+        raise RuntimeError(f"Strawberry portable.perl marker is required: {marker}")
     if not version.startswith("5.42."):
         raise RuntimeError("Expected Strawberry Perl 5.42.x")
     output = args.output.resolve()
@@ -63,9 +68,7 @@ def main():
         if scratch.exists():
             shutil.rmtree(scratch)
         (output / "bin").mkdir()
-        subprocess.run([compiler, "-municode", "-O2", "-static-libgcc",
-                        str(Path(__file__).with_name("pheno_launcher_windows.c")),
-                        "-o", str(output / "bin/pheno-ranker.exe")], check=True)
+        shutil.copy2(staged / "bin/pheno-ranker", output / "bin/pheno-ranker")
         test_relocated(output, pheno / "t/data/individuals.json", work)
         write_manifest(output, version)
     shutil.make_archive(str(output), "zip", root_dir=output.parent, base_dir=output.name)

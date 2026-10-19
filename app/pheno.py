@@ -63,6 +63,12 @@ def resolve_pheno_ranker_bin() -> Path:
 PHENO_RANKER_BIN = resolve_pheno_ranker_bin()
 
 
+def pheno_ranker_command() -> List[str]:
+    """Windows Desktop invokes its bundled Perl directly, as Pheno-Ranker Desktop does."""
+    perl = app_env("COHORTOME_PHENO_RANKER_PERL_BIN", "").strip()
+    return [perl, str(PHENO_RANKER_BIN)] if perl else [str(PHENO_RANKER_BIN)]
+
+
 def pheno_background_sample_threshold() -> int:
     raw = str(app_env("COHORTOME_PHENO_BACKGROUND_SAMPLE_THRESHOLD", "1500")).strip()
     try:
@@ -1569,7 +1575,7 @@ def run_pheno_ranker(request: Any) -> Dict:
         selected_extract_command, selected_extract_proc, _ = extract_selected_records(reference_paths, selected_ids, merged_reference_path)
         reference_paths = [merged_reference_path]
 
-    command = [str(PHENO_RANKER_BIN), "-r", *[str(path) for path in reference_paths]]
+    command = [*pheno_ranker_command(), "-r", *[str(path) for path in reference_paths]]
     output_path = job_dir / ("matrix.txt" if mode == "cohort" else "rank.txt")
 
     if action == "extract":

@@ -72,7 +72,7 @@ def stage_pheno_runtime(source, engine):
     if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('pheno_ranker') != '1.09':
         raise ValueError('Unsupported or incomplete Pheno runtime')
     hashes = manifest.get('runtime_sha256') or {}
-    executables = ('bin/pheno-ranker.exe', 'perl/bin/perl.exe', 'perl/bin/pheno-ranker', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
+    executables = ('bin/pheno-ranker', 'perl/bin/perl.exe', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
     for required in executables:
         if required not in hashes:
             raise ValueError('Runtime manifest is missing required executables')
