@@ -2,9 +2,15 @@ name: Test Windows x86_64 desktop package
 
 on:
   workflow_dispatch:
+    inputs:
+      r_runtime_run_id:
+        description: Run ID with the verified r-runtime-windows-x86_64 artifact
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   package:
@@ -56,16 +62,26 @@ jobs:
           Write-Host "Selected compiler: $compilerExe"
           python desktop/build_windows_pheno.py --perl "$perlExe" --compiler "$compilerExe" --output "$env:RUNNER_TEMP/pheno-runtime"
           if ($LASTEXITCODE -ne 0) { throw 'Perl runtime staging failed' }
-      - name: Build portable test bundle
+      - name: Download verified R runtime
+        uses: actions/download-artifact@v4
+        with:
+          name: r-runtime-windows-x86_64
+          run-id: ${{ inputs.r_runtime_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/r-artifact
+      - name: Extract verified R runtime
+        run: python -m zipfile -e "$RUNNER_TEMP/r-artifact/r-runtime.zip" "$RUNNER_TEMP"
+      - name: Build portable test bundle with R
         run: |
           python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
+            --r-runtime "$RUNNER_TEMP/r-runtime" \
             --output "$RUNNER_TEMP/cohortome-windows-x86_64"
       - name: Extract and test packaged backend
         run: |
           python -m zipfile -e "$RUNNER_TEMP/cohortome-windows-x86_64.zip" "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno --require-umap "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/engine"
+          python desktop/test_package.py --require-pheno --require-umap --require-extended-r "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/engine"
       - name: Test packaged native window
         run: python desktop/test_native_package.py "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/cohortome-desktop.exe"
       - name: Record archive checksum

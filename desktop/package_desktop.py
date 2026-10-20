@@ -78,11 +78,15 @@ def stage_pheno_runtime(source, engine):
 def stage_r_runtime(source, engine):
     source = source.resolve()
     manifest = json.loads((source / 'runtime-manifest.json').read_text())
-    if sys.platform != 'linux' or manifest.get('platform') != 'linux' or manifest.get('architecture') != platform.machine():
-        raise ValueError('R runtime must match this Linux build architecture')
+    if sys.platform not in {'linux', 'darwin', 'win32'} or manifest.get('platform') != sys.platform or manifest.get('architecture') != platform.machine():
+        raise ValueError('R runtime must match this build platform and architecture')
     if not {'limma', 'edgeR', 'jsonlite'}.issubset(manifest.get('packages', {})):
         raise ValueError('R runtime is missing core analysis packages')
-    return copy_verified_runtime(source, engine / 'runtimes/r', manifest, ('bin/Rscript', 'R/bin/exec/R'))
+    entrypoint = 'R/bin/x64/Rscript.exe' if sys.platform == 'win32' else 'bin/Rscript'
+    if manifest.get('entrypoint', entrypoint) != entrypoint:
+        raise ValueError('Unexpected R runtime entrypoint')
+    executables = (entrypoint, 'R/bin/x64/R.dll') if sys.platform == 'win32' else (entrypoint, 'R/bin/exec/R')
+    return copy_verified_runtime(source, engine / 'runtimes/r', manifest, executables)
 
 
 def copy_verified_runtime(source, destination, manifest, executables):
@@ -111,7 +115,7 @@ def main():
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
     parser.add_argument('--pheno-runtime', type=Path, help='Verified platform-matched Perl/Pheno-Ranker runtime')
-    parser.add_argument('--r-runtime', type=Path, help='Verified Linux R runtime')
+    parser.add_argument('--r-runtime', type=Path, help='Verified platform-matched R runtime')
     parser.add_argument('--with-umap', action='store_true', help='Bundle the installed UMAP stack')
     args = parser.parse_args()
     if sys.platform not in {"linux", "darwin", "win32"}:

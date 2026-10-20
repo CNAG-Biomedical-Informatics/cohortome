@@ -6,8 +6,21 @@ No developer runtime, credentials or research data are copied.
 The workflows include a separately built Perl/Pheno-Ranker runtime. Linux
 x86_64, ARM64, Windows and both macOS architectures passed the integrated Perl
 tests. Both Linux architectures also passed extended R and UMAP integration.
+Both macOS architectures and Windows have passed standalone extended R tests.
+Their desktop workflows now combine those verified runtimes with Perl and UMAP;
+the combined R desktop tests still need to pass before claiming full integration.
 
 ## GitHub Actions
+
+For macOS and Windows, supply `r_runtime_run_id`: the run ID from **Test macOS
+and Windows R runtimes** containing the successful matching platform artifact.
+This avoids compiling the same R libraries again. The archive must still be
+available (CI artifacts expire after seven days); rerun the runtime workflow if
+it has expired. Each package verifies the runtime's platform, architecture and
+file checksums before staging it. No host R installation is used.
+
+The package tests require extended R package loading and a real synthetic
+limma-voom run after relocation, as well as Perl, UMAP and native-window checks.
 
 Open **Actions**, choose the Linux x86_64, Linux aarch64, macOS Apple Silicon,
 macOS Intel, or Windows x86_64

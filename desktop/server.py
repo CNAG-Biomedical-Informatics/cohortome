@@ -55,7 +55,18 @@ def configure_environment(runtime):
                       LM_STUDIO_ENABLED="false")
     if getattr(sys, 'frozen', False):
         tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
-        os.environ['COHORTOME_RSCRIPT_BIN'] = str(tools.parents[1] / 'r/bin/Rscript')
+        r_runtime = tools.parents[1] / 'r'
+        entrypoint = 'R/bin/x64/Rscript.exe' if sys.platform == 'win32' else 'bin/Rscript'
+        os.environ['COHORTOME_RSCRIPT_BIN'] = str(r_runtime / entrypoint)
+        # The Windows executable has no wrapper. Keep every platform isolated
+        # from a user's R installation, startup files and package libraries.
+        os.environ.update(R_HOME=str(r_runtime / 'R'), RHOME=str(r_runtime / 'R'),
+                          R_LIBS=str(r_runtime / 'R/library'), R_LIBS_USER='NULL',
+                          R_LIBS_SITE='NULL', R_ENVIRON_USER=os.devnull,
+                          R_PROFILE_USER=os.devnull,
+                          R_SHARE_DIR=str(r_runtime / 'R/share'),
+                          R_INCLUDE_DIR=str(r_runtime / 'R/include'),
+                          R_DOC_DIR=str(r_runtime / 'R/doc'))
         os.environ['NUMBA_CACHE_DIR'] = str(runtime / 'cache/numba')
         os.environ['NUMBA_NUM_THREADS'] = '1'
         # Never fall back to a developer checkout or host tools in a package.

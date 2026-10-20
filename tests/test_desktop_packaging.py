@@ -158,35 +158,47 @@ def test_stage_other_platform_runtimes(tmp_path, monkeypatch, platform_name):
     assert module.stage_pheno_runtime(source, tmp_path / "engine") == manifest
 
 
-def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch):
+@pytest.mark.parametrize("platform", ["linux", "darwin", "win32"])
+def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch, platform):
     from app.analysis_resources import THREAD_ENV
     spec = importlib.util.spec_from_file_location("desktop_server", Path(__file__).parents[1] / "desktop/server.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    monkeypatch.setattr(sys, "platform", platform)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "engine/cohortome-backend"))
     monkeypatch.setattr(sys, "path", sys.path.copy())
     monkeypatch.setattr(module.os, "environ", {"COHORTOME_PHENO_RANKER_BIN": "/host/pheno-ranker",
-                                             "OPENBLAS_NUM_THREADS": "8"})
+                                             "OPENBLAS_NUM_THREADS": "8", "R_LIBS": "/host/library",
+                                             "R_HOME": "/host/R", "R_PROFILE_USER": "/host/startup"})
     module.configure_environment(tmp_path / "state")
     assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/pheno/bin/pheno-ranker")
-    assert module.os.environ["COHORTOME_RSCRIPT_BIN"] == str(tmp_path / "engine/runtimes/r/bin/Rscript")
+    root = tmp_path / "engine/runtimes/r"
+    entrypoint = "R/bin/x64/Rscript.exe" if platform == "win32" else "bin/Rscript"
+    assert module.os.environ["COHORTOME_RSCRIPT_BIN"] == str(root / entrypoint)
+    assert module.os.environ["R_HOME"] == str(root / "R")
+    assert module.os.environ["R_LIBS"] == str(root / "R/library")
+    assert module.os.environ["R_LIBS_USER"] == "NULL"
+    assert module.os.environ["R_PROFILE_USER"] == module.os.devnull
     assert all(module.os.environ.get(key) == value for key, value in THREAD_ENV.items())
 
 
-@pytest.mark.parametrize("damage", [None, "package", "checksum", "architecture"])
-def test_stage_r_runtime(tmp_path, monkeypatch, damage):
+@pytest.mark.parametrize("platform", ["linux", "darwin", "win32"])
+@pytest.mark.parametrize("damage", [None, "package", "checksum", "architecture", "entrypoint", "platform"])
+def test_stage_r_runtime(tmp_path, monkeypatch, damage, platform):
     module = load_packager()
-    monkeypatch.setattr(module.sys, "platform", "linux")
+    monkeypatch.setattr(module.sys, "platform", platform)
     source = tmp_path / "r-runtime"
     hashes = {}
-    for name in ("bin/Rscript", "R/bin/exec/R"):
+    entrypoint = "R/bin/x64/Rscript.exe" if platform == "win32" else "bin/Rscript"
+    executable = "R/bin/x64/R.dll" if platform == "win32" else "R/bin/exec/R"
+    for name in (entrypoint, executable):
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"synthetic R fixture")
         path.chmod(0o755)
         hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    manifest = {"platform": "linux", "architecture": module.platform.machine(),
+    manifest = {"platform": platform, "architecture": module.platform.machine(),
                 "packages": {name: "test" for name in ("limma", "edgeR", "jsonlite")},
                 "runtime_sha256": hashes}
     if damage == "package":
@@ -194,7 +206,11 @@ def test_stage_r_runtime(tmp_path, monkeypatch, damage):
     elif damage == "architecture":
         manifest["architecture"] = "wrong"
     elif damage == "checksum":
-        (source / "bin/Rscript").write_bytes(b"changed")
+        (source / entrypoint).write_bytes(b"changed")
+    elif damage == "entrypoint":
+        manifest["entrypoint"] = "../host/Rscript"
+    elif damage == "platform":
+        manifest["platform"] = "wrong"
     (source / "runtime-manifest.json").write_text(json.dumps(manifest))
     if damage:
         with pytest.raises(ValueError):
@@ -202,4 +218,4 @@ def test_stage_r_runtime(tmp_path, monkeypatch, damage):
         assert not (tmp_path / "engine").exists()
     else:
         assert module.stage_r_runtime(source, tmp_path / "engine") == manifest
-        assert (tmp_path / "engine/runtimes/r/bin/Rscript").stat().st_mode & 0o111
+        assert (tmp_path / "engine/runtimes/r" / entrypoint).stat().st_mode & 0o111

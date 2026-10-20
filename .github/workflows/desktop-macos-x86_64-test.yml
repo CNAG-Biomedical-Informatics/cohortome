@@ -2,9 +2,15 @@ name: Test macOS Intel desktop package
 
 on:
   workflow_dispatch:
+    inputs:
+      r_runtime_run_id:
+        description: Run ID with the verified r-runtime-macos-x86_64 artifact
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   package:
@@ -34,17 +40,27 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
-      - name: Build portable test bundle
+      - name: Download verified R runtime
+        uses: actions/download-artifact@v4
+        with:
+          name: r-runtime-macos-x86_64
+          run-id: ${{ inputs.r_runtime_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/r-artifact
+      - name: Extract verified R runtime
+        run: tar -xzf "$RUNNER_TEMP/r-artifact/r-runtime.tar.gz" -C "$RUNNER_TEMP"
+      - name: Build portable test bundle with R
         run: |
           python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
+            --r-runtime "$RUNNER_TEMP/r-runtime" \
             --output "$RUNNER_TEMP/cohortome-macos-x86_64"
       - name: Extract and test packaged backend
         run: |
           mkdir "$RUNNER_TEMP/extracted"
           tar -xzf "$RUNNER_TEMP/cohortome-macos-x86_64.tar.gz" -C "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno --require-umap "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/engine"
+          python desktop/test_package.py --require-pheno --require-umap --require-extended-r "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/engine"
       - name: Check ad-hoc signatures
         run: |
           codesign --verify --strict "$RUNNER_TEMP/extracted/cohortome-macos-x86_64/cohortome-desktop"

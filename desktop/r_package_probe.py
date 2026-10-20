@@ -2,6 +2,7 @@
 import csv
 import json
 from pathlib import Path
+import sys
 
 
 def check(root, runtime):
@@ -10,8 +11,10 @@ def check(root, runtime):
     from app.r_runtime import rscript_binary, rscript_unavailable_reason
 
     binary = rscript_binary()
-    assert binary and "runtimes/r/bin/Rscript" in binary.replace("\\", "/")
-    manifest = json.loads((Path(binary).parent.parent / "runtime-manifest.json").read_text())
+    runtime_root = Path(sys.executable).resolve().parent / "runtimes/r"
+    manifest = json.loads((runtime_root / "runtime-manifest.json").read_text())
+    entrypoint = manifest.get("entrypoint", "bin/Rscript")
+    assert binary and Path(binary).resolve() == (runtime_root / entrypoint).resolve()
     if "DESeq2" in manifest["packages"]:
         from app.r_runtime import REQUIREMENTS
         for reference in REQUIREMENTS:
