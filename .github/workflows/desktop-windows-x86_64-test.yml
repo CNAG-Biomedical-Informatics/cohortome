@@ -37,8 +37,8 @@ jobs:
           name: ohif-assets
           path: ${{ runner.temp }}/viewer-download
       - name: Extract shared static viewer
-        shell: bash
-        run: tar -xzf "$RUNNER_TEMP/viewer-download/ohif-assets.tar.gz" -C "$RUNNER_TEMP"
+        shell: pwsh
+        run: python -m tarfile -e "$env:RUNNER_TEMP/viewer-download/ohif-assets.tar.gz" "$env:RUNNER_TEMP"
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
