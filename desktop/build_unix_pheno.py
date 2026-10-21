@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 
 SOURCES = {
-    "perl": ("https://www.cpan.org/src/5.0/perl-5.42.3.tar.gz",
+    "perl": ("https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
              "1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627"),
     "cpanm": ("https://cpan.metacpan.org/authors/id/M/MI/MIYAGAWA/App-cpanminus-1.7049.tar.gz",
               "b9ffb88e62a06aa91bd7d5a28ef6bdbb942608aea90e3969aa29b33640035214"),
