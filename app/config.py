@@ -28,7 +28,7 @@ STATE_ROOT_DIR = RUNTIME_ROOT_DIR / "state"
 CACHE_ROOT_DIR = RUNTIME_ROOT_DIR / "cache"
 RUNS_ROOT_DIR = RUNTIME_ROOT_DIR / "runs"
 DEFAULT_LOCAL_USER_ID = "local"
-DEFAULT_HELP_URL = "https://mrueda.github.io/cohortome/"
+DEFAULT_HELP_URL = "https://cnag-biomedical-informatics.github.io/cohortome/"
 
 
 def private_artifact_runtime_is_safe() -> bool:

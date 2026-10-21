@@ -7,6 +7,10 @@ on:
         description: Rebuild R and Perl without reading or writing the runtime cache
         type: boolean
         default: false
+      upload_artifact:
+        description: Upload the test bundle only after redistribution review
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -83,6 +87,7 @@ jobs:
           cd "$RUNNER_TEMP"
           sha256sum "cohortome-linux-aarch64.tar.gz" > "cohortome-linux-aarch64.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
+        if: inputs.upload_artifact
         with:
           name: cohortome-linux-aarch64-test
           path: |

@@ -273,8 +273,8 @@ fn main() {
 
 fn help_url(id: &str) -> Option<&'static str> {
     match id {
-        "documentation" => Some("https://mrueda.github.io/cohortome/"),
-        "journeys" => Some("https://mrueda.github.io/cohortome/docs/user-guide/user-journeys"),
+        "documentation" => Some("https://cnag-biomedical-informatics.github.io/cohortome/"),
+        "journeys" => Some("https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/user-journeys"),
         _ => None,
     }
 }

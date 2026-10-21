@@ -5,9 +5,9 @@
 <h1 align="center">COHORTome</h1>
 
 <p align="center">
-  <a href="https://mrueda.github.io/cohortome/">📚 Documentation</a> ·
-  <a href="https://mrueda.github.io/cohortome/docs/getting-started/desktop">📦 Installation</a> ·
-  <a href="https://mrueda.github.io/cohortome/docs/user-guide/user-journeys">🧭 User guide</a>
+  <a href="https://cnag-biomedical-informatics.github.io/cohortome/">📚 Documentation</a> ·
+  <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/getting-started/desktop">📦 Installation</a> ·
+  <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/user-journeys">🧭 User guide</a>
 </p>
 
 COHORTome is an open-source application for clinical and multimodal cohort
@@ -20,15 +20,15 @@ questions and explain results, but are optional.
 ## Get started
 
 **Desktop is recommended for individual use.**
-Follow the [installation guide](https://mrueda.github.io/cohortome/docs/getting-started/desktop)
+Follow the [installation guide](https://cnag-biomedical-informatics.github.io/cohortome/docs/getting-started/desktop)
 for release availability and source setup. Packaged installers are forthcoming.
 
 **Web is recommended only for centralized, multi-user systems with dataset
 permissions.** See the
-[Web deployment guide](https://mrueda.github.io/cohortome/docs/admin-guide/starting-and-stopping).
+[Web deployment guide](https://cnag-biomedical-informatics.github.io/cohortome/docs/admin-guide/starting-and-stopping).
 
 Start with the bundled synthetic datasets and
-[user journeys](https://mrueda.github.io/cohortome/docs/user-guide/user-journeys).
+[user journeys](https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/user-journeys).
 Synthetic results demonstrate software behaviour, not biological findings.
 
 ## Citation
@@ -38,10 +38,10 @@ cohort analysis.* **Manuscript in preparation.**
 
 Until a preprint or published paper is available, please cite the Zenodo record
 for the software release used. The DOI is forthcoming; see
-[citation details](https://mrueda.github.io/cohortome/docs/about/citation-and-funding).
+[citation details](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/citation-and-funding).
 
 Funding and institutional support are listed in
-[Acknowledgements](https://mrueda.github.io/cohortome/docs/about/acknowledgements).
+[Acknowledgements](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/acknowledgements).
 
 Licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE).
 

@@ -25,7 +25,7 @@ Choose one installation method and keep its configuration in a file. You
 should not need to recreate environment variables in every terminal session.
 
 Use the source tag and instructions for your chosen
-[release](https://github.com/mrueda/cohortome/releases), rather than a moving
+[release](https://github.com/CNAG-Biomedical-Informatics/cohortome/releases), rather than a moving
 development branch. The commands below run from that source checkout.
 
 :::important[Keep the same runtime]
