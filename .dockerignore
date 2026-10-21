@@ -16,4 +16,8 @@ state/auth/
 state/datasets/scopes/
 tests/
 native.env
+docker/.env
+pdf/
+SESSION_NOTES.md
+AGENTS.md
 manuscript/
