@@ -1,0 +1,42 @@
+name: Build native R runtime
+description: Install and relocation-test extended R on macOS or Windows
+runs:
+  using: composite
+  steps:
+    - name: Install macOS R graphics dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install --cask xquartz
+    - uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.5.2'
+    - name: Install analysis packages
+      shell: Rscript {0}
+      run: |
+        options(repos=c(CRAN="https://cloud.r-project.org"), Ncpus=2)
+        install.packages("BiocManager")
+        required <- c("limma", "edgeR", "jsonlite", "DESeq2", "apeglm", "fgsea", "msigdbr", "ggplot2")
+        BiocManager::install(required, version="3.22", ask=FALSE, update=FALSE, Ncpus=2)
+        missing <- required[!vapply(required, requireNamespace, logical(1), quietly=TRUE)]
+        if (length(missing)) stop("Packages failed to install/load: ", paste(missing, collapse=", "))
+    - name: Rebuild Windows Rcpp-linked packages consistently
+      if: runner.os == 'Windows'
+      shell: Rscript {0}
+      run: |
+        options(repos=c(CRAN="https://cloud.r-project.org"), Ncpus=2)
+        required <- c("limma", "edgeR", "jsonlite", "DESeq2", "apeglm", "fgsea", "msigdbr", "ggplot2")
+        ip <- installed.packages()
+        closure <- unique(c(required, unlist(tools::package_dependencies(
+          required, ip, which=c("Depends", "Imports", "LinkingTo"), recursive=TRUE))))
+        links <- tools::package_dependencies(closure, ip, which="LinkingTo", recursive=TRUE)
+        rebuild <- names(links)[vapply(links, function(x) "Rcpp" %in% x, logical(1))]
+        # Older Bioconductor binaries may have been built with different Rcpp
+        # headers. Rebuild its consumers against the installed headers/runtime.
+        BiocManager::install(rebuild, version="3.22", type="source", force=TRUE,
+                             ask=FALSE, update=FALSE, Ncpus=2)
+    - name: Test installed analysis stack before relocation
+      shell: bash
+      run: python desktop/build_native_r.py --check-installed
+    - name: Stage and relocation-test R
+      shell: bash
+      run: python desktop/build_native_r.py --output "$RUNNER_TEMP/r-runtime"

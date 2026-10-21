@@ -16,9 +16,9 @@ credentials or research data.
   Its relocated conversion/identifier probes passed locally on Linux ARM64,
   but the additions have not been retested across platforms.
 
-These results are not clean-machine installer validation. GitHub Actions testing
-is paused while minutes are limited. Previous remote artifacts were removed
-after selected builds were archived privately; old run IDs cannot retrieve them.
+These results are not clean-machine installer validation. Previous remote artifacts
+were removed after selected builds were archived privately; old run IDs cannot
+retrieve them. Public-repository testing has resumed without binary uploads.
 
 ## Build locally
 
@@ -97,12 +97,14 @@ Docker sandboxes, OHIF assets and Nextflow/Snakemake demo runners are separate.
 ## GitHub Actions
 
 All package workflows are manual and create neither tags nor releases.
-Choose the target platform and run its workflow only when build testing resumes.
+Choose the target platform and run its workflow. Leave `upload_artifact` disabled
+until the binary redistribution review is complete.
 
-macOS/Windows packaging requires `r_runtime_run_id` pointing to an available,
-matching artifact from **Test macOS and Windows R runtimes**. Artifacts expire
-after seven days. A missing artifact requires a newly approved build, not reuse
-of a deleted run's ID. Platform, architecture and checksums are verified.
+macOS/Windows packaging builds and tests R on the same runner by default. An
+optional `r_runtime_run_id` can reuse an available, reviewed matching artifact
+from **Test macOS and Windows R runtimes**. Artifacts expire after seven days;
+deleted run artifacts cannot be reused. Platform, architecture and checksums are
+verified. Both workflows share the same R preparation steps.
 
 Linux caches successful R/Perl builds using architecture, Ubuntu baseline,
 builder scripts and workflow content as keys, without partial-key fallbacks.

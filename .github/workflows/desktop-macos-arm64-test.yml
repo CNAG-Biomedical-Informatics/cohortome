@@ -5,8 +5,12 @@ on:
     inputs:
       r_runtime_run_id:
         description: Run ID with the verified r-runtime-macos-arm64 artifact
-        required: true
+        required: false
         type: string
+      upload_artifact:
+        description: Upload the test bundle only after redistribution review
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,7 +44,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
+      - name: Build R runtime on this runner
+        if: inputs.r_runtime_run_id == ''
+        uses: ./.github/actions/build-native-r
       - name: Download verified R runtime
+        if: inputs.r_runtime_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: r-runtime-macos-arm64
@@ -48,6 +56,7 @@ jobs:
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/r-artifact
       - name: Extract verified R runtime
+        if: inputs.r_runtime_run_id != ''
         run: tar -xzf "$RUNNER_TEMP/r-artifact/r-runtime.tar.gz" -C "$RUNNER_TEMP"
       - name: Build portable test bundle with R
         run: |
@@ -72,6 +81,7 @@ jobs:
           cd "$RUNNER_TEMP"
           shasum -a 256 cohortome-macos-arm64.tar.gz > cohortome-macos-arm64.tar.gz.sha256
       - uses: actions/upload-artifact@v4
+        if: inputs.upload_artifact
         with:
           name: cohortome-macos-arm64-test
           path: |
