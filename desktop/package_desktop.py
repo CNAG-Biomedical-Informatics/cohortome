@@ -111,6 +111,24 @@ def copy_verified_runtime(source, destination, manifest, executables):
     return manifest
 
 
+def stage_ohif_assets(source, destination):
+    source = source.resolve()
+    manifest = json.loads((source / 'viewer-manifest.json').read_text(encoding='utf-8'))
+    hashes = manifest.get('sha256') or {}
+    if 'index.html' not in hashes or not str(manifest.get('image', '')).startswith('ohif/app@sha256:'):
+        raise ValueError('OHIF assets need a pinned image and index.html checksum')
+    actual = {}
+    for path in source.rglob('*'):
+        if path.is_symlink():
+            raise ValueError('OHIF assets must not contain symbolic links')
+        if path.is_file() and path.name != 'viewer-manifest.json':
+            actual[path.relative_to(source).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != hashes:
+        raise ValueError('OHIF asset checksum mismatch')
+    shutil.copytree(source, destination)
+    return manifest
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
@@ -119,6 +137,7 @@ def main():
     parser.add_argument('--perl-runtime', type=Path, help='Verified shared Perl runtime with Pheno-Ranker, Convert-Pheno and ClarID')
     parser.add_argument('--r-runtime', type=Path, help='Verified platform-matched R runtime')
     parser.add_argument('--with-umap', action='store_true', help='Bundle the installed UMAP stack')
+    parser.add_argument('--ohif-assets', type=Path, help='Reviewed OHIF static assets to embed; no image data')
     args = parser.parse_args()
     if sys.platform not in {"linux", "darwin", "win32"}:
         parser.error("Packaging targets Linux, macOS and Windows")
@@ -128,6 +147,7 @@ def main():
         staging = Path(temporary) / "source"
         staging.mkdir()
         stage(staging, args.chart_modules.resolve())
+        viewer_manifest = stage_ohif_assets(args.ohif_assets, staging / 'runtime/ohif') if args.ohif_assets else None
         command = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
                    "--name", "cohortome-backend", "--distpath", str(output / "frozen"),
                    "--workpath", str(Path(temporary) / "work"), "--specpath", temporary,
@@ -166,7 +186,8 @@ def main():
                 "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
                 "perl_runtime": perl_manifest,
                 "r_runtime": r_manifest,
-                "not_bundled": ([] if perl_manifest else ["Perl/Pheno-Ranker/Convert-Pheno/ClarID"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ["OHIF", "Docker"],
+                "viewer": viewer_manifest,
+                "not_bundled": ([] if perl_manifest else ["Perl/Pheno-Ranker/Convert-Pheno/ClarID"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ([] if args.ohif_assets else ["OHIF"]) + ["Docker"],
                 "python_packages": json.loads(subprocess.check_output(
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),
                 "sha256": {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()

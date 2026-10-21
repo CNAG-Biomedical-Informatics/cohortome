@@ -1,0 +1,27 @@
+name: Prepare desktop viewer assets
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  viewer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Extract pinned static viewer without running it
+        run: |
+          python scripts/dicom/prepare_bundled_viewer.py --output "$RUNNER_TEMP/ohif"
+          tar -czf "$RUNNER_TEMP/ohif-assets.tar.gz" -C "$RUNNER_TEMP" ohif
+      # Build input shared with Windows/macOS; not a release installer or user data.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ohif-assets
+          path: ${{ runner.temp }}/ohif-assets.tar.gz
+          retention-days: 1

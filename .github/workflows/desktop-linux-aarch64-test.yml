@@ -16,12 +16,22 @@ permissions:
   contents: read
 
 jobs:
+  viewer:
+    uses: ./.github/workflows/desktop-viewer-assets.yml
   package:
+    needs: viewer
     name: Linux aarch64
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: ohif-assets
+          path: ${{ runner.temp }}/viewer-download
+      - name: Extract shared static viewer
+        shell: bash
+        run: tar -xzf "$RUNNER_TEMP/viewer-download/ohif-assets.tar.gz" -C "$RUNNER_TEMP"
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -70,6 +80,7 @@ jobs:
       - name: Build portable test bundle
         run: |
           python desktop/package_desktop.py --with-native --with-umap \
+            --ohif-assets "$RUNNER_TEMP/ohif" \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
             --perl-runtime "$RUNNER_TEMP/pheno-runtime" \
             --r-runtime "$RUNNER_TEMP/r-runtime" \
@@ -78,7 +89,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/extracted"
           tar -xzf "$RUNNER_TEMP/cohortome-linux-aarch64.tar.gz" -C "$RUNNER_TEMP/extracted"
-          python desktop/test_package.py --require-pheno --require-extended-r --require-umap "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
+          python desktop/test_package.py --require-viewer --require-pheno --require-extended-r --require-umap "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/engine"
       - name: Test packaged native window
         run: |
           python desktop/test_native_package.py --xvfb "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/cohortome-desktop"

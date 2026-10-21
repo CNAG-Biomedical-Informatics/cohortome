@@ -70,6 +70,23 @@ def test_pheno(client, with_umap=False):
     print("PASS: packaged Perl cohort matrix, graph, Python MDS and patient ranking with empty PATH")
 
 
+def test_viewer(client):
+    studies = client.get('/dicom/studies', params={'dataset_id': 'default'})
+    studies.raise_for_status()
+    study = studies.json()['studies'][0]
+    opened = client.get(study['local_viewer_url'], follow_redirects=True)
+    assert opened.status_code == 200 and '<html' in opened.text.lower()
+    config = client.get('/local-viewer/app-config.js')
+    assert config.status_code == 200 and 'dicomjson' in config.text
+    metadata = client.get('/local-viewer/data/default/' + study['study_instance_uid'] + '/metadata')
+    metadata.raise_for_status()
+    url = metadata.json()['studies'][0]['series'][0]['instances'][0]['url'].removeprefix('dicomweb:')
+    image = client.get(url)
+    assert image.status_code == 200 and image.content[128:132] == b'DICM'
+    assert image.headers.get('cache-control') == 'no-store'
+    print('PASS: packaged OHIF assets, synthetic metadata and DICOM image delivery')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("engine", type=Path)
@@ -77,6 +94,7 @@ def main():
     parser.add_argument("--require-r", action="store_true", help="Require real packaged R analysis")
     parser.add_argument("--require-extended-r", action="store_true", help="Also require all curated R packages to load")
     parser.add_argument("--require-umap", action="store_true", help="Require packaged Pheno-Ranker UMAP")
+    parser.add_argument('--require-viewer', action='store_true', help='Require embedded OHIF and synthetic DICOM delivery')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="cohortome-relocation-") as temporary:
         root = Path(temporary)
@@ -153,6 +171,8 @@ def main():
                             assert client.patch("/user-settings", json={"appearance": "dark"}).status_code == 200
                             if args.require_pheno or args.require_umap:
                                 test_pheno(client, args.require_umap)
+                            if args.require_viewer:
+                                test_viewer(client)
                 except Exception:
                     # Only this test's fresh synthetic runtime is inspected.
                     # Emit diagnostics before TemporaryDirectory removes it.

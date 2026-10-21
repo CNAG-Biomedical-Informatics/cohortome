@@ -12,6 +12,16 @@ def workflow(name):
     return yaml.safe_load((WORKFLOWS / name).read_text())
 
 
+@pytest.mark.parametrize('arch', ['linux-aarch64', 'linux-x86_64', 'macos-arm64', 'macos-x86_64', 'windows-x86_64'])
+def test_desktop_packages_include_and_check_viewer(arch):
+    jobs = workflow(f'desktop-{arch}-test.yml')['jobs']
+    assert jobs['viewer']['uses'] == './.github/workflows/desktop-viewer-assets.yml'
+    assert jobs['package']['needs'] == 'viewer'
+    commands = '\n'.join(step.get('run', '') for step in jobs['package']['steps'])
+    assert '--ohif-assets "$RUNNER_TEMP/ohif"' in commands
+    assert 'desktop/test_package.py --require-viewer' in commands
+
+
 @pytest.mark.parametrize("name", [
     "desktop-linux-aarch64-test.yml", "desktop-linux-x86_64-test.yml",
     "desktop-macos-arm64-test.yml", "desktop-macos-x86_64-test.yml",
@@ -22,7 +32,7 @@ def test_binary_upload_requires_explicit_opt_in(name):
     trigger = data.get("on", data.get(True))  # YAML 1.1 parses 'on' as True.
     assert set(trigger) == {"workflow_dispatch"}
     assert trigger["workflow_dispatch"]["inputs"]["upload_artifact"]["default"] is False
-    uploads = [step for job in data["jobs"].values() for step in job["steps"]
+    uploads = [step for job in data["jobs"].values() for step in job.get("steps", [])
                if step.get("uses", "").startswith("actions/upload-artifact@")]
     assert uploads
     assert all(step["if"] == "inputs.upload_artifact" for step in uploads)

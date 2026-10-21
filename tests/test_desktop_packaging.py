@@ -84,6 +84,32 @@ def load_packager():
     return module
 
 
+@pytest.mark.parametrize('damage', ['', 'changed', 'extra', 'missing', 'symlink'])
+def test_viewer_assets_are_verified_before_copying(tmp_path, damage):
+    source = tmp_path / 'viewer'
+    source.mkdir()
+    (source / 'index.html').write_bytes(b'<html>synthetic viewer fixture</html>')
+    manifest = {'image': 'ohif/app@sha256:' + 'a' * 64,
+                'sha256': {'index.html': hashlib.sha256((source / 'index.html').read_bytes()).hexdigest()}}
+    (source / 'viewer-manifest.json').write_text(json.dumps(manifest))
+    if damage == 'changed':
+        (source / 'index.html').write_text('changed')
+    elif damage == 'extra':
+        (source / 'extra.dcm').write_text('not a viewer asset')
+    elif damage == 'missing':
+        (source / 'index.html').unlink()
+    elif damage == 'symlink':
+        (source / 'link').symlink_to(source / 'index.html')
+    target = tmp_path / 'staged/ohif'
+    if damage:
+        with pytest.raises(ValueError):
+            load_packager().stage_ohif_assets(source, target)
+        assert not target.exists()
+    else:
+        assert load_packager().stage_ohif_assets(source, target) == manifest
+        assert (target / 'index.html').read_bytes() == (source / 'index.html').read_bytes()
+
+
 def test_only_application_and_bundled_fixtures_are_allowed():
     allowed = load_packager().allowed
     for name in ("app/routes.py", "templates/index.html", "static/app.js",

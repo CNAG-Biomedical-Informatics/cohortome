@@ -7,14 +7,12 @@ credentials or research data.
 
 ## Verification status
 
-- The original Pheno-Ranker bundle passed on Linux x86_64/ARM64, Windows and
-  both macOS architectures. Extended R and UMAP integration passed on Linux.
-- Standalone extended R passed on Windows and both macOS architectures.
-- At `56382f3`, combined Intel macOS and Windows builds passed
-  (`39390043773`, `39390024447`); Apple Silicon failed (`39390035341`).
-- The newer shared Perl bundle adds Convert-Pheno 0.35 and ClarID-Tools 0.04.
-  Its relocated conversion/identifier probes passed locally on Linux ARM64,
-  but the additions have not been retested across platforms.
+- October 21 packaging tests passed on Linux x86_64/ARM64, Windows and both
+  macOS architectures, including shared Perl, R and UMAP checks.
+- The shared Perl bundle includes Pheno-Ranker, Convert-Pheno and ClarID-Tools.
+- Subsequent DICOM folder-linking changes were tested locally on Linux ARM64,
+  including image rendering in native WebKit. They are not yet covered by a
+  new cross-platform package run.
 
 These results are not clean-machine installer validation. Previous remote artifacts
 were removed after selected builds were archived privately; old run IDs cannot
@@ -46,6 +44,22 @@ assets must therefore be tracked before packaging.
 | Shared Perl | `build_unix_pheno.py` or `build_windows_pheno.py`; package with `--perl-runtime PATH` | `--require-pheno` |
 | R | `build_linux_r.py` or `build_native_r.py`; package with `--r-runtime PATH` | `--require-r`, `--require-extended-r` |
 | UMAP | Install `requirements-umap-test.txt`; package with `--with-umap` | `--require-umap` |
+
+All five Desktop workflows include the pinned OHIF static files. A Linux job
+extracts them without executing the image, then passes a one-day build-input
+artifact to the target runner. Docker is not needed on users' machines.
+
+For local packaging, on a build host with Docker:
+
+```bash
+python scripts/dicom/prepare_bundled_viewer.py --output /path/to/ohif
+```
+
+Then pass `--ohif-assets /path/to/ohif` to the packager.
+The packager verifies the generated file checksums and records viewer provenance.
+Use `desktop/test_package.py --require-viewer` to check asset, metadata and image
+delivery. This is not a rendered-image test. Review redistribution notices before
+publishing installers; the new workflow wiring still needs a CI run.
 
 ### Shared Perl
 
@@ -149,8 +163,13 @@ For runtime locations and backup/reset instructions, see the
 
 ## Before release
 
-Resolve the Apple Silicon failure and test the expanded Perl tools on every
-target. Verify scientific runs, source preparation, native save/open dialogs
+Release and prerelease publication will be manual, with a required existing
+annotated tag (for example `v0.1.0-rc.1`). Resolve the tag once, check version
+metadata, and build every platform from that commit. Refuse publication if the
+tag moves. Pushing a tag alone must not launch publication. Development test
+workflows remain separate and do not create releases.
+
+Verify scientific runs, source preparation, native save/open dialogs
 and clean-machine installation. Confirm Hallmark access, viewer distribution,
 installer formats, signing and the review below before advertising full coverage.
 
