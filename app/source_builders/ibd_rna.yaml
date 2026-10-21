@@ -1,0 +1,28 @@
+mappingVersion: 2
+source: {profile: csv}
+target: {model: beacon, schemaVersion: '2.0.0'}
+project: {id: gse191328-clinical, version: '0.1'}
+defaults: {ontology: ncit}
+records: {}
+beacon:
+  individuals:
+    id:
+      sourceFields: [snapshot_id]
+      primaryKey: patient_id
+    sex:
+      sourceField: sex
+      query: {from: value}
+    diseases:
+      rules:
+        - sourceField: diagnosis
+          when: {values: [CD, UC]}
+          diseaseCode:
+            query:
+              from: value
+              aliases: {CD: Crohn Disease, UC: Ulcerative Colitis}
+    treatments:
+      rules:
+        - sourceField: treatment
+          when: {nonEmpty: true}
+          treatmentCode:
+            query: {from: value}

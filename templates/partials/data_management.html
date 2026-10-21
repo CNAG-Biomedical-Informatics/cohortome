@@ -1,0 +1,53 @@
+<button id="resourceAdd" type="button" class="query-chip is-hidden" aria-haspopup="dialog" aria-controls="resourcePanel">＋ Add dataset</button>
+<dialog id="resourcePanel" class="resource-dialog" aria-labelledby="resourceTitle">
+  <header class="resource-dialog-header">
+    <div><h2 id="resourceTitle">Add dataset</h2><p>Install a prepared dataset or import your own package.</p></div>
+    <button id="resourceClose" type="button" class="icon-button" aria-label="Close add dataset">×</button>
+  </header>
+  <div class="resource-dialog-body">
+  <div class="resource-toolbar">
+    <h3>Available datasets</h3>
+    <button id="resourceBrowse" type="button" class="query-chip" aria-label="Refresh available datasets">Refresh</button>
+    <button id="resourceImport" type="button" class="query-chip">Import ZIP…</button>
+    <input id="resourceFile" type="file" accept=".zip,application/zip" class="is-hidden">
+  </div>
+  <div id="resourceList" class="resource-catalogue"></div>
+  <details id="resourceAccess" class="view-help resource-access">
+    <summary>Private repository access</summary>
+    <label for="resourceToken">Repository read token</label>
+    <input id="resourceToken" type="password" autocomplete="off" spellcheck="false" placeholder="Optional for public releases">
+    <p>Only needed for private downloads. Used once, never saved.</p>
+  </details>
+  <details class="view-help"><summary>Package requirements</summary>
+    <p>Use a COHORTome resource ZIP, up to 1 GiB (4 GiB extracted). Installation validates files and prepares DuckDB without changing your workspace. New imports have AI access blocked; review their policies in Admin → Data.</p>
+  </details>
+  </div>
+  <footer class="resource-dialog-footer">
+  <strong id="resourceResultTitle" class="resource-result-title is-hidden"></strong>
+  <p id="resourceStatus" class="section-note" role="status" aria-live="polite">Select a dataset to install.</p>
+  <progress id="resourceProgress" class="is-hidden" aria-label="Dataset download progress"></progress>
+  <div class="saved-cohort-actions">
+    <button id="resourceCancel" type="button" class="query-chip is-hidden">Cancel</button>
+    <button id="resourceSelect" type="button" class="query-chip is-hidden">Add to workspace selection</button>
+  </div>
+  </footer>
+</dialog>
+<dialog id="resourceTerms" class="dataset-remove-dialog resource-terms-dialog" aria-labelledby="resourceTermsTitle" aria-describedby="resourceTermsDescription">
+  <h3 id="resourceTermsTitle">Download from NCBI GEO</h3>
+  <p id="resourceTermsDescription"></p>
+  <p>Review the source’s usage conditions and cite the original study. Public availability does not imply unrestricted redistribution rights.</p>
+  <p class="resource-terms-links"><a id="resourceTermsStudy" target="_blank" rel="noopener noreferrer">GEO study record</a><a id="resourceTermsPolicy" target="_blank" rel="noopener noreferrer">GEO usage policy</a></p>
+  <div id="resourceTermsAdditional" class="resource-terms-links"></div>
+  <label class="resource-terms-check"><input id="resourceTermsCheck" type="checkbox"><span id="resourceTermsStatement"></span></label>
+  <div class="saved-cohort-actions">
+    <button id="resourceTermsCancel" type="button" class="query-chip" autofocus>Cancel</button>
+    <button id="resourceTermsAccept" type="button" class="query-chip" disabled>Download and prepare</button>
+  </div>
+</dialog>
+<div id="datasetAdminControls">
+  <h4>Installed datasets</h4>
+  <p class="section-note">Open a dataset to manage its preparation and policies.</p>
+  <div id="datasetAdminList" class="dataset-picker-list">
+    <div class="empty">No installed datasets available.</div>
+  </div>
+</div>

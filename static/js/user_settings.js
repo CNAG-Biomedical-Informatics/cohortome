@@ -1,4 +1,5 @@
 import { fallbackCopyText } from "./shared.js";
+import { createResourceStorage } from './resource_storage.js';
 
 const DEFAULT_USER_SETTINGS = {
   appearance: "light",
@@ -72,6 +73,52 @@ function normalizeUserSettings(raw) {
 
 export function createUserSettingsUi(ctx) {
   const { refs, state, callbacks } = ctx;
+  const exportPanel = document.getElementById("exportLimitsSettings");
+  const resourceStorage = createResourceStorage();
+  const exportStatus = document.getElementById("exportLimitsStatus");
+  const exportInputs = {
+    source_mib: document.getElementById("exportSourceMib"),
+    total_source_mib: document.getElementById("exportTotalMib"),
+    output_mib: document.getElementById("exportOutputMib"),
+  };
+  function fillExportLimits(values) {
+    for (const [key, input] of Object.entries(exportInputs)) input.value = values[key];
+  }
+  async function loadExportLimits() {
+    if (!exportPanel) return;
+    exportPanel.hidden = true;
+    try {
+      const response = await fetch("/export-settings");
+      if (response.status === 401 || response.status === 403) return;
+      exportPanel.hidden = false;
+      if (!response.ok) throw new Error("Export limits could not be loaded. Use defaults and save to recover.");
+      fillExportLimits(await response.json());
+      exportStatus.textContent = "";
+    } catch (error) { exportStatus.textContent = error.message; }
+  }
+  document.getElementById("exportLimitsDefaults")?.addEventListener("click", () => {
+    fillExportLimits({source_mib:512, total_source_mib:1024, output_mib:256});
+    exportStatus.textContent = "Defaults selected. Save export limits to apply.";
+  });
+  document.getElementById("exportLimitsSave")?.addEventListener("click", async event => {
+    const inputs = Object.values(exportInputs);
+    if (!inputs.every(input => input.reportValidity() && input.value !== "")) {
+      exportStatus.textContent = "Enter a whole number within each field’s limits.";
+      return;
+    }
+    event.target.disabled = true;
+    exportStatus.textContent = "Saving…";
+    try {
+      const response = await fetch("/export-settings", {method:"PUT", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(Object.fromEntries(Object.entries(exportInputs).map(([key, input]) => [key, Number(input.value)])))});
+      const payload = await response.json();
+      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail
+        : "Check the limits. Combined source size must be at least the per-file size.");
+      fillExportLimits(payload);
+      exportStatus.textContent = "Export limits saved. New exports use these values; no restart needed.";
+    } catch (error) { exportStatus.textContent = error.message; }
+    finally { event.target.disabled = false; }
+  });
   const about = document.getElementById("settingsAbout");
   const report = document.getElementById("aboutVersionReport");
   const copy = document.getElementById("aboutCopyReport");
@@ -161,6 +208,7 @@ export function createUserSettingsUi(ctx) {
     const button = event.target.closest("[data-settings-section]");
     if (!button) return;
     const section = button.dataset.settingsSection;
+    if (button.classList.contains("is-hidden")) return;
     userSettingsPanelEl.querySelectorAll("[data-settings-page]").forEach(page => {
       page.hidden = page.dataset.settingsPage !== section;
     });
@@ -181,7 +229,13 @@ export function createUserSettingsUi(ctx) {
     if (!userSettingsPanelEl) return;
     userSettingsPanelEl.classList.toggle("is-hidden", !open);
     if (open) {
+      const selected = userSettingsPanelEl.querySelector('[data-settings-section][aria-current="page"]');
+      if (selected?.classList.contains("is-hidden")) {
+        userSettingsPanelEl.querySelector('[data-settings-section="general"]').click();
+      }
       renderAuthSummary();
+      void loadExportLimits();
+      void resourceStorage.load();
     }
   }
 

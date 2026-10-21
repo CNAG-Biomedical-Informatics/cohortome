@@ -1,9 +1,24 @@
 import pytest
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from app import local_viewer as viewer
 
 UID = '1.2.826.0.1.3680043.10.54321.1.1'
+
+
+@pytest.mark.parametrize('platform,desktop,expected', [
+    ('linux', 'true', True), ('linux', '', False),
+    ('darwin', 'true', False), ('win32', 'true', False),
+])
+def test_software_rendering_is_limited_to_linux_desktop(monkeypatch, platform, desktop, expected):
+    monkeypatch.setattr(viewer, 'require_authenticated', lambda _: {})
+    monkeypatch.setattr(viewer.sys, 'platform', platform)
+    monkeypatch.setenv('COHORTOME_DESKTOP_MODE', desktop)
+    response = viewer.assets(None, 'app-config.js')
+    config = json.loads(response.body.decode().removeprefix('window.config='))
+    assert config['useCPURendering'] is expected
+    assert config['defaultDataSourceName'] == 'dicomjson'
 
 
 @pytest.fixture

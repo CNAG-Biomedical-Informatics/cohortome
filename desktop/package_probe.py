@@ -40,6 +40,19 @@ def main():
         from server import ROOT
         from r_package_probe import check
         check(ROOT, runtime)
+    import os
+    import sys
+    from pathlib import Path
+    tools = Path(sys.executable).resolve().parent / "runtimes/perl"
+    if (tools / "runtime-manifest.json").is_file():
+        from preparation_probe import check
+        clean = {"PATH": "", "HOME": str(runtime), "LANG": "C.UTF-8"}
+        if os.name == "nt":
+            clean.update({key: os.environ[key] for key in ("SystemRoot", "WINDIR") if key in os.environ})
+            clean.update(USERPROFILE=str(runtime), TEMP=str(runtime), TMP=str(runtime),
+                         PATH=str(tools / "perl/bin"))
+        check(tools, runtime / "preparation-probe", clean)
+        print("PASS: packaged CSV-to-BFF mapping and ClarID round trips")
 
 
 if __name__ == "__main__":

@@ -299,8 +299,8 @@ def normalize_ai_provider_access(value: str | None) -> str:
 def _default_dataset_record() -> Dict[str, Any]:
     return {
         "dataset_id": DEFAULT_DATASET_ID,
-        "name": "Default dataset",
-        "description": "Primary shared development dataset.",
+        "name": "Default synthetic dataset",
+        "description": "Synthetic longitudinal clinical and assay example.",
         "root_path": str(Path(DEFAULT_DATA_DIR).resolve()),
         "enabled": True,
         "visibility": "all_authenticated",
@@ -914,6 +914,23 @@ def update_dataset(
             _write_registry_unlocked(items)
             return updated
     raise ValueError("Dataset not found.")
+
+
+def update_datasets_ai_access(dataset_ids: List[str], access: str) -> List[str]:
+    """Validate the entire selection, then persist one atomic registry update."""
+    ids = list(dict.fromkeys(dataset_ids))
+    if not ids or access not in AI_PROVIDER_ACCESS_MODES:
+        raise ValueError("Select datasets and a valid AI permission.")
+    with advisory_file_lock(_registry_lock_path()):
+        items = _read_registry_unlocked()
+        if not set(ids).issubset({item["dataset_id"] for item in items}):
+            raise ValueError("A selected dataset no longer exists. Refresh the list.")
+        now = _now_iso()
+        for item in items:
+            if item["dataset_id"] in ids:
+                item.update(ai_provider_access=access, updated_at=now)
+        _write_registry_unlocked(items)
+    return ids
 
 
 def unregister_dataset(dataset_id: str) -> Dict[str, Any]:

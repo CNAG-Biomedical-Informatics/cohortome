@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TREES = {"app", "static", "templates", "default_dataset", "synthetic_autoimmune_demo"}
-FILES = {"LICENSE", "NOTICE", "pyproject.toml", "config/analysis/catalog.yaml",
+FILES = {"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md", "pyproject.toml", "config/analysis/catalog.yaml", "config/resources.json",
          "config/analysis/synthetic_script_inputs.json", "scripts/data/hgnc_protein_coding_symbols.tsv"}
 CHARTS = {
     "plotly.js-dist-min": ("2.35.2", "plotly.min.js", "https://cdn.plot.ly/plotly-2.35.2.min.js"),
@@ -59,20 +59,22 @@ def stage(destination, chart_modules):
         assert url in html
         html = html.replace(url, f"/static/vendor/{package}/{Path(asset).name}")
     template.write_text(html, encoding="utf-8")
-    for name in ("backend.py", "server.py", "package_probe.py", "r_package_probe.py"):
+    for name in ("backend.py", "server.py", "package_probe.py", "r_package_probe.py", "preparation_probe.py"):
         shutil.copyfile(ROOT / "desktop" / name, destination / name)
 
 
-def stage_pheno_runtime(source, engine):
+def stage_perl_runtime(source, engine):
     source = source.resolve()
     manifest = json.loads((source / 'runtime-manifest.json').read_text())
     if manifest.get('platform') != sys.platform or manifest.get('architecture') != platform.machine():
-        raise ValueError('Pheno runtime must match this build platform and architecture')
+        raise ValueError('Perl runtime must match this build platform and architecture')
     perl_version = str(manifest.get('perl', ''))
-    if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('pheno_ranker') != '1.09':
-        raise ValueError('Unsupported or incomplete Pheno runtime')
+    if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('tools') != {
+            'pheno-ranker': '1.09', 'convert-pheno': '0.35', 'clarid-tools': '0.04'}:
+        raise ValueError('Unsupported or incomplete Perl runtime')
     executables = ('bin/pheno-ranker', 'perl/bin/perl.exe', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
-    return copy_verified_runtime(source, engine / 'runtimes/pheno', manifest, executables)
+    executables += ('bin/convert-pheno', 'bin/clarid-tools')
+    return copy_verified_runtime(source, engine / 'runtimes/perl', manifest, executables)
 
 
 def stage_r_runtime(source, engine):
@@ -114,7 +116,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
     parser.add_argument("--chart-modules", type=Path, default=ROOT / "node_modules")
-    parser.add_argument('--pheno-runtime', type=Path, help='Verified platform-matched Perl/Pheno-Ranker runtime')
+    parser.add_argument('--perl-runtime', type=Path, help='Verified shared Perl runtime with Pheno-Ranker, Convert-Pheno and ClarID')
     parser.add_argument('--r-runtime', type=Path, help='Verified platform-matched R runtime')
     parser.add_argument('--with-umap', action='store_true', help='Bundle the installed UMAP stack')
     args = parser.parse_args()
@@ -130,7 +132,7 @@ def main():
                    "--name", "cohortome-backend", "--distpath", str(output / "frozen"),
                    "--workpath", str(Path(temporary) / "work"), "--specpath", temporary,
                    "--paths", str(staging), "--collect-submodules", "app",
-                   "--collect-submodules", "uvicorn", "--collect-all", "pydicom",
+                   "--collect-submodules", "uvicorn", "--collect-all", "pydicom", "--hidden-import", "preparation_probe",
                    "--copy-metadata", "cohortome", "--exclude-module", "tkinter"]
         if args.with_umap:
             # Same dynamic-import handling as Pheno-Ranker Desktop's Python helper.
@@ -140,7 +142,7 @@ def main():
                 command.extend(['--copy-metadata', package])
         # Include readable analysis implementations for the existing audit export.
         for child in staging.iterdir():
-            if child.name in {"backend.py", "server.py", "package_probe.py", "r_package_probe.py"}:
+            if child.name in {"backend.py", "server.py", "package_probe.py", "r_package_probe.py", "preparation_probe.py"}:
                 continue
             command.extend(["--add-data", f"{child}:{child.name if child.is_dir() else '.'}"])
         command.append(str(staging / "backend.py"))
@@ -150,7 +152,7 @@ def main():
         subprocess.run(command, cwd=staging, env=environment, check=True)
     shutil.move(str(output / "frozen/cohortome-backend"), output / "engine")
     (output / "frozen").rmdir()
-    pheno_manifest = stage_pheno_runtime(args.pheno_runtime, output / 'engine') if args.pheno_runtime else None
+    perl_manifest = stage_perl_runtime(args.perl_runtime, output / 'engine') if args.perl_runtime else None
     r_manifest = stage_r_runtime(args.r_runtime, output / 'engine') if args.r_runtime else None
     if args.with_native:
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
@@ -162,9 +164,9 @@ def main():
     manifest = {"kind": "desktop-packaging-test", "platform": sys.platform, "architecture": platform.machine(),
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
-                "pheno_runtime": pheno_manifest,
+                "perl_runtime": perl_manifest,
                 "r_runtime": r_manifest,
-                "not_bundled": ([] if pheno_manifest else ["Perl/Pheno-Ranker"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ["OHIF", "Docker"],
+                "not_bundled": ([] if perl_manifest else ["Perl/Pheno-Ranker/Convert-Pheno/ClarID"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ["OHIF", "Docker"],
                 "python_packages": json.loads(subprocess.check_output(
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),
                 "sha256": {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()

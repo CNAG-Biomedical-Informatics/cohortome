@@ -1,0 +1,44 @@
+mappingVersion: 2
+source: {profile: csv}
+target: {model: beacon, schemaVersion: '2.0.0'}
+project: {id: longitudinal-previews, version: '0.1'}
+defaults: {ontology: ncit}
+records: {}
+beacon:
+  individuals:
+    id:
+      sourceFields: [snapshot_id]
+      primaryKey: patient_id
+    sex:
+      sourceField: sex
+      query: {from: value}
+    diseases:
+      rules:
+        - sourceField: diagnosis
+          when: {values: [Psoriasis]}
+          diseaseCode: {query: Psoriasis}
+    treatments:
+      rules:
+        - sourceField: treatment
+          when: {nonEmpty: true}
+          treatmentCode: {query: {from: value}}
+    measures:
+      rules:
+        - sourceField: pasi
+          when: {nonEmpty: true}
+          assayCode: {query: Psoriasis Area and Severity Index Clinical Classification}
+          measurementValue:
+            quantity:
+              unit: {term: {id: 'UCUM:1', label: score}}
+        - sourceField: enrollment_age
+          when: {nonEmpty: true}
+          assayCode: {query: Age}
+          measurementValue:
+            quantity:
+              unit: {term: {id: 'UCUM:a', label: year}}
+        - sourceField: temperature_f
+          when: {nonEmpty: true}
+          assayCode: {query: Body Temperature Measurement}
+          measurementValue:
+            quantity:
+              unit: {term: {id: 'UCUM:[degF]', label: degree Fahrenheit}}

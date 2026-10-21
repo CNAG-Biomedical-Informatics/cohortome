@@ -81,6 +81,7 @@ from app.datasets import (
     set_current_dataset,
     set_current_datasets,
     update_dataset,
+    update_datasets_ai_access,
     workspace_fingerprint_for_data_dir,
 )
 from app.dicom import dicom_status, dicom_studies
@@ -172,6 +173,7 @@ from app.schemas import (
     DatasetSelectionResponse,
     DatasetSelectionRequest,
     DatasetUpdateRequest,
+    DatasetBulkAiRequest,
     DeleteResponse,
     GeneralLlmRequest,
     AssayExpressionRequest,
@@ -915,6 +917,15 @@ def create_dataset_route(payload: DatasetRegistrationRequest, request: Request) 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return dataset
+
+
+def bulk_dataset_ai_route(payload: DatasetBulkAiRequest, request: Request) -> Dict:
+    require_admin(request)
+    try:
+        ids = update_datasets_ai_access(payload.dataset_ids, payload.ai_provider_access)
+        return {"updated_dataset_ids": ids}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def update_dataset_route(dataset_id: str, payload: DatasetUpdateRequest, request: Request) -> Dict:
@@ -2597,6 +2608,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/datasets", get_datasets, methods=["GET"], tags=["datasets"], summary="List authorized datasets", description="Returns datasets visible to the current user plus the currently active workspace selection.", response_model=DatasetsResponse)
     app.add_api_route("/datasets/select", select_dataset, methods=["POST"], tags=["datasets"], summary="Select the active dataset workspace", description="Applies one or more authorized dataset IDs as the current workspace for the authenticated user.", response_model=DatasetSelectionResponse)
     app.add_api_route("/datasets", create_dataset_route, methods=["POST"], tags=["datasets"], summary="Register a dataset", description="Creates a new dataset registry entry. Admin-only.", response_model=DatasetRecordResponse)
+    app.add_api_route("/datasets/bulk-ai-access", bulk_dataset_ai_route, methods=["POST"], tags=["datasets"], summary="Update AI permissions for selected datasets (admin only)")
     app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"], tags=["datasets"], summary="Update dataset metadata and access", description="Updates dataset metadata, visibility, or access policy. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/datasets/{dataset_id}/prepare-store", prepare_dataset_route, methods=["POST"], tags=["datasets"], summary="Prepare dataset DuckDB store", description="Builds or rebuilds the admin-managed DuckDB store for one dataset. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"], tags=["ui"], summary="Serve the configured branding logo", description="Returns the current instance branding logo file if one is configured.")

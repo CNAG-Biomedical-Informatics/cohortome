@@ -11,8 +11,8 @@ running an analysis.
 
 | View | Use it to |
 | --- | --- |
-| Patients | Find one patient and inspect linked records, samples, and assays |
-| Timeline | See collection dates and find patients with particular data types |
+| Patients | Browse or search for a patient, then open their timeline |
+| Timeline | Inspect clinical records and linked samples over time |
 | Clinical | Check patient counts, visits, diseases, and medications |
 | Assays | Inspect laboratory matrices, feature counts, and coverage |
 | Imaging | Find DICOM studies, open the viewer, and inspect derived measurements |
@@ -20,15 +20,31 @@ running an analysis.
 
 ## Patient overview
 
-Open **Patients**, type a patient ID or ClarID, and select a match. The search
-shows up to 12 matches; arrow keys and Enter also work.
+Open **Patients** and click the search field to browse the first 20 patients.
+Use **Load more patients**, or type a patient ID or ClarID to filter the list.
+Arrow keys and Enter also work. Selecting a patient opens their **Timeline**.
+Identical IDs from different datasets remain separate.
 
-The inventory lists linked sample IDs and assays. Dates, visits, specimen
+The Timeline inventory lists clinical records alongside linked sample IDs and assays. Dates, visits, specimen
 material, and sample ClarIDs appear when supplied. **Not recorded** means that
 the source metadata does not provide the field.
 
-Choose **View this patient's timeline** to inspect the same patient's dated
-records. Identical IDs from different datasets remain separate.
+Clinical rows use the same table layout as assays: visit identifier, data type,
+recorded time and counts of clinical entries. **View clinical values** expands
+that row to show diagnoses, phenotypes, measurements and treatments, including
+ontology IDs. Selecting a clinical marker opens its record's values automatically.
+The same table groups clinical records and samples under their exact visit
+identifier, in natural order (visit 2 before visit 10). Samples retain their
+assay grouping within each visit. Entries without a visit identifier appear
+under **Visit not recorded**. Matching dates alone do not establish a visit link.
+**Technical details** holds source metadata and the complete BFF JSON,
+collapsed by default. Clinical records are loaded in batches of 20;
+use **Load more records** for longer histories.
+
+Selecting a clinical marker opens that timepoint's record. **All clinical
+timepoints** restores the patient's full record list. The sample inventory
+continues to show all linked samples for the patient; selecting a clinical
+marker does not imply that every assay belongs to that visit.
 
 :::note[What the inventory tells you]
 

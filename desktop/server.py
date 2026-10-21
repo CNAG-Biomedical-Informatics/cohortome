@@ -34,13 +34,12 @@ def runtime_directory():
         if not args.runtime_dir.is_absolute():
             parser.error("--runtime-dir must be absolute")
         return args.runtime_dir.resolve()
-    if not getattr(sys, "frozen", False):
-        return ROOT / "runtime" / "desktop-preview"
+    app_dir = "org.cnag.cohortome.preview" if getattr(sys, "frozen", False) else "org.cnag.cohortome.source-preview"
     if sys.platform == "darwin":
-        return Path.home() / "Library/Application Support/org.cnag.cohortome.preview"
+        return Path.home() / "Library/Application Support" / app_dir
     if os.name == "nt":
-        return Path(os.environ["LOCALAPPDATA"]) / "org.cnag.cohortome.preview"
-    return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "org.cnag.cohortome.preview"
+        return Path(os.environ["LOCALAPPDATA"]) / app_dir
+    return (Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / app_dir).resolve()
 
 
 def configure_environment(runtime):
@@ -54,7 +53,7 @@ def configure_environment(runtime):
                       COHORTOME_DESKTOP_MODE="true",
                       LM_STUDIO_ENABLED="false")
     if getattr(sys, 'frozen', False):
-        tools = Path(sys.executable).resolve().parent / 'runtimes/pheno/bin'
+        tools = Path(sys.executable).resolve().parent / 'runtimes/perl/bin'
         r_runtime = tools.parents[1] / 'r'
         entrypoint = 'R/bin/x64/Rscript.exe' if sys.platform == 'win32' else 'bin/Rscript'
         os.environ['COHORTOME_RSCRIPT_BIN'] = str(r_runtime / entrypoint)
@@ -71,6 +70,9 @@ def configure_environment(runtime):
         os.environ['NUMBA_NUM_THREADS'] = '1'
         # Never fall back to a developer checkout or host tools in a package.
         os.environ['COHORTOME_PHENO_RANKER_BIN'] = str(tools / 'pheno-ranker')
+        os.environ['COHORTOME_CONVERT_PHENO_BIN'] = str(tools / 'convert-pheno')
+        os.environ['COHORTOME_CLARID_TOOLS_BIN'] = str(tools / 'clarid-tools')
+        os.environ['COHORTOME_PREPARATION_PERL_BIN'] = str(tools.parent / ('perl/bin/perl.exe' if os.name == 'nt' else 'perl/bin/perl'))
         if os.name == 'nt':
             os.environ['COHORTOME_PHENO_RANKER_PERL_BIN'] = str(tools.parent / 'perl/bin/perl.exe')
             os.environ['PHENO_RANKER_INLINE_DIR'] = str(tools.parent / 'inline')

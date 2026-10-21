@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.generate_synthetic_clarids import FIXTURES, ROOT, subject_rows
+from scripts.generate_synthetic_clarids import FIXTURES, ROOT, STUDIES, subject_rows
 from app.query_store import _read_subject_clarid_rows
 
 
@@ -21,6 +21,9 @@ def test_synthetic_subject_identifiers_cover_fixture(name):
     assert [{key: str(row[key]) for key in source[0]} for row in encoded] == [
         {key: str(value) for key, value in row.items()} for row in source]
     assert all(row['clar_id'] and row['stub_id'] and row['condition_name'] for row in encoded)
+    assert all(row['study'] == STUDIES[name][0] for row in encoded)
+    assert all(row['clar_id'].startswith(STUDIES[name][1] + '-') for row in encoded)
+    assert all(row['stub_id'].startswith(STUDIES[name][2]) for row in encoded)
 
 
 def test_autoimmune_generator_uses_reviewed_sidecar():

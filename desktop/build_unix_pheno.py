@@ -1,4 +1,4 @@
-"""Build and relocation-test a CPAN Pheno-Ranker runtime (Linux/macOS, Python 3.12)."""
+"""Build a shared Perl runtime for Pheno-Ranker, Convert-Pheno and ClarID."""
 import argparse
 import hashlib
 import json
@@ -18,7 +18,14 @@ SOURCES = {
               "b9ffb88e62a06aa91bd7d5a28ef6bdbb942608aea90e3969aa29b33640035214"),
     "pheno": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/Pheno-Ranker-1.09.tar.gz",
               "02504c0559c6e934718a928e1641a3c3dbf4c7d4ba3d00c59b989b4c804db1c8"),
+    "convert": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/Convert-Pheno-0.35.tar.gz",
+                "e39cfd33b4c297ef1f16c27588915a32463dc4d8d9d7ae1c57981bfd7e44be0a"),
+    "clarid": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/ClarID-Tools-0.04.tar.gz",
+               "3a99768d3590a82ac04d95d3637b85e47ee08d9f12aff2abadb2ec7aadf3fcdd"),
+    "net_idn": ("https://github.com/ernix/Net-IDN-Encode/archive/3ebe6f2e239b470efcb64a044edc8202798188af.tar.gz",
+                "58772f38115f5a15b22d622e144200b0d9715c53560b229048d0a5f541eef4c7"),
 }
+TOOLS = {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.04"}
 
 
 def fetch_source(kind, work, sources):
@@ -30,7 +37,9 @@ def fetch_source(kind, work, sources):
         raise RuntimeError(f"Checksum mismatch for {kind}")
     with tarfile.open(archive) as packed:
         packed.extractall(work, filter="data")
-    return work / archive.name.removesuffix(".tar.gz")
+    directory = ("Net-IDN-Encode-3ebe6f2e239b470efcb64a044edc8202798188af"
+                 if kind == "net_idn" else archive.name.removesuffix(".tar.gz"))
+    return work / directory
 
 
 def test_relocated(output, fixture, work):
@@ -55,6 +64,8 @@ def test_relocated(output, fixture, work):
                        cwd=home, env=env, check=True, timeout=120)
         if not result.is_file() or not result.stat().st_size:
             raise RuntimeError("Relocated Pheno-Ranker produced no matrix")
+        from preparation_probe import check
+        check(relocated, work / "preparation probe", env)
     finally:
         shutil.move(relocated, output)
 
@@ -88,11 +99,21 @@ def vendor_macos(output, executables=None):
         subprocess.run(["codesign", "--force", "--sign", "-", str(binary)], check=True)
 
 
+def retain_notices(output, distributions):
+    for source in distributions:
+        destination = output / "licenses" / source.name
+        destination.mkdir(parents=True)
+        for name in ("LICENSE", "README", "META.json"):
+            if (source / name).is_file():
+                shutil.copy2(source / name, destination / name)
+
+
 def write_manifest(output, perl_version):
     sources = output / "sources"
-    manifest = {"perl": perl_version, "pheno_ranker": "1.09", "source": "CPAN",
+    manifest = {"perl": perl_version, "tools": TOOLS, "source": "CPAN",
                 "platform": sys.platform, "architecture": platform.machine(),
-                "verification": "relocated cohort CLI with empty PATH and fresh HOME",
+                "verification": "relocated cohort CLI, CSV-to-BFF terminology mapping, ClarID human/stub round trips; clean environment",
+                "licensing": "Software notices retained under licenses; vocabulary redistribution review required before release",
                 "dependency_policy": "CPAN dependencies resolved at build time; source archives retained",
                 "sources": {p.relative_to(sources).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                             for p in sources.rglob("*") if p.is_file()},
@@ -116,6 +137,8 @@ def main():
         perl_source = fetch_source("perl", work, sources)
         cpanm_source = fetch_source("cpanm", work, sources)
         pheno_source = fetch_source("pheno", work, sources)
+        convert_source = fetch_source("convert", work, sources)
+        clarid_source = fetch_source("clarid", work, sources)
         env = {k: v for k, v in os.environ.items()
                if not k.startswith(("PERL", "PHENO_RANKER_", "LD_LIBRARY_PATH"))}
         env.update(HOME=str(work), PERL_CPANM_HOME=str(work / "cpanm"))
@@ -128,8 +151,10 @@ def main():
         env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
         subprocess.run([str(perl), str(cpanm_source / "bin/cpanm"), "--notest",
                         "--mirror", "https://cpan.metacpan.org", "--mirror-only",
-                        "--save-dists", str(sources), "File::HomeDir", str(pheno_source)],
+                        "--save-dists", str(sources), "File::HomeDir", str(pheno_source),
+                        str(convert_source), str(clarid_source)],
                        cwd=work, env=env, check=True)
+        retain_notices(output, [pheno_source, convert_source, clarid_source])
         env["PHENO_RANKER_INLINE_DIR"] = str(output / "inline")
         subprocess.run([str(perl), "-MPheno::Ranker::Metrics", "-e",
                         "die 'Bad metric' unless Pheno::Ranker::Metrics::hd_fast('01','11') == 1"],
@@ -148,17 +173,18 @@ def main():
                     library = Path(fields[2])
                     if library.name.startswith(("libssl.so", "libcrypto.so", "libexpat.so", "libbz2.so", "libz.so")):
                         shutil.copy2(library, libraries / library.name)
-        launcher = output / "bin/pheno-ranker"
-        launcher.parent.mkdir()
-        launcher.write_text('''#!/bin/sh
+        (output / "bin").mkdir()
+        for tool in TOOLS:
+            launcher = output / "bin" / tool
+            launcher.write_text('''#!/bin/sh
 set -eu
 root=$(CDPATH= cd -- "${0%/*}/.." && pwd)
 unset PERL5LIB PERLLIB PERL5OPT
 export PHENO_RANKER_INLINE_DIR="$root/inline"
 export LD_LIBRARY_PATH="$root/lib"
-exec "$root/perl/bin/perl" "$root/perl/bin/pheno-ranker" "$@"
-''', encoding="utf-8")
-        launcher.chmod(0o755)
+exec "$root/perl/bin/perl" "$root/perl/bin/TOOL_NAME" "$@"
+'''.replace("TOOL_NAME", tool), encoding="utf-8")
+            launcher.chmod(0o755)
         if sys.platform == "darwin":
             vendor_macos(output)
         test_relocated(output, pheno_source / "t/data/individuals.json", work)

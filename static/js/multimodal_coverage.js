@@ -68,13 +68,16 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
       const matches = groups.filter(g => selected.every(m => g.modalities.includes(m))
         && (!exact || g.modalities.every(m => m === 'clinical' || selected.includes(m))));
       const patients = matches.flatMap(g => g.patients);
-      result.innerHTML = `<strong>${patients.length} matching patients</strong><button type="button" class="query-chip coverage-save" ${!patients.length ? 'disabled' : ''}>Save cohort</button><span class="coverage-save-status"></span>`;
+      result.innerHTML = `<strong>${patients.length} matching patients</strong><button type="button" class="coverage-save" title="Save all matching patients for later use in Analysis or Pheno-Ranker" ${!patients.length ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg>Save ${patients.length} ${patients.length === 1 ? 'patient' : 'patients'} as a cohort</button><span class="coverage-save-status" role="status"></span>`;
       result.querySelector('button').onclick = async event => {
-        event.target.disabled = true;
+        const button = event.currentTarget;
+        const status = result.querySelector('.coverage-save-status');
+        button.disabled = true;
+        status.textContent = 'Saving…';
         const saved = await saveIdsAsCohort({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), sourceKind:'manual', sourcePrompt:`Multimodal coverage: ${exact ? 'only' : 'at least'} ${selected.map(label).join(', ') || 'no required types'}; Clinical ${selected.includes('clinical') ? 'required' : 'optional'}`});
-        if (ticket !== generation || !host.isConnected) return;
-        result.querySelector('.coverage-save-status').textContent = saved ? 'Cohort saved.' : 'Cohort was not saved.';
-        event.target.disabled = false;
+        if (ticket !== generation || !button.isConnected) return;
+        status.textContent = saved ? 'Cohort saved. Find it in Cohorts.' : 'Cohort was not saved.';
+        button.disabled = false;
       };
       const max = Math.max(1, ...matches.map(g => g.patients.length));
       intersection.innerHTML = `<table class="assay-table"><thead><tr><th>Patients</th>${modalities.map(m => `<th>${modalityIcon(m)} ${esc(label(m))}</th>`).join('')}</tr></thead><tbody>${matches.map(g => `<tr class="coverage-match"><td><button class="query-chip" type="button" data-combination="${groups.indexOf(g)}" aria-label="${esc(g.modalities.map(label).join(' + '))}: ${g.patients.length} patients">${g.patients.length}</button><span class="coverage-bar" style="width:${g.patients.length / max * 85}px" aria-hidden="true"></span></td>${modalities.map(m => `<td class="coverage-dot" style="color:${modalityColor(m)}"><span aria-label="${g.modalities.includes(m) ? 'Available' : 'Not recorded'}">${g.modalities.includes(m) ? '●' : '·'}</span></td>`).join('')}</tr>`).join('')}</tbody></table>`;

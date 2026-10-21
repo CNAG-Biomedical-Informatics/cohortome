@@ -37,7 +37,7 @@ jobs:
           path: |
             ${{ runner.temp }}/pheno-runtime
             ${{ runner.temp }}/r-runtime
-          key: analysis-runtimes-ubuntu24-aarch64-v1-${{ hashFiles('desktop/build_unix_pheno.py', 'desktop/build_linux_r.py', '.github/workflows/desktop-linux-aarch64-test.yml') }}
+          key: analysis-runtimes-ubuntu24-aarch64-v1-${{ hashFiles('desktop/build_unix_pheno.py', 'desktop/preparation_probe.py', 'desktop/build_linux_r.py', '.github/workflows/desktop-linux-aarch64-test.yml') }}
       - name: Verify runner architecture
         run: test "$(uname -m)" = aarch64
       - name: Install build-host libraries
@@ -67,7 +67,7 @@ jobs:
         run: |
           python desktop/package_desktop.py --with-native --with-umap \
             --chart-modules "$RUNNER_TEMP/charts/node_modules" \
-            --pheno-runtime "$RUNNER_TEMP/pheno-runtime" \
+            --perl-runtime "$RUNNER_TEMP/pheno-runtime" \
             --r-runtime "$RUNNER_TEMP/r-runtime" \
             --output "$RUNNER_TEMP/cohortome-linux-aarch64"
       - name: Extract and test packaged backend

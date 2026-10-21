@@ -10,6 +10,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import BASE_DIR
 from app.env import app_env
 from app.deployment_branding import router as deployment_branding_router
+from app.export_settings import router as export_settings_router
+from app.resource_install import router as resource_install_router
+from app.resource_storage import router as resource_storage_router
 from app.projects import router as projects_router
 from app.patient_overview import router as patient_overview_router
 from app.local_viewer import router as local_viewer_router
@@ -93,6 +96,9 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 register_routes(app, templates)
 app.include_router(deployment_branding_router)
+app.include_router(export_settings_router)
+app.include_router(resource_install_router)
+app.include_router(resource_storage_router)
 app.include_router(projects_router)
 app.include_router(patient_overview_router)
 app.include_router(local_viewer_router)

@@ -225,6 +225,7 @@ main:has(> #appShell:not(.is-hidden)) {
 .app-icon-rail > button:hover, .app-icon-rail > button.active { background: color-mix(in srgb, var(--ink) 7%, var(--bg)); color: var(--ink); }
 .app-icon-rail > button:focus-visible, .account-menu :is(button,a):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app-icon-rail > .rail-projects { margin-top: auto; }
+.app-icon-rail:not(:has(> .rail-projects)) > .rail-runs { margin-top: auto; }
 .app-icon-rail #jobsDrawerCount { position: absolute; top: -2px; right: -3px; font-size: 10px; min-width: 16px; }
 .app-icon-rail #accountMenuButton { padding: 4px; }
 .app-icon-rail .account-avatar { width: 32px; }

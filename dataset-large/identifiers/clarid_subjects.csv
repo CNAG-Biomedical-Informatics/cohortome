@@ -1,39 +1,39 @@
 unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id,condition_name
-HC20031,20031,CNAG-Test,Control,Z00.0,Female,Not Available,CNAG_Test-20031-Control-Z00.0-Female-NAV,CT5D5NBiR01FNA,Encounter for general adult medical examination
-HC20032,20032,CNAG-Test,Control,Z00.0,Male,Not Available,CNAG_Test-20032-Control-Z00.0-Male-NAV,CT5D6NBiR01MNA,Encounter for general adult medical examination
-HC20033,20033,CNAG-Test,Control,Z00.0,Female,Not Available,CNAG_Test-20033-Control-Z00.0-Female-NAV,CT5D7NBiR01FNA,Encounter for general adult medical examination
-HC20034,20034,CNAG-Test,Control,Z00.0,Male,Not Available,CNAG_Test-20034-Control-Z00.0-Male-NAV,CT5D8NBiR01MNA,Encounter for general adult medical examination
-HC20035,20035,CNAG-Test,Control,Z00.0,Female,Not Available,CNAG_Test-20035-Control-Z00.0-Female-NAV,CT5D9NBiR01FNA,Encounter for general adult medical examination
-HC20036,20036,CNAG-Test,Control,Z00.0,Male,Not Available,CNAG_Test-20036-Control-Z00.0-Male-NAV,CT5DANBiR01MNA,Encounter for general adult medical examination
-HC20037,20037,CNAG-Test,Control,Z00.0,Female,Not Available,CNAG_Test-20037-Control-Z00.0-Female-NAV,CT5DBNBiR01FNA,Encounter for general adult medical examination
-HC20038,20038,CNAG-Test,Control,Z00.0,Male,Not Available,CNAG_Test-20038-Control-Z00.0-Male-NAV,CT5DCNBiR01MNA,Encounter for general adult medical examination
-SYN20001,20001,CNAG-Test,Case,K50.9,Female,Not Available,CNAG_Test-20001-Case-K50.9-Female-NAV,CT5CbC3ad01FNA,"Crohn's disease, unspecified"
-SYN20002,20002,CNAG-Test,Case,K50.9,Male,Not Available,CNAG_Test-20002-Case-K50.9-Male-NAV,CT5CcC3ad01MNA,"Crohn's disease, unspecified"
-SYN20003,20003,CNAG-Test,Case,K50.9,Female,Not Available,CNAG_Test-20003-Case-K50.9-Female-NAV,CT5CdC3ad01FNA,"Crohn's disease, unspecified"
-SYN20004,20004,CNAG-Test,Case,K50.9,Male,Not Available,CNAG_Test-20004-Case-K50.9-Male-NAV,CT5CeC3ad01MNA,"Crohn's disease, unspecified"
-SYN20005,20005,CNAG-Test,Case,K50.9,Female,Not Available,CNAG_Test-20005-Case-K50.9-Female-NAV,CT5CfC3ad01FNA,"Crohn's disease, unspecified"
-SYN20006,20006,CNAG-Test,Case,K51.9,Male,Not Available,CNAG_Test-20006-Case-K51.9-Male-NAV,CT5CgC3bf01MNA,"Ulcerative colitis, unspecified"
-SYN20007,20007,CNAG-Test,Case,K51.9,Female,Not Available,CNAG_Test-20007-Case-K51.9-Female-NAV,CT5ChC3bf01FNA,"Ulcerative colitis, unspecified"
-SYN20008,20008,CNAG-Test,Case,K51.9,Male,Not Available,CNAG_Test-20008-Case-K51.9-Male-NAV,CT5CiC3bf01MNA,"Ulcerative colitis, unspecified"
-SYN20009,20009,CNAG-Test,Case,K51.9,Female,Not Available,CNAG_Test-20009-Case-K51.9-Female-NAV,CT5CjC3bf01FNA,"Ulcerative colitis, unspecified"
-SYN20010,20010,CNAG-Test,Case,K51.9,Male,Not Available,CNAG_Test-20010-Case-K51.9-Male-NAV,CT5CkC3bf01MNA,"Ulcerative colitis, unspecified"
-SYN20011,20011,CNAG-Test,Case,G35,Female,Not Available,CNAG_Test-20011-Case-G35-Female-NAV,CT5ClC1bW01FNA,Multiple sclerosis
-SYN20012,20012,CNAG-Test,Case,G35,Male,Not Available,CNAG_Test-20012-Case-G35-Male-NAV,CT5CmC1bW01MNA,Multiple sclerosis
-SYN20013,20013,CNAG-Test,Case,G35,Female,Not Available,CNAG_Test-20013-Case-G35-Female-NAV,CT5CnC1bW01FNA,Multiple sclerosis
-SYN20014,20014,CNAG-Test,Case,G35,Male,Not Available,CNAG_Test-20014-Case-G35-Male-NAV,CT5CoC1bW01MNA,Multiple sclerosis
-SYN20015,20015,CNAG-Test,Case,M32.9,Female,Not Available,CNAG_Test-20015-Case-M32.9-Female-NAV,CT5CpC4q801FNA,"Systemic lupus erythematosus, unspecified"
-SYN20016,20016,CNAG-Test,Case,M32.9,Male,Not Available,CNAG_Test-20016-Case-M32.9-Male-NAV,CT5CqC4q801MNA,"Systemic lupus erythematosus, unspecified"
-SYN20017,20017,CNAG-Test,Case,M32.9,Female,Not Available,CNAG_Test-20017-Case-M32.9-Female-NAV,CT5CrC4q801FNA,"Systemic lupus erythematosus, unspecified"
-SYN20018,20018,CNAG-Test,Case,M32.9,Male,Not Available,CNAG_Test-20018-Case-M32.9-Male-NAV,CT5CsC4q801MNA,"Systemic lupus erythematosus, unspecified"
-SYN20019,20019,CNAG-Test,Case,M06.9,Female,Not Available,CNAG_Test-20019-Case-M06.9-Female-NAV,CT5CtC4Fq01FNA,"Rheumatoid arthritis, unspecified"
-SYN20020,20020,CNAG-Test,Case,M06.9,Male,Not Available,CNAG_Test-20020-Case-M06.9-Male-NAV,CT5CuC4Fq01MNA,"Rheumatoid arthritis, unspecified"
-SYN20021,20021,CNAG-Test,Case,M06.9,Female,Not Available,CNAG_Test-20021-Case-M06.9-Female-NAV,CT5CvC4Fq01FNA,"Rheumatoid arthritis, unspecified"
-SYN20022,20022,CNAG-Test,Case,M06.9,Male,Not Available,CNAG_Test-20022-Case-M06.9-Male-NAV,CT5CwC4Fq01MNA,"Rheumatoid arthritis, unspecified"
-SYN20023,20023,CNAG-Test,Case,J45.9,Female,Not Available,CNAG_Test-20023-Case-J45.9-Female-NAV,CT5CxC3Ox01FNA,Other and unspecified asthma
-SYN20024,20024,CNAG-Test,Case,J45.9,Male,Not Available,CNAG_Test-20024-Case-J45.9-Male-NAV,CT5CyC3Ox01MNA,Other and unspecified asthma
-SYN20025,20025,CNAG-Test,Case,J45.9,Female,Not Available,CNAG_Test-20025-Case-J45.9-Female-NAV,CT5CzC3Ox01FNA,Other and unspecified asthma
-SYN20026,20026,CNAG-Test,Case,J45.9,Male,Not Available,CNAG_Test-20026-Case-J45.9-Male-NAV,CT5D0C3Ox01MNA,Other and unspecified asthma
-SYN20027,20027,CNAG-Test,Case,J44.9,Female,Not Available,CNAG_Test-20027-Case-J44.9-Female-NAV,CT5D1C3Of01FNA,"Chronic obstructive pulmonary disease, unspecified"
-SYN20028,20028,CNAG-Test,Case,J44.9,Male,Not Available,CNAG_Test-20028-Case-J44.9-Male-NAV,CT5D2C3Of01MNA,"Chronic obstructive pulmonary disease, unspecified"
-SYN20029,20029,CNAG-Test,Case,J44.9,Female,Not Available,CNAG_Test-20029-Case-J44.9-Female-NAV,CT5D3C3Of01FNA,"Chronic obstructive pulmonary disease, unspecified"
-SYN20030,20030,CNAG-Test,Case,J44.9,Male,Not Available,CNAG_Test-20030-Case-J44.9-Male-NAV,CT5D4C3Of01MNA,"Chronic obstructive pulmonary disease, unspecified"
+HC20031,20031,COH-LARGE,Control,Z00.0,Female,Not Available,COH_LARGE-20031-Control-Z00.0-Female-NAV,CSL5D5NBiR01FNA,Encounter for general adult medical examination
+HC20032,20032,COH-LARGE,Control,Z00.0,Male,Not Available,COH_LARGE-20032-Control-Z00.0-Male-NAV,CSL5D6NBiR01MNA,Encounter for general adult medical examination
+HC20033,20033,COH-LARGE,Control,Z00.0,Female,Not Available,COH_LARGE-20033-Control-Z00.0-Female-NAV,CSL5D7NBiR01FNA,Encounter for general adult medical examination
+HC20034,20034,COH-LARGE,Control,Z00.0,Male,Not Available,COH_LARGE-20034-Control-Z00.0-Male-NAV,CSL5D8NBiR01MNA,Encounter for general adult medical examination
+HC20035,20035,COH-LARGE,Control,Z00.0,Female,Not Available,COH_LARGE-20035-Control-Z00.0-Female-NAV,CSL5D9NBiR01FNA,Encounter for general adult medical examination
+HC20036,20036,COH-LARGE,Control,Z00.0,Male,Not Available,COH_LARGE-20036-Control-Z00.0-Male-NAV,CSL5DANBiR01MNA,Encounter for general adult medical examination
+HC20037,20037,COH-LARGE,Control,Z00.0,Female,Not Available,COH_LARGE-20037-Control-Z00.0-Female-NAV,CSL5DBNBiR01FNA,Encounter for general adult medical examination
+HC20038,20038,COH-LARGE,Control,Z00.0,Male,Not Available,COH_LARGE-20038-Control-Z00.0-Male-NAV,CSL5DCNBiR01MNA,Encounter for general adult medical examination
+SYN20001,20001,COH-LARGE,Case,K50.9,Female,Not Available,COH_LARGE-20001-Case-K50.9-Female-NAV,CSL5CbC3ad01FNA,"Crohn's disease, unspecified"
+SYN20002,20002,COH-LARGE,Case,K50.9,Male,Not Available,COH_LARGE-20002-Case-K50.9-Male-NAV,CSL5CcC3ad01MNA,"Crohn's disease, unspecified"
+SYN20003,20003,COH-LARGE,Case,K50.9,Female,Not Available,COH_LARGE-20003-Case-K50.9-Female-NAV,CSL5CdC3ad01FNA,"Crohn's disease, unspecified"
+SYN20004,20004,COH-LARGE,Case,K50.9,Male,Not Available,COH_LARGE-20004-Case-K50.9-Male-NAV,CSL5CeC3ad01MNA,"Crohn's disease, unspecified"
+SYN20005,20005,COH-LARGE,Case,K50.9,Female,Not Available,COH_LARGE-20005-Case-K50.9-Female-NAV,CSL5CfC3ad01FNA,"Crohn's disease, unspecified"
+SYN20006,20006,COH-LARGE,Case,K51.9,Male,Not Available,COH_LARGE-20006-Case-K51.9-Male-NAV,CSL5CgC3bf01MNA,"Ulcerative colitis, unspecified"
+SYN20007,20007,COH-LARGE,Case,K51.9,Female,Not Available,COH_LARGE-20007-Case-K51.9-Female-NAV,CSL5ChC3bf01FNA,"Ulcerative colitis, unspecified"
+SYN20008,20008,COH-LARGE,Case,K51.9,Male,Not Available,COH_LARGE-20008-Case-K51.9-Male-NAV,CSL5CiC3bf01MNA,"Ulcerative colitis, unspecified"
+SYN20009,20009,COH-LARGE,Case,K51.9,Female,Not Available,COH_LARGE-20009-Case-K51.9-Female-NAV,CSL5CjC3bf01FNA,"Ulcerative colitis, unspecified"
+SYN20010,20010,COH-LARGE,Case,K51.9,Male,Not Available,COH_LARGE-20010-Case-K51.9-Male-NAV,CSL5CkC3bf01MNA,"Ulcerative colitis, unspecified"
+SYN20011,20011,COH-LARGE,Case,G35,Female,Not Available,COH_LARGE-20011-Case-G35-Female-NAV,CSL5ClC1bW01FNA,Multiple sclerosis
+SYN20012,20012,COH-LARGE,Case,G35,Male,Not Available,COH_LARGE-20012-Case-G35-Male-NAV,CSL5CmC1bW01MNA,Multiple sclerosis
+SYN20013,20013,COH-LARGE,Case,G35,Female,Not Available,COH_LARGE-20013-Case-G35-Female-NAV,CSL5CnC1bW01FNA,Multiple sclerosis
+SYN20014,20014,COH-LARGE,Case,G35,Male,Not Available,COH_LARGE-20014-Case-G35-Male-NAV,CSL5CoC1bW01MNA,Multiple sclerosis
+SYN20015,20015,COH-LARGE,Case,M32.9,Female,Not Available,COH_LARGE-20015-Case-M32.9-Female-NAV,CSL5CpC4q801FNA,"Systemic lupus erythematosus, unspecified"
+SYN20016,20016,COH-LARGE,Case,M32.9,Male,Not Available,COH_LARGE-20016-Case-M32.9-Male-NAV,CSL5CqC4q801MNA,"Systemic lupus erythematosus, unspecified"
+SYN20017,20017,COH-LARGE,Case,M32.9,Female,Not Available,COH_LARGE-20017-Case-M32.9-Female-NAV,CSL5CrC4q801FNA,"Systemic lupus erythematosus, unspecified"
+SYN20018,20018,COH-LARGE,Case,M32.9,Male,Not Available,COH_LARGE-20018-Case-M32.9-Male-NAV,CSL5CsC4q801MNA,"Systemic lupus erythematosus, unspecified"
+SYN20019,20019,COH-LARGE,Case,M06.9,Female,Not Available,COH_LARGE-20019-Case-M06.9-Female-NAV,CSL5CtC4Fq01FNA,"Rheumatoid arthritis, unspecified"
+SYN20020,20020,COH-LARGE,Case,M06.9,Male,Not Available,COH_LARGE-20020-Case-M06.9-Male-NAV,CSL5CuC4Fq01MNA,"Rheumatoid arthritis, unspecified"
+SYN20021,20021,COH-LARGE,Case,M06.9,Female,Not Available,COH_LARGE-20021-Case-M06.9-Female-NAV,CSL5CvC4Fq01FNA,"Rheumatoid arthritis, unspecified"
+SYN20022,20022,COH-LARGE,Case,M06.9,Male,Not Available,COH_LARGE-20022-Case-M06.9-Male-NAV,CSL5CwC4Fq01MNA,"Rheumatoid arthritis, unspecified"
+SYN20023,20023,COH-LARGE,Case,J45.9,Female,Not Available,COH_LARGE-20023-Case-J45.9-Female-NAV,CSL5CxC3Ox01FNA,Other and unspecified asthma
+SYN20024,20024,COH-LARGE,Case,J45.9,Male,Not Available,COH_LARGE-20024-Case-J45.9-Male-NAV,CSL5CyC3Ox01MNA,Other and unspecified asthma
+SYN20025,20025,COH-LARGE,Case,J45.9,Female,Not Available,COH_LARGE-20025-Case-J45.9-Female-NAV,CSL5CzC3Ox01FNA,Other and unspecified asthma
+SYN20026,20026,COH-LARGE,Case,J45.9,Male,Not Available,COH_LARGE-20026-Case-J45.9-Male-NAV,CSL5D0C3Ox01MNA,Other and unspecified asthma
+SYN20027,20027,COH-LARGE,Case,J44.9,Female,Not Available,COH_LARGE-20027-Case-J44.9-Female-NAV,CSL5D1C3Of01FNA,"Chronic obstructive pulmonary disease, unspecified"
+SYN20028,20028,COH-LARGE,Case,J44.9,Male,Not Available,COH_LARGE-20028-Case-J44.9-Male-NAV,CSL5D2C3Of01MNA,"Chronic obstructive pulmonary disease, unspecified"
+SYN20029,20029,COH-LARGE,Case,J44.9,Female,Not Available,COH_LARGE-20029-Case-J44.9-Female-NAV,CSL5D3C3Of01FNA,"Chronic obstructive pulmonary disease, unspecified"
+SYN20030,20030,COH-LARGE,Case,J44.9,Male,Not Available,COH_LARGE-20030-Case-J44.9-Male-NAV,CSL5D4C3Of01MNA,"Chronic obstructive pulmonary disease, unspecified"

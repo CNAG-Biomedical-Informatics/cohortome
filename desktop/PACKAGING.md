@@ -4,11 +4,18 @@ This is a test bundle, not a release installer. It contains the Tauri window,
 Python backend, two synthetic datasets and local Plotly/Cytoscape assets.
 No developer runtime, credentials or research data are copied.
 The workflows include a separately built Perl/Pheno-Ranker runtime. Linux
-x86_64, ARM64, Windows and both macOS architectures passed the integrated Perl
+x86_64, ARM64, Windows and both macOS architectures passed the original integrated Pheno-Ranker Perl
 tests. Both Linux architectures also passed extended R and UMAP integration.
 Both macOS architectures and Windows have passed standalone extended R tests.
-Their desktop workflows now combine those verified runtimes with Perl and UMAP;
-the combined R desktop tests still need to pass before claiming full integration.
+At commit `56382f3`, the combined Intel macOS and Windows desktop workflows
+passed (runs `39390043773` and `39390024447`). The Apple Silicon run
+`39390035341` failed; its earlier passing desktop build did not verify this
+combined revision. These CI results are not clean-machine installer validation.
+
+The newer shared Perl bundle adds Convert-Pheno 0.35 and ClarID-Tools 0.04.
+Its local Linux ARM64 build and relocated conversion/identifier probes passed.
+The expanded bundle has not yet been retested on Windows or macOS; the earlier
+cross-platform results above concern Pheno-Ranker, not the new conversion tools.
 
 ## GitHub Actions
 
@@ -100,36 +107,46 @@ assets must therefore be tracked before packaging.
 
 The packaged app stores state under the platform application-data directory
 (`$XDG_DATA_HOME/org.cnag.cohortome.preview` on Linux, defaulting to
-`~/.local/share/org.cnag.cohortome.preview`). It does not reuse the checkout's
-`runtime/desktop-preview`. No data migration is performed.
+`~/.local/share/org.cnag.cohortome.preview`). Source previews use the separate
+`org.cnag.cohortome.source-preview` directory in the same location.
+No automatic data migration is performed.
 Removing the portable bundle leaves that data folder intact. See the
 [installation guide](../docs-site/docs/getting-started/desktop.md#storage-updates-and-removal)
 for backup and reset instructions.
 
 ## Still needed before a release
 
-### Perl/Pheno-Ranker runtime
+### Shared Perl runtime
 
 The separate **Test Linux CPAN Pheno-Ranker runtime** workflow builds Perl
-5.42.3 and installs Pheno-Ranker 1.09 from checksum-verified CPAN sources.
-It precompiles the Inline::C metrics and runs a cohort comparison after moving
-the runtime to a path with spaces, with an empty PATH and a fresh HOME.
+5.42.3 and installs Pheno-Ranker 1.09, Convert-Pheno 0.35 and ClarID tools 0.04
+from checksum-verified CPAN sources into one prefix. It precompiles the Inline::C
+metrics, then moves the runtime to a path with spaces and tests a cohort
+comparison, CSV-to-BFF conversion with NCIT/PASI mapping, and both ClarID formats.
+The checks use a clean home and no host tools on PATH.
 Choose x86_64 or aarch64 when dispatching it.
 
 Linux and macOS desktop workflows run `build_unix_pheno.py` and include its output under
-`engine/runtimes/pheno/`. The packager verifies architecture and file checksums
-before copying it. The frozen backend selects this runtime explicitly rather
+`engine/runtimes/perl/`. The packager verifies architecture and file checksums
+before copying it. All three pinned tool versions are required; an older
+Pheno-Ranker-only runtime is rejected. The frozen backend selects this runtime explicitly rather
 than looking for a host installation. Linux x86_64 and ARM64 passed both the
 packaged backend analysis checks and the native-window test on October 19.
 macOS builds use relocatable Perl, copied non-system dynamic libraries with
 relative load paths, and ad-hoc code signatures.
+
+The existing builder filenames retain `pheno` to avoid renaming workflow entry
+points; their output is now the shared runtime. The package option is
+`--perl-runtime` and the installed location is `engine/runtimes/perl/`.
 
 Windows uses `build_windows_pheno.py` with Strawberry Perl 5.42.x supplied by
 the setup action on a clean runner. It stages the interpreter, installed CPAN
 modules, runtime DLLs and portable marker, and precompiles Inline::C metrics.
 Like Pheno-Ranker Desktop, the app starts the bundled `perl.exe` directly,
 passing the CLI script as an argument, without `cmd.exe` or a separate launcher.
-The manifest records the exact Perl version and hashes. This is not
+Before installing the tools, it installs the checksum-pinned Net::IDN::Encode
+patch used by Convert-Pheno Desktop for Perl 5.42 compatibility.
+The manifest records the exact Perl and tool versions and hashes. This is not
 yet a pinned Strawberry archive with a complete dependency lock.
 
 For a local Linux build, first run:
@@ -138,7 +155,7 @@ For a local Linux build, first run:
 .venv/bin/python desktop/build_unix_pheno.py --output dist/pheno-runtime
 ```
 
-Add `--pheno-runtime dist/pheno-runtime` to the packaging command above, then
+Add `--perl-runtime dist/pheno-runtime` to the packaging command above, then
 add `--require-pheno` to the `desktop/test_package.py` command. Building Perl
 requires a compiler, make, curl and the OpenSSL, Expat, zlib and bzip2 development
 libraries; the workflows install them explicitly.
@@ -150,10 +167,28 @@ dependency lock and redistribution-notice review are still pending. The build
 approach follows Pheno-Ranker's desktop scripts, without copying a local Perl
 installation or requiring the Pheno-Ranker Git checkout.
 
+Convert-Pheno includes its small terminology databases; its optional 3.1 GB
+OHDSI database is absent from the CPAN archive. ClarID includes the 0.04 codebook
+and ICD lookup files. Software notices are retained under `licenses/`, and
+the source archives remain under `sources/`. Vocabulary terms require separate
+redistribution review before a public release; a software licence does not
+establish rights to every bundled terminology database.
+
+Native deployments can select tools with `COHORTOME_CONVERT_PHENO_BIN` and
+`COHORTOME_CLARID_TOOLS_BIN`. Otherwise the commands are resolved from PATH.
+On Windows, `COHORTOME_PREPARATION_PERL_BIN` selects the interpreter. Packaged
+desktop apps set these paths to the bundle automatically. About reports both
+preparation-tool versions. The source-download installation UI now uses these
+tools to prepare supported studies locally. Its current changes are not covered
+by the older CI bundles.
+
+The expanded runtime must be verified on each platform before shipping.
+GitHub Actions testing is paused while the account's minutes are limited.
+
 ### Remaining packaging work
 
-- Verify macOS/Windows UMAP and standalone R builds, then integrate R into
-  those desktop bundles.
+- Resolve the latest combined Apple Silicon package failure, then verify the
+  expanded shared Perl bundle and source preparation on every target platform.
 - Verify Hallmark gene-set access before claiming
   complete curated-analysis coverage.
 - Package or download the viewer and other resources; custom scripts still
@@ -164,6 +199,12 @@ installation or requiring the Pheno-Ranker Git checkout.
 - Review redistribution notices, installer formats, signing and clean-machine
   compatibility. Building on a particular Linux release does not establish
   compatibility with older distributions.
+
+See [Third-party notices](../THIRD_PARTY_NOTICES.md) for the binary-distribution
+checklist. CI artifacts are experimental, not approved release downloads.
+Before making the repository public, review or remove existing artifacts and
+review workflow logs. Do not assume that keeping Releases empty prevents access
+to artifacts from a public repository.
 
 ### Linux ARM64 R experiment
 
@@ -214,8 +255,9 @@ clean-environment tests, then inspection of the actual installers.
 The manual **Test macOS and Windows R runtimes** workflow tests Apple Silicon,
 Intel macOS and Windows x86_64 independently. It selects R 4.5.2 and
 Bioconductor 3.22 using `r-lib/actions/setup-r`, installs the analysis packages,
-and stages them with `build_native_r.py`. These builds are not yet verified
-or connected to the complete desktop packages.
+and stages them with `build_native_r.py`. Standalone runtime checks passed on
+all three targets. Combined desktop verification differs by platform, as
+recorded at the top of this document.
 
 The macOS builder reuses the Perl builder's dynamic-library relocation and
 ad-hoc signing. Windows retains the official R directory layout and runs
@@ -226,5 +268,6 @@ Each manifest records package versions and file hashes; neither a complete
 dependency lock nor a redistribution review is implied.
 
 The three existing macOS/Windows desktop workflows now also request UMAP and
-test it through a packaged Pheno-Ranker cohort run. Their expanded results
-must pass before UMAP is considered verified on those platforms.
+test it through a packaged Pheno-Ranker cohort run. Passing older tests does
+not verify the newer Convert-Pheno/ClarID additions or all current application
+changes. The latest combined Apple Silicon failure remains unresolved.

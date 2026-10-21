@@ -13,10 +13,18 @@ import re
 from pathlib import Path
 import subprocess
 import tempfile
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = {"default_dataset": 0, "private_dataset": 10000, "dataset-large": 20000,
             "synthetic_autoimmune_demo": 30000}
+# Local study vocabulary: human codes use underscores (hyphens delimit fields).
+STUDIES = {
+    "default_dataset": ("COH-SYN", "COH_SYN", "CSD"),
+    "private_dataset": ("COH-PRIV", "COH_PRIV", "CSP"),
+    "dataset-large": ("COH-LARGE", "COH_LARGE", "CSL"),
+    "synthetic_autoimmune_demo": ("COH-AUTO", "COH_AUTO", "CSA"),
+}
 CONDITIONS = {"Healthy Control": "Z00.0", "Crohn Disease": "K50.9",
               "Ulcerative Colitis": "K51.9", "Rheumatoid Arthritis": "M06.9",
               "Systemic Lupus Erythematosus": "M32.9", "Multiple Sclerosis": "G35",
@@ -70,7 +78,7 @@ def subject_rows(root, offset):
                 age_group = f"Age{lower}to{lower + 9}"
         sex = record.get("sex", {})
         sex = sex.get("label", "Not reported") if isinstance(sex, dict) else sex
-        rows.append(dict(zip(FIELDS, [pid, number, "CNAG-Test",
+        rows.append(dict(zip(FIELDS, [pid, number, STUDIES[root.name][0],
                     "Control" if label == "Healthy Control" else "Case",
                     CONDITIONS[label], sex or "Not reported", age_group])))
     return rows
@@ -81,6 +89,17 @@ def build(output, executable, codebook):
     version = subprocess.run([str(executable), "--version"], check=True, capture_output=True, text=True).stdout
     if version.strip().split()[-1] != "0.04":
         raise ValueError("Regenerate these fixtures with clarid-tools 0.04.")
+    vocabulary = yaml.safe_load(codebook.read_text())
+    if str(vocabulary["metadata"]["version"]) != "0.04":
+        raise ValueError("Expected codebook 0.04.")
+    studies = dict(vocabulary["entities"]["subject"]["study"])
+    for label, human, stub in STUDIES.values():
+        studies[label] = {"code": human, "stub_code": stub, "label": label,
+                          "id": "NCIT:C17998"}
+    vocabulary["entities"]["subject"]["study"] = studies
+    vocabulary["metadata"]["local_version"] = "COHORTome-synthetic-1"
+    codebook = output / "clarid-codebook.yaml"
+    codebook.write_text(yaml.safe_dump(vocabulary, sort_keys=False))
     for name, offset in FIXTURES.items():
         rows = subject_rows(ROOT / name, offset)
         with tempfile.TemporaryDirectory() as temporary:

@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 from app.r_runtime import rscript_binary
+from app.preparation_tools import preparation_command
 
 
 PACKAGES = ("fastapi", "uvicorn", "duckdb", "numpy", "pydantic", "jinja2",
@@ -55,11 +56,11 @@ def version_report():
             if name in ("R", *R_PACKAGES):
                 rows[name] = "Not installed" if value == "missing" else _version(value)
     from app.pheno import PHENO_RANKER_BIN, pheno_ranker_command
-    for name, executable in (("Pheno-Ranker", str(PHENO_RANKER_BIN) if PHENO_RANKER_BIN.is_file() else None),
-                             ("ClarID tools (preparation tool)", shutil.which("clarid-tools"))):
-        rows[name] = "Not found on web server"
-        if executable:
-            command = pheno_ranker_command() if name == "Pheno-Ranker" else [executable]
+    for name, command in (("Pheno-Ranker", pheno_ranker_command() if PHENO_RANKER_BIN.is_file() else None),
+                          ("Convert-Pheno (preparation tool)", preparation_command("convert-pheno")),
+                          ("ClarID tools (preparation tool)", preparation_command("clarid-tools"))):
+        rows[name] = "Not installed"
+        if command:
             output = _command([*command, "--version"])
             match = re.search(r"\b\d+\.\d+(?:[._]\d+)*(?:[-+][A-Za-z0-9.]+)?\b", output)
             rows[name] = _version(match.group()) if match else "Unknown"

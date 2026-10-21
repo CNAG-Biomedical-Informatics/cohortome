@@ -73,7 +73,7 @@ Patients without clinical records are listed in the manifest.
 
 This initial clinical export excludes assay matrices, raw sequencing files, and
 DICOM images. It reads current source records, not frozen inputs from an earlier
-analysis. Limits are 100,000 clinical records and 32 MiB of uncompressed export
+analysis. Defaults are 100,000 clinical records and 256 MiB of uncompressed export
 content; larger requests must use a smaller cohort. Detailed access to every
 source dataset is checked at download time. Protect the downloaded files and
 follow the source dataset's data-use agreement; application access does not grant
@@ -91,10 +91,21 @@ match.
 
 Assays without supported matrix structure, declared linkage, or matching samples
 are shown as unavailable with a reason. Imaging matrices are not included in this
-export. The source files are capped at 64 MiB each and 128 MiB total; exported
-content is capped at 32 MiB, with at most 100,000 feature rows across 32 assays.
+export. Default size limits are 512 MiB per source file, 1,024 MiB of selected
+source files, and 256 MiB of exported content, with at most 100,000 feature rows
+across 32 assays.
 The package reads current source matrices; it does not recreate the exact inputs
 of an earlier analysis run.
+
+Administrators (or the desktop owner) can change size limits in **Settings →
+Jobs & storage → Export limits**. Changes persist for the installation and take
+effect without restarting. The output limit applies to clinical, membership,
+query and molecular exports; source limits apply to molecular exports.
+Allowed maxima are 2,048 MiB per source, 4,096 MiB combined sources, and 1,024 MiB
+output. These are safety bounds, not recommended memory budgets. Exports are
+built in memory and can consume several times their output size; simultaneous
+downloads multiply that usage. The output limit checks uncompressed content
+and the final archive, not just compressed download size. Row limits are unchanged.
 
 </details>
 
@@ -119,7 +130,7 @@ This is not a project backup or an importable workspace snapshot.
 
 Downloads require current Detailed access to every source dataset and ownership
 of the saved cohort. The export is limited to 100,000 combined membership rows
-and 32 MiB of uncompressed content. Existing result-file downloads in Analysis
+and, by default, 256 MiB of uncompressed content. Existing result-file downloads in Analysis
 and Pheno-Ranker are unchanged.
 
 </details>

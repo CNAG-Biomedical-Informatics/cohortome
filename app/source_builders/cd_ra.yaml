@@ -1,0 +1,32 @@
+mappingVersion: 2
+source: {profile: csv}
+target: {model: beacon, schemaVersion: '2.0.0'}
+project: {id: gse42296-clinical, version: '0.1'}
+defaults: {ontology: ncit}
+records: {}
+beacon:
+  individuals:
+    id:
+      sourceFields: [snapshot_id]
+      primaryKey: patient_id
+    sex:
+      sourceField: sex
+      query: {from: value}
+    diseases:
+      rules:
+        - sourceField: diagnosis
+          when: {nonEmpty: true}
+          diseaseCode:
+            query:
+              from: value
+              aliases:
+                "Crohn's disease": Crohn Disease
+                Rheumatoid arthritis: Rheumatoid Arthritis
+    treatments:
+      rules:
+        - sourceField: treatment
+          when: {values: [infliximab]}
+          treatmentCode:
+            query:
+              from: value
+              aliases: {infliximab: Infliximab}

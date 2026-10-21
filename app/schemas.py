@@ -364,6 +364,12 @@ class DatasetRegistrationRequest(BaseModel):
     enabled: bool = Field(default=True, description="Whether the dataset can be selected in the UI.")
 
 
+class DatasetBulkAiRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    dataset_ids: List[str] = Field(min_length=1, max_length=500)
+    ai_provider_access: Literal["blocked", "safe_summary", "detailed_allowed"]
+
+
 class DatasetUpdateRequest(BaseModel):
     name: str | None = Field(default=None, description="Updated human-readable dataset name.")
     root_path: str | None = Field(default=None, description="Updated dataset root directory.")

@@ -3,6 +3,43 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, menu::{Menu, MenuItem, Su
 use tauri_plugin_dialog::DialogExt;
 use std::io::{Read, Write};
 
+fn browser_link_allowed(target: &tauri::Url, backend: &tauri::Url) -> bool {
+    matches!(target.scheme(), "https" | "http")
+        && target.host_str().is_some()
+        && target.username().is_empty() && target.password().is_none()
+        && target.origin() != backend.origin()
+}
+
+fn open_browser(app: &tauri::AppHandle, url: &str) {
+    // Pass the URL as an argument, never through a command shell.
+    #[cfg(target_os = "linux")]
+    let result = Command::new("xdg-open").arg(url).spawn();
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open").arg(url).spawn();
+    #[cfg(target_os = "windows")]
+    let result = Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+    match result {
+        Ok(mut child) => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                if !child.wait().map(|status| status.success()).unwrap_or(false) {
+                    app.dialog().message("Could not open your default browser. Check your system browser settings.").show(|_| {});
+                }
+            });
+        }
+        Err(_) => { app.dialog().message("Could not open your default browser. Check your system browser settings.").show(|_| {}); }
+    }
+}
+
+#[tauri::command]
+async fn pick_dataset_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(folder) = app.dialog().file().blocking_pick_folder() else { return Ok(None); };
+        let path = folder.into_path().map_err(|e| e.to_string())?;
+        Ok(Some(path.to_string_lossy().into_owned()))
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn save_export_file(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
     let filename = request.headers().get("x-cohortome-filename")
@@ -88,7 +125,7 @@ impl Drop for Engine { fn drop(&mut self) { self.stop(); } }
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_project_file, open_project_file, save_export_file])
+        .invoke_handler(tauri::generate_handler![save_project_file, open_project_file, save_export_file, pick_dataset_folder])
         .setup(|app| {
             let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
             let executable = std::env::current_exe()?;
@@ -129,16 +166,24 @@ fn main() {
             app.add_capability(serde_json::json!({
                 "identifier": "project-dialogs", "windows": ["main"], "local": false,
                 "remote": {"urls": [format!("{}/*", origin.ascii_serialization())]},
-                "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file"]
+                "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file", "allow-pick-dataset-folder"]
             }).to_string())?;
             app.manage(engine);
             let smoke = std::env::var("COHORTOME_DESKTOP_SMOKE_TEST").as_deref() == Ok("1");
+            let link_app = app.handle().clone();
+            let backend_url = url.clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .initialization_script("window.__COHORTOME_DESKTOP__ = true; document.addEventListener('contextmenu', event => event.preventDefault());")
                 .devtools(false)
                 .title("COHORTome — Desktop Preview")
                 .inner_size(1440.0, 960.0).min_inner_size(800.0, 600.0)
                 .on_navigation(move |target| target.origin() == origin)
+                .on_new_window(move |target, _| {
+                    if browser_link_allowed(&target, &backend_url) {
+                        open_browser(&link_app, target.as_str());
+                    }
+                    tauri::webview::NewWindowResponse::Deny
+                })
                 .on_page_load(move |window, payload| {
                     if smoke && payload.url().path() == "/"
                         && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
@@ -215,17 +260,7 @@ fn main() {
                     let _ = window.eval(&script);
                 }
             } else if let Some(url) = help_url(id) {
-                // Fixed public documentation URLs only; never a webview-supplied command.
-                #[cfg(target_os = "linux")]
-                let result = Command::new("xdg-open").arg(url).spawn();
-                #[cfg(target_os = "macos")]
-                let result = Command::new("open").arg(url).spawn();
-                #[cfg(target_os = "windows")]
-                let result = Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
-                match result {
-                    Ok(mut child) => { std::thread::spawn(move || { let _ = child.wait(); }); }
-                    Err(_) => { app.dialog().message(format!("Could not open your browser. Visit {url}")).show(|_| {}); }
-                }
+                open_browser(app, url);
             }
         })
         .build(tauri::generate_context!()).expect("COHORTome desktop could not start");
@@ -265,6 +300,15 @@ fn menu_script(id: &str) -> Option<String> {
 #[cfg(test)]
 mod menu_tests {
     use super::*;
+    #[test]
+    fn external_browser_links_exclude_backend_and_non_web_schemes() {
+        let backend: tauri::Url = "http://127.0.0.1:8001/".parse().unwrap();
+        assert!(browser_link_allowed(&"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g=ENSG00000141510".parse().unwrap(), &backend));
+        for target in ["http://127.0.0.1:8001/private", "file:///tmp/example", "javascript:alert(1)",
+            "mailto:example@example.org", "https://user:password@example.org/"] {
+            assert!(!browser_link_allowed(&target.parse().unwrap(), &backend));
+        }
+    }
     #[test]
     fn menu_routes_only_known_actions() {
         assert_eq!(menu_script("reload").as_deref(), Some("window.location.reload()"));

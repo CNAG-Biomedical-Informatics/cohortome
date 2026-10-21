@@ -1098,8 +1098,6 @@ export function createDashboardUi(ctx) {
     const source = payload && typeof payload === "object" ? payload : {};
     state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
     const enabled = Boolean(source.enabled);
-    const manifestFound = Boolean(source.manifest_found);
-    const studyCount = Number(source.study_count || 0);
     const ohifUrl = String(source.ohif_public_url || "").trim();
     const dicomwebUrl = String(source.dicomweb_public_url || "").trim();
     const orthanc = source.orthanc && typeof source.orthanc === "object" ? source.orthanc : {};
@@ -1110,41 +1108,15 @@ export function createDashboardUi(ctx) {
     const studies = state.dicomStudiesState || [];
     const bundledCount = studies.filter(study => study.local_viewer_url).length;
     if (bundledCount && bundledCount === studies.length) {
-      dicomDashboardHealthEl.innerHTML = `<div class="dicom-health-grid">
-        <div class="dicom-health-card"><span class="assay-kpi-label">Viewer</span><strong>Bundled OHIF</strong><small>Opens inside COHORTome</small></div>
-        <div class="dicom-health-card"><span class="assay-kpi-label">Studies</span><strong>${escapeHtml(String(bundledCount))} available</strong><small>Bundled synthetic images</small></div>
-        <div class="dicom-health-card"><span class="assay-kpi-label">Image access</span><strong>Through COHORTome</strong><small>Dataset permissions checked on every request</small></div>
-        <div class="dicom-health-card"><span class="assay-kpi-label">External services</span><strong>Not required</strong><small>No Docker or Orthanc service needed for these studies</small></div>
-      </div>`;
+      dicomDashboardHealthEl.innerHTML = `<div class="imaging-viewer-status">${assayOverviewIcon('imaging')}<strong>Built-in viewer</strong><span>OHIF · opens inside COHORTome</span></div>
+        <details class="imaging-service-details"><summary>Viewer details</summary><p>Dataset permissions are checked on every request. These bundled synthetic studies need no external imaging service.</p></details>`;
       renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
     dicomDashboardHealthEl.innerHTML = `
-      <div class="dicom-health-grid">
-        <div class="dicom-health-card">
-          <span class="assay-kpi-label">External viewer</span>
-          <strong>${enabled ? "Enabled" : "Not enabled"}</strong>
-          <small>${bundledCount ? `${bundledCount} studies open in bundled OHIF; the external viewer applies only to other studies` : enabled ? 'Use View images on a study below' : 'Study information is available, but external image viewing is not enabled'}</small>
-        </div>
-        <div class="dicom-health-card">
-          <span class="assay-kpi-label">Study records</span>
-          <strong>${escapeHtml(String(studyCount))} listed</strong>
-          <small>${manifestFound ? "Listing a study does not confirm that its images are accessible" : "No study list configured"}</small>
-        </div>
-      </div>
-      <details class="assay-card-section"><summary>External service details</summary>
-        <div class="dicom-health-grid">
-        <div class="dicom-health-card">
-          <span class="assay-kpi-label">Orthanc</span>
-          <strong>${escapeHtml(orthancLabel)}</strong>
-          <small>${escapeHtml(orthancMessage || "Pixel store health is not checked")}</small>
-        </div>
-        <div class="dicom-health-card">
-          <span class="assay-kpi-label">DICOMweb</span>
-          <strong>${dicomwebUrl ? "Configured" : "Missing"}</strong>
-          <small>Image access service</small>
-        </div>
-      </div>
+      <div class="imaging-viewer-status">${assayOverviewIcon('imaging')}<strong>${bundledCount ? 'Built-in + external viewer' : 'External viewer'}</strong><span>${enabled ? 'Configured · image access not verified' : 'External viewing not enabled'}${bundledCount ? ` · ${bundledCount} studies use built-in OHIF` : ''}</span></div>
+      <details class="imaging-service-details"><summary>Viewer details</summary>
+        <p>Orthanc: ${escapeHtml(orthancLabel)}. ${escapeHtml(orthancMessage || '')}</p>
         <p>OHIF: ${escapeHtml(ohifUrl || "Not configured")}</p>
         <p>DICOMweb: ${escapeHtml(dicomwebUrl || "Not configured")}</p>
       </details>
@@ -1162,64 +1134,74 @@ export function createDashboardUi(ctx) {
     const source = payload && typeof payload === "object" ? payload : {};
     const enabled = Boolean(source.enabled);
     const studies = Array.isArray(source.studies) ? source.studies : [];
-    const localAvailable = studies.some(study => study.local_viewer_url);
     state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
     state.dicomStudiesState = studies;
     dicomDashboardStatusEl.className = "query-status";
     if (!studies.length) {
-      dicomDashboardStatusEl.textContent = enabled
-        ? "No DICOM studies are configured for this workspace."
-        : "DICOM visualization is disabled. No DICOM studies are configured for this workspace.";
+      dicomDashboardStatusEl.textContent = "No imaging studies listed in this workspace.";
       dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
       renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
-    dicomDashboardStatusEl.textContent = localAvailable
-      ? `Loaded ${studies.length} studies. Bundled viewing is available for synthetic images.`
-      : enabled
-      ? `Loaded ${studies.length} DICOM stud${studies.length === 1 ? "y" : "ies"} for OHIF viewing.`
-      : `DICOM visualization is disabled. ${studies.length} configured stud${studies.length === 1 ? "y" : "ies"} found.`;
-    const modalityCounts = new Map();
-    studies.forEach(study => { const key = String(study.modality || 'Not recorded'); modalityCounts.set(key, (modalityCounts.get(key) || 0) + 1); });
-    dicomDashboardStudiesEl.innerHTML = `<section class="imaging-coverage-summary">
-      ${renderCoverageBars('Studies by imaging modality', Array.from(modalityCounts, ([label, count]) => ({label, count, modality:'imaging'})), 'studies')}
-      <p class="section-note">Configured study inventory—not a count of unique patients or a check of image quality.</p>
-    </section>` + studies.map((study) => {
+    const patients = new Set(studies.filter(study => study.patient_id).map(study => {
+      const identity = decodeIdentity(study.patient_id);
+      return JSON.stringify([identity?.datasetId || study.source_dataset_id || '', identity?.sourceId || study.patient_id]);
+    }));
+    const unlinked = studies.filter(study => !study.patient_id).length;
+    dicomDashboardStatusEl.textContent = `${patients.size} ${unlinked ? 'linked ' : ''}${patients.size === 1 ? 'patient' : 'patients'} · ${studies.length} imaging ${studies.length === 1 ? 'study' : 'studies'}${unlinked ? ` · ${unlinked} without patient linkage` : ''}`;
+    const patientLabel = study => {
+      if (!study.patient_id) return 'Not linked';
+      if (decodeIdentity(study.patient_id)) return displayIdentity(study.patient_id);
+      return study.source_dataset_id ? `${study.source_dataset_id} · ${study.patient_id}` : String(study.patient_id);
+    };
+    const patientLabels = [...new Set(studies.map(patientLabel))].sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+    dicomDashboardStudiesEl.innerHTML = `<div class="imaging-patient-filter"><label for="imagingPatientFilter">Patient</label><input id="imagingPatientFilter" list="imagingPatientOptions" placeholder="All patients — type to search" autocomplete="off"><datalist id="imagingPatientOptions">${patientLabels.map(label => `<option value="${escapeHtml(label)}"></option>`).join('')}</datalist><button type="button" class="query-chip" data-imaging-clear>All patients</button></div><div class="imaging-study-results"></div>`;
+    const patientInput = dicomDashboardStudiesEl.querySelector('#imagingPatientFilter');
+    const results = dicomDashboardStudiesEl.querySelector('.imaging-study-results');
+    let page = 0;
+    function renderStudyPage() {
+      const search = patientInput.value.trim();
+      const exact = patientLabels.includes(search);
+      const filtered = studies.filter(study => !search || (exact ? patientLabel(study) === search : patientLabel(study).toLowerCase().includes(search.toLowerCase())));
+      const pages = Math.max(1, Math.ceil(filtered.length / 25));
+      page = Math.min(page, pages - 1);
+      results.innerHTML = `<p class="section-note" role="status">${filtered.length ? `${page * 25 + 1}–${Math.min((page + 1) * 25, filtered.length)} of ${filtered.length} studies` : 'No studies match this patient.'}${search ? ' · filtered' : ''}</p><div class="assay-table-wrap imaging-study-table"><table class="assay-table"><caption>Each row is one study for the patient shown. Series and instance counts apply to that study only.</caption><thead><tr><th>Patient / sample</th><th>Visit</th><th>Modality</th><th>Study</th><th>Series in study</th><th>Instances in study</th><th>Viewer</th></tr></thead><tbody>` + filtered.slice(page * 25, (page + 1) * 25).map((study) => {
       const series = Array.isArray(study.series) ? study.series : [];
       const instanceCount = series.reduce((total, item) => total + Number(item && item.instance_count ? item.instance_count : 0), 0);
       const ohifUrl = String(study.ohif_url || "").trim();
       const canOpen = enabled && ohifUrl;
       const title = String(study.label || study.study_description || study.study_instance_uid || "DICOM study").trim();
-      const subtitle = [displayIdentity(study.patient_id), displayIdentity(study.sample_id), study.timepoint].map((item) => String(item || "").trim()).filter(Boolean).join(" • ");
       return `
-        <article class="dicom-study-card">
-          <div class="assay-card-header">
-            <div>
-              <div class="assay-card-eyebrow">${assayOverviewIcon('imaging')} DICOM study</div>
-              <strong class="assay-card-title">${escapeHtml(title)}</strong>
-            </div>
-            <span class="query-chip badge assay-modality-badge">${escapeHtml(String(study.modality || "DICOM"))}</span>
-          </div>
-          ${subtitle ? `<div class="section-note">Patient / sample / timepoint: ${escapeHtml(subtitle)}</div>` : '<div class="section-note">Patient linkage not recorded.</div>'}
-          <div class="assay-kpi-grid">
-            <div class="assay-kpi"><span class="assay-kpi-label">Series</span><strong class="assay-kpi-value">${escapeHtml(String(series.length))}</strong></div>
-            <div class="assay-kpi"><span class="assay-kpi-label">Instances</span><strong class="assay-kpi-value">${escapeHtml(String(instanceCount))}</strong></div>
-          </div>
-          <details class="assay-card-section">
-            <summary>Study identifier</summary>
+        <tr>
+          <td>${escapeHtml(patientLabel(study))}${study.sample_id ? `<small>${escapeHtml(displayIdentity(study.sample_id))}</small>` : ''}</td>
+          <td>${escapeHtml(study.timepoint || 'Not recorded')}</td>
+          <td><span class="imaging-modality">${assayOverviewIcon('imaging')}${escapeHtml(String(study.modality || 'DICOM'))}</span></td>
+          <td><strong>${escapeHtml(title)}</strong>${study.local_viewer_url ? `<small>${instanceCount === 1 ? 'Single-instance synthetic example' : 'Synthetic example'}</small>` : ''}
+          <details class="imaging-study-details">
+            <summary>Study details</summary>
             <code class="dicom-uid">${escapeHtml(String(study.study_instance_uid || ""))}</code>
-          </details>
-          <div class="query-row dicom-card-actions">
+            ${series.map(item => `<small>${escapeHtml(item.series_description || 'Series')} · ${Number(item.instance_count || 0)} DICOM instances</small>`).join('')}
+          </details></td>
+          <td>${series.length || 'Not reported'}</td><td>${instanceCount || 'Not reported'}</td>
+          <td class="imaging-viewer-action">
             ${study.local_viewer_url
-        ? `<button type="button" data-local-viewer="${escapeHtml(study.local_viewer_url)}">View images</button>`
+        ? `<button type="button" class="query-chip" data-local-viewer="${escapeHtml(study.local_viewer_url)}">View images</button>`
         : canOpen
-          ? `<a class="button-like" href="${escapeHtml(ohifUrl)}" target="_blank" rel="noopener" title="Opens the configured external viewer">View images</a>`
-          : '<button type="button" disabled title="No viewer is configured for this study">View images</button>'}
-          </div>
-        </article>
+          ? `<a class="query-chip" href="${escapeHtml(ohifUrl)}" target="_blank" rel="noopener" title="Opens the configured external viewer">View images ↗</a>`
+          : '<button type="button" class="query-chip" disabled title="No viewer is configured for this study">Unavailable</button>'}
+          </td>
+        </tr>
       `;
-    }).join("");
-    dicomDashboardStudiesEl.querySelectorAll('[data-local-viewer]').forEach(button => {
+    }).join("") + '</tbody></table></div><details class="imaging-service-details"><summary>What do these counts mean?</summary><p>A study is an imaging examination. It can contain several series (such as MRI sequences). A DICOM instance is an object that may hold one image or multiple frames; the instance count is not necessarily the slice count. Counts come from the study manifest, not a live image-server inventory.</p></details>';
+      if (pages > 1) {
+        const pager = document.createElement('div');
+        pager.className = 'imaging-study-pagination';
+        pager.innerHTML = `<button type="button" class="query-chip" data-prev ${page === 0 ? 'disabled' : ''}>Previous</button><span>Page ${page + 1} of ${pages}</span><button type="button" class="query-chip" data-next ${page + 1 === pages ? 'disabled' : ''}>Next</button>`;
+        results.append(pager);
+        pager.querySelector('[data-prev]').onclick = () => {page--; renderStudyPage();};
+        pager.querySelector('[data-next]').onclick = () => {page++; renderStudyPage();};
+      }
+    results.querySelectorAll('[data-local-viewer]').forEach(button => {
       button.addEventListener('click', () => {
         const url = new URL(button.dataset.localViewer, window.location.origin);
         if (url.origin !== window.location.origin || !url.pathname.startsWith('/local-viewer/open/')) return;
@@ -1235,6 +1217,10 @@ export function createDashboardUi(ctx) {
         document.body.append(dialog); dialog.showModal(); close.focus();
       });
     });
+    }
+    patientInput.addEventListener('input', () => {page = 0; renderStudyPage();});
+    dicomDashboardStudiesEl.querySelector('[data-imaging-clear]').onclick = () => {patientInput.value = ''; page = 0; renderStudyPage(); patientInput.focus();};
+    renderStudyPage();
     renderAssayDashboardOverview(state.assayDatasetsState || []);
   }
 
@@ -1329,12 +1315,14 @@ export function createDashboardUi(ctx) {
       const patients = new Set(assays.flatMap(item => item.patient_ids || []).map(String).filter(id => id.trim()));
       return { modality, count: known ? patients.size : null };
     });
-    const largest = Math.max(1, ...coverage.map(item => item.count || 0));
+    const totalKnown = items.every(item => Array.isArray(item.patient_ids));
+    const totalPatients = [...patientIds].filter(Boolean).length;
+    const denominator = totalKnown ? totalPatients : Math.max(1, ...coverage.map(item => item.count || 0));
     assayDashboardOverviewEl.innerHTML = `
       <section class="assay-overview-summary">
         <div class="assay-overview-copy">
-          <strong class="assay-workspace-summary-title">Assay overview</strong>
-          <div class="section-note">${escapeHtml(modalities.map((item) => formatAssayModality(item)).join(" · "))}</div>
+          <strong class="assay-workspace-summary-title">Patient coverage</strong>
+          <span class="section-note">Whole workspace</span>
         </div>
         <div class="assay-workspace-kpis">
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Assays</span><strong class="assay-kpi-value">${escapeHtml(String(items.length))}</strong></div>
@@ -1343,12 +1331,11 @@ export function createDashboardUi(ctx) {
           <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(featureTotal))}</strong></div>
         </div>
         <div class="assay-coverage-chart">
-          <strong>Patients by modality</strong>
-          <details class="view-help"><summary>How these counts work</summary><p>Counts are unique patients within each modality. A patient can appear in several rows, so row counts should not be added together.</p></details>
+          <p class="section-note">${totalKnown ? `Share of ${escapeHtml(formatNumber(totalPatients))} patients with any assay` : 'Unique patients by modality'} · modalities may overlap.</p>
           ${coverage.map(({ modality, count }) => `<div class="assay-coverage-row">
             <span>${assayOverviewIcon(modality)}${escapeHtml(formatAssayModality(modality))}</span>
-            <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null ? 0 : count / largest * 100}%;background:${modalityColor(modality)}"></i></div>
-            <strong>${count === null ? 'Not reported' : escapeHtml(formatNumber(count))}</strong>
+            <div class="assay-coverage-track" aria-hidden="true"><i style="width:${count === null || !denominator ? 0 : count / denominator * 100}%;background:${modalityColor(modality)}"></i></div>
+            <strong>${count === null ? 'Not reported' : escapeHtml(formatNumber(count)) + (count === 1 ? ' patient' : ' patients')}${count !== null && totalKnown && totalPatients ? `<small class="assay-coverage-percent">${(count / totalPatients * 100).toFixed(0)}%</small>` : ''}</strong>
           </div>`).join('')}
         </div>
       </section>
@@ -1361,8 +1348,8 @@ export function createDashboardUi(ctx) {
     const selected = selectedAssayModalityFilter();
     assayModalityTabsEl.innerHTML = tabs.map((tab) => `
       <button type="button" class="assay-modality-tab${tab.key === selected ? " active" : ""}" data-assay-modality-filter="${escapeHtml(tab.key)}" aria-pressed="${tab.key === selected ? "true" : "false"}">
-        <span>${escapeHtml(tab.label)}</span>
-        <strong>${escapeHtml(String(tab.count))}</strong>
+        ${tab.key === 'all' ? '' : assayOverviewIcon(tab.key)}<span>${escapeHtml(tab.label)}</span>
+        <strong>${escapeHtml(String(tab.count))} ${tab.count === 1 ? 'assay' : 'assays'}</strong>
       </button>
     `).join("");
   }
@@ -1478,10 +1465,13 @@ export function createDashboardUi(ctx) {
 
   function renderMatrixKpis(metadata) {
     const source = metadata && typeof metadata === "object" ? metadata : {};
-    const missingPct = `${(Number(source.missing_fraction || 0) * 100).toFixed(1)}%`;
     return `
-      <p class="section-note"><strong>${Number(source.row_count || 0) ? escapeHtml(missingPct) + ' missing values' : 'Missingness not assessed'}</strong> · ${escapeHtml(String(source.feature_group_count || 0))} feature groups</p>
-      <details><summary>About missingness</summary><p>Calculated across selected non-identifier columns, not every source feature. Missing values can reflect unmatched sample identifiers or absent measurements; they are not a quality-control verdict.</p></details>
+      <p class="section-note">Automatic preview: up to three features per assay, plus clinical fields. Independent of the patient selection above.</p>
+      <details class="view-help matrix-preview-help"><summary aria-label="How feature availability is calculated" title="How feature availability is calculated">?</summary>
+        <p>Counts refer to ${escapeHtml(String(source.row_count || 0))} matrix rows: clinical sample/visit records, or patients when no samples are listed. One patient can contribute several rows.</p>
+        <p>Assay values require an exact sample ID match. “No linked value” can mean an absent measurement or an unmatched identifier—not that the patient lacks the assay. Empty clinical fields also count as unlinked values; a recorded zero counts as available.</p>
+        <p>This preview is not a dataset-wide missingness estimate or a quality-control assessment. Use Coverage above to find patients with particular data types.</p>
+      </details>
     `;
   }
 
@@ -1499,28 +1489,20 @@ export function createDashboardUi(ctx) {
     return `<div class="assay-card-section"><strong>Provenance</strong><div class="multimodal-feature-group-list">${content}</div></div>`;
   }
 
-  function renderMatrixMissingness(missingness, rowCount) {
+  function renderMatrixMissingness(missingness, rowCount, columns = []) {
+    if (!rowCount) return '<p class="empty">No records available for this preview.</p>';
     const rows = (Array.isArray(missingness) ? missingness : [])
-      .filter((item) => Number(item.missing_count || 0) > 0)
-      .sort((left, right) => Number(right.missing_fraction || 0) - Number(left.missing_fraction || 0))
-      .slice(0, 6);
+      .slice().sort((left, right) => Number(right.missing_count || 0) - Number(left.missing_count || 0));
     if (!rows.length) {
-      return `<p class="section-note">${rowCount ? 'No missing values in the selected matrix columns.' : 'No sample rows available to assess missingness.'}</p>`;
+      return '<p class="empty">No fields available for this preview.</p>';
     }
-    return `
-      <div class="assay-card-section">
-        <p class="section-note">Up to six columns with the most missing values.</p>
-        <div class="missingness-list">
-          ${rows.map((item) => `
-            <div class="missingness-row">
-              <span class="missingness-label">${escapeHtml(String(item.label || item.key || "Column"))}</span>
-              <span class="missingness-value">${escapeHtml((Number(item.missing_fraction || 0) * 100).toFixed(1))}% missing <small>${escapeHtml(String(item.missing_count || 0))} of ${escapeHtml(String(rowCount))} rows</small></span>
-              <div class="missingness-bar" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, Number(item.missing_fraction || 0) * 100))}%"></i></div>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    `;
+    const table = items => `<div class="assay-table-wrap"><table class="assay-table"><thead><tr><th>Field / feature</th><th>Available</th><th>No linked value</th></tr></thead><tbody>${items.map(item => {
+      const column = columns.find(c => c.key === item.key) || {};
+      const missing = Number(item.missing_count || 0);
+      return `<tr><td>${modalityIcon(column.modality || column.source || 'clinical')} ${escapeHtml(String(item.label || item.key || 'Field'))}<small class="matrix-field-source">${escapeHtml(column.dataset_name || column.source || '')}</small></td><td>${rowCount - missing} / ${rowCount}</td><td>${missing} <span class="section-note">(${(missing / rowCount * 100).toFixed(1)}%)</span></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+    return `<div class="assay-card-section"><p class="section-note">${rows.length} fields checked · ${rows.filter(r => !Number(r.missing_count || 0)).length} complete. Largest gaps first.</p>
+      ${table(rows.slice(0, 6))}${rows.length > 6 ? `<details><summary>Show ${rows.length - 6} more fields</summary>${table(rows.slice(6))}</details>` : ''}</div>`;
   }
 
   function renderMatrixWarnings(warnings) {
@@ -1543,12 +1525,12 @@ export function createDashboardUi(ctx) {
     state.multimodalMatrixState = source;
     multimodalMatrixStatusEl.className = "query-status";
     multimodalMatrixStatusEl.textContent = Number(metadata.row_count || 0)
-      ? `Sample-level matrix: ${metadata.row_count || 0} rows x ${metadata.column_count || 0} columns.`
+      ? `${metadata.row_count || 0} records checked · ${(source.missingness || []).length} preview fields`
       : "No matrix rows available.";
     multimodalMatrixContentEl.innerHTML = `
       ${renderMatrixKpis(metadata)}
+      ${renderMatrixMissingness(source.missingness || [], Number(metadata.row_count || 0), source.columns || [])}
       <details class="assay-card-section"><summary>Feature groups and provenance</summary>${renderMatrixFeatureGroups(source.feature_groups || [])}</details>
-      ${renderMatrixMissingness(source.missingness || [], Number(metadata.row_count || 0))}
       ${renderMatrixWarnings(source.warnings || [])}
     `;
     renderMultimodalMatrixVisibility();
@@ -2092,6 +2074,8 @@ export function createDashboardUi(ctx) {
     document.querySelectorAll(".clarid-identity.is-open").forEach((identity) => {
       if (identity === except) return;
       identity.classList.remove("is-open");
+      const popover = identity.querySelector('.clarid-popover[popover]');
+      if (popover?.matches(':popover-open')) popover.hidePopover();
       const toggle = identity.querySelector("[data-clarid-toggle]");
       if (toggle) toggle.setAttribute("aria-expanded", "false");
     });
@@ -2109,6 +2093,18 @@ export function createDashboardUi(ctx) {
       closeClaridPopovers(nextOpen ? identity : null);
       if (identity) identity.classList.toggle("is-open", Boolean(nextOpen));
       toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+      const popover = identity?.querySelector('.clarid-popover');
+      if (nextOpen && identity.closest('.query-result-table') && popover?.showPopover) {
+        // The top layer avoids both table reflow and clipping by its scroll box.
+        popover.setAttribute('popover', 'manual');
+        popover.showPopover();
+        const anchor = toggle.getBoundingClientRect();
+        const bounds = popover.getBoundingClientRect();
+        popover.style.left = `${Math.max(12, Math.min(anchor.left, window.innerWidth - bounds.width - 12))}px`;
+        const below = anchor.bottom + 7;
+        popover.style.top = `${Math.max(12, below + bounds.height <= window.innerHeight - 12
+          ? below : anchor.top - bounds.height - 7)}px`;
+      }
       return true;
     }
     const value = String(copyButton.dataset.claridCopy || "");

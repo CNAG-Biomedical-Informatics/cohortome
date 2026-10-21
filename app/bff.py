@@ -164,6 +164,7 @@ def extract_visit_id(record: Dict[str, Any], fallback: str) -> str:
     _, split_visit_id = split_record_id(record)
     visit_id = select_first(
         [
+            nested_get(record, ("info", "visit_id")),
             deep_get(record, VISIT_ID_KEYS),
             split_visit_id,
             nested_get(first_list_item(record, "diseases"), ("_visit", "id")),
@@ -474,6 +475,22 @@ def read_bff_records(data_dir: Path) -> Iterable[Tuple[Path, int, Dict[str, Any]
                     if sid:
                         record['id'] = identity_key(dataset, 'sample', sid)
                 yield path, index, record
+
+
+def relative_study_days(metadata):
+    """Read explicit study offsets only; never derive them from visit labels."""
+    import math
+    for key, factor in (("days_from_baseline", 1), ("week_from_baseline", 7)):
+        value = metadata.get(key)
+        if value is None or isinstance(value, bool) or str(value).strip() == "":
+            continue
+        try:
+            days = float(value) * factor
+        except (ValueError, TypeError):
+            continue
+        if math.isfinite(days):
+            return days
+    return None
 
 
 def build_visit_context(path: Path, index: int, record: Dict[str, Any], patient_id: str) -> VisitContext:
@@ -815,6 +832,8 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
                         "visit_id": visit.visit_id,
                         "event_date": visit.event_date,
                         "event_type": visit.event_type,
+                        "days_from_baseline": relative_study_days(
+                            visit.provenance.raw_bff.get("info") or {}),
                         "diagnosis": visit.diagnosis or visit.disease_label,
                         "biosample_id": visit.biosample_id,
                         "domains": domains,

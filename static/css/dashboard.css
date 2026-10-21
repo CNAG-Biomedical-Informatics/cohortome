@@ -164,6 +164,11 @@
       #datasetAdminList .dataset-picker-card {
         grid-template-columns: minmax(0, 1fr);
       }
+      .dataset-bulk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 0; font-size: var(--font-size-small, 13px); }
+      .dataset-bulk-toolbar label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+      .dataset-bulk-toolbar input, .dataset-admin-summary > input { width: 16px; height: 16px; margin: 0; }
+      .dataset-bulk-toolbar [role="status"] { flex-basis: 100%; }
+      .dataset-bulk-toolbar [role="status"]:empty { display: none; }
       .dataset-admin-card {
         min-width: 0;
         max-width: 100%;
@@ -177,7 +182,7 @@
       }
       .dataset-admin-summary {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         align-items: center;
         gap: 10px;
         min-width: 0;
@@ -709,6 +714,17 @@
         position: static;
         width: min(320px, calc(100vw - 72px));
         margin-top: 6px;
+      }
+      .query-result-table .clarid-identity.is-compact.is-open:has([popover]) {
+        display: inline-flex;
+      }
+      .query-result-table .clarid-identity .clarid-popover[popover] {
+        position: fixed;
+        inset: auto;
+        margin: 0;
+        max-height: calc(100dvh - 24px);
+        overflow: auto;
+        box-sizing: border-box;
       }
       .clarid-popover > strong {
         display: block;

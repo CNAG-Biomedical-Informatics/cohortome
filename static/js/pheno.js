@@ -1,4 +1,13 @@
 import { displayIdentity } from "./identities.js";
+import { createPhenoPatientPicker } from './pheno_patient_picker.js';
+
+export const PHENO_HEATMAP_MAX_RECORDS = 1000;
+
+export function phenoHeatmapRecordCount(text) {
+  const lines = String(text).split(/\r?\n/).filter(line => line.trim());
+  if (!lines.length) return 0;
+  return Math.max(lines.length - 1, lines[0].split('\t').length - 1);
+}
 
 export function createPhenoUi(ctx) {
   const {
@@ -110,6 +119,8 @@ export function createPhenoUi(ctx) {
     workspaceVersion: 0,
   };
 
+  const patientPicker = createPhenoPatientPicker(phenoPatientIdEl, document.getElementById('phenoPatientChoices'));
+
   function currentActivePhenoBackgroundJob() {
     return Array.isArray(state.recentJobs)
       ? state.recentJobs.find((item) => item && item.feature === "pheno" && ["queued", "running"].includes(String(item.status || "").trim()))
@@ -133,18 +144,22 @@ export function createPhenoUi(ctx) {
       return;
     }
     const active = currentActivePhenoBackgroundJob();
-    if (active) {
-      const label = String(active.job_code || active.job_id || "").trim();
+    if (active || state.inFlight) {
+      const queued = active?.status === "queued";
+      const label = String(active?.job_code || active?.job_id || "").trim();
       phenoBackgroundJobBannerEl.classList.remove("is-hidden");
-      phenoBackgroundJobBannerEl.textContent = label
-        ? `Background Pheno-Ranker run in progress: ${label}.`
-        : "A background Pheno-Ranker run is in progress.";
+      phenoBackgroundJobBannerEl.dataset.stage = queued ? "queued" : "running";
+      phenoBackgroundJobBannerEl.innerHTML = `<span class="button-spinner" aria-hidden="true"></span>
+        <div><strong>${queued ? "Pheno-Ranker queued" : "Pheno-Ranker is running"}</strong>
+        <span>${queued ? "Waiting for a worker. This run has not started yet." : "Your request is being processed. Results will appear when it finishes."}${label ? ` · ${escapeHtml(label)}` : ""}</span></div>
+        ${active ? '<button type="button" class="query-chip" data-pheno-view-job>View job</button>' : ""}`;
       return;
     }
     const completed = currentCompletedPhenoJobForWorkspace();
     if (completed) {
       const label = String(completed.job_code || completed.job_id || "").trim();
       phenoBackgroundJobBannerEl.classList.remove("is-hidden");
+      phenoBackgroundJobBannerEl.dataset.stage = "completed";
       phenoBackgroundJobBannerEl.textContent = label
         ? `Background Pheno-Ranker run completed: ${label}.`
         : "A background Pheno-Ranker run completed.";
@@ -153,6 +168,9 @@ export function createPhenoUi(ctx) {
     phenoBackgroundJobBannerEl.classList.add("is-hidden");
     phenoBackgroundJobBannerEl.textContent = "";
   }
+  phenoBackgroundJobBannerEl?.addEventListener("click", event => {
+    if (event.target.closest("[data-pheno-view-job]")) callbacks.openPhenoJobs?.();
+  });
 
   function seedQueuedPhenoBackgroundJob(payload) {
     const source = payload && typeof payload === "object" ? payload : {};
@@ -531,7 +549,7 @@ export function createPhenoUi(ctx) {
     const plan = {
       action: phenoActionEl ? phenoActionEl.value : "compare",
       mode: phenoModeEl ? phenoModeEl.value : "cohort",
-      patient_id: phenoPatientIdEl ? phenoPatientIdEl.value.trim() : "",
+      patient_id: patientPicker.get(),
       selected_patient_ids: selectedSavedCohortIds.length ? "" : (phenoSelectedPatientIdsEl ? phenoSelectedPatientIdsEl.value.trim() : ""),
       selected_saved_cohort_ids: selectedSavedCohortIds,
       include_terms: parsePhenoTermsInput(phenoIncludeTermsEl ? phenoIncludeTermsEl.value : ""),
@@ -729,6 +747,11 @@ export function createPhenoUi(ctx) {
     const formBlocked = issues.length > 0;
     const shouldDisable = state.inFlight || state.planInFlight || ((!hasPrompt || state.manualOverrides) && formBlocked) || Boolean(activeBackgroundJob);
     phenoRunBtnEl.disabled = shouldDisable;
+    const runLabel = phenoRunBtnEl.querySelector("span:last-child");
+    if (runLabel) runLabel.textContent = activeBackgroundJob
+      ? (activeBackgroundJob.status === "queued" ? "Queued…" : "Running…")
+      : state.inFlight ? "Running…" : state.planInFlight ? "Interpreting…" : "Run Pheno-Ranker";
+    phenoRunBtnEl.setAttribute("aria-busy", String(Boolean(state.inFlight || activeBackgroundJob)));
     phenoRunBtnEl.classList.toggle("is-background-blocked", Boolean(activeBackgroundJob));
     phenoRunBtnEl.title = activeBackgroundJob
       ? "A background Pheno-Ranker run is already in progress."
@@ -845,7 +868,7 @@ export function createPhenoUi(ctx) {
     stopPhenoRunProgressUpdates();
     onPatientIdsLoaded([]);
     onReferenceFilesLoaded([]);
-    if (phenoPatientIdEl) phenoPatientIdEl.value = "";
+    patientPicker.reset();
     const choices = document.getElementById('phenoPatientChoices');
     if (choices) choices.innerHTML = '';
     if (phenoSelectedPatientIdsEl) phenoSelectedPatientIdsEl.value = "";
@@ -933,20 +956,20 @@ export function createPhenoUi(ctx) {
     phenoActionEl.value = normalized.action || "compare";
     phenoModeEl.value = normalized.mode || "cohort";
     const scopeIdsBeforePlan = getCurrentScopeIds();
-    phenoPatientIdEl.value = normalized.patient_id || "";
+    patientPicker.set(normalized.patient_id || "");
     if (typeof normalized.selected_patient_ids === "string" && normalized.selected_patient_ids.trim()) {
       phenoSelectedPatientIdsEl.value = normalized.selected_patient_ids;
     }
     const scopeIdsAfterPlan = getCurrentScopeIds();
     if (phenoModeEl.value === "patient" && !phenoPatientIdEl.value.trim() && scopeIdsAfterPlan.length === 1) {
-      phenoPatientIdEl.value = scopeIdsAfterPlan[0];
+      patientPicker.set(scopeIdsAfterPlan[0]);
     } else if (
       phenoModeEl.value === "patient"
       && !phenoPatientIdEl.value.trim()
       && !scopeIdsAfterPlan.length
       && scopeIdsBeforePlan.length === 1
     ) {
-      phenoPatientIdEl.value = scopeIdsBeforePlan[0];
+      patientPicker.set(scopeIdsBeforePlan[0]);
     }
     renderSelectedPatientIdsSummary();
     phenoIncludeTermsEl.value = Array.isArray(normalized.include_terms) ? normalized.include_terms.join(",") : (normalized.include_terms || "");
@@ -1903,6 +1926,14 @@ export function createPhenoUi(ctx) {
         return;
       }
       const text = await response.text();
+      const recordCount = phenoHeatmapRecordCount(text);
+      if (recordCount > PHENO_HEATMAP_MAX_RECORDS) {
+        plotEl.classList.remove('pheno-mds-plot');
+        plotEl.innerHTML = `<div class="empty" role="status">Heatmap disabled: this matrix contains ${recordCount.toLocaleString('en-US')} records. The limit is 1,000 records because larger heatmaps are difficult to interpret. Select a smaller cohort to view a heatmap; the full matrix remains available to download.</div>`;
+        const noteEl = document.getElementById('phenoHeatmapSelectionNote');
+        if (noteEl) noteEl.textContent = '';
+        return;
+      }
       const rows = parseTsvLines(text);
       if (!rows || rows.length < 2) {
         plotEl.innerHTML = '<div class="empty">No matrix data were available for this heatmap.</div>';
@@ -2566,7 +2597,7 @@ export function createPhenoUi(ctx) {
     phenoPromptEl.value = String(payload.prompt || "").trim();
     phenoActionEl.value = String(payload.action || "compare").trim() || "compare";
     phenoModeEl.value = String(payload.mode || "cohort").trim() || "cohort";
-    phenoPatientIdEl.value = String(payload.patient_id || "").trim();
+    patientPicker.set(payload.patient_id);
     phenoSelectedPatientIdsEl.value = String(payload.selected_patient_ids || "").trim();
     phenoIncludeTermsEl.value = Array.isArray(payload.include_terms) ? payload.include_terms.join(",") : "";
     phenoExcludeTermsEl.value = Array.isArray(payload.exclude_terms) ? payload.exclude_terms.join(",") : "";
@@ -2656,7 +2687,8 @@ export function createPhenoUi(ctx) {
   }
 
   function scrollPhenoResultIntoView() {
-    const target = document.querySelector('.pheno-run-progress') || (phenoResultWorkspaceEl && !phenoResultWorkspaceEl.classList.contains("is-hidden")
+    const activeBanner = (state.inFlight || currentActivePhenoBackgroundJob()) && phenoBackgroundJobBannerEl;
+    const target = activeBanner || document.querySelector('.pheno-run-progress') || (phenoResultWorkspaceEl && !phenoResultWorkspaceEl.classList.contains("is-hidden")
       ? phenoResultWorkspaceEl
       : phenoStatusEl);
     if (!target || typeof target.scrollIntoView !== "function") return;
@@ -2694,7 +2726,7 @@ export function createPhenoUi(ctx) {
     const scopeIds = selectedSavedCohortIds.length ? [] : getCurrentScopeIds();
     if (phenoModeEl.value === "patient") {
       if (!phenoPatientIdEl.value.trim() && scopeIds.length === 1) {
-        phenoPatientIdEl.value = scopeIds[0];
+        patientPicker.set(scopeIds[0]);
       }
       if (scopeIds.length > 1) {
         phenoStatusEl.textContent = "Patient mode expects exactly one patient in scope, or one explicit Patient ID.";
@@ -2754,7 +2786,7 @@ export function createPhenoUi(ctx) {
           action: phenoActionEl.value,
           mode: phenoModeEl.value,
           data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
-          patient_id: phenoPatientIdEl.value.trim(),
+          patient_id: patientPicker.get(),
           selected_patient_ids: selectedSavedCohortIds.length ? "" : phenoSelectedPatientIdsEl.value.trim(),
           selected_saved_cohort_ids: selectedSavedCohortIds,
           include_terms: parsePhenoTermsInput(phenoIncludeTermsEl.value),
@@ -2862,8 +2894,7 @@ export function createPhenoUi(ctx) {
           && phenoStatusEl.textContent === "No workspace loaded.") {
         phenoStatusEl.textContent = "";
       }
-      if (choices) choices.innerHTML = (state.rankerRecordIds.length ? state.rankerRecordIds : state.rankerPatientIds)
-        .map(id => `<option value="${escapeHtml(id)}"></option>`).join('');
+      patientPicker.load(state.rankerPatientIds, state.rankerRecordIds);
       state.referenceFiles = Array.isArray(payload.reference_files) ? payload.reference_files.filter(Boolean) : [];
       onPatientIdsLoaded(state.rankerPatientIds);
       onReferenceFilesLoaded(state.referenceFiles);
@@ -2936,6 +2967,7 @@ export function createPhenoUi(ctx) {
   }
 
   return {
+    getPatientTargetId: () => patientPicker.get(),
     chatBusy: () => state.chatPreparing || state.inFlight || state.planInFlight || state.explainInFlight || state.explainLlmInFlight,
     restoreChatSetup: restorePhenoRunMetadata,
     restoreChatResult: payload => applyPhenoRunPayload(payload, {restoringChat:true, statusPrefix:'Saved'}),

@@ -1,11 +1,13 @@
 """Dataset-scoped patient lookup and sample inventory, without matrix scans."""
 import csv
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.auth import require_authenticated
+from app.bff import relative_study_days, get_patient_context
 from app.datasets import get_dataset
 from app.query_store import (
     _connect, _relation_exists, _assay_manifest_items_for_root,
@@ -24,7 +26,7 @@ def sources(request, workspace):
              str((get_dataset(identifier) or {}).get('name') or identifier)) for identifier in ids]
 
 
-def lookup(root, term, limit=12, exact=False):
+def lookup(root, term, limit=12, exact=False, after=''):
     ensure_query_store(root)
     con = _connect(root)
     try:
@@ -33,9 +35,16 @@ def lookup(root, term, limit=12, exact=False):
         human = "coalesce(c.human_id, '')" if has_clarids else "''"
         predicate = 'p.patient_id = ?' if exact else f'(contains(lower(p.patient_id), lower(?)) OR contains(lower({human}), lower(?)))'
         params = [term] if exact else [term, term]
-        rows = con.execute(f'''SELECT p.patient_id, p.sex, p.visit_count, {human}
+        if after:
+            predicate += ' AND p.patient_id > ?'
+            params.append(after)
+        diagnoses = ("(SELECT string_agg(DISTINCT d.disease, ', ' ORDER BY d.disease) "
+                     "FROM patient_diseases d WHERE d.patient_id = p.patient_id)"
+                     if _relation_exists(con, 'patient_diseases') else "''")
+        rows = con.execute(f'''SELECT p.patient_id, p.sex, p.visit_count, {human}, {diagnoses}
             FROM patients p {join} WHERE {predicate} ORDER BY p.patient_id LIMIT ?''', params + [limit]).fetchall()
-        return [dict(patient_id=r[0], sex=r[1], clinical_record_count=r[2], clarid=r[3]) for r in rows]
+        return [dict(patient_id=r[0], sex=r[1], clinical_record_count=r[2], clarid=r[3],
+                     diagnosis=r[4] or '') for r in rows]
     finally:
         con.close()
 
@@ -88,8 +97,9 @@ def sample_inventory(root, patient_id=None, include_imaging=False):
                 meta = metadata.get(sid, {})
                 rows.append(dict(patient_id=links['links'][sid], sample_id=sid, assay_id=assay_id, assay=label,
                     modality=item.get('modality') or 'assay', data_type=item.get('data_type') or 'Not recorded',
-                    linkage=links['linkage_source'], visit=meta.get('visit_id') or '',
-                    collection_date=meta.get('collection_date') or '', material=meta.get('material') or '',
+                    linkage=links['linkage_source'], visit=meta.get('visit_id') or meta.get('timepoint') or '',
+                    days_from_baseline=relative_study_days(meta),
+                    collection_date=meta.get('collection_date') or '', material=meta.get('material') or meta.get('specimen_type') or '',
                     sample_clarid=meta.get('clarid') or ''))
         except (OSError, ValueError, UnicodeError, csv.Error, StopIteration):
             warnings.append(f'{label}: sample inventory unavailable; not included in counts.')
@@ -122,21 +132,25 @@ def timeline(request: Request, workspace: str):
 
 
 @router.get('/search')
-def search(request: Request, workspace: str, q: str = Query('', max_length=150)):
+def search(request: Request, workspace: str, q: str = Query('', max_length=150),
+           dataset_index: int = Query(0, ge=0), after: str = Query('', max_length=1000)):
     available = sources(request, workspace)
-    if not q.strip():
-        return {'matches': []}
     matches = []
     try:
-        for identifier, root, label in available:
-            remaining = 12 - len(matches)
+        for index, (identifier, root, label) in enumerate(available):
+            if index < dataset_index:
+                continue
+            remaining = 21 - len(matches)
             if not remaining:
                 break
-            matches.extend(dict(row, dataset_id=identifier, dataset_label=label)
-                           for row in lookup(root, q.strip(), remaining))
+            matches.extend(dict(row, dataset_id=identifier, dataset_label=label, dataset_index=index)
+                           for row in lookup(root, q.strip(), remaining,
+                                             after=after if index == dataset_index else ''))
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient search is unavailable until the dataset stores are ready.') from None
-    return {'matches': matches}
+    cursor = ({'dataset_index': matches[19]['dataset_index'], 'after': matches[19]['patient_id']}
+              if len(matches) > 20 else None)
+    return {'matches': matches[:20], 'next': cursor}
 
 
 @router.get('/coverage')
@@ -184,3 +198,36 @@ def detail(request: Request, workspace: str, dataset_id: str, patient_id: str = 
         raise HTTPException(409, 'Patient data are unavailable until the dataset store is ready.') from None
     return dict(patient=patients[0], dataset_id=dataset_id, dataset_label=label,
                 samples=rows, warnings=warnings)
+
+
+@router.get('/clinical')
+def clinical_records(request: Request, workspace: str, dataset_id: str,
+                     patient_id: str = Query(max_length=512), offset: int = Query(0, ge=0),
+                     visit_id: str = Query('', max_length=1000)):
+    available = {identifier: root for identifier, root, _ in sources(request, workspace)}
+    if dataset_id not in available:
+        raise HTTPException(403, 'Select an authorized dataset in the active workspace.')
+    root = available[dataset_id]
+    try:
+        ensure_query_store(root)
+        patient = get_patient_context(root, patient_id)
+    except (FileNotFoundError, QueryStoreNotReadyError):
+        raise HTTPException(409, 'Patient records are unavailable until the dataset store is ready.') from None
+    if patient is None:
+        raise HTTPException(404, 'Patient not found in this dataset.')
+    visits = [v for v in patient.visits if not visit_id or v.visit_id == visit_id]
+    # Sort before pagination: V2 belongs before V10, even across page boundaries.
+    visits.sort(key=lambda v: (
+        not bool(v.visit_id),
+        [(1, int(part)) if part.isdigit() else (0, part.casefold())
+         for part in re.split(r'(\d+)', v.visit_id or '')],
+        v.provenance.raw_bff.get('id', ''),
+    ))
+    records = [
+        dict(visit_id=visit.visit_id, event_date=visit.event_date,
+             days_from_baseline=relative_study_days(visit.provenance.raw_bff.get('info') or {}),
+             record=visit.provenance.raw_bff)
+        for visit in visits[offset:offset + 20]
+    ]
+    return dict(records=records, total=len(visits),
+                next_offset=offset + 20 if offset + 20 < len(visits) else None)

@@ -188,7 +188,7 @@ export function createAuthUi(ctx) {
       datasetAdminControlsEl && datasetAdminControlsEl.classList.remove("is-hidden");
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
       adminTabBtnEl && adminTabBtnEl.classList.remove("is-hidden");
-      dataTabBtnEl && dataTabBtnEl.classList.remove("is-hidden");
+      dataTabBtnEl?.classList.remove("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.remove("is-hidden");
       modelsTabBtnEl && modelsTabBtnEl.classList.remove("is-hidden");
       usersCreateCardEl && usersCreateCardEl.classList.remove("is-hidden");
@@ -225,12 +225,12 @@ export function createAuthUi(ctx) {
       const admin = canManageDataset();
       datasetsTabBtnEl && datasetsTabBtnEl.classList.remove("is-hidden");
       adminTabBtnEl && adminTabBtnEl.classList.toggle("is-hidden", !admin);
-      dataTabBtnEl && dataTabBtnEl.classList.toggle("is-hidden", !admin);
+      dataTabBtnEl?.classList.toggle("is-hidden", !admin);
       usersTabBtnEl && usersTabBtnEl.classList.toggle("is-hidden", !admin);
       modelsTabBtnEl && modelsTabBtnEl.classList.toggle("is-hidden", !admin);
       datasetAdminControlsEl && datasetAdminControlsEl.classList.toggle("is-hidden", !admin);
       usersCreateCardEl && usersCreateCardEl.classList.toggle("is-hidden", !admin);
-      if (!admin && (currentTabName() === "data" || currentTabName() === "users" || currentTabName() === "models")) {
+      if (!admin && ["data", "users", "models"].includes(currentTabName())) {
         setActiveTab("datasets");
       }
       if (admin) {
@@ -243,7 +243,7 @@ export function createAuthUi(ctx) {
       }
       datasetsTabBtnEl && datasetsTabBtnEl.classList.add("is-hidden");
       adminTabBtnEl && adminTabBtnEl.classList.add("is-hidden");
-      dataTabBtnEl && dataTabBtnEl.classList.add("is-hidden");
+      dataTabBtnEl?.classList.add("is-hidden");
       usersTabBtnEl && usersTabBtnEl.classList.add("is-hidden");
       modelsTabBtnEl && modelsTabBtnEl.classList.add("is-hidden");
       datasetAdminControlsEl && datasetAdminControlsEl.classList.add("is-hidden");

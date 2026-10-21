@@ -44,3 +44,8 @@ Funding and institutional support are listed in
 [Acknowledgements](https://mrueda.github.io/cohortome/docs/about/acknowledgements).
 
 Licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE).
+
+COHORTome is pre-release research software, not a clinical decision system.
+For dependency and reference-data terms, see
+[Third-party notices](THIRD_PARTY_NOTICES.md). Report vulnerabilities privately
+using the [security policy](SECURITY.md).

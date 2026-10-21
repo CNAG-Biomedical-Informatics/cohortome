@@ -1056,6 +1056,12 @@ function bindEvents() {
   });
 
   refs.datasetAdminListEl && refs.datasetAdminListEl.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-dataset-remove]");
+    if (removeButton && refs.datasetAdminListEl.contains(removeButton)) {
+      event.preventDefault();
+      datasetsUi.removeDataset(removeButton.dataset.datasetRemove);
+      return;
+    }
     const button = event.target.closest("[data-dataset-save]");
     if (!button || !refs.datasetAdminListEl.contains(button)) {
       const prepareButton = event.target.closest("[data-dataset-prepare]");
@@ -1293,13 +1299,16 @@ function bindEvents() {
   refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => {
     if (refs.adminTabBtnEl.classList.contains("active")) {
       refs.adminTabBtnEl.setAttribute("aria-expanded", String(refs.adminTabBtnEl.getAttribute("aria-expanded") !== "true"));
-    } else navigationUi.setActiveTab("admin");
+    } else {
+      navigationUi.setActiveTab("admin");
+      if (navigationUi.currentTabName() === "models") void modelsAdminUi.loadModels();
+    }
   });
-  refs.dataTabBtnEl && refs.dataTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("data"));
   refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("users");
     void usersAdminUi.loadAuthUsers();
   });
+  refs.dataTabBtnEl?.addEventListener("click", () => navigationUi.setActiveTab("data"));
   refs.modelsTabBtnEl && refs.modelsTabBtnEl.addEventListener("click", () => {
     navigationUi.setActiveTab("models");
     void modelsAdminUi.loadModels();
@@ -1532,6 +1541,10 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") dashboardUi.closeClaridPopovers();
   });
+  window.addEventListener('resize', () => dashboardUi.closeClaridPopovers());
+  document.addEventListener('scroll', event => {
+    if (!event.target.closest?.('.clarid-popover')) dashboardUi.closeClaridPopovers();
+  }, true);
   refs.patientSearchEl && refs.patientSearchEl.addEventListener("input", () => {
     dashboardUi.renderPatientList(workspaceUi.filterPatients(refs.patientSearchEl.value));
   });
@@ -1800,7 +1813,7 @@ function applyStoredTabPreferences() {
       } else if (savedTab === "assays") {
         navigationUi.setDashboardSubtab("assays");
         navigationUi.setActiveTab("dashboard");
-      } else if ((savedTab === "data" || savedTab === "users" || savedTab === "models") && state.authState.enabled && !authUi.canManageDataset()) {
+      } else if (["data", "users", "models"].includes(savedTab) && state.authState.enabled && !authUi.canManageDataset()) {
         navigationUi.setActiveTab("datasets");
       } else {
         navigationUi.setActiveTab(savedTab);
@@ -1854,8 +1867,7 @@ async function bootstrap() {
       state.timelinePatientFilter = JSON.stringify([datasetId, patientId]);
       state.timelineDatasetFilter = ''; state.timelinePatientSearch = ''; state.timelinePage = 0;
       navigationUi.setDashboardSubtab('timeline');
-      if (state.currentDatasetIds.length === 1) await workspaceUi.loadPatient(patientId);
-      else dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
+      dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
     }});
   initializeUiShell();
   window.__cohortomeLoadPatients = (options) => workspaceUi.loadPatients(options);

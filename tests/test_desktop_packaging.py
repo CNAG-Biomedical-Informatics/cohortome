@@ -54,6 +54,20 @@ def test_stack_diagnostics_are_opt_in(tmp_path, monkeypatch):
     assert calls == [((60,), {"repeat": True})]
 
 
+def test_source_runtime_is_outside_checkout_and_separate_from_package(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("desktop_server_test", Path(__file__).parents[1] / "desktop/server.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(sys, "argv", ["backend"])
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    assert module.runtime_directory() == tmp_path / "org.cnag.cohortome.source-preview"
+    assert module.ROOT not in module.runtime_directory().parents
+    monkeypatch.setattr(sys, "frozen", True)
+    assert module.runtime_directory() == tmp_path / "org.cnag.cohortome.preview"
+
+
 def test_windows_resource_icon_exists():
     desktop = Path(__file__).parents[1] / "desktop"
     config = json.loads((desktop / "tauri.conf.json").read_text())
@@ -73,6 +87,7 @@ def load_packager():
 def test_only_application_and_bundled_fixtures_are_allowed():
     allowed = load_packager().allowed
     for name in ("app/routes.py", "templates/index.html", "static/app.js",
+                 "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md",
                  "default_dataset/clinical/example.json", "synthetic_autoimmune_demo/manifest.json",
                  "scripts/analysis_r_limma_voom_differential_expression.R"):
         assert allowed(name)
@@ -99,14 +114,15 @@ def pheno_runtime_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(module.sys, "platform", "linux")
     source = tmp_path / "runtime"
     hashes = {}
-    for name in ("bin/pheno-ranker", "perl/bin/perl", "inline/metrics.so"):
+    for name in ("bin/pheno-ranker", "bin/convert-pheno", "bin/clarid-tools", "perl/bin/perl", "inline/metrics.so"):
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"synthetic test executable")
         path.chmod(0o755)
         hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {"platform": "linux", "architecture": module.platform.machine(),
-                "perl": "5.42.3", "pheno_ranker": "1.09", "runtime_sha256": hashes}
+                "perl": "5.42.3", "tools": {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.04"},
+                "runtime_sha256": hashes}
     (source / "runtime-manifest.json").write_text(json.dumps(manifest))
     return module, source, manifest
 
@@ -114,13 +130,13 @@ def pheno_runtime_fixture(tmp_path, monkeypatch):
 def test_stage_verified_pheno_runtime(tmp_path, monkeypatch):
     module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
     engine = tmp_path / "engine"
-    assert module.stage_pheno_runtime(source, engine) == manifest
-    executable = engine / "runtimes/pheno/bin/pheno-ranker"
+    assert module.stage_perl_runtime(source, engine) == manifest
+    executable = engine / "runtimes/perl/bin/pheno-ranker"
     assert executable.read_bytes() == b"synthetic test executable"
     assert executable.stat().st_mode & 0o111
 
 
-@pytest.mark.parametrize("damage", ["checksum", "missing", "unlisted", "architecture", "platform", "symlink", "traversal"])
+@pytest.mark.parametrize("damage", ["checksum", "missing", "unlisted", "architecture", "platform", "symlink", "traversal", "tool_version", "tool_missing"])
 def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
     module, source, manifest = pheno_runtime_fixture(tmp_path, monkeypatch)
     if damage == "checksum":
@@ -137,9 +153,13 @@ def test_stage_pheno_rejects_invalid_runtime(tmp_path, monkeypatch, damage):
         (source / "external").symlink_to(tmp_path)
     elif damage == "traversal":
         manifest["runtime_sha256"]["../outside"] = "invalid"
+    elif damage == "tool_version":
+        manifest["tools"]["convert-pheno"] = "0.34"
+    elif damage == "tool_missing":
+        del manifest["runtime_sha256"]["bin/clarid-tools"]
     (source / "runtime-manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError):
-        module.stage_pheno_runtime(source, tmp_path / "engine")
+        module.stage_perl_runtime(source, tmp_path / "engine")
     assert not (tmp_path / "engine").exists()
 
 
@@ -155,7 +175,7 @@ def test_stage_other_platform_runtimes(tmp_path, monkeypatch, platform_name):
             path.write_bytes(b"synthetic Windows fixture")
             manifest["runtime_sha256"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
     (source / "runtime-manifest.json").write_text(json.dumps(manifest))
-    assert module.stage_pheno_runtime(source, tmp_path / "engine") == manifest
+    assert module.stage_perl_runtime(source, tmp_path / "engine") == manifest
 
 
 @pytest.mark.parametrize("platform", ["linux", "darwin", "win32"])
@@ -172,7 +192,9 @@ def test_frozen_server_selects_only_bundled_pheno(tmp_path, monkeypatch, platfor
                                              "OPENBLAS_NUM_THREADS": "8", "R_LIBS": "/host/library",
                                              "R_HOME": "/host/R", "R_PROFILE_USER": "/host/startup"})
     module.configure_environment(tmp_path / "state")
-    assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/pheno/bin/pheno-ranker")
+    assert module.os.environ["COHORTOME_PHENO_RANKER_BIN"] == str(tmp_path / "engine/runtimes/perl/bin/pheno-ranker")
+    assert module.os.environ["COHORTOME_CONVERT_PHENO_BIN"] == str(tmp_path / "engine/runtimes/perl/bin/convert-pheno")
+    assert module.os.environ["COHORTOME_CLARID_TOOLS_BIN"] == str(tmp_path / "engine/runtimes/perl/bin/clarid-tools")
     root = tmp_path / "engine/runtimes/r"
     entrypoint = "R/bin/x64/Rscript.exe" if platform == "win32" else "bin/Rscript"
     assert module.os.environ["COHORTOME_RSCRIPT_BIN"] == str(root / entrypoint)

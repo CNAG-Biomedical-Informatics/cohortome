@@ -29,5 +29,7 @@ native.env
 /build/
 /cohortome.egg-info/
 /PROJECT.md
+/AGENTS.md
 /SESSION_NOTES.md
 /README
+/pdf/

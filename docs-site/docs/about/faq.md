@@ -85,7 +85,7 @@ those derived features with clinical and assay data.
 <summary>Are the bundled MRI images realistic multiple-sclerosis scans?</summary>
 
 No. Their metadata exercises an MS brain-MRI workflow, but the visible pixels
-are derived from pydicom test data. They are smoke-test fixtures for DICOM
+are generated procedurally without patient images. They are smoke-test fixtures for DICOM
 linkage and OHIF rendering, not medically realistic MS images or scientific
 evidence.
 

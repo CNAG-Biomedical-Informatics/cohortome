@@ -14,6 +14,13 @@ from app.main import search_medication_cohort
 from bff_test_helpers import write_json
 
 
+def test_snapshot_visit_id_in_info():
+    from app.bff import extract_visit_id
+    assert extract_visit_id(
+        {"id": "patient:other", "info": {"visit_id": "visit_1_week_2"}}, "fallback"
+    ) == "visit_1_week_2"
+
+
 def test_default_branding_uses_cohortome_and_keeps_instance_override(monkeypatch):
     monkeypatch.delenv("COHORTOME_BRAND_NAME", raising=False)
     monkeypatch.delenv("COHORTOME_BRAND_LOGO_ALT", raising=False)

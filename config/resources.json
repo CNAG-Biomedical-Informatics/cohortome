@@ -1,0 +1,168 @@
+[
+  {
+    "dataset_id": "gse85034",
+    "name": "GSE85034 — psoriasis treatment study",
+    "version": "0.1.0-preview",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 42972187,
+    "description": "30 participants, longitudinal PASI scores and 179 skin-biopsy microarrays. Downloaded from GEO and prepared on this machine.",
+    "modalities": "Clinical, transcriptomics",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics"
+    ],
+    "terms": "Downloads the processed study product directly from NCBI GEO. Review GEO and study-specific terms and cite the original study. Public access is not a blanket redistribution licence. No data are downloaded from COHORTome Store.",
+    "source_page": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE85034",
+    "source_policy_url": "https://www.ncbi.nlm.nih.gov/geo/info/disclaimer.html",
+    "review_statement": "I have reviewed the source information and applicable usage conditions.",
+    "source_label": "NCBI GEO",
+    "source_policy_label": "GEO usage policy"
+  },
+  {
+    "dataset_id": "default",
+    "name": "Default synthetic dataset",
+    "synthetic": true,
+    "version": "0.1.1-preview",
+    "description": "38 fictional participants with longitudinal clinical records and assay examples.",
+    "modalities": "Clinical, molecular and imaging examples",
+    "modality_keys": [
+      "clinical",
+      "assay",
+      "imaging"
+    ],
+    "terms": "Synthetic preview. Source and asset terms require review before public redistribution.",
+    "archive_bytes": 872852,
+    "archive_sha256": "f78c0492a57cf40d2c30e8da20e5f49a5e6282a5e33e7315dc69f306b59b6211"
+  },
+  {
+    "dataset_id": "synthetic-autoimmune-demo",
+    "name": "Synthetic autoimmune demo",
+    "synthetic": true,
+    "version": "0.1.1-preview",
+    "description": "90 fictional participants: rheumatoid arthritis, lupus and controls.",
+    "modalities": "Clinical, transcriptomics, methylation, immune cells, serology",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics",
+      "methylation",
+      "flow_cytometry",
+      "serology"
+    ],
+    "terms": "Independently simulated values, not biological evidence. Public redistribution review pending.",
+    "archive_bytes": 1283868,
+    "archive_sha256": "eb461c2df1ee8538baa74aa0bfed2e3afea770f14e88c4b38f33d1d15762be8d"
+  },
+  {
+    "dataset_id": "ibdmdb",
+    "name": "IBDMDB processed multi-omics",
+    "version": "0.1.0-preview",
+    "description": "112 participants, 898 clinical snapshots, 224 clinical measurements and subject ClarIDs.",
+    "modalities": "Clinical, metabolomics, metaproteomics, serology",
+    "modality_keys": [
+      "clinical",
+      "metabolomics",
+      "proteomics",
+      "serology"
+    ],
+    "terms": "Downloads the original processed HMP2 products directly from IBDMDB and prepares them locally. Review the consortium data-access statement and study-specific conditions; cite the original study. No data are downloaded from COHORTome Store.",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 154968495,
+    "source_label": "IBDMDB",
+    "source_page": "https://ibdmdb.org/results",
+    "source_policy_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6784865/",
+    "source_policy_label": "Consortium data-access statement",
+    "review_statement": "I have reviewed the source information and applicable usage conditions."
+  },
+  {
+    "dataset_id": "gse117239",
+    "name": "GSE117239 — psoriasis treatment study",
+    "version": "0.1.0-preview",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 58860640,
+    "description": "89 participants, 246 clinical snapshots and 324 skin-biopsy microarrays. Downloaded from GEO and prepared locally.",
+    "modalities": "Clinical, transcriptomics",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics"
+    ],
+    "terms": "Downloads the processed study product directly from NCBI GEO. Review GEO and study-specific terms and cite the original study. Public access is not a blanket redistribution licence.",
+    "source_label": "NCBI GEO",
+    "source_page": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE117239",
+    "source_policy_url": "https://www.ncbi.nlm.nih.gov/geo/info/disclaimer.html",
+    "source_policy_label": "GEO usage policy",
+    "review_statement": "I have reviewed the source information and applicable usage conditions."
+  },
+  {
+    "dataset_id": "gse191328",
+    "name": "GSE191328 — longitudinal IBD RNA-seq",
+    "version": "0.1.0-preview",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 915101689,
+    "description": "53 participants and 201 blood RNA-seq samples. Original featureCounts, clinical visits and subject ClarIDs.",
+    "modalities": "Clinical, transcriptomics",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics"
+    ],
+    "terms": "Downloads the reviewed processed products from their original providers and prepares them locally. Review each source's usage conditions and cite the original study. Public access is not a blanket redistribution licence.",
+    "source_label": "NCBI GEO",
+    "source_page": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE191328",
+    "source_policy_url": "https://www.ncbi.nlm.nih.gov/geo/info/disclaimer.html",
+    "source_policy_label": "GEO usage policy",
+    "review_statement": "I have reviewed the source information and applicable usage conditions."
+  },
+  {
+    "dataset_id": "gse42296",
+    "name": "GSE42296 — Crohn/RA treatment study",
+    "version": "0.1.0-preview",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 8777311,
+    "description": "39 participants and 78 paired microarrays before and after infliximab. Original GEO processed values.",
+    "modalities": "Clinical, transcriptomics",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics"
+    ],
+    "terms": "Downloads the reviewed processed products from their original providers and prepares them locally. Review each source's usage conditions and cite the original study. Public access is not a blanket redistribution licence.",
+    "source_label": "NCBI GEO",
+    "source_page": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE42296",
+    "source_policy_url": "https://www.ncbi.nlm.nih.gov/geo/info/disclaimer.html",
+    "source_policy_label": "GEO usage policy",
+    "review_statement": "I have reviewed the source information and applicable usage conditions."
+  },
+  {
+    "dataset_id": "gse68310",
+    "name": "GSE68310 — respiratory infection and recovery",
+    "version": "0.1.0-preview",
+    "install_mode": "source",
+    "recipe_version": 1,
+    "source_bytes": 339657438,
+    "description": "133 participants and 880 observations. Harmonized expression, original clinical metadata and subject ClarIDs.",
+    "modalities": "Clinical, transcriptomics",
+    "modality_keys": [
+      "clinical",
+      "transcriptomics"
+    ],
+    "terms": "Three separately sourced inputs: HR-VILAGE expression (CC BY 4.0 dataset-card declaration), older RIGEL metadata (MIT dataset-card declaration), and original GEO phenotype metadata. Review each linked source and its notices; no single licence is assigned to the combined package.",
+    "source_label": "GEO and HR-VILAGE",
+    "source_page": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE68310",
+    "source_policy_url": "https://www.ncbi.nlm.nih.gov/geo/info/disclaimer.html",
+    "source_policy_label": "GEO usage policy",
+    "review_statement": "I have reviewed the source information and applicable usage conditions.",
+    "additional_source_links": [
+      {
+        "label": "HR-VILAGE expression: CC BY 4.0 source declaration",
+        "url": "https://huggingface.co/datasets/xuejun72/HR-VILAGE-3K3M/blob/c68349578b97af04d1102eac5ad9f30f85362c53/README.md"
+      },
+      {
+        "label": "Earlier metadata: MIT source declaration",
+        "url": "https://huggingface.co/datasets/xuejun72/HR-VILAGE-3K3M/blob/9d84762f55e61062156f77b3b5bca97900a45951/README.md"
+      }
+    ]
+  }
+]

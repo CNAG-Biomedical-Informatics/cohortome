@@ -20,6 +20,7 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
   const checks = {align:'phenoAlign', render_heatmap:'phenoRenderHeatmap', render_mds:'phenoRenderMds', render_graph:'phenoRenderGraph'};
   function setup() {
     const data = Object.fromEntries(Object.entries(fields).map(([key,id]) => [key, document.getElementById(id)?.value || '']));
+    data.patient_id = pheno.getPatientTargetId();
     Object.entries(checks).forEach(([key,id]) => {data[key] = Boolean(document.getElementById(id)?.checked);});
     for (const [key,id] of [['include_terms','phenoIncludeTerms'], ['exclude_terms','phenoExcludeTerms']])
       data[key] = (document.getElementById(id)?.value || '').split(',').map(s => s.trim()).filter(Boolean);

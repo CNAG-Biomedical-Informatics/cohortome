@@ -1,4 +1,4 @@
-# Python 3.12 Linux/macOS packaging tests. R/Perl/UMAP are a later increment.
+# Python 3.12 packaging tests. Perl/R are separate bundles; UMAP has its own requirements.
 altgraph==0.17.5
 annotated-types==0.8.0
 anyio==4.15.1
@@ -20,6 +20,9 @@ MarkupSafe==3.0.4
 numpy==2.5.4; sys_platform != "darwin" or platform_machine != "x86_64"
 numpy==2.3.5; sys_platform == "darwin" and platform_machine == "x86_64"
 packaging==26.3
+pandas==2.2.3
+pytz==2025.2
+tzdata==2025.2
 pydantic==2.10.6
 pydantic_core==2.27.2
 pydicom==3.0.2

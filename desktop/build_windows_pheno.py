@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 
-from build_unix_pheno import fetch_source, test_relocated, write_manifest
+from build_unix_pheno import TOOLS, fetch_source, retain_notices, test_relocated, write_manifest
 
 
 def main():
@@ -47,15 +47,21 @@ def main():
         work = Path(temporary)
         cpanm = fetch_source("cpanm", work, sources)
         pheno = fetch_source("pheno", work, sources)
+        convert = fetch_source("convert", work, sources)
+        clarid = fetch_source("clarid", work, sources)
+        net_idn = fetch_source("net_idn", work, sources)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("PERL", "PHENO_RANKER_"))}
         env.update(PERL_CPANM_HOME=str(work / "cpanm"))
         env["PATH"] = os.pathsep.join([str(prefix / "site/bin"), str(prefix / "bin"),
                                       str(Path(compiler).parent), env.get("PATH", "")])
         # cpanm recognizes '.' as a local distribution; a drive-letter path
         # with backslashes can instead be parsed as a CPAN module name.
-        subprocess.run([perl, str(cpanm / "bin/cpanm"), "--notest", "--mirror",
-                        "https://cpan.metacpan.org", "--mirror-only", "--save-dists", str(sources),
-                        "File::HomeDir", "."], cwd=pheno, env=env, check=True)
+        # Same Perl 5.42 compatibility patch as Convert-Pheno Desktop, installed first.
+        for source in (net_idn, pheno, convert, clarid):
+            subprocess.run([perl, str(cpanm / "bin/cpanm"), "--notest", "--mirror",
+                            "https://cpan.metacpan.org", "--mirror-only", "--save-dists", str(sources),
+                            "File::HomeDir", "."], cwd=source, env=env, check=True)
+        retain_notices(output, [pheno, convert, clarid, net_idn])
         staged = output / "perl"
         for name in ("bin", "lib", "site", "vendor"):
             if (prefix / name).is_dir():
@@ -64,12 +70,15 @@ def main():
         for dll in Path(compiler).resolve().parent.glob("*.dll"):
             shutil.copy2(dll, staged / "bin" / dll.name)
         # CPAN installs commands under site/bin on Strawberry; use one fixed location.
-        candidates = [staged / "site/bin/pheno-ranker", staged / "bin/pheno-ranker"]
-        script = next((p for p in candidates if p.is_file()), None)
-        if script is None:
-            raise RuntimeError("CPAN did not install the Pheno-Ranker script")
-        if script != staged / "bin/pheno-ranker":
-            shutil.copy2(script, staged / "bin/pheno-ranker")
+        (output / "bin").mkdir()
+        for tool in TOOLS:
+            candidates = [staged / "site/bin" / tool, staged / "bin" / tool]
+            script = next((p for p in candidates if p.is_file()), None)
+            if script is None:
+                raise RuntimeError(f"CPAN did not install {tool}")
+            if script != staged / "bin" / tool:
+                shutil.copy2(script, staged / "bin" / tool)
+            shutil.copy2(script, output / "bin" / tool)
         env["PHENO_RANKER_INLINE_DIR"] = str(output / "inline")
         subprocess.run([str(staged / "bin/perl.exe"), "-MPheno::Ranker::Metrics", "-e",
                         "die 'Bad metric' unless Pheno::Ranker::Metrics::hd_fast('01','11') == 1"],
@@ -77,8 +86,6 @@ def main():
         scratch = output / "inline/build"
         if scratch.exists():
             shutil.rmtree(scratch)
-        (output / "bin").mkdir()
-        shutil.copy2(staged / "bin/pheno-ranker", output / "bin/pheno-ranker")
         test_relocated(output, pheno / "t/data/individuals.json", work)
         write_manifest(output, version)
     shutil.make_archive(str(output), "zip", root_dir=output.parent, base_dir=output.name)

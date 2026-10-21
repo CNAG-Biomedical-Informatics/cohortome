@@ -8,7 +8,6 @@ export function createNavigationUi(ctx) {
     cohortsTabBtnEl,
     cohortsTabEl,
     adminTabBtnEl,
-    dataTabBtnEl,
     usersTabBtnEl,
     modelsTabBtnEl,
     queryTabBtnEl,
@@ -24,7 +23,6 @@ export function createNavigationUi(ctx) {
     tabHelperTextEl,
     dashboardTabEl,
     datasetsTabEl,
-    dataTabEl,
     usersTabEl,
     modelsTabEl,
     queryTabEl,
@@ -98,17 +96,19 @@ export function createNavigationUi(ctx) {
     cohortsTabBtnEl?.classList.toggle('active', showCohorts);
     cohortsTabBtnEl?.setAttribute('aria-current', showCohorts ? 'page' : 'false');
     cohortsTabEl?.classList.toggle('active', showCohorts);
-    const showData = tabName === "data";
     const showUsers = tabName === "users";
     const showModels = tabName === "models";
+    const showData = tabName === "data";
     const showAdmin = showData || showUsers || showModels;
+    refs.dataTabBtnEl?.classList.toggle("active", showData);
+    refs.dataTabBtnEl?.setAttribute("aria-current", showData ? "page" : "false");
+    refs.dataTabEl?.classList.toggle("active", showData);
     const showQuery = tabName === "query";
     const showAnalysis = tabName === "analysis";
     const showPheno = tabName === "pheno";
     dashboardTabBtnEl && dashboardTabBtnEl.classList.toggle("active", showDashboard);
     datasetsTabBtnEl && datasetsTabBtnEl.classList.toggle("active", showDatasets);
     adminTabBtnEl && adminTabBtnEl.classList.toggle("active", showAdmin);
-    dataTabBtnEl && dataTabBtnEl.classList.toggle("active", showData);
     usersTabBtnEl && usersTabBtnEl.classList.toggle("active", showUsers);
     modelsTabBtnEl && modelsTabBtnEl.classList.toggle("active", showModels);
     queryTabBtnEl && queryTabBtnEl.classList.toggle("active", showQuery);
@@ -119,7 +119,6 @@ export function createNavigationUi(ctx) {
     datasetsTabBtnEl && datasetsTabBtnEl.setAttribute("aria-current", showDatasets ? "page" : "false");
     adminTabBtnEl && adminTabBtnEl.setAttribute("aria-current", showAdmin ? "page" : "false");
     adminTabBtnEl && adminTabBtnEl.setAttribute("aria-expanded", showAdmin ? "true" : "false");
-    dataTabBtnEl && dataTabBtnEl.setAttribute("aria-current", showData ? "page" : "false");
     usersTabBtnEl && usersTabBtnEl.setAttribute("aria-current", showUsers ? "page" : "false");
     modelsTabBtnEl && modelsTabBtnEl.setAttribute("aria-current", showModels ? "page" : "false");
     queryTabBtnEl && queryTabBtnEl.setAttribute("aria-current", showQuery ? "page" : "false");
@@ -127,7 +126,6 @@ export function createNavigationUi(ctx) {
     phenoTabBtnEl && phenoTabBtnEl.setAttribute("aria-current", showPheno ? "page" : "false");
     dashboardTabEl && dashboardTabEl.classList.toggle("active", showDashboard);
     datasetsTabEl && datasetsTabEl.classList.toggle("active", showDatasets);
-    dataTabEl && dataTabEl.classList.toggle("active", showData);
     usersTabEl && usersTabEl.classList.toggle("active", showUsers);
     modelsTabEl && modelsTabEl.classList.toggle("active", showModels);
     queryTabEl && queryTabEl.classList.toggle("active", showQuery);
@@ -175,10 +173,10 @@ export function createNavigationUi(ctx) {
   }
 
   function currentTabName() {
+    if (refs.dataTabEl?.classList.contains("active")) return "data";
     if (cohortsTabEl?.classList.contains('active')) return 'cohorts';
     if (phenoTabEl && phenoTabEl.classList.contains("active")) return "pheno";
     if (datasetsTabEl && datasetsTabEl.classList.contains("active")) return "datasets";
-    if (dataTabEl && dataTabEl.classList.contains("active")) return "data";
     if (usersTabEl && usersTabEl.classList.contains("active")) return "users";
     if (modelsTabEl && modelsTabEl.classList.contains("active")) return "models";
     if (dashboardTabEl && dashboardTabEl.classList.contains("active")) return "dashboard";

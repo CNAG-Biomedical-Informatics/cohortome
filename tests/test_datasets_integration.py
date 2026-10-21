@@ -214,7 +214,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     registry = [
         {
             "dataset_id": "default",
-            "name": "Default dataset",
+            "name": "Default synthetic dataset",
             "root_path": str(admin_root),
             "enabled": True,
             "visibility": "admin_only",
@@ -481,7 +481,7 @@ def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
             [
                 {
                     "dataset_id": "default",
-                    "name": "Default dataset",
+                    "name": "Default synthetic dataset",
                     "root_path": str(dataset_root),
                     "enabled": True,
                     "visibility": "all_authenticated",
@@ -719,7 +719,7 @@ def test_dataset_store_supports_concurrent_rebuild_requests(tmp_path, monkeypatc
             [
                 {
                     "dataset_id": "default",
-                    "name": "Default dataset",
+                    "name": "Default synthetic dataset",
                     "root_path": str(dataset_root),
                     "enabled": True,
                     "visibility": "all_authenticated",

@@ -36,6 +36,15 @@ export function initializeNavigationShell() {
   menu.setAttribute('role', 'dialog');
   menu.setAttribute('aria-label', 'Account and application settings');
   const account = sidebar.querySelector('.app-sidebar-account');
+  // Capture descendants before moving their parent into the detached menu.
+  // append(null) would otherwise insert the literal text "null".
+  const accountMenuItems = [
+    account,
+    document.getElementById('userSettingsBtn'),
+    document.getElementById('adminTabBtn').closest('.app-nav-group'),
+    sidebar.querySelector('.app-sidebar-help'),
+    document.getElementById('heroLogoutBtn'),
+  ];
   const avatarButton = document.createElement('button');
   avatarButton.id = 'accountMenuButton';
   avatarButton.type = 'button';
@@ -43,11 +52,7 @@ export function initializeNavigationShell() {
   avatarButton.setAttribute('aria-expanded', 'false');
   avatarButton.setAttribute('aria-controls', menu.id);
   avatarButton.append(document.getElementById('accountAvatar'));
-  menu.append(account);
-  menu.append(document.getElementById('userSettingsBtn'));
-  menu.append(document.getElementById('adminTabBtn').closest('.app-nav-group'));
-  menu.append(sidebar.querySelector('.app-sidebar-help'));
-  menu.append(document.getElementById('heroLogoutBtn'));
+  menu.append(...accountMenuItems.filter(Boolean));
   rail.append(avatarButton);
   workbench.prepend(rail);
   document.body.append(menu);
@@ -55,6 +60,9 @@ export function initializeNavigationShell() {
   workbench.classList.add('has-icon-rail');
   initializeChatResize(workbench, sidebar);
   function setOpen(open, restoreFocus = false) {
+    // Close the higher settings layer before opening this menu. Its click
+    // bubbles to the outside-click handler, so it must happen first.
+    if (open) document.getElementById('userSettingsCloseBtn')?.click();
     menu.hidden = !open;
     avatarButton.setAttribute('aria-expanded', String(open));
     if (open) {

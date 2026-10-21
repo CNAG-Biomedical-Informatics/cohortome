@@ -1,39 +1,39 @@
 unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id,condition_name
-HC031,31,CNAG-Test,Control,Z00.0,Female,Age30to39,CNAG_Test-00031-Control-Z00.0-Female-A30_39,CT00VNBiR01FA3,Encounter for general adult medical examination
-HC032,32,CNAG-Test,Control,Z00.0,Male,Age40to49,CNAG_Test-00032-Control-Z00.0-Male-A40_49,CT00WNBiR01MA4,Encounter for general adult medical examination
-HC033,33,CNAG-Test,Control,Z00.0,Female,Age40to49,CNAG_Test-00033-Control-Z00.0-Female-A40_49,CT00XNBiR01FA4,Encounter for general adult medical examination
-HC034,34,CNAG-Test,Control,Z00.0,Male,Age50to59,CNAG_Test-00034-Control-Z00.0-Male-A50_59,CT00YNBiR01MA5,Encounter for general adult medical examination
-HC035,35,CNAG-Test,Control,Z00.0,Female,Age60to69,CNAG_Test-00035-Control-Z00.0-Female-A60_69,CT00ZNBiR01FA6,Encounter for general adult medical examination
-HC036,36,CNAG-Test,Control,Z00.0,Male,Age70to79,CNAG_Test-00036-Control-Z00.0-Male-A70_79,CT00aNBiR01MA7,Encounter for general adult medical examination
-HC037,37,CNAG-Test,Control,Z00.0,Female,Age20to29,CNAG_Test-00037-Control-Z00.0-Female-A20_29,CT00bNBiR01FA2,Encounter for general adult medical examination
-HC038,38,CNAG-Test,Control,Z00.0,Male,Age30to39,CNAG_Test-00038-Control-Z00.0-Male-A30_39,CT00cNBiR01MA3,Encounter for general adult medical examination
-SYN001,1,CNAG-Test,Case,K50.9,Female,Age20to29,CNAG_Test-00001-Case-K50.9-Female-A20_29,CT001C3ad01FA2,"Crohn's disease, unspecified"
-SYN002,2,CNAG-Test,Case,K50.9,Male,Age30to39,CNAG_Test-00002-Case-K50.9-Male-A30_39,CT002C3ad01MA3,"Crohn's disease, unspecified"
-SYN003,3,CNAG-Test,Case,K50.9,Female,Age30to39,CNAG_Test-00003-Case-K50.9-Female-A30_39,CT003C3ad01FA3,"Crohn's disease, unspecified"
-SYN004,4,CNAG-Test,Case,K50.9,Male,Age40to49,CNAG_Test-00004-Case-K50.9-Male-A40_49,CT004C3ad01MA4,"Crohn's disease, unspecified"
-SYN005,5,CNAG-Test,Case,K50.9,Female,Age50to59,CNAG_Test-00005-Case-K50.9-Female-A50_59,CT005C3ad01FA5,"Crohn's disease, unspecified"
-SYN006,6,CNAG-Test,Case,K51.9,Male,Age60to69,CNAG_Test-00006-Case-K51.9-Male-A60_69,CT006C3bf01MA6,"Ulcerative colitis, unspecified"
-SYN007,7,CNAG-Test,Case,K51.9,Female,Age60to69,CNAG_Test-00007-Case-K51.9-Female-A60_69,CT007C3bf01FA6,"Ulcerative colitis, unspecified"
-SYN008,8,CNAG-Test,Case,K51.9,Male,Age70to79,CNAG_Test-00008-Case-K51.9-Male-A70_79,CT008C3bf01MA7,"Ulcerative colitis, unspecified"
-SYN009,9,CNAG-Test,Case,K51.9,Female,Age30to39,CNAG_Test-00009-Case-K51.9-Female-A30_39,CT009C3bf01FA3,"Ulcerative colitis, unspecified"
-SYN010,10,CNAG-Test,Case,K51.9,Male,Age30to39,CNAG_Test-00010-Case-K51.9-Male-A30_39,CT00AC3bf01MA3,"Ulcerative colitis, unspecified"
-SYN011,11,CNAG-Test,Case,G35,Female,Age40to49,CNAG_Test-00011-Case-G35-Female-A40_49,CT00BC1bW01FA4,Multiple sclerosis
-SYN012,12,CNAG-Test,Case,G35,Male,Age50to59,CNAG_Test-00012-Case-G35-Male-A50_59,CT00CC1bW01MA5,Multiple sclerosis
-SYN013,13,CNAG-Test,Case,G35,Female,Age50to59,CNAG_Test-00013-Case-G35-Female-A50_59,CT00DC1bW01FA5,Multiple sclerosis
-SYN014,14,CNAG-Test,Case,G35,Male,Age60to69,CNAG_Test-00014-Case-G35-Male-A60_69,CT00EC1bW01MA6,Multiple sclerosis
-SYN015,15,CNAG-Test,Case,M32.9,Female,Age70to79,CNAG_Test-00015-Case-M32.9-Female-A70_79,CT00FC4q801FA7,"Systemic lupus erythematosus, unspecified"
-SYN016,16,CNAG-Test,Case,M32.9,Male,Age30to39,CNAG_Test-00016-Case-M32.9-Male-A30_39,CT00GC4q801MA3,"Systemic lupus erythematosus, unspecified"
-SYN017,17,CNAG-Test,Case,M32.9,Female,Age30to39,CNAG_Test-00017-Case-M32.9-Female-A30_39,CT00HC4q801FA3,"Systemic lupus erythematosus, unspecified"
-SYN018,18,CNAG-Test,Case,M32.9,Male,Age40to49,CNAG_Test-00018-Case-M32.9-Male-A40_49,CT00IC4q801MA4,"Systemic lupus erythematosus, unspecified"
-SYN019,19,CNAG-Test,Case,M06.9,Female,Age50to59,CNAG_Test-00019-Case-M06.9-Female-A50_59,CT00JC4Fq01FA5,"Rheumatoid arthritis, unspecified"
-SYN020,20,CNAG-Test,Case,M06.9,Male,Age50to59,CNAG_Test-00020-Case-M06.9-Male-A50_59,CT00KC4Fq01MA5,"Rheumatoid arthritis, unspecified"
-SYN021,21,CNAG-Test,Case,M06.9,Female,Age60to69,CNAG_Test-00021-Case-M06.9-Female-A60_69,CT00LC4Fq01FA6,"Rheumatoid arthritis, unspecified"
-SYN022,22,CNAG-Test,Case,M06.9,Male,Age70to79,CNAG_Test-00022-Case-M06.9-Male-A70_79,CT00MC4Fq01MA7,"Rheumatoid arthritis, unspecified"
-SYN023,23,CNAG-Test,Case,J45.9,Female,Age20to29,CNAG_Test-00023-Case-J45.9-Female-A20_29,CT00NC3Ox01FA2,Other and unspecified asthma
-SYN024,24,CNAG-Test,Case,J45.9,Male,Age30to39,CNAG_Test-00024-Case-J45.9-Male-A30_39,CT00OC3Ox01MA3,Other and unspecified asthma
-SYN025,25,CNAG-Test,Case,J45.9,Female,Age40to49,CNAG_Test-00025-Case-J45.9-Female-A40_49,CT00PC3Ox01FA4,Other and unspecified asthma
-SYN026,26,CNAG-Test,Case,J45.9,Male,Age50to59,CNAG_Test-00026-Case-J45.9-Male-A50_59,CT00QC3Ox01MA5,Other and unspecified asthma
-SYN027,27,CNAG-Test,Case,J44.9,Female,Age50to59,CNAG_Test-00027-Case-J44.9-Female-A50_59,CT00RC3Of01FA5,"Chronic obstructive pulmonary disease, unspecified"
-SYN028,28,CNAG-Test,Case,J44.9,Male,Age60to69,CNAG_Test-00028-Case-J44.9-Male-A60_69,CT00SC3Of01MA6,"Chronic obstructive pulmonary disease, unspecified"
-SYN029,29,CNAG-Test,Case,J44.9,Female,Age70to79,CNAG_Test-00029-Case-J44.9-Female-A70_79,CT00TC3Of01FA7,"Chronic obstructive pulmonary disease, unspecified"
-SYN030,30,CNAG-Test,Case,J44.9,Male,Age20to29,CNAG_Test-00030-Case-J44.9-Male-A20_29,CT00UC3Of01MA2,"Chronic obstructive pulmonary disease, unspecified"
+HC031,31,COH-SYN,Control,Z00.0,Female,Age30to39,COH_SYN-00031-Control-Z00.0-Female-A30_39,CSD00VNBiR01FA3,Encounter for general adult medical examination
+HC032,32,COH-SYN,Control,Z00.0,Male,Age40to49,COH_SYN-00032-Control-Z00.0-Male-A40_49,CSD00WNBiR01MA4,Encounter for general adult medical examination
+HC033,33,COH-SYN,Control,Z00.0,Female,Age40to49,COH_SYN-00033-Control-Z00.0-Female-A40_49,CSD00XNBiR01FA4,Encounter for general adult medical examination
+HC034,34,COH-SYN,Control,Z00.0,Male,Age50to59,COH_SYN-00034-Control-Z00.0-Male-A50_59,CSD00YNBiR01MA5,Encounter for general adult medical examination
+HC035,35,COH-SYN,Control,Z00.0,Female,Age60to69,COH_SYN-00035-Control-Z00.0-Female-A60_69,CSD00ZNBiR01FA6,Encounter for general adult medical examination
+HC036,36,COH-SYN,Control,Z00.0,Male,Age70to79,COH_SYN-00036-Control-Z00.0-Male-A70_79,CSD00aNBiR01MA7,Encounter for general adult medical examination
+HC037,37,COH-SYN,Control,Z00.0,Female,Age20to29,COH_SYN-00037-Control-Z00.0-Female-A20_29,CSD00bNBiR01FA2,Encounter for general adult medical examination
+HC038,38,COH-SYN,Control,Z00.0,Male,Age30to39,COH_SYN-00038-Control-Z00.0-Male-A30_39,CSD00cNBiR01MA3,Encounter for general adult medical examination
+SYN001,1,COH-SYN,Case,K50.9,Female,Age20to29,COH_SYN-00001-Case-K50.9-Female-A20_29,CSD001C3ad01FA2,"Crohn's disease, unspecified"
+SYN002,2,COH-SYN,Case,K50.9,Male,Age30to39,COH_SYN-00002-Case-K50.9-Male-A30_39,CSD002C3ad01MA3,"Crohn's disease, unspecified"
+SYN003,3,COH-SYN,Case,K50.9,Female,Age30to39,COH_SYN-00003-Case-K50.9-Female-A30_39,CSD003C3ad01FA3,"Crohn's disease, unspecified"
+SYN004,4,COH-SYN,Case,K50.9,Male,Age40to49,COH_SYN-00004-Case-K50.9-Male-A40_49,CSD004C3ad01MA4,"Crohn's disease, unspecified"
+SYN005,5,COH-SYN,Case,K50.9,Female,Age50to59,COH_SYN-00005-Case-K50.9-Female-A50_59,CSD005C3ad01FA5,"Crohn's disease, unspecified"
+SYN006,6,COH-SYN,Case,K51.9,Male,Age60to69,COH_SYN-00006-Case-K51.9-Male-A60_69,CSD006C3bf01MA6,"Ulcerative colitis, unspecified"
+SYN007,7,COH-SYN,Case,K51.9,Female,Age60to69,COH_SYN-00007-Case-K51.9-Female-A60_69,CSD007C3bf01FA6,"Ulcerative colitis, unspecified"
+SYN008,8,COH-SYN,Case,K51.9,Male,Age70to79,COH_SYN-00008-Case-K51.9-Male-A70_79,CSD008C3bf01MA7,"Ulcerative colitis, unspecified"
+SYN009,9,COH-SYN,Case,K51.9,Female,Age30to39,COH_SYN-00009-Case-K51.9-Female-A30_39,CSD009C3bf01FA3,"Ulcerative colitis, unspecified"
+SYN010,10,COH-SYN,Case,K51.9,Male,Age30to39,COH_SYN-00010-Case-K51.9-Male-A30_39,CSD00AC3bf01MA3,"Ulcerative colitis, unspecified"
+SYN011,11,COH-SYN,Case,G35,Female,Age40to49,COH_SYN-00011-Case-G35-Female-A40_49,CSD00BC1bW01FA4,Multiple sclerosis
+SYN012,12,COH-SYN,Case,G35,Male,Age50to59,COH_SYN-00012-Case-G35-Male-A50_59,CSD00CC1bW01MA5,Multiple sclerosis
+SYN013,13,COH-SYN,Case,G35,Female,Age50to59,COH_SYN-00013-Case-G35-Female-A50_59,CSD00DC1bW01FA5,Multiple sclerosis
+SYN014,14,COH-SYN,Case,G35,Male,Age60to69,COH_SYN-00014-Case-G35-Male-A60_69,CSD00EC1bW01MA6,Multiple sclerosis
+SYN015,15,COH-SYN,Case,M32.9,Female,Age70to79,COH_SYN-00015-Case-M32.9-Female-A70_79,CSD00FC4q801FA7,"Systemic lupus erythematosus, unspecified"
+SYN016,16,COH-SYN,Case,M32.9,Male,Age30to39,COH_SYN-00016-Case-M32.9-Male-A30_39,CSD00GC4q801MA3,"Systemic lupus erythematosus, unspecified"
+SYN017,17,COH-SYN,Case,M32.9,Female,Age30to39,COH_SYN-00017-Case-M32.9-Female-A30_39,CSD00HC4q801FA3,"Systemic lupus erythematosus, unspecified"
+SYN018,18,COH-SYN,Case,M32.9,Male,Age40to49,COH_SYN-00018-Case-M32.9-Male-A40_49,CSD00IC4q801MA4,"Systemic lupus erythematosus, unspecified"
+SYN019,19,COH-SYN,Case,M06.9,Female,Age50to59,COH_SYN-00019-Case-M06.9-Female-A50_59,CSD00JC4Fq01FA5,"Rheumatoid arthritis, unspecified"
+SYN020,20,COH-SYN,Case,M06.9,Male,Age50to59,COH_SYN-00020-Case-M06.9-Male-A50_59,CSD00KC4Fq01MA5,"Rheumatoid arthritis, unspecified"
+SYN021,21,COH-SYN,Case,M06.9,Female,Age60to69,COH_SYN-00021-Case-M06.9-Female-A60_69,CSD00LC4Fq01FA6,"Rheumatoid arthritis, unspecified"
+SYN022,22,COH-SYN,Case,M06.9,Male,Age70to79,COH_SYN-00022-Case-M06.9-Male-A70_79,CSD00MC4Fq01MA7,"Rheumatoid arthritis, unspecified"
+SYN023,23,COH-SYN,Case,J45.9,Female,Age20to29,COH_SYN-00023-Case-J45.9-Female-A20_29,CSD00NC3Ox01FA2,Other and unspecified asthma
+SYN024,24,COH-SYN,Case,J45.9,Male,Age30to39,COH_SYN-00024-Case-J45.9-Male-A30_39,CSD00OC3Ox01MA3,Other and unspecified asthma
+SYN025,25,COH-SYN,Case,J45.9,Female,Age40to49,COH_SYN-00025-Case-J45.9-Female-A40_49,CSD00PC3Ox01FA4,Other and unspecified asthma
+SYN026,26,COH-SYN,Case,J45.9,Male,Age50to59,COH_SYN-00026-Case-J45.9-Male-A50_59,CSD00QC3Ox01MA5,Other and unspecified asthma
+SYN027,27,COH-SYN,Case,J44.9,Female,Age50to59,COH_SYN-00027-Case-J44.9-Female-A50_59,CSD00RC3Of01FA5,"Chronic obstructive pulmonary disease, unspecified"
+SYN028,28,COH-SYN,Case,J44.9,Male,Age60to69,COH_SYN-00028-Case-J44.9-Male-A60_69,CSD00SC3Of01MA6,"Chronic obstructive pulmonary disease, unspecified"
+SYN029,29,COH-SYN,Case,J44.9,Female,Age70to79,COH_SYN-00029-Case-J44.9-Female-A70_79,CSD00TC3Of01FA7,"Chronic obstructive pulmonary disease, unspecified"
+SYN030,30,COH-SYN,Case,J44.9,Male,Age20to29,COH_SYN-00030-Case-J44.9-Male-A20_29,CSD00UC3Of01MA2,"Chronic obstructive pulmonary disease, unspecified"

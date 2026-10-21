@@ -2,6 +2,7 @@
 import json
 import mimetypes
 import gzip
+import sys
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
@@ -11,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from app.auth import require_authenticated
 from app.config import BASE_DIR
+from app.env import app_env
 from app.routes import _require_detailed_assay_access, _resolve_route_dataset_dir
 
 router = APIRouter(prefix='/local-viewer', tags=['dicom'])
@@ -108,7 +110,12 @@ def launch(request: Request, dataset_id: str, study_uid: str):
 def assets(request: Request, asset: str):
     require_authenticated(request)
     if asset == 'app-config.js':
+        # WebKitGTK can advertise WebGL2 yet draw a blank viewport in a VM.
+        # The bundled viewer currently serves only 2D synthetic stacks, for
+        # which OHIF's CPU renderer avoids that graphics-driver dependency.
+        cpu_rendering = sys.platform == 'linux' and app_env('COHORTOME_DESKTOP_MODE').strip().lower() in {'1', 'true', 'yes', 'on'}
         config = dict(routerBasename='/local-viewer', showStudyList=False,
+            useCPURendering=cpu_rendering,
             maxNumberOfWebWorkers=1, extensions=[], modes=['@ohif/mode-longitudinal'],
             dataSources=[dict(namespace='@ohif/extension-default.dataSourcesModule.dicomjson',
                              sourceName='dicomjson', configuration={})],

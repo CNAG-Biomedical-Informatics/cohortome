@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'user-guide/user-journeys',
         'user-guide/datasets',
+        'user-guide/install-datasets',
         'user-guide/synthetic-autoimmune-demo',
         'user-guide/dashboard',
         'user-guide/query',

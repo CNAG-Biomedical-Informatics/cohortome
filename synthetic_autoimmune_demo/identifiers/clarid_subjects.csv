@@ -1,91 +1,91 @@
 unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id,condition_name
-DEMOAI30001,30001,CNAG-Test,Case,M06.9,Male,Age20to29,CNAG_Test-30001-Case-M06.9-Male-A20_29,CT7ntC4Fq01MA2,"Rheumatoid arthritis, unspecified"
-DEMOAI30002,30002,CNAG-Test,Case,M06.9,Female,Age30to39,CNAG_Test-30002-Case-M06.9-Female-A30_39,CT7nuC4Fq01FA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30003,30003,CNAG-Test,Case,M06.9,Male,Age30to39,CNAG_Test-30003-Case-M06.9-Male-A30_39,CT7nvC4Fq01MA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30004,30004,CNAG-Test,Case,M06.9,Female,Age40to49,CNAG_Test-30004-Case-M06.9-Female-A40_49,CT7nwC4Fq01FA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30005,30005,CNAG-Test,Case,M06.9,Male,Age50to59,CNAG_Test-30005-Case-M06.9-Male-A50_59,CT7nxC4Fq01MA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30006,30006,CNAG-Test,Case,M06.9,Female,Age60to69,CNAG_Test-30006-Case-M06.9-Female-A60_69,CT7nyC4Fq01FA6,"Rheumatoid arthritis, unspecified"
-DEMOAI30007,30007,CNAG-Test,Case,M06.9,Male,Age20to29,CNAG_Test-30007-Case-M06.9-Male-A20_29,CT7nzC4Fq01MA2,"Rheumatoid arthritis, unspecified"
-DEMOAI30008,30008,CNAG-Test,Case,M06.9,Female,Age30to39,CNAG_Test-30008-Case-M06.9-Female-A30_39,CT7o0C4Fq01FA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30009,30009,CNAG-Test,Case,M06.9,Male,Age40to49,CNAG_Test-30009-Case-M06.9-Male-A40_49,CT7o1C4Fq01MA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30010,30010,CNAG-Test,Case,M06.9,Female,Age40to49,CNAG_Test-30010-Case-M06.9-Female-A40_49,CT7o2C4Fq01FA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30011,30011,CNAG-Test,Case,M06.9,Male,Age50to59,CNAG_Test-30011-Case-M06.9-Male-A50_59,CT7o3C4Fq01MA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30012,30012,CNAG-Test,Case,M06.9,Female,Age60to69,CNAG_Test-30012-Case-M06.9-Female-A60_69,CT7o4C4Fq01FA6,"Rheumatoid arthritis, unspecified"
-DEMOAI30013,30013,CNAG-Test,Case,M06.9,Male,Age20to29,CNAG_Test-30013-Case-M06.9-Male-A20_29,CT7o5C4Fq01MA2,"Rheumatoid arthritis, unspecified"
-DEMOAI30014,30014,CNAG-Test,Case,M06.9,Female,Age30to39,CNAG_Test-30014-Case-M06.9-Female-A30_39,CT7o6C4Fq01FA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30015,30015,CNAG-Test,Case,M06.9,Male,Age40to49,CNAG_Test-30015-Case-M06.9-Male-A40_49,CT7o7C4Fq01MA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30016,30016,CNAG-Test,Case,M06.9,Female,Age50to59,CNAG_Test-30016-Case-M06.9-Female-A50_59,CT7o8C4Fq01FA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30017,30017,CNAG-Test,Case,M06.9,Male,Age50to59,CNAG_Test-30017-Case-M06.9-Male-A50_59,CT7o9C4Fq01MA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30018,30018,CNAG-Test,Case,M06.9,Female,Age60to69,CNAG_Test-30018-Case-M06.9-Female-A60_69,CT7oAC4Fq01FA6,"Rheumatoid arthritis, unspecified"
-DEMOAI30019,30019,CNAG-Test,Case,M06.9,Male,Age30to39,CNAG_Test-30019-Case-M06.9-Male-A30_39,CT7oBC4Fq01MA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30020,30020,CNAG-Test,Case,M06.9,Female,Age30to39,CNAG_Test-30020-Case-M06.9-Female-A30_39,CT7oCC4Fq01FA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30021,30021,CNAG-Test,Case,M06.9,Male,Age40to49,CNAG_Test-30021-Case-M06.9-Male-A40_49,CT7oDC4Fq01MA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30022,30022,CNAG-Test,Case,M06.9,Female,Age50to59,CNAG_Test-30022-Case-M06.9-Female-A50_59,CT7oEC4Fq01FA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30023,30023,CNAG-Test,Case,M06.9,Male,Age50to59,CNAG_Test-30023-Case-M06.9-Male-A50_59,CT7oFC4Fq01MA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30024,30024,CNAG-Test,Case,M06.9,Female,Age20to29,CNAG_Test-30024-Case-M06.9-Female-A20_29,CT7oGC4Fq01FA2,"Rheumatoid arthritis, unspecified"
-DEMOAI30025,30025,CNAG-Test,Case,M06.9,Male,Age30to39,CNAG_Test-30025-Case-M06.9-Male-A30_39,CT7oHC4Fq01MA3,"Rheumatoid arthritis, unspecified"
-DEMOAI30026,30026,CNAG-Test,Case,M06.9,Female,Age40to49,CNAG_Test-30026-Case-M06.9-Female-A40_49,CT7oIC4Fq01FA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30027,30027,CNAG-Test,Case,M06.9,Male,Age40to49,CNAG_Test-30027-Case-M06.9-Male-A40_49,CT7oJC4Fq01MA4,"Rheumatoid arthritis, unspecified"
-DEMOAI30028,30028,CNAG-Test,Case,M06.9,Female,Age50to59,CNAG_Test-30028-Case-M06.9-Female-A50_59,CT7oKC4Fq01FA5,"Rheumatoid arthritis, unspecified"
-DEMOAI30029,30029,CNAG-Test,Case,M06.9,Male,Age60to69,CNAG_Test-30029-Case-M06.9-Male-A60_69,CT7oLC4Fq01MA6,"Rheumatoid arthritis, unspecified"
-DEMOAI30030,30030,CNAG-Test,Case,M06.9,Female,Age20to29,CNAG_Test-30030-Case-M06.9-Female-A20_29,CT7oMC4Fq01FA2,"Rheumatoid arthritis, unspecified"
-DEMOAI30031,30031,CNAG-Test,Case,M32.9,Male,Age20to29,CNAG_Test-30031-Case-M32.9-Male-A20_29,CT7oNC4q801MA2,"Systemic lupus erythematosus, unspecified"
-DEMOAI30032,30032,CNAG-Test,Case,M32.9,Female,Age30to39,CNAG_Test-30032-Case-M32.9-Female-A30_39,CT7oOC4q801FA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30033,30033,CNAG-Test,Case,M32.9,Male,Age30to39,CNAG_Test-30033-Case-M32.9-Male-A30_39,CT7oPC4q801MA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30034,30034,CNAG-Test,Case,M32.9,Female,Age40to49,CNAG_Test-30034-Case-M32.9-Female-A40_49,CT7oQC4q801FA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30035,30035,CNAG-Test,Case,M32.9,Male,Age50to59,CNAG_Test-30035-Case-M32.9-Male-A50_59,CT7oRC4q801MA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30036,30036,CNAG-Test,Case,M32.9,Female,Age60to69,CNAG_Test-30036-Case-M32.9-Female-A60_69,CT7oSC4q801FA6,"Systemic lupus erythematosus, unspecified"
-DEMOAI30037,30037,CNAG-Test,Case,M32.9,Male,Age20to29,CNAG_Test-30037-Case-M32.9-Male-A20_29,CT7oTC4q801MA2,"Systemic lupus erythematosus, unspecified"
-DEMOAI30038,30038,CNAG-Test,Case,M32.9,Female,Age30to39,CNAG_Test-30038-Case-M32.9-Female-A30_39,CT7oUC4q801FA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30039,30039,CNAG-Test,Case,M32.9,Male,Age40to49,CNAG_Test-30039-Case-M32.9-Male-A40_49,CT7oVC4q801MA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30040,30040,CNAG-Test,Case,M32.9,Female,Age40to49,CNAG_Test-30040-Case-M32.9-Female-A40_49,CT7oWC4q801FA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30041,30041,CNAG-Test,Case,M32.9,Male,Age50to59,CNAG_Test-30041-Case-M32.9-Male-A50_59,CT7oXC4q801MA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30042,30042,CNAG-Test,Case,M32.9,Female,Age60to69,CNAG_Test-30042-Case-M32.9-Female-A60_69,CT7oYC4q801FA6,"Systemic lupus erythematosus, unspecified"
-DEMOAI30043,30043,CNAG-Test,Case,M32.9,Male,Age20to29,CNAG_Test-30043-Case-M32.9-Male-A20_29,CT7oZC4q801MA2,"Systemic lupus erythematosus, unspecified"
-DEMOAI30044,30044,CNAG-Test,Case,M32.9,Female,Age30to39,CNAG_Test-30044-Case-M32.9-Female-A30_39,CT7oaC4q801FA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30045,30045,CNAG-Test,Case,M32.9,Male,Age40to49,CNAG_Test-30045-Case-M32.9-Male-A40_49,CT7obC4q801MA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30046,30046,CNAG-Test,Case,M32.9,Female,Age50to59,CNAG_Test-30046-Case-M32.9-Female-A50_59,CT7ocC4q801FA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30047,30047,CNAG-Test,Case,M32.9,Male,Age50to59,CNAG_Test-30047-Case-M32.9-Male-A50_59,CT7odC4q801MA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30048,30048,CNAG-Test,Case,M32.9,Female,Age60to69,CNAG_Test-30048-Case-M32.9-Female-A60_69,CT7oeC4q801FA6,"Systemic lupus erythematosus, unspecified"
-DEMOAI30049,30049,CNAG-Test,Case,M32.9,Male,Age30to39,CNAG_Test-30049-Case-M32.9-Male-A30_39,CT7ofC4q801MA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30050,30050,CNAG-Test,Case,M32.9,Female,Age30to39,CNAG_Test-30050-Case-M32.9-Female-A30_39,CT7ogC4q801FA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30051,30051,CNAG-Test,Case,M32.9,Male,Age40to49,CNAG_Test-30051-Case-M32.9-Male-A40_49,CT7ohC4q801MA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30052,30052,CNAG-Test,Case,M32.9,Female,Age50to59,CNAG_Test-30052-Case-M32.9-Female-A50_59,CT7oiC4q801FA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30053,30053,CNAG-Test,Case,M32.9,Male,Age50to59,CNAG_Test-30053-Case-M32.9-Male-A50_59,CT7ojC4q801MA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30054,30054,CNAG-Test,Case,M32.9,Female,Age20to29,CNAG_Test-30054-Case-M32.9-Female-A20_29,CT7okC4q801FA2,"Systemic lupus erythematosus, unspecified"
-DEMOAI30055,30055,CNAG-Test,Case,M32.9,Male,Age30to39,CNAG_Test-30055-Case-M32.9-Male-A30_39,CT7olC4q801MA3,"Systemic lupus erythematosus, unspecified"
-DEMOAI30056,30056,CNAG-Test,Case,M32.9,Female,Age40to49,CNAG_Test-30056-Case-M32.9-Female-A40_49,CT7omC4q801FA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30057,30057,CNAG-Test,Case,M32.9,Male,Age40to49,CNAG_Test-30057-Case-M32.9-Male-A40_49,CT7onC4q801MA4,"Systemic lupus erythematosus, unspecified"
-DEMOAI30058,30058,CNAG-Test,Case,M32.9,Female,Age50to59,CNAG_Test-30058-Case-M32.9-Female-A50_59,CT7ooC4q801FA5,"Systemic lupus erythematosus, unspecified"
-DEMOAI30059,30059,CNAG-Test,Case,M32.9,Male,Age60to69,CNAG_Test-30059-Case-M32.9-Male-A60_69,CT7opC4q801MA6,"Systemic lupus erythematosus, unspecified"
-DEMOAI30060,30060,CNAG-Test,Case,M32.9,Female,Age20to29,CNAG_Test-30060-Case-M32.9-Female-A20_29,CT7oqC4q801FA2,"Systemic lupus erythematosus, unspecified"
-DEMOAI30061,30061,CNAG-Test,Control,Z00.0,Male,Age20to29,CNAG_Test-30061-Control-Z00.0-Male-A20_29,CT7orNBiR01MA2,Encounter for general adult medical examination
-DEMOAI30062,30062,CNAG-Test,Control,Z00.0,Female,Age30to39,CNAG_Test-30062-Control-Z00.0-Female-A30_39,CT7osNBiR01FA3,Encounter for general adult medical examination
-DEMOAI30063,30063,CNAG-Test,Control,Z00.0,Male,Age30to39,CNAG_Test-30063-Control-Z00.0-Male-A30_39,CT7otNBiR01MA3,Encounter for general adult medical examination
-DEMOAI30064,30064,CNAG-Test,Control,Z00.0,Female,Age40to49,CNAG_Test-30064-Control-Z00.0-Female-A40_49,CT7ouNBiR01FA4,Encounter for general adult medical examination
-DEMOAI30065,30065,CNAG-Test,Control,Z00.0,Male,Age50to59,CNAG_Test-30065-Control-Z00.0-Male-A50_59,CT7ovNBiR01MA5,Encounter for general adult medical examination
-DEMOAI30066,30066,CNAG-Test,Control,Z00.0,Female,Age60to69,CNAG_Test-30066-Control-Z00.0-Female-A60_69,CT7owNBiR01FA6,Encounter for general adult medical examination
-DEMOAI30067,30067,CNAG-Test,Control,Z00.0,Male,Age20to29,CNAG_Test-30067-Control-Z00.0-Male-A20_29,CT7oxNBiR01MA2,Encounter for general adult medical examination
-DEMOAI30068,30068,CNAG-Test,Control,Z00.0,Female,Age30to39,CNAG_Test-30068-Control-Z00.0-Female-A30_39,CT7oyNBiR01FA3,Encounter for general adult medical examination
-DEMOAI30069,30069,CNAG-Test,Control,Z00.0,Male,Age40to49,CNAG_Test-30069-Control-Z00.0-Male-A40_49,CT7ozNBiR01MA4,Encounter for general adult medical examination
-DEMOAI30070,30070,CNAG-Test,Control,Z00.0,Female,Age40to49,CNAG_Test-30070-Control-Z00.0-Female-A40_49,CT7p0NBiR01FA4,Encounter for general adult medical examination
-DEMOAI30071,30071,CNAG-Test,Control,Z00.0,Male,Age50to59,CNAG_Test-30071-Control-Z00.0-Male-A50_59,CT7p1NBiR01MA5,Encounter for general adult medical examination
-DEMOAI30072,30072,CNAG-Test,Control,Z00.0,Female,Age60to69,CNAG_Test-30072-Control-Z00.0-Female-A60_69,CT7p2NBiR01FA6,Encounter for general adult medical examination
-DEMOAI30073,30073,CNAG-Test,Control,Z00.0,Male,Age20to29,CNAG_Test-30073-Control-Z00.0-Male-A20_29,CT7p3NBiR01MA2,Encounter for general adult medical examination
-DEMOAI30074,30074,CNAG-Test,Control,Z00.0,Female,Age30to39,CNAG_Test-30074-Control-Z00.0-Female-A30_39,CT7p4NBiR01FA3,Encounter for general adult medical examination
-DEMOAI30075,30075,CNAG-Test,Control,Z00.0,Male,Age40to49,CNAG_Test-30075-Control-Z00.0-Male-A40_49,CT7p5NBiR01MA4,Encounter for general adult medical examination
-DEMOAI30076,30076,CNAG-Test,Control,Z00.0,Female,Age50to59,CNAG_Test-30076-Control-Z00.0-Female-A50_59,CT7p6NBiR01FA5,Encounter for general adult medical examination
-DEMOAI30077,30077,CNAG-Test,Control,Z00.0,Male,Age50to59,CNAG_Test-30077-Control-Z00.0-Male-A50_59,CT7p7NBiR01MA5,Encounter for general adult medical examination
-DEMOAI30078,30078,CNAG-Test,Control,Z00.0,Female,Age60to69,CNAG_Test-30078-Control-Z00.0-Female-A60_69,CT7p8NBiR01FA6,Encounter for general adult medical examination
-DEMOAI30079,30079,CNAG-Test,Control,Z00.0,Male,Age30to39,CNAG_Test-30079-Control-Z00.0-Male-A30_39,CT7p9NBiR01MA3,Encounter for general adult medical examination
-DEMOAI30080,30080,CNAG-Test,Control,Z00.0,Female,Age30to39,CNAG_Test-30080-Control-Z00.0-Female-A30_39,CT7pANBiR01FA3,Encounter for general adult medical examination
-DEMOAI30081,30081,CNAG-Test,Control,Z00.0,Male,Age40to49,CNAG_Test-30081-Control-Z00.0-Male-A40_49,CT7pBNBiR01MA4,Encounter for general adult medical examination
-DEMOAI30082,30082,CNAG-Test,Control,Z00.0,Female,Age50to59,CNAG_Test-30082-Control-Z00.0-Female-A50_59,CT7pCNBiR01FA5,Encounter for general adult medical examination
-DEMOAI30083,30083,CNAG-Test,Control,Z00.0,Male,Age50to59,CNAG_Test-30083-Control-Z00.0-Male-A50_59,CT7pDNBiR01MA5,Encounter for general adult medical examination
-DEMOAI30084,30084,CNAG-Test,Control,Z00.0,Female,Age20to29,CNAG_Test-30084-Control-Z00.0-Female-A20_29,CT7pENBiR01FA2,Encounter for general adult medical examination
-DEMOAI30085,30085,CNAG-Test,Control,Z00.0,Male,Age30to39,CNAG_Test-30085-Control-Z00.0-Male-A30_39,CT7pFNBiR01MA3,Encounter for general adult medical examination
-DEMOAI30086,30086,CNAG-Test,Control,Z00.0,Female,Age40to49,CNAG_Test-30086-Control-Z00.0-Female-A40_49,CT7pGNBiR01FA4,Encounter for general adult medical examination
-DEMOAI30087,30087,CNAG-Test,Control,Z00.0,Male,Age40to49,CNAG_Test-30087-Control-Z00.0-Male-A40_49,CT7pHNBiR01MA4,Encounter for general adult medical examination
-DEMOAI30088,30088,CNAG-Test,Control,Z00.0,Female,Age50to59,CNAG_Test-30088-Control-Z00.0-Female-A50_59,CT7pINBiR01FA5,Encounter for general adult medical examination
-DEMOAI30089,30089,CNAG-Test,Control,Z00.0,Male,Age60to69,CNAG_Test-30089-Control-Z00.0-Male-A60_69,CT7pJNBiR01MA6,Encounter for general adult medical examination
-DEMOAI30090,30090,CNAG-Test,Control,Z00.0,Female,Age20to29,CNAG_Test-30090-Control-Z00.0-Female-A20_29,CT7pKNBiR01FA2,Encounter for general adult medical examination
+DEMOAI30001,30001,COH-AUTO,Case,M06.9,Male,Age20to29,COH_AUTO-30001-Case-M06.9-Male-A20_29,CSA7ntC4Fq01MA2,"Rheumatoid arthritis, unspecified"
+DEMOAI30002,30002,COH-AUTO,Case,M06.9,Female,Age30to39,COH_AUTO-30002-Case-M06.9-Female-A30_39,CSA7nuC4Fq01FA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30003,30003,COH-AUTO,Case,M06.9,Male,Age30to39,COH_AUTO-30003-Case-M06.9-Male-A30_39,CSA7nvC4Fq01MA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30004,30004,COH-AUTO,Case,M06.9,Female,Age40to49,COH_AUTO-30004-Case-M06.9-Female-A40_49,CSA7nwC4Fq01FA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30005,30005,COH-AUTO,Case,M06.9,Male,Age50to59,COH_AUTO-30005-Case-M06.9-Male-A50_59,CSA7nxC4Fq01MA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30006,30006,COH-AUTO,Case,M06.9,Female,Age60to69,COH_AUTO-30006-Case-M06.9-Female-A60_69,CSA7nyC4Fq01FA6,"Rheumatoid arthritis, unspecified"
+DEMOAI30007,30007,COH-AUTO,Case,M06.9,Male,Age20to29,COH_AUTO-30007-Case-M06.9-Male-A20_29,CSA7nzC4Fq01MA2,"Rheumatoid arthritis, unspecified"
+DEMOAI30008,30008,COH-AUTO,Case,M06.9,Female,Age30to39,COH_AUTO-30008-Case-M06.9-Female-A30_39,CSA7o0C4Fq01FA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30009,30009,COH-AUTO,Case,M06.9,Male,Age40to49,COH_AUTO-30009-Case-M06.9-Male-A40_49,CSA7o1C4Fq01MA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30010,30010,COH-AUTO,Case,M06.9,Female,Age40to49,COH_AUTO-30010-Case-M06.9-Female-A40_49,CSA7o2C4Fq01FA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30011,30011,COH-AUTO,Case,M06.9,Male,Age50to59,COH_AUTO-30011-Case-M06.9-Male-A50_59,CSA7o3C4Fq01MA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30012,30012,COH-AUTO,Case,M06.9,Female,Age60to69,COH_AUTO-30012-Case-M06.9-Female-A60_69,CSA7o4C4Fq01FA6,"Rheumatoid arthritis, unspecified"
+DEMOAI30013,30013,COH-AUTO,Case,M06.9,Male,Age20to29,COH_AUTO-30013-Case-M06.9-Male-A20_29,CSA7o5C4Fq01MA2,"Rheumatoid arthritis, unspecified"
+DEMOAI30014,30014,COH-AUTO,Case,M06.9,Female,Age30to39,COH_AUTO-30014-Case-M06.9-Female-A30_39,CSA7o6C4Fq01FA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30015,30015,COH-AUTO,Case,M06.9,Male,Age40to49,COH_AUTO-30015-Case-M06.9-Male-A40_49,CSA7o7C4Fq01MA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30016,30016,COH-AUTO,Case,M06.9,Female,Age50to59,COH_AUTO-30016-Case-M06.9-Female-A50_59,CSA7o8C4Fq01FA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30017,30017,COH-AUTO,Case,M06.9,Male,Age50to59,COH_AUTO-30017-Case-M06.9-Male-A50_59,CSA7o9C4Fq01MA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30018,30018,COH-AUTO,Case,M06.9,Female,Age60to69,COH_AUTO-30018-Case-M06.9-Female-A60_69,CSA7oAC4Fq01FA6,"Rheumatoid arthritis, unspecified"
+DEMOAI30019,30019,COH-AUTO,Case,M06.9,Male,Age30to39,COH_AUTO-30019-Case-M06.9-Male-A30_39,CSA7oBC4Fq01MA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30020,30020,COH-AUTO,Case,M06.9,Female,Age30to39,COH_AUTO-30020-Case-M06.9-Female-A30_39,CSA7oCC4Fq01FA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30021,30021,COH-AUTO,Case,M06.9,Male,Age40to49,COH_AUTO-30021-Case-M06.9-Male-A40_49,CSA7oDC4Fq01MA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30022,30022,COH-AUTO,Case,M06.9,Female,Age50to59,COH_AUTO-30022-Case-M06.9-Female-A50_59,CSA7oEC4Fq01FA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30023,30023,COH-AUTO,Case,M06.9,Male,Age50to59,COH_AUTO-30023-Case-M06.9-Male-A50_59,CSA7oFC4Fq01MA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30024,30024,COH-AUTO,Case,M06.9,Female,Age20to29,COH_AUTO-30024-Case-M06.9-Female-A20_29,CSA7oGC4Fq01FA2,"Rheumatoid arthritis, unspecified"
+DEMOAI30025,30025,COH-AUTO,Case,M06.9,Male,Age30to39,COH_AUTO-30025-Case-M06.9-Male-A30_39,CSA7oHC4Fq01MA3,"Rheumatoid arthritis, unspecified"
+DEMOAI30026,30026,COH-AUTO,Case,M06.9,Female,Age40to49,COH_AUTO-30026-Case-M06.9-Female-A40_49,CSA7oIC4Fq01FA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30027,30027,COH-AUTO,Case,M06.9,Male,Age40to49,COH_AUTO-30027-Case-M06.9-Male-A40_49,CSA7oJC4Fq01MA4,"Rheumatoid arthritis, unspecified"
+DEMOAI30028,30028,COH-AUTO,Case,M06.9,Female,Age50to59,COH_AUTO-30028-Case-M06.9-Female-A50_59,CSA7oKC4Fq01FA5,"Rheumatoid arthritis, unspecified"
+DEMOAI30029,30029,COH-AUTO,Case,M06.9,Male,Age60to69,COH_AUTO-30029-Case-M06.9-Male-A60_69,CSA7oLC4Fq01MA6,"Rheumatoid arthritis, unspecified"
+DEMOAI30030,30030,COH-AUTO,Case,M06.9,Female,Age20to29,COH_AUTO-30030-Case-M06.9-Female-A20_29,CSA7oMC4Fq01FA2,"Rheumatoid arthritis, unspecified"
+DEMOAI30031,30031,COH-AUTO,Case,M32.9,Male,Age20to29,COH_AUTO-30031-Case-M32.9-Male-A20_29,CSA7oNC4q801MA2,"Systemic lupus erythematosus, unspecified"
+DEMOAI30032,30032,COH-AUTO,Case,M32.9,Female,Age30to39,COH_AUTO-30032-Case-M32.9-Female-A30_39,CSA7oOC4q801FA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30033,30033,COH-AUTO,Case,M32.9,Male,Age30to39,COH_AUTO-30033-Case-M32.9-Male-A30_39,CSA7oPC4q801MA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30034,30034,COH-AUTO,Case,M32.9,Female,Age40to49,COH_AUTO-30034-Case-M32.9-Female-A40_49,CSA7oQC4q801FA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30035,30035,COH-AUTO,Case,M32.9,Male,Age50to59,COH_AUTO-30035-Case-M32.9-Male-A50_59,CSA7oRC4q801MA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30036,30036,COH-AUTO,Case,M32.9,Female,Age60to69,COH_AUTO-30036-Case-M32.9-Female-A60_69,CSA7oSC4q801FA6,"Systemic lupus erythematosus, unspecified"
+DEMOAI30037,30037,COH-AUTO,Case,M32.9,Male,Age20to29,COH_AUTO-30037-Case-M32.9-Male-A20_29,CSA7oTC4q801MA2,"Systemic lupus erythematosus, unspecified"
+DEMOAI30038,30038,COH-AUTO,Case,M32.9,Female,Age30to39,COH_AUTO-30038-Case-M32.9-Female-A30_39,CSA7oUC4q801FA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30039,30039,COH-AUTO,Case,M32.9,Male,Age40to49,COH_AUTO-30039-Case-M32.9-Male-A40_49,CSA7oVC4q801MA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30040,30040,COH-AUTO,Case,M32.9,Female,Age40to49,COH_AUTO-30040-Case-M32.9-Female-A40_49,CSA7oWC4q801FA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30041,30041,COH-AUTO,Case,M32.9,Male,Age50to59,COH_AUTO-30041-Case-M32.9-Male-A50_59,CSA7oXC4q801MA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30042,30042,COH-AUTO,Case,M32.9,Female,Age60to69,COH_AUTO-30042-Case-M32.9-Female-A60_69,CSA7oYC4q801FA6,"Systemic lupus erythematosus, unspecified"
+DEMOAI30043,30043,COH-AUTO,Case,M32.9,Male,Age20to29,COH_AUTO-30043-Case-M32.9-Male-A20_29,CSA7oZC4q801MA2,"Systemic lupus erythematosus, unspecified"
+DEMOAI30044,30044,COH-AUTO,Case,M32.9,Female,Age30to39,COH_AUTO-30044-Case-M32.9-Female-A30_39,CSA7oaC4q801FA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30045,30045,COH-AUTO,Case,M32.9,Male,Age40to49,COH_AUTO-30045-Case-M32.9-Male-A40_49,CSA7obC4q801MA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30046,30046,COH-AUTO,Case,M32.9,Female,Age50to59,COH_AUTO-30046-Case-M32.9-Female-A50_59,CSA7ocC4q801FA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30047,30047,COH-AUTO,Case,M32.9,Male,Age50to59,COH_AUTO-30047-Case-M32.9-Male-A50_59,CSA7odC4q801MA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30048,30048,COH-AUTO,Case,M32.9,Female,Age60to69,COH_AUTO-30048-Case-M32.9-Female-A60_69,CSA7oeC4q801FA6,"Systemic lupus erythematosus, unspecified"
+DEMOAI30049,30049,COH-AUTO,Case,M32.9,Male,Age30to39,COH_AUTO-30049-Case-M32.9-Male-A30_39,CSA7ofC4q801MA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30050,30050,COH-AUTO,Case,M32.9,Female,Age30to39,COH_AUTO-30050-Case-M32.9-Female-A30_39,CSA7ogC4q801FA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30051,30051,COH-AUTO,Case,M32.9,Male,Age40to49,COH_AUTO-30051-Case-M32.9-Male-A40_49,CSA7ohC4q801MA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30052,30052,COH-AUTO,Case,M32.9,Female,Age50to59,COH_AUTO-30052-Case-M32.9-Female-A50_59,CSA7oiC4q801FA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30053,30053,COH-AUTO,Case,M32.9,Male,Age50to59,COH_AUTO-30053-Case-M32.9-Male-A50_59,CSA7ojC4q801MA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30054,30054,COH-AUTO,Case,M32.9,Female,Age20to29,COH_AUTO-30054-Case-M32.9-Female-A20_29,CSA7okC4q801FA2,"Systemic lupus erythematosus, unspecified"
+DEMOAI30055,30055,COH-AUTO,Case,M32.9,Male,Age30to39,COH_AUTO-30055-Case-M32.9-Male-A30_39,CSA7olC4q801MA3,"Systemic lupus erythematosus, unspecified"
+DEMOAI30056,30056,COH-AUTO,Case,M32.9,Female,Age40to49,COH_AUTO-30056-Case-M32.9-Female-A40_49,CSA7omC4q801FA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30057,30057,COH-AUTO,Case,M32.9,Male,Age40to49,COH_AUTO-30057-Case-M32.9-Male-A40_49,CSA7onC4q801MA4,"Systemic lupus erythematosus, unspecified"
+DEMOAI30058,30058,COH-AUTO,Case,M32.9,Female,Age50to59,COH_AUTO-30058-Case-M32.9-Female-A50_59,CSA7ooC4q801FA5,"Systemic lupus erythematosus, unspecified"
+DEMOAI30059,30059,COH-AUTO,Case,M32.9,Male,Age60to69,COH_AUTO-30059-Case-M32.9-Male-A60_69,CSA7opC4q801MA6,"Systemic lupus erythematosus, unspecified"
+DEMOAI30060,30060,COH-AUTO,Case,M32.9,Female,Age20to29,COH_AUTO-30060-Case-M32.9-Female-A20_29,CSA7oqC4q801FA2,"Systemic lupus erythematosus, unspecified"
+DEMOAI30061,30061,COH-AUTO,Control,Z00.0,Male,Age20to29,COH_AUTO-30061-Control-Z00.0-Male-A20_29,CSA7orNBiR01MA2,Encounter for general adult medical examination
+DEMOAI30062,30062,COH-AUTO,Control,Z00.0,Female,Age30to39,COH_AUTO-30062-Control-Z00.0-Female-A30_39,CSA7osNBiR01FA3,Encounter for general adult medical examination
+DEMOAI30063,30063,COH-AUTO,Control,Z00.0,Male,Age30to39,COH_AUTO-30063-Control-Z00.0-Male-A30_39,CSA7otNBiR01MA3,Encounter for general adult medical examination
+DEMOAI30064,30064,COH-AUTO,Control,Z00.0,Female,Age40to49,COH_AUTO-30064-Control-Z00.0-Female-A40_49,CSA7ouNBiR01FA4,Encounter for general adult medical examination
+DEMOAI30065,30065,COH-AUTO,Control,Z00.0,Male,Age50to59,COH_AUTO-30065-Control-Z00.0-Male-A50_59,CSA7ovNBiR01MA5,Encounter for general adult medical examination
+DEMOAI30066,30066,COH-AUTO,Control,Z00.0,Female,Age60to69,COH_AUTO-30066-Control-Z00.0-Female-A60_69,CSA7owNBiR01FA6,Encounter for general adult medical examination
+DEMOAI30067,30067,COH-AUTO,Control,Z00.0,Male,Age20to29,COH_AUTO-30067-Control-Z00.0-Male-A20_29,CSA7oxNBiR01MA2,Encounter for general adult medical examination
+DEMOAI30068,30068,COH-AUTO,Control,Z00.0,Female,Age30to39,COH_AUTO-30068-Control-Z00.0-Female-A30_39,CSA7oyNBiR01FA3,Encounter for general adult medical examination
+DEMOAI30069,30069,COH-AUTO,Control,Z00.0,Male,Age40to49,COH_AUTO-30069-Control-Z00.0-Male-A40_49,CSA7ozNBiR01MA4,Encounter for general adult medical examination
+DEMOAI30070,30070,COH-AUTO,Control,Z00.0,Female,Age40to49,COH_AUTO-30070-Control-Z00.0-Female-A40_49,CSA7p0NBiR01FA4,Encounter for general adult medical examination
+DEMOAI30071,30071,COH-AUTO,Control,Z00.0,Male,Age50to59,COH_AUTO-30071-Control-Z00.0-Male-A50_59,CSA7p1NBiR01MA5,Encounter for general adult medical examination
+DEMOAI30072,30072,COH-AUTO,Control,Z00.0,Female,Age60to69,COH_AUTO-30072-Control-Z00.0-Female-A60_69,CSA7p2NBiR01FA6,Encounter for general adult medical examination
+DEMOAI30073,30073,COH-AUTO,Control,Z00.0,Male,Age20to29,COH_AUTO-30073-Control-Z00.0-Male-A20_29,CSA7p3NBiR01MA2,Encounter for general adult medical examination
+DEMOAI30074,30074,COH-AUTO,Control,Z00.0,Female,Age30to39,COH_AUTO-30074-Control-Z00.0-Female-A30_39,CSA7p4NBiR01FA3,Encounter for general adult medical examination
+DEMOAI30075,30075,COH-AUTO,Control,Z00.0,Male,Age40to49,COH_AUTO-30075-Control-Z00.0-Male-A40_49,CSA7p5NBiR01MA4,Encounter for general adult medical examination
+DEMOAI30076,30076,COH-AUTO,Control,Z00.0,Female,Age50to59,COH_AUTO-30076-Control-Z00.0-Female-A50_59,CSA7p6NBiR01FA5,Encounter for general adult medical examination
+DEMOAI30077,30077,COH-AUTO,Control,Z00.0,Male,Age50to59,COH_AUTO-30077-Control-Z00.0-Male-A50_59,CSA7p7NBiR01MA5,Encounter for general adult medical examination
+DEMOAI30078,30078,COH-AUTO,Control,Z00.0,Female,Age60to69,COH_AUTO-30078-Control-Z00.0-Female-A60_69,CSA7p8NBiR01FA6,Encounter for general adult medical examination
+DEMOAI30079,30079,COH-AUTO,Control,Z00.0,Male,Age30to39,COH_AUTO-30079-Control-Z00.0-Male-A30_39,CSA7p9NBiR01MA3,Encounter for general adult medical examination
+DEMOAI30080,30080,COH-AUTO,Control,Z00.0,Female,Age30to39,COH_AUTO-30080-Control-Z00.0-Female-A30_39,CSA7pANBiR01FA3,Encounter for general adult medical examination
+DEMOAI30081,30081,COH-AUTO,Control,Z00.0,Male,Age40to49,COH_AUTO-30081-Control-Z00.0-Male-A40_49,CSA7pBNBiR01MA4,Encounter for general adult medical examination
+DEMOAI30082,30082,COH-AUTO,Control,Z00.0,Female,Age50to59,COH_AUTO-30082-Control-Z00.0-Female-A50_59,CSA7pCNBiR01FA5,Encounter for general adult medical examination
+DEMOAI30083,30083,COH-AUTO,Control,Z00.0,Male,Age50to59,COH_AUTO-30083-Control-Z00.0-Male-A50_59,CSA7pDNBiR01MA5,Encounter for general adult medical examination
+DEMOAI30084,30084,COH-AUTO,Control,Z00.0,Female,Age20to29,COH_AUTO-30084-Control-Z00.0-Female-A20_29,CSA7pENBiR01FA2,Encounter for general adult medical examination
+DEMOAI30085,30085,COH-AUTO,Control,Z00.0,Male,Age30to39,COH_AUTO-30085-Control-Z00.0-Male-A30_39,CSA7pFNBiR01MA3,Encounter for general adult medical examination
+DEMOAI30086,30086,COH-AUTO,Control,Z00.0,Female,Age40to49,COH_AUTO-30086-Control-Z00.0-Female-A40_49,CSA7pGNBiR01FA4,Encounter for general adult medical examination
+DEMOAI30087,30087,COH-AUTO,Control,Z00.0,Male,Age40to49,COH_AUTO-30087-Control-Z00.0-Male-A40_49,CSA7pHNBiR01MA4,Encounter for general adult medical examination
+DEMOAI30088,30088,COH-AUTO,Control,Z00.0,Female,Age50to59,COH_AUTO-30088-Control-Z00.0-Female-A50_59,CSA7pINBiR01FA5,Encounter for general adult medical examination
+DEMOAI30089,30089,COH-AUTO,Control,Z00.0,Male,Age60to69,COH_AUTO-30089-Control-Z00.0-Male-A60_69,CSA7pJNBiR01MA6,Encounter for general adult medical examination
+DEMOAI30090,30090,COH-AUTO,Control,Z00.0,Female,Age20to29,COH_AUTO-30090-Control-Z00.0-Female-A20_29,CSA7pKNBiR01FA2,Encounter for general adult medical examination

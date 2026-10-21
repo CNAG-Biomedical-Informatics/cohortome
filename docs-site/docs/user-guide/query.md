@@ -110,7 +110,8 @@ sample row describes the linked patient, not a biosample code.
 Exports preserve dataset identifiers and recheck access when downloaded.
 CSV/TSV files use UTF-8; import ID columns as text to preserve leading zeros.
 Potential spreadsheet formulas are prefixed with an apostrophe. The current
-limits are 100,000 result rows and 32 MiB per download; oversized exports fail
+default limits are 100,000 result rows and 256 MiB per download; administrators
+can change the size limit under Settings → Jobs & storage → Export limits. Oversized exports fail
 rather than silently truncate.
 
 Metadata includes query text, dataset IDs, timestamps, sort settings, and a

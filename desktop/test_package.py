@@ -45,7 +45,7 @@ def test_pheno(client, with_umap=False):
         assert response.status_code == 200, response.text[:2000]
         result = response.json()
         assert result["returncode"] == 0, result.get("stderr")
-        assert "runtimes/pheno/bin/pheno-ranker" in result["command"].replace("\\", "/")
+        assert "runtimes/perl/bin/pheno-ranker" in result["command"].replace("\\", "/")
         assert any(step.startswith("internal:extract-selected-records") for step in result["pre_commands"])
         if mode == "cohort":
             records = json.loads(artifact(result, "reference.selected.json"))

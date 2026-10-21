@@ -257,6 +257,27 @@
           <label class="user-settings-check"><input id="settingsAnalysisAutoOpenJobs" type="checkbox"> Open Queue after background runs</label>
           <label class="user-settings-check"><input id="settingsJobNotifications" type="checkbox"> Notify when background runs finish or fail (while this app is open)</label>
         </div>
+        <section id="resourceStorageSettings" hidden>
+          <h4>Dataset storage</h4>
+          <label for="resourceStorageDirectory">Folder for new imports</label>
+          <input id="resourceStorageDirectory" type="text" spellcheck="false" autocomplete="off">
+          <button id="resourceStorageBrowse" type="button" class="query-chip" hidden>Choose folder…</button>
+          <button id="resourceStorageSave" type="button" class="query-chip">Save storage folder</button>
+          <p id="resourceStorageStatus" role="status" class="section-note"></p>
+          <details class="view-help"><summary>What changes?</summary><p>New downloads and imports only. Existing datasets and query-store caches stay in place. On web this is a server path; Docker requires a persistent volume.</p></details>
+        </section>
+        <section id="exportLimitsSettings" hidden>
+          <h4>Export limits</h4>
+          <p class="section-note">Applies to all users of this installation. Exports use RAM; memory use can exceed file size, especially with simultaneous downloads.</p>
+          <div class="user-settings-grid">
+            <div><label for="exportSourceMib">Per source file (MiB)</label><input id="exportSourceMib" type="number" min="1" max="2048" step="1"></div>
+            <div><label for="exportTotalMib">Combined source files (MiB)</label><input id="exportTotalMib" type="number" min="1" max="4096" step="1"></div>
+            <div><label for="exportOutputMib">Exported content (MiB)</label><input id="exportOutputMib" type="number" min="1" max="1024" step="1"></div>
+          </div>
+          <button id="exportLimitsSave" type="button" class="query-chip">Save export limits</button>
+          <button id="exportLimitsDefaults" type="button" class="query-chip">Use defaults</button>
+          <p id="exportLimitsStatus" role="status" class="section-note"></p>
+        </section>
         <div class="user-settings-danger">
           <strong>Delete saved data</strong>
           <p class="section-note">These actions delete data, not preferences. Each requires confirmation.</p>
@@ -497,13 +518,7 @@
         </button>
         <div class="admin-subtabs app-sidebar-subnav">
         <button id="dataTabBtn" class="dashboard-subtab is-hidden" type="button">
-          <span class="tab-btn-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v12"></path>
-              <path d="m7 10 5 5 5-5"></path>
-              <path d="M5 21h14"></path>
-            </svg>
-          </span>
+          <span class="tab-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></span>
           <span>Data</span>
         </button>
         <button id="usersTabBtn" class="dashboard-subtab is-hidden" type="button">
@@ -576,16 +591,17 @@
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
           <div class="controls">
             <h2>Patients</h2>
-            <details class="view-help"><summary>About this view</summary><p>Search by patient ID or ClarID to inspect samples, assays, clinical records, and the patient's timeline. Up to 12 matching patients are shown.</p></details>
+            <details class="view-help"><summary>About this view</summary><p>Browse patients or search by ID or ClarID. Select one to open their timeline, clinical records and sample inventory.</p></details>
             <div class="patient-lookup">
               <label for="patientOverviewSearch">Patient ID or ClarID</label>
-              <input id="patientOverviewSearch" type="search" role="combobox" autocomplete="off" aria-autocomplete="list" aria-controls="patientOverviewMatches" aria-expanded="false" placeholder="Start typing an identifier…">
+              <input id="patientOverviewSearch" type="search" role="combobox" autocomplete="off" aria-autocomplete="list" aria-controls="patientOverviewMatches" aria-expanded="false" placeholder="Browse patients or type an ID…">
               <div id="patientOverviewMatches" role="listbox" aria-label="Matching patients" hidden></div>
+              <button id="patientOverviewMore" type="button" class="query-chip" hidden>Load more patients</button>
             </div>
-            <div id="patientOverviewStatus" class="section-note" role="status">Select a workspace, then search by patient ID or ClarID. Up to 12 matches are shown.</div>
+            <div id="patientOverviewStatus" class="section-note" role="status">Select a workspace, then browse patients or search by ID or ClarID.</div>
           </div>
           <nav class="patient-view-switch" aria-label="Patient views">
-            <button id="patientOverviewViewBtn" type="button" class="query-chip" aria-pressed="true">Overview</button>
+            <button id="patientOverviewViewBtn" type="button" class="query-chip" aria-pressed="true">Find a patient</button>
             <button id="patientTimelineBtn" type="button" class="query-chip" disabled>View this patient's timeline</button>
           </nav>
           <div id="patientOverviewDetail"></div>
@@ -601,8 +617,11 @@
                       <div class="dashboard-card-eyebrow">Timeline inspector</div>
                       <h3>Inspection</h3>
                     </div>
+                    <details class="inline-view-help">
+                      <summary aria-label="How to inspect a patient" title="How to inspect a patient">?</summary>
+                      <p>Click a patient span, a timeline marker, or Inspect to review the patient and their available data.</p>
+                    </details>
                   </div>
-                  <details class="view-help"><summary>How to inspect a patient</summary><p>Click a patient span, a timeline marker, or Inspect to review the patient and their available data.</p></details>
                   <div id="detail" class="empty">Select a patient in the plot to see their information.</div>
                 </div>
               </div>
@@ -629,10 +648,15 @@
             <div id="assayDashboardOverview" class="assay-overview-panel">
               <div class="empty">Load assays to review modality coverage.</div>
             </div>
-            <div id="assayModalityTabs" class="assay-modality-tabs" role="tablist" aria-label="Assay modalities"></div>
-            <div id="assayDashboardCards" class="assay-dashboard-grid">
-              <div class="empty">No assays loaded.</div>
-            </div>
+            <section class="assay-browser" aria-labelledby="assayTypesHeading">
+              <div class="assay-modality-section-header">
+                <strong id="assayTypesHeading">Browse assays</strong>
+              </div>
+              <div id="assayModalityTabs" class="assay-modality-tabs" role="group" aria-label="Filter assays by modality"></div>
+              <div id="assayDashboardCards" class="assay-dashboard-grid">
+                <div class="empty">No assays loaded.</div>
+              </div>
+            </section>
             <details id="transcriptomicsQuickExpressionPanel" class="query-section">
               <summary><span class="section-heading-inline"><span class="section-heading-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M7 4v16"></path><path d="M17 4v16"></path><path d="M4 17h16"></path></svg></span><span>Transcriptomics quick expression</span></span></summary>
               <div class="section-note">A deterministic raw-count transcriptomics lookup using the current Analysis scope. Other expression data types stay in the inventory and their compatible curated Analysis tools.</div>
@@ -668,11 +692,9 @@
         <section id="dashboardImagingPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
             <h2>Imaging</h2>
-            <p class="section-note">Open available images with View images below. Derived measurements are listed separately; these are values produced by an imaging analysis, not the images themselves.</p>
             <section id="dicomDashboardPanel" class="dicom-dashboard-panel">
               <div class="assay-modality-section-header">
-                <strong>DICOM imaging</strong>
-                <span class="query-chip badge">Studies and viewer access</span>
+                <strong>Imaging studies</strong>
               </div>
               <div id="dicomDashboardHealth" class="dicom-health-panel">
                 <div class="empty">DICOM viewer status not checked.</div>
@@ -683,6 +705,7 @@
               </div>
             </section>
             <h3>Derived imaging measurements</h3>
+            <p class="section-note">Values extracted from images, such as volumes or lesion counts—not additional images.</p>
             <div id="imagingDashboardCards" class="assay-dashboard-grid"><div class="empty">Load a workspace to check imaging measurements.</div></div>
           </div>
         </section>
@@ -703,12 +726,12 @@
             </section>
             <section id="multimodalMatrixPanel" class="multimodal-matrix-panel">
               <div class="assay-modality-section-header">
-                <strong>Missingness in selected features</strong>
-                <span class="query-chip badge">Sample-level matrix</span>
+                <strong>Feature availability preview</strong>
+                <span class="query-chip badge">Whole workspace</span>
               </div>
               <div id="multimodalMatrixStatus" class="query-status assay-status-strip">Building multimodal feature matrix...</div>
               <div id="multimodalMatrixContent" class="multimodal-matrix-content">
-                <div class="empty">Load a workspace to inspect feature missingness.</div>
+                <div class="empty">Load a workspace to preview linked feature values.</div>
               </div>
             </section>
           </div>
@@ -764,14 +787,11 @@
         </div>
       </section>
 
+
       <section id="dataTab" class="tab-panel">
-        <div id="datasetAdminControls" class="controls dashboard-loader">
-          <label>Data Administration</label>
-          <div class="section-note">Manage dataset visibility, in-app Query detail, and access through allowed groups or direct allowed users. User and group membership still comes from local auth env configuration.</div>
-          <div id="datasetAdminList" class="dataset-picker-list">
-            <div class="empty">No dataset administration entries available.</div>
-          </div>
-          <div class="section-note">Shared clinical and assay data are managed globally for all users.</div>
+        <div class="controls dashboard-loader">
+          <h3>Data management</h3>
+          {% include "partials/data_management.html" %}
         </div>
       </section>
 
@@ -1231,7 +1251,6 @@
               </details>
             </div>
           </div>
-          <div id="phenoBackgroundJobBanner" class="saved-cohort-inline-status pheno-background-job-banner is-hidden"></div>
           <div id="phenoRunPanel" class="query-section">
             <details id="phenoPromptDetails">
               <summary>Use a prompt instead</summary>
@@ -1261,6 +1280,7 @@
               </button>
             </div>
             <button id="phenoPlanRunBtn" type="button" class="is-hidden" aria-hidden="true" tabindex="-1">Interpret and run</button>
+            <div id="phenoBackgroundJobBanner" class="pheno-background-job-banner is-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
           </div>
           <div id="phenoStatus" class="pheno-status"></div>
           <div id="phenoResultEmptyState" class="pheno-result-card pheno-empty-state">

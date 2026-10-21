@@ -1,0 +1,38 @@
+mappingVersion: 2
+source: {profile: csv}
+target: {model: beacon, schemaVersion: '2.0.0'}
+project: {id: ibdmdb-clinical, version: '0.1'}
+defaults: {ontology: ncit}
+records: {}
+beacon:
+  individuals:
+    id:
+      sourceFields: [snapshot_id]
+      primaryKey: Participant ID
+    sex:
+      sourceField: sex
+      query: {from: value}
+    diseases:
+      rules:
+        - sourceField: diagnosis
+          when: {values: [CD, UC]}
+          diseaseCode:
+            query:
+              from: value
+              aliases: {CD: Crohn Disease, UC: Ulcerative Colitis}
+    measures:
+      rules:
+        - sourceField: 'CRP (mg/L)'
+          when: {nonEmpty: true}
+          assayCode: {query: C-Reactive Protein Measurement}
+          measurementValue:
+            quantity:
+              unit: {term: {id: 'UCUM:mg/L', label: milligram per liter}}
+        - sourceField: 'ESR (mm/hr)'
+          when: {nonEmpty: true}
+          assayCode: {query: Erythrocyte Sedimentation Rate Measurement}
+          measurementValue:
+            quantity:
+              unit: {query: Millimeter per Hour}
+    info:
+      sourceFields: [Participant ID]

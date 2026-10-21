@@ -1,11 +1,114 @@
 # Validate a dataset package
 
+## Source preparation
+
+The app ships reviewed recipes for GSE85034, GSE117239, GSE191328, GSE42296,
+GSE68310 and IBDMDB. They download original processed products, verify fixed
+sizes/checksums and create the same package contract described below. No remote
+preparation code runs. `app/source_builders/sources.json` records the additional
+source products; GSE85034's original specification is in `app/geo_source.py`.
+The catalogue in `config/resources.json` supplies the source-review notices.
+
+The adapters reuse the reviewed COHORTome Store mappings and preserve source
+patient/sample/visit relationships. Convert-Pheno and ClarID-Tools perform the
+clinical mapping and identifier generation. Pandas is a Python runtime
+dependency for the additional tabular recipes. Generated data belong in the
+configured import storage, never in a source checkout or release bundle.
+
+Each package retains its source checksums, clinical mapping, terminology audit,
+recipe version and relevant exclusions. The local installation receipt also
+records the source-review acknowledgement. These records document preparation;
+they do not establish biological validity or grant data redistribution rights.
+
+GSE65391 is deliberately not enabled until its replicate ambiguity is resolved.
+GSE11903 remains excluded. The two bundled synthetic datasets cannot be installed
+again through the catalogue.
+
+## Package structure and validation
+
 A COHORTome dataset package is a directory of clinical JSON, optional assay
 tables and manifests. It is not a DuckDB database or a saved user workspace.
 Bundled synthetic examples use the same checks as contributed packages.
 
-This first contract describes the existing input format. It does not introduce
-a new clinical data model, an archive installer or a scientific QC pipeline.
+This contract describes the input format. It does not introduce a new clinical
+data model or a scientific QC pipeline. To install a prepared archive, see
+[Install datasets](../user-guide/install-datasets).
+
+## Prepare clinical CSV data with Convert-Pheno
+
+For project-specific clinical tables, use **Convert-Pheno's CSV → BFF route**
+with a reviewed Mapping V2 YAML or JSON file. This avoids writing a separate
+clinical converter for each resource. Dataset preparation happens outside
+COHORTome; importing a package does not run Convert-Pheno.
+
+The mapping relates source columns to demographics, diagnoses, phenotypic
+features, measurements, treatments and other BFF fields. Convert-Pheno can
+resolve ontology labels against its terminology databases and write an audit
+of those decisions. See its **Mapping Files** documentation and
+`t/csv2bff/in/csv_mapping.yaml` example in the Convert-Pheno repository.
+
+```bash
+convert-pheno \
+  -icsv clinical.csv --separator ',' \
+  --mapping-file mapping.yaml --search exact \
+  --term-audit terminology.tsv \
+  -obff individuals.json
+
+bff-tools validate -i individuals.json -nc -ne
+```
+
+Review the terminology audit and validation report before packaging the output
+under `clinical/`. A successful ontology lookup confirms a label match, not
+that the concept correctly describes the source variable. Check direct term
+IDs too; do not relax matching thresholds just to obtain a result.
+
+### Keep timepoints separate
+
+For longitudinal resources, prepare **one BFF object per patient/timepoint**,
+with a stable patient identity and distinct record/visit identity. Set
+`clinical.representation: snapshot` in the package manifest. A composite ID
+such as `P1:visit_2` keeps the patient and snapshot distinguishable.
+
+In the Convert-Pheno mapping, use the patient and timepoint columns in
+`beacon.individuals.id.sourceFields`. Use `records: {}` when neither `_visit`
+annotations nor baseline propagation is wanted. The containing snapshot
+provides the timepoint context for its clinical fields, including changing
+phenotypes; there is no need to annotate every measurement with `_visit`.
+
+Source rows may describe specimens or assay products rather than visits.
+Reconcile them before conversion using documented visit identifiers. Do not
+merge solely on patient and week, select the first conflicting value, or
+silently carry measurements into later visits. Keep distinct specimens linked
+through assay sample metadata. Relative study weeks are not calendar dates.
+
+### Account for every source variable
+
+Keep a mapping inventory with one decision per source column:
+
+- Map clinical variables to suitable BFF fields, retaining units, timing and
+  explicit negative findings.
+- Preserve useful source-specific information when no suitable BFF field or
+  ontology term exists. Convert-Pheno retains source columns under
+  `info.CSV_columns` by default; this is provenance, not structured mapping.
+- Keep assay processing metadata with the assays or samples.
+- Document exclusions and ambiguous meanings. Missing values are not zero,
+  negative findings or evidence that a treatment was never taken.
+
+Do not automatically use identifiers, administrative fields or all retained
+source columns as Pheno-Ranker inputs. Review medication status separately
+from medication history, and distinguish age at consent from age at a visit.
+Check converter defaults: placeholder dates or unknown-age sentinels must not
+be imported as observations.
+
+### IBDMDB mapping status
+
+An initial Convert-Pheno pilot mapped sex, Crohn disease/ulcerative colitis,
+CRP and ESR while retaining the original source columns. This demonstrated
+the conversion route; it did **not** complete the clinical mapping or replace
+the installed resource. Repeated source rows, snapshot grouping, converter
+placeholders and the remaining clinical variables still require review.
+The preparation recipe and mapping decisions belong with the versioned
+resource, alongside provenance and use terms.
 
 ## Validate before importing
 

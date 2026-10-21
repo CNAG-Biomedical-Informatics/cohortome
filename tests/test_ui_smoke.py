@@ -15,6 +15,204 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
+def test_patient_picker_opens_timeline_with_full_clinical_record(page):
+    expect = playwright.expect
+    patient = dict(patient_id='["default","P1"]', source_patient_id="P1",
+                   dataset_id="default", dataset_label="Test dataset",
+                   events=[dict(visit_id="V1", event_date="", days_from_baseline=0)],
+                   samples=[dict(sample_id="S1", modality="transcriptomics", assay="RNA",
+                                 visit="V1", data_type="counts", linkage="sample_metadata_file")])
+    page.route("**/patient-overview/search?*", lambda route: route.fulfill(json={
+        "matches": [dict(patient_id="P1", dataset_id="default", dataset_label="Test dataset",
+                         diagnosis="Example diagnosis")], "next": None}))
+    page.route("**/patient-overview/timeline?*", lambda route: route.fulfill(json={
+        "timelines": [patient], "warnings": []}))
+    page.route("**/patient-overview/clinical?*", lambda route: route.fulfill(json={
+        "records": [dict(visit_id="V1", event_date=None, days_from_baseline=0,
+                         record={"id": "P1:V1", "phenotypicFeatures": [
+                             {"featureType": {"label": "Example finding"}, "excluded": False}],
+                                 "measures": [{"assayCode": {"label": "CRP"},
+                                               "measurementValue": {"quantity": {
+                                                   "value": 0, "unit": {"label": "mg/L"}}}}],
+                                 "info": {"source_note": "<script>not executed</script>"}})],
+        "total": 1, "next_offset": None}))
+    page.reload(wait_until="networkidle")
+    page.locator("#dashboardTabBtn").click()
+    page.locator("#dashboardPatientsBtn").click()
+    page.locator("#patientOverviewSearch").click()
+    expect(page.locator("#patientOverviewMatches")).to_contain_text("Example diagnosis")
+    option = page.locator("#patientOverviewMatches [data-match]").first
+    expect(option).to_have_css("text-align", "left")
+    expect(option).to_have_css("justify-items", "start")
+    assert option.evaluate("(el) => Math.abs(el.getBoundingClientRect().width - el.parentElement.clientWidth) < 2")
+    page.locator("#patientOverviewMatches [data-match]").click()
+    expect(page.locator("#dashboardTimelinePanel")).to_be_visible()
+    help_toggle = page.locator(".inline-view-help > summary")
+    expect(help_toggle).to_have_text("?")
+    help_toggle.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".inline-view-help > p")).to_be_visible()
+    page.keyboard.press("Enter")
+    expect(page.locator(".inline-view-help > p")).not_to_be_visible()
+    expect(page.locator(".clinical-record")).to_have_count(1)
+    expect(page.locator("#patientOverviewDetail .patient-inventory")).to_have_count(0)
+    inventory = page.locator("[data-patient-inventory] > .patient-inventory-scroll > table")
+    expect(inventory).to_have_count(1)
+    expect(inventory.locator(".inventory-visit-heading")).to_have_count(1)
+    expect(inventory.locator(".inventory-visit-heading")).to_have_text("V1")
+    expect(inventory.locator("tbody.inventory-clinical > tr").first).to_contain_text("1 phenotype · 1 measurement")
+    expect(inventory).to_contain_text("S1")
+    expect(inventory).to_contain_text("Transcriptomics")
+    expect(page.locator(".clinical-visit-summary")).to_have_count(0)
+    page.locator(".clinical-record > summary").click()
+    expect(page.locator(".clinical-record-section h4 svg")).to_have_count(2)
+    expect(page.locator(".clinical-technical")).not_to_have_attribute("open", "")
+    expect(page.locator(".clinical-record")).to_contain_text("Example finding")
+    expect(page.locator(".clinical-record")).to_contain_text("Recorded present")
+    expect(page.locator("details.clinical-record-section")).to_have_count(0)
+    expect(page.locator(".clinical-measures")).to_be_visible()
+    expect(page.locator(".clinical-measures")).to_contain_text("CRP")
+    expect(page.locator(".clinical-measures tbody td").first).to_have_text("0")
+    expect(page.locator(".clinical-measures")).to_contain_text("mg/L")
+    page.locator(".clinical-record-json summary").click()
+    expect(page.locator(".clinical-record-json pre")).to_contain_text("<script>not executed</script>")
+    expect(page.locator(".clinical-record script")).to_have_count(0)
+
+def test_admin_data_menu_from_settings(page_auth):
+    page = page_auth
+    expect = playwright.expect
+    base = page.url.rstrip("/")
+    assert page.request.post(base + "/auth/login", data={"username": "admin", "password": "secret"}).ok
+    page.reload(wait_until="networkidle")
+    page.locator("#accountMenuButton").click()
+    assert page.locator("#accountMenu").evaluate(
+        "el => !Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim() === 'null')")
+    assert page.locator("#heroLogoutBtn").evaluate("el => el.parentElement.id") == "accountMenu"
+    page.locator("#userSettingsBtn").click()
+    expect(page.locator("#userSettingsPanel")).to_be_visible()
+    page.locator("#accountMenuButton").click()
+    page.locator("#adminTabBtn").click()
+    page.locator("#dataTabBtn").click()
+    expect(page.locator("#dataTab")).to_be_visible()
+    expect(page.locator("#userSettingsPanel")).to_be_hidden()
+    expect(page.locator('[data-settings-section="data"]')).to_have_count(0)
+
+def test_resource_import_catalogue_and_workspace_selection(page_auth, tmp_path):
+    from test_resource_install import package
+    page = page_auth
+    page.unroute("**/datasets")
+    page.unroute("**/datasets/select")
+    expect = playwright.expect
+    base = page.url.rstrip("/")
+    assert page.request.post(base + "/auth/login", data={"username": "admin", "password": "secret"}).ok
+    page.reload(wait_until="networkidle")
+    folder = tmp_path / "import-storage"
+    folder.mkdir()
+    page.locator("#accountMenuButton").click()
+    page.locator("#userSettingsBtn").click()
+    page.locator('[data-settings-section="jobs"]').click()
+    expect(page.locator("#resourceStorageSettings")).to_be_visible()
+    page.locator("#resourceStorageDirectory").fill(str(folder))
+    page.locator("#resourceStorageSave").click()
+    expect(page.locator("#resourceStorageStatus")).to_contain_text("Storage folder saved.")
+    page.reload(wait_until="networkidle")
+    page.locator("#accountMenuButton").click()
+    page.locator("#adminTabBtn").click()
+    page.locator("#dataTabBtn").click()
+    page.locator("#resourceAdd").click()
+    expect(page.locator("#resourcePanel")).to_be_visible()
+    expect(page.locator("#resourcePanel")).to_have_attribute("open", "")
+    expect(page.locator("[data-resource]")).to_have_count(3)
+    expect(page.locator('[data-resource="default"]')).to_be_disabled()
+    expect(page.locator('[data-resource="synthetic-autoimmune-demo"]')).to_be_disabled()
+    expect(page.locator('[data-resource="ibdmdb"]')).to_be_enabled()
+    expect(page.locator("[data-resource]").first).to_have_attribute("data-resource", "ibdmdb")
+    expect(page.locator("#resourceAccess")).not_to_have_attribute("open", "")
+    expect(page.locator(".resource-modalities svg")).not_to_have_count(0)
+    page.screenshot(path=str(tmp_path / "resource-catalogue.png"))
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.locator("#resourcePanel").evaluate("el => el.scrollWidth <= el.clientWidth + 1")
+    page.screenshot(path=str(tmp_path / "resource-catalogue-mobile-dark.png"))
+    page.set_viewport_size({"width": 1280, "height": 720})
+    page.evaluate("document.documentElement.dataset.theme = 'light'")
+    before = page.request.get(base + "/datasets").json()["current_dataset_ids"]
+    page.locator("#resourceFile").set_input_files(str(package(tmp_path / "resource.zip")))
+    expect(page.locator("#resourceStatus")).to_contain_text("Ready.", timeout=30000)
+    expect(page.locator("#resourceResultTitle")).to_have_text("Import complete")
+    page.locator("#resourceClose").click()
+    expect(page.locator(".resource-completion-notice")).to_contain_text("import complete")
+    page.locator(".resource-completion-notice").get_by_role("button", name="View import").click()
+    expect(page.locator("#resourcePanel")).to_be_visible()
+    page.locator("#resourceFile").set_input_files(str(tmp_path / "resource.zip"))
+    expect(page.locator("#resourceResultTitle")).to_have_text("Already installed — no changes made.", timeout=30000)
+    expect(page.locator("#resourceSelect")).to_have_text("Select existing dataset")
+    assert page.request.get(base + "/datasets").json()["current_dataset_ids"] == before
+    assert len(list((folder / "installed").iterdir())) == 1
+    page.locator("#resourceSelect").click()
+    expect(page.locator("#resourcePanel")).not_to_be_visible()
+    expect(page.locator("#userSettingsPanel")).to_be_hidden()
+    expect(page.locator("#datasetsTab")).to_be_visible()
+    expect(page.locator('[data-dataset-checkbox="test-resource"]')).to_be_checked()
+    expect(page.locator(".resource-completion-notice")).to_have_count(0)
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".resource-completion-notice")).to_have_count(0)
+    page.locator("#accountMenuButton").click()
+    page.locator("#adminTabBtn").click()
+    page.locator("#dataTabBtn").click()
+    page.locator('[data-dataset-admin-card="test-resource"] summary').click()
+    page.locator('[data-dataset-remove="test-resource"]').click()
+    expect(page.locator("[data-remove-submit]")).to_be_enabled()
+    page.locator("[data-remove-submit]").click()
+    expect(page.locator("[data-remove-status]")).to_contain_text("Enter the dataset ID exactly")
+    page.locator("[data-remove-confirm]").fill(" test-resource ")
+    page.locator("[data-remove-files]").check()
+    page.locator("[data-remove-submit]").click()
+    expect(page.locator("[data-remove-status]")).to_contain_text("Dataset removed.")
+    assert not list((folder / "installed").iterdir())
+    assert len(list((folder / "removed").iterdir())) == 1
+    with page.expect_navigation(wait_until="networkidle"):
+        page.locator("[data-remove-cancel]").click()
+    expect(page.locator('[data-dataset-checkbox="test-resource"]')).to_have_count(0)
+    assert page.request.post(base + "/auth/login", data={"username": "researcher", "password": "secret"}).ok
+    page.reload(wait_until="networkidle")
+    page.locator("#accountMenuButton").click()
+    page.locator("#userSettingsBtn").click()
+    expect(page.locator("#resourceStorageSettings")).to_be_hidden()
+    expect(page.locator("#resourceAdd")).to_be_hidden()
+    assert page.request.get(base + "/resources").status == 403
+
+
+def test_export_limits_admin_save_reload_and_nonadmin_hidden(page_auth):
+    page = page_auth
+    expect = playwright.expect
+    base = page.url.rstrip('/')
+    assert page.request.post(base + '/auth/login', data={'username': 'admin', 'password': 'secret'}).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="jobs"]').click()
+    expect(page.locator('#exportLimitsSettings')).to_be_visible()
+    expect(page.locator('#exportSourceMib')).to_have_value('512')
+    page.locator('#exportOutputMib').fill('128')
+    page.locator('#exportLimitsSave').click()
+    expect(page.locator('#exportLimitsStatus')).to_contain_text('Export limits saved')
+    page.reload(wait_until='networkidle')
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="jobs"]').click()
+    expect(page.locator('#exportOutputMib')).to_have_value('128')
+    page.locator('#exportLimitsDefaults').click()
+    page.locator('#exportLimitsSave').click()
+    expect(page.locator('#exportLimitsStatus')).to_contain_text('Export limits saved')
+    assert page.request.post(base + '/auth/login', data={'username': 'researcher', 'password': 'secret'}).ok
+    page.reload(wait_until='networkidle')
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="jobs"]').click()
+    expect(page.locator('#exportLimitsSettings')).to_be_hidden()
+    assert page.request.put(base + '/export-settings', data={}).status == 403
+
 
 def test_deployment_branding_admin_preview_persistence_and_researcher_access(page_auth):
     from test_deployment_branding import png
@@ -2686,8 +2884,9 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
         route.fulfill(json={'id':'coverage-cohort'})
     page.route('**/saved-cohorts', save_cohort)
     page.once('dialog', lambda dialog: dialog.accept('Triple-omics cohort'))
-    panel.get_by_role('button', name='Save cohort', exact=True).click()
-    playwright.expect(panel.locator('.coverage-save-status')).to_have_text('Cohort saved.')
+    panel.get_by_role('button', name='Save 1 patient as a cohort', exact=True).click()
+    playwright.expect(panel.locator('.coverage-save svg')).to_have_count(1)
+    playwright.expect(panel.locator('.coverage-save-status')).to_have_text('Cohort saved. Find it in Cohorts.')
     assert saved[0]['members'] == [{'dataset_id':'default', 'patient_id':'P1'}]
     assert saved[0]['id_type'] == 'patient'
     assert 'only' in saved[0]['source_prompt']
@@ -5277,6 +5476,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#appShell")).to_be_visible()
     expect(page_auth.locator("#heroAuthIdentity")).to_contain_text("Admin User")
     expect(page_auth.locator("#datasetsTabBtn")).to_be_visible()
+    page_auth.locator("#accountMenuButton").click()
     expect(page_auth.locator("#adminTabBtn")).to_be_visible()
     expect(page_auth.locator("#dataTabBtn")).to_be_hidden()
     expect(page_auth.locator("#usersTabBtn")).to_be_hidden()
@@ -5292,7 +5492,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(page_auth.locator("#modelsTabBtn")).to_be_visible()
     nav_order = page_auth.locator("#phenoTabBtn, #adminTabBtn").evaluate_all("elements => elements.map(element => element.id)")
     assert nav_order == ["phenoTabBtn", "adminTabBtn"]
-    expect(page_auth.locator("#dataTabBtn")).to_have_class(re.compile(r"\bactive\b"))
+    page_auth.locator("#dataTabBtn").click()
     admin_card = page_auth.locator("#datasetAdminList [data-dataset-admin-card]").first
     expect(admin_card).to_be_visible()
     expect(admin_card).not_to_have_attribute("open", "")
@@ -5304,6 +5504,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     expect(provider_context.locator('option[value="detailed_allowed"]')).to_be_enabled()
     expect(provider_context.locator('option[value="detailed_allowed"]')).to_have_text("Detailed allowed")
 
+    page_auth.locator("#accountMenuButton").click()
     page_auth.locator("#usersTabBtn").click()
     user_card = page_auth.locator("#usersList [data-auth-user-card]").first
     expect(user_card).to_be_visible()
@@ -5312,6 +5513,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     user_card.locator("summary").click()
     expect(user_card.locator(".dataset-admin-body")).to_be_visible()
 
+    page_auth.locator("#accountMenuButton").click()
     page_auth.locator("#modelsTabBtn").click()
     expect(page_auth.locator("#modelsTab")).to_have_class(re.compile(r"\bactive\b"))
     expect(page_auth.locator("#adminTabBtn")).to_have_class(re.compile(r"\bactive\b"))
@@ -5322,6 +5524,7 @@ def test_local_auth_gates_dataset_loading_to_admin(page_auth) -> None:
     page_auth.locator("#loadBtn").click()
     expect(page_auth.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
 
+    page_auth.locator("#accountMenuButton").click()
     page_auth.locator("#heroLogoutBtn").click()
     expect(page_auth.locator("#authGate")).to_be_visible()
     expect(page_auth.locator("#appShell")).to_be_hidden()

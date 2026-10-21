@@ -30,20 +30,38 @@ the release installation path; the source setup below is available for developme
 <details>
 <summary>Development: run from source</summary>
 
-The current source setup targets Linux and requires Python dependencies, Rust,
-and Tauri system libraries. R, Perl, and other external analysis tools must be
-installed separately when a selected method requires them.
+The current source setup targets Linux. Use Python 3.12, Rust's stable toolchain
+and the [Tauri system prerequisites](https://tauri.app/start/prerequisites/).
+The application requires Python 3.11 or newer. On Ubuntu 24.04:
+
+```bash
+sudo apt update
+sudo apt install python3.12-venv build-essential pkg-config curl wget file \
+  libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+Install Rust using the [rustup instructions](https://www.rust-lang.org/tools/install)
+and confirm `cargo --version` works. R, Perl and external analysis/preparation
+tools are installed separately when a selected operation requires them.
 
 From the repository root:
 
 ```bash
-python3 desktop/run.py
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e '.[dicom,umap]'
+cargo fetch --locked --manifest-path desktop/Cargo.toml
+.venv/bin/python desktop/run.py
 ```
 
 The launcher builds the native shell and starts the backend on a local loopback
 address. It uses the checkout's `.deps` directory when available, otherwise the
-active Python environment. This assumes the development dependencies are already
-installed; it is not a standalone installation command.
+active Python environment. Start from a fresh checkout without `.deps` to use
+only the virtual environment above. The initial installation and Cargo fetch
+need network access; subsequent launches reuse that environment. This is a
+source-development recipe, not a locked installer build. Optional OHIF assets,
+the custom-script Docker sandbox and external analysis tools are not installed
+by these commands.
 
 </details>
 

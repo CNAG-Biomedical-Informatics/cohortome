@@ -8,19 +8,21 @@ import zipfile
 
 from fastapi import HTTPException
 from app import exports
+from app.export_settings import byte_limit
 from app.cohort_members import resolve_members
 from app.query_store import _manifest_assay_sample_patient_links, _detect_matrix_delimiter
 
-MAX_SOURCE_BYTES = 64 * 1024 * 1024
-MAX_TOTAL_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_SOURCE_BYTES = 512 * 1024 * 1024
+MAX_TOTAL_SOURCE_BYTES = 1024 * 1024 * 1024
 
 
 def _inside(root, relative):
     path = (root / str(relative or '')).resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():
         raise ValueError('Required assay file is unavailable or outside the dataset.')
-    if path.stat().st_size > MAX_SOURCE_BYTES:
-        raise ValueError('Source exceeds the 64 MiB limit for this export.')
+    limit = byte_limit("source_mib", MAX_SOURCE_BYTES)
+    if path.stat().st_size > limit:
+        raise ValueError(f'Source exceeds the {limit / (1024 * 1024):g} MiB limit. Review Export limits in Settings.')
     return path
 
 
@@ -118,16 +120,18 @@ def bundle(cohort, roots, selections):
         raise HTTPException(400, 'Select distinct assays to export.')
     if any(key not in prepared for key in keys):
         raise HTTPException(409, 'A selected assay is unavailable. Refresh the export dialog.')
-    if sum(prepared[key][3]['path'].stat().st_size for key in keys) > MAX_TOTAL_SOURCE_BYTES:
-        raise HTTPException(413, 'Selected sources exceed 128 MiB. Select fewer assays.')
+    source_limit = byte_limit("total_source_mib", MAX_TOTAL_SOURCE_BYTES)
+    if sum(prepared[key][3]['path'].stat().st_size for key in keys) > source_limit:
+        raise HTTPException(413, f'Selected sources exceed {source_limit / (1024 * 1024):g} MiB. Select fewer assays or review Export limits in Settings.')
+    limit = exports.output_limit()
     files, assay_metadata, sample_rows = {}, [], []
     total_bytes = total_rows = 0
     class BoundedText(io.StringIO):
         def write(self, value):
             nonlocal total_bytes
             total_bytes += len(value.encode('utf-8'))
-            if total_bytes > exports.MAX_EXPORT_BYTES:
-                raise HTTPException(413, 'Molecular export exceeds 32 MiB. Select fewer samples or assays.')
+            if total_bytes > limit:
+                raise exports.size_error(limit)
             return super().write(value)
     for number, selection in enumerate(selections, start=1):
         root, item, members, spec = prepared[selection.key]
@@ -178,8 +182,8 @@ def bundle(cohort, roots, selections):
         values='Source strings retained without normalization, rounding, imputation, or feature filtering. Missing units mean not declared. Import matrix TSVs with R/Python, not as executable spreadsheet formulas. Linkage TSV uses spreadsheet-safe identifier escaping.',
         omitted=['Clinical BFF records (use clinical export)', 'Raw sequencing files', 'DICOM pixels', 'Additional sample covariates'],
         provenance='Current source matrices, not frozen inputs from a previous analysis. Datasets and assays are never merged.'))
-    if sum(map(len, files.values())) > exports.MAX_EXPORT_BYTES:
-        raise HTTPException(413, 'Molecular export exceeds 32 MiB. Select fewer samples or assays.')
+    if sum(map(len, files.values())) > limit:
+        raise exports.size_error(limit)
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for name, content in files.items():

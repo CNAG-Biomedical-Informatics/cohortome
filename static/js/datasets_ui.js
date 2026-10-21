@@ -1,4 +1,6 @@
 import { modalityIcon } from './modalities.js';
+import { createResourceInstaller } from './resource_install.js';
+import { createDatasetBulkAi } from './dataset_bulk_ai.js';
 
 export function createDatasetsUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
@@ -34,6 +36,18 @@ export function createDatasetsUi(ctx) {
     loadAuthUsers,
     updateLoadButtonAvailability,
   } = callbacks;
+  const resourceInstaller = createResourceInstaller({
+    escapeHtml,
+    refresh: () => loadDatasets({ preservePendingSelection: true }),
+    select: (id) => {
+      if (!state.pendingDatasetIds.includes(id)) state.pendingDatasetIds.push(id);
+      renderDatasetSelect();
+      renderDatasetScopeSummary();
+      renderLoadButtonState();
+      document.getElementById("userSettingsCloseBtn")?.click();
+      setActiveTab("datasets");
+    },
+  });
 
   const datasetTraitDefinitions = {
     private: {
@@ -595,6 +609,7 @@ export function createDatasetsUi(ctx) {
     }).join("");
   }
 
+  let bulkAiUi;
   function renderDatasetAdminList() {
     if (!datasetAdminListEl) {
       return;
@@ -750,6 +765,7 @@ export function createDatasetsUi(ctx) {
               <div class="dataset-picker-access-actions">
                 <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
                 <button type="button" class="query-chip action" data-dataset-prepare="${escapeHtml(datasetId)}">${escapeHtml(storeButtonLabel)}</button>
+                ${["default", "synthetic-autoimmune-demo"].includes(datasetId) ? "" : `<button type="button" class="query-chip" data-dataset-remove="${escapeHtml(datasetId)}">Remove dataset…</button>`}
               </div>
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
             </div>
@@ -757,6 +773,9 @@ export function createDatasetsUi(ctx) {
         </details>
       `;
     }).join("");
+    bulkAiUi ||= createDatasetBulkAi({container: datasetAdminListEl, escapeHtml,
+      reload: loadDatasets, canManage: canManageDataset});
+    bulkAiUi.mount(state.availableDatasets);
   }
 
   function setDatasetAdminFeedback(datasetId, text, tone = "success", autoClearMs = 2600) {
@@ -837,6 +856,78 @@ export function createDatasetsUi(ctx) {
     }
   }
 
+  function removeDataset(datasetId) {
+    if (!canManageDataset()) return;
+    const dataset = state.availableDatasets.find(item => item.dataset_id === datasetId);
+    if (!dataset) return;
+    const dialog = document.createElement("dialog");
+    dialog.className = "dataset-remove-dialog";
+    dialog.setAttribute("aria-labelledby", "datasetRemoveTitle");
+    dialog.innerHTML = `
+      <h3 id="datasetRemoveTitle">Remove ${escapeHtml(dataset.name || datasetId)}?</h3>
+      <p>This removes the dataset from COHORTome and clears its prepared store.
+      Saved chats, cohorts and results are kept, but references to this dataset will no longer load.
+      Reimporting does not repair those references.</p>
+      <label><input type="checkbox" data-remove-files> Also move installer-managed files to the storage folder’s removed directory (recoverable).</label>
+      <p>Other source folders are never removed. Active jobs must finish first.</p>
+      <label>Type <strong>${escapeHtml(datasetId)}</strong> to confirm
+        <input data-remove-confirm autocomplete="off">
+      </label>
+      <p data-remove-status role="status"></p>
+      <div class="dataset-picker-actions">
+        <button type="button" class="query-chip" data-remove-cancel>Cancel</button>
+        <button type="button" class="query-chip" data-remove-submit>Remove dataset</button>
+      </div>`;
+    document.body.append(dialog);
+    dialog.addEventListener("close", () => dialog.remove());
+    const input = dialog.querySelector("[data-remove-confirm]");
+    const submit = dialog.querySelector("[data-remove-submit]");
+    const cancel = dialog.querySelector("[data-remove-cancel]");
+    const status = dialog.querySelector("[data-remove-status]");
+    dialog.addEventListener("cancel", event => {
+      if (cancel.disabled) event.preventDefault();
+    });
+    input.addEventListener("input", () => {
+      input.removeAttribute("aria-invalid");
+      status.textContent = "";
+    });
+    cancel.onclick = () => dialog.close();
+    submit.onclick = async () => {
+      const confirmation = input.value.trim();
+      if (confirmation !== datasetId) {
+        status.textContent = `Enter the dataset ID exactly as shown: ${datasetId}`;
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return;
+      }
+      submit.disabled = true;
+      input.disabled = true;
+      cancel.disabled = true;
+      status.textContent = "Removing dataset…";
+      try {
+        const response = await fetch(`/resources/datasets/${encodeURIComponent(datasetId)}/remove`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({confirmation, remove_files: dialog.querySelector("[data-remove-files]").checked}),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "Unable to remove dataset.");
+        status.textContent = payload.message;
+        submit.hidden = true;
+        cancel.textContent = "Reload workspace";
+        cancel.onclick = () => window.location.reload();
+        dialog.addEventListener("cancel", event => event.preventDefault());
+      } catch (error) {
+        status.textContent = error.message;
+        submit.disabled = false;
+        input.disabled = false;
+      } finally {
+        cancel.disabled = false;
+      }
+    };
+    dialog.showModal();
+    input.focus();
+  }
+
   async function prepareDatasetStore(datasetId) {
     if (!datasetId || !canManageDataset()) {
       return;
@@ -887,6 +978,7 @@ export function createDatasetsUi(ctx) {
   }
 
   async function loadDatasets(options = {}) {
+    resourceInstaller.setAllowed(canManageDataset());
     if (!dataDirEl) {
       return;
     }
@@ -963,6 +1055,7 @@ export function createDatasetsUi(ctx) {
     setDatasetAdminFeedback,
     saveDatasetAccess,
     prepareDatasetStore,
+    removeDataset,
     syncDatasetSelectionFromPicker,
     loadDatasets,
   };

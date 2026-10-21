@@ -1,11 +1,10 @@
-import { patientInventoryMarkup } from '/static/js/patient_inventory.js';
-
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline}) {
   const input = document.getElementById('patientOverviewSearch');
   const list = document.getElementById('patientOverviewMatches');
   const status = document.getElementById('patientOverviewStatus');
   const detail = document.getElementById('patientOverviewDetail');
-  let timer, controller, generation = 0, matches = [], active = -1;
+  let timer, controller, generation = 0, matches = [], active = -1, nextPage = null, loading = false;
+  const more = document.getElementById('patientOverviewMore');
   const timelineButton = document.getElementById('patientTimelineBtn');
   function clearSelection() {
     state.patientOverviewSelection = null;
@@ -15,13 +14,14 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const value = text => esc(String(text || 'Not recorded'));
   function close() {
     list.hidden = true; input.setAttribute('aria-expanded', 'false');
+    more.hidden = true;
     input.removeAttribute('aria-activedescendant'); active = -1;
   }
   function reset() {
     clearSelection();
     clearTimeout(timer); controller?.abort(); generation++;
     close(); matches = []; list.replaceChildren(); detail.replaceChildren(); input.value = '';
-    status.textContent = 'Search by patient ID or ClarID. Up to 12 matches are shown.';
+    status.textContent = 'Browse patients or type a patient ID or ClarID.';
   }
   async function request(path, params, signal) {
     const response = await fetch(`/patient-overview/${path}?${new URLSearchParams(params)}`, {signal});
@@ -29,61 +29,54 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to load patient information.');
     return data;
   }
-  function render(data) {
-    const p = data.patient, rows = data.samples;
-    const samples = new Set(rows.map(r => r.sample_id)).size;
-    const assays = new Set(rows.map(r => r.assay_id)).size;
-    const modalities = new Set(rows.map(r => r.modality)).size;
-    detail.innerHTML = `<section class="controls patient-overview-card">
-      <div class="patient-overview-heading"><div><span class="patient-source">${value(data.dataset_label)}</span>
-      <h2>${value(p.patient_id)}</h2>${p.clarid ? `<div class="patient-clarid">ClarID · ${value(p.clarid)}</div>` : ''}</div>
-      <span class="patient-source">Sex: ${value(p.sex)}</span></div>
-      <div class="patient-overview-stats">${[[samples,'Sample identifiers'],[assays,'Assays'],[modalities,'Assay types'],[p.clinical_record_count,'Clinical records']].map(([n,label]) => `<div><strong>${value(String(n))}</strong><span>${label}</span></div>`).join('')}</div>
-      <h3>Samples & assays available in this dataset</h3>
-      <p class="section-note">This inventory describes data available here, not every assay ever performed. Sample identifiers are those supplied by the dataset; they do not necessarily represent distinct biological specimens.</p>
-      ${rows.length ? patientInventoryMarkup(rows, esc) : '<p>No linked assay samples are available in this dataset.</p>'}
-      ${data.warnings.length ? `<details class="patient-inventory-warning"><summary>Inventory limitations (${data.warnings.length})</summary><ul>${data.warnings.map(w => `<li>${value(w)}</li>`).join('')}</ul></details>` : ''}
-      </section>`;
-  }
   async function choose(index) {
     const match = matches[index]; if (!match) return;
     clearSelection();
     clearTimeout(timer); controller?.abort(); controller = new AbortController();
     const ticket = ++generation, selectedScope = scope();
     close(); input.value = match.patient_id; detail.replaceChildren();
-    status.textContent = 'Loading available samples and assays…';
+    status.textContent = 'Opening patient timeline…';
     try {
-      const data = await request('detail', {workspace:selectedScope, dataset_id:match.dataset_id, patient_id:match.patient_id}, controller.signal);
-      if (ticket !== generation || selectedScope !== scope()) return;
-      state.patientOverviewSelection = { patientId: match.patient_id, datasetId: match.dataset_id, samples: data.samples };
+      state.patientOverviewSelection = { patientId: match.patient_id, datasetId: match.dataset_id };
       timelineButton.disabled = false;
-      render(data); status.textContent = `Showing ${match.patient_id} in ${match.dataset_label}.`;
+      await openTimeline(match.patient_id, match.dataset_id);
+      if (ticket !== generation || selectedScope !== scope()) return;
+      status.textContent = `Selected ${match.patient_id} in ${match.dataset_label}. Details are in Timeline.`;
     } catch (error) {
       if (ticket === generation && error.name !== 'AbortError') status.textContent = error.message;
     }
   }
-  input.addEventListener('input', () => {
-    clearSelection();
-    clearTimeout(timer); controller?.abort(); generation++; close(); detail.replaceChildren();
-    const q = input.value.trim(); matches = [];
-    if (!q) { status.textContent = 'Start typing a patient ID or ClarID.'; return; }
+  function searchPatients(append = false) {
+    if (append && (loading || !nextPage)) return;
+    clearTimeout(timer); controller?.abort(); generation++;
+    if (!append) { close(); matches = []; nextPage = null; }
+    const q = input.value.trim();
     if (!scope()) { status.textContent = 'Select and apply a dataset first.'; return; }
-    status.textContent = 'Searching…';
+    status.textContent = q ? 'Searching…' : 'Loading patients…';
+    loading = true; more.disabled = true;
     const ticket = generation, selectedScope = scope();
     timer = setTimeout(async () => {
       controller = new AbortController();
       try {
-        const data = await request('search', {workspace:selectedScope, q}, controller.signal);
+        const data = await request('search', {workspace:selectedScope, q, ...(append ? nextPage : {})}, controller.signal);
         if (ticket !== generation || selectedScope !== scope()) return;
-        matches = data.matches;
-        list.innerHTML = matches.map((m,i) => `<button type="button" role="option" aria-selected="false" tabindex="-1" id="patient-match-${i}" data-match="${i}"><strong>${value(m.patient_id)}</strong><span>${value(m.dataset_label)}${m.clarid ? ` · ${value(m.clarid)}` : ''}</span></button>`).join('');
+        matches = append ? matches.concat(data.matches) : data.matches;
+        nextPage = data.next || null;
+        list.innerHTML = matches.map((m,i) => `<button type="button" role="option" aria-selected="false" tabindex="-1" id="patient-match-${i}" data-match="${i}"><strong>${value(m.patient_id)}</strong><span>${value(m.dataset_label)}${m.diagnosis ? ` · ${value(m.diagnosis)}` : ''}${m.clarid ? ` · ${value(m.clarid)}` : ''}</span></button>`).join('');
         list.hidden = !matches.length; input.setAttribute('aria-expanded', String(!!matches.length));
-        status.textContent = matches.length ? `${matches.length} matches. Select a patient; type more to narrow the list.` : 'No matching patients in the active datasets.';
+        more.hidden = !nextPage;
+        status.textContent = matches.length ? `${matches.length} patients shown. Select one or type to filter.` : 'No matching patients in the active datasets.';
       } catch (error) {
         if (ticket === generation && error.name !== 'AbortError') status.textContent = error.message;
-      }
+      } finally { if (ticket === generation) { loading = false; more.disabled = false; } }
     }, 200);
+  }
+  input.addEventListener('input', () => {
+    clearSelection(); detail.replaceChildren(); searchPatients();
   });
+  input.addEventListener('focus', () => { if (list.hidden) searchPatients(); });
+  input.addEventListener('click', () => { if (list.hidden && !loading) searchPatients(); });
+  more.addEventListener('click', () => searchPatients(true));
   input.addEventListener('keydown', event => {
     if (event.key === 'Escape') { close(); return; }
     if (list.hidden || !matches.length) return;
