@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-TREES = {"app", "static", "templates", "default_dataset", "synthetic_autoimmune_demo"}
+TREES = {"app", "static", "templates", "datasets/synthetic-longitudinal-demo", "datasets/synthetic-cross-sectional-demo"}
 FILES = {"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md", "pyproject.toml", "config/analysis/catalog.yaml", "config/resources.json",
          "config/analysis/synthetic_script_inputs.json", "scripts/data/hgnc_protein_coding_symbols.tsv"}
 CHARTS = {
@@ -22,7 +22,7 @@ CHARTS = {
 
 def allowed(path):
     parts = Path(path).parts
-    return (parts[0] in TREES or path in FILES or
+    return (any(path.startswith(tree + "/") for tree in TREES) or path in FILES or
             (len(parts) == 2 and parts[0] == "scripts" and parts[1].startswith("analysis_") and path.endswith(".R")))
 
 
@@ -40,9 +40,9 @@ def stage(destination, chart_modules):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     registry = json.loads((ROOT / "config/datasets/registry.json").read_text(encoding="utf-8"))
-    registry = [item for item in registry if item["dataset_id"] in {"default", "synthetic-autoimmune-demo"}]
+    registry = [item for item in registry if item["dataset_id"] in {"default", "synthetic-cross-sectional-demo"}]
     assert len(registry) == 2
-    assert {item["root_path"] for item in registry} == {"default_dataset", "synthetic_autoimmune_demo"}
+    assert {item["root_path"] for item in registry} == {"datasets/synthetic-longitudinal-demo", "datasets/synthetic-cross-sectional-demo"}
     (destination / "config/datasets").mkdir(parents=True)
     (destination / "config/datasets/registry.json").write_text(json.dumps(registry, indent=2), encoding="utf-8")
     template = destination / "templates/index.html"

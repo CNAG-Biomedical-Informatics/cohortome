@@ -126,7 +126,7 @@ search clears the previous feature selection. Select **Use these measurements**,
 turn off A/B comparison, then run. No language model is used. Parameters,
 results and matrix hashes are saved with the Analysis conversation.
 
-For a first trial, select only **Synthetic autoimmune demo** and compare:
+For a first trial, select only **Synthetic cross-sectional demo** and compare:
 
 - Immune-cell / flow-cytometry matrix: `CD4_T_cells_fraction`
 - Serology matrix: `CRP_mg_L`
@@ -307,7 +307,7 @@ through completed-artifact cleanup.
 
 ## Custom Python / R scripts (synthetic prototype)
 
-Select **Custom Python / R script** with only the bundled **Synthetic autoimmune
+Select **Custom Python / R script** with only the bundled **Synthetic cross-sectional
 demo** loaded. This is available to users with Detailed access, not just admins.
 Other datasets, modified demo files and mixed workspaces are rejected by the
 server. Restricted data cannot be enabled by changing a dataset label.

@@ -8,7 +8,7 @@ Find patients or samples, inspect the result, and save a reusable cohort.
 
 ## Find your first group
 
-With the default synthetic dataset loaded:
+With the Synthetic longitudinal demo loaded:
 
 1. Open **Query**.
 2. Ask **Which patients have Crohn Disease?**

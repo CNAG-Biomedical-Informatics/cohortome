@@ -1,41 +1,39 @@
-# Website
+# Documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
-
-## Installation
+The site uses Docusaurus. From this directory, with Node.js 22:
 
 ```bash
-yarn
+npm ci
+npm start
 ```
 
-## Local Development
+For a production build and local preview:
 
 ```bash
-yarn start
+npm run build
+npm run serve
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+## Manual publication
 
-## Build
+Pages will be enabled after the repository becomes public. No site is published
+by adding or pushing the workflow.
 
-```bash
-yarn build
-```
+Once public:
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+1. In repository **Settings → Pages**, select **GitHub Actions** as the source.
+2. Open **Actions → Publish documentation → Run workflow** and choose `main`.
+3. Follow the deployment link when the workflow finishes.
 
-## Deployment
+The site URL will be
+<https://cnag-biomedical-informatics.github.io/cohortome/>.
 
-Using SSH:
+The workflow only runs on manual dispatch, and skips publication for private
+repositories or branches other than `main`. It builds from committed files with
+`npm ci` and uploads only `docs-site/build/`. It does not build the application,
+prepare datasets, or require a personal access token. Pages permissions are
+limited to the deployment job. No `gh-pages` branch is needed.
 
-```bash
-USE_SSH=true yarn deploy
-```
-
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+Local, untracked documents can appear in a local Docusaurus build even when they
+are absent from the sidebar. Do not upload local build output containing working
+notes. The workflow checks out committed source instead.

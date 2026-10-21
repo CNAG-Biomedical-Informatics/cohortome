@@ -124,7 +124,7 @@ def test_resource_import_catalogue_and_workspace_selection(page_auth, tmp_path):
     expect(page.locator("#resourcePanel")).to_have_attribute("open", "")
     expect(page.locator("[data-resource]")).to_have_count(3)
     expect(page.locator('[data-resource="default"]')).to_be_disabled()
-    expect(page.locator('[data-resource="synthetic-autoimmune-demo"]')).to_be_disabled()
+    expect(page.locator('[data-resource="synthetic-cross-sectional-demo"]')).to_be_disabled()
     expect(page.locator('[data-resource="ibdmdb"]')).to_be_enabled()
     expect(page.locator("[data-resource]").first).to_have_attribute("data-resource", "ibdmdb")
     expect(page.locator("#resourceAccess")).not_to_have_attribute("open", "")

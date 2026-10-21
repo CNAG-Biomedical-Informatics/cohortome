@@ -73,7 +73,7 @@ image. The generator sets MR image metadata for standard viewers and assigns fix
 `assays/imaging/dicom_studies.json`, and can create patient-specific visible
 pixel variants for synthetic multiple-sclerosis brain MRI examples.
 
-The default dataset keeps one stable smoke-test study,
+The Synthetic longitudinal demo keeps one stable smoke-test study,
 `synthetic-mri-syn001-week0`, with StudyInstanceUID
 `1.2.826.0.1.3680043.10.54321.1.1`. Additional synthetic MS brain studies such
 as `synthetic-ms-brain-syn011-week0` and `synthetic-ms-brain-syn012-week0` are

@@ -45,7 +45,7 @@ def test_query_route_uses_authenticated_user_llm_provider_context(monkeypatch, t
         return {"intent": "test", "reply": "ok", "data": {}}
 
     monkeypatch.setattr(routes_module, "resolve_dataset_ids", lambda *_args, **_kwargs: ["default"])
-    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda *_args, **_kwargs: "default_dataset")
+    monkeypatch.setattr(routes_module, "resolve_dataset_dir", lambda *_args, **_kwargs: "datasets/synthetic-longitudinal-demo")
     monkeypatch.setattr(routes_module, "effective_query_granularity_ceiling", lambda *_args, **_kwargs: "detailed")
     monkeypatch.setattr(routes_module, "effective_ai_provider_access", lambda *_args, **_kwargs: "detailed_allowed")
     monkeypatch.setattr(routes_module, "answer_query", fake_answer_query)

@@ -52,8 +52,7 @@ COPY config ./config
 COPY scripts ./scripts
 COPY static ./static
 COPY templates ./templates
-
-RUN python scripts/generate_synthetic_autoimmune_demo.py
+COPY datasets ./datasets
 
 RUN mkdir -p /var/lib/cohortome \
     && useradd --create-home --shell /usr/sbin/nologin cohortome \

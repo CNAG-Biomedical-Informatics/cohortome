@@ -28,14 +28,14 @@ def test_synthetic_subject_identifiers_cover_fixture(name):
 
 def test_autoimmune_generator_uses_reviewed_sidecar():
     assert (ROOT / 'scripts/data/synthetic_autoimmune_clarid_subjects.csv').read_bytes() == (
-        ROOT / 'synthetic_autoimmune_demo/identifiers/clarid_subjects.csv').read_bytes()
+        ROOT / 'datasets/synthetic-cross-sectional-demo/identifiers/clarid_subjects.csv').read_bytes()
 
 
 def test_older_prepared_clarids_remain_readable(tmp_path, monkeypatch):
     import duckdb
     from app import query_store
     database = tmp_path / 'identifiers.duckdb'
-    query_store._build_query_store(str(ROOT / 'private_dataset'), database, tmp_path / 'meta.json', {})
+    query_store._build_query_store(str(ROOT / 'tests/fixtures/synthetic-access-test'), database, tmp_path / 'meta.json', {})
     with duckdb.connect(str(database)) as con:
         con.execute('DROP INDEX idx_patient_clarids_human_id')
         con.execute('DROP INDEX idx_patient_clarids_stub_id')

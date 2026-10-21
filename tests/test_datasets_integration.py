@@ -132,7 +132,7 @@ def test_multimodal_readiness_reports_overlap_and_linkage_issues(tmp_path, monke
 
 
 def test_dataset_content_metadata_reports_patients_timepoints_and_matrices(tmp_path):
-    dataset_root = tmp_path / "dataset-large"
+    dataset_root = tmp_path / "synthetic-large"
     clinical_root = dataset_root / "clinical"
     transcriptomics_root = dataset_root / "assays" / "transcriptomics"
     clinical_root.mkdir(parents=True)
@@ -214,7 +214,7 @@ def test_dataset_registry_filters_by_user_and_persists_current_selection(tmp_pat
     registry = [
         {
             "dataset_id": "default",
-            "name": "Default synthetic dataset",
+            "name": "Synthetic longitudinal demo",
             "root_path": str(admin_root),
             "enabled": True,
             "visibility": "admin_only",
@@ -353,7 +353,7 @@ def test_synthetic_dicom_fixtures_use_visible_mr_pixel_data():
     pydicom = pytest.importorskip("pydicom")
     from pydicom.uid import MRImageStorage
 
-    manifest_path = Path("default_dataset/assays/imaging/dicom_studies.json")
+    manifest_path = Path("datasets/synthetic-longitudinal-demo/assays/imaging/dicom_studies.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     studies = manifest.get("studies", [])
     study_profiles = {study["study_id"]: study.get("synthetic_profile") for study in studies}
@@ -361,7 +361,7 @@ def test_synthetic_dicom_fixtures_use_visible_mr_pixel_data():
     assert study_profiles["synthetic-mri-syn001-week0"] == "smoke_test"
     assert sum(1 for profile in study_profiles.values() if str(profile).startswith("ms_brain")) >= 2
 
-    clinical_records = json.loads(Path("default_dataset/clinical/synthetic_longitudinal.json").read_text(encoding="utf-8"))
+    clinical_records = json.loads(Path("datasets/synthetic-longitudinal-demo/clinical/synthetic_longitudinal.json").read_text(encoding="utf-8"))
     patient_diseases: dict[str, set[str]] = {}
     for record in clinical_records:
         patient_id = str(record.get("patient_id") or "")
@@ -372,7 +372,7 @@ def test_synthetic_dicom_fixtures_use_visible_mr_pixel_data():
         if str(profile).startswith("ms_brain"):
             assert "Multiple Sclerosis" in patient_diseases.get(str(study_patients.get(study_id) or ""), set())
 
-    paths = sorted(Path("default_dataset/assays/imaging/dicom").glob("*.dcm"))
+    paths = sorted(Path("datasets/synthetic-longitudinal-demo/assays/imaging/dicom").glob("*.dcm"))
     assert paths
     pixel_hashes = set()
     for path in paths:
@@ -481,7 +481,7 @@ def test_dataset_prepare_store_route_builds_ready_store(tmp_path, monkeypatch):
             [
                 {
                     "dataset_id": "default",
-                    "name": "Default synthetic dataset",
+                    "name": "Synthetic longitudinal demo",
                     "root_path": str(dataset_root),
                     "enabled": True,
                     "visibility": "all_authenticated",
@@ -719,7 +719,7 @@ def test_dataset_store_supports_concurrent_rebuild_requests(tmp_path, monkeypatc
             [
                 {
                     "dataset_id": "default",
-                    "name": "Default synthetic dataset",
+                    "name": "Synthetic longitudinal demo",
                     "root_path": str(dataset_root),
                     "enabled": True,
                     "visibility": "all_authenticated",

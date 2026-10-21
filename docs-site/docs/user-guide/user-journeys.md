@@ -8,14 +8,14 @@ import TabItem from '@theme/TabItem';
 
 # User journeys
 
-Select a task below. Use the bundled default dataset for clinical examples
-and the [synthetic autoimmune demo](synthetic-autoimmune-demo.md) for molecular
+Select a task below. Use the bundled Synthetic longitudinal demo for clinical examples
+and the [Synthetic cross-sectional demo](synthetic-cross-sectional-demo.md) for molecular
 analyses. Apply your dataset selection before starting.
 
 :::note[Synthetic examples]
 
 These examples demonstrate the software, not biological findings. The autoimmune
-demo has no treatment history or repeated visits; use the default dataset for
+demo has no treatment history or repeated visits; use the Synthetic longitudinal demo for
 medication and longitudinal examples.
 
 :::
@@ -33,7 +33,7 @@ medication and longitudinal examples.
 Medication-class questions may need an enabled LLM. For a first query without
 one, ask “Which patients have Crohn Disease?”
 
-![Query result using the default synthetic dataset](/img/screenshots/query-tab.png)
+![Query result using the Synthetic longitudinal demo](/img/screenshots/query-tab.png)
 
 Use **Prompt scope: previous result** to refine a supported selection.
 Otherwise, each question searches the workspace. Saving a paginated result
@@ -146,7 +146,7 @@ See [clinical measurement requirements](analysis.md#clinical-measurement-selecti
 
 ## Journey 4: Explore transcriptomics differences between two groups
 
-Load only **Synthetic autoimmune demo**.
+Load only **Synthetic cross-sectional demo**.
 
 1. In Query, find and save patients with Systemic Lupus Erythematosus.
 2. Save a healthy-control cohort.

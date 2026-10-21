@@ -2,84 +2,35 @@
 sidebar_position: 1
 ---
 
-# Workspace And Saved Cohorts
+# Workspace and saved cohorts
 
-Workspaces and saved cohorts determine which data you are working with.
+A **workspace** is the set of datasets you have selected and applied.
+A **saved cohort** records selected patients or samples for reuse.
 
-:::tip[Terminology shortcut]
+For example, load the Synthetic longitudinal demo as your workspace, then save
+“Crohn patients on Infliximab” as a cohort. A cohort can also contain members
+from multiple datasets; their dataset identities remain attached.
 
-Your `workspace` contains the datasets you have selected and applied.
+## Where each is used
 
-A `saved cohort` records a selection of patients or samples for reuse.
-:::
+- **Datasets** changes the active workspace.
+- **Dashboard** summarizes that workspace.
+- **Query** searches it, or refines the previous result when **Prompt scope**
+  requests that narrower scope.
+- **Analysis** and **Pheno-Ranker** can use saved cohorts within their supported
+  dataset and sample scope.
 
-## Workspace
+Query's previous-result scope does not change the global workspace.
 
-The workspace contains your currently active datasets.
+## After changing datasets
 
-- it may contain one dataset
-- or multiple authorized datasets
-- it is the default scope for Dashboard, Query, Analysis, and Pheno-Ranker
+Saved cohorts retain their source datasets rather than becoming selections of
+the newly active data. Reload the required datasets before reusing a cohort;
+access and source compatibility are checked again.
 
-Changing the workspace changes the data available to these tabs.
+Chats also retain their original dataset selection. Use **Load this chat’s
+datasets** to return to it when available. A saved project is a separate
+same-installation resume file, not a portable dataset or backup.
 
-## Saved cohort
-
-A saved cohort is a reusable subset inside the current workspace.
-
-- it is narrower than the workspace
-- it can be reused in Analysis compare mode
-- it can be reopened later without rebuilding the subset manually
-
-A saved cohort is not a second name for the workspace. It is a saved slice of that workspace.
-
-## Why this distinction matters
-
-Use these terms when choosing data:
-
-- `workspace` for the active loaded scope
-- `saved cohort` for a reusable subset
-
-## Examples
-
-### Example 1: single dataset
-
-- active workspace:
-  - `default`
-- saved cohort:
-  - `Crohn patients on Infliximab`
-
-### Example 2: multi-dataset workspace
-
-- active workspace:
-  - `default + private-dataset`
-- saved cohort:
-  - `All Healthy Controls`
-
-In the second example, the workspace spans multiple datasets, while the saved cohort is still just a subset inside that combined scope.
-
-## UI implications
-
-- `Datasets`
-  - defines the workspace
-- `Query`
-  - usually starts from the full workspace, then narrows it
-  - can optionally follow the previous Query result through `Prompt scope`
-- `Analysis`
-  - can use the full workspace or saved cohorts
-- `Pheno-Ranker`
-  - runs inside the active workspace, unless you narrow it with saved cohorts or scope
-
-:::note[Query-local scope]
-
-`Query` has a local `Prompt scope` control that can temporarily refine the next Query prompt to the previous Query result.
-
-That local prompt scope is not the same thing as the global workspace shown in the shell.
-:::
-
-:::warning[Do not treat workspace and saved cohort as synonyms]
-
-This distinction matters more now that one workspace may span multiple datasets.
-
-`Analysis` compare mode is cohort-oriented, while `Datasets` defines the broader workspace.
-:::
+See [Datasets](../user-guide/datasets.mdx) and
+[Saved cohorts](../user-guide/saved-cohorts-and-handoffs.md) for the controls.

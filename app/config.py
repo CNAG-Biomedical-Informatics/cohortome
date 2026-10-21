@@ -8,7 +8,7 @@ from app.env import app_env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
-DATA_ROOT_DIR = BASE_DIR / "default_dataset"
+DATA_ROOT_DIR = BASE_DIR / "datasets/synthetic-longitudinal-demo"
 DEFAULT_DATA_DIR = str(DATA_ROOT_DIR.resolve())
 TEMPLATES_DIR = BASE_DIR / "templates"
 

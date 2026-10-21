@@ -4,122 +4,32 @@ sidebar_position: 2
 
 # Patient IDs vs Sample IDs
 
-One patient can have several samples or timepoint records. Counting samples
-can therefore give a different answer from counting patients.
+A patient ID identifies a person, such as `SYN001`. A sample or clinical-record
+ID identifies a particular specimen or observation, such as `SYN001:week_0`.
+Several records can belong to one person, so record counts are not patient counts.
 
-:::warning[This distinction affects behavior across tabs]
+## Choose the right scope
 
-The same visible subset may be described in patient language while still preserving sample-level IDs behind the scenes for downstream tools.
-:::
+| Task | Selection |
+| --- | --- |
+| Find people with a disease or treatment | Patients |
+| Compare clinical snapshots in Pheno-Ranker | Records/timepoints |
+| Analyze molecular measurements | Assay samples linked to patients |
+| Reuse a plot selection | Preserve the original record or sample IDs |
 
-## Patient IDs
+Analysis requirements determine whether repeated samples are allowed.
+Selecting patients does not by itself resolve which visit or assay sample to use.
 
-Patient IDs identify a person, for example:
+## Transfer selections
 
-```text
-SYN001
-```
+Use **Save cohort** or **Open in Analysis** to preserve dataset, patient and
+sample identities. Do not strip prefixes or merge matching IDs manually:
+different datasets may use the same source ID, and Pheno-Ranker may add
+temporary reference markers.
 
-## Sample IDs
+The app recognizes patient terms such as *subject* and *individual*, and sample
+terms such as *biosample*, *specimen*, *record* and *timepoint*. Review the
+result's actual scope before handing it to another tool.
 
-Sample IDs identify a specific record or biosample, for example:
-
-```text
-SYN001:week_0
-```
-
-## Current rule of thumb
-
-- `Query`
-  - may answer at patient level, but can also expose sample-level metadata when needed
-- `Analysis`
-  - may work at patient or sample level depending on the analysis
-- `Pheno-Ranker`
-  - works at sample level
-
-## Why this distinction exists
-
-Some analyses are naturally patient-level:
-
-- how many patients have Crohn Disease
-- which patients take biologics
-- broad clinical summaries
-
-Other analyses are naturally sample-level:
-
-- Pheno-Ranker comparisons
-- biosample-oriented assay views
-- timepoint-specific record selection
-
-Check which type of ID an analysis expects before selecting its inputs.
-
-## Working examples
-
-### Patient-level
-
-```text
-Which patients have Crohn Disease?
-```
-
-Expected answer shape:
-
-- patient count
-- patient list
-- optional sample metadata behind the scenes
-
-### Sample-level
-
-```text
-Use selected Pheno-Ranker MDS points in Analysis
-```
-
-Expected behavior:
-
-- keep sample IDs
-- do not collapse them to patients
-
-## Important practical rule
-
-When an ID list comes from `Pheno-Ranker`, it should be treated as sample-level unless explicitly transformed.
-
-:::tip[Rule of thumb]
-
-If you are asking about people, use patient language.
-
-If you are selecting a timepoint, biosample, record, or Pheno-Ranker result, assume sample-level IDs matter.
-:::
-
-## Important detail
-
-When `Pheno-Ranker` uses multiple reference files, it may temporarily prefix IDs like:
-
-```text
-C1_SYN001:week_0
-```
-
-This prefix is only a cohort/reference marker for the Pheno run. It should be pruned when copying or handing selected IDs to other tabs.
-
-## Choosing the right IDs
-
-Use this shortcut:
-
-- if you are asking about people, think patient IDs
-- if you are selecting a concrete record, timepoint, or biosample, think sample IDs
-
-:::info[Synonyms are supported]
-
-The app treats these as patient-like terms:
-
-- `patient`
-- `subject`
-- `individual`
-
-And these as sample-like terms:
-
-- `sample`
-- `biosample`
-- `specimen`
-- `biospecimen`
-- `record`
-- `timepoint`
-:::
+See [cross-sectional and longitudinal data](cross-sectional-and-longitudinal.md)
+for participant, visit and assay linkage.

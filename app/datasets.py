@@ -299,7 +299,7 @@ def normalize_ai_provider_access(value: str | None) -> str:
 def _default_dataset_record() -> Dict[str, Any]:
     return {
         "dataset_id": DEFAULT_DATASET_ID,
-        "name": "Default synthetic dataset",
+        "name": "Synthetic longitudinal demo",
         "description": "Synthetic longitudinal clinical and assay example.",
         "root_path": str(Path(DEFAULT_DATA_DIR).resolve()),
         "enabled": True,
@@ -938,7 +938,7 @@ def unregister_dataset(dataset_id: str) -> Dict[str, Any]:
     if not needle:
         raise ValueError("A dataset id is required.")
     if needle == DEFAULT_DATASET_ID:
-        raise ValueError("The default dataset cannot be unregistered.")
+        raise ValueError("The bundled Synthetic longitudinal demo cannot be unregistered.")
     with advisory_file_lock(_registry_lock_path()):
         items = _read_registry_unlocked()
         for index, item in enumerate(items):

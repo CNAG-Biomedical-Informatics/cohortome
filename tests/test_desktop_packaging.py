@@ -88,11 +88,11 @@ def test_only_application_and_bundled_fixtures_are_allowed():
     allowed = load_packager().allowed
     for name in ("app/routes.py", "templates/index.html", "static/app.js",
                  "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md",
-                 "default_dataset/clinical/example.json", "synthetic_autoimmune_demo/manifest.json",
+                 "datasets/synthetic-longitudinal-demo/clinical/example.json", "datasets/synthetic-cross-sectional-demo/manifest.json",
                  "scripts/analysis_r_limma_voom_differential_expression.R"):
         assert allowed(name)
     for name in ("runtime/state/users.json", "native.env", "docker/.env", "pdf/example.pdf",
-                 "SESSION_NOTES.md", "AGENTS.md", "private_dataset/clinical/example.json",
+                 "SESSION_NOTES.md", "AGENTS.md", "tests/fixtures/synthetic-access-test/clinical/example.json",
                  "scripts/publication_evaluation.py", "docs-site/docs/overview.mdx"):
         assert not allowed(name)
 

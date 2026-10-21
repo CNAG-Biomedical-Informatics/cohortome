@@ -8,7 +8,7 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
   panel.innerHTML = `<h4>Custom Python / R · synthetic prototype</h4>
     <label for="analysisScriptLanguage">Language</label><select id="analysisScriptLanguage"><option value="python">Python</option><option value="r">R</option></select>
     <p class="section-note">For limma-voom, choose R. To compare two groups, open Patients, turn on comparison and choose Cohort A and Cohort B before preparing.</p>
-    <p class="section-note">COHORTome prepares the current cohorts and selected assays (all demo assays if none selected). The template describes the objects and includes loading code, not patient values. Only the bundled synthetic autoimmune demo is allowed.</p>
+    <p class="section-note">COHORTome prepares the current cohorts and selected assays (all demo assays if none selected). The template describes the objects and includes loading code, not patient values. Only the bundled Synthetic cross-sectional demo is allowed.</p>
     <div class="pheno-actions"><button type="button" data-script-basic>Use 60-second test</button><button type="button" data-script-inputs>Check inputs</button><button type="button" data-script-prepare>Generate data-aware template</button><button type="button" class="query-chip" data-script-copy disabled>Copy template for AI</button></div>
     <div data-script-summary aria-live="polite"></div>
     <p class="section-note">Paste a complete script and click Run: inputs are prepared automatically without replacing your code. The 60-second test waits one minute so you can navigate elsewhere while it runs; it performs no scientific analysis. Generate a data-aware template only when you need loading code and instructions for an AI.</p>

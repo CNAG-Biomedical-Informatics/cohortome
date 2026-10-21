@@ -16,14 +16,14 @@ import tempfile
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = {"default_dataset": 0, "private_dataset": 10000, "dataset-large": 20000,
-            "synthetic_autoimmune_demo": 30000}
+FIXTURES = {"datasets/synthetic-longitudinal-demo": 0, "tests/fixtures/synthetic-access-test": 10000, "tests/fixtures/synthetic-large": 20000,
+            "datasets/synthetic-cross-sectional-demo": 30000}
 # Local study vocabulary: human codes use underscores (hyphens delimit fields).
 STUDIES = {
-    "default_dataset": ("COH-SYN", "COH_SYN", "CSD"),
-    "private_dataset": ("COH-PRIV", "COH_PRIV", "CSP"),
-    "dataset-large": ("COH-LARGE", "COH_LARGE", "CSL"),
-    "synthetic_autoimmune_demo": ("COH-AUTO", "COH_AUTO", "CSA"),
+    "datasets/synthetic-longitudinal-demo": ("COH-SYN", "COH_SYN", "CSD"),
+    "tests/fixtures/synthetic-access-test": ("COH-PRIV", "COH_PRIV", "CSP"),
+    "tests/fixtures/synthetic-large": ("COH-LARGE", "COH_LARGE", "CSL"),
+    "datasets/synthetic-cross-sectional-demo": ("COH-AUTO", "COH_AUTO", "CSA"),
 }
 CONDITIONS = {"Healthy Control": "Z00.0", "Crohn Disease": "K50.9",
               "Ulcerative Colitis": "K51.9", "Rheumatoid Arthritis": "M06.9",
@@ -78,7 +78,7 @@ def subject_rows(root, offset):
                 age_group = f"Age{lower}to{lower + 9}"
         sex = record.get("sex", {})
         sex = sex.get("label", "Not reported") if isinstance(sex, dict) else sex
-        rows.append(dict(zip(FIELDS, [pid, number, STUDIES[root.name][0],
+        rows.append(dict(zip(FIELDS, [pid, number, STUDIES[root.relative_to(ROOT).as_posix()][0],
                     "Control" if label == "Healthy Control" else "Case",
                     CONDITIONS[label], sex or "Not reported", age_group])))
     return rows
@@ -119,7 +119,7 @@ def build(output, executable, codebook):
                 for row in rows:
                     row[column] = encoded[row["unique_id"]]
             add_condition_names(rows, executable, codebook, Path(temporary))
-            with (output / f"{name}.csv").open("w", newline="") as handle:
+            with (output / f"{Path(name).name}.csv").open("w", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=FIELDS + ["clar_id", "stub_id", "condition_name"], lineterminator="\n")
                 writer.writeheader()
                 writer.writerows(rows)

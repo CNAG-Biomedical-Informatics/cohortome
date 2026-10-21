@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO_ROOT = ROOT / "synthetic_autoimmune_demo"
+DEMO_ROOT = ROOT / "datasets/synthetic-cross-sectional-demo"
 PACKAGES = {"numpy": "2.2.6", "pandas": "2.2.3", "scipy": "1.15.3", "matplotlib": "3.10.3", "statsmodels": "0.14.4"}
 R_PACKAGES = {"base": "4.2.2", "limma": "3.54.1", "edgeR": "3.40.2", "ggplot2": "3.4.1"}
 
@@ -14,7 +14,7 @@ R_PACKAGES = {"base": "4.2.2", "limma": "3.54.1", "edgeR": "3.40.2", "ggplot2": 
 def approved_inputs(data_dir):
     # Do not trust a dataset name, synthetic flag, user path or editable manifest.
     if Path(data_dir).resolve() != DEMO_ROOT.resolve():
-        raise RuntimeError("Custom scripts currently accept only the bundled synthetic autoimmune demo, alone in the workspace.")
+        raise RuntimeError("Custom scripts currently accept only the bundled Synthetic cross-sectional demo, alone in the workspace.")
     hashes = json.loads((ROOT / "config/analysis/synthetic_script_inputs.json").read_text())
     contents = {}
     for name, digest in hashes.items():

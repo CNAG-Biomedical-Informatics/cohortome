@@ -10,7 +10,7 @@
       "tools_version": "0.04"
     }
   },
-  "name": "Synthetic autoimmune demo",
+  "name": "Synthetic cross-sectional demo",
   "clinical": {
     "representation": "snapshot"
   }

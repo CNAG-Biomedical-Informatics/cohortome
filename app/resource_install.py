@@ -31,7 +31,7 @@ ROOT = STATE_ROOT_DIR / "resources"
 MAX_ARCHIVE = 1024 * 1024 * 1024
 MAX_EXPANDED = 4 * MAX_ARCHIVE
 MAX_FILES = 25000
-BUNDLED = {"default", "synthetic-autoimmune-demo"}
+BUNDLED = {"default", "synthetic-cross-sectional-demo"}
 CHUNK = 1024 * 1024
 _pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="resource-install")
 _lock = threading.Lock()

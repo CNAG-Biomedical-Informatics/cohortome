@@ -174,7 +174,7 @@ its own terminal; it is not managed by `make stop`.
 
 | Symptom | Check first |
 | --- | --- |
-| Only the default datasets appear | The runtime directory used by the running process. |
+| Only the bundled demos appear | The runtime directory used by the running process. |
 | Login works but saved work is missing | The runtime directory and COHORTome username. |
 | Background workers show Offline | Redis connectivity and a worker listening on the `analysis` queue. |
 | Direct analysis works but a queued run fails | The worker's environment, executable paths, and R/Perl libraries. |

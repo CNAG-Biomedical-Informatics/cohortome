@@ -133,7 +133,7 @@ def main():
                         if restart:
                             assert client.get("/user-settings").json()["appearance"] == "dark"
                         else:
-                            for dataset in ("default", "synthetic-autoimmune-demo"):
+                            for dataset in ("default", "synthetic-cross-sectional-demo"):
                                 prepared = client.post(f"/datasets/{dataset}/prepare-store")
                                 assert prepared.status_code == 200, prepared.text[:200]
                                 response = client.get("/query", params={"q": "List all patients", "dataset_id": dataset})
@@ -142,7 +142,7 @@ def main():
                             # Save the synthetic Query result through its server-side handle.
                             handle = response.json()["data"]["result_handle"]
                             saved = client.post("/saved-cohorts", json={"name": "Package test",
-                                "dataset_id": "synthetic-autoimmune-demo", "result_handle": handle,
+                                "dataset_id": "synthetic-cross-sectional-demo", "result_handle": handle,
                                 "source_kind": "query", "id_type": "patient"})
                             assert saved.status_code == 200, saved.text[:200]
                             identifier = saved.json()["id"]

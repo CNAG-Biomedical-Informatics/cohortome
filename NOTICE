@@ -1,12 +1,5 @@
 COHORTome
 Copyright 2026 Manuel Rueda - CNAG
 
-Current synthetic DICOM fixture pixels are generated procedurally by COHORTome.
-They are not patient scans or validated disease models. Older revisions used
-pydicom's MR_small.dcm test pixels; that attribution applies to those revisions.
-
-The HGNC gene-symbol table is derived from HUGO Gene Nomenclature Committee
-data, released under CC0. See scripts/data/README.md for provenance.
-
-Third-party software and terminology retain their own terms. See
-THIRD_PARTY_NOTICES.md; COHORTome's Apache-2.0 licence does not relicense them.
+See THIRD_PARTY_NOTICES.md for third-party software and data attributions.
+Their licence texts accompany the relevant components, including in licenses/.

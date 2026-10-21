@@ -14,9 +14,9 @@ from pydicom.uid import ExplicitVRLittleEndian, MRImageStorage
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASETS = [
-    ROOT / "default_dataset",
-    ROOT / "dataset-large",
-    ROOT / "private_dataset",
+    ROOT / "datasets/synthetic-longitudinal-demo",
+    ROOT / "tests/fixtures/synthetic-large",
+    ROOT / "tests/fixtures/synthetic-access-test",
 ]
 SOURCE_DICOM_NAME = "procedural-brain-phantom-v1"
 SYNTHETIC_LESION_PROFILES = {

@@ -16,9 +16,6 @@ services:
       - "8000:8000"
     volumes:
       - cohortome-runtime:/var/lib/cohortome
-      - ../default_dataset:/app/default_dataset:ro
-      - ../private_dataset:/app/private_dataset:ro
-      - ../dataset-large:/app/dataset-large:ro
     depends_on:
       redis:
         condition: service_started
@@ -37,9 +34,6 @@ services:
     command: ["rq", "worker", "analysis", "--url", "redis://redis:6379/0"]
     volumes:
       - cohortome-runtime:/var/lib/cohortome
-      - ../default_dataset:/app/default_dataset:ro
-      - ../private_dataset:/app/private_dataset:ro
-      - ../dataset-large:/app/dataset-large:ro
     depends_on:
       redis:
         condition: service_started

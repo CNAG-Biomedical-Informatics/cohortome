@@ -20,14 +20,14 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://mrueda.github.io',
+  url: 'https://cnag-biomedical-informatics.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/cohortome/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'mrueda',
+  organizationName: 'CNAG-Biomedical-Informatics',
   projectName: 'cohortome',
 
   onBrokenLinks: 'throw',
@@ -47,7 +47,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/mrueda/cohortome/tree/main/docs-site/',
+            'https://github.com/CNAG-Biomedical-Informatics/cohortome/tree/main/docs-site/',
         },
         blog: false,
         theme: {
@@ -99,7 +99,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/mrueda/cohortome',
+          href: 'https://github.com/CNAG-Biomedical-Informatics/cohortome',
           label: 'GitHub',
           position: 'right',
         },
@@ -151,7 +151,7 @@ const config: Config = {
           items: [
             {
               label: 'Repository',
-              href: 'https://github.com/mrueda/cohortome',
+              href: 'https://github.com/CNAG-Biomedical-Informatics/cohortome',
             },
             {
               label: 'API',
@@ -159,7 +159,7 @@ const config: Config = {
             },
             {
               label: 'Apache License 2.0',
-              href: 'https://github.com/mrueda/cohortome/blob/main/LICENSE',
+              href: 'https://github.com/CNAG-Biomedical-Informatics/cohortome/blob/main/LICENSE',
             },
           ],
         },

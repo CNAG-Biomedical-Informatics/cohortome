@@ -14,8 +14,6 @@ runs/
 state/users/
 state/auth/
 state/datasets/scopes/
-default_dataset/
+tests/
 native.env
-private_dataset/
-dataset-large/
 manuscript/

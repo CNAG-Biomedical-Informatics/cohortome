@@ -35,7 +35,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "2000-01-01"
@@ -78,7 +78,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1993-01-01"
@@ -121,7 +121,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1986-01-01"
@@ -164,7 +164,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1979-01-01"
@@ -207,7 +207,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1972-01-01"
@@ -250,7 +250,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1965-01-01"
@@ -293,7 +293,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1998-01-01"
@@ -336,7 +336,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1991-01-01"
@@ -379,7 +379,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1984-01-01"
@@ -422,7 +422,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1977-01-01"
@@ -465,7 +465,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1970-01-01"
@@ -508,7 +508,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1963-01-01"
@@ -551,7 +551,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1996-01-01"
@@ -594,7 +594,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1989-01-01"
@@ -637,7 +637,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1982-01-01"
@@ -680,7 +680,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1975-01-01"
@@ -723,7 +723,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1968-01-01"
@@ -766,7 +766,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1961-01-01"
@@ -809,7 +809,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1994-01-01"
@@ -852,7 +852,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1987-01-01"
@@ -895,7 +895,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1980-01-01"
@@ -938,7 +938,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1973-01-01"
@@ -981,7 +981,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1966-01-01"
@@ -1024,7 +1024,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1999-01-01"
@@ -1067,7 +1067,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1992-01-01"
@@ -1110,7 +1110,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1985-01-01"
@@ -1153,7 +1153,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1978-01-01"
@@ -1196,7 +1196,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1971-01-01"
@@ -1239,7 +1239,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1964-01-01"
@@ -1282,7 +1282,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1997-01-01"
@@ -1325,7 +1325,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "2000-01-01"
@@ -1368,7 +1368,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1993-01-01"
@@ -1411,7 +1411,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1986-01-01"
@@ -1454,7 +1454,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1979-01-01"
@@ -1497,7 +1497,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1972-01-01"
@@ -1540,7 +1540,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1965-01-01"
@@ -1583,7 +1583,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1998-01-01"
@@ -1626,7 +1626,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1991-01-01"
@@ -1669,7 +1669,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1984-01-01"
@@ -1712,7 +1712,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1977-01-01"
@@ -1755,7 +1755,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1970-01-01"
@@ -1798,7 +1798,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1963-01-01"
@@ -1841,7 +1841,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1996-01-01"
@@ -1884,7 +1884,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1989-01-01"
@@ -1927,7 +1927,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1982-01-01"
@@ -1970,7 +1970,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1975-01-01"
@@ -2013,7 +2013,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1968-01-01"
@@ -2056,7 +2056,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1961-01-01"
@@ -2099,7 +2099,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1994-01-01"
@@ -2142,7 +2142,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1987-01-01"
@@ -2185,7 +2185,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1980-01-01"
@@ -2228,7 +2228,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1973-01-01"
@@ -2271,7 +2271,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1966-01-01"
@@ -2314,7 +2314,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1999-01-01"
@@ -2357,7 +2357,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1992-01-01"
@@ -2400,7 +2400,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1985-01-01"
@@ -2443,7 +2443,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1978-01-01"
@@ -2486,7 +2486,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1971-01-01"
@@ -2529,7 +2529,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1964-01-01"
@@ -2572,7 +2572,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1997-01-01"
@@ -2615,7 +2615,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "2000-01-01"
@@ -2658,7 +2658,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1993-01-01"
@@ -2701,7 +2701,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1986-01-01"
@@ -2744,7 +2744,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1979-01-01"
@@ -2787,7 +2787,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1972-01-01"
@@ -2830,7 +2830,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1965-01-01"
@@ -2873,7 +2873,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1998-01-01"
@@ -2916,7 +2916,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1991-01-01"
@@ -2959,7 +2959,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1984-01-01"
@@ -3002,7 +3002,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1977-01-01"
@@ -3045,7 +3045,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1970-01-01"
@@ -3088,7 +3088,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1963-01-01"
@@ -3131,7 +3131,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1996-01-01"
@@ -3174,7 +3174,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1989-01-01"
@@ -3217,7 +3217,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1982-01-01"
@@ -3260,7 +3260,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1975-01-01"
@@ -3303,7 +3303,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1968-01-01"
@@ -3346,7 +3346,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1961-01-01"
@@ -3389,7 +3389,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1994-01-01"
@@ -3432,7 +3432,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1987-01-01"
@@ -3475,7 +3475,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1980-01-01"
@@ -3518,7 +3518,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1973-01-01"
@@ -3561,7 +3561,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1966-01-01"
@@ -3604,7 +3604,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 2",
       "phenopacket": {
         "dateOfBirth": "1999-01-01"
@@ -3647,7 +3647,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1992-01-01"
@@ -3690,7 +3690,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1985-01-01"
@@ -3733,7 +3733,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 3",
       "phenopacket": {
         "dateOfBirth": "1978-01-01"
@@ -3776,7 +3776,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1971-01-01"
@@ -3819,7 +3819,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1964-01-01"
@@ -3862,7 +3862,7 @@
     "info": {
       "event_date": "2025-01-01",
       "synthetic": true,
-      "description": "Synthetic autoimmune demo \u2014 not real PRECISESADS data",
+      "description": "Synthetic cross-sectional demo \u2014 not real PRECISESADS data",
       "recruitment_center": "Demo center 1",
       "phenopacket": {
         "dateOfBirth": "1997-01-01"

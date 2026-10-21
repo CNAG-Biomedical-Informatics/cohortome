@@ -1368,7 +1368,7 @@ def test_query_post_uses_active_workspace_and_returns_dataset_provenance(monkeyp
     )
 
     payload = routes_module.query_app_post(
-        routes_module.QueryRequest(q="Which patients have COPD?", data_dir="default_dataset"),
+        routes_module.QueryRequest(q="Which patients have COPD?", data_dir="datasets/synthetic-longitudinal-demo"),
         request,
     )
 

@@ -102,7 +102,7 @@ def main():
     if not registry.exists():
         seed = json.loads((ROOT / "config/datasets/registry.json").read_text())
         atomic_write_json(registry, [item for item in seed if item["dataset_id"] in
-                                   {"default", "synthetic-autoimmune-demo"}], file_mode=0o600)
+                                   {"default", "synthetic-cross-sectional-demo"}], file_mode=0o600)
     if not find_local_user("local"):
         create_local_user(username="local", password=secrets.token_urlsafe(32),
                           role="admin", display_name="Local owner")

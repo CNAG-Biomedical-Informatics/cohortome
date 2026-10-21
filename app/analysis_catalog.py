@@ -269,7 +269,7 @@ def analysis_catalog_payload(
         if item.get("runner_ref") == "synthetic_custom_script":
             from app.script_inputs import DEMO_ROOT
             if Path(data_dir).resolve() != DEMO_ROOT.resolve():
-                availability.update(available=False, unavailable_reason="Synthetic autoimmune demo only; restricted and mixed workspaces are blocked.")
+                availability.update(available=False, unavailable_reason="Synthetic cross-sectional demo only; restricted and mixed workspaces are blocked.")
         materialized_items.append({**item, **availability})
     return {
         "items": materialized_items,

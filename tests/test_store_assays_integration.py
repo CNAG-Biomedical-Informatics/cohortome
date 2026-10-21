@@ -459,7 +459,7 @@ def test_default_fixture_exposes_precomputed_subject_clarids(tmp_path, monkeypat
         return
     isolate_query_store(monkeypatch, tmp_path)
     monkeypatch.setattr(query_store_module, "list_registered_datasets", lambda: [])
-    fixture_root = str(Path("default_dataset").resolve())
+    fixture_root = str(Path("datasets/synthetic-longitudinal-demo").resolve())
 
     clarids = query_store_module.patient_clarid_inventory(fixture_root)
 
@@ -1114,7 +1114,7 @@ def test_semantic_planner_can_select_a_validated_external_assay_operation(tmp_pa
 
 def test_synthetic_methylation_fixture_uses_processed_m_value_contract():
     matrices = []
-    for dataset_root in (Path("default_dataset"), Path("dataset-large")):
+    for dataset_root in (Path("datasets/synthetic-longitudinal-demo"), Path("tests/fixtures/synthetic-large")):
         manifest = json.loads((dataset_root / "assays" / "manifest.json").read_text(encoding="utf-8"))
         item = next(
             value
@@ -1161,7 +1161,7 @@ def test_synthetic_compact_assay_fixtures_have_complete_analysis_ready_linkage()
     }
     generated_payloads = {}
 
-    for dataset_root in (Path("default_dataset"), Path("dataset-large")):
+    for dataset_root in (Path("datasets/synthetic-longitudinal-demo"), Path("tests/fixtures/synthetic-large")):
         manifest = json.loads((dataset_root / "assays" / "manifest.json").read_text(encoding="utf-8"))
         items = {value.get("assay_id"): value for value in manifest["assays"]}
         clinical_records = json.loads(

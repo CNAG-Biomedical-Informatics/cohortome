@@ -1,4 +1,4 @@
-# Synthetic autoimmune demo
+# Synthetic cross-sectional demo
 
 This cross-sectional dataset lets reviewers try autoimmune research workflows.
 It illustrates the type of use case planned for PRECISESADS, but is not derived
@@ -6,7 +6,7 @@ from its data.
 Participants, measurements, effects, batches and missingness are independently
 simulated, not copied, anonymized, or fitted to patient-level study records.
 
-The existing default dataset remains available for longitudinal demonstrations.
+The Synthetic longitudinal demo remains available for longitudinal demonstrations.
 
 ## Synthetic identifiers
 
@@ -57,7 +57,7 @@ No treatment history or repeated visits are simulated.
 
 ## Try it in the app
 
-Select **Synthetic autoimmune demo** in Datasets and apply the workspace. If its
+Select **Synthetic cross-sectional demo** in Datasets and apply the workspace. If its
 query store is not ready, an administrator must prepare it in Data Administration.
 
 1. Inspect Dashboard's clinical, assay and multimodal coverage views.
@@ -87,8 +87,8 @@ distributions clinically realistic.
 
 ## Installation and regeneration
 
-The source checkout includes `synthetic_autoimmune_demo/`. Docker builds generate
-the same fixture from the checked-in script. A fresh runtime lists it automatically;
+The source checkout and Docker image include `datasets/synthetic-cross-sectional-demo/`.
+A fresh runtime lists it automatically;
 existing registries are not silently changed. An administrator can register its
 directory in Data Administration and prepare its query store.
 

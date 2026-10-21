@@ -182,7 +182,7 @@ def test_custom_script_submission_serializes_bound_parameters(tmp_path, monkeypa
     from app.schemas import AnalysisRequest
 
     monkeypatch.setattr(routes, 'require_authenticated', lambda _: None)
-    monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *a: ['synthetic-autoimmune-demo'])
+    monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *a: ['synthetic-cross-sectional-demo'])
     monkeypatch.setattr(routes, 'resolve_dataset_dir', lambda *a: str(DEMO_ROOT))
     monkeypatch.setattr(routes, 'effective_query_granularity_ceiling', lambda _: 'detailed')
     monkeypatch.setattr(routes, 'request_user_id', lambda _: 'tester')
@@ -198,7 +198,7 @@ def test_custom_script_submission_serializes_bound_parameters(tmp_path, monkeypa
         return {'queued': True}
     monkeypatch.setattr(routes, 'analysis_llm_reply', submit)
     result = routes.analysis_app(AnalysisRequest(
-        prompt='Run starter', dataset_id='synthetic-autoimmune-demo',
+        prompt='Run starter', dataset_id='synthetic-cross-sectional-demo',
         catalog_item_id='synthetic-custom-script', custom_script='print("hello")',
         input_contract_id='contract', sandbox_image_id='image', script_language='python'), None)
     assert result == {'queued': True}
@@ -213,7 +213,7 @@ def test_custom_background_job_uses_saved_script_and_rechecks_access(tmp_path, m
     import app.analysis_external as external
     monkeypatch.setattr(user_state, 'STATE_ROOT_DIR', tmp_path)
     monkeypatch.setattr(jobs, 'user_state_dir', lambda _: tmp_path)
-    monkeypatch.setattr(jobs, '_authorize_analysis_scope', lambda *a: {'dataset_ids': ['synthetic-autoimmune-demo'],
+    monkeypatch.setattr(jobs, '_authorize_analysis_scope', lambda *a: {'dataset_ids': ['synthetic-cross-sectional-demo'],
         'datasets': [{'root_path': str(DEMO_ROOT), 'query_granularity_ceiling': 'detailed'}]})
     import app.datasets as datasets
     monkeypatch.setattr(datasets, 'effective_query_granularity_ceiling', lambda _: 'detailed')
@@ -223,7 +223,7 @@ def test_custom_background_job_uses_saved_script_and_rechecks_access(tmp_path, m
         return {'reply': 'done', 'data': {'context': {'mode': 'custom_script'}}}
     monkeypatch.setitem(external.EXTERNAL_ANALYSIS_RUNNERS, 'container', runner)
     record = jobs.create_job_record(job_type='analysis', user_id='tester', data={
-        'catalog_item_id': 'synthetic-custom-script', 'dataset_id': 'synthetic-autoimmune-demo',
+        'catalog_item_id': 'synthetic-custom-script', 'dataset_id': 'synthetic-cross-sectional-demo',
         'runner_type': 'container', 'script_parameters': {'script': 'print(123)'}, 'prompt': 'Custom analysis'})
     result = jobs.run_analysis_job(record['job_id'], 'tester')
     assert result['status'] == 'completed'

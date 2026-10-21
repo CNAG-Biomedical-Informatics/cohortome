@@ -14,7 +14,7 @@ Both use the same application code and research interface.
 
 ## Install a release
 
-1. Open [COHORTome Releases](https://github.com/mrueda/cohortome/releases).
+1. Open [COHORTome Releases](https://github.com/CNAG-Biomedical-Informatics/cohortome/releases).
 2. Choose a release with an installer for your operating system and processor.
    Check its release notes for supported platforms and analysis dependencies.
 3. Follow the installation instructions supplied with that release, then open
@@ -158,10 +158,9 @@ Paste the path into File Explorer's address bar.
 :::info[Current preview builds]
 
 These paths use the current application identifier, `org.cnag.cohortome.preview`.
-Linux packaging is being tested; macOS and Windows installers are not yet
-available. Running `python3 desktop/run.py` from source stores backend data in
-the checkout's `runtime/desktop-preview/` instead. The source and packaged apps
-do not share saved work automatically.
+Installers have not yet been published. Source launches use
+`org.cnag.cohortome.source-preview` under the same platform app-data directory,
+not the checkout. Source and packaged apps do not share saved work automatically.
 
 :::
 

@@ -15,11 +15,11 @@ from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DATASET_ROOT = ROOT / "default_dataset"
+DEFAULT_DATASET_ROOT = ROOT / "datasets/synthetic-longitudinal-demo"
 CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_longitudinal.json"
 HC_CLINICAL_PATH = DEFAULT_DATASET_ROOT / "clinical" / "synthetic_hc_baseline.json"
 TRANSCRIPTOMICS_DIR = DEFAULT_DATASET_ROOT / "assays" / "transcriptomics"
-DEFAULT_LARGE_DATASET_ROOT = ROOT / "dataset-large"
+DEFAULT_LARGE_DATASET_ROOT = ROOT / "tests/fixtures/synthetic-large"
 REAL_GENE_PANEL_PATH = ROOT / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 
 VISITS = [
@@ -880,8 +880,8 @@ def write_transcriptomics_readme(
         *examples,
         "",
         "Notes:",
-        "- All sample IDs match the merged longitudinal IDs in `default_dataset/clinical/synthetic_longitudinal.json`.",
-        "- Healthy control baseline sample IDs match `default_dataset/clinical/synthetic_hc_baseline.json`.",
+        "- All sample IDs match the merged longitudinal IDs in `datasets/synthetic-longitudinal-demo/clinical/synthetic_longitudinal.json`.",
+        "- Healthy control baseline sample IDs match `datasets/synthetic-longitudinal-demo/clinical/synthetic_hc_baseline.json`.",
         "- `week_0` is a true untreated baseline in the synthetic clinical fixture.",
         "- Healthy controls are baseline-only and intentionally omit the `diseases` field.",
         "- The expression panel is larger and structured into disease-relevant synthetic modules (inflammatory, interferon, B-cell, stromal, airway, eosinophil, barrier, housekeeping).",

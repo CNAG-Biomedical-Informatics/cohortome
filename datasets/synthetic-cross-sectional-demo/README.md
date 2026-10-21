@@ -1,10 +1,10 @@
-# Synthetic autoimmune demo — not real PRECISESADS data
+# Synthetic cross-sectional demo — not real PRECISESADS data
 
 90 independently fictional participants: 30 RA, 30 SLE, 30 healthy controls.
 Clinical data link to simulated RNA, methylation, immune-cell and serology
 measurements. No real study records or patient-derived distributions were used.
 
-See `docs-site/docs/user-guide/synthetic-autoimmune-demo.md` for a walkthrough,
+See `docs-site/docs/user-guide/synthetic-cross-sectional-demo.md` for a walkthrough,
 simulation assumptions and limitations. `provenance.json` records the seed;
 `simulation_truth.json` identifies planted effects. These are software test
 signals, not biological findings. RNA values are expected-count-like simulations,

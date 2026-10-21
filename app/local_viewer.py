@@ -17,7 +17,7 @@ from app.routes import _require_detailed_assay_access, _resolve_route_dataset_di
 
 router = APIRouter(prefix='/local-viewer', tags=['dicom'])
 ASSETS = BASE_DIR / 'runtime' / 'ohif'
-SYNTHETIC_ROOT = BASE_DIR / 'default_dataset'
+SYNTHETIC_ROOT = BASE_DIR / 'datasets/synthetic-longitudinal-demo'
 HEADERS = {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
            'X-Content-Type-Options': 'nosniff'}
 

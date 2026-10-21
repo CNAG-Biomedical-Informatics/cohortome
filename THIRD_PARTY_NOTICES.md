@@ -1,50 +1,39 @@
 # Third-party software and data
 
-COHORTome code is licensed under Apache-2.0. Dependencies and reference data
-retain their own licences. A list of component versions in Settings is not a
-replacement for the licence texts supplied with a distribution.
+COHORTome code is licensed under [Apache-2.0](LICENSE). Third-party software
+and reference data retain their own licences and copyright notices.
 
 ## Files in this source repository
 
-- The vendored HGNC gene-symbol table uses CC0 data. Its columns, checksum and
-  provenance limitations are recorded in [scripts/data/README.md](scripts/data/README.md).
+- The gene-symbol table is derived from HUGO Gene Nomenclature Committee
+  (HGNC) data, released under [CC0](https://www.genenames.org/about/license/).
+  File provenance is recorded in [scripts/data/README.md](scripts/data/README.md).
 - Current DICOM fixtures are procedural COHORTome phantoms. Historical revisions
-  used pydicom's `MR_small.dcm` test pixels. Preserve that historical attribution;
-  see the retained [pydicom 3.0.2 licence](licenses/pydicom-3.0.2.txt), including
-  its GDCM notice. Older distributions must retain their version's notices too.
-- Bundled synthetic clinical and assay fixtures demonstrate software behaviour.
-  Imported study data are separate and are not relicensed by COHORTome.
+  used pydicom's `MR_small.dcm` test pixels. The retained
+  [pydicom 3.0.2 licence](licenses/pydicom-3.0.2.txt) credits Darcy Mason and
+  pydicom contributors and includes the GDCM notice for generated dictionaries.
 
-## Desktop distributions
+## Software components
 
-The experimental packager retains the Plotly and Cytoscape package licence files.
-The shared Perl builder retains the top-level tool notices and downloaded source
-archives. Neither step is a complete review of transitive dependencies.
+- Plotly.js and Cytoscape.js provide interactive plots and networks. The desktop
+  packager retains their package licence files under `static/vendor/`.
+- The shared Perl runtime provides Pheno-Ranker, Convert-Pheno and ClarID tools.
+  Its builder retains their top-level notices under `licenses/` and downloaded
+  source archives under `sources/` within that runtime.
+- OHIF provides DICOM viewing under an [MIT licence](https://github.com/OHIF/Viewers).
+  Its assets are prepared separately and are not included by the current desktop
+  packager.
 
-Before distributing a binary bundle, inspect the exact artifact and provide:
+Python, Rust/Tauri, Perl, R and their libraries remain subject to their respective
+terms. The components included depend on the distribution. Settings reports
+detected versions; the licence texts accompanying each distribution govern its
+included components.
 
-- Python and all included Python-package licence texts, including the scientific
-  stack and any native libraries collected by the freezer;
-- Rust/Tauri dependency notices for the locked dependency graph;
-- Perl, CPAN module and copied native-library notices and any required sources;
-- R, Bioconductor/CRAN package and copied native-library notices and any required
-  corresponding sources;
-- viewer and browser-library notices if OHIF assets are included;
-- separate provenance and applicable terms for terminology databases shipped by
-  Convert-Pheno and ClarID, including their exact vocabulary editions.
+## Imported data and terminology
 
-Do not infer permission for a terminology database from the software licence of
-the tool that includes it. In particular, identify the actual ICD edition and
-source before applying [WHO's classification terms](https://www.who.int/about/policies/publishing/copyright).
+Imported study data, terminology databases and downloaded gene sets are not
+relicensed by COHORTome. Their source-specific terms apply independently of
+the software used to process them.
 
-OHIF assets are currently prepared separately and are not included by the desktop
-packager. OHIF itself uses an [MIT licence](https://github.com/OHIF/Viewers);
-its dependency notices must also accompany a redistributed viewer build.
-MSigDB gene sets are not part of the synthetic packaging tests. Installing
-`msigdbr` does not establish permission to redistribute its downloaded data.
-
-**Binary redistribution review is not complete.** Experimental CI artifacts are
-not approved release downloads. Publishing source code does not clear existing
-CI artifacts for distribution; review or remove those artifacts before changing
-repository visibility. Keep required sources and notices with each approved
-release, rather than relying on expiring CI artifacts.
+For binary-distribution review requirements, see
+[Desktop packaging](desktop/PACKAGING.md#redistribution-review).

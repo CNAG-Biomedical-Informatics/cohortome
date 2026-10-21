@@ -29,14 +29,9 @@ Current development fixture:
 - `synthetic_transcriptome_raw_counts_dupilumab.csv`
   - Post-treatment samples for synthetic COPD patients treated with Dupilumab
 
-Large transcriptome fixtures can also be regenerated with the fixture script:
-
-- `python3 scripts/generate_synthetic_multimodal_fixture.py --large-gene-count 10000`
-  - Rebuilds `dataset-large` with one active molecular panel of `10000` HGNC-backed genes using Ensembl row identifiers.
-
 Notes:
-- All sample IDs match the merged longitudinal IDs in `default_dataset/clinical/synthetic_longitudinal.json`.
-- Healthy control baseline sample IDs match `default_dataset/clinical/synthetic_hc_baseline.json`.
+- All sample IDs match the merged longitudinal IDs in `datasets/synthetic-longitudinal-demo/clinical/synthetic_longitudinal.json`.
+- Healthy control baseline sample IDs match `datasets/synthetic-longitudinal-demo/clinical/synthetic_hc_baseline.json`.
 - `week_0` is a true untreated baseline in the synthetic clinical fixture.
 - Healthy controls are baseline-only and intentionally omit the `diseases` field.
 - The expression panel is larger and structured into disease-relevant synthetic modules (inflammatory, interferon, B-cell, stromal, airway, eosinophil, barrier, housekeeping).

@@ -15,14 +15,6 @@ application accounts or grants between users. See
 
 </DeploymentNotice>
 
-<div className="pnQuickHero">
-  <div className="pnEyebrow">Authentication</div>
-  <h2>Set up login and decide who can access each dataset.</h2>
-  <div className="pnHeroText">
-    External identity providers prove who a user is. COHORTome still
-    owns local role, group, dataset access, and per-user settings.
-  </div>
-</div>
 
 The current app supports local authentication and a generic OIDC mode for
 external identity providers such as Dex, Google, or institutional SSO.
@@ -111,58 +103,14 @@ If login succeeds but datasets or saved work appear missing, check the runtime
 directory and mapped COHORTome username first. The app does not currently
 provide an authentication-migration wizard.
 
-## Roles versus groups
+## Roles and dataset access
 
-The app uses both concepts, but for different purposes.
+The `admin` role or membership in the `admin` group grants administrative
+access. Other groups grant access only through dataset policy.
 
-### Role
-
-A role controls application-level privileges such as:
-
-- whether a user can see the `Admin` navigation group
-- whether a user can see `Users`
-
-Current important role:
-
-- `admin`
-
-The app also accepts membership in the `admin` group as an administrative path for UI visibility and backend admin endpoints.
-
-### Group
-
-A group controls dataset access through dataset policy.
-
-Examples:
-
-- `cnag`
-- `admin`
-
-Groups are the preferred way to grant dataset access at scale.
-
-## Recommended policy model
-
-The intended operating rule is:
-
-- groups first
-- direct user access as exception
-
-In practice that means:
-
-- grant datasets to groups whenever possible
-- use direct allowed users for special cases
-
-## Groupless users
-
-A user without groups is still valid.
-
-Such a user:
-
-- gets no dataset access through groups
-- may still gain access through:
-  - broad dataset visibility
-  - direct `allowed_users`
-
-This matters because not every local user needs to belong to an organizational group.
+Prefer group grants for routine access and direct user grants for exceptions.
+Users without groups remain valid: visibility or a direct grant can authorize
+them. See [dataset access rules](datasets-and-access.mdx#access-model).
 
 ## What the UI can edit
 
@@ -243,69 +191,14 @@ stored hashed under:
 Users without an email address, disabled users, and non-local users cannot use
 self-service password reset. They still require an administrator reset.
 
-## Admin group direction
+## Institutional identity
 
-The app is moving toward cleaner group-based administration.
-
-That means the long-term model can be:
-
-- the username `admin` is just one user
-- real administrative capability can also be granted through the `admin` group
-
-For now, local role-based admin support still exists and is useful during development.
-
-## Future direction
-
-Supported login methods are:
-
-- local username and password
-- external identity through OIDC, such as Google or institutional SSO
-
-COHORTome should continue to own authorization concepts such as:
-
-- roles
-- groups
-- dataset access
-- in-app disclosure policy
-- AI-provider policy
-
-For production environments with institutional identity management, external
-OIDC is the supported integration. Institutions using SAML or LDAP need an
-identity service that exposes OIDC to COHORTome. Local SMTP
-password reset is intended for controlled deployments that still use local auth.
+OIDC authenticates users; COHORTome retains roles, groups, dataset access and
+disclosure policies. SAML or LDAP installations need an identity service that
+exposes OIDC.
 
 ## Local OIDC development with Dex
 
-Dex is the recommended local OIDC provider for development because it is small
-and can run as a disposable container.
-
-Start Dex from the repository root:
-
-```bash
-docker compose -f scripts/dev/docker-compose.dex.yml up
-```
-
-Start COHORTome in OIDC mode:
-
-```bash
-export COHORTOME_AUTH_MODE=oidc
-export COHORTOME_OIDC_PROVIDER_NAME=Dex
-export COHORTOME_OIDC_ISSUER=http://127.0.0.1:5556/dex
-export COHORTOME_OIDC_CLIENT_ID=cohortome
-export COHORTOME_OIDC_CLIENT_SECRET=cohortome-secret
-export COHORTOME_OIDC_REDIRECT_URI=http://127.0.0.1:8000/auth/oidc/callback
-export COHORTOME_AUTH_LOCAL_FALLBACK=true
-export COHORTOME_SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-PYTHONPATH=.deps uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-The development Dex config includes one static user:
-
-- email: `manuel.rueda@cnag.eu`
-- password: `password`
-
-That email must also exist on the local COHORTome user record, for
-example `mrueda` in `<runtime>/state/auth/users.json`.
-
-Production Google or institutional OIDC should use the same app-side variables
-with provider-specific issuer, client ID, client secret, and redirect URI.
+Use the [Dex development recipe](https://github.com/CNAG-Biomedical-Informatics/cohortome/blob/main/scripts/dev/README.md).
+Its example credentials are for local testing only. The Dex email must match an
+enabled COHORTome account; successful provider login alone does not grant access.

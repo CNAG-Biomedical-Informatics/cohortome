@@ -10,7 +10,7 @@ import random
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = "Synthetic autoimmune demo"
+LABEL = "Synthetic cross-sectional demo"
 SEED = 20260907
 IFN = "IFI27 IFI44 IFI44L IFIT1 IFIT2 IFIT3 ISG15 MX1 OAS1 RSAD2".split()
 INFLAMMATION = "IL6 TNF CXCL8 CCL2 IL1B S100A8 S100A9 NFKB1 PTGS2 CXCL10".split()
@@ -138,7 +138,7 @@ def build(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "synthetic_autoimmune_demo")
+    parser.add_argument("--output", type=Path, default=ROOT / "datasets/synthetic-cross-sectional-demo")
     args = parser.parse_args()
     build(args.output)
     print("Generated 90 fictional participants and four linked assay modalities.")

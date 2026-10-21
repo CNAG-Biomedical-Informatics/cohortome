@@ -9,7 +9,7 @@ items:
     execution_backend: job
     job_timeout_seconds: 180
     description: Run your own Python or R analysis using automatically prepared patient, clinical and assay objects.
-    guidance: Prepare the template in Inputs, optionally complete it with an external AI, then paste the script and run. Synthetic autoimmune demo only.
+    guidance: Prepare the template in Inputs, optionally complete it with an external AI, then paste the script and run. Synthetic cross-sectional demo only.
     default_prompt: Run the custom analysis on the prepared synthetic inputs.
     execution_mode: deterministic
     requires_detailed_access: true

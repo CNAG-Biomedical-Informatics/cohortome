@@ -1,9 +1,9 @@
 [
   {
-    "dataset_id": "synthetic-autoimmune-demo",
-    "name": "Synthetic autoimmune demo",
+    "dataset_id": "synthetic-cross-sectional-demo",
+    "name": "Synthetic cross-sectional demo",
     "description": "90 fictional RA/SLE/control participants with linked clinical, RNA, methylation, immune-cell and serology data. Independently simulated; not study results.",
-    "root_path": "synthetic_autoimmune_demo",
+    "root_path": "datasets/synthetic-cross-sectional-demo",
     "enabled": true,
     "visibility": "all_authenticated",
     "data_classification": "public",
@@ -17,9 +17,9 @@
   },
   {
     "dataset_id": "default",
-    "name": "Default synthetic dataset",
+    "name": "Synthetic longitudinal demo",
     "description": "Compact clinical and transcriptome fixture for regular app testing.",
-    "root_path": "default_dataset",
+    "root_path": "datasets/synthetic-longitudinal-demo",
     "enabled": true,
     "visibility": "all_authenticated",
     "data_classification": "public",
@@ -30,39 +30,5 @@
     "created_by": "system",
     "created_at": "2026-04-01T08:32:21.008038+00:00",
     "updated_at": "2026-04-17T00:00:00+00:00"
-  },
-  {
-    "dataset_id": "private-dataset",
-    "name": "Private dataset",
-    "description": "Restricted minimal fixture for access-control and safe-summary testing.",
-    "root_path": "private_dataset",
-    "enabled": true,
-    "visibility": "restricted",
-    "data_classification": "private",
-    "allowed_users": [],
-    "allowed_groups": [
-      "cnag"
-    ],
-    "query_granularity_ceiling": "summary",
-    "ai_provider_access": "safe_summary",
-    "created_by": "system",
-    "created_at": "2026-04-01T09:30:00+00:00",
-    "updated_at": "2026-04-18T11:59:18.740070+00:00"
-  },
-  {
-    "dataset_id": "dataset-large",
-    "name": "Dataset large",
-    "description": "Large transcriptome timing fixture.",
-    "root_path": "dataset-large",
-    "enabled": true,
-    "visibility": "all_authenticated",
-    "data_classification": "public",
-    "allowed_users": [],
-    "allowed_groups": [],
-    "query_granularity_ceiling": "detailed",
-    "ai_provider_access": "detailed_allowed",
-    "created_by": "system",
-    "created_at": "2026-04-24T00:00:00+00:00",
-    "updated_at": "2026-04-24T00:00:00+00:00"
   }
 ]

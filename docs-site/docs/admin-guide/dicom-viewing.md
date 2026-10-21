@@ -26,7 +26,7 @@ In this deployment mode, OHIF and Orthanc run as separate services.
 
 ## Bundled viewer prototype
 
-The source app also has a local OHIF prototype for the bundled default synthetic
+The source app also has a local OHIF prototype for the bundled Synthetic longitudinal demo
 dataset. Prepare its browser assets once with:
 
 ```bash
@@ -35,7 +35,7 @@ python3 scripts/dicom/prepare_bundled_viewer.py
 
 This extracts a pinned OHIF image into ignored `runtime/ohif`. Docker is needed
 for this preparation step, not for viewing images afterwards. With these assets
-present, Dashboard → Imaging offers **View images** for the default synthetic
+present, Dashboard → Imaging offers **View images** for the Synthetic longitudinal demo
 studies. The viewer opens over the workspace; **Close viewer** returns to it.
 Each study has one viewing action: it prefers the bundled viewer when available
 for that study; otherwise it uses the enabled external OHIF configuration. It
@@ -120,14 +120,14 @@ and are not realistic MS lesion images.
 Import them into Orthanc:
 
 ```bash
-python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+python3 scripts/dicom/import_to_orthanc.py datasets/synthetic-longitudinal-demo/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
 ```
 
 Optionally import the other bundled fixture datasets:
 
 ```bash
-python3 scripts/dicom/import_to_orthanc.py dataset-large/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
-python3 scripts/dicom/import_to_orthanc.py private_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+python3 scripts/dicom/import_to_orthanc.py tests/fixtures/synthetic-large/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+python3 scripts/dicom/import_to_orthanc.py tests/fixtures/synthetic-access-test/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
 ```
 
 ## Dataset metadata
@@ -209,7 +209,7 @@ Generate and import the bundled synthetic DICOM files:
 
 ```bash
 PYTHONPATH=.deps python3 scripts/dicom/generate_synthetic_dicom.py
-python3 scripts/dicom/import_to_orthanc.py default_dataset/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
+python3 scripts/dicom/import_to_orthanc.py datasets/synthetic-longitudinal-demo/assays/imaging/dicom --orthanc-url http://127.0.0.1:8042
 ```
 
 Start COHORTome from source:

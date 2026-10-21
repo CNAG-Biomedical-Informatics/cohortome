@@ -4,9 +4,6 @@ sidebar_position: 1
 
 import DeploymentNotice from '@site/src/components/DeploymentNotice';
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 # Datasets And Access
 
 <DeploymentNotice mode="both" title="Desktop and Web">
@@ -18,14 +15,6 @@ control what dataset context may be sent to a model.
 
 </DeploymentNotice>
 
-<div className="pnQuickHero">
-  <div className="pnEyebrow">Data administration</div>
-  <h2>Control who can load each dataset and whether its store is ready for interactive use.</h2>
-  <div className="pnHeroText">
-    Dataset access, public/private classification, in-app disclosure,
-    AI-provider policy, and DuckDB store readiness are admin-owned controls.
-  </div>
-</div>
 
 Each dataset has its own registration, access rules, and prepared query store.
 
@@ -115,11 +104,10 @@ they are not added to Summary-mode responses or external model context.
 
 ### Synthetic fixture identifiers
 
-The default, large, private synthetic, and autoimmune demo fixtures include
-subject ClarIDs. The private fixture remains access-controlled and Summary-only
-by default; adding identifiers does not change its disclosure policy.
+Both bundled demos and the test-only fixtures include subject ClarIDs.
+Identifiers do not change a dataset's disclosure policy.
 
-To regenerate the three additional fixture sidecars with ClarID-Tools 0.04:
+To regenerate fixture sidecars with ClarID-Tools 0.04:
 
 ```bash
 python3 scripts/generate_synthetic_clarids.py \
@@ -141,7 +129,7 @@ and includes the returned descriptions in each sidecar.
 Review each output CSV before placing it at the corresponding fixture's
 `identifiers/clarid_subjects.csv`. Also update
 `scripts/data/synthetic_autoimmune_clarid_subjects.csv`, which the autoimmune
-generator copies into fresh releases, including Docker builds. Prepare the
+generator copies into regenerated demos. Prepare the
 affected synthetic stores after updating their manifests or sidecars.
 The app does not require a ClarID-Tools installation to display these codes.
 
@@ -216,40 +204,8 @@ Regular dataset responses omit server root paths. Clinical provenance shown in
 the browser uses a dataset ID plus a release-relative path rather than an
 absolute filesystem location.
 
-<Tabs>
-  <TabItem value="user-view" label="User view" default>
-    <div>
-      <p>Regular users are expected to:</p>
-      <ul>
-        <li>see only authorized datasets</li>
-        <li>choose one or more datasets in <code>Datasets</code></li>
-        <li>apply the active workspace</li>
-      </ul>
-
-      <p>They do not manage dataset policy from this view.</p>
-    </div>
-
-  </TabItem>
-  <TabItem value="admin-view" label="Admin view">
-    <div>
-      <p>Admins are expected to:</p>
-      <ul>
-        <li>review dataset visibility</li>
-        <li>classify data as public or private</li>
-        <li>assign allowed groups</li>
-        <li>assign allowed users</li>
-        <li>set Query detail policy</li>
-        <li>set AI-provider policy</li>
-        <li>inspect dataset-store readiness</li>
-        <li>prepare or rebuild dataset DuckDB stores</li>
-        <li>inspect effective dataset access</li>
-      </ul>
-
-      <p>This happens in <code>Admin &gt; Data</code>, not in the workspace-selection <code>Datasets</code> tab.</p>
-    </div>
-
-  </TabItem>
-</Tabs>
+Use **Datasets** to select a workspace. Use **Admin > Data** to register datasets,
+set policy and prepare stores; **Admin > Users** manages user accounts.
 
 ## Loading and unloading safely
 
@@ -283,64 +239,13 @@ multi-user Web deployments. They are not a Desktop account-management workflow.
 
 </DeploymentNotice>
 
-Dataset access is granted through:
+Access is granted by matching visibility, an allowed group, or an explicit
+allowed user. Prefer groups for routine grants and direct users for exceptions.
+Users without groups can still receive access through visibility or a direct grant.
 
-- visibility
-- allowed groups
-- allowed users
-
-The effective rule is a union:
-
-- visible to everyone if visibility allows it
-- or visible through matching groups
-- or visible through explicit direct user assignment
-
-This is intentionally a union, not a conflict model.
-
-Visibility answers **who may use the dataset inside COHORTome**. It does not
-answer whether data may leave the deployment. A consortium dataset can be
-available to every authenticated member and still be private.
-
-:::info
-Effective access is granted if any allowed path matches:
-
-- visibility
-- group membership
-- direct user assignment
-:::
-
-## Groups versus direct users
-
-The intended operating model is:
-
-- groups are the default
-- direct users are exceptions
-
-That means:
-
-- a dataset can be granted to a whole group such as `cnag`
-- a specific user can still be granted access directly even if they have no group
-
-This is especially important for:
-
-- temporary access
-- exceptional reviewers
-- local users without group membership
-
-## Groupless users
-
-A user with no groups is still valid.
-
-Such a user:
-
-- receives no dataset access from groups
-- but can still receive access through:
-  - broad visibility
-  - direct `allowed_users`
-
-:::note
-Groupless users are valid. They do not need to be forced into a group just to be usable in the app.
-:::
+Visibility controls who can use data inside COHORTome, not whether it may leave
+the deployment. A dataset available to every authenticated user may still be
+classified as private. **Users with access** previews the effective grants.
 
 ## What the Data page edits
 
@@ -446,29 +351,3 @@ In current Query behavior it means:
 - only structural, non-clinical context may leave the backend
 - semantic planning is skipped
 - if the prompt needs private clinical context, the provider should answer that it lacks enough permitted context
-
-## Effective dataset access
-
-The admin UI also shows a `Users with access` preview.
-
-This preview answers:
-
-- who currently gets this dataset
-- under the current local auth configuration
-- after visibility, groups, and direct users are combined
-
-This is useful because it makes the group-versus-user rule explicit instead of forcing admins to infer it.
-
-## Current admin workflow
-
-In `Admin > Data`, admins can:
-
-- review dataset visibility
-- classify the dataset as public or private
-- assign allowed groups
-- assign allowed users
-- choose whether Query is `Summary only` or `Detailed allowed` in-app
-- choose the dataset AI-provider policy for Query
-- review which current local users effectively match the dataset access policy
-
-This means the admin policy is the ceiling, and the app applies the effective behavior automatically in `Query`.

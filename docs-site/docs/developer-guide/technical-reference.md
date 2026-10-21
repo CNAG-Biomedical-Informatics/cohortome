@@ -7,6 +7,7 @@ title: Technical reference
 | Topic | Reference |
 | --- | --- |
 | Application components and data flow | [Architecture](architecture.md) |
+| Desktop process boundary and background-run diagnostic | [Desktop development](desktop-development.md) |
 | Supported scope and limitations | [Scope and boundaries](../project/scope-and-boundaries.md) |
 | Chats, cohorts, projects, and stored results | [State and persistence](state-and-persistence.md) |
 | Query detail and model-context rules | [Query disclosure](query-disclosure-modes.md) |

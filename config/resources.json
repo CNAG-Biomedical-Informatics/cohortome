@@ -21,7 +21,7 @@
   },
   {
     "dataset_id": "default",
-    "name": "Default synthetic dataset",
+    "name": "Synthetic longitudinal demo",
     "synthetic": true,
     "version": "0.1.1-preview",
     "description": "38 fictional participants with longitudinal clinical records and assay examples.",
@@ -36,8 +36,8 @@
     "archive_sha256": "f78c0492a57cf40d2c30e8da20e5f49a5e6282a5e33e7315dc69f306b59b6211"
   },
   {
-    "dataset_id": "synthetic-autoimmune-demo",
-    "name": "Synthetic autoimmune demo",
+    "dataset_id": "synthetic-cross-sectional-demo",
+    "name": "Synthetic cross-sectional demo",
     "synthetic": true,
     "version": "0.1.1-preview",
     "description": "90 fictional participants: rheumatoid arthritis, lupus and controls.",

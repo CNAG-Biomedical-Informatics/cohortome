@@ -23,8 +23,8 @@ def check(root, runtime):
         print("PASS: packaged extended R packages load for all curated runners")
     runner = "transcriptomics_limma_voom_differential_expression"
     assert not rscript_unavailable_reason(runner)
-    prepare_dataset_query_store("synthetic-autoimmune-demo")
-    dataset = root / "synthetic_autoimmune_demo"
+    prepare_dataset_query_store("synthetic-cross-sectional-demo")
+    dataset = root / "datasets/synthetic-cross-sectional-demo"
     with (dataset / "assays/transcriptomics/sample_metadata.tsv").open() as handle:
         patients = list(dict.fromkeys(row["patient_id"] for row in csv.DictReader(handle, delimiter="\t")))
     assert len(patients) >= 8

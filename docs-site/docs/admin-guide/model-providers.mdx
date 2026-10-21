@@ -15,15 +15,6 @@ remote provider if permitted.
 
 </DeploymentNotice>
 
-<div className="pnQuickHero">
-  <div className="pnEyebrow">AI administration</div>
-  <h2>Choose which language-model services users can access.</h2>
-  <div className="pnHeroText">
-    Model providers are configured by administrators. Users can select from the
-    approved list in Settings, while dataset policy still controls whether AI
-    context is allowed at all.
-  </div>
-</div>
 
 Administrators enable model services, and dataset rules control what data each
 service may receive. Disabling a provider leaves supported deterministic
@@ -167,21 +158,6 @@ If the selected provider is disabled or unavailable, LLM-only routes should
 return an explicit provider-unavailable message rather than silently falling
 back to a deterministic answer.
 
-## Admin visibility
-
-Admins can open `Admin > Models` to inspect and manage:
-
-- configured providers
-- label and provider ID
-- base URL
-- model name
-- enabled state
-- local or external data boundary
-- current health check result
-- whether the provider is deployment-managed or managed in the app
-
-The UI and API never return API-key values.
-
 ## Dataset policy still wins
 
 Provider selection does not bypass dataset policy.
@@ -196,33 +172,3 @@ For multi-dataset workspaces, the strictest selected dataset wins. If any
 selected dataset is private, an external provider is blocked for the whole
 workspace. Local providers still follow the workspace's strictest configured
 context level.
-
-## Future MCP direction
-
-The provider registry intentionally uses structured JSON so it can grow without
-changing the user-facing settings model.
-
-A future MCP-capable shape can extend the provider entry with fields such as:
-
-```json
-{
-  "id": "cnag-agent-gateway",
-  "label": "CNAG Agent Gateway",
-  "base_url": "http://10.0.0.20:1234/v1",
-  "model": "gpt-oss-120b",
-  "mcp": {
-    "enabled": true,
-    "servers": [
-      {
-        "id": "clinical-tools",
-        "transport": "http",
-        "url": "https://mcp.example.org/clinical"
-      }
-    ]
-  }
-}
-```
-
-The app does not call MCP servers yet. The important current decision is that
-model and future tool-provider configuration should stay admin-owned and
-auditable.

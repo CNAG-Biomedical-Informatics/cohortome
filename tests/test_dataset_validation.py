@@ -37,7 +37,7 @@ def test_schemas_are_valid():
         Draft202012Validator.check_schema(json.loads(path.read_text()))
 
 
-@pytest.mark.parametrize("name", ["default_dataset", "private_dataset", "dataset-large", "synthetic_autoimmune_demo"])
+@pytest.mark.parametrize("name", ["datasets/synthetic-longitudinal-demo", "tests/fixtures/synthetic-access-test", "tests/fixtures/synthetic-large", "datasets/synthetic-cross-sectional-demo"])
 def test_bundled_packages_are_read_only_and_valid(name, monkeypatch):
     import duckdb
     monkeypatch.setattr(duckdb, "connect", lambda *a, **kw: pytest.fail("Validator must not open DuckDB"))
