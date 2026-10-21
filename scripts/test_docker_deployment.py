@@ -37,6 +37,23 @@ def main():
             response.raise_for_status()
             assert response.json()['data']['patient_count'] > 0
         client.patch('/user-settings', json={'appearance': 'dark'}).raise_for_status()
+        response = client.get('/pheno-ranker/patient-ids', params={'dataset_id': 'default'})
+        response.raise_for_status()
+        selected = response.json()['record_ids'][:3]
+        assert len(selected) == 3
+        response = client.post('/pheno-ranker/run', json={
+            'dataset_id': 'default', 'mode': 'cohort', 'include_terms': ['diseases'],
+            'selected_patient_ids': ','.join(selected), 'similarity_metric_cohort': 'jaccard',
+        })
+        response.raise_for_status()
+        result = response.json()
+        assert result['returncode'] == 0, result.get('stderr')
+        files = {item['name']: item['url'] for item in result['files']}
+        for name in ('matrix.txt', 'graph.json', 'mds_points.tsv'):
+            artifact = client.get(files[name])
+            artifact.raise_for_status()
+            assert artifact.content, name
+        print('PASS: real Pheno-Ranker comparison, graph and MDS artifacts')
         response = client.post('/analysis', json={
             'dataset_id': 'default', 'prompt': 'Summarize the synthetic clinical cohort',
             'catalog_item_id': 'external-r-clinical-profile',

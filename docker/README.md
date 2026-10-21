@@ -58,8 +58,8 @@ protected host location outside the checkout. Test-only fixtures are not install
 ## Configuration guides
 
 The manual **Test Docker deployment** Actions workflow builds on native Linux
-amd64 and arm64 runners. It checks login, both synthetic stores, a queued R
-analysis and settings persistence after restart. It does not publish images.
+amd64 and arm64 runners. It checks login, both synthetic stores, Pheno-Ranker,
+a queued R analysis and settings persistence after restart. It does not publish images.
 
 - [Web deployment and runtime configuration](../docs-site/docs/admin-guide/starting-and-stopping.md)
 - [Accounts and OIDC](../docs-site/docs/admin-guide/local-auth-and-groups.mdx)
