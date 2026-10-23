@@ -155,7 +155,7 @@ prepare_sample_table <- function(path, require_compare = FALSE) {
   }
   if (require_compare) {
     if (anyDuplicated(samples$patient_id)) {
-      stop("Differential methylation v1 requires one sample per patient.")
+      stop("Differential methylation requires one sample per patient.")
     }
     if (sum(samples$cohort == "A") < 2L || sum(samples$cohort == "B") < 2L) {
       stop("Differential methylation requires at least two samples in each cohort.")

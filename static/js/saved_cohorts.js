@@ -2,6 +2,44 @@ import { downloadFile, downloadIcon, downloadStatus } from "./shared.js";
 import { openMolecularExport } from './cohort_export.js';
 import { createCohortLibrary } from './cohort_library.js';
 
+function requestCohortName(defaultName, rename = false) {
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'chat-move-dialog';
+    dialog.id = 'cohortNameDialog';
+    dialog.setAttribute('aria-labelledby', 'cohortNameTitle');
+    dialog.innerHTML = `<form>
+      <h3 id="cohortNameTitle">${rename ? 'Rename cohort' : 'Save cohort'}</h3>
+      <label for="cohortNameInput">Cohort name</label>
+      <input id="cohortNameInput" type="text" required autocomplete="off">
+      <div class="chat-move-actions">
+        <button type="button" class="secondary-btn" data-cohort-name-cancel>Cancel</button>
+        <button type="submit" class="primary-btn">${rename ? 'Rename' : 'Save cohort'}</button>
+      </div>
+    </form>`;
+    const input = dialog.querySelector('input');
+    input.value = defaultName;
+    let result = null;
+    dialog.querySelector('[data-cohort-name-cancel]').onclick = () => dialog.close();
+    input.oninput = () => input.setCustomValidity('');
+    dialog.querySelector('form').onsubmit = event => {
+      event.preventDefault();
+      if (!input.value.trim()) {
+        input.setCustomValidity('Enter a cohort name.');
+        input.reportValidity();
+        return;
+      }
+      result = input.value.trim();
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); }, { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+    input.select();
+  });
+}
+
 export function createSavedCohortsUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
   const {
@@ -36,7 +74,7 @@ export function createSavedCohortsUi(ctx) {
   let analysisNotice = "";
   let phenoNotice = "";
   const library = createCohortLibrary({escapeHtml, datasetLabels: datasetLabelsForIds,
-    activeIds: currentDatasetIds, restoreWorkspace: callbacks.restoreWorkspace,
+    activeIds: currentDatasetIds, addRequiredDatasets: callbacks.addRequiredDatasets,
     reloadScope: async id => {
       await loadSavedCohorts();
       if (id && !state.savedCohorts.some(item => item.id === id)) {
@@ -183,7 +221,7 @@ export function createSavedCohortsUi(ctx) {
     const defaultName = state.latestQueryPrompt
       ? state.latestQueryPrompt.slice(0, 80)
       : `Saved cohort ${new Date().toLocaleString()}`;
-    const name = window.prompt("Cohort name", defaultName);
+    const name = await requestCohortName(defaultName);
     if (name === null) return;
     try {
       const response = await fetch("/saved-cohorts", {
@@ -219,12 +257,13 @@ export function createSavedCohortsUi(ctx) {
     const patientIds = Array.isArray(options.patientIds) ? options.patientIds.filter(Boolean) : [];
     const sourcePrompt = String(options.sourcePrompt || "").trim();
     const sourceKind = String(options.sourceKind || "manual").trim() || "manual";
-    const statusTarget = options.statusTarget === "pheno" ? "pheno" : "analysis";
+    const statusTarget = options.statusTarget === "none" ? "none" : options.statusTarget === "pheno" ? "pheno" : "analysis";
     const defaultName = sourcePrompt
       ? sourcePrompt.slice(0, 80)
       : `Saved cohort ${new Date().toLocaleString()}`;
-    const name = window.prompt("Cohort name", defaultName);
+    const name = await requestCohortName(defaultName);
     if (name === null) return false;
+    if (options.isCurrent && !options.isCurrent()) return false;
     try {
       const response = await fetch("/saved-cohorts", {
         method: "POST",
@@ -250,7 +289,7 @@ export function createSavedCohortsUi(ctx) {
       if (statusTarget === "pheno") {
         phenoStatusEl.className = "pheno-status";
         phenoStatusEl.textContent = `Saved cohort "${normalizedName}".`;
-      } else {
+      } else if (statusTarget === "analysis") {
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = `Saved cohort "${normalizedName}".`;
       }
@@ -260,7 +299,7 @@ export function createSavedCohortsUi(ctx) {
       if (statusTarget === "pheno") {
         phenoStatusEl.className = "pheno-status";
         phenoStatusEl.textContent = message;
-      } else {
+      } else if (statusTarget === "analysis") {
         analysisStatusEl.className = "query-status";
         analysisStatusEl.textContent = message;
       }
@@ -271,7 +310,7 @@ export function createSavedCohortsUi(ctx) {
   async function renameSavedCohort(cohortId) {
     const item = findCohort(cohortId);
     if (!item) return;
-    const name = window.prompt("Cohort name", item.name || "");
+    const name = await requestCohortName(item.name || "", true);
     if (name === null || name.trim() === item.name) return;
     const mode = callbacks.currentTabName() === "pheno" ? "pheno" : "analysis";
     try {
@@ -394,6 +433,7 @@ export function createSavedCohortsUi(ctx) {
     const item = state.savedCohorts.find((entry) => entry.id === cohortId);
     if (!item || (!Array.isArray(item.sample_ids) && !Array.isArray(item.patient_ids))) return;
     clearNoticeForMode("pheno");
+    state.phenoQuerySelection = null;
     if (!state.phenoSelectedSavedCohortIds.includes(cohortId)) {
       state.phenoSelectedSavedCohortIds = state.phenoSelectedSavedCohortIds.concat([cohortId]);
     }

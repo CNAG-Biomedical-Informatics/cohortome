@@ -1,6 +1,7 @@
 import { modalityIcon } from './modalities.js';
 import { createResourceInstaller } from './resource_install.js';
 import { createDatasetBulkAi } from './dataset_bulk_ai.js';
+import { openDicomFolderDialog } from './dicom_folder.js';
 
 export function createDatasetsUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
@@ -762,6 +763,13 @@ export function createDatasetsUi(ctx) {
                   <div class="dataset-policy-placeholder">${escapeHtml(storeDetail)}</div>
                 </div>
               </div>
+              <section class="dataset-imaging-setup" aria-label="Imaging">
+                <div class="dataset-imaging-copy">
+                  <div class="dataset-policy-heading">${modalityIcon('imaging')} Imaging</div>
+                  <div class="section-note">Connect existing DICOM files; files stay in place.</div>
+                </div>
+                <button type="button" class="query-chip" data-dataset-dicom="${escapeHtml(datasetId)}">Link folder…</button>
+              </section>
               <div class="dataset-picker-access-actions">
                 <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
                 <button type="button" class="query-chip action" data-dataset-prepare="${escapeHtml(datasetId)}">${escapeHtml(storeButtonLabel)}</button>
@@ -776,6 +784,13 @@ export function createDatasetsUi(ctx) {
     bulkAiUi ||= createDatasetBulkAi({container: datasetAdminListEl, escapeHtml,
       reload: loadDatasets, canManage: canManageDataset});
     bulkAiUi.mount(state.availableDatasets);
+    datasetAdminListEl.querySelectorAll('[data-dataset-dicom]').forEach(button => {
+      button.onclick = () => {
+        const dataset = state.availableDatasets.find(item => item.dataset_id === button.dataset.datasetDicom);
+        if (!dataset || !canManageDataset()) return;
+        openDicomFolderDialog([{id: dataset.dataset_id, name: dataset.name || dataset.dataset_id}], escapeHtml);
+      };
+    });
   }
 
   function setDatasetAdminFeedback(datasetId, text, tone = "success", autoClearMs = 2600) {

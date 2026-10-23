@@ -5,6 +5,7 @@
   --workspace-description-size: 0.875rem;
 }
 .app-content h2:not(.query-thread-turn *, .analysis-turn-body *) {
+  color: var(--ink);
   font-size: var(--workspace-title-size);
   font-weight: 600;
   line-height: 1.4;
@@ -12,6 +13,7 @@
   letter-spacing: -0.01em;
 }
 .app-content h3:not(.query-thread-turn *, .analysis-turn-body *) {
+  color: var(--ink);
   font-size: var(--workspace-section-size);
   font-weight: 600;
   line-height: 1.4;

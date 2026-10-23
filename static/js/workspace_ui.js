@@ -48,6 +48,15 @@ export function createWorkspaceUi(ctx) {
     clearDatasetScopedContent,
   } = callbacks;
 
+  const datasetDisclosure = document.getElementById('contextDatasets');
+  document.addEventListener('click', event => {
+    if (datasetDisclosure && !datasetDisclosure.contains(event.target)) datasetDisclosure.open = false;
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && datasetDisclosure?.open) {
+      datasetDisclosure.open = false; datasetDisclosure.querySelector('summary').focus();
+    }
+  });
   function nextFrame() {
     return new Promise((resolve) => {
       window.requestAnimationFrame(() => resolve());
@@ -68,7 +77,31 @@ export function createWorkspaceUi(ctx) {
     const selectedAnalysisCohortB = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
       : null;
+    const analysisView = tabName === 'analysis' || (tabName === 'dashboard'
+      && ['assays', 'multimodal'].includes(state.currentDashboardSubtab));
+    if (analysisView) {
+      const selectionLabel = (cohort, metadata, input) => {
+        const source = cohort || metadata || {};
+        const sample = source.id_type === 'sample' || Boolean(cohort?.sample_ids?.length);
+        const count = sample
+          ? source.sample_count ?? source.sample_ids?.length
+          : source.patient_count ?? source.patient_ids?.length;
+        if (cohort || source.query_result_handle || Number(count) > 0) {
+          if (count === undefined) return 'Selected cohort';
+          return `${formatNumber(Number(count))} ${sample ? (Number(count) === 1 ? 'sample' : 'samples') : (Number(count) === 1 ? 'patient' : 'patients')}`;
+        }
+        const ids = String(input?.value || '').split(',').map(id => id.trim()).filter(Boolean);
+        return ids.length ? `${formatNumber(ids.length)} ${source.id_type === 'sample' ? 'samples' : 'patients'}` : '';
+      };
+      const a = selectionLabel(selectedAnalysisCohortA, state.analysisScopeMetadata, analysisSelectedPatientIdsEl);
+      const b = selectionLabel(selectedAnalysisCohortB, state.analysisCompareScopeMetadata, analysisCompareSelectedPatientIdsEl);
+      if (analysisCompareModeEl?.checked) return `A: ${a || 'not set'} vs B: ${b || 'not set'}`;
+      return a || 'Full workspace';
+    }
     if (tabName === "pheno") {
+      if (state.phenoQuerySelection?.handle && !state.phenoSelectedSavedCohortIds.length) {
+        return `${state.phenoQuerySelection.count} ${state.phenoQuerySelection.idType === 'sample' ? 'samples' : 'patients'}`;
+      }
       const ids = getCurrentScopeIds();
       if (!ids.length && !state.phenoSelectedSavedCohortIds.length) {
         return "Full workspace";
@@ -77,52 +110,6 @@ export function createWorkspaceUi(ctx) {
         return `${state.phenoSelectedSavedCohortIds.length} saved cohort${state.phenoSelectedSavedCohortIds.length === 1 ? "" : "s"}`;
       }
       return `${ids.length} IDs in Pheno scope`;
-    }
-    if (tabName === "analysis") {
-      const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
-        ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-        : String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
-        ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-        : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-        const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
-        const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
-        return `${labelA} vs ${labelB}`;
-      }
-      if (!ids.length) {
-        return "Full workspace";
-      }
-      return `${ids.length} IDs in Analysis scope`;
-    }
-    if (tabName === "dashboard" && (state.currentDashboardSubtab === "assays" || state.currentDashboardSubtab === "multimodal")) {
-      const ids = selectedAnalysisCohortA && Array.isArray(selectedAnalysisCohortA.sample_ids)
-        ? selectedAnalysisCohortA.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-        : String(analysisSelectedPatientIdsEl && analysisSelectedPatientIdsEl.value ? analysisSelectedPatientIdsEl.value : "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      const compareIds = selectedAnalysisCohortB && Array.isArray(selectedAnalysisCohortB.sample_ids)
-        ? selectedAnalysisCohortB.sample_ids.map((item) => String(item).trim()).filter(Boolean)
-        : String((analysisCompareSelectedPatientIdsEl && analysisCompareSelectedPatientIdsEl.value) || "")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      if (analysisCompareModeEl && analysisCompareModeEl.checked) {
-        const labelA = ids.length ? `${ids.length} in A` : "saved cohort A not set";
-        const labelB = compareIds.length ? `${compareIds.length} in B` : "saved cohort B not set";
-        return `${labelA} vs ${labelB}`;
-      }
-      if (!ids.length) {
-        return "Full workspace";
-      }
-      return `${ids.length} IDs in ${state.currentDashboardSubtab === "multimodal" ? "Multimodal" : "Assay"} scope`;
     }
     return "Full workspace";
   }
@@ -135,8 +122,23 @@ export function createWorkspaceUi(ctx) {
     contextDataDirEl.textContent = dataset
       ? String(dataset.name || dataset.dataset_id || "Dataset")
       : (state.currentDatasetIds.length > 1
-        ? datasetScopeLabel()
+        ? 'View active datasets'
         : (currentDatasetSelectionKey() || "Not configured"));
+    const datasetList = document.getElementById('contextDatasetList');
+    const datasetCount = document.getElementById('contextDatasetCount');
+    if (datasetCount) datasetCount.textContent = String(state.currentDatasetIds.length);
+    datasetDisclosure?.querySelector('summary').setAttribute('aria-label', `Show ${state.currentDatasetIds.length} active datasets`);
+    if (datasetList) {
+      datasetList.replaceChildren(...state.currentDatasetIds.map(id => {
+        const item = document.createElement('li');
+        const record = state.availableDatasets.find(entry => entry.dataset_id === id);
+        item.textContent = record?.name || id;
+        return item;
+      }));
+      if (!state.currentDatasetIds.length) {
+        const item = document.createElement('li'); item.textContent = 'No active datasets'; datasetList.append(item);
+      }
+    }
 
     const activeRepresentations = (Array.isArray(state.availableDatasets) ? state.availableDatasets : [])
       .filter((item) => (Array.isArray(state.currentDatasetIds) ? state.currentDatasetIds : []).includes(String(item && item.dataset_id ? item.dataset_id : "")))

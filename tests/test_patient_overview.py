@@ -62,6 +62,8 @@ def test_search_is_literal_bounded_and_supports_clarid(tmp_path, monkeypatch):
     con.execute('CREATE TABLE patient_clarids(patient_id TEXT, human_id TEXT)')
     con.executemany('INSERT INTO patients VALUES (?, ?, ?)', [(f'SYN{i:03}', 'female', 1) for i in range(20)])
     con.execute("INSERT INTO patient_clarids VALUES ('SYN003', 'TEST-CLARID')")
+    con.execute('CREATE TABLE patient_diseases(patient_id TEXT, disease TEXT)')
+    con.execute("INSERT INTO patient_diseases VALUES ('SYN003', 'Crohn disease'), ('SYN004', 'Other')")
     con.close()
     monkeypatch.setattr(overview, 'ensure_query_store', lambda _: None)
     monkeypatch.setattr(overview, '_connect', lambda _: duckdb.connect(path, read_only=True))
@@ -71,6 +73,13 @@ def test_search_is_literal_bounded_and_supports_clarid(tmp_path, monkeypatch):
     assert overview.lookup('unused', 'SYN00', exact=True) == []
     assert len(overview.lookup('unused', '', 20)) == 20
     assert overview.lookup('unused', '', 20, after='SYN018')[0]['patient_id'] == 'SYN019'
+    assert overview.lookup('unused', '', 2, descending=True)[0]['patient_id'] == 'SYN019'
+    assert overview.lookup('unused', '', 2, sort_by='clarid', descending=True)[0]['patient_id'] == 'SYN003'
+    assert [r['patient_id'] for r in overview.lookup('unused', '', disease='crohn disease')] == ['SYN003']
+    assert overview.lookup('unused', 'SYN004', disease='Crohn disease') == []
+    assert overview.lookup('unused', '', disease="Crohn disease' OR TRUE --") == []
+    rows = overview.lookup('unused', '', limit=1, disease=['Crohn disease', 'Other'], include_total=True)
+    assert len(rows) == 1 and rows[0]['_total'] == 2
 
 
 def test_inventory_uses_headers_and_explicit_metadata_only(tmp_path):

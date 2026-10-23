@@ -84,6 +84,15 @@ def load_packager():
     return module
 
 
+def test_package_dirty_flag_includes_ui_data_and_untracked_sources(monkeypatch):
+    packager = load_packager()
+    calls = []
+    monkeypatch.setattr(packager.subprocess, 'check_output', lambda args, **kwargs: calls.append(args) or b' M static/app.js')
+    assert packager.source_is_dirty()
+    assert '--untracked-files=all' in calls[0]
+    assert {'static', 'templates', 'datasets', 'config', 'scripts', 'desktop'}.issubset(calls[0])
+
+
 @pytest.mark.parametrize('damage', ['', 'changed', 'extra', 'missing', 'symlink'])
 def test_viewer_assets_are_verified_before_copying(tmp_path, damage):
     source = tmp_path / 'viewer'

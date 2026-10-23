@@ -405,7 +405,7 @@ def test_materialized_long_result_is_bounded_and_patient_detail_is_unchanged(mon
         "open_in_analysis": True,
         "save_cohort": True,
         "copy_patient_ids": False,
-        "use_in_pheno_ranker": False,
+        "use_in_pheno_ranker": True,
     }
 
     detail = {
@@ -598,6 +598,22 @@ def test_save_and_analysis_resolve_full_handle_membership(monkeypatch, tmp_path)
     )
     assert restored["reply"] == "ok"
     assert len(captured["analysis"]["selected_patient_ids"].split(",")) == 607
+
+    monkeypatch.setattr(routes_module, 'active_feature_job', lambda *args: None)
+    monkeypatch.setattr(routes_module, 'ensure_query_store', lambda _: None)
+    def pheno_size(payload, **kwargs):
+        captured['pheno_ids'] = payload.selected_patient_ids.split(',')
+        return {'requires_background_job':False, 'exceeds_hard_cap':False}
+    monkeypatch.setattr(routes_module, 'pheno_run_requires_background_job', pheno_size)
+    monkeypatch.setattr(routes_module, 'run_inline_pheno_ranker_job', lambda *args: {'reply':'ok'})
+    result = routes_module.run_pheno_ranker_route(routes_module.PhenoRankerRequest(
+        dataset_id='dataset-a', query_result_handle=record['handle']), _request())
+    assert result['reply'] == 'ok'
+    assert len(captured['pheno_ids']) == 607
+    with pytest.raises(HTTPException) as missing_pheno:
+        routes_module.run_pheno_ranker_route(routes_module.PhenoRankerRequest(
+            dataset_id='dataset-a', query_result_handle='qr_missing_handle'), _request())
+    assert missing_pheno.value.status_code == 404
 
     with pytest.raises(HTTPException) as missing:
         routes_module.analysis_app(

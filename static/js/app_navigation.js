@@ -150,7 +150,6 @@ export function createNavigationUi(ctx) {
     dashboardPatientsBtnEl && dashboardPatientsBtnEl.classList.toggle("active", patientView);
     dashboardPatientsPanelEl && dashboardPatientsPanelEl.classList.toggle("active", patientView);
     document.getElementById('patientOverviewDetail').hidden = state.currentDashboardSubtab === 'timeline';
-    document.getElementById('patientOverviewViewBtn').setAttribute('aria-pressed', String(state.currentDashboardSubtab !== 'timeline'));
     dashboardTimelineBtnEl?.setAttribute('aria-pressed', String(state.currentDashboardSubtab === 'timeline'));
     dashboardImagingBtnEl && dashboardImagingBtnEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");
     dashboardImagingPanelEl && dashboardImagingPanelEl.classList.toggle("active", state.currentDashboardSubtab === "imaging");

@@ -207,15 +207,14 @@ from app.query import answer_query
 def _workspace_changed_detail(status: Dict[str, Any]) -> str:
     removed = list(status.get("removed_files") or [])
     added = list(status.get("added_files") or [])
+    guidance = " Start a new Analysis chat to use the current data, then select your cohorts and assay again. This chat and its previous results are kept."
     if removed and not added:
-        removed_label = removed[0] if len(removed) == 1 else f"{len(removed)} clinical files"
-        return f"This analysis session was created against an older workspace version. Missing from the current workspace: {removed_label}."
+        return f"This chat uses an older workspace version: {len(removed)} clinical file(s) are no longer present." + guidance
     if added and not removed:
-        added_label = added[0] if len(added) == 1 else f"{len(added)} clinical files"
-        return f"This analysis session was created against an older workspace version. The current workspace now includes additional clinical files such as {added_label}."
+        return f"This chat uses an older workspace version: {len(added)} clinical file(s) have been added." + guidance
     if removed or added:
-        return "This analysis session was created against an older workspace version. The active clinical file set has changed."
-    return "This analysis session was created against an older workspace version."
+        return "This chat uses an older workspace version. The clinical file set has changed." + guidance
+    return "This chat uses an older workspace version. Its data no longer matches the saved version." + guidance
 
 
 def _analysis_session_workspace_status(session: Dict[str, Any], request: Request) -> Dict[str, Any]:
@@ -706,7 +705,7 @@ def _materialize_query_response(
         "open_in_analysis": True,
         "save_cohort": bool(patient_ids),
         "copy_patient_ids": False,
-        "use_in_pheno_ranker": False,
+        "use_in_pheno_ranker": bool(patient_ids or sample_ids),
     }
     return shaped
 
@@ -2107,7 +2106,8 @@ def get_dicom_studies(request: Request, dataset_id: str = "", data_dir: str = DE
         resolved_dir = _resolve_route_dataset_dir(request, dataset_id, data_dir)
         status = dicom_status(resolved_dir)
         studies = dicom_studies(resolved_dir)
-        from app.local_viewer import ASSETS, SYNTHETIC_ROOT
+        from app.local_viewer import ASSETS
+        from app.dicom_files import linked_index
         from urllib.parse import quote
         if (ASSETS / 'index.html').is_file():
             ids = _route_dataset_ids(request, dataset_id, data_dir)
@@ -2115,7 +2115,9 @@ def get_dicom_studies(request: Request, dataset_id: str = "", data_dir: str = DE
                 source_id = study.get('source_dataset_id') or (ids[0] if len(ids) == 1 else '')
                 if source_id and source_id in ids:
                     root = Path(_resolve_route_dataset_dir(request, source_id, '')).resolve()
-                    if root == SYNTHETIC_ROOT.resolve():
+                    local_files = linked_index(root) is not None or (root / 'assays/imaging/dicom').is_dir()
+                    if local_files or status.get('enabled'):
+                        study['image_source'] = 'files' if local_files else 'dicomweb'
                         study['local_viewer_url'] = '/local-viewer/open/' + quote(source_id, safe='') + '/' + quote(study['study_instance_uid'], safe='')
         return {
             "enabled": bool(status.get("enabled")),
@@ -2386,6 +2388,15 @@ def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) ->
         }
     )
     from app.identities import execution_ids
+    if request.query_result_handle:
+        if request.mode != 'cohort' or request.selected_saved_cohort_ids or request.selected_patient_ids.strip():
+            raise HTTPException(400, 'A Query selection must be used alone in cohort mode.')
+        _, membership = _load_authorized_query_result(raw_request, request.query_result_handle,
+                                                     dataset_id=resolved_scope_id)
+        scope_ids = membership['sample_ids'] if membership['id_type'] == 'sample' else membership['patient_ids']
+        if not scope_ids:
+            raise HTTPException(400, 'The Query selection contains no patients or records.')
+        payload.selected_patient_ids = ','.join(scope_ids)
     try:
         payload.selected_patient_ids = ','.join(execution_ids(
             [v.strip() for v in payload.selected_patient_ids.split(',') if v.strip()], selected_ids))

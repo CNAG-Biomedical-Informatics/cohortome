@@ -20,6 +20,9 @@ def test_desktop_packages_include_and_check_viewer(arch):
     commands = '\n'.join(step.get('run', '') for step in jobs['package']['steps'])
     assert '--ohif-assets "$RUNNER_TEMP/ohif"' in commands
     assert 'desktop/test_package.py --require-viewer' in commands
+    installer = next(s for s in jobs['package']['steps'] if s.get('name') == 'Build native test installers')
+    assert installer['if'] == 'inputs.build_installers'
+    assert 'desktop/build_installers.py' in installer['run']
 
 
 @pytest.mark.parametrize("name", [

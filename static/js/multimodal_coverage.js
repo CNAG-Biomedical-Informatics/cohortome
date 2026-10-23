@@ -74,7 +74,7 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
         const status = result.querySelector('.coverage-save-status');
         button.disabled = true;
         status.textContent = 'Saving…';
-        const saved = await saveIdsAsCohort({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), sourceKind:'manual', sourcePrompt:`Multimodal coverage: ${exact ? 'only' : 'at least'} ${selected.map(label).join(', ') || 'no required types'}; Clinical ${selected.includes('clinical') ? 'required' : 'optional'}`});
+        const saved = await saveIdsAsCohort({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), sourceKind:'manual', statusTarget:'none', sourcePrompt:`Multimodal coverage: ${exact ? 'only' : 'at least'} ${selected.map(label).join(', ') || 'no required types'}; Clinical ${selected.includes('clinical') ? 'required' : 'optional'}`});
         if (ticket !== generation || !button.isConnected) return;
         status.textContent = saved ? 'Cohort saved. Find it in Cohorts.' : 'Cohort was not saved.';
         button.disabled = false;

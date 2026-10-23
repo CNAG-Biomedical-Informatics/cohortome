@@ -3,6 +3,10 @@ name: Test Windows x86_64 desktop package
 on:
   workflow_dispatch:
     inputs:
+      build_installers:
+        description: Also build native test installers (not approved release downloads)
+        type: boolean
+        default: false
       r_runtime_run_id:
         description: Run ID with the verified r-runtime-windows-x86_64 artifact
         required: false
@@ -104,6 +108,10 @@ jobs:
           python desktop/test_package.py --require-viewer --require-pheno --require-umap --require-extended-r "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/engine"
       - name: Test packaged native window
         run: python desktop/test_native_package.py "$RUNNER_TEMP/extracted/cohortome-windows-x86_64/cohortome-desktop.exe"
+      - name: Build native test installers
+        if: inputs.build_installers
+        shell: bash
+        run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-windows-x86_64" --output "$RUNNER_TEMP/cohortome-installers"
       - name: Record archive checksum
         run: |
           cd "$RUNNER_TEMP"
@@ -116,5 +124,10 @@ jobs:
             ${{ runner.temp }}/cohortome-windows-x86_64.zip
             ${{ runner.temp }}/cohortome-windows-x86_64.zip.sha256
             ${{ runner.temp }}/cohortome-windows-x86_64/package-manifest.json
+            ${{ runner.temp }}/cohortome-installers/installer-manifest.json
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.deb
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.AppImage
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.dmg
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*-setup.exe
           retention-days: 7
           if-no-files-found: error

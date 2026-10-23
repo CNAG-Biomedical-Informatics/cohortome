@@ -453,6 +453,17 @@ export function createAnalysisSessionsUi(ctx) {
     addWorkspaceRestoreAction(analysisStatusEl, { scope: session.datasetId,
       currentScope: currentDatasetSelectionKey(), restore: callbacks.restoreWorkspace,
       reopen: () => selectAnalysisSession(sessionId) });
+    if (['stale', 'unavailable'].includes(workspaceStatus.state)) {
+      const guidance = document.createElement('div');
+      guidance.textContent = 'To work with the current data, start a new chat and select your cohorts and assay again. Your previous chat and results are kept.';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'query-chip';
+      button.textContent = 'New chat with current data';
+      button.addEventListener('click', () => createAndSelectAnalysisSession());
+      if (!analysisStatusEl.textContent.includes('select your cohorts and assay again')) analysisStatusEl.append(guidance);
+      analysisStatusEl.append(document.createTextNode(' '), button);
+    }
   }
 
   function createAndSelectAnalysisSession(overrides) {

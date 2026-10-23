@@ -415,11 +415,14 @@ export function createPhenoUi(ctx) {
       : (Array.isArray(normalized.selected_patient_ids) ? normalized.selected_patient_ids.map((item) => String(item || "").trim()).filter(Boolean) : []);
     const issues = [];
 
-    if (action === "extract" && !scopeIds.length) {
+    if (action === "extract" && !scopeIds.length && !normalized.query_result_handle) {
       issues.push("Extraction needs a non-empty Scope before it can run.");
     }
 
     if (mode === "patient") {
+      if (normalized.query_result_handle) {
+        issues.push('Use Cohort mode for this Query selection, or replace it with manual IDs.');
+      }
       if (invalidPatientId) {
         issues.push(`Patient ID ${invalidPatientId} does not exist in the current Pheno-Ranker reference dataset.`);
       }
@@ -552,6 +555,8 @@ export function createPhenoUi(ctx) {
       patient_id: patientPicker.get(),
       selected_patient_ids: selectedSavedCohortIds.length ? "" : (phenoSelectedPatientIdsEl ? phenoSelectedPatientIdsEl.value.trim() : ""),
       selected_saved_cohort_ids: selectedSavedCohortIds,
+      query_result_handle: selectedSavedCohortIds.length ? '' : ctx.state?.phenoQuerySelection?.handle || '',
+      query_selection: selectedSavedCohortIds.length ? null : ctx.state?.phenoQuerySelection || null,
       include_terms: parsePhenoTermsInput(phenoIncludeTermsEl ? phenoIncludeTermsEl.value : ""),
       exclude_terms: parsePhenoTermsInput(phenoExcludeTermsEl ? phenoExcludeTermsEl.value : ""),
       similarity_metric_cohort: phenoSimilarityMetricEl ? phenoSimilarityMetricEl.value : "",
@@ -793,6 +798,7 @@ export function createPhenoUi(ctx) {
     const cohorts = plan.selected_saved_cohort_ids || [];
     const scopeIds = String(plan.selected_patient_ids || '').split(',').filter(Boolean);
     const reference = cohorts.length ? `${cohorts.length} saved cohort${cohorts.length === 1 ? '' : 's'}`
+      : plan.query_selection?.handle ? `${plan.query_selection.count} ${plan.query_selection.idType === 'sample' ? 'samples' : 'patients'} from Query`
       : plan.mode !== 'patient' && scopeIds.length ? `${scopeIds.length} selected IDs` : 'Full workspace';
     const parts = [plan.action === 'extract' ? 'Extract records' : plan.mode === 'patient' ? 'Patient ranking' : 'Cohort comparison'];
     if (plan.mode === 'patient') parts.push(`Target: ${plan.patient_id || scopeIds[0] || 'not selected'}`);
@@ -854,6 +860,7 @@ export function createPhenoUi(ctx) {
   }
 
   function clearDatasetWorkspace() {
+    ctx.state.phenoQuerySelection = null;
     state.plannedPrompt = '';
     state.workspaceVersion += 1;
     state.inFlight = false;
@@ -930,6 +937,12 @@ export function createPhenoUi(ctx) {
   }
 
   function renderSelectedPatientIdsSummary() {
+    const selection = ctx.state?.phenoQuerySelection;
+    if (selection?.handle && !getSelectedSavedCohortIds().length) {
+      phenoSelectedPatientIdsSummaryEl.textContent = `Scope: ${selection.count} ${selection.idType === 'sample' ? 'samples' : 'patients'} from Query; identifiers remain server-side. Enter manual IDs to replace this selection.`;
+      renderGlobalContext();
+      return;
+    }
     const ids = getCurrentScopeIds();
     if (!ids.length) {
       phenoSelectedPatientIdsSummaryEl.textContent = "Scope: full workspace.";
@@ -957,7 +970,7 @@ export function createPhenoUi(ctx) {
     phenoModeEl.value = normalized.mode || "cohort";
     const scopeIdsBeforePlan = getCurrentScopeIds();
     patientPicker.set(normalized.patient_id || "");
-    if (typeof normalized.selected_patient_ids === "string" && normalized.selected_patient_ids.trim()) {
+    if (!ctx.state?.phenoQuerySelection?.handle && typeof normalized.selected_patient_ids === "string" && normalized.selected_patient_ids.trim()) {
       phenoSelectedPatientIdsEl.value = normalized.selected_patient_ids;
     }
     const scopeIdsAfterPlan = getCurrentScopeIds();
@@ -2599,6 +2612,7 @@ export function createPhenoUi(ctx) {
     phenoModeEl.value = String(payload.mode || "cohort").trim() || "cohort";
     patientPicker.set(payload.patient_id);
     phenoSelectedPatientIdsEl.value = String(payload.selected_patient_ids || "").trim();
+    ctx.state.phenoQuerySelection = payload.query_selection || null;
     phenoIncludeTermsEl.value = Array.isArray(payload.include_terms) ? payload.include_terms.join(",") : "";
     phenoExcludeTermsEl.value = Array.isArray(payload.exclude_terms) ? payload.exclude_terms.join(",") : "";
     phenoSimilarityMetricEl.value = String(payload.similarity_metric_cohort || "").trim();
@@ -2789,6 +2803,7 @@ export function createPhenoUi(ctx) {
           patient_id: patientPicker.get(),
           selected_patient_ids: selectedSavedCohortIds.length ? "" : phenoSelectedPatientIdsEl.value.trim(),
           selected_saved_cohort_ids: selectedSavedCohortIds,
+          query_result_handle: selectedSavedCohortIds.length ? '' : ctx.state?.phenoQuerySelection?.handle || '',
           include_terms: parsePhenoTermsInput(phenoIncludeTermsEl.value),
           exclude_terms: parsePhenoTermsInput(phenoExcludeTermsEl.value),
           similarity_metric_cohort: phenoSimilarityMetricEl.value,

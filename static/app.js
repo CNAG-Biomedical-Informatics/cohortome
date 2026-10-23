@@ -124,6 +124,30 @@ async function restoreChatWorkspace(scope) {
   }
 }
 
+async function addCohortDatasets(requiredIds) {
+  if (state.loadInFlight || state.queryInFlight || state.analysisInFlight) {
+    throw new Error('Wait for the current operation to finish before changing workspace.');
+  }
+  if (!requiredIds?.length || requiredIds.some(id => !state.availableDatasets.some(item => item.dataset_id === id))) {
+    throw new Error('A required dataset is unavailable or you no longer have access to it.');
+  }
+  const previousPending = state.pendingDatasetIds.slice();
+  const ids = [...new Set([...state.currentDatasetIds, ...requiredIds])];
+  const added = ids.length - state.currentDatasetIds.length;
+  if (!added) return 0;
+  state.pendingDatasetIds = ids;
+  try {
+    await workspaceUi.loadPatients();
+    if (ids.length !== state.currentDatasetIds.length || !ids.every(id => state.currentDatasetIds.includes(id))) {
+      throw new Error('Required datasets could not be added. Check their availability in Datasets.');
+    }
+  } catch (error) {
+    state.pendingDatasetIds = previousPending;
+    throw error;
+  }
+  return added;
+}
+
 function clearDatasetScopedContent(options = {}) {
   const signedOut = options.signedOut === true;
   if (signedOut) querySessionsUi?.clear();
@@ -262,17 +286,23 @@ function renderQueryReply(payloadOrValue) {
 
 function sendPatientIdsToPhenoRanker() {
   const scopeIds = state.latestQueryRecordIds.length ? state.latestQueryRecordIds : state.latestQueryPatientIds;
-  if (!scopeIds.length) {
+  const handle = String(state.latestQueryResultHandle || '');
+  if (!scopeIds.length && !handle) {
     return;
   }
   refs.phenoActionEl.value = "compare";
+  state.phenoSelectedSavedCohortIds = [];
+  state.phenoQuerySelection = handle ? {handle, count:state.latestQueryTotalCount, idType:state.latestQueryIdType} : null;
+  savedCohortsUi.renderPhenoSavedCohortsSelection();
   refs.phenoModeEl.value = "cohort";
   refs.phenoSelectedPatientIdsEl.value = scopeIds.join(",");
   phenoUi.renderSelectedPatientIdsSummary();
   phenoUi.updatePhenoMode();
   navigationUi.setActiveTab("pheno");
   refs.phenoStatusEl.className = "pheno-status";
-  refs.phenoStatusEl.textContent = state.latestQueryRecordIds.length
+  refs.phenoStatusEl.textContent = handle
+    ? `Loaded all ${state.latestQueryTotalCount} matching ${state.latestQueryIdType === 'sample' ? 'samples' : 'patients'} from Query. Identifiers remain server-side.`
+    : state.latestQueryRecordIds.length
     ? `Loaded ${state.latestQueryRecordIds.length} sample IDs from the query result into the current Pheno-Ranker scope.`
     : `Loaded ${state.latestQueryPatientIds.length} patient IDs from the query result into the current Pheno-Ranker scope.`;
 }
@@ -664,7 +694,7 @@ savedCohortsUi = createSavedCohortsUi({
     escapeHtml,
   },
   callbacks: {
-    restoreWorkspace: restoreChatWorkspace,
+    addRequiredDatasets: addCohortDatasets,
     setActiveTab: (tabName) => navigationUi.setActiveTab(tabName),
     renderAnalysisScopeSummary: () => dashboardUi.renderAnalysisScopeSummary(),
     renderAnalysisCompareMode: () => analysisUi.renderAnalysisCompareMode(),
@@ -1393,6 +1423,7 @@ function bindEvents() {
     phenoUi.updatePhenoRunAvailability();
   });
   refs.phenoSelectedPatientIdsEl && refs.phenoSelectedPatientIdsEl.addEventListener("input", () => {
+    state.phenoQuerySelection = null;
     phenoUi.markPhenoManualOverride();
     phenoUi.renderSelectedPatientIdsSummary();
     phenoUi.updatePhenoRunAvailability();
@@ -1542,9 +1573,12 @@ function bindEvents() {
     if (event.key === "Escape") dashboardUi.closeClaridPopovers();
   });
   window.addEventListener('resize', () => dashboardUi.closeClaridPopovers());
-  document.addEventListener('scroll', event => {
-    if (!event.target.closest?.('.clarid-popover')) dashboardUi.closeClaridPopovers();
-  }, true);
+  // Ignore automatic chat scrolling while a reply settles; dismiss on user scrolling.
+  for (const eventName of ['wheel', 'touchmove']) {
+    document.addEventListener(eventName, event => {
+      if (!event.target.closest?.('.clarid-popover')) dashboardUi.closeClaridPopovers();
+    }, {capture: true, passive: true});
+  }
   refs.patientSearchEl && refs.patientSearchEl.addEventListener("input", () => {
     dashboardUi.renderPatientList(workspaceUi.filterPatients(refs.patientSearchEl.value));
   });
@@ -1862,6 +1896,7 @@ function initializeUiShell() {
 async function bootstrap() {
   bindEvents();
   createPatientOverview({state, navigation:navigationUi, escapeHtml,
+    saveIdsAsCohort: options => savedCohortsUi.saveIdsAsCohort(options),
     scope:() => datasetsUi.currentDatasetSelectionKey(),
     openTimeline:async (patientId, datasetId) => {
       state.timelinePatientFilter = JSON.stringify([datasetId, patientId]);

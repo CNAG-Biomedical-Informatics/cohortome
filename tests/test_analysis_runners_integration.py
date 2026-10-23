@@ -257,7 +257,7 @@ def test_analysis_external_rscript_clinical_profile_runner_executes(tmp_path):
         "methylation_limma_differential_methylation",
     ],
 )
-def test_methylation_runners_reject_multi_dataset_workspace_before_assay_resolution(
+def test_methylation_runners_resolve_selected_assay_in_multi_dataset_workspace(
     tmp_path,
     monkeypatch,
     runner_ref,
@@ -274,16 +274,16 @@ def test_methylation_runners_reject_multi_dataset_workspace_before_assay_resolut
         lambda name: "/usr/bin/Rscript" if name == "Rscript" else None,
     )
 
-    def unexpected_assay_resolution(*_args, **_kwargs):
-        raise AssertionError("multi-dataset guard must run before assay resolution")
+    def selected_assay_resolution(*_args, **_kwargs):
+        raise RuntimeError("Selected assay resolution reached")
 
     monkeypatch.setattr(
         analysis_external_module,
         "_choose_methylation_assay",
-        unexpected_assay_resolution,
+        selected_assay_resolution,
     )
 
-    with pytest.raises(RuntimeError, match="single-dataset workspaces only"):
+    with pytest.raises(RuntimeError, match="Selected assay resolution reached"):
         analysis_external_module.run_rscript_analysis(
             runner_ref,
             prompt="Run methylation analysis.",
@@ -508,6 +508,42 @@ def test_methylation_bundle_resolves_matrix_and_metadata_from_authorized_source_
 
     assert bundle["matrix_path"] == source_root / "assays" / "methylation" / "synthetic_m_values.csv"
     assert bundle["clinical_linkage_status"] == "complete_selected_scope"
+
+
+@pytest.mark.parametrize('kind', ['methylation', 'quantitative'])
+def test_assay_bundle_uses_only_selected_source_with_colliding_patient_ids(tmp_path, monkeypatch, kind):
+    from app.identities import identity_key
+    source = tmp_path / 'source'
+    source.mkdir()
+    if kind == 'methylation':
+        _write_synthetic_methylation_runner_fixture(source)
+        patient_ids = [f'METH00{i}' for i in range(1, 7)]
+    else:
+        _write_synthetic_quantitative_assay_runner_fixture(source)
+        patient_ids = [f'SYN00{i}' for i in range(1, 7)]
+    item = json.loads((source / 'assays' / 'manifest.json').read_text())['assays'][0]
+    item.update(_source_dataset_id='source-a', _release_root=str(source))
+    item['assay_id'] = 'source-a::' + item['assay_id']
+    monkeypatch.setattr(query_store_module, '_workspace_dataset_ids', lambda _: ['source-a', 'source-b'])
+    monkeypatch.setattr(query_store_module, 'patient_inventory', lambda _: [
+        identity_key(dataset, 'patient', pid) for dataset in ['source-a', 'source-b'] for pid in patient_ids])
+    monkeypatch.setattr(analysis_external_module, '_choose_methylation_assay', lambda *a: item)
+    monkeypatch.setattr(query_store_module, '_queryable_external_assay_item', lambda *a, **kw: item)
+    prepare = (analysis_external_module._prepare_methylation_analysis_bundle if kind == 'methylation'
+               else analysis_external_module._prepare_quantitative_assay_comparison_bundle)
+    kwargs = dict(prompt='Compare', assay_id=item['assay_id'], output_dir=tmp_path / 'run',
+                  selected_patient_ids=','.join(identity_key('source-a', 'patient', p) for p in patient_ids[:3]),
+                  compare_selected_patient_ids=','.join(identity_key('source-a', 'patient', p) for p in patient_ids[3:]))
+    if kind == 'methylation':
+        kwargs['analysis_type'] = 'differential_methylation'
+    # Same source IDs from another dataset must neither collide nor add samples.
+    kwargs['selected_patient_ids'] += ',' + ','.join(identity_key('source-b', 'patient', p) for p in patient_ids)
+    bundle = prepare(str(tmp_path), **kwargs)
+    assert bundle['patient_count'] == 6
+    assert bundle['matrix_path'].is_relative_to(source)
+    kwargs['selected_patient_ids'] = ','.join(identity_key('source-b', 'patient', p) for p in patient_ids[:3])
+    with pytest.raises(RuntimeError, match='at least'):
+        prepare(str(tmp_path), **kwargs)
 
 
 def test_quantitative_assay_wilcoxon_runner_keeps_source_external_and_returns_aggregates(tmp_path, monkeypatch):

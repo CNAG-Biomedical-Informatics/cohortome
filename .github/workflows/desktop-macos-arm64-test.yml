@@ -3,6 +3,10 @@ name: Test macOS Apple Silicon desktop package
 on:
   workflow_dispatch:
     inputs:
+      build_installers:
+        description: Also build native test installers (not approved release downloads)
+        type: boolean
+        default: false
       r_runtime_run_id:
         description: Run ID with the verified r-runtime-macos-arm64 artifact
         required: false
@@ -87,6 +91,10 @@ jobs:
           codesign --verify --strict "$RUNNER_TEMP/extracted/cohortome-macos-arm64/engine/cohortome-backend"
       - name: Test packaged native window
         run: python desktop/test_native_package.py "$RUNNER_TEMP/extracted/cohortome-macos-arm64/cohortome-desktop"
+      - name: Build native test installers
+        if: inputs.build_installers
+        shell: bash
+        run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-macos-arm64" --output "$RUNNER_TEMP/cohortome-installers"
       - name: Record archive checksum
         run: |
           cd "$RUNNER_TEMP"
@@ -99,5 +107,10 @@ jobs:
             ${{ runner.temp }}/cohortome-macos-arm64.tar.gz
             ${{ runner.temp }}/cohortome-macos-arm64.tar.gz.sha256
             ${{ runner.temp }}/cohortome-macos-arm64/package-manifest.json
+            ${{ runner.temp }}/cohortome-installers/installer-manifest.json
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.deb
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.AppImage
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.dmg
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*-setup.exe
           retention-days: 7
           if-no-files-found: error

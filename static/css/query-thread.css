@@ -164,36 +164,75 @@
       .query-actions-inline {
         display: flex;
         align-items: center;
+        justify-content: flex-start;
         gap: 10px;
         flex-wrap: wrap;
       }
       .query-inline-actions {
-        display: inline-flex;
+        position: relative;
+        display: block;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
       }
       .query-inline-actions summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--theme-surface, #fff);
         cursor: pointer;
         color: var(--muted);
-        font-size: 0.92rem;
+        font-size: 0.78rem;
+        line-height: 1.4;
         font-weight: 600;
         list-style: none;
       }
-      .query-inline-actions-less {
-        display: none;
+      .query-inline-actions summary::after {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-right: 1.5px solid currentColor;
+        border-bottom: 1.5px solid currentColor;
+        transform: rotate(45deg) translateY(-2px);
       }
-      .query-inline-actions[open] .query-inline-actions-more {
-        display: none;
-      }
-      .query-inline-actions[open] .query-inline-actions-less {
-        display: inline;
+      .query-inline-actions summary:hover,
+      .query-inline-actions[open] summary {
+        color: var(--ink);
+        background: var(--panel);
       }
       .query-inline-actions summary::-webkit-details-marker {
         display: none;
       }
-      .query-inline-actions[open] {
-        width: 100%;
-      }
       .query-inline-actions[open] .query-actions {
-        margin-top: 10px;
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 0;
+        z-index: 90;
+        display: grid;
+        gap: 2px;
+        width: 220px;
+        max-width: calc(100vw - 48px);
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--theme-surface, #fff);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+      }
+      .query-inline-actions .query-actions .query-chip {
+        justify-content: flex-start;
+        text-align: left;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--ink);
+        padding: 9px;
+      }
+      .query-inline-actions .query-actions button:hover {
+        background: var(--panel);
       }
       .query-thread-turn {
         position: relative;

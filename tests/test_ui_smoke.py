@@ -42,18 +42,19 @@ def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     page.locator("#patientOverviewSearch").click()
     expect(page.locator("#patientOverviewMatches")).to_contain_text("Example diagnosis")
     option = page.locator("#patientOverviewMatches [data-match]").first
-    expect(option).to_have_css("text-align", "left")
-    expect(option).to_have_css("justify-items", "start")
-    assert option.evaluate("(el) => Math.abs(el.getBoundingClientRect().width - el.parentElement.clientWidth) < 2")
+    expect(page.locator("#patientOverviewMatches .patient-sort")).to_have_count(4)
+    expect(page.locator("#patientOverviewMatches th svg")).to_have_count(4)
+    expect(page.locator("#patientOverviewPrevious")).to_be_disabled()
+    expect(page.locator("#patientOverviewMore")).to_be_disabled()
     page.locator("#patientOverviewMatches [data-match]").click()
     expect(page.locator("#dashboardTimelinePanel")).to_be_visible()
-    help_toggle = page.locator(".inline-view-help > summary")
+    help_toggle = page.locator("#dashboardTimelinePanel .inline-view-help > summary")
     expect(help_toggle).to_have_text("?")
     help_toggle.focus()
     page.keyboard.press("Enter")
-    expect(page.locator(".inline-view-help > p")).to_be_visible()
+    expect(page.locator("#dashboardTimelinePanel .inline-view-help > p")).to_be_visible()
     page.keyboard.press("Enter")
-    expect(page.locator(".inline-view-help > p")).not_to_be_visible()
+    expect(page.locator("#dashboardTimelinePanel .inline-view-help > p")).not_to_be_visible()
     expect(page.locator(".clinical-record")).to_have_count(1)
     expect(page.locator("#patientOverviewDetail .patient-inventory")).to_have_count(0)
     inventory = page.locator("[data-patient-inventory] > .patient-inventory-scroll > table")
@@ -77,6 +78,85 @@ def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     page.locator(".clinical-record-json summary").click()
     expect(page.locator(".clinical-record-json pre")).to_contain_text("<script>not executed</script>")
     expect(page.locator(".clinical-record script")).to_have_count(0)
+
+def test_patient_browser_pagination_and_search(page):
+    expect = playwright.expect
+    requests = []
+    def respond(route):
+        from urllib.parse import parse_qs, urlsplit
+        params = parse_qs(urlsplit(route.request.url).query)
+        requests.append(params)
+        second = params.get('offset') == ['1']
+        filtered = bool(params.get('q'))
+        route.fulfill(json={'matches': [dict(patient_id='P2' if second else 'P1',
+            dataset_id='default', dataset_label='Test dataset', diagnosis='Example')],
+            'next': None if second or filtered else {'offset': 1}, 'total': 1 if filtered else 2})
+    page.route('**/patient-overview/search?*', respond)
+    page.route('**/cohorts/diseases?*', lambda route: route.fulfill(json=[{'disease':'Crohn disease', 'patient_count':12}, {'disease':'Colitis', 'patient_count':4}]))
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]').click()
+    expect(page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
+    assert requests[-1]['disease'] == ['Crohn disease']
+    page.locator('#patientDiseaseFilters [data-disease="Colitis"]').click()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
+    assert requests[-1]['disease'] == ['Crohn disease', 'Colitis']
+    expect(page.locator('#patientSaveCohort')).to_contain_text('Save 2 patients as cohort')
+    page.locator('#patientDiseaseFilters [data-disease=""]').click()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
+    assert 'disease' not in requests[-1]
+    page.locator('#patientOverviewMore').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P2')
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 2')
+    page.get_by_role('button', name='Sort by Diagnosis', exact=True).click()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
+    expect(page.locator('#patientOverviewMatches th').nth(2)).to_have_attribute('aria-sort', 'ascending')
+    page.get_by_role('button', name='Sort by Diagnosis', exact=True).click()
+    expect(page.locator('#patientOverviewMatches th').nth(2)).to_have_attribute('aria-sort', 'descending')
+    page.locator('#patientOverviewMore').click()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 2')
+    page.locator('#patientOverviewPrevious').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    page.locator('#patientOverviewSearch').fill('P1')
+    expect(page.locator('#patientOverviewMore')).to_be_disabled()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
+    page.screenshot(path='/tmp/cohortome-patient-browser.png')
+
+def test_patient_browser_saves_all_filtered_pages(page):
+    from urllib.parse import parse_qs, urlsplit
+    expect = playwright.expect
+    saved = []
+    def search(route):
+        params = parse_qs(urlsplit(route.request.url).query)
+        second = params.get('offset') == ['1']
+        route.fulfill(json={'matches':[dict(patient_id='P1', dataset_id='b' if second else 'a',
+            dataset_label='Study', diagnosis='Colitis')], 'next':None if second else {'offset':1}})
+    page.route('**/patient-overview/search?*', search)
+    page.route('**/cohorts/diseases?*', lambda route: route.fulfill(json=[{'disease':'Colitis','patient_count':2}]))
+    def save(route):
+        saved.append(route.request.post_data_json)
+        route.fulfill(json={'id':'patient-cohort'})
+    page.route('**/saved-cohorts', save)
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    page.locator('#patientDiseaseFilters [data-disease="Colitis"]').click()
+    expect(page.locator('#patientSaveCohort')).to_be_enabled()
+    page.locator('#patientSaveCohort').click()
+    previous_analysis_status = page.locator('#analysisStatus').text_content()
+    dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
+    expect(dialog).to_be_visible()
+    for theme in ('light', 'dark'):
+        page.evaluate('(theme) => document.documentElement.dataset.theme = theme', theme)
+        assert dialog.evaluate("el => getComputedStyle(el).backgroundColor.startsWith('rgb(')")
+    page.evaluate("document.documentElement.dataset.theme = 'light'")
+    dialog.get_by_label('Cohort name').fill('Colitis patients')
+    dialog.get_by_role('button', name='Save cohort', exact=True).click()
+    expect(page.locator('#patientSaveStatus')).to_contain_text('Saved 2 patients')
+    expect(page.locator('#analysisStatus')).to_have_text(previous_analysis_status)
+    assert saved[0]['members'] == [{'dataset_id':'a', 'patient_id':'P1'}, {'dataset_id':'b', 'patient_id':'P1'}]
+    assert 'Colitis' in saved[0]['source_prompt']
 
 def test_admin_data_menu_from_settings(page_auth):
     page = page_auth
@@ -2354,8 +2434,15 @@ def test_cohort_library_loads_sources_and_hands_off(page) -> None:
     playwright.expect(page.locator('#cohortLibraryList')).to_contain_text('Datasets not loaded')
     assert page._cohortome_dataset_state['select_requests'] == []
     page.locator('[data-saved-cohort-action="load-datasets"]').click()
-    playwright.expect(page.locator('#cohortLibraryStatus')).to_contain_text('Datasets loaded.')
-    assert page._cohortome_dataset_state['current_ids'] == ['secondary']
+    playwright.expect(page.locator('#cohortLibraryStatus')).to_contain_text('existing datasets retained')
+    assert set(page._cohortome_dataset_state['current_ids']) == {'default', 'secondary'}
+    playwright.expect(page.locator('#contextDataDir')).to_have_text('View active datasets')
+    playwright.expect(page.locator('#contextDatasetCount')).to_have_text('2')
+    page.locator('#contextDatasets summary').click()
+    playwright.expect(page.locator('#contextDatasetList li')).to_have_count(2)
+    playwright.expect(page.locator('#contextDatasetList')).to_be_visible()
+    page.keyboard.press('Escape')
+    playwright.expect(page.locator('#contextDatasetList')).not_to_be_visible()
     page.locator('#cohortLibraryList [data-saved-cohort-action="load-analysis"]').click()
     playwright.expect(page.locator('#analysisTab')).to_be_visible()
     playwright.expect(page.locator('#analysisSelectedSavedCohortSelection')).to_contain_text('Library cohort')
@@ -2884,8 +2971,18 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
         saved.append(route.request.post_data_json)
         route.fulfill(json={'id':'coverage-cohort'})
     page.route('**/saved-cohorts', save_cohort)
-    page.once('dialog', lambda dialog: dialog.accept('Triple-omics cohort'))
     panel.get_by_role('button', name='Save 1 patient as a cohort', exact=True).click()
+    name_dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
+    playwright.expect(name_dialog).to_be_visible()
+    page.keyboard.press('Escape')
+    playwright.expect(name_dialog).to_have_count(0)
+    assert not saved
+    panel.get_by_role('button', name='Save 1 patient as a cohort', exact=True).click()
+    name_dialog.get_by_label('Cohort name').fill('   ')
+    name_dialog.get_by_role('button', name='Save cohort', exact=True).click()
+    assert not saved
+    name_dialog.get_by_label('Cohort name').fill('Triple-omics cohort')
+    name_dialog.get_by_role('button', name='Save cohort', exact=True).click()
     playwright.expect(panel.locator('.coverage-save svg')).to_have_count(1)
     playwright.expect(panel.locator('.coverage-save-status')).to_have_text('Cohort saved. Find it in Cohorts.')
     assert saved[0]['members'] == [{'dataset_id':'default', 'patient_id':'P1'}]
@@ -3616,18 +3713,43 @@ def test_query_large_patient_result_is_bounded_and_pages_by_handle(page) -> None
     expect(latest_turn.locator("[data-query-action][data-query-scope-ids]")).to_have_count(0)
     expect(latest_turn.locator("[data-query-action='copy-ids']")).to_have_count(0)
 
-    page.once("dialog", lambda dialog: dialog.accept("Large Query cohort"))
+    latest_turn.locator("[data-query-action='save-cohort']").click()
+    name_dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
+    name_dialog.get_by_label('Cohort name').fill('Large Query cohort')
     with page.expect_request("**/saved-cohorts"):
-        latest_turn.locator("[data-query-action='save-cohort']").click()
+        name_dialog.get_by_role('button', name='Save cohort', exact=True).click()
     expect(page.locator("#queryStatus")).to_contain_text('Saved cohort "Large Query cohort"')
     assert saved_cohort_bodies[-1]["result_handle"] == result_handle
     assert saved_cohort_bodies[-1]["patient_ids"] == []
     assert saved_cohort_bodies[-1]["sample_ids"] == []
 
+    actions = latest_turn.locator('.query-actions-inline')
+    analysis_button = actions.locator('[data-query-action="use-analysis"]')
+    more = actions.locator('summary')
+    before = actions.bounding_box()
+    primary_bounds = analysis_button.bounding_box()
+    more_bounds = more.bounding_box()
+    assert abs(primary_bounds['y'] + primary_bounds['height'] / 2 - more_bounds['y'] - more_bounds['height'] / 2) < 2
+    more.click()
+    assert abs(actions.bounding_box()['height'] - before['height']) < 2
+    assert actions.locator('details .query-actions').bounding_box()['width'] <= 240
+    latest_turn.locator("[data-query-action='use-pheno']").click()
+    expect(page.locator('#phenoSelectedPatientIds')).to_have_value('')
+    expect(page.locator('#phenoSelectedPatientIdsSummary')).to_contain_text('605')
+    expect(page.locator('#contextScope')).to_have_text('605 patients')
+    captured_pheno = {}
+    _mock_cohort_run(page, request_capture=captured_pheno)
+    page.locator('#phenoRunBtn').click()
+    expect(page.locator('#phenoStatus')).to_contain_text('Completed cohort run')
+    assert captured_pheno['body']['query_result_handle'] == result_handle
+    assert captured_pheno['body']['selected_patient_ids'] == ''
+    page.locator('#queryTabBtn').click()
+
     latest_turn.locator("[data-query-action='use-analysis']").click()
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("")
     expect(page.locator("#analysisSelectedPatientIdsSummary")).to_contain_text("identifiers remain server-side")
+    expect(page.locator("#contextScope")).to_have_text("605 patients")
     with page.expect_request("**/analysis") as analysis_request:
         page.locator("#analysisRunBtn").click()
     analysis_body = analysis_request.value.post_data_json
@@ -3810,8 +3932,15 @@ def test_query_tables_show_linked_subject_clarid(page, sample_level):
     playwright.expect(table.locator("thead")).to_contain_text("Subject ClarID" if sample_level else "ClarID")
     badge = table.locator("[data-clarid-toggle]")
     playwright.expect(badge).to_have_count(1)
+    table_before = table.bounding_box()
     badge.click()
     playwright.expect(badge).to_have_attribute("aria-expanded", "true")
+    popover = table.locator('.clarid-popover')
+    playwright.expect(popover).to_be_visible()
+    bounds = popover.bounding_box()
+    assert bounds['width'] <= 340, bounds
+    assert bounds['height'] <= 300, bounds
+    assert abs(table.bounding_box()['height'] - table_before['height']) < 2
     playwright.expect(table).to_contain_text("SyntheticStudy-00001-Case-K50.9-Female-A40_49")
     playwright.expect(table).to_contain_text("Crohn's disease, unspecified (K50.9)")
     playwright.expect(table.locator("tbody tr").last).to_contain_text("Not available")
@@ -4094,6 +4223,26 @@ def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
 
     expect(page.locator("#question")).to_have_value("Which patients have Crohn Disease?")
     expect(page.locator("#queryDiseaseStatus")).to_contain_text("Prompt prepared for disease workspace Crohn Disease")
+
+
+def test_compact_chat_headers_and_flat_analysis_setup(page, tmp_path):
+    expect = playwright.expect
+    for tab in ('queryTabBtn', 'phenoTabBtn', 'analysisTabBtn'):
+        page.locator(f'#{tab}').click()
+        header = page.locator('.tab-panel.active .analysis-chat-bar')
+        expect(header).to_be_visible()
+        expect(header.locator('strong')).to_be_visible()
+        expect(header).not_to_contain_text('Current chat')
+        expect(header).to_have_css('box-shadow', 'none')
+        assert header.bounding_box()['height'] < 90
+    for theme, width in (('light', 1400), ('dark', 390)):
+        page.locator('html').evaluate('(el, theme) => el.dataset.theme = theme', theme)
+        page.set_viewport_size({'width': width, 'height': 1000})
+        expect(page.locator('.analysis-composer')).to_have_css('box-shadow', 'none')
+        expect(page.locator('.analysis-composer')).to_have_css('border-top-width', '0px')
+        assert header.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+        assert page.locator('.app-header').bounding_box()['height'] < 200
+        page.screenshot(path=str(tmp_path / f'analysis-{theme}.png'))
 
 
 def test_analysis_followup_editor_stays_below_conversation(page) -> None:
@@ -5329,6 +5478,7 @@ def test_analysis_methylation_catalog_keeps_selected_assay_in_run_request(page) 
     expect(page.locator("#analysisCompareMode")).not_to_be_checked()
     expect(page.locator("#analysisRunBtn")).to_be_enabled()
 
+    page.locator("#analysisRequestDetails > summary").click()
     page.locator("#analysisPrompt").fill("Run methylation QC and retain this reviewer note.")
     page.locator("#analysisRunBtn").click()
 

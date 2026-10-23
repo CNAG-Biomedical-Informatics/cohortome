@@ -534,10 +534,6 @@ export function createDashboardUi(ctx) {
     const toggleLabel = expanded ? "Show less" : "See more";
     const overviewMarkup = `
       <section class="section-card">
-        <div class="section-card-header">
-          <div class="section-card-eyebrow">Clinical overview</div>
-          <h3>At a glance</h3>
-        </div>
         <div class="dashboard-plot-grid">
           <div class="dashboard-plot-card">
             <h4>Sex distribution</h4>
@@ -566,8 +562,10 @@ export function createDashboardUi(ctx) {
 
     dashboardEl.innerHTML = `
       <section class="section-card dashboard-hero">
-        <h2>Clinical dashboard</h2>
-        <details class="view-help"><summary>About this view</summary><p>Counts and clinical distributions describe the active workspace. Open Patients to inspect an individual record.</p></details>
+        <div class="patient-finder-heading">
+          <h2>Clinical dashboard</h2>
+          <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts and clinical distributions describe the active workspace. Open Patients to inspect an individual record.</p></details>
+        </div>
         <div class="assay-kpi-grid">
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Timepoints" : "Clinical records"}</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(recordCount))}</strong></div>
@@ -1109,7 +1107,7 @@ export function createDashboardUi(ctx) {
     const bundledCount = studies.filter(study => study.local_viewer_url).length;
     if (bundledCount && bundledCount === studies.length) {
       dicomDashboardHealthEl.innerHTML = `<div class="imaging-viewer-status">${assayOverviewIcon('imaging')}<strong>Built-in viewer</strong><span>OHIF · opens inside COHORTome</span></div>
-        <details class="imaging-service-details"><summary>Viewer details</summary><p>Dataset permissions are checked on every request. These bundled synthetic studies need no external imaging service.</p></details>`;
+        <details class="imaging-service-details"><summary>Viewer details</summary><p>Dataset permissions are checked on every request. Image source: ${studies.some(study => study.image_source === 'dicomweb') ? 'configured archive (DICOMweb)' : 'linked DICOM files'}. Images are not stored in DuckDB.</p></details>`;
       renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
@@ -1176,7 +1174,7 @@ export function createDashboardUi(ctx) {
           <td>${escapeHtml(patientLabel(study))}${study.sample_id ? `<small>${escapeHtml(displayIdentity(study.sample_id))}</small>` : ''}</td>
           <td>${escapeHtml(study.timepoint || 'Not recorded')}</td>
           <td><span class="imaging-modality">${assayOverviewIcon('imaging')}${escapeHtml(String(study.modality || 'DICOM'))}</span></td>
-          <td><strong>${escapeHtml(title)}</strong>${study.local_viewer_url ? `<small>${instanceCount === 1 ? 'Single-instance synthetic example' : 'Synthetic example'}</small>` : ''}
+          <td><strong>${escapeHtml(title)}</strong>${study.local_viewer_url ? `<small>${study.image_source === 'dicomweb' ? 'DICOMweb archive' : 'Dataset-linked DICOM files'}</small>` : ''}
           <details class="imaging-study-details">
             <summary>Study details</summary>
             <code class="dicom-uid">${escapeHtml(String(study.study_instance_uid || ""))}</code>
@@ -2091,12 +2089,16 @@ export function createDashboardUi(ctx) {
       const identity = toggle.closest(".clarid-identity");
       const nextOpen = identity && !identity.classList.contains("is-open");
       closeClaridPopovers(nextOpen ? identity : null);
+      const popover = identity?.querySelector('.clarid-popover');
+      const floating = identity?.closest('.query-result-table') && popover?.showPopover;
+      // Set floating layout before opening, so it never expands the table row.
+      if (floating) popover.setAttribute('popover', 'manual');
       if (identity) identity.classList.toggle("is-open", Boolean(nextOpen));
       toggle.setAttribute("aria-expanded", nextOpen ? "true" : "false");
-      const popover = identity?.querySelector('.clarid-popover');
-      if (nextOpen && identity.closest('.query-result-table') && popover?.showPopover) {
+      if (nextOpen && floating) {
         // The top layer avoids both table reflow and clipping by its scroll box.
-        popover.setAttribute('popover', 'manual');
+        popover.style.left = '12px';
+        popover.style.top = '12px';
         popover.showPopover();
         const anchor = toggle.getBoundingClientRect();
         const bounds = popover.getBoundingClientRect();

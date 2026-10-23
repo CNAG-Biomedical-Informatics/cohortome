@@ -25,6 +25,7 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     for (const [key,id] of [['include_terms','phenoIncludeTerms'], ['exclude_terms','phenoExcludeTerms']])
       data[key] = (document.getElementById(id)?.value || '').split(',').map(s => s.trim()).filter(Boolean);
     data.selected_saved_cohort_ids = [...state.phenoSelectedSavedCohortIds];
+    data.query_selection = state.phenoQuerySelection || null;
     return data;
   }
   async function request(url, options) {

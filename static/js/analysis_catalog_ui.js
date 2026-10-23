@@ -587,6 +587,9 @@ export function createAnalysisCatalogUi(ctx) {
         if (overlap) {
           complete = overlap.overlapA >= minimumOverlap && overlap.overlapB >= minimumOverlap;
           detail = `Selected assay: ${selectedDatasetNames[0]}. Cohort A overlap: ${overlap.overlapA} · Cohort B overlap: ${overlap.overlapB}; ${minimumOverlap} per cohort required.`;
+        } else {
+          complete = false;
+          detail = "Sample overlap for the selected assay is not available yet.";
         }
       }
       steps.push({

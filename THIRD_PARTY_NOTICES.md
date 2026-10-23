@@ -21,8 +21,9 @@ and reference data retain their own licences and copyright notices.
   Its builder retains their top-level notices under `licenses/` and downloaded
   source archives under `sources/` within that runtime.
 - OHIF provides DICOM viewing under an [MIT licence](https://github.com/OHIF/Viewers).
-  Its assets are prepared separately and are not included by the current desktop
-  packager.
+  Desktop workflows and the Docker build include pinned static viewer assets.
+  Desktop package manifests record the source image and asset checksums.
+  Viewer dependency notices remain part of the binary redistribution review.
 
 Python, Rust/Tauri, Perl, R and their libraries remain subject to their respective
 terms. The components included depend on the distribution. Settings reports

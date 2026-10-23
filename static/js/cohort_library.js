@@ -12,7 +12,7 @@ const iconPaths = {
 };
 const icon = name => `<span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name] || ''}</svg></span>`;
 
-export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, restoreWorkspace, reloadScope, onAction}) {
+export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, addRequiredDatasets, reloadScope, onAction}) {
   const list = document.getElementById('cohortLibraryList');
   const search = document.getElementById('cohortLibrarySearch');
   const suggestions = document.getElementById('cohortLibrarySuggestions');
@@ -61,7 +61,7 @@ export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, 
         </div>
         <div class="cohort-card-footer">
           <small>Created ${Number.isNaN(date.getTime()) ? 'date unavailable' : esc(date.toLocaleDateString())}</small>
-          <div class="saved-cohort-actions">${available ? '<span class="cohort-card-use-label">Use in</span>' + action(item, 'load-analysis', 'Analysis') + action(item, 'load-pheno', 'Pheno-Ranker') : action(item, 'load-datasets', 'Load datasets')}</div>
+          <div class="saved-cohort-actions">${available ? '<span class="cohort-card-use-label">Use in</span>' + action(item, 'load-analysis', 'Analysis') + action(item, 'load-pheno', 'Pheno-Ranker') : action(item, 'load-datasets', 'Add required datasets')}</div>
         </div>
       </article>`;
     }).join('')}</div>` : `<div class="empty">${items.length ? 'No cohorts match your search.' : 'No accessible saved cohorts. Save a patient or sample selection to create one.'}</div>`;
@@ -133,8 +133,12 @@ export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, 
     const key = button.dataset.savedCohortAction;
     if (key === 'inspect') return inspect(item);
     if (key === 'load-datasets') {
-      button.disabled = true; say('Loading cohort datasets…');
-      try { await restoreWorkspace(item.dataset_id); await reloadScope(); render(); say('Datasets loaded. Choose Analysis or Pheno-Ranker.'); }
+      button.disabled = true; say('Adding required datasets…');
+      try {
+        const added = await addRequiredDatasets(item.dataset_ids);
+        await reloadScope(); render();
+        say(`Added ${added} ${added === 1 ? 'dataset' : 'datasets'}; existing datasets retained. Choose Analysis or Pheno-Ranker.`);
+      }
       catch (error) { say(error.message); button.disabled = false; }
       return;
     }

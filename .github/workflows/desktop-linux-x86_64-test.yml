@@ -3,6 +3,10 @@ name: Test Linux x86_64 desktop package
 on:
   workflow_dispatch:
     inputs:
+      build_installers:
+        description: Also build native test installers (not approved release downloads)
+        type: boolean
+        default: false
       clean_build:
         description: Rebuild R and Perl without reading or writing the runtime cache
         type: boolean
@@ -100,6 +104,10 @@ jobs:
       - name: Test packaged native window
         run: |
           python desktop/test_native_package.py --xvfb "$RUNNER_TEMP/extracted/cohortome-linux-x86_64/cohortome-desktop"
+      - name: Build native test installers
+        if: inputs.build_installers
+        shell: bash
+        run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-linux-x86_64" --output "$RUNNER_TEMP/cohortome-installers"
       - name: Record archive checksum
         run: |
           cd "$RUNNER_TEMP"
@@ -112,5 +120,10 @@ jobs:
             ${{ runner.temp }}/cohortome-linux-x86_64.tar.gz
             ${{ runner.temp }}/cohortome-linux-x86_64.tar.gz.sha256
             ${{ runner.temp }}/cohortome-linux-x86_64/package-manifest.json
+            ${{ runner.temp }}/cohortome-installers/installer-manifest.json
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.deb
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.AppImage
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.dmg
+            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*-setup.exe
           retention-days: 7
           if-no-files-found: error

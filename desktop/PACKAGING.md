@@ -114,6 +114,23 @@ All package workflows are manual and create neither tags nor releases.
 Choose the target platform and run its workflow. Leave `upload_artifact` disabled
 until the binary redistribution review is complete.
 
+The optional `build_installers` input wraps the tested engine with the pinned
+Tauri CLI used by Pheno-Ranker Desktop (2.11.4): Linux DEB/AppImage, macOS
+app/DMG, and Windows per-user NSIS with a WebView2 bootstrapper. It defaults to
+off. This new installer path still needs native CI and clean-machine testing;
+the previous successful runs cover portable archives only.
+
+For a clean checkout and matching portable package:
+
+```bash
+python desktop/build_installers.py --package /path/to/cohortome-package --output /path/to/new-installer-build
+```
+
+The builder checks the package commit, platform and file hashes before embedding
+`engine/` as a Tauri resource. It retains the preview application identifier,
+records installer hashes and never publishes. macOS signing remains ad hoc;
+these are not notarized installers. No Docker workflow is involved.
+
 macOS/Windows packaging builds and tests R on the same runner by default. An
 optional `r_runtime_run_id` can reuse an available, reviewed matching artifact
 from **Test macOS and Windows R runtimes**. Artifacts expire after seven days;
@@ -189,6 +206,21 @@ provide:
 - viewer and browser-library notices if OHIF assets are included;
 - separate provenance and applicable terms for terminology databases shipped by
   Convert-Pheno and ClarID, including their exact vocabulary editions.
+
+Python packaging now retains available distribution notices under
+`licenses/python/`, with an inventory of the clean build environment and explicit
+missing-notice flags. This is not an exact frozen-module inventory or approval.
+R sources and copied native-library sources/notices still need to be retained;
+in particular, the Linux R bundle also copies GNU `rm`. Rust dependency notices
+and viewer dependency coverage remain open checks.
+
+ClarID's source documentation identifies its tables as **CDC ICD-10-CM 2026**,
+not an unspecified ICD-10 edition. Verify that against the pinned CPAN archive
+and retain its provenance before closing the terminology review. The
+[CDC description](https://www.cdc.gov/nchs/icd/icd-10-cm/index.html) identifies
+the relationship to WHO ICD-10; it does not by itself settle every redistribution
+question for the bundled derived files. For source-distribution requirements,
+use the [GNU distribution FAQ](https://www.gnu.org/licenses/gpl-faq.html#UnchangedJustBinary).
 
 Retaining top-level tool notices does not cover all transitive dependencies.
 Do not infer permission for a terminology database from its tool's software

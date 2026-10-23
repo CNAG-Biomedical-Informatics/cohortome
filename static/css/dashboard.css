@@ -354,6 +354,24 @@
       .dataset-policy-section-muted {
         background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface, white));
       }
+      .dataset-imaging-setup {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .dataset-imaging-copy { min-width: 0; }
+      .dataset-imaging-setup .dataset-policy-heading {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .dataset-imaging-setup svg { width: 18px; height: 18px; flex: 0 0 18px; }
+      .dataset-imaging-setup .section-note { margin: 5px 0 0; }
+      .dataset-imaging-setup > button { flex: 0 0 auto; }
       .dataset-policy-heading {
         font-size: 0.78rem;
         font-weight: 800;
@@ -722,6 +740,13 @@
         position: fixed;
         inset: auto;
         margin: 0;
+        width: min(320px, calc(100vw - 24px));
+        height: fit-content;
+        min-height: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        align-content: start;
+        background: var(--theme-surface, #fff);
         max-height: calc(100dvh - 24px);
         overflow: auto;
         box-sizing: border-box;
@@ -1185,3 +1210,16 @@
 .workspace-notice > button { margin-top: 14px; }
 .workspace-notice-unavailable { border-left: 3px solid var(--theme-amber-ink, var(--warning)); }
 .workspace-notice-loading { border-left: 3px solid var(--accent); }
+.dicom-folder-dialog {
+  width: min(32rem, 90vw);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 12px;
+  padding: 1.25rem;
+  background: var(--surface, #fff);
+  color: var(--text, #172b3a);
+}
+.dicom-folder-dialog label { display: grid; gap: .35rem; margin: .8rem 0; }
+.dicom-folder-dialog input, .dicom-folder-dialog select { width: 100%; padding: .45rem; }
+.dicom-folder-dialog p { font-size: .85rem; line-height: 1.5; }
+.dicom-folder-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+.dicom-folder-dialog [role=status] { font-size: .85rem; margin-top: .75rem; }

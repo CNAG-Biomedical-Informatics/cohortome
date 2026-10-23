@@ -3,6 +3,7 @@ import csv
 import json
 import re
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -26,7 +27,7 @@ def sources(request, workspace):
              str((get_dataset(identifier) or {}).get('name') or identifier)) for identifier in ids]
 
 
-def lookup(root, term, limit=12, exact=False, after=''):
+def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False):
     ensure_query_store(root)
     con = _connect(root)
     try:
@@ -35,16 +36,28 @@ def lookup(root, term, limit=12, exact=False, after=''):
         human = "coalesce(c.human_id, '')" if has_clarids else "''"
         predicate = 'p.patient_id = ?' if exact else f'(contains(lower(p.patient_id), lower(?)) OR contains(lower({human}), lower(?)))'
         params = [term] if exact else [term, term]
+        if disease:
+            if not _relation_exists(con, 'patient_diseases'):
+                return []
+            labels = [disease] if isinstance(disease, str) else disease
+            predicate += f" AND EXISTS (SELECT 1 FROM patient_diseases d WHERE d.patient_id = p.patient_id AND lower(d.disease) IN ({','.join('?' for _ in labels)}))"
+            params.extend(label.lower() for label in labels)
         if after:
             predicate += ' AND p.patient_id > ?'
             params.append(after)
         diagnoses = ("(SELECT string_agg(DISTINCT d.disease, ', ' ORDER BY d.disease) "
                      "FROM patient_diseases d WHERE d.patient_id = p.patient_id)"
                      if _relation_exists(con, 'patient_diseases') else "''")
-        rows = con.execute(f'''SELECT p.patient_id, p.sex, p.visit_count, {human}, {diagnoses}
-            FROM patients p {join} WHERE {predicate} ORDER BY p.patient_id LIMIT ?''', params + [limit]).fetchall()
+        sort_expression = {'patient_id': 'p.patient_id', 'dataset_label': "''",
+                           'clarid': human, 'diagnosis': diagnoses}[sort_by]
+        direction = 'DESC' if descending else 'ASC'
+        total_column = ', count(*) OVER()' if include_total else ''
+        rows = con.execute(f'''SELECT p.patient_id, p.sex, p.visit_count, {human}, {diagnoses}{total_column}
+            FROM patients p {join} WHERE {predicate}
+            ORDER BY lower(coalesce({sort_expression}, '')) {direction}, p.patient_id {direction}
+            LIMIT ?''', params + [limit]).fetchall()
         return [dict(patient_id=r[0], sex=r[1], clinical_record_count=r[2], clarid=r[3],
-                     diagnosis=r[4] or '') for r in rows]
+                     diagnosis=r[4] or '', **({'_total': r[5]} if include_total else {})) for r in rows]
     finally:
         con.close()
 
@@ -133,10 +146,30 @@ def timeline(request: Request, workspace: str):
 
 @router.get('/search')
 def search(request: Request, workspace: str, q: str = Query('', max_length=150),
-           dataset_index: int = Query(0, ge=0), after: str = Query('', max_length=1000)):
+           dataset_index: int = Query(0, ge=0), after: str = Query('', max_length=1000),
+           sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] | None = None,
+           direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0),
+           disease: list[str] | None = Query(None)):
+    if disease and (len(disease) > 100 or any(len(label) > 1000 for label in disease)):
+        raise HTTPException(422, 'Too many or overly long disease filters.')
+    disease = [label for label in (disease or []) if label]
     available = sources(request, workspace)
     matches = []
     try:
+        if sort_by:
+            total = 0
+            for identifier, root, label in available:
+                rows = lookup(root, q.strip(), offset + 21, sort_by=sort_by,
+                              descending=direction == 'desc', disease=disease, include_total=True)
+                total += rows[0]['_total'] if rows else 0
+                for row in rows:
+                    row.pop('_total', None)
+                    matches.append(dict(row, dataset_id=identifier, dataset_label=label))
+            matches.sort(key=lambda row: (str(row.get(sort_by) or '').lower(),
+                                          row['patient_id'], row['dataset_id']),
+                         reverse=direction == 'desc')
+            return {'matches': matches[offset:offset + 20], 'total': total,
+                    'next': {'offset': offset + 20} if len(matches) > offset + 20 else None}
         for index, (identifier, root, label) in enumerate(available):
             if index < dataset_index:
                 continue
@@ -145,7 +178,8 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
                 break
             matches.extend(dict(row, dataset_id=identifier, dataset_label=label, dataset_index=index)
                            for row in lookup(root, q.strip(), remaining,
-                                             after=after if index == dataset_index else ''))
+                                             after=after if index == dataset_index else '',
+                                             **({'disease': disease} if disease else {})))
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient search is unavailable until the dataset stores are ready.') from None
     cursor = ({'dataset_index': matches[19]['dataset_index'], 'after': matches[19]['patient_id']}

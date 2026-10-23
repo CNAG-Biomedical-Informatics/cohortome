@@ -42,8 +42,8 @@
       #analysisSessionList .chat-selection-bar button { width: auto; padding: 6px 8px; font-size: 12px; }
       #clearChatsDialog label { display: block; margin: 12px 0; }
       #clearChatsDialog input { width: auto; }
-      .chat-move-dialog { width: min(360px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 20px; color: var(--ink); background: var(--panel, var(--bg)); }
-      .chat-move-dialog::backdrop { background: #0006; }
+      .chat-move-dialog { width: min(360px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 20px; color: var(--ink); background: var(--theme-surface, #fff); box-shadow: 0 20px 60px rgb(0 0 0 / 28%); }
+      .chat-move-dialog::backdrop { background: rgb(0 0 0 / 50%); }
       .chat-move-dialog form { display: grid; gap: 12px; }
       .cohort-export-dialog { width: min(620px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; }
       .cohort-export-assays { display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
@@ -230,29 +230,25 @@
         grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 10px;
         align-items: center;
-        padding: 14px;
-        border-radius: 18px;
-        border: 1px solid rgba(37, 99, 235, 0.14);
-        background: linear-gradient(135deg, var(--theme-surface, rgba(248, 251, 255, 0.98)), var(--theme-surface, rgba(239, 246, 255, 0.78)));
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+        padding: 0 0 12px;
+        border-radius: 0;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        box-shadow: none;
       }
       .analysis-chat-bar .query-chip {
         width: auto;
         justify-content: center;
       }
       .analysis-chat-current {
-        display: grid;
-        gap: 3px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
         min-width: 0;
       }
-      .analysis-chat-current span {
-        color: var(--muted);
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-      }
       .analysis-chat-current strong {
+        flex: 1 1 100%;
         min-width: 0;
         overflow: hidden;
         color: var(--ink);
@@ -265,8 +261,8 @@
         min-width: 0;
         overflow: hidden;
         color: var(--muted);
-        font-size: 0.84rem;
-        font-weight: 600;
+        font-size: 0.75rem;
+        font-weight: 400;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -285,10 +281,11 @@
       }
       .analysis-setup-card {
         padding: 0;
-        border-radius: 20px;
-        border: 1px solid var(--line);
-        background: linear-gradient(145deg, var(--theme-surface, rgba(255, 255, 255, 0.98)), var(--theme-surface, rgba(246, 250, 255, 0.94)));
-        box-shadow: var(--shadow);
+        border-radius: 0;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        box-shadow: none;
         overflow: hidden;
       }
       .analysis-setup-card summary {
@@ -1385,11 +1382,11 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
         gap: 8px;
-        padding: 10px;
-        border-radius: 20px;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        background: linear-gradient(135deg, var(--theme-surface, rgba(255, 255, 255, 0.98)), var(--theme-surface, rgba(248, 251, 255, 0.9)));
-        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07);
+        padding: 0;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
       }
       .analysis-flow-step {
         min-width: 0;
@@ -1457,11 +1454,11 @@
       .analysis-composer {
         display: grid;
         gap: 12px;
-        padding: 16px 18px;
-        border-radius: 20px;
-        border: 1px solid var(--line);
-        background: var(--theme-surface, rgba(255, 255, 255, 0.92));
-        box-shadow: var(--shadow);
+        padding: 16px 0;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
       }
       .analysis-composer .query-status {
         margin-top: 0;
@@ -1469,10 +1466,10 @@
       .analysis-composer-setup {
         display: grid;
         gap: 8px;
-        padding: 14px 16px;
-        border-radius: 16px;
-        border: 1px solid rgba(37, 99, 235, 0.18);
-        background: linear-gradient(145deg, var(--theme-surface, rgba(239, 246, 255, 0.98)), var(--theme-surface, rgba(255, 255, 255, 0.96)));
+        padding: 12px 0;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
       }
       .analysis-composer-setup-heading {
         font-size: 0.76rem;
@@ -1531,12 +1528,10 @@
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 14px;
         align-items: center;
-        padding: 14px 16px;
-        border-radius: 18px;
-        border: 1px solid rgba(37, 99, 235, 0.18);
-        background:
-          linear-gradient(135deg, var(--theme-surface, rgba(255, 255, 255, 0.98)), var(--theme-surface, rgba(239, 246, 255, 0.92))),
-          linear-gradient(90deg, rgba(20, 184, 166, 0.08), rgba(37, 99, 235, 0.08));
+        padding: 12px 0;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
       }
       .analysis-picker-copy {
         display: grid;

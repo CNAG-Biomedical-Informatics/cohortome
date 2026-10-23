@@ -881,11 +881,6 @@ def _prepare_quantitative_assay_comparison_bundle(
     compare_selected_patient_ids: str,
     output_dir: Path,
 ) -> Dict[str, Any]:
-    if len(query_store_module._workspace_dataset_ids(data_dir)) > 1:
-        raise RuntimeError(
-            "Compact-assay comparison v1 supports single-dataset workspaces only; "
-            "select exactly one dataset before running this analysis."
-        )
     wanted_assay = str(assay_id or "").strip()
     if not wanted_assay:
         raise RuntimeError("Compact-assay comparison requires one explicitly selected assay.")
@@ -953,8 +948,10 @@ def _prepare_quantitative_assay_comparison_bundle(
     sample_rows: List[Dict[str, Any]] = []
     for sample_id in matrix_sample_ids:
         patient_id = links[sample_id]
-        belongs_to_a = sample_id in cohort_a_tokens or patient_id in cohort_a_tokens
-        belongs_to_b = sample_id in cohort_b_tokens or patient_id in cohort_b_tokens
+        sample_key = _assay_scope_identity(item, 'sample', sample_id)
+        patient_key = _assay_scope_identity(item, 'patient', patient_id)
+        belongs_to_a = sample_key in cohort_a_tokens or patient_key in cohort_a_tokens
+        belongs_to_b = sample_key in cohort_b_tokens or patient_key in cohort_b_tokens
         if belongs_to_a and belongs_to_b:
             raise RuntimeError("Compact-assay comparison requires disjoint linked samples across cohorts.")
         if not belongs_to_a and not belongs_to_b:
@@ -976,10 +973,10 @@ def _prepare_quantitative_assay_comparison_bundle(
     patient_counts = Counter(str(row["patient_id"]) for row in sample_rows)
     if any(count > 1 for count in patient_counts.values()):
         raise RuntimeError(
-            "Compact-assay comparison v1 requires one independent sample per patient."
+            "Compact-assay comparison requires one independent sample per patient."
         )
     clinical_patient_ids = set(query_store_module.patient_inventory(data_dir))
-    selected_patient_set = set(patient_counts)
+    selected_patient_set = {_assay_scope_identity(item, 'patient', value) for value in patient_counts}
     missing_clinical = selected_patient_set - clinical_patient_ids
     if not clinical_patient_ids or missing_clinical:
         raise RuntimeError(
@@ -1064,6 +1061,7 @@ def _prepare_quantitative_assay_comparison_bundle(
             "version": 1,
             "analysis_type": "quantitative_compact_assay_comparison",
             "dataset_name": dataset_name,
+            "source_dataset_id": str(item.get('_source_dataset_id') or ''),
             "assay_label": assay_label,
             "modality": modality,
             "data_type": data_type,
@@ -1346,6 +1344,13 @@ def _read_manifest_sample_metadata(
     return rows
 
 
+def _assay_scope_identity(item: Dict[str, Any], kind: str, source_id: str) -> str:
+    """Match workspace identities without changing source matrix column names."""
+    from app.identities import identity_key
+    dataset_id = item.get('_source_dataset_id')
+    return identity_key(dataset_id, kind, source_id) if dataset_id else source_id
+
+
 def _methylation_sample_rows(
     sample_ids: List[str],
     metadata: Dict[str, Dict[str, str]],
@@ -1354,6 +1359,7 @@ def _methylation_sample_rows(
     selected_patient_ids: str,
     compare_selected_patient_ids: str,
     require_compare: bool,
+    source_dataset_id: str = '',
 ) -> List[Dict[str, str]]:
     cohort_a_tokens = set(_assay_scope_tokens(selected_patient_ids))
     cohort_b_tokens = set(_assay_scope_tokens(compare_selected_patient_ids))
@@ -1367,8 +1373,11 @@ def _methylation_sample_rows(
     for sample_id in sample_ids:
         source = dict(metadata[sample_id])
         patient_id = str(source["patient_id"]).strip()
-        belongs_to_a = sample_id in cohort_a_tokens or patient_id in cohort_a_tokens
-        belongs_to_b = sample_id in cohort_b_tokens or patient_id in cohort_b_tokens
+        source_item = {'_source_dataset_id': source_dataset_id}
+        sample_key = _assay_scope_identity(source_item, 'sample', sample_id)
+        patient_key = _assay_scope_identity(source_item, 'patient', patient_id)
+        belongs_to_a = sample_key in cohort_a_tokens or patient_key in cohort_a_tokens
+        belongs_to_b = sample_key in cohort_b_tokens or patient_key in cohort_b_tokens
         if belongs_to_a and belongs_to_b:
             raise RuntimeError("Methylation analysis requires disjoint sample selections across Cohort A and Cohort B.")
         if use_workspace:
@@ -1401,7 +1410,7 @@ def _methylation_sample_rows(
         patient_counts = Counter(row["patient_id"] for row in rows)
         if any(value > 1 for value in patient_counts.values()):
             raise RuntimeError(
-                "Differential methylation v1 requires one sample per patient and cannot reuse a patient across cohorts."
+                "Differential methylation requires one sample per patient and cannot reuse a patient across cohorts."
             )
     elif len(rows) < 2:
         raise RuntimeError("Methylation QC and PCA requires at least two samples in the current scope.")
@@ -1420,11 +1429,6 @@ def _prepare_methylation_analysis_bundle(
 ) -> Dict[str, Any]:
     if analysis_type not in {"qc_pca", "differential_methylation"}:
         raise RuntimeError(f"Unsupported methylation analysis type '{analysis_type}'.")
-    if len(query_store_module._workspace_dataset_ids(data_dir)) > 1:
-        raise RuntimeError(
-            "Methylation analysis v1 supports single-dataset workspaces only; "
-            "select exactly one dataset before running this analysis."
-        )
     item = _choose_methylation_assay(data_dir, assay_id)
     dataset_name = str(item["assay_id"])
     matrix_path = _resolve_assay_manifest_file(data_dir, item, "file", required=True)
@@ -1460,11 +1464,13 @@ def _prepare_methylation_analysis_bundle(
         selected_patient_ids=selected_patient_ids,
         compare_selected_patient_ids=compare_selected_patient_ids,
         require_compare=analysis_type == "differential_methylation",
+        source_dataset_id=str(item.get('_source_dataset_id') or ''),
     )
     clinical_patient_ids = set(query_store_module.patient_inventory(data_dir))
     selected_patient_ids_set = {str(row.get("patient_id") or "").strip() for row in sample_rows}
     selected_patient_ids_set.discard("")
-    missing_clinical_link_count = len(selected_patient_ids_set - clinical_patient_ids)
+    selected_patient_keys = {_assay_scope_identity(item, 'patient', value) for value in selected_patient_ids_set}
+    missing_clinical_link_count = len(selected_patient_keys - clinical_patient_ids)
     if not clinical_patient_ids or missing_clinical_link_count:
         raise RuntimeError(
             "Methylation analysis requires explicit clinical linkage for every selected patient; "
@@ -1595,6 +1601,7 @@ def _prepare_methylation_analysis_bundle(
             "version": 1,
             "analysis_type": f"methylation_{analysis_type}",
             "dataset_name": dataset_name,
+            "source_dataset_id": str(item.get('_source_dataset_id') or ''),
             "input_data_type": "m_values",
             "feature_view": "feature_panel" if feature_panel else "complete_assay",
             "feature_panel": feature_panel,

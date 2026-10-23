@@ -13,6 +13,15 @@ import app.query_store as query_store_module
 from bff_test_helpers import _write_synthetic_methylation_runner_fixture
 
 
+@pytest.mark.parametrize('removed,added', [([], []), (['old.json'], []), ([], ['new.json']), (['old.json'], ['new.json'])])
+def test_stale_workspace_message_explains_recovery(removed, added):
+    message = routes_module._workspace_changed_detail({'removed_files': removed, 'added_files': added})
+    assert 'Start a new Analysis chat' in message
+    assert 'select your cohorts and assay again' in message
+    assert 'previous results are kept' in message
+    assert '.json' not in message
+
+
 def test_analysis_survival_kaplan_meier_for_measure_threshold(tmp_path):
     write_json(
         tmp_path,
@@ -161,7 +170,7 @@ def test_analysis_catalog_declares_two_governed_quantitative_assay_comparisons()
         assert item["default_compare_mode"] is True
         assert item["minimum_samples_per_cohort"] == 3
         assert item["requires_detailed_access"] is True
-        assert item["requires_single_dataset_workspace"] is True
+        assert item["requires_single_dataset_workspace"] is False
         assert item["required_modalities"] == [modality]
         assert item["required_data_types"] == [data_type]
 

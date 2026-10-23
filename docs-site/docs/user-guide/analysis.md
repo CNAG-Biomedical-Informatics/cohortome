@@ -241,6 +241,12 @@ stored with the analysis provenance.
 
 `Methylation QC and PCA` checks the supplied matrix and sample linkage in the current Analysis scope. It does not repeat raw-array preprocessing or probe filtering from IDAT files. `limma differential methylation` uses Cohort A and Cohort B as the comparison groups and requires both cohorts to overlap the same selected methylation assay.
 
+Other datasets can remain loaded. Methylation, immune-cell and serology analyses
+use only samples from the selected assay's source dataset; they do not merge
+matrices across studies. Cohort overlap is checked against that assay before
+running. Repeated samples from one patient are not treated as independent
+observations in cohort comparisons.
+
 The immune-cell and quantitative-serology tools also use one selected assay
 plus disjoint saved Cohort A and Cohort B selections. Each cohort must overlap
 the assay by at least three samples. The runner applies a Wilcoxon rank-sum test

@@ -918,7 +918,7 @@ export function createQueryUi(ctx) {
     const phenoRankerPatientIds = phenoRankerPatientIdsProvider();
     const compatibleIds = phenoRankerPatientIds.length ? patientIds.filter((patientId) => phenoRankerPatientIds.includes(patientId)) : [];
     const allCompatible = patientIds.length > 0 && compatibleIds.length === patientIds.length;
-    const canUsePheno = !resultHandle && availableActions.use_in_pheno_ranker && (recordIds.length > 0 || allCompatible);
+    const canUsePheno = availableActions.use_in_pheno_ranker && (resultHandle || recordIds.length > 0 || allCompatible);
     const canCopyIds = !resultHandle && availableActions.copy_patient_ids && patientIds.length > 0;
     const incompatiblePheno = !resultHandle && availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible;
     const moreActions = canCopyIds || canUsePheno || incompatiblePheno;
@@ -927,10 +927,10 @@ export function createQueryUi(ctx) {
         ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
         ${availableActions.save_cohort ? `<button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>` : ""}
         ${moreActions ? `<details class="query-inline-actions">
-          <summary><span class="query-inline-actions-more">More actions</span><span class="query-inline-actions-less">Less actions</span></summary>
+          <summary><span>More options</span></summary>
           <div class="query-actions">
             ${canCopyIds ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
-            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Use IDs in Pheno-Ranker</span></button>` : ""}
+            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Pheno-Ranker</span></button>` : ""}
             ${incompatiblePheno ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
           </div>
         </details>` : (resultHandle && availableActions.save_cohort ? '<span class="section-note-inline">Save this result as a cohort before using it in Pheno-Ranker.</span>' : "")}
@@ -1402,6 +1402,9 @@ export function createQueryUi(ctx) {
   }
 
   function handleDocumentClick(event) {
+    document.querySelectorAll('.query-inline-actions[open]').forEach(menu => {
+      if (!menu.contains(event.target) || event.target.closest('[data-query-action]')) menu.open = false;
+    });
     const sortButton = event.target.closest("[data-query-sort]");
     if (sortButton && queryTabEl?.contains(sortButton)) {
       const turnElement = sortButton.closest("[data-query-turn-index]");

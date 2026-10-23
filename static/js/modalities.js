@@ -7,7 +7,7 @@ const definitions = {
   methylation: ['DNA methylation', 'purple', '#6d28d9', '<path d="M7 3v7l-4 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-4-8V3M5 3h10M6 15h8"/><circle cx="19" cy="6" r="3"/>'],
   flow_cytometry: ['Immune-cell abundance', 'amber', '#92400e', '<circle cx="6" cy="7" r="3"/><circle cx="17" cy="6" r="2"/><circle cx="13" cy="16" r="4"/><circle cx="4" cy="18" r="1"/>'],
   serology: ['Serology', 'red', '#b91c1c', '<path d="M12 3S5 11 5 15a7 7 0 0 0 14 0c0-4-7-12-7-12Z"/><path d="M9 16a3 3 0 0 0 3 3"/>'],
-  proteomics: ['Proteomics', 'teal', '#0f766e', '<circle cx="5" cy="6" r="3"/><circle cx="18" cy="7" r="3"/><circle cx="10" cy="19" r="3"/><path d="m8 6 7 1M6 9l3 7m7-6-4 6"/>'],
+  proteomics: ['Proteomics', 'teal', '#0f766e', '<path d="M4 5c0-3 16-3 16 1S4 9 4 13s16 1 16 5-16 5-16 1M4 5c0 5 16 8 16 13"/>'],
   genotyping: ['Genotyping', 'green', '#166534', '<path d="M7 3c0 4 10 5 10 9s-10 5-10 9M17 3c0 4-10 5-10 9s10 5 10 9M8 6h8M8 18h8"/>'],
 };
 export function modalityKey(value) {

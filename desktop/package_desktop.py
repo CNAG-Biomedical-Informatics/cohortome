@@ -10,10 +10,13 @@ import subprocess
 import sys
 import tempfile
 
+
 ROOT = Path(__file__).resolve().parents[1]
 TREES = {"app", "static", "templates", "datasets/synthetic-longitudinal-demo", "datasets/synthetic-cross-sectional-demo"}
 FILES = {"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md", "pyproject.toml", "config/analysis/catalog.yaml", "config/resources.json",
          "config/analysis/synthetic_script_inputs.json", "scripts/data/hgnc_protein_coding_symbols.tsv"}
+SOURCE_PATHS = ['app', 'desktop', 'static', 'templates', 'datasets', 'config', 'scripts',
+                'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'licenses', 'pyproject.toml']
 CHARTS = {
     "plotly.js-dist-min": ("2.35.2", "plotly.min.js", "https://cdn.plot.ly/plotly-2.35.2.min.js"),
     "cytoscape": ("3.33.1", "dist/cytoscape.min.js", "https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.33.1/cytoscape.min.js"),
@@ -24,6 +27,11 @@ def allowed(path):
     parts = Path(path).parts
     return (any(path.startswith(tree + "/") for tree in TREES) or path in FILES or
             (len(parts) == 2 and parts[0] == "scripts" and parts[1].startswith("analysis_") and path.endswith(".R")))
+
+
+def source_is_dirty():
+    return bool(subprocess.check_output(
+        ['git', 'status', '--porcelain', '--untracked-files=all', '--', *SOURCE_PATHS], cwd=ROOT))
 
 
 def stage(destination, chart_modules):
@@ -130,6 +138,7 @@ def stage_ohif_assets(source, destination):
 
 
 def main():
+    from python_notices import collect as collect_python_notices
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
     parser.add_argument("--with-native", action="store_true", help="Also build the Tauri window and archive")
@@ -147,6 +156,7 @@ def main():
         staging = Path(temporary) / "source"
         staging.mkdir()
         stage(staging, args.chart_modules.resolve())
+        collect_python_notices(staging / 'licenses/python')
         viewer_manifest = stage_ohif_assets(args.ohif_assets, staging / 'runtime/ohif') if args.ohif_assets else None
         command = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
                    "--name", "cohortome-backend", "--distpath", str(output / "frozen"),
@@ -183,7 +193,7 @@ def main():
             subprocess.run(["codesign", "--force", "--sign", "-", str(output / "cohortome-desktop")], check=True)
     manifest = {"kind": "desktop-packaging-test", "platform": sys.platform, "architecture": platform.machine(),
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-                "working_tree_changes": bool(subprocess.check_output(["git", "diff", "HEAD", "--", "app", "desktop"], cwd=ROOT)),
+                "working_tree_changes": source_is_dirty(),
                 "perl_runtime": perl_manifest,
                 "r_runtime": r_manifest,
                 "viewer": viewer_manifest,

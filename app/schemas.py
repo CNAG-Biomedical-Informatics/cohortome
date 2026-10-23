@@ -172,6 +172,7 @@ class AnalysisSessionRenameRequest(BaseModel):
 
 
 class PhenoRankerRequest(BaseModel):
+    query_result_handle: str = Field(default='', max_length=200, description='Complete server-side Query selection for cohort mode.')
     prompt: str = Field(default="", description="Current Pheno-Ranker prompt used for run metadata and queued job labels.")
     action: str = Field(default="compare", description="Pheno-Ranker action, typically compare.")
     mode: str = Field(default="cohort", description="Pheno-Ranker mode, such as cohort or patient.")

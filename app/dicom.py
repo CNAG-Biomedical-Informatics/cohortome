@@ -24,6 +24,8 @@ def _clean_url(value: str) -> str:
 
 
 def dicom_enabled() -> bool:
+    if _truthy(app_env('COHORTOME_DESKTOP_MODE', 'false')):
+        return False
     return _truthy(app_env("COHORTOME_DICOM_ENABLED", "false"))
 
 
@@ -149,6 +151,10 @@ def dicom_studies(data_dir: str) -> List[Dict[str, Any]]:
     for source_dataset_id, root in _candidate_roots(dataset_root):
         manifest_path = root / DICOM_STUDIES_MANIFEST
         payload = _read_json(manifest_path)
+        from app.dicom_files import linked_index
+        linked = linked_index(root)
+        if linked is not None:
+            payload = linked
         raw_studies = payload.get("studies") if isinstance(payload.get("studies"), list) else []
         for item in raw_studies:
             if not isinstance(item, dict):
