@@ -25,9 +25,14 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'admin-guide/starting-and-stopping',
+        'admin-guide/local-auth-and-groups',
         {type: 'doc', id: 'admin-guide/datasets-and-access', label: 'Dataset configuration'},
         {type: 'doc', id: 'admin-guide/model-providers', label: 'Model configuration'},
         {type: 'doc', id: 'admin-guide/dicom-viewing', label: 'Imaging setup'},
+        {type: 'category', label: 'Deployment details', collapsed: true, items: [
+          'admin-guide/native-installation', 'admin-guide/institutional-sign-in',
+          'admin-guide/model-deployment', 'admin-guide/dataset-registration-reference',
+        ]},
         'developer-guide/technical-reference',
       ],
     },

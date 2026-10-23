@@ -1,204 +1,68 @@
 ---
 sidebar_position: 2
+title: Manage accounts
 ---
 
-import DeploymentNotice from '@site/src/components/DeploymentNotice';
+# Manage accounts
 
-# Auth And Groups
+**Web only.** Desktop has one local owner and no login screen.
 
-<DeploymentNotice mode="web" title="Web only">
+## Add a user
 
-This guide covers accounts, login, roles, and groups in a shared Web deployment.
-Desktop opens as a single local owner without a login screen. It does not need
-application accounts or grants between users. See
-[Installation](../getting-started/desktop).
+1. Sign in as an administrator and open **Admin > Users**.
+2. Create an account with a username, display name and password.
+3. Choose the role and, if needed, assign groups.
+4. In **Admin > Data**, grant access to the appropriate datasets.
 
-</DeploymentNotice>
+Keep ordinary researchers in the `user` role. The `admin` role, or membership
+in the `admin` group, grants administration privileges. Prefer group-based
+dataset grants when several people need the same access.
 
+## Change an account
 
-The current app supports local authentication and a generic OIDC mode for
-external identity providers such as Dex, Google, or institutional SSO.
+Use **Admin > Users** to edit names, email addresses, roles and groups, reset
+passwords, or disable accounts. The app protects the current administrator and
+the last enabled administrator from removal or loss of access.
 
-## Source of truth
+The initial accounts in `docker/.env` are used **only on first startup**.
+Changing that file later does not edit existing accounts.
 
-User identity is now persisted locally in:
+## Reset a password
 
-- `<runtime>/state/auth/users.json`
+An administrator can reset local passwords in **Admin > Users**.
+The optional **Forgot password?** link requires email delivery to be configured.
 
-Environment configuration is still used as bootstrap seed data when no local user store exists yet.
+<details>
+<summary>Enable email password resets</summary>
 
-Typical setup:
+Add these settings to the deployment's private environment file, then apply
+the configuration again:
 
-```bash
-export COHORTOME_AUTH_MODE=local
-export COHORTOME_LOCAL_USERS_JSON='[
-  {"username":"admin","password":"admin","role":"admin","display_name":"Administrator","groups":["admin"]},
-  {"username":"mrueda","password":"mrueda","role":"user","display_name":"mrueda","groups":["cnag"]},
-  {"username":"nogroup","password":"nogroup","role":"user","display_name":"No Group User","groups":[]}
-]'
+```dotenv
+COHORTOME_SMTP_HOST=smtp.example.org
+COHORTOME_SMTP_PORT=587
+COHORTOME_SMTP_FROM=noreply@example.org
+COHORTOME_SMTP_USERNAME=your-mail-account
+COHORTOME_SMTP_PASSWORD=your-mail-password
+COHORTOME_SMTP_TLS=true
+COHORTOME_PUBLIC_BASE_URL=https://cohortome.example.org
 ```
 
-## Auth modes
+Users need an enabled local account with an email address. Reset links are
+single-use and expire; the default expiry is 60 minutes.
 
-COHORTome supports three authentication modes:
+</details>
 
-- `COHORTOME_AUTH_MODE=none`
-  - development fallback with a synthetic local admin user
-- `COHORTOME_AUTH_MODE=local`
-  - local username/password users stored in `<runtime>/state/auth/users.json`
-- `COHORTOME_AUTH_MODE=oidc`
-  - external OIDC login, with COHORTome still owning roles, groups, and
-    dataset access
+## Institutional sign-in
 
-Optional local fallback:
+Local accounts are enough to run COHORTome. Institutions that require single
+sign-on can configure [OIDC](./institutional-sign-in).
 
-```bash
-export COHORTOME_AUTH_LOCAL_FALLBACK=true
-```
+<a id="changing-login-methods-without-losing-access-to-saved-work" />
 
-When this is set with `COHORTOME_AUTH_MODE=oidc`, the login page shows both the OIDC
-button and the local username/password form. This is useful during development
-or for emergency admin access. Leave it disabled in stricter production
-deployments if all users should authenticate through the external provider.
+## Keep saved work when changing login methods
 
-OIDC authenticates identity only. Authorization remains local:
-
-```text
-OIDC subject/email -> COHORTome user -> role/groups -> dataset access
-```
-
-An OIDC user must match an enabled COHORTome account by `external_subject` or
-email. Logging in through OIDC does not create a new account automatically.
-
-## Changing login methods without losing access to saved work
-
-Saved cohorts, Analysis sessions, settings, and jobs belong to the COHORTome
-username. OIDC identifies the person, then maps them to that existing username.
-Use the same account when moving between local login and OIDC.
-
-Before changing the login method:
-
-1. Keep the same `COHORTOME_RUNTIME_ROOT`. A different runtime can open a
-   different user database, dataset registry, and collection of saved work.
-2. Back up the protected runtime and current login configuration.
-3. For OIDC, check that each existing account has the matching email or
-   `external_subject`. The external subject can change when switching identity
-   providers; check it against the new provider.
-4. Configure the new provider's issuer, client credentials, and exact callback
-   URL. Keep the session secret stored in the configuration file.
-5. If local fallback is permitted, confirm that an existing administrator has
-   a working local password before enabling it for the transition.
-6. Restart the web app and worker with the same configuration. Test the new
-   login in a separate browser session, then check the username, dataset access,
-   saved cohorts, and an existing Analysis session.
-7. Disable temporary fallback after successful verification if the deployment
-   requires external login only.
-
-When returning to local login, the existing account needs a local password.
-Do not create a replacement username merely to change how the person logs in.
-Changing bootstrap users in an environment file does not update an existing
-user database; use `Admin > Users` for supported account changes.
-
-If login succeeds but datasets or saved work appear missing, check the runtime
-directory and mapped COHORTome username first. The app does not currently
-provide an authentication-migration wizard.
-
-## Roles and dataset access
-
-The `admin` role or membership in the `admin` group grants administrative
-access. Other groups grant access only through dataset policy.
-
-Prefer group grants for routine access and direct user grants for exceptions.
-Users without groups remain valid: visibility or a direct grant can authorize
-them. See [dataset access rules](datasets-and-access.mdx#access-model).
-
-## What the UI can edit
-
-### Dataset policy
-
-`Admin > Data` can edit:
-
-- visibility
-- allowed groups
-- allowed users
-
-### Users
-
-`Admin > Users` can manage local users directly:
-
-- create local users
-- set optional email addresses for self-service password reset
-- edit display name
-- edit role
-- edit groups
-- enable or disable accounts
-- reset passwords
-- delete local users
-
-The `Settings` panel shows the current user's authentication summary:
-
-- signed-in identity
-- actual login method for the current session
-- configured provider
-- local fallback state
-- password-reset availability
-- email, role, and groups
-
-When `COHORTOME_AUTH_MODE=oidc` and `COHORTOME_AUTH_LOCAL_FALLBACK=true`, a user who signs in
-with the local form is shown as local fallback for that session. This avoids the
-misleading impression that an OIDC login happened when it did not.
-
-Current protections include:
-
-- no deleting the currently signed-in user
-- no disabling the currently signed-in user
-- no self-demotion from the current admin session
-- no deleting the last enabled admin
-
-## Password reset
-
-Admin password reset is always available in `Admin > Users` for local users.
-
-Self-service password reset is optional. It is enabled only when local auth is
-enabled and SMTP delivery is configured:
-
-```bash
-export COHORTOME_AUTH_MODE=local
-export COHORTOME_SMTP_HOST=smtp.example.org
-export COHORTOME_SMTP_PORT=587
-export COHORTOME_SMTP_FROM=noreply@example.org
-export COHORTOME_SMTP_USERNAME=...
-export COHORTOME_SMTP_PASSWORD=...
-export COHORTOME_SMTP_TLS=true
-export COHORTOME_PUBLIC_BASE_URL=https://cohortome.example.org
-```
-
-Optional:
-
-```bash
-export COHORTOME_PASSWORD_RESET_TTL_MINUTES=60
-```
-
-When SMTP reset is configured, the sign-in screen shows `Forgot password?`.
-Users can request a reset by username or email. The response is intentionally
-generic so that the app does not reveal whether an account exists.
-
-Reset links are one-time use and expire after the configured TTL. Tokens are
-stored hashed under:
-
-- `<runtime>/state/auth/password-reset-tokens.json`
-
-Users without an email address, disabled users, and non-local users cannot use
-self-service password reset. They still require an administrator reset.
-
-## Institutional identity
-
-OIDC authenticates users; COHORTome retains roles, groups, dataset access and
-disclosure policies. SAML or LDAP installations need an identity service that
-exposes OIDC.
-
-## Local OIDC development with Dex
-
-Use the [Dex development recipe](https://github.com/CNAG-Biomedical-Informatics/cohortome/blob/main/scripts/dev/README.md).
-Its example credentials are for local testing only. The Dex email must match an
-enabled COHORTome account; successful provider login alone does not grant access.
+Keep the same runtime directory and COHORTome username. Chats, cohorts,
+settings and jobs belong to that username. OIDC must map to the existing
+account—not a newly created replacement. Follow the
+[sign-in migration checklist](./institutional-sign-in#changing-an-existing-installation).

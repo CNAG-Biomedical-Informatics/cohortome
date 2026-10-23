@@ -22,7 +22,7 @@ If that data changes, a saved analysis may no longer be runnable.
 
 Saved work belongs to an installation and user. Changing the runtime directory
 or username can make existing work appear missing. On Web, see
-[changing login methods](../admin-guide/local-auth-and-groups#changing-login-methods-without-losing-access-to-saved-work).
+[changing login methods](../admin-guide/local-auth-and-groups#keep-saved-work-when-changing-login-methods).
 
 ## Temporary Query results
 

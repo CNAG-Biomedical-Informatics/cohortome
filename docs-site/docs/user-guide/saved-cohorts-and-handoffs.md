@@ -13,6 +13,7 @@ Use it again in Analysis or Pheno-Ranker, or export its data.
 Choose **Save cohort** from:
 
 - a Query result;
+- filtered patients in **Dashboard → Patients**;
 - a Pheno-Ranker plot selection;
 - matching patients in **Dashboard → Multimodal**.
 
@@ -31,6 +32,10 @@ the cohort library alone does not change the workspace.
 
 Use **Rename** in the three-dot menu to change the name. This does not change
 membership or references from existing chats.
+
+To narrow a patient cohort by available assays, open **Dashboard → Multimodal**,
+choose it under **Start from**, and select the required data types. Saving creates
+a new cohort; it does not modify the original.
 
 :::note[Keep dataset and sample identifiers]
 

@@ -34,12 +34,13 @@ def main() -> int:
                    COHORTOME_DESKTOP_MODE='true', COHORTOME_JOBS_BACKEND='local',
                    COHORTOME_JOBS_REDIS_URL='redis://127.0.0.1:1/0',
                    COHORTOME_SESSION_SECRET=secrets.token_urlsafe(32), LM_STUDIO_ENABLED='false')
-        # Only the bundled fixture is registered. No machine-local registry is read.
+        # Only the two bundled fixtures are registered. No machine-local registry is read.
         subprocess.run([sys.executable, '-c', """
 from app.datasets import DATASET_REGISTRY_PATH, _seed_dataset_records
 from app.state_io import atomic_write_json
 from app.query_store import prepare_dataset_query_store
-atomic_write_json(DATASET_REGISTRY_PATH, [d for d in _seed_dataset_records() if d['dataset_id'] == 'default'])
+bundled = {'default', 'synthetic-cross-sectional-demo'}
+atomic_write_json(DATASET_REGISTRY_PATH, [d for d in _seed_dataset_records() if d['dataset_id'] in bundled])
 prepare_dataset_query_store('default')
 """], cwd=ROOT, env=env, check=True)
         with socket.socket() as sock:
@@ -73,7 +74,17 @@ prepare_dataset_query_store('default')
                 page.reload(wait_until='networkidle')
 
                 def capture(name):
-                    page.evaluate('window.scrollTo(0, 0)')
+                    page.evaluate("""() => {
+                      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                      window.scrollTo({top: 0, left: 0, behavior: 'instant'});
+                      document.documentElement.scrollTop = 0;
+                      document.body.scrollTop = 0;
+                      for (const selector of ['.app-sidebar', '.app-sidebar-nav', '.app-content']) {
+                        const element = document.querySelector(selector);
+                        if (element) element.scrollTop = 0;
+                      }
+                    }""")
+                    page.wait_for_timeout(100)
                     page.screenshot(path=str(OUTPUT / name), animations='disabled')
 
                 page.locator('#dashboardTabBtn').click()
@@ -81,7 +92,7 @@ prepare_dataset_query_store('default')
                 page.wait_for_timeout(750)
                 capture('workspace-shell.png')
                 page.locator('#datasetsTabBtn').click()
-                expect(page.locator('#datasetPicker [data-dataset-checkbox]')).to_have_count(1)
+                expect(page.locator('#datasetPicker [data-dataset-checkbox]')).to_have_count(2)
                 capture('datasets-tab.png')
                 page.locator('#queryTabBtn').click()
                 page.locator('#question').fill('Which patients have Crohn Disease?')

@@ -1,0 +1,76 @@
+import DeploymentNotice from '@site/src/components/DeploymentNotice';
+
+# Deployment-managed models
+
+**Advanced Web configuration.** Prefer [Admin > Models](./model-providers)
+for ordinary setup. These examples describe environment variables; put their
+values in the deployment's private configuration file when using the launcher
+or Compose, rather than relying on shell exports.
+
+
+The environment-level default remains useful for secrets managed by the
+deployment platform:
+
+```bash
+export LM_STUDIO_ENABLED=true
+export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+export LM_STUDIO_MODEL=gpt-oss-120b
+export LM_STUDIO_API_KEY=lm-studio
+export LM_STUDIO_DATA_BOUNDARY=local
+```
+
+Additional read-only providers can be supplied by JSON:
+
+```bash
+export COHORTOME_LLM_PROVIDERS_JSON='{
+  "llm_providers": [
+    {
+      "id": "cnag-gpu-a",
+      "label": "CNAG GPU A",
+      "base_url": "http://10.0.0.10:1234/v1",
+      "model": "gpt-oss-120b",
+      "api_key_env": "CNAG_GPU_A_API_KEY",
+      "timeout_seconds": 45,
+      "data_boundary": "local",
+      "enabled": true
+    },
+    {
+      "id": "cnag-gpu-b",
+      "label": "CNAG GPU B",
+      "base_url": "http://10.0.0.11:1234/v1",
+      "model": "gpt-oss-20b",
+      "api_key": "lm-studio",
+      "data_boundary": "local",
+      "enabled": true
+    }
+  ]
+}'
+```
+
+The same JSON can also live in a file:
+
+```bash
+export COHORTOME_LLM_PROVIDERS_FILE=config/llm-providers.json
+```
+
+Relative paths are resolved from the repository root. Prefer an absolute path
+outside the repository when the file contains credentials.
+
+:::tip
+Use `api_key_env` for production-like deployments. It keeps secrets out of the
+provider registry file.
+:::
+
+On Web, `system-default` and providers loaded from environment variables or a
+configuration file are shown in `Admin > Models`, but they are read-only there.
+This prevents an in-app edit from silently overriding deployment-owned
+configuration. All providers, regardless of source, can be connection-tested
+by an administrator.
+
+<DeploymentNotice mode="desktop" title="Desktop">
+
+The desktop **System default (LM Studio)** provider is editable in
+**Admin > Models**. It starts disabled; save its endpoint, data boundary, and
+enabled state before testing the connection. These settings persist locally.
+
+</DeploymentNotice>

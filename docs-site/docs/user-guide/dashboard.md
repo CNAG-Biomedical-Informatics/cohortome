@@ -7,6 +7,11 @@ sidebar_position: 2
 Check the available records and measurements before selecting patients or
 running an analysis.
 
+On a fresh installation, **Open demo** prepares and opens the bundled synthetic
+cross-sectional dataset. In a shared web deployment, preparing a dataset requires
+an administrator; other users can open it once prepared. **Choose datasets**
+opens the workspace selector instead.
+
 ![Clinical dashboard using the bundled synthetic dataset](/img/screenshots/workspace-shell.png)
 
 | View | Use it to |
@@ -100,12 +105,24 @@ Derived imaging measurements are separate matrices produced outside COHORTome.
 
 ### Find shared coverage
 
-Select two or more data types, then choose:
+From **Patients**, choose **Refine in Multimodal dashboard** to carry all filtered
+patients across, including disease and ID/ClarID searches—not just the visible
+page. **Start from** shows the filtered group and its size. Choose **All workspace
+patients** there to remove this starting restriction. Switching tabs alone does
+not transfer filters.
+
+Start from all workspace patients or an existing saved patient cohort. Select
+one or more diseases if needed (patients may match any selected disease), then
+select the required data types and choose:
 
 - **At least these types:** require each selected type; allow additional data.
 - **Only these types:** exclude additional non-clinical types.
 
 Clinical records are required only when Clinical is selected.
+For example, select **Systemic Lupus Erythematosus**, **Transcriptomics** and
+**DNA methylation** to find SLE patients with both assays. Disease filters use
+recorded diagnoses across available visits, not necessarily at assay collection.
+Sample cohorts are not offered as starting groups because this view matches patients.
 
 The combination plot shows observed data-type combinations and their patient
 counts. Filled dots indicate available types. Click a count to inspect a

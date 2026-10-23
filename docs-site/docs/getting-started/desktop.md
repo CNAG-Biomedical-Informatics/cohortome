@@ -27,6 +27,21 @@ the release installation path; the source setup below is available for developme
 
 :::
 
+### First launch on macOS
+
+Current preview builds are signed ad hoc but are not notarized by Apple. On the
+first launch, macOS may therefore prevent COHORTome from opening.
+
+1. Try to open **COHORTome** once and dismiss the warning.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll to **Security** and click **Open Anyway** for COHORTome.
+4. Confirm **Open** and authenticate if macOS asks you to do so.
+
+macOS saves this approval for subsequent launches. Only override this protection
+for an installer downloaded from the official COHORTome release page whose
+SHA-256 checksum matches the accompanying `.sha256` file. See
+[Apple's instructions for opening an unnotarized app](https://support.apple.com/en-gb/guide/mac-help/mh40617/mac).
+
 <details>
 <summary>Development: run from source</summary>
 
@@ -67,8 +82,8 @@ by these commands.
 
 ## First session
 
-1. Open **Datasets**, select a bundled synthetic dataset, and apply it. Prepare
-   its store if prompted.
+1. Open **Datasets**, select a bundled synthetic dataset, and apply it. Desktop
+   prepares a bundled demo automatically the first time you use it.
 2. Use **Dashboard** to inspect patients, assays, imaging, and modality coverage.
 3. Open **Query** to find patients and save a cohort, then **Analysis** to select
    a method and check its required inputs.

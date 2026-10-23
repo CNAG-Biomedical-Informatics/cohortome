@@ -1,0 +1,191 @@
+# Dataset preparation and registration reference
+
+For routine installation and permissions, start with
+[Manage datasets](./datasets-and-access). This page is for operators preparing
+custom dataset packages or registering protected server directories.
+
+## Dataset structure
+
+
+Before importing a prepared directory, run the read-only
+[dataset package validator](dataset-packages.md). It checks the existing
+manifests, clinical identities, assay tables and patient links without creating
+a database. Schemas and validation limitations are documented there.
+
+Each dataset has its own root directory, for example:
+
+```text
+dataset_root/
+  manifest.json
+  clinical/
+  assays/transcriptomics/
+```
+
+The root manifest makes the clinical record shape explicit:
+
+```json
+{
+  "schema_version": 1,
+  "clinical": {
+    "representation": "person"
+  }
+}
+```
+
+Use `person` when each BFF object represents one participant, as in a
+cross-sectional release. Use `snapshot` when each object represents one
+participant at one visit or timepoint. New registrations are rejected when
+this declaration is missing, because COHORTome should not guess that one
+record equals one visit.
+
+### Optional ClarID subject identities
+
+A release can provide precomputed, decoded ClarID subject identities. Generate
+and validate the identifiers before freezing the release; COHORTome does not
+invoke ClarID-Tools while serving requests. Add the following optional root
+manifest section:
+
+```json
+{
+  "identifiers": {
+    "clarid_subjects": {
+      "entity": "subject",
+      "file": "identifiers/clarid_subjects.csv",
+      "delimiter": ",",
+      "codebook_version": "0.04",
+      "tools_version": "0.04"
+    }
+  }
+}
+```
+
+The referenced CSV is the reviewed merge of the human and stub encoding
+outputs and must contain:
+
+```text
+unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id
+```
+
+An optional `condition_name` column stores the ICD-10 description alongside
+the condition code. Generate it with ClarID-Tools' decode action and
+`--with-condition-name`. COHORTome stores that text with the subject and shows
+`name (code)` in the ClarID details; older releases without it show the code
+alone. No full ICD-10 lookup table or runtime decoding is required. The ICD-10
+description may differ from a study's preferred disease label.
+
+`unique_id` is the canonical source patient ID. `subject_id` must be a
+non-negative integer. The source patient ID, numeric subject ID, human ClarID,
+and stub ClarID must each be unique, and the CSV must cover the clinical
+patient inventory exactly. Store preparation fails closed on missing rows,
+unknown patients, duplicate identifiers, missing decoded fields, or paths that
+escape the release.
+
+The prepared DuckDB store holds both identifiers, the decoded snapshot, and
+the declared tool/codebook versions. This makes search and patient-card
+feedback immediate and reproducible. ClarIDs are treated as Detailed data:
+they are not added to Summary-mode responses or external model context.
+
+### Synthetic fixture identifiers
+
+Both bundled demos and the test-only fixtures include subject ClarIDs.
+Identifiers do not change a dataset's disclosure policy.
+
+To regenerate fixture sidecars with ClarID-Tools 0.04:
+
+```bash
+python3 scripts/generate_synthetic_clarids.py \
+  --clarid-tools /path/to/clarid-tools/bin/clarid-tools \
+  --codebook /path/to/clarid-tools/share/versions/0.04/clarid-codebook.yaml \
+  --output /path/to/new-review-directory
+```
+
+This utility reads only the named repository fixtures. It uses explicit ICD-10
+condition mappings and age at the earliest dated observation; absent birth dates
+remain Not Available. Numeric subject IDs occupy separate fixture ranges; source
+patient IDs remain unchanged. These mappings are fixture-specific, not a general
+clinical conversion rule. Review changes before replacing existing identifiers,
+especially if the patient inventory changes.
+
+After encoding, the utility runs a decode pass with `--with-condition-name`
+and includes the returned descriptions in each sidecar.
+
+Review each output CSV before placing it at the corresponding fixture's
+`identifiers/clarid_subjects.csv`. Also update
+`scripts/data/synthetic_autoimmune_clarid_subjects.csv`, which the autoimmune
+generator copies into regenerated demos. Prepare the
+affected synthetic stores after updating their manifests or sidecars.
+The app does not require a ClarID-Tools installation to display these codes.
+
+Biosample ClarIDs are not supplied by these sidecars. Query sample tables show
+the linked subject's code explicitly as Subject ClarID.
+
+## Register a protected release
+
+Keep source files, the prepared release, and the runtime on approved storage
+outside the repository. A registered release is read in place; it is not
+uploaded into Git or copied into the application source tree.
+
+For a first clinical-only review:
+
+1. Freeze the validated BFF file in a versioned release directory.
+2. Add a `manifest.json` with the correct clinical representation.
+3. Point `COHORTOME_RUNTIME_ROOT` to protected mutable storage.
+4. Register the release as admin-only and prepare its DuckDB store.
+5. Confirm the cohort totals and access rules before granting a group access.
+
+From the repository root, an operator can perform steps 3 and 4 with:
+
+```bash
+export COHORTOME_RUNTIME_ROOT=/protected/cohortome/runtime
+
+PYTHONPATH=.deps:. python3 scripts/register_dataset.py \
+  --name "Study clinical v1" \
+  --root /protected/releases/study-clinical-v1 \
+  --description "Clinical release pending semantic mapping review." \
+  --visibility admin_only \
+  --data-classification private \
+  --query-detail detailed \
+  --ai-provider-access blocked \
+  --created-by admin \
+  --prepare-store
+```
+
+The command prints the dataset ID and store status, but not the source path or
+record contents. Restart source services with the same
+`COHORTOME_RUNTIME_ROOT`; the web process and RQ worker must share it.
+
+Private methylation QC and differential-methylation jobs require this variable
+to be an explicit absolute path outside the Git checkout. Submission and worker
+execution both fail closed when that boundary is missing. This is stricter than
+the source-checkout default because methylation QC can persist governed
+sample-level scores and plots below the runtime job directory.
+
+The same boundary is enforced before COHORTome materializes a multi-dataset
+workspace containing any private dataset. The workspace scope links only the
+clinical files needed by the clinical views; assay matrices continue to be read
+from their registered source releases and are not linked into the scope.
+
+The supplied Docker Compose deployment uses a Docker-managed named volume for
+`/var/lib/cohortome`, keeping runtime state outside the host Git checkout. If an
+operator replaces it with a bind mount, the host source must be an absolute
+protected location outside the checkout; the process inside a container cannot
+verify where a bind mount lives on the host.
+
+With `--prepare-store`, the new registry entry remains disabled while DuckDB is
+being built. It is enabled only after the store is ready. A normal build
+failure removes the incomplete store and registration, so users never see a
+half-prepared dataset as available.
+
+:::warning[Restricted data]
+
+Do not place restricted releases under the repository, Docker build context, or
+a public volume. Start with `admin_only`, `private`, and `blocked` AI access.
+Change those policies only after access, provider, and permitted-output review.
+:::
+
+Regular dataset responses omit server root paths. Clinical provenance shown in
+the browser uses a dataset ID plus a release-relative path rather than an
+absolute filesystem location.
+
+Use **Datasets** to select a workspace. Use **Admin > Data** to register datasets,
+set policy and prepare stores; **Admin > Users** manages user accounts.

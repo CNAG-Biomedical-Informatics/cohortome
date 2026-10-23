@@ -1,353 +1,63 @@
 ---
 sidebar_position: 1
+title: Manage datasets
 ---
 
-import DeploymentNotice from '@site/src/components/DeploymentNotice';
-
-# Datasets And Access
-
-<DeploymentNotice mode="both" title="Desktop and Web">
-
-Dataset registration, store preparation, classification, and LLM data-access
-policies apply to both. Visibility, allowed users, and groups govern access
-between users on Web; Desktop has one local owner. A local owner still needs to
-control what dataset context may be sent to a model.
-
-</DeploymentNotice>
-
-
-Each dataset has its own registration, access rules, and prepared query store.
-
-:::tip[Web: recommended access policy]
-Use groups as the default way to grant dataset access. Use direct allowed users only for exceptions.
-:::
-
-## Dataset structure
-
-Before importing a prepared directory, run the read-only
-[dataset package validator](dataset-packages.md). It checks the existing
-manifests, clinical identities, assay tables and patient links without creating
-a database. Schemas and validation limitations are documented there.
-
-Each dataset has its own root directory, for example:
-
-```text
-dataset_root/
-  manifest.json
-  clinical/
-  assays/transcriptomics/
-```
-
-The root manifest makes the clinical record shape explicit:
-
-```json
-{
-  "schema_version": 1,
-  "clinical": {
-    "representation": "person"
-  }
-}
-```
-
-Use `person` when each BFF object represents one participant, as in a
-cross-sectional release. Use `snapshot` when each object represents one
-participant at one visit or timepoint. New registrations are rejected when
-this declaration is missing, because COHORTome should not guess that one
-record equals one visit.
-
-### Optional ClarID subject identities
-
-A release can provide precomputed, decoded ClarID subject identities. Generate
-and validate the identifiers before freezing the release; COHORTome does not
-invoke ClarID-Tools while serving requests. Add the following optional root
-manifest section:
-
-```json
-{
-  "identifiers": {
-    "clarid_subjects": {
-      "entity": "subject",
-      "file": "identifiers/clarid_subjects.csv",
-      "delimiter": ",",
-      "codebook_version": "0.04",
-      "tools_version": "0.04"
-    }
-  }
-}
-```
-
-The referenced CSV is the reviewed merge of the human and stub encoding
-outputs and must contain:
-
-```text
-unique_id,subject_id,study,type,condition,sex,age_group,clar_id,stub_id
-```
-
-An optional `condition_name` column stores the ICD-10 description alongside
-the condition code. Generate it with ClarID-Tools' decode action and
-`--with-condition-name`. COHORTome stores that text with the subject and shows
-`name (code)` in the ClarID details; older releases without it show the code
-alone. No full ICD-10 lookup table or runtime decoding is required. The ICD-10
-description may differ from a study's preferred disease label.
-
-`unique_id` is the canonical source patient ID. `subject_id` must be a
-non-negative integer. The source patient ID, numeric subject ID, human ClarID,
-and stub ClarID must each be unique, and the CSV must cover the clinical
-patient inventory exactly. Store preparation fails closed on missing rows,
-unknown patients, duplicate identifiers, missing decoded fields, or paths that
-escape the release.
-
-The prepared DuckDB store holds both identifiers, the decoded snapshot, and
-the declared tool/codebook versions. This makes search and patient-card
-feedback immediate and reproducible. ClarIDs are treated as Detailed data:
-they are not added to Summary-mode responses or external model context.
-
-### Synthetic fixture identifiers
-
-Both bundled demos and the test-only fixtures include subject ClarIDs.
-Identifiers do not change a dataset's disclosure policy.
-
-To regenerate fixture sidecars with ClarID-Tools 0.04:
-
-```bash
-python3 scripts/generate_synthetic_clarids.py \
-  --clarid-tools /path/to/clarid-tools/bin/clarid-tools \
-  --codebook /path/to/clarid-tools/share/versions/0.04/clarid-codebook.yaml \
-  --output /path/to/new-review-directory
-```
-
-This utility reads only the named repository fixtures. It uses explicit ICD-10
-condition mappings and age at the earliest dated observation; absent birth dates
-remain Not Available. Numeric subject IDs occupy separate fixture ranges; source
-patient IDs remain unchanged. These mappings are fixture-specific, not a general
-clinical conversion rule. Review changes before replacing existing identifiers,
-especially if the patient inventory changes.
-
-After encoding, the utility runs a decode pass with `--with-condition-name`
-and includes the returned descriptions in each sidecar.
-
-Review each output CSV before placing it at the corresponding fixture's
-`identifiers/clarid_subjects.csv`. Also update
-`scripts/data/synthetic_autoimmune_clarid_subjects.csv`, which the autoimmune
-generator copies into regenerated demos. Prepare the
-affected synthetic stores after updating their manifests or sidecars.
-The app does not require a ClarID-Tools installation to display these codes.
-
-Biosample ClarIDs are not supplied by these sidecars. Query sample tables show
-the linked subject's code explicitly as Subject ClarID.
-
-## Register a protected release
-
-Keep source files, the prepared release, and the runtime on approved storage
-outside the repository. A registered release is read in place; it is not
-uploaded into Git or copied into the application source tree.
-
-For a first clinical-only review:
-
-1. Freeze the validated BFF file in a versioned release directory.
-2. Add a `manifest.json` with the correct clinical representation.
-3. Point `COHORTOME_RUNTIME_ROOT` to protected mutable storage.
-4. Register the release as admin-only and prepare its DuckDB store.
-5. Confirm the cohort totals and access rules before granting a group access.
+# Manage datasets
 
-From the repository root, an operator can perform steps 3 and 4 with:
+On Desktop, the local owner manages datasets. On Web, administrators also
+control which users may access them.
 
-```bash
-export COHORTOME_RUNTIME_ROOT=/protected/cohortome/runtime
+## Add and load data
 
-PYTHONPATH=.deps:. python3 scripts/register_dataset.py \
-  --name "Study clinical v1" \
-  --root /protected/releases/study-clinical-v1 \
-  --description "Clinical release pending semantic mapping review." \
-  --visibility admin_only \
-  --data-classification private \
-  --query-detail detailed \
-  --ai-provider-access blocked \
-  --created-by admin \
-  --prepare-store
-```
+1. Open **Admin > Data** and add a prepared dataset or choose one from the
+   catalogue. Follow [Install datasets](../user-guide/install-datasets).
+2. Wait while COHORTome validates the package and builds its query store.
+3. Check the patient and assay totals.
+4. Open **Datasets**, select the datasets you want and apply the workspace.
 
-The command prints the dataset ID and store status, but not the source path or
-record contents. Restart source services with the same
-`COHORTOME_RUNTIME_ROOT`; the web process and RQ worker must share it.
+A query store is reused. **Rebuild query store** is a maintenance action for
+source or mapping changes and failed builds. It is not an installation step or
+something users run each time they open the app. Bundled Desktop demos build
+their query stores automatically on first use.
 
-Private methylation QC and differential-methylation jobs require this variable
-to be an explicit absolute path outside the Git checkout. Submission and worker
-execution both fail closed when that boundary is missing. This is stricter than
-the source-checkout default because methylation QC can persist governed
-sample-level scores and plots below the runtime job directory.
+For your own inputs, see the [package format](./dataset-packages) and
+[server registration reference](./dataset-registration-reference).
 
-The same boundary is enforced before COHORTome materializes a multi-dataset
-workspace containing any private dataset. The workspace scope links only the
-clinical files needed by the clinical views; assay matrices continue to be read
-from their registered source releases and are not linked into the scope.
+<a id="access-model" />
 
-The supplied Docker Compose deployment uses a Docker-managed named volume for
-`/var/lib/cohortome`, keeping runtime state outside the host Git checkout. If an
-operator replaces it with a bind mount, the host source must be an absolute
-protected location outside the checkout; the process inside a container cannot
-verify where a bind mount lives on the host.
+## Grant access
 
-With `--prepare-store`, the new registry entry remains disabled while DuckDB is
-being built. It is enabled only after the store is ready. A normal build
-failure removes the incomplete store and registration, so users never see a
-half-prepared dataset as available.
+**Web only:** in **Admin > Data**, choose dataset visibility and allowed groups
+or users. Prefer groups for shared team access. **Users with access** previews
+the resulting grants. Manage the accounts themselves in **Admin > Users**.
 
-:::warning[Restricted data]
+Visibility determines who can use the dataset in COHORTome. It does **not**
+decide whether data may be sent to an LLM.
 
-Do not place restricted releases under the repository, Docker build context, or
-a public volume. Start with `admin_only`, `private`, and `blocked` AI access.
-Change those policies only after access, provider, and permitted-output review.
-:::
+## Set data and AI permissions
 
-Regular dataset responses omit server root paths. Clinical provenance shown in
-the browser uses a dataset ID plus a release-relative path rather than an
-absolute filesystem location.
+| Setting | What it controls |
+| --- | --- |
+| Data classification | Whether the dataset is private or public |
+| In-app Query detail | Whether Query can return detailed records or summaries only |
+| AI providers | Whether models receive detailed context, safe summaries or nothing |
 
-Use **Datasets** to select a workspace. Use **Admin > Data** to register datasets,
-set policy and prepare stores; **Admin > Users** manages user accounts.
+New registrations default to private. Keep restricted data private and AI
+access blocked until the permitted use has been reviewed.
 
-## Loading and unloading safely
+Private data never goes to an external provider. A local provider still needs
+the dataset's AI permission. When several datasets are selected, the strictest
+policy applies. **Safe summary** means structural, non-clinical context—not
+aggregate clinical findings.
 
-Checking datasets changes only the pending selection. The current workspace
-remains active until the user applies that selection and the server confirms
-that every selected dataset store is ready. COHORTome also checks the clinical
-and assay endpoints before replacing the browser workspace.
+These AI controls also apply on Desktop. See [Connect an LLM](./model-providers).
 
-If any check fails, the previous workspace and its Query and Analysis content
-remain in place. The error is shown beside the load control, and the user can
-correct the selection or ask an administrator to rebuild a stale store.
+## Change the workspace
 
-To unload, clear every checked dataset and choose **Unload workspace**. The
-server first persists an empty selection; the browser then clears clinical,
-assay, multimodal, DICOM, cohort, Query, Pheno-Ranker, and Analysis state. The
-application does not silently select the first available dataset afterward.
+Checking a box changes the pending selection. The active workspace changes only
+after **Apply workspace** succeeds. If a selected store is unavailable, the
+previous workspace stays active.
 
-:::note[Active versus pending]
-
-An **Active** marker identifies the server-persisted workspace. Checked boxes
-identify the pending selection. They can differ while a change is being
-reviewed or after an attempted switch fails.
-:::
-
-## Access model
-
-<DeploymentNotice mode="web" title="Web only">
-
-The access rules below, including groups and direct user assignments, apply to
-multi-user Web deployments. They are not a Desktop account-management workflow.
-
-</DeploymentNotice>
-
-Access is granted by matching visibility, an allowed group, or an explicit
-allowed user. Prefer groups for routine grants and direct users for exceptions.
-Users without groups can still receive access through visibility or a direct grant.
-
-Visibility controls who can use data inside COHORTome, not whether it may leave
-the deployment. A dataset available to every authenticated user may still be
-classified as private. **Users with access** previews the effective grants.
-
-## What the Data page edits
-
-`Admin > Data` edits dataset policy, not user identity.
-
-It currently allows admins to edit:
-
-- `Visibility`
-- `Data classification`
-- `Allowed groups`
-- `Allowed users`
-- `In-app Query detail`
-- `AI providers`
-- dataset DuckDB store preparation state
-
-User records are managed in `Admin > Users`. Dataset cards do not edit user identity directly.
-
-## Dataset store preparation
-
-Dataset authorization and dataset-store preparation are separate concerns.
-
-- authorization decides whether a user may select a dataset
-- store preparation decides whether the backend has a ready DuckDB store for that dataset
-
-The admin UI now shows dataset-store state and a matching action:
-
-- `Prepare store` for first build, stale, or failed states
-- `Rebuild store` when a store is already ready and you want to refresh it deliberately
-
-Normal user workspace loading should reuse prepared stores rather than triggering heavy rebuilds.
-
-## Data classification
-
-Every dataset is classified independently as:
-
-- `Private data`: context may be used by an explicitly local provider, subject
-  to the dataset's AI-provider setting, but is always blocked from external
-  providers.
-- `Public data`: an approved local or external provider may receive context,
-  subject to the dataset's AI-provider setting.
-
-New registrations default to `Private data`. Classification never grants a
-user access to a dataset; visibility, groups, and direct users still decide
-that separately.
-
-## Query policy fields
-
-The admin UI now separates Query-related policy into two concepts.
-
-### In-app Query detail
-
-This controls what Query may return inside COHORTome itself:
-
-- `Summary only`
-- `Detailed allowed`
-
-If a workspace includes more than one dataset, the strictest selected dataset wins.
-
-That means if any selected dataset is `Summary only`, the Query thread cannot switch to `Detailed`.
-
-In the current product, users do not manually switch Query between `Summary` and `Detailed`.
-
-Instead:
-
-- the effective Query mode is applied automatically from the active workspace policy
-- the Query header shows the resulting mode as read-only state
-
-### AI providers
-
-This controls what COHORTome may send to AI models/providers for Query behavior.
-
-Current options are:
-
-- `Detailed allowed`
-- `Safe summary`
-- `Blocked`
-
-`AI providers` is a dataset-level setting, not a per-user setting.
-
-The user's selected model provider is configured separately in `Settings`.
-Admins manage the provider registry in [Model Providers](./model-providers).
-Dataset policy still decides whether that provider can receive context.
-
-The effective decision combines all three controls:
-
-| Data classification | Selected provider | Result |
-| --- | --- | --- |
-| Private | Local | Follow `Detailed allowed`, `Safe summary`, or `Blocked` |
-| Private | External | Always `Blocked` |
-| Public | Local or external | Follow `Detailed allowed`, `Safe summary`, or `Blocked` |
-
-For multi-dataset workspaces, the strictest selected dataset wins:
-
-- `Blocked` overrides everything
-- `Safe summary` overrides `Detailed allowed`
-
-### Safe summary
-
-`Safe summary` does not mean “send aggregate clinical content.”
-
-In current Query behavior it means:
-
-- only structural, non-clinical context may leave the backend
-- semantic planning is skipped
-- if the prompt needs private clinical context, the provider should answer that it lacks enough permitted context
+To unload it, clear the selected datasets and choose **Unload workspace**.
+This does not delete the datasets or their source files.

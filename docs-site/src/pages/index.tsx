@@ -12,7 +12,7 @@ const researchPaths = [
     to: '/docs/user-guide/dashboard',
   },
   {
-    label: 'Cohorts',
+    label: 'Query',
     title: 'Find and save patient groups',
     body: 'Search by disease, treatment, or other recorded fields. Save matching patients as a cohort.',
     to: '/docs/user-guide/query',
@@ -48,21 +48,22 @@ export default function Home() {
               <span className={styles.heroWordmarkSecondary}>ome</span>
             </h1>
             <p className={styles.heroLead}>
-              Explore clinical and multimodal data, define patient cohorts,
-              and run analyses. Desktop is the recommended installation
-              for individual use.
+              Find patients with the clinical characteristics and assay data
+              you need. Save them as a cohort and run analyses in the same workspace.
             </p>
             <div className={styles.heroActions}>
               <Link className="button button--primary" to="/docs/getting-started/desktop">
-                Desktop
+                Install Desktop <span aria-hidden="true">↓</span>
               </Link>
               <Link className="button button--outline button--secondary" to="/docs/user-guide/user-journeys">
-                User guide
+                Try a demo <span aria-hidden="true">→</span>
               </Link>
             </div>
-            <p className={styles.heroModelNote}>Optional language models help interpret questions and explain results.</p>
+            <p className={styles.platforms}>Linux · macOS · Windows</p>
+            <p className={styles.heroModelNote}>Connect an optional language model for help with queries and analysis.</p>
             </div>
             <figure className={styles.heroPreview}>
+              <div className={styles.previewHeader}><span>The workspace</span><span>Desktop & Web</span></div>
               <a href={workspaceScreenshot} target="_blank" rel="noopener noreferrer" aria-label="View the COHORTome workspace screenshot at full size (opens a new tab)">
                 <img
                   src={workspaceScreenshot}
@@ -72,7 +73,7 @@ export default function Home() {
                   fetchPriority="high"
                 />
               </a>
-              <figcaption>Synthetic demo workspace <span aria-hidden="true">↗</span> <span className={styles.previewHint}>View full size</span></figcaption>
+              <figcaption><span>Synthetic demo data</span><a href={workspaceScreenshot} target="_blank" rel="noopener noreferrer">View full size <span aria-hidden="true">↗</span></a></figcaption>
             </figure>
           </div>
         </section>
@@ -82,7 +83,6 @@ export default function Home() {
           <div className={styles.inner}>
             <div className={styles.sectionHeading}>
               <div>
-                <p className={styles.sectionLabel}>Documentation</p>
                 <h2>Using COHORTome</h2>
               </div>
               <p>
@@ -93,18 +93,21 @@ export default function Home() {
               {researchPaths.map((path) => (
                 <Link className={styles.pathCard} key={path.label} to={path.to}>
                   <span>{path.label}</span>
-                  <h3>{path.title}</h3>
+                  <h3>{path.title} <span aria-hidden="true">↗</span></h3>
                   <p>{path.body}</p>
-                  <strong>Read the guide <span aria-hidden="true">→</span></strong>
                 </Link>
               ))}
             </div>
+            <p className={styles.videoNote}>
+              <a href="https://www.youtube.com/playlist?list=PLITMLc8FnGyQ">Video tutorials on YouTube <span aria-hidden="true">↗</span></a>
+            </p>
           </div>
         </section>
 
-        <aside className={styles.teamNote}>
-          <div className={styles.inner}>
-            <p><strong>Web is recommended only for centralized, multi-user deployments with dataset permissions.</strong> See the <Link to="/docs/admin-guide/starting-and-stopping">administrator's deployment guide</Link>.</p>
+        <aside className={styles.deploymentSection} aria-label="Choose a deployment">
+          <div className={styles.deploymentPanel}>
+            <div><h2>Desktop for individual research</h2><p>Install the app and work with datasets on your computer.</p><Link to="/docs/getting-started/desktop">Desktop installation →</Link></div>
+            <div><h2>Web for research teams</h2><p>Centralize project data with shared access and dataset permissions.</p><Link to="/docs/admin-guide/starting-and-stopping">Web deployment →</Link></div>
           </div>
         </aside>
       </main>

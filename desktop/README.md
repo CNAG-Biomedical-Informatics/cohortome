@@ -44,7 +44,8 @@ under `org.cnag.cohortome.source-preview`; on Linux this is normally
 `~/.local/share/org.cnag.cohortome.source-preview/`. Packaged apps use a separate
 folder. No research deployment configuration is loaded.
 
-Select a bundled demo in **Datasets** and prepare its store if prompted.
+Select a bundled demo in **Datasets** and apply the workspace. Desktop prepares
+the demo automatically the first time you use it.
 Models start disabled; configure an endpoint and its data boundary in
 **Admin > Models**. Keep the app open until background jobs finish.
 
