@@ -98,9 +98,34 @@ jobs:
         run: |
           python desktop/test_native_package.py --xvfb "$RUNNER_TEMP/extracted/cohortome-linux-aarch64/cohortome-desktop"
       - name: Build native test installers
+        id: installers
         if: inputs.build_installers
         shell: bash
         run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-linux-aarch64" --output "$RUNNER_TEMP/cohortome-installers"
+      - name: Inspect completed DEB after installer failure
+        id: recover_deb
+        if: failure() && inputs.upload_artifact && steps.installers.outcome == 'failure'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          packages=("$RUNNER_TEMP/cohortome-installers/target/release/bundle/deb/"*.deb)
+          test "${#packages[@]}" -eq 1
+          package="${packages[0]}"
+          test "$(dpkg-deb --field "$package" Architecture)" = arm64
+          dpkg-deb --info "$package"
+          dpkg-deb --contents "$package" > "$RUNNER_TEMP/deb-contents.txt"
+          mkdir "$RUNNER_TEMP/completed-installers"
+          cp "$package" "$RUNNER_TEMP/completed-installers/"
+          cd "$RUNNER_TEMP/completed-installers"
+          sha256sum -- *.deb > SHA256SUMS
+      - name: Retain inspected DEB from partial build
+        if: failure() && inputs.upload_artifact && steps.recover_deb.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cohortome-linux-aarch64-deb-test
+          path: ${{ runner.temp }}/completed-installers/
+          retention-days: 7
+          if-no-files-found: error
       - name: Record archive checksum
         run: |
           cd "$RUNNER_TEMP"

@@ -84,7 +84,7 @@ def main():
     npm = shutil.which('npm')
     if not npm:
         parser.error('Node.js/npm is required for the pinned Tauri installer builder.')
-    subprocess.run([npm, 'exec', '--yes', '--package', TAURI_CLI, '--', 'tauri', 'build',
+    subprocess.run([npm, 'exec', '--yes', '--package', TAURI_CLI, '--', 'tauri', 'build', '--verbose',
                     '--config', str(config_path), '--bundles', ','.join(TARGETS[sys.platform]),
                     '--', '--locked'], cwd=ROOT / 'desktop', env=env, check=True)
     artifacts = output / 'target/release/bundle'
