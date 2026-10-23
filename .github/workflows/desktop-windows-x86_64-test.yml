@@ -1,6 +1,20 @@
 name: Test Windows x86_64 desktop package
 
 on:
+  workflow_call:
+    inputs:
+      build_installers:
+        type: boolean
+        default: false
+      r_runtime_run_id:
+        type: string
+        default: ''
+      upload_artifact:
+        type: boolean
+        default: false
+      checkout_ref:
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       build_installers:
@@ -23,6 +37,9 @@ permissions:
 jobs:
   viewer:
     uses: ./.github/workflows/desktop-viewer-assets.yml
+    with:
+      checkout_ref: ${{ inputs.checkout_ref }}
+      artifact_name: ohif-assets-windows-x86_64
   package:
     needs: viewer
     name: Windows x86_64
@@ -36,9 +53,11 @@ jobs:
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
       - uses: actions/download-artifact@v4
         with:
-          name: ohif-assets
+          name: ohif-assets-windows-x86_64
           path: ${{ runner.temp }}/viewer-download
       - name: Extract shared static viewer
         shell: pwsh

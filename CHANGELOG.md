@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Added desktop and shared web interfaces for clinical and multimodal cohort analysis.
-- Added patient and assay exploration, saved cohorts, chats, and clinical/molecular exports.
-- Integrated Pheno-Ranker, curated analyses, and optional policy-controlled LLM assistance.
-- Added dataset download/preparation and bundled longitudinal and cross-sectional demos.
+## 0.1.0 - 2026-10-23
 
-Desktop bundles remain experimental; installers have not been released.
+- First public COHORTome release for desktop and shared web deployment.
+- Explore clinical, assay and imaging data, build cohorts, and export selected data.
+- Run Pheno-Ranker and curated analyses with optional governed LLM assistance.
+- Includes synthetic longitudinal and cross-sectional demos.

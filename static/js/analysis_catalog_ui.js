@@ -857,6 +857,10 @@ export function createAnalysisCatalogUi(ctx) {
     const last = turns[turns.length - 1] || {};
     if (last.pending) return "Pending";
     const payload = last.payload || {};
+    const jobStatus = payload.data?.job_status;
+    if (jobStatus === 'completed') return 'Completed';
+    if (jobStatus === 'failed') return 'Failed';
+    if (jobStatus === 'running') return 'Running';
     if (payload && payload.data && payload.data.execution === "queued") return "Job queued";
     if (String(payload.intent || "") === "analysis_error") return "Error";
     return "Generated";

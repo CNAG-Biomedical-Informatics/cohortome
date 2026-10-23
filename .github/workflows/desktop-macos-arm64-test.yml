@@ -1,6 +1,20 @@
 name: Test macOS Apple Silicon desktop package
 
 on:
+  workflow_call:
+    inputs:
+      build_installers:
+        type: boolean
+        default: false
+      r_runtime_run_id:
+        type: string
+        default: ''
+      upload_artifact:
+        type: boolean
+        default: false
+      checkout_ref:
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       build_installers:
@@ -23,6 +37,9 @@ permissions:
 jobs:
   viewer:
     uses: ./.github/workflows/desktop-viewer-assets.yml
+    with:
+      checkout_ref: ${{ inputs.checkout_ref }}
+      artifact_name: ohif-assets-macos-arm64
   package:
     needs: viewer
     name: macOS Apple Silicon
@@ -30,9 +47,11 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
       - uses: actions/download-artifact@v4
         with:
-          name: ohif-assets
+          name: ohif-assets-macos-arm64
           path: ${{ runner.temp }}/viewer-download
       - name: Extract shared static viewer
         shell: bash

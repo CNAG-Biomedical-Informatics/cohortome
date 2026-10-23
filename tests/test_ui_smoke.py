@@ -2547,8 +2547,8 @@ def test_dataset_picker_does_not_overflow_at_narrow_viewport(page) -> None:
 @pytest.mark.parametrize(
     ("user_role", "expected_action"),
     [
-        ("user", "Ask an admin to prepare it in Admin > Data."),
-        ("admin", "Prepare or rebuild it in Admin > Data."),
+        ("user", "Ask an admin to rebuild it in Admin > Data."),
+        ("admin", "Rebuild it in Admin > Data."),
     ],
 )
 def test_unready_dataset_selection_explains_disabled_apply_action(page_auth, user_role: str, expected_action: str) -> None:
@@ -2573,7 +2573,7 @@ def test_unready_dataset_selection_explains_disabled_apply_action(page_auth, use
     expect(page_auth.locator("#loadStatus")).to_have_attribute("role", "status")
     expect(page_auth.locator("#loadStatus")).to_have_attribute("aria-live", "polite")
     expect(page_auth.locator("#loadStatus")).to_have_text(
-        f'Cannot apply workspace: dataset store for "Secondary demo" is stale. {expected_action}'
+        f'Cannot apply workspace: query store for "Secondary demo" is stale. {expected_action}'
     )
     expect(page_auth.locator("#loadStatus")).to_have_class(re.compile(r"\bwarning\b"))
 
@@ -2581,6 +2581,41 @@ def test_unready_dataset_selection_explains_disabled_apply_action(page_auth, use
     page_auth.locator("#datasetPicker [data-dataset-checkbox='default']").check()
     expect(page_auth.locator("#loadStatus")).to_contain_text("ready")
     expect(page_auth.locator("#loadStatus")).not_to_have_class(re.compile(r"\bwarning\b"))
+
+
+def test_admin_can_rebuild_selected_dataset_stores_in_bulk(page_auth) -> None:
+    expect = playwright.expect
+    state = page_auth._cohortome_dataset_state
+    state['datasets'][1]['query_store_status'] = {'status': 'not_built', 'ready': False, 'last_error': ''}
+    prepared = []
+
+    def prepare_store(route):
+        dataset_id = route.request.url.split('/datasets/', 1)[1].split('/prepare-store', 1)[0]
+        prepared.append(dataset_id)
+        dataset = next(item for item in state['datasets'] if item['dataset_id'] == dataset_id)
+        dataset['query_store_status'] = {'status': 'ready', 'ready': True, 'last_error': ''}
+        route.fulfill(status=200, content_type='application/json', body=json.dumps(dataset))
+
+    page_auth.route('**/datasets/*/prepare-store', prepare_store)
+    page_auth.locator('#authUsername').fill('admin')
+    page_auth.locator('#authPassword').fill('secret')
+    page_auth.locator('#authLoginBtn').click()
+    expect(page_auth.locator('#appShell')).to_be_visible()
+    page_auth.locator('#accountMenuButton').click()
+    page_auth.locator('#adminTabBtn').click()
+    page_auth.locator('#dataTabBtn').click()
+    toolbar = page_auth.locator('#datasetAdminList .dataset-bulk-toolbar')
+    toolbar.locator('[data-select-all]').check()
+    expect(toolbar.locator('[data-prepare]')).to_have_text('Rebuild query stores (1)')
+    expect(toolbar.locator('[data-prepare]')).to_be_enabled()
+    toolbar.locator('[data-prepare]').click()
+    dialog = page_auth.locator('dialog[aria-label="Rebuild query stores"]')
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('li')).to_have_text('Secondary demo')
+    dialog.locator('[data-apply]').click()
+    expect(toolbar.locator('[data-status]')).to_have_text('Rebuilt 1 store.')
+    assert prepared == ['secondary']
+    expect(toolbar.locator('[data-prepare]')).to_be_disabled()
 
 
 def test_applying_first_dataset_uses_pending_selection_key(page) -> None:
@@ -2637,8 +2672,8 @@ def test_workspace_unload_persists_empty_selection_and_clears_dataset_scoped_vie
 
     expect(page.locator("#loadStatus")).to_have_text("Workspace unloaded.")
     expect(page.locator("#loadBtn")).to_be_disabled()
-    expect(page.locator("#dashboard")).to_contain_text("Select a workspace")
-    expect(page.locator("#assayDashboardCards")).to_contain_text("No assays loaded")
+    expect(page.locator("#dashboard [data-choose-datasets]")).to_have_text("Choose datasets")
+    expect(page.locator("#assayDashboardCards")).to_contain_text("No assay data to display")
     expect(page.locator("#dicomDashboardStudies")).to_contain_text("No DICOM studies loaded")
     expect(page.locator("#multimodalReadinessContent")).to_contain_text("Load a workspace")
     expect(page.locator("#queryThread")).to_contain_text("Ask a query to start")
@@ -2794,6 +2829,7 @@ def test_multimodal_association_handoff_and_plot(page):
     page.locator('#dashboardTabBtn').click()
     page.locator('#dashboardMultimodalBtn').click()
     playwright.expect(page.locator('#dashboardMultimodalPanel #associationAssayX')).to_have_count(0)
+    page.locator('#multimodalMoreOptions > summary').click()
     page.locator('#multimodalCompareShortcut').click()
     playwright.expect(page.locator('#analysisMeasurementComparison')).to_be_visible()
     page.locator('#associationAssayX').select_option('synthetic_immune_cell_abundance')
@@ -3153,7 +3189,7 @@ def test_dashboard_assays_panel_filters_modalities(page, tmp_path) -> None:
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Imaging features")
     expect(page.locator("#multimodalReadinessPanel")).not_to_contain_text("Suggested next steps")
     expect(page.locator("[data-readiness-analysis-key]")).to_have_count(0)
-    expect(page.locator('#multimodalCompareShortcut')).to_be_visible()
+    expect(page.locator('#multimodalCompareShortcut')).to_be_hidden()
 
     page.locator("#dashboardTabBtn").click()
     page.locator("#dashboardMultimodalBtn").click()
@@ -4884,6 +4920,8 @@ def test_analysis_queued_job_opens_jobs_drawer_and_loads_result(page) -> None:
     page.locator("[data-job-open-result='job-123']").click()
     expect(page.locator("#jobsDrawer")).to_be_hidden()
     expect(page.locator("#analysisThread")).to_contain_text("External analysis done.")
+    expect(page.locator('#analysisFlowBar')).to_contain_text('Completed')
+    expect(page.locator('#analysisFlowBar')).not_to_contain_text('Job queued')
 
 
 def test_run_history_shows_worker_online_but_idle(page) -> None:

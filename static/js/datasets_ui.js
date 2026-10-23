@@ -5,6 +5,7 @@ import { openDicomFolderDialog } from './dicom_folder.js';
 
 export function createDatasetsUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
+  const bundledDesktopDatasetIds = new Set(["default", "synthetic-cross-sectional-demo"]);
   const accessLabel = (visibility) => desktop ? "Available in this desktop workspace"
     : ({ all_authenticated: "All authenticated users", restricted: "Restricted", admin_only: "Admin only" }[visibility] || visibility);
   const { refs, state, helpers, callbacks } = ctx;
@@ -150,29 +151,35 @@ export function createDatasetsUi(ctx) {
     if (!pendingRecords.length) {
       return null;
     }
-    const blockedRecord = pendingRecords.find((dataset) => !normalizedDatasetStoreStatus(dataset).ready);
+    const blockedRecord = pendingRecords.find((dataset) => {
+      const status = normalizedDatasetStoreStatus(dataset);
+      const prepareOnUse = desktop
+        && bundledDesktopDatasetIds.has(String(dataset.dataset_id || ""))
+        && status.status !== "building";
+      return !status.ready && !prepareOnUse;
+    });
     if (!blockedRecord) {
       return null;
     }
     const storeStatus = normalizedDatasetStoreStatus(blockedRecord);
     const datasetLabel = String(blockedRecord.name || blockedRecord.dataset_id || "Dataset").trim();
     const actionLabel = storeStatus.status === "building"
-      ? "Wait for preparation to finish, then refresh the dataset list."
+      ? "Wait for the build to finish, then refresh the dataset list."
       : canManageDataset()
-      ? "Prepare or rebuild it in Admin > Data."
-      : "Ask an admin to prepare it in Admin > Data.";
+      ? "Rebuild it in Admin > Data."
+      : "Ask an admin to rebuild it in Admin > Data.";
     const statusText = ({
       stale: "stale",
       failed: "failed",
-      building: "still being prepared",
-      not_built: "not prepared",
+      building: "still being built",
+      not_built: "not built",
     }[storeStatus.status] || "not ready");
     const detail = storeStatus.detail ? ` ${storeStatus.detail}` : "";
     return {
       datasetId: String(blockedRecord.dataset_id || "").trim(),
       datasetLabel,
       status: storeStatus.status,
-      message: `Cannot apply workspace: dataset store for "${datasetLabel}" is ${statusText}. ${actionLabel}${detail}`,
+      message: `Cannot apply workspace: query store for "${datasetLabel}" is ${statusText}. ${actionLabel}${detail}`,
     };
   }
 
@@ -651,9 +658,16 @@ export function createDatasetsUi(ctx) {
           failed: "Failed",
           not_built: "Not built",
         }[storeState] || "Not built");
-      const storeButtonLabel = storeReady ? "Rebuild store" : "Prepare store";
+      const storeBuilding = storeState === "building";
+      const storeButtonLabel = storeBuilding
+        ? "Building query store…"
+        : storeState === "failed"
+          ? "Retry build"
+          : storeReady || storeState === "stale"
+            ? "Rebuild query store"
+            : "Build query store";
       const storeDetail = String(storeStatus.last_error || "").trim()
-        || (storeStatus.last_built_at ? `Last built: ${storeStatus.last_built_at}` : "No prepared DuckDB store is available yet.");
+        || (storeStatus.last_built_at ? `Last built: ${storeStatus.last_built_at}` : "The query store has not been built yet.");
       return `
         <details class="dataset-admin-card" data-dataset-admin-card="${escapeHtml(datasetId)}" ${expandedDatasetIds.has(datasetId) ? "open" : ""}>
           <summary class="dataset-admin-summary">
@@ -750,8 +764,8 @@ export function createDatasetsUi(ctx) {
                 </div>
               </div>
               <div class="dataset-policy-section dataset-policy-section-muted">
-                <div class="dataset-policy-heading">DuckDB Store</div>
-                <div class="section-note">Prepared dataset-local DuckDB store used by workspace queries and merged dataset workspaces.</div>
+                <div class="dataset-policy-heading">Query store</div>
+                <div class="section-note">COHORTome builds this local DuckDB index automatically when a dataset is added or first used. Rebuild it only after source files or mappings change.</div>
                 <div class="dataset-picker-access-row">
                   <label>Current status</label>
                   <div class="identity-tags">
@@ -771,8 +785,8 @@ export function createDatasetsUi(ctx) {
                 <button type="button" class="query-chip" data-dataset-dicom="${escapeHtml(datasetId)}">Link folder…</button>
               </section>
               <div class="dataset-picker-access-actions">
-                <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
-                <button type="button" class="query-chip action" data-dataset-prepare="${escapeHtml(datasetId)}">${escapeHtml(storeButtonLabel)}</button>
+                <button type="button" class="secondary-btn" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
+                <button type="button" class="secondary-btn" data-dataset-prepare="${escapeHtml(datasetId)}" ${storeBuilding ? "disabled" : ""}>${escapeHtml(storeButtonLabel)}</button>
                 ${["default", "synthetic-autoimmune-demo"].includes(datasetId) ? "" : `<button type="button" class="query-chip danger-btn" data-dataset-remove="${escapeHtml(datasetId)}">Remove dataset…</button>`}
               </div>
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
@@ -948,26 +962,26 @@ export function createDatasetsUi(ctx) {
       return;
     }
     loadStatusEl.className = "load-status loading";
-    loadStatusEl.textContent = `Preparing DuckDB store for ${datasetId}...`;
-    setDatasetAdminFeedback(datasetId, "Preparing DuckDB store...", "success", 0);
+    loadStatusEl.textContent = `Building query store for ${datasetId}...`;
+    setDatasetAdminFeedback(datasetId, "Building query store...", "success", 0);
     try {
       const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}/prepare-store`, {
         method: "POST",
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail || "Unable to prepare dataset store.");
+        throw new Error(payload.detail || "Unable to build query store.");
       }
       await loadDatasets({ preservePendingSelection: true });
       loadStatusEl.className = "load-status";
-      loadStatusEl.textContent = `Prepared DuckDB store for ${datasetId}.`;
-      setDatasetAdminFeedback(datasetId, "DuckDB store prepared.", "success");
+      loadStatusEl.textContent = `Query store rebuilt for ${datasetId}.`;
+      setDatasetAdminFeedback(datasetId, "Query store rebuilt.", "success");
     } catch (error) {
       loadStatusEl.className = "load-status";
-      loadStatusEl.textContent = error && error.message ? error.message : "Unable to prepare dataset store.";
+      loadStatusEl.textContent = error && error.message ? error.message : "Unable to build query store.";
       setDatasetAdminFeedback(
         datasetId,
-        error && error.message ? error.message : "Unable to prepare dataset store.",
+        error && error.message ? error.message : "Unable to build query store.",
         "error",
         4200,
       );

@@ -85,6 +85,9 @@ def test_analysis_session_persists_scope_metadata(tmp_path, monkeypatch):
 
     saved = analysis_sessions_module.save_analysis_session({
         "id": "session-metadata",
+        "catalog_item_id": "transcriptomics-limma-voom-differential-expression",
+        "assay_ids": ["rna-assay"],
+        "execution_mode": "deterministic",
         "data_dir": "/data/a",
         "scope": "SYN001:week_0,SYN002:week_0",
         "scope_metadata": {
@@ -101,6 +104,9 @@ def test_analysis_session_persists_scope_metadata(tmp_path, monkeypatch):
     assert saved["scope_metadata"]["patient_count"] == 2
     assert saved["scope_metadata"]["source"]["kind"] == "dashboard_timeline"
     assert saved["context_mode"] == "general"
+    assert saved['catalog_item_id'] == 'transcriptomics-limma-voom-differential-expression'
+    assert saved['assay_ids'] == ['rna-assay']
+    assert saved['execution_mode'] == 'deterministic'
     assert analysis_sessions_module.get_analysis_session("session-metadata")["scope_metadata"]["sample_ids"] == ["SYN001:week_0", "SYN002:week_0"]
 
 

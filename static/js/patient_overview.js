@@ -1,4 +1,6 @@
-export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort}) {
+import { sortDiseaseOptions } from './shared.js';
+
+export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort, refineInMultimodal}) {
   const input = document.getElementById('patientOverviewSearch');
   const list = document.getElementById('patientOverviewMatches');
   const status = document.getElementById('patientOverviewStatus');
@@ -20,7 +22,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
       if (!response.ok) throw new Error('Disease filters unavailable');
       const payload = await response.json();
       if (ticket !== diseaseGeneration || selectedScope !== scope()) return;
-      diseases = Array.isArray(payload) ? payload : []; renderDiseases();
+      diseases = sortDiseaseOptions(Array.isArray(payload) ? payload : []); renderDiseases();
     } catch (_) {
       if (ticket === diseaseGeneration) { diseases = []; renderDiseases(); }
     }
@@ -30,6 +32,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const previous = document.getElementById('patientOverviewPrevious');
   const timelineButton = document.getElementById('patientTimelineBtn');
   const saveButton = document.getElementById('patientSaveCohort');
+  const refineButton = document.getElementById('patientRefineMultimodal');
   const saveStatus = document.getElementById('patientSaveStatus');
   let saving = false;
   function clearSelection() {
@@ -51,7 +54,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     list.querySelector('thead tr').innerHTML = headers.map(([label, path], i) => `<th scope="col" aria-sort="${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="patient-sort" data-sort="${sortKeys[i]}" aria-label="Sort by ${label}">${icon(path)}${label}<span aria-hidden="true">${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button></th>`).join('');
   }
   function reset() {
-    saveButton.disabled = true; saveStatus.textContent = '';
+    saveButton.disabled = refineButton.disabled = true; saveStatus.textContent = '';
     selectedDiseases.clear(); diseases = []; showAllDiseases = false; diseaseGeneration++; renderDiseases();
     clearSelection();
     clearTimeout(timer); controller?.abort(); generation++;
@@ -87,7 +90,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   function searchPatients(changePage = false) {
-    saveButton.disabled = true; saveStatus.textContent = '';
+    saveButton.disabled = refineButton.disabled = true; saveStatus.textContent = '';
     clearTimeout(timer); controller?.abort(); generation++;
     if (!changePage) { pages = [{}]; pageIndex = 0; nextPage = null; }
     nextPage = null;
@@ -113,7 +116,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         if (ticket === generation && error.name !== 'AbortError') {
           matches = []; render(); status.textContent = error.message;
         }
-      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; saveButton.disabled = saving || !matches.length; list.removeAttribute('aria-busy'); } }
+      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; saveButton.disabled = refineButton.disabled = saving || !matches.length; list.removeAttribute('aria-busy'); } }
     }, 200);
   }
   input.addEventListener('input', () => {
@@ -129,9 +132,9 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     else selectedDiseases.add(label);
     clearSelection(); renderDiseases(); searchPatients();
   });
-  saveButton.addEventListener('click', async () => {
+  async function useFilteredPatients(refine = false) {
     if (saving || loading || !matches.length) return;
-    saving = true; saveButton.disabled = true;
+    saving = true; saveButton.disabled = refineButton.disabled = true;
     const ticket = generation, selectedScope = scope();
     const isCurrent = () => ticket === generation && selectedScope === scope();
     const params = {workspace:selectedScope, q:input.value.trim(), disease:[...selectedDiseases],
@@ -142,7 +145,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     try {
       do {
         const data = await request('search', {...params, ...cursor});
-        if (!isCurrent()) throw new Error('Filters or workspace changed. Please save again.');
+        if (!isCurrent()) throw new Error('Filters or workspace changed. Please try again.');
         for (const row of data.matches) {
           const key = JSON.stringify([row.dataset_id, row.patient_id]);
           if (!seen.has(key)) { seen.add(key); members.push({dataset_id:row.dataset_id, patient_id:row.patient_id}); }
@@ -150,14 +153,22 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         cursor = data.next;
         saveStatus.textContent = `Collected ${members.length} matching patients…`;
       } while (cursor);
-      if (!members.length) throw new Error('No matching patients to save.');
+      if (!members.length) throw new Error('No matching patients.');
+      const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}`;
+      if (refine) {
+        refineInMultimodal({scope:selectedScope, members, description, diseases:params.disease});
+        saveStatus.textContent = `Sent ${members.length} patients to Multimodal.`;
+        return;
+      }
       const saved = await saveIdsAsCohort({members, sourceKind:'manual', statusTarget:'none', isCurrent,
-        sourcePrompt:`Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}`});
+        sourcePrompt:description});
       saveStatus.textContent = !isCurrent() ? 'Filters or workspace changed. Please save again.'
         : saved ? `Saved ${members.length} patients. Find the cohort in Cohorts.` : 'Cohort was not saved.';
     } catch (error) { saveStatus.textContent = error.message || 'Unable to save cohort.'; }
-    finally { saving = false; saveButton.disabled = loading || !matches.length; }
-  });
+    finally { saving = false; saveButton.disabled = refineButton.disabled = loading || !matches.length; }
+  }
+  saveButton.addEventListener('click', () => useFilteredPatients());
+  refineButton.addEventListener('click', () => useFilteredPatients(true));
   more.addEventListener('click', () => {
     if (loading || !nextPage) return;
     pages[++pageIndex] = nextPage; searchPatients(true);

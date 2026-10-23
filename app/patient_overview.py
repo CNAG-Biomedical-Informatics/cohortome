@@ -198,6 +198,11 @@ def coverage(request: Request, workspace: str):
             con = _connect(root)
             try:
                 clinical_ids = {row[0] for row in con.execute('SELECT patient_id FROM patients').fetchall()}
+                diseases = {}
+                if _relation_exists(con, 'patient_diseases'):
+                    for pid, disease in con.execute('SELECT DISTINCT patient_id, disease FROM patient_diseases ORDER BY disease').fetchall():
+                        if disease:
+                            diseases.setdefault(pid, []).append(disease)
             finally:
                 con.close()
         except (FileNotFoundError, QueryStoreNotReadyError):
@@ -213,7 +218,7 @@ def coverage(request: Request, workspace: str):
                 available.setdefault(pid, set()).add('dicom')
         for pid, modalities in sorted(available.items()):
             patients.append(dict(patient_id=pid, dataset_id=identifier, dataset_label=label,
-                                 modalities=sorted(modalities), has_clinical=pid in clinical_ids))
+                                 modalities=sorted(modalities), diseases=diseases.get(pid, []), has_clinical=pid in clinical_ids))
     return dict(patients=patients, warnings=warnings)
 
 

@@ -881,7 +881,7 @@ def select_dataset(payload: DatasetSelectionRequest, request: Request) -> Dict:
     except QueryStoreNotReadyError as exc:
         raise HTTPException(
             status_code=409,
-            detail="One or more selected dataset stores are not ready. Prepare or rebuild them in Admin > Data.",
+            detail="One or more selected dataset query stores are not ready. Rebuild them in Admin > Data.",
         ) from exc
     if resolved_ids != current_dataset_ids(user_id):
         delete_query_results(user_id)
@@ -2621,7 +2621,7 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/datasets", create_dataset_route, methods=["POST"], tags=["datasets"], summary="Register a dataset", description="Creates a new dataset registry entry. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/datasets/bulk-ai-access", bulk_dataset_ai_route, methods=["POST"], tags=["datasets"], summary="Update AI permissions for selected datasets (admin only)")
     app.add_api_route("/datasets/{dataset_id}", update_dataset_route, methods=["PATCH"], tags=["datasets"], summary="Update dataset metadata and access", description="Updates dataset metadata, visibility, or access policy. Admin-only.", response_model=DatasetRecordResponse)
-    app.add_api_route("/datasets/{dataset_id}/prepare-store", prepare_dataset_route, methods=["POST"], tags=["datasets"], summary="Prepare dataset DuckDB store", description="Builds or rebuilds the admin-managed DuckDB store for one dataset. Admin-only.", response_model=DatasetRecordResponse)
+    app.add_api_route("/datasets/{dataset_id}/prepare-store", prepare_dataset_route, methods=["POST"], tags=["datasets"], summary="Rebuild a dataset query store", description="Rebuilds the admin-managed local DuckDB index for one dataset. Admin-only.", response_model=DatasetRecordResponse)
     app.add_api_route("/branding/logo", get_branding_logo, methods=["GET"], tags=["ui"], summary="Serve the configured branding logo", description="Returns the current instance branding logo file if one is configured.")
     app.add_api_route('/saved-cohorts/library', get_saved_cohort_library, methods=['GET'], tags=['cohorts'], summary='List accessible saved cohorts across datasets')
     app.add_api_route("/saved-cohorts", get_saved_cohorts, methods=["GET"], tags=["cohorts"], summary="List saved cohorts", description="Returns saved cohorts for the current user within the active dataset workspace.", response_model=SavedCohortsResponse)

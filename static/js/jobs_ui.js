@@ -59,6 +59,8 @@ export function createJobsUi(ctx) {
     setActiveTab,
     renderAnalysisMeta,
     renderAnalysisThread,
+    renderAnalysisFlowBar,
+    setAnalysisComposerStatus,
     scrollAnalysisTurnIntoView,
     syncCurrentAnalysisSessionFromUi,
     loadCompletedPhenoJob,
@@ -462,6 +464,7 @@ export function createJobsUi(ctx) {
         const response = await fetch(`/jobs/${encodeURIComponent(jobId)}`);
         if (!response.ok) continue;
         const payload = await response.json();
+        if (sessionId !== String(currentAnalysisSessionId() || '').trim()) return;
         const resultPayload = payload && payload.result_payload ? payload.result_payload : null;
         if (!resultPayload || !resultPayload.data) continue;
         const artifactVersion = String(payload.updated_at || payload.completed_at || payload.job_id || "").trim();
@@ -487,6 +490,8 @@ export function createJobsUi(ctx) {
         };
         renderAnalysisMeta(resultPayload);
         renderAnalysisThread();
+        renderAnalysisFlowBar();
+        setAnalysisComposerStatus('Background analysis completed. Results are shown above.');
         syncCurrentAnalysisSessionFromUi({ render: true });
         if (analysisStatusEl) {
           analysisStatusEl.className = "query-status";
@@ -670,6 +675,8 @@ export function createJobsUi(ctx) {
     state.analysisHistory = state.analysisHistory.slice(-8);
     renderAnalysisMeta(resultPayload);
     renderAnalysisThread();
+    renderAnalysisFlowBar();
+    setAnalysisComposerStatus('Loaded completed analysis result.');
     if (typeof scrollAnalysisTurnIntoView === "function") {
       scrollAnalysisTurnIntoView(resultTurnIndex);
     }

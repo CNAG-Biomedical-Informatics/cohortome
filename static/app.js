@@ -156,6 +156,9 @@ function clearDatasetScopedContent(options = {}) {
   if (signedOut) { chatDeletionUi?.clear(); chatFoldersUi?.clear(); }
   const clearSelection = options.clearSelection === true;
   const nextScopeId = String(options.nextScopeId || "").trim();
+  // Capture the current setup before clearing workspace views. A same-workspace
+  // reload must not replace a saved method with the empty loading controls.
+  if (analysisSessionsUi) analysisSessionsUi.prepareAnalysisSessionForDataDir(nextScopeId);
   state.workspaceRevision += 1;
   stopQueryProgressUpdates();
   stopAnalysisProgressUpdates();
@@ -175,7 +178,6 @@ function clearDatasetScopedContent(options = {}) {
   state.phenoSelectedSavedCohortIds = [];
   state.analysisCatalogItems = [];
   state.analysisCatalogWorkspace = null;
-  state.analysisSelectedCatalogItemId = "";
   if (clearSelection) {
     state.currentDatasetIds = [];
     state.pendingDatasetIds = [];
@@ -192,7 +194,7 @@ function clearDatasetScopedContent(options = {}) {
   if (phenoUi) phenoUi.clearDatasetWorkspace();
   if (dashboardUi) dashboardUi.clearDatasetWorkspaceViews({ signedOut });
   if (savedCohortsUi) savedCohortsUi.renderSavedCohorts();
-  if (analysisSessionsUi) analysisSessionsUi.prepareAnalysisSessionForDataDir(nextScopeId);
+  if (analysisSessionsUi) analysisSessionsUi.applyAnalysisSession(currentAnalysisSession());
   if (analysisCatalogUi) analysisCatalogUi.renderAnalysisCatalog();
 
   const patientMessage = signedOut ? "Sign in to access the shared clinical workspace." : (nextScopeId ? "Loading selected workspace..." : "No dataset selected.");
@@ -933,6 +935,8 @@ jobsUi = createJobsUi({
     renderAnalysisMeta: (payload) => analysisUi.renderAnalysisMeta(payload),
     renderAnalysisThread: () => analysisUi.renderAnalysisThread(),
     scrollAnalysisTurnIntoView: (turnIndex) => analysisUi.scrollAnalysisTurnIntoView(turnIndex),
+    renderAnalysisFlowBar: () => analysisCatalogUi.renderAnalysisFlowBar(),
+    setAnalysisComposerStatus: message => analysisUi.setAnalysisComposerStatus(message),
     syncCurrentAnalysisSessionFromUi: (options) => analysisSessionsUi.syncCurrentAnalysisSessionFromUi(options),
     loadCompletedPhenoJob: (jobPayload, resultPayload) => phenoUi.loadCompletedPhenoJob(jobPayload, resultPayload),
     renderPhenoBackgroundJobBanner: () => phenoUi.renderPhenoBackgroundJobBanner(),
@@ -947,6 +951,9 @@ workspaceUi = createWorkspaceUi({
     formatNumber,
   },
   callbacks: {
+    canManageDataset: () => authUi.canManageDataset(),
+    loadDatasets: (options) => datasetsUi.loadDatasets(options),
+    openDatasets: () => navigationUi.setActiveTab('datasets'),
     currentTabName: () => navigationUi.currentTabName(),
     currentDatasetRecord: () => datasetsUi.currentDatasetRecord(),
     datasetScopeLabel: () => datasetsUi.datasetScopeLabel(),
@@ -955,6 +962,11 @@ workspaceUi = createWorkspaceUi({
     renderDatasetPicker: () => datasetsUi.renderDatasetPicker(),
     renderDatasetAdminList: () => datasetsUi.renderDatasetAdminList(),
     renderDatasetScopeSummary: () => datasetsUi.renderDatasetScopeSummary(),
+    renderAnalysisDatasetScope: () => datasetsUi.renderAnalysisDatasetScope(),
+    restoreAnalysisSetup: () => {
+      const session = currentAnalysisSession();
+      if (session?.datasetId === datasetsUi.currentDatasetSelectionKey()) analysisSessionsUi.applyAnalysisSession(session);
+    },
     renderLoadButtonState: () => datasetsUi.renderLoadButtonState(),
     prepareAnalysisSessionForDataDir: (value) => analysisSessionsUi.prepareAnalysisSessionForDataDir(value),
     resetQueryWorkspace: () => queryUi.resetQueryWorkspace(),
@@ -1499,6 +1511,7 @@ function bindEvents() {
     analysisUi.setContextMode("workspace");
   });
   document.getElementById("multimodalCompareShortcut").addEventListener("click", () => {
+    document.getElementById('multimodalMoreOptions').open = false;
     navigationUi.setActiveTab("analysis");
     analysisUi.setContextMode("workspace");
     const method = document.getElementById("analysisMethodSelect");
@@ -1896,6 +1909,7 @@ function initializeUiShell() {
 async function bootstrap() {
   bindEvents();
   createPatientOverview({state, navigation:navigationUi, escapeHtml,
+    refineInMultimodal: selection => dashboardUi.refinePatientCoverage(selection),
     saveIdsAsCohort: options => savedCohortsUi.saveIdsAsCohort(options),
     scope:() => datasetsUi.currentDatasetSelectionKey(),
     openTimeline:async (patientId, datasetId) => {

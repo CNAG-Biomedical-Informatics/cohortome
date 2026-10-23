@@ -1,8 +1,8 @@
 # Docker deployment
 
-Compose runs the web app, one RQ worker and Redis. Optional Orthanc and OHIF
-services provide DICOM viewing. The image includes both synthetic demos,
-Python, R and Pheno-Ranker.
+Compose runs the web app, one RQ worker and Redis. OHIF is embedded in the app;
+the optional Orthanc service supplies image storage. The image includes both
+synthetic demos, Python, R and Pheno-Ranker.
 
 ## Start
 
@@ -60,6 +60,10 @@ protected host location outside the checkout. Test-only fixtures are not install
 The manual **Test Docker deployment** Actions workflow builds on native Linux
 amd64 and arm64 runners. It checks login, both synthetic stores, Pheno-Ranker,
 a queued R analysis and settings persistence after restart. It does not publish images.
+
+After publishing the GitHub draft, run **Publish Docker release** manually with
+the same annotated tag. Both native architectures must pass before the versioned
+image and `latest` are assigned. Pushing a Git tag alone does nothing.
 
 - [Web deployment and runtime configuration](../docs-site/docs/admin-guide/starting-and-stopping.md)
 - [Accounts and OIDC](../docs-site/docs/admin-guide/local-auth-and-groups.mdx)

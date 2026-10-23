@@ -143,6 +143,8 @@ class QuerySessionRequest(BaseModel):
 
 
 class AnalysisSessionRequest(BaseModel):
+    assay_ids: List[str] = Field(default_factory=list, max_length=32)
+    execution_mode: Literal['auto', 'deterministic', 'llm_only', 'planner_only'] = 'auto'
     script_draft: Dict[str, Any] = Field(default_factory=dict)
     measurement: str = Field(default="", max_length=512)
     id: str = Field(description="Client-generated analysis session identifier.")

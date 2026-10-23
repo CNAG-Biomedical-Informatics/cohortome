@@ -194,6 +194,8 @@ def test_coverage_is_dataset_scoped_and_includes_assay_only_patients(client, tmp
     con = duckdb.connect(path)
     con.execute('CREATE TABLE patients(patient_id TEXT)')
     con.execute("INSERT INTO patients VALUES ('P1')")
+    con.execute('CREATE TABLE patient_diseases(patient_id TEXT, disease TEXT)')
+    con.execute("INSERT INTO patient_diseases VALUES ('P1', 'SLE'), ('P1', 'SLE'), ('P1', 'RA')")
     con.close()
     monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root-a', 'A'), ('b', 'root-b', 'B')])
     monkeypatch.setattr(overview, 'ensure_query_store', lambda _: None)
@@ -208,4 +210,6 @@ def test_coverage_is_dataset_scoped_and_includes_assay_only_patients(client, tmp
     assert patients[0]['modalities'] == ['clinical', 'methylation', 'proteomics', 'transcriptomics']
     assert patients[2]['modalities'] == ['clinical', 'serology']
     assert not patients[1]['has_clinical']
+    assert patients[0]['diseases'] == ['RA', 'SLE']
+    assert patients[1]['diseases'] == []
     assert len(payload['warnings']) == 2

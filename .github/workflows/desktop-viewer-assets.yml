@@ -2,6 +2,17 @@ name: Prepare desktop viewer assets
 
 on:
   workflow_call:
+    inputs:
+      checkout_ref:
+        description: Commit to package; defaults to the caller revision
+        required: false
+        type: string
+        default: ''
+      artifact_name:
+        description: Unique build-input artifact name
+        required: false
+        type: string
+        default: ohif-assets
 
 permissions:
   contents: read
@@ -12,6 +23,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -22,6 +35,6 @@ jobs:
       # Build input shared with Windows/macOS; not a release installer or user data.
       - uses: actions/upload-artifact@v4
         with:
-          name: ohif-assets
+          name: ${{ inputs.artifact_name }}
           path: ${{ runner.temp }}/ohif-assets.tar.gz
           retention-days: 1

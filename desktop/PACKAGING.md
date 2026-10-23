@@ -189,11 +189,11 @@ For runtime locations and backup/reset instructions, see the
 
 ## Before release
 
-Release and prerelease publication will be manual, with a required existing
-annotated tag (for example `v0.1.0-rc.1`). Resolve the tag once, check version
-metadata, and build every platform from that commit. Refuse publication if the
-tag moves. Pushing a tag alone must not launch publication. Development test
-workflows remain separate and do not create releases.
+Run **Create desktop release draft** manually with an existing annotated tag
+such as `v0.1.0`. It verifies the tag and version metadata, builds all five
+installers from the resolved commit, checks their hashes, and creates a draft
+with the matching changelog notes. Pushing a tag alone does nothing. The
+individual platform workflows remain available for development tests.
 
 Verify scientific runs, source preparation, native save/open dialogs
 and clean-machine installation. Confirm Hallmark access, viewer distribution,

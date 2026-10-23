@@ -903,6 +903,8 @@ export function createDashboardUi(ctx) {
       return true;
     });
     const compatibleNames = new Set(compatibleDatasets.map((dataset) => dataset.dataset_name));
+    // An empty loading inventory is not evidence that a saved assay disappeared.
+    if (!state.assayDatasetsScopeId) return compatibleDatasets;
     const filteredSelected = state.selectedAssayDatasets.filter((name) => compatibleNames.has(name));
     if (filteredSelected.length !== state.selectedAssayDatasets.length) {
       state.selectedAssayDatasets = filteredSelected;
@@ -1037,6 +1039,8 @@ export function createDashboardUi(ctx) {
       dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies loaded.</div>';
     }
     if (multimodalReadinessStatusEl) {
+      multimodalReadinessStatusEl.hidden = false;
+      document.getElementById('multimodalReadinessSummary').textContent = '';
       multimodalReadinessStatusEl.className = "query-status";
       multimodalReadinessStatusEl.textContent = workspaceMessage;
     }
@@ -1440,9 +1444,10 @@ export function createDashboardUi(ctx) {
     const issues = Array.isArray(source.issues) ? source.issues : [];
     state.multimodalReadinessState = source;
     multimodalReadinessStatusEl.className = issues.some((item) => item && item.severity === "error") ? "query-status error" : "query-status";
-    multimodalReadinessStatusEl.textContent = modalities.length
-      ? `Readiness checked across ${modalities.length} modality layer${modalities.length === 1 ? "" : "s"}.`
-      : "No multimodal readiness data available.";
+    multimodalReadinessStatusEl.hidden = modalities.length > 0;
+    multimodalReadinessStatusEl.textContent = modalities.length ? '' : 'No multimodal readiness data available.';
+    document.getElementById('multimodalReadinessSummary').textContent = modalities.length
+      ? `${modalities.length} data types checked across the workspace.` : '';
     multimodalReadinessContentEl.innerHTML = `
       <section class="multimodal-coverage"></section>
       ${renderReadinessCoverageTable(modalities)}
@@ -1456,6 +1461,8 @@ export function createDashboardUi(ctx) {
     if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
     state.multimodalReadinessState = null;
     multimodalReadinessStatusEl.className = "query-status";
+    multimodalReadinessStatusEl.hidden = false;
+    document.getElementById('multimodalReadinessSummary').textContent = '';
     multimodalReadinessStatusEl.textContent = message || "Unable to load multimodal readiness.";
     multimodalReadinessContentEl.innerHTML = '<div class="empty">Multimodal readiness is unavailable for this workspace.</div>';
     renderMultimodalReadinessVisibility();
@@ -1835,6 +1842,8 @@ export function createDashboardUi(ctx) {
     const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
     const dataDir = encodeURIComponent(scopeId);
     multimodalReadinessStatusEl.className = "query-status loading";
+    multimodalReadinessStatusEl.hidden = false;
+    document.getElementById('multimodalReadinessSummary').textContent = '';
     multimodalReadinessStatusEl.textContent = "Checking multimodal readiness...";
     multimodalReadinessContentEl.innerHTML = '<div class="empty">Checking modality overlap and linkage...</div>';
     try {
@@ -2061,6 +2070,7 @@ export function createDashboardUi(ctx) {
     }
     state.selectedAssayDatasets = selected;
     renderAssayDatasetSelector();
+    syncCurrentAnalysisSessionFromUi({render: false});
     void loadAssayFeatureSuggestions();
   }
 
@@ -2128,6 +2138,14 @@ export function createDashboardUi(ctx) {
   }
 
   return {
+    refinePatientCoverage(selection) {
+      if (selection.scope !== state.currentDatasetScopeId) return;
+      state.multimodalPatientSelection = selection;
+      setDashboardSubtab('multimodal');
+      const host = multimodalReadinessContentEl.querySelector('.multimodal-coverage');
+      if (host) void multimodalCoverage.load(host, selection.scope);
+      else void loadMultimodalReadiness({scopeId: selection.scope});
+    },
     claridIdentityMarkup,
     renderPatientList,
     renderDetail,

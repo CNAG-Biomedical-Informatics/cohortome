@@ -66,6 +66,8 @@ def save_analysis_session(item: Dict[str, Any], user_id: str = DEFAULT_LOCAL_USE
         "data_dir": str(item.get("data_dir") or "").strip(),
         "workspace_fingerprint": item.get("workspace_fingerprint") if isinstance(item.get("workspace_fingerprint"), dict) else {},
         "catalog_item_id": str(item.get("catalog_item_id") or "").strip(),
+        "assay_ids": _normalize_id_list(item.get("assay_ids")),
+        "execution_mode": item.get("execution_mode") if item.get("execution_mode") in {"auto", "deterministic", "llm_only", "planner_only"} else "auto",
         "measurement": str(item.get("measurement") or "").strip(),
         "script_draft": item.get("script_draft") if isinstance(item.get("script_draft"), dict) else {},
         "prompt_draft": str(item.get("prompt_draft") or "").strip(),

@@ -6,6 +6,22 @@ import subprocess
 import pytest
 
 
+def test_disease_options_sort_by_count_then_name():
+    node = shutil.which('node')
+    if not node:
+        pytest.skip('Node is needed for JavaScript module checks')
+    module = Path('static/js/shared.js').resolve().as_uri()
+    subprocess.run([node, '--input-type=module', '-e', f"""
+        import assert from 'node:assert/strict';
+        import {{ sortDiseaseOptions }} from {module!r};
+        const items = [{{disease:'Zeta', patient_count:2}},
+          {{disease:'Alpha', patient_count:2}}, {{disease:'Beta', patient_count:9}}];
+        assert.deepEqual(sortDiseaseOptions(items).map(d => d.disease), ['Beta', 'Alpha', 'Zeta']);
+        assert.equal(items[0].disease, 'Zeta');
+        assert.deepEqual(sortDiseaseOptions([]), []);
+    """], check=True, capture_output=True, text=True)
+
+
 def test_assay_display_labels_are_shared():
     node = shutil.which("node")
     if not node:

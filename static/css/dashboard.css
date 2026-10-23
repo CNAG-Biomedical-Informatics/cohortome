@@ -1,3 +1,6 @@
+      .workspace-welcome .saved-cohort-actions { justify-content: flex-start; }
+      .app-content .workspace-welcome button { width: auto; margin: 0; }
+      .workspace-welcome p { max-width: 65ch; }
       .dashboard-loader {
         gap: 8px;
         padding: 14px 16px;

@@ -44,6 +44,7 @@ details.inline-view-help { position: relative; margin-left: auto; align-self: ce
 .patient-browser-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .patient-browser-pages { display: flex; gap: 8px; }
 .patient-cohort-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.app-content .patient-cohort-actions > button { width: auto; margin: 0; }
 .patient-disease-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
 .patient-disease-filters [aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .clinical-view-help { display: flex; justify-content: flex-end; margin-bottom: 8px; }

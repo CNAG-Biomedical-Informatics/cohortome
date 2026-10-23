@@ -1,3 +1,4 @@
+FROM --platform=linux/arm64 ohif/app@sha256:d3f221a4408119f8d5e07dc7ed2ce0fe4e5925bbde1310efa2e046614083c25a AS viewer
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
@@ -45,7 +46,7 @@ RUN cpanm --notest "$PHENO_RANKER_SPEC" \
 
 COPY pyproject.toml ./
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install .
+    && python -m pip install '.[dicom]'
 
 COPY app ./app
 COPY config ./config
@@ -53,6 +54,7 @@ COPY scripts ./scripts
 COPY static ./static
 COPY templates ./templates
 COPY datasets ./datasets
+COPY --from=viewer /usr/share/nginx/html ./runtime/ohif
 
 RUN mkdir -p /var/lib/cohortome \
     && useradd --create-home --shell /usr/sbin/nologin cohortome \

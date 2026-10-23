@@ -76,14 +76,23 @@ export function createAnalysisSessionsUi(ctx) {
 
   function analysisSessionScopeSummary(session) {
     if (session.contextMode === "general") return "General questions";
-    const scopeCount = String(session.scope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
-    const compareCount = String(session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean).length;
+    const selection = (metadata, input, cohortId) => {
+      const source = metadata || {};
+      const sample = source.id_type === 'sample';
+      const ids = sample ? source.sample_ids : source.patient_ids;
+      const count = source[sample ? 'sample_count' : 'patient_count'] ?? ids?.length;
+      if (count !== undefined && (ids?.length || source.query_result_handle || cohortId)) {
+        return `${count} ${sample ? 'samples' : 'patients'}`;
+      }
+      const manual = String(input || '').split(',').filter(id => id.trim());
+      return manual.length ? `${manual.length} patients` : cohortId ? 'Saved cohort' : '';
+    };
+    const a = selection(session.scopeMetadata, session.scope, session.savedCohortIdA);
+    const b = selection(session.compareScopeMetadata, session.compareScope, session.savedCohortIdB);
     if (session.compareMode) {
-      const aLabel = scopeCount ? `${scopeCount} in A` : "full cohort in A";
-      const bLabel = compareCount ? `${compareCount} in B` : "full cohort in B";
-      return `${aLabel} vs ${bLabel}`;
+      return `A: ${a || 'not set'} vs B: ${b || 'not set'}`;
     }
-    return scopeCount ? `${scopeCount} IDs in scope` : "Full cohort";
+    return a || 'Full workspace';
   }
 
   function analysisWorkspaceStatusLabel(session) {
@@ -172,6 +181,8 @@ export function createAnalysisSessionsUi(ctx) {
           data_dir: session.dataDir || "",
           workspace_fingerprint: session.workspaceFingerprint || {},
           catalog_item_id: session.catalogItemId || "",
+          assay_ids: session.assayIds || [],
+          execution_mode: session.executionMode || 'auto',
           measurement: session.measurement || "",
           script_draft: session.scriptDraft || {},
           prompt_draft: session.promptDraft || "",
@@ -257,6 +268,8 @@ export function createAnalysisSessionsUi(ctx) {
         workspaceFingerprint: item.workspace_fingerprint,
         workspaceStatus: item.workspace_status,
         catalogItemId: item.catalog_item_id,
+        assayIds: item.assay_ids,
+        executionMode: item.execution_mode,
         measurement: item.measurement,
         scriptDraft: item.script_draft,
         promptDraft: item.prompt_draft,
@@ -388,6 +401,8 @@ export function createAnalysisSessionsUi(ctx) {
         ? String(currentDatasetSelectionKey() || "").trim() : "";
     }
     session.catalogItemId = state.analysisSelectedCatalogItemId || "";
+    session.assayIds = [...(state.selectedAssayDatasets || [])];
+    session.executionMode = state.analysisExecutionMode || 'auto';
     session.measurement = state.analysisMeasurement || "";
     session.scriptDraft = state.analysisScriptDraft || {};
     session.scope = analysisSelectedPatientIdsEl.value.trim();
@@ -411,6 +426,8 @@ export function createAnalysisSessionsUi(ctx) {
     analysisPromptEl.value = session.promptDraft || "";
     state.analysisContextMode = session.contextMode === "general" ? "general" : "workspace";
     state.analysisSelectedCatalogItemId = String(session.catalogItemId || "").trim();
+    state.selectedAssayDatasets = [...(session.assayIds || [])];
+    state.analysisExecutionMode = session.executionMode || 'auto';
     state.analysisMeasurement = session.measurement || "";
     state.analysisScriptDraft = session.scriptDraft || {};
     analysisSelectedPatientIdsEl.value = session.scope || "";
@@ -595,7 +612,7 @@ export function createAnalysisSessionsUi(ctx) {
     const session = currentAnalysisSession();
     if (!session) return;
     const normalizedNext = String(nextDataDir || "").trim();
-    const normalizedCurrent = String(session.dataDir || "").trim();
+    const normalizedCurrent = String(session.datasetId || "").trim();
     const hasWork = (session.turns || []).length > 0 || (session.history || []).length > 0;
     const hasDatasetScope = Boolean(
       String(session.scope || "").trim()

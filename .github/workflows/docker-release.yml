@@ -1,0 +1,232 @@
+name: Publish Docker release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated release tag, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: manuelrueda/cohortome
+
+jobs:
+  release:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+      tag_object: ${{ steps.release.outputs.tag_object }}
+      image_tag: ${{ steps.release.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Verify annotated release tag and application versions
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ['RELEASE_TAG']
+          pyproject = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          cargo = tomllib.loads(Path('desktop/Cargo.toml').read_text(encoding='utf-8'))
+          tauri = json.loads(Path('desktop/tauri.conf.json').read_text(encoding='utf-8'))
+          main = Path('app/main.py').read_text(encoding='utf-8')
+          match = re.search(r'\bversion\s*=\s*["\']([^"\']+)', main)
+          versions = {
+              'pyproject.toml': pyproject['project']['version'],
+              'desktop/Cargo.toml': cargo['package']['version'],
+              'desktop/tauri.conf.json': tauri['version'],
+              'app/main.py': match.group(1) if match else None,
+          }
+          version = versions['pyproject.toml']
+          if any(value != version for value in versions.values()):
+              raise SystemExit(f'Application versions disagree: {versions}')
+          if not re.fullmatch(rf'v?{re.escape(version)}', tag):
+              raise SystemExit(
+                  f'{tag!r} does not match application version {version}; '
+                  f'use the tag v{version}'
+              )
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f'image_tag={tag.removeprefix("v")}', file=output)
+          PY
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag_object=$(git rev-parse "refs/tags/$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
+      - name: Require a published GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = false
+
+  build:
+    name: Build and test linux/${{ matrix.arch }}
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      COMPOSE_PROJECT_NAME: cohortome-release-${{ matrix.arch }}
+      COMPOSE_FILE: docker/docker-compose.yml
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release.outputs.revision }}
+      - name: Verify native Docker architecture
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          native="$(docker info --format '{{.Architecture}}')"
+          case "$ARCH:$native" in
+            amd64:x86_64|amd64:amd64|arm64:aarch64|arm64:arm64) ;;
+            *) echo "Expected native $ARCH, found $native" >&2; exit 1 ;;
+          esac
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push an untagged architecture image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          tags: ${{ env.IMAGE }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release.outputs.revision }}
+            org.opencontainers.image.version=${{ needs.release.outputs.image_tag }}
+          cache-from: type=gha,scope=cohortome-docker-${{ matrix.arch }}
+          cache-to: type=gha,scope=cohortome-docker-${{ matrix.arch }},mode=max
+      - name: Pull the exact digest for integration tests
+        shell: bash
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          ARCH: ${{ matrix.arch }}
+          REVISION: ${{ needs.release.outputs.revision }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          docker pull --platform "linux/$ARCH" "$IMAGE@$DIGEST"
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE@$DIGEST")" = "$ARCH"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE@$DIGEST")" = "$REVISION"
+          docker tag "$IMAGE@$DIGEST" cohortome:pilot
+      - name: Create isolated synthetic test settings
+        shell: bash
+        run: |
+          test ! -e docker/.env
+          python3 - <<'PY'
+          import json, secrets
+          from pathlib import Path
+          users = [{"username": "smoke", "password": "synthetic-test-only", "role": "admin", "groups": ["admin"]}]
+          Path('docker/.env').write_text('COHORTOME_SESSION_SECRET=' + secrets.token_hex(32) + '\nCOHORTOME_LOCAL_USERS_JSON=' + json.dumps(users) + '\n')
+          PY
+      - name: Start web, Redis and worker
+        run: docker compose up -d --no-build web worker redis
+      - name: Test login, queries and a queued R analysis
+        run: docker compose exec -T web python scripts/test_docker_deployment.py
+      - name: Restart services and check persisted settings
+        run: |
+          docker compose restart web worker
+          docker compose exec -T web python scripts/test_docker_deployment.py --after-restart
+      - name: Record tested image digest
+        shell: bash
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          printf '%s\n' "$DIGEST" > "$RUNNER_TEMP/digests/${{ matrix.arch }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-release-digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*.txt
+          if-no-files-found: error
+          retention-days: 3
+      - name: Deployment logs
+        if: always()
+        run: docker compose logs --no-color --tail=100 web worker redis
+      - name: Remove this runner's test stack
+        if: always()
+        run: docker compose down --volumes
+
+  publish:
+    name: Publish multi-architecture tag
+    needs: [release, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release.outputs.revision }}
+          fetch-depth: 0
+      - name: Confirm the tag has not moved
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          REVISION: ${{ needs.release.outputs.revision }}
+          TAG_OBJECT: ${{ needs.release.outputs.tag_object }}
+        run: |
+          git fetch --force --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG")" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$REVISION"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: docker-release-digest-*
+          path: digests
+          merge-multiple: true
+      - name: Publish one tested multi-platform image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.release.outputs.image_tag }}
+        run: |
+          sources=()
+          for arch in amd64 arm64; do
+            digest="$(cat "digests/$arch.txt")"
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            sources+=("$IMAGE@$digest")
+          done
+          docker buildx imagetools create \
+            --tag "$IMAGE:$IMAGE_TAG" \
+            --tag "$IMAGE:latest" \
+            "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG"
+          printf 'Published `%s` from two tested native images and updated `latest`.\n' \
+            "$IMAGE:$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"

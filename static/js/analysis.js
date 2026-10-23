@@ -2419,5 +2419,6 @@ export function createAnalysisUi(ctx) {
       }, 0);
     },
     runAnalysis,
+    setAnalysisComposerStatus,
   };
 }

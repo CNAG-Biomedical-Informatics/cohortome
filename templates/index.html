@@ -602,6 +602,7 @@
             <div id="patientDiseaseFilters" class="query-composer-disease-chips patient-disease-filters" role="group" aria-label="Filter patients by disease"></div>
             <div class="patient-cohort-actions">
               <button id="patientSaveCohort" type="button" class="primary-btn coverage-save" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg><span>Save filtered patients as cohort</span></button>
+              <button id="patientRefineMultimodal" type="button" class="secondary-btn" disabled>Refine in Multimodal dashboard</button>
               <span id="patientSaveStatus" class="section-note" role="status"></span>
             </div>
             <div id="patientOverviewMatches" class="patient-browser-table"></div>
@@ -718,14 +719,15 @@
         </section>
         <section id="dashboardMultimodalPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <section class="section-card">
+            <div class="multimodal-heading">
               <h3>Multimodal</h3>
-              <button id="multimodalCompareShortcut" type="button" class="query-chip query-chip-deterministic">Compare measurements in Analysis</button>
-            </section>
+              <details class="inline-view-help"><summary aria-label="About multimodal coverage">?</summary><p>Find patients with the required data types and save the matching cohort. Coverage describes availability, not data quality or matching visits. <span id="multimodalReadinessSummary"></span></p></details>
+              <details id="multimodalMoreOptions" class="query-inline-actions">
+                <summary>More options</summary>
+                <div class="query-actions"><button id="multimodalCompareShortcut" type="button" class="query-chip query-chip-deterministic">Compare measurements in Analysis</button></div>
+              </details>
+            </div>
             <section id="multimodalReadinessPanel" class="multimodal-readiness-panel">
-              <div class="assay-modality-section-header">
-                <strong>Coverage</strong>
-              </div>
               <div id="multimodalReadinessStatus" class="query-status assay-status-strip">Checking multimodal readiness...</div>
               <div id="multimodalReadinessContent" class="multimodal-readiness-content">
                 <div class="empty">Load a workspace to review multimodal readiness.</div>

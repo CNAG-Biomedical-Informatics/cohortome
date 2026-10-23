@@ -1,3 +1,8 @@
+export function sortDiseaseOptions(items) {
+  return [...items].sort((a, b) => (Number(b.patient_count) || 0) - (Number(a.patient_count) || 0)
+    || a.disease.localeCompare(b.disease));
+}
+
 export function downloadIcon() {
   return '<span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg></span>';
 }

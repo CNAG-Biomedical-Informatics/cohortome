@@ -1,4 +1,6 @@
 export function createWorkspaceUi(ctx) {
+  const desktop = document.documentElement.dataset.deployment === "desktop";
+  const bundledDesktopDatasetIds = new Set(["default", "synthetic-cross-sectional-demo"]);
   const { refs, state, helpers, callbacks } = ctx;
   const {
     contextDataDirEl,
@@ -31,6 +33,7 @@ export function createWorkspaceUi(ctx) {
     renderDatasetPicker,
     renderDatasetAdminList,
     renderDatasetScopeSummary,
+    renderAnalysisDatasetScope,
     renderLoadButtonState,
     syncQueryGranularityWithWorkspacePolicy,
     loadAnalysisCatalog,
@@ -39,6 +42,7 @@ export function createWorkspaceUi(ctx) {
     loadAssayDatasets,
     loadPhenoRankerPatientIds,
     renderAnalysisCatalog,
+    restoreAnalysisSetup,
     renderPatientList,
     renderDetail,
     renderDashboard,
@@ -46,7 +50,74 @@ export function createWorkspaceUi(ctx) {
     updateLoadButtonAvailability,
     applyUserSettings,
     clearDatasetScopedContent,
+    canManageDataset,
+    loadDatasets,
+    openDatasets,
   } = callbacks;
+
+  let openingDemo = false;
+  function renderWelcome() {
+    if (!dashboardEl || state.currentDatasetIds.length || state.loadInFlight || openingDemo || !isWorkspaceAccessible()) return;
+    const demo = state.availableDatasets.find(item => item.dataset_id === 'synthetic-cross-sectional-demo');
+    const canOpenDemo = demo && (demo.query_store_status?.ready || canManageDataset());
+    dashboardEl.innerHTML = `<section class="workspace-welcome">
+      <h2>Explore a cohort</h2><p>${canOpenDemo ? 'Open the synthetic demo to explore patients, assays and analyses, or choose your own datasets.' : 'Choose datasets to start exploring patients, assays and analyses.'}</p>
+      <div class="saved-cohort-actions">${canOpenDemo ? '<button type="button" class="primary-btn" data-open-demo>Open demo</button>' : ''}<button type="button" class="secondary-btn" data-choose-datasets>Choose datasets</button></div>
+      <p role="status"></p></section>`;
+    dashboardEl.querySelector('[data-choose-datasets]').onclick = openDatasets;
+    const button = dashboardEl.querySelector('[data-open-demo]');
+    if (!button) return;
+    button.onclick = async () => {
+      openingDemo = true;
+      dashboardEl.querySelectorAll('button').forEach(item => { item.disabled = true; });
+      const status = dashboardEl.querySelector('[role=status]');
+      try {
+        if (!demo.query_store_status?.ready) {
+          status.textContent = 'Preparing the demo for first use…';
+          const response = await fetch(`/datasets/${encodeURIComponent(demo.dataset_id)}/prepare-store`, {method:'POST'});
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(typeof payload.detail === 'string' ? payload.detail : 'Unable to prepare the demo. Try again.');
+          }
+        }
+        status.textContent = 'Opening demo…';
+        await loadDatasets();
+        state.pendingDatasetIds = [demo.dataset_id];
+        await loadPatients();
+        if (!state.currentDatasetIds.includes(demo.dataset_id)) throw new Error(loadStatusEl.textContent || 'Unable to open the demo.');
+      } catch (error) {
+        // Workspace loading may have replaced the welcome panel on failure.
+        openingDemo = false; renderWelcome();
+        const target = dashboardEl.querySelector('[role=status]');
+        if (target) { target.textContent = error.message; target.className = 'query-status error'; }
+      } finally { openingDemo = false; }
+    };
+  }
+
+  async function prepareBundledDesktopDatasets(datasetIds) {
+    if (!desktop) return;
+    const pending = datasetIds.filter((datasetId) => {
+      if (!bundledDesktopDatasetIds.has(datasetId)) return false;
+      const dataset = state.availableDatasets.find((item) => item.dataset_id === datasetId);
+      return dataset && !dataset.query_store_status?.ready;
+    });
+    if (!pending.length) return;
+    if (loadStatusEl) {
+      loadStatusEl.className = "load-status loading";
+      loadStatusEl.textContent = pending.length === 1
+        ? "Preparing the bundled demo for first use…"
+        : "Preparing the bundled demos for first use…";
+    }
+    await nextFrame();
+    for (const datasetId of pending) {
+      const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}/prepare-store`, {method: "POST"});
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(typeof payload.detail === "string" ? payload.detail : "Unable to prepare the bundled demo.");
+      }
+    }
+    await loadDatasets({preservePendingSelection: true});
+  }
 
   const datasetDisclosure = document.getElementById('contextDatasets');
   document.addEventListener('click', event => {
@@ -78,7 +149,7 @@ export function createWorkspaceUi(ctx) {
       ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
       : null;
     const analysisView = tabName === 'analysis' || (tabName === 'dashboard'
-      && ['assays', 'multimodal'].includes(state.currentDashboardSubtab));
+      && state.currentDashboardSubtab === 'assays');
     if (analysisView) {
       const selectionLabel = (cohort, metadata, input) => {
         const source = cohort || metadata || {};
@@ -340,6 +411,7 @@ export function createWorkspaceUi(ctx) {
         ? targetDatasetIds.map((item) => String(item || "").trim()).filter(Boolean)
         : pendingDatasetSelectionIds();
       const selectedIds = Array.from(new Set(requestedIds));
+      await prepareBundledDesktopDatasets(selectedIds);
       const targetScopeId = currentDatasetSelectionKey(selectedIds);
       const hadActiveWorkspace = Boolean(state.currentDatasetIds.length);
       let prefetchedAssayPayload = null;
@@ -358,6 +430,7 @@ export function createWorkspaceUi(ctx) {
         renderDatasetPicker();
         renderDatasetAdminList();
         renderDatasetScopeSummary();
+        renderAnalysisDatasetScope();
         renderLoadButtonState();
         syncQueryGranularityWithWorkspacePolicy();
         if (loadStatusEl) {
@@ -420,6 +493,7 @@ export function createWorkspaceUi(ctx) {
       renderDatasetPicker();
       renderDatasetAdminList();
       renderDatasetScopeSummary();
+      renderAnalysisDatasetScope();
       renderGlobalContext();
       renderLoadButtonState();
       syncQueryGranularityWithWorkspacePolicy();
@@ -449,6 +523,7 @@ export function createWorkspaceUi(ctx) {
       }
       await nextFrame();
       await loadAssayDatasets({ scopeId: committedScopeId, prefetched: prefetchedAssayPayload });
+      restoreAnalysisSetup();
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
         loadStatusEl.textContent = "Loading Pheno-Ranker scope IDs and patient roster...";
@@ -496,6 +571,7 @@ export function createWorkspaceUi(ctx) {
       state.loadInFlight = false;
       renderLoadButtonState();
       updateLoadButtonAvailability();
+      renderWelcome();
     }
   }
 

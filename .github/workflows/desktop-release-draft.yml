@@ -1,0 +1,201 @@
+name: Create desktop release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated release tag, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-draft-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+      tag_object: ${{ steps.release.outputs.tag_object }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Verify annotated release tag and application versions
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ['RELEASE_TAG']
+          pyproject = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          cargo = tomllib.loads(Path('desktop/Cargo.toml').read_text(encoding='utf-8'))
+          tauri = json.loads(Path('desktop/tauri.conf.json').read_text(encoding='utf-8'))
+          main = Path('app/main.py').read_text(encoding='utf-8')
+          match = re.search(r'\bversion\s*=\s*["\']([^"\']+)', main)
+          versions = {
+              'pyproject.toml': pyproject['project']['version'],
+              'desktop/Cargo.toml': cargo['package']['version'],
+              'desktop/tauri.conf.json': tauri['version'],
+              'app/main.py': match.group(1) if match else None,
+          }
+          version = versions['pyproject.toml']
+          if any(value != version for value in versions.values()):
+              raise SystemExit(f'Application versions disagree: {versions}')
+          if not re.fullmatch(rf'v?{re.escape(version)}', tag):
+              raise SystemExit(
+                  f'{tag!r} does not match application version {version}; '
+                  f'use the tag v{version}'
+              )
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f'version={version}', file=output)
+          PY
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag_object=$(git rev-parse "refs/tags/$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
+      - name: Refuse to replace an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::A GitHub release already exists for $RELEASE_TAG."
+            exit 1
+          fi
+
+  linux-aarch64:
+    needs: release
+    uses: ./.github/workflows/desktop-linux-aarch64-test.yml
+    with:
+      build_installers: true
+      upload_artifact: true
+      checkout_ref: ${{ needs.release.outputs.revision }}
+
+  linux-x86_64:
+    needs: release
+    uses: ./.github/workflows/desktop-linux-x86_64-test.yml
+    with:
+      build_installers: true
+      upload_artifact: true
+      checkout_ref: ${{ needs.release.outputs.revision }}
+
+  macos-arm64:
+    needs: release
+    uses: ./.github/workflows/desktop-macos-arm64-test.yml
+    with:
+      build_installers: true
+      upload_artifact: true
+      checkout_ref: ${{ needs.release.outputs.revision }}
+
+  macos-x86_64:
+    needs: release
+    uses: ./.github/workflows/desktop-macos-x86_64-test.yml
+    with:
+      build_installers: true
+      upload_artifact: true
+      checkout_ref: ${{ needs.release.outputs.revision }}
+
+  windows-x86_64:
+    needs: release
+    uses: ./.github/workflows/desktop-windows-x86_64-test.yml
+    with:
+      build_installers: true
+      upload_artifact: true
+      checkout_ref: ${{ needs.release.outputs.revision }}
+
+  publish:
+    name: Create GitHub release draft
+    needs: [release, linux-aarch64, linux-x86_64, macos-arm64, macos-x86_64, windows-x86_64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release.outputs.revision }}
+          fetch-depth: 0
+      - name: Confirm the tag has not moved
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          REVISION: ${{ needs.release.outputs.revision }}
+          TAG_OBJECT: ${{ needs.release.outputs.tag_object }}
+        run: |
+          git fetch --force --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG")" = "$TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$REVISION"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cohortome-*-installer-test
+          path: release-assets
+          merge-multiple: true
+      - name: Verify the release payload
+        shell: bash
+        run: |
+          expected=(
+            cohortome-linux-aarch64.AppImage
+            cohortome-linux-x86_64.AppImage
+            cohortome-macos-apple-silicon.dmg
+            cohortome-macos-intel.dmg
+            cohortome-windows-x86_64-setup.exe
+          )
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 10
+          for installer in "${expected[@]}"; do
+            test -f "release-assets/$installer"
+            test -f "release-assets/$installer.sha256"
+            (cd release-assets && sha256sum -c "$installer.sha256")
+          done
+      - name: Extract concise release notes
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ['VERSION']
+          changelog = Path('CHANGELOG.md').read_text(encoding='utf-8')
+          match = re.search(
+              rf'^## {re.escape(version)}(?:\s+-[^\n]*)?\n(.*?)(?=^##\s|\Z)',
+              changelog,
+              re.MULTILINE | re.DOTALL,
+          )
+          if not match or not match.group(1).strip():
+              raise SystemExit(f'CHANGELOG.md has no notes for {version}')
+          Path(os.environ['RUNNER_TEMP'], 'release-notes.md').write_text(
+              match.group(1).strip() + '\n', encoding='utf-8'
+          )
+          PY
+      - name: Create immutable release draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --title "COHORTome ${RELEASE_TAG#v}"
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
