@@ -13,7 +13,7 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
     <label>Chat type <select id="clearChatsKind"><option value="both">All chat types</option><option value="query">Query only</option><option value="analysis">Analysis only</option><option value="pheno">Pheno-Ranker only</option></select></label>
     <label><input id="clearChatsPinned" type="checkbox"> Include pinned chats</label>
     <p id="clearChatsCount"></p><p role="status" id="clearChatsStatus"></p>
-    <div class="chat-move-actions"><button type="button" id="clearChatsCancel">Cancel</button><button type="button" id="clearChatsConfirm" class="danger-btn">Delete chats…</button></div>`;
+    <div class="chat-move-actions"><button type="button" id="clearChatsCancel" class="secondary-btn">Cancel</button><button type="button" id="clearChatsConfirm" class="danger-btn danger-confirm">Delete chats…</button></div>`;
   document.body.append(dialog);
   const kind = dialog.querySelector('select'), includePins = dialog.querySelector('input');
   const confirm = dialog.querySelector('#clearChatsConfirm');
@@ -94,7 +94,7 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
       return html.replace(/(<div class="analysis-session-card[^"]*">)/, match => match + checkbox);
     },
     toolbar() {
-      return selecting ? `<div class="chat-selection-bar"><span>${selected.size} selected (including hidden selections)</span><button type="button" data-delete-selected ${busy || !selected.size ? 'disabled' : ''}>Delete selected…</button><button type="button" data-cancel-selection ${busy ? 'disabled' : ''}>Cancel</button></div>` : '';
+      return selecting ? `<div class="chat-selection-bar"><span>${selected.size} selected (including hidden selections)</span><button type="button" class="danger-btn" data-delete-selected ${busy || !selected.size ? 'disabled' : ''}>Delete selected…</button><button type="button" class="secondary-btn" data-cancel-selection ${busy ? 'disabled' : ''}>Cancel</button></div>` : '';
     },
   };
 }

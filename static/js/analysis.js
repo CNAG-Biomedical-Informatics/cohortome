@@ -39,10 +39,33 @@ export function createAnalysisUi(ctx) {
 
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
 
+  // Reuse the same editor and run button: no duplicated draft or event handlers.
+  function placeAnalysisRequest(afterThread) {
+    const composer = document.getElementById("analysisRequestComposer");
+    const host = document.getElementById(afterThread ? "analysisContinueHost" : "analysisRequestHome");
+    if (composer && host && composer.parentElement !== host) host.append(composer);
+    if (afterThread) document.getElementById("analysisRequestDetails").open = true;
+    if (analysisPromptEl) analysisPromptEl.placeholder = afterThread
+      ? "Ask a follow-up…"
+      : isGeneralQuestionMode() ? "Ask a general question without workspace context"
+      : "Describe the analysis to run against the current workspace";
+  }
+
   function openAnalysisSetup() {
+    placeAnalysisRequest(false);
     const setup = document.getElementById("analysisSetupDisclosure");
     if (setup) setup.open = true;
   }
+
+  document.getElementById("analysisEditSetupBtn")?.addEventListener("click", () => {
+    openAnalysisSetup();
+    document.getElementById("analysisSetupDisclosure").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("analysisMethodSelect").focus({ preventScroll: true });
+  });
+  document.getElementById("analysisSetupDisclosure")?.addEventListener("toggle", (event) => {
+    if (event.currentTarget.open) placeAnalysisRequest(false);
+    else if (state.analysisTurns.length) placeAnalysisRequest(true);
+  });
 
   document.getElementById("analysisFlowBar")?.addEventListener("click", (event) => {
     const step = event.target.closest("[data-analysis-flow-target]");
@@ -73,7 +96,7 @@ export function createAnalysisUi(ctx) {
     if (analysisComposerTitleEl) analysisComposerTitleEl.textContent = general ? "Ask Model" : "Run Analysis";
     if (analysisRunBtnLabelEl) analysisRunBtnLabelEl.textContent = general ? "Ask" : "Run analysis";
     if (analysisPromptEl) {
-      analysisPromptEl.placeholder = general
+      analysisPromptEl.placeholder = analysisPromptEl.closest("#analysisContinueHost") ? "Ask a follow-up…" : general
         ? "Ask a general question without workspace context"
         : "Describe the analysis to run against the current workspace";
     }
@@ -2012,6 +2035,8 @@ export function createAnalysisUi(ctx) {
       analysisThreadEl.innerHTML = '<div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>';
       return;
     }
+    placeAnalysisRequest(true);
+    document.getElementById("analysisSetupDisclosure").open = false;
     const latestAssistantIndex = (() => {
       for (let index = state.analysisTurns.length - 1; index >= 0; index -= 1) {
         const turn = state.analysisTurns[index];
@@ -2096,7 +2121,8 @@ export function createAnalysisUi(ctx) {
       }
     }
     if (!isGeneralQuestionMode() && document.getElementById("analysisMethodSelect").value === "summary") state.analysisExecutionMode = "deterministic";
-    const prompt = analysisPromptEl.value.trim();
+    const submittedDraft = analysisPromptEl.value;
+    const prompt = submittedDraft.trim();
     const generalQuestion = isGeneralQuestionMode();
     if (!prompt) {
       setAnalysisBlockedStatus("Enter an analysis prompt first.");
@@ -2233,6 +2259,9 @@ export function createAnalysisUi(ctx) {
       }
       const payload = await response.json();
       if (requestIsStale()) return;
+      const completedSuccessfully = payload?.intent !== "analysis_error"
+        && payload?.data?.source !== "error" && payload?.data?.execution !== "queued";
+      if (completedSuccessfully && analysisPromptEl.value === submittedDraft) analysisPromptEl.value = "";
       const finalShowPlots = showPlots || analysisPayloadHasPlots(payload);
       stopAnalysisProgressUpdates();
       renderAnalysisMeta(payload);
@@ -2369,7 +2398,8 @@ export function createAnalysisUi(ctx) {
     handleAnalysisFollowUpsClick(event) {
       const button = event.target.closest("[data-analysis-followup-prompt]");
       if (!button || !analysisThreadEl.contains(button)) return;
-      openAnalysisSetup();
+      placeAnalysisRequest(true);
+      document.getElementById("analysisSetupDisclosure").open = false;
       document.getElementById("analysisRequestDetails").open = true;
       analysisPromptEl.value = button.dataset.analysisFollowupPrompt || "";
       state.analysisSelectedCatalogItemId = "";
@@ -2377,7 +2407,9 @@ export function createAnalysisUi(ctx) {
       if (typeof renderAnalysisFlowBar === "function") renderAnalysisFlowBar();
       analysisStatusEl.className = "query-status";
       analysisStatusEl.textContent = "LLM interpretation follow-up prepared. Press Enter or click Run analysis.";
-      analysisPromptEl.focus();
+      setAnalysisComposerStatus("LLM interpretation follow-up. Review the request, then run it.");
+      analysisPromptEl.focus({ preventScroll: true });
+      document.getElementById("analysisRequestComposer").scrollIntoView({ behavior: "smooth", block: "end" });
     },
     handleAnalysisResultBoardClick(event) {
       const summary = event.target.closest(".analysis-result-collapsible > summary");

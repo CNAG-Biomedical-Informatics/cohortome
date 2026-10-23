@@ -765,7 +765,7 @@ export function createDatasetsUi(ctx) {
               <div class="dataset-picker-access-actions">
                 <button type="button" class="query-chip action" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
                 <button type="button" class="query-chip action" data-dataset-prepare="${escapeHtml(datasetId)}">${escapeHtml(storeButtonLabel)}</button>
-                ${["default", "synthetic-autoimmune-demo"].includes(datasetId) ? "" : `<button type="button" class="query-chip" data-dataset-remove="${escapeHtml(datasetId)}">Remove dataset…</button>`}
+                ${["default", "synthetic-autoimmune-demo"].includes(datasetId) ? "" : `<button type="button" class="query-chip danger-btn" data-dataset-remove="${escapeHtml(datasetId)}">Remove dataset…</button>`}
               </div>
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
             </div>
@@ -875,8 +875,8 @@ export function createDatasetsUi(ctx) {
       </label>
       <p data-remove-status role="status"></p>
       <div class="dataset-picker-actions">
-        <button type="button" class="query-chip" data-remove-cancel>Cancel</button>
-        <button type="button" class="query-chip" data-remove-submit>Remove dataset</button>
+        <button type="button" class="query-chip secondary-btn" data-remove-cancel>Cancel</button>
+        <button type="button" class="query-chip danger-btn danger-confirm" data-remove-submit>Remove dataset</button>
       </div>`;
     document.body.append(dialog);
     dialog.addEventListener("close", () => dialog.remove());

@@ -894,6 +894,7 @@ export function createAnalysisCatalogUi(ctx) {
       requestDetails.dataset.method = method;
       requestDetails.dataset.general = String(general);
     }
+    if (requestDetails.closest("#analysisContinueHost")) requestDetails.open = true;
     document.getElementById("analysisRunReview").textContent = general ? "Ask the selected model without workspace data."
       : `Patient scope: ${analysisFlowScopeLabel()}. ${item && item.execution_backend === "job" ? "Runs in the background; requires an available worker." : method === "custom" ? "Execution depends on the requested analysis." : "Runs directly."} Review the inputs and research question before running.`;
     select.onchange = () => {

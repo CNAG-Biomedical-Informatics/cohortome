@@ -107,7 +107,7 @@ export function createSavedCohortsUi(ctx) {
               <button type="button" class="query-chip" data-saved-cohort-action="export-molecular" data-saved-cohort-id="${escapeHtml(item.id)}">${downloadIcon()}Export molecular data</button>
               <button type="button" class="query-chip" data-saved-cohort-action="export" data-saved-cohort-id="${escapeHtml(item.id)}" title="Membership TSV and metadata JSON only; no clinical records or assay matrices">${downloadIcon()}Export membership</button>
               ${isActiveHere ? `<span class="query-chip badge" title="Detach this cohort from the current Analysis or Pheno state before deleting it here.">In use here</span>` : ""}
-              <button type="button" class="query-chip" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
+              <button type="button" class="query-chip danger-btn" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
             </div>
           </div>
         `;

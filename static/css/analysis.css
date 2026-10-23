@@ -2111,3 +2111,21 @@
   tab-size: 4;
   white-space: pre;
 }
+
+#analysisRequestComposer { display: grid; gap: 10px; min-width: 0; }
+.analysis-continue-header { display: none; }
+#analysisContinueHost:empty { display: none; }
+#analysisContinueHost > #analysisRequestComposer {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+#analysisContinueHost .analysis-continue-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#analysisContinueHost .analysis-continue-header strong { font-size: 14px; }
+#analysisContinueHost .analysis-continue-header button { width: auto; }
+#analysisContinueHost .analysis-request-details > summary { display: none; }
+#analysisContinueHost #analysisPrompt { min-height: 90px; }
+#analysisContinueHost #analysisRunReview { margin: 0; font-size: 12px; }
+@media (max-width: 620px) {
+  #analysisContinueHost .query-row { grid-template-columns: minmax(0, 1fr); }
+  #analysisContinueHost .query-row > button { justify-self: end; width: auto; }
+}

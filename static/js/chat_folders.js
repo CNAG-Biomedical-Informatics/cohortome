@@ -9,6 +9,7 @@ export function addChatMenuIcons(root) {
   root.querySelectorAll('.analysis-chat-menu button').forEach(button => {
     const action = Object.keys(button.dataset).find(key => /Pin$|Move$|Rename$|Delete$/.test(key));
     const kind = action?.match(/Pin$|Move$|Rename$|Delete$/)?.[0].toLowerCase();
+    if (kind === 'delete') button.classList.add('danger-btn');
     if (!paths[kind] || button.querySelector('.chat-menu-icon')) return;
     const icon = document.createElement('span');
     icon.className = 'chat-menu-icon'; icon.setAttribute('aria-hidden', 'true');

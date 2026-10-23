@@ -1,0 +1,84 @@
+/* Action semantics, independent of modality and deterministic/LLM badges.
+   Use danger-btn for deletion entry points; add danger-confirm for final consent.
+   Do not apply these variants to navigation or scientific plot controls. */
+:root {
+  --action-danger-ink: #b42318;
+  --action-danger-soft: #fff1f0;
+  --action-danger-border: #e8a19b;
+  --action-danger-fill: #b42318;
+  --action-danger-on-fill: #fff;
+}
+:root[data-theme="dark"] {
+  --action-danger-ink: #ffb4ad;
+  --action-danger-soft: #422731;
+  --action-danger-border: #a86262;
+  --action-danger-fill: #ffb4ad;
+  --action-danger-on-fill: #351714;
+}
+button:is(.query-chip, .primary-btn, .secondary-btn, .danger-btn),
+dialog button:not(.icon-button),
+.user-settings-actions button {
+  font-size: .8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 6px;
+  box-shadow: none;
+}
+button.primary-btn,
+button.query-chip.action,
+#loadBtn, #askBtn, #analysisRunBtn, #phenoRunBtn {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+button.secondary-btn {
+  background: var(--theme-surface, #fff);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+button.danger-btn,
+button.job-card-action-icon.danger,
+#analysisSessionList .analysis-chat-menu button.danger-btn {
+  color: var(--action-danger-ink);
+  background: var(--action-danger-soft);
+  border: 1px solid var(--action-danger-border);
+  box-shadow: none;
+}
+button.danger-btn.danger-confirm {
+  color: var(--action-danger-on-fill);
+  background: var(--action-danger-fill);
+  border-color: var(--action-danger-fill);
+}
+#analysisSessionList .analysis-chat-menu button.danger-btn {
+  background: transparent;
+  border-color: transparent;
+  padding: 8px;
+}
+button.danger-btn:not(:has(svg))::before {
+  content: "";
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  --delete-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7'/%3E%3C/svg%3E");
+  -webkit-mask: var(--delete-icon) center / contain no-repeat;
+  mask: var(--delete-icon) center / contain no-repeat;
+}
+button:is(.primary-btn, .secondary-btn, .danger-btn, .query-chip):hover:not(:disabled):not([aria-disabled="true"]) {
+  filter: brightness(.96);
+}
+button:focus-visible:not(.modebar-btn) {
+  outline: 2px solid var(--theme-blue-ink, #1d4ed8);
+  outline-offset: 3px;
+}
+button:disabled, button[aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+button[aria-busy="true"] { cursor: progress; }

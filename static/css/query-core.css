@@ -171,7 +171,7 @@
       .cohort-card-manage .cohort-card-menu-items { right: 0; left: auto; width: 150px; }
       .app-content .cohort-card-menu-items button { justify-content: flex-start; width: 100%; border: 0; background: transparent; color: var(--ink); font-weight: 500; }
       .app-content .cohort-card-menu-items button:hover { background: var(--accent-soft); }
-      .app-content .cohort-card-menu-items [data-saved-cohort-action="delete"] { color: var(--theme-red-ink, #b91c1c); }
+      .app-content .cohort-card-menu-items [data-saved-cohort-action="delete"] { color: var(--action-danger-ink); }
       .cohort-library-card .button-icon { width: 16px; height: 16px; }
       .cohort-library-card .button-icon svg { width: 16px; height: 16px; }
       .cohort-members-dialog { width: min(850px, calc(100vw - 32px)); max-height: 85vh; }
@@ -304,13 +304,6 @@
         background: var(--utility-soft);
         color: var(--theme-neutral-ink, var(--utility));
         border: 1px solid rgba(71, 85, 105, 0.18);
-        box-shadow: none;
-      }
-      #queryClearBtn,
-      [data-saved-cohort-action="delete"] {
-        background: var(--theme-red-soft, rgba(254, 226, 226, 0.88));
-        color: var(--theme-red-ink, #b91c1c);
-        border: 1px solid rgba(185, 28, 28, 0.18);
         box-shadow: none;
       }
       #phenoAnalysisBtn,

@@ -99,6 +99,7 @@ def test_admin_data_menu_from_settings(page_auth):
 
 def test_resource_import_catalogue_and_workspace_selection(page_auth, tmp_path):
     from test_resource_install import package
+    from app.resource_install import catalogue
     page = page_auth
     page.unroute("**/datasets")
     page.unroute("**/datasets/select")
@@ -122,11 +123,11 @@ def test_resource_import_catalogue_and_workspace_selection(page_auth, tmp_path):
     page.locator("#resourceAdd").click()
     expect(page.locator("#resourcePanel")).to_be_visible()
     expect(page.locator("#resourcePanel")).to_have_attribute("open", "")
-    expect(page.locator("[data-resource]")).to_have_count(3)
+    expect(page.locator("[data-resource]")).to_have_count(len(catalogue()))
     expect(page.locator('[data-resource="default"]')).to_be_disabled()
     expect(page.locator('[data-resource="synthetic-cross-sectional-demo"]')).to_be_disabled()
     expect(page.locator('[data-resource="ibdmdb"]')).to_be_enabled()
-    expect(page.locator("[data-resource]").first).to_have_attribute("data-resource", "ibdmdb")
+    expect(page.locator("[data-resource]").first).to_have_attribute("data-included", "false")
     expect(page.locator("#resourceAccess")).not_to_have_attribute("open", "")
     expect(page.locator(".resource-modalities svg")).not_to_have_count(0)
     page.screenshot(path=str(tmp_path / "resource-catalogue.png"))
@@ -4095,6 +4096,69 @@ def test_query_disease_selector_runs_deterministic_cohort(page) -> None:
     expect(page.locator("#queryDiseaseStatus")).to_contain_text("Prompt prepared for disease workspace Crohn Disease")
 
 
+def test_analysis_followup_editor_stays_below_conversation(page) -> None:
+    _open_analysis_tab(page)
+    page.route("**/analysis", lambda route: route.fulfill(json={
+        "intent": "analysis_deterministic",
+        "reply": "Crohn Disease and recurrent Infliximab exposure",
+        "data": {"provider": "deterministic", "context": {"mode": "compare"}},
+    }))
+    expect = playwright.expect
+    prompt = page.locator("#analysisPrompt")
+    prompt.fill("Summarize the main clinical patterns in this workspace.")
+    page.locator("#analysisRunBtn").click()
+    expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
+    composer = page.locator("#analysisContinueHost #analysisRequestComposer")
+    expect(composer).to_be_visible()
+    expect(prompt).to_have_value("")
+    expect(prompt).to_have_attribute("placeholder", "Ask a follow-up…")
+    expect(page.locator("#analysisSetupDisclosure")).not_to_have_attribute("open", "")
+    expect(prompt).to_have_count(1)
+    thread = page.locator("#analysisThread")
+    assert composer.bounding_box()["y"] >= thread.bounding_box()["y"] + thread.bounding_box()["height"]
+    page.locator("[data-analysis-followup-prompt]").first.click()
+    expect(prompt).to_be_focused()
+    expect(page.locator("#analysisSetupDisclosure")).not_to_have_attribute("open", "")
+    draft = prompt.input_value()
+    assert draft
+    page.locator("#analysisEditSetupBtn").click()
+    expect(page.locator("#analysisRequestHome #analysisRequestComposer")).to_be_visible()
+    expect(prompt).to_have_value(draft)
+    # A second deterministic turn still appends, with the same editor below it.
+    page.locator("#analysisMethodSelect").select_option("summary")
+    page.locator("#analysisRunBtn").click()
+    expect(thread.locator(".analysis-turn-assistant")).to_have_count(2)
+    expect(composer).to_be_visible()
+    assert composer.bounding_box()["y"] >= thread.bounding_box()["y"] + thread.bounding_box()["height"]
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(prompt).to_be_visible()
+    assert composer.evaluate("el => el.scrollWidth <= el.clientWidth")
+
+
+@pytest.mark.parametrize("outcome", ["success", "error", "new-draft"])
+def test_analysis_completion_preserves_only_unsent_or_failed_draft(page, outcome):
+    _open_analysis_tab(page)
+    pending = []
+    page.route("**/analysis", lambda route: pending.append(route))
+    prompt = page.locator("#analysisPrompt")
+    original = "Summarize the main clinical patterns in this workspace."
+    prompt.fill(original)
+    with page.expect_request("**/analysis"):
+        page.locator("#analysisRunBtn").click()
+    playwright.expect(page.locator(".analysis-turn-pending")).to_be_visible()
+    if outcome == "new-draft":
+        prompt.fill("My next question")
+    assert pending
+    if outcome == "error":
+        pending[0].fulfill(status=500, json={"detail": "Test failure"})
+    else:
+        pending[0].fulfill(json={"intent": "analysis_deterministic", "reply": "Completed test result", "data": {"source": "deterministic"}})
+    playwright.expect(page.locator(".analysis-turn-pending")).to_have_count(0)
+    expected = original if outcome == "error" else "My next question" if outcome == "new-draft" else ""
+    playwright.expect(prompt).to_have_value(expected)
+    playwright.expect(page.locator(".analysis-turn-user")).to_contain_text(original)
+
+
 def test_analysis_deterministic_reply_renders_in_thread(page) -> None:
     _open_analysis_tab(page)
     _mock_analysis_reply(page)
@@ -4190,6 +4254,21 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
     for button in ('analysisSessionDeleteCloseBtn', 'analysisSessionDeleteOnlyBtn', 'analysisSessionDeleteAllBtn'):
         assert page.locator(f'#{button}').evaluate('el => getComputedStyle(el).fontSize') == '13px'
         assert page.locator(f'#{button}').evaluate('el => getComputedStyle(el).paddingTop') == '8px'
+    for theme in ('light', 'dark'):
+        page.locator('html').evaluate('(el, theme) => el.dataset.theme = theme', theme)
+        styles = page.evaluate("""() => {
+          const style = id => getComputedStyle(document.getElementById(id));
+          const cancel = style('analysisSessionDeleteCloseBtn');
+          const remove = style('analysisSessionDeleteOnlyBtn');
+          const confirm = style('analysisSessionDeleteAllBtn');
+          return { cancel: cancel.backgroundColor, remove: remove.backgroundColor,
+            confirm: confirm.backgroundColor, ink: confirm.color };
+        }""")
+        assert styles['cancel'] != styles['remove']
+        assert styles['confirm'] != styles['remove']
+        assert styles['confirm'] != styles['ink']
+    assert 'danger-btn' in delete_button.get_attribute('class')
+    assert 'secondary-btn' in page.locator('#queryClearBtn').get_attribute('class')
     expect(page.locator("#analysisSessionDeleteDialog .analysis-session-delete-dialog-panel")).to_be_visible()
     layers = page.evaluate(
         """() => ({

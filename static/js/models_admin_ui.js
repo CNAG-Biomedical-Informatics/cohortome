@@ -132,7 +132,7 @@ export function createModelsAdminUi(ctx) {
           <button type="button" class="query-chip" data-lm-provider-action="test" data-lm-provider="${safeId}">Test connection</button>
           <button type="button" class="query-chip query-chip-deterministic" data-lm-provider-action="save" data-lm-provider="${safeId}"${saveFeedback.get(id)?.saving ? " disabled" : ""}>${saveFeedback.get(id)?.saving ? "Saving…" : "Save"}</button>
           <span class="section-note" data-lm-provider-save-status role="status" aria-live="polite">${escapeHtml(saveFeedback.get(id)?.message || "")}</span>
-          ${id === "system-default" ? "" : `<button type="button" class="query-chip query-chip-llm" data-lm-provider-action="delete" data-lm-provider="${safeId}">Delete</button>`}
+          ${id === "system-default" ? "" : `<button type="button" class="query-chip danger-btn" data-lm-provider-action="delete" data-lm-provider="${safeId}">Delete</button>`}
         </div>
       ` : `
         <div class="section-note">Managed by ${sourceLabel.toLowerCase()} configuration and read-only here. Change its deployment configuration, then restart the server.</div>

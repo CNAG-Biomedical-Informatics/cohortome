@@ -99,7 +99,7 @@ export function createUsersAdminUi(ctx) {
               <button type="button" class="query-chip query-chip-deterministic" data-auth-user-action="save" data-auth-user="${username.replace(/"/g, "&quot;")}">Save</button>
               <input type="password" data-auth-user-field="password" data-auth-user="${username.replace(/"/g, "&quot;")}" placeholder="New password">
               <button type="button" class="query-chip" data-auth-user-action="reset-password" data-auth-user="${username.replace(/"/g, "&quot;")}">Reset password</button>
-              <button type="button" class="query-chip query-chip-llm" data-auth-user-action="delete" data-auth-user="${username.replace(/"/g, "&quot;")}">Delete</button>
+              <button type="button" class="query-chip danger-btn" data-auth-user-action="delete" data-auth-user="${username.replace(/"/g, "&quot;")}">Delete</button>
             </div>
           </div>
         </details>

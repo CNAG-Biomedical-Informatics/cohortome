@@ -382,15 +382,15 @@
               <strong id="analysisSessionDeleteTitle">Delete chat</strong>
               <div class="section-note">Choose whether to remove only the chat while keeping generated runs, or delete the generated results, logs, and artifacts too.</div>
             </div>
-            <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip">Cancel</button>
+            <button id="analysisSessionDeleteCloseBtn" type="button" class="query-chip secondary-btn">Cancel</button>
           </div>
           <div class="analysis-session-delete-dialog-body">
             <div id="analysisSessionDeleteSummary" class="analysis-session-delete-summary">Delete this analysis session?</div>
             <div id="analysisSessionDeleteStatus" class="query-status is-hidden"></div>
           </div>
           <div class="analysis-session-delete-dialog-actions">
-            <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip">Delete chat, keep runs</button>
-            <button id="analysisSessionDeleteAllBtn" type="button" class="query-chip action">Delete chat and generated data</button>
+            <button id="analysisSessionDeleteOnlyBtn" type="button" class="query-chip danger-btn">Delete chat, keep runs</button>
+            <button id="analysisSessionDeleteAllBtn" type="button" class="query-chip danger-btn danger-confirm">Delete chat and generated data</button>
           </div>
         </div>
       </div>
@@ -1053,14 +1053,10 @@
                   </span>
                   <span>Disease cohort</span>
                 </button>
-                <button id="queryClearBtn" type="button" class="query-chip">
+                <button id="queryClearBtn" type="button" class="query-chip secondary-btn">
                   <span class="button-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M3 6h18"></path>
-                      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path>
-                      <path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                      <path d="M10 11v6"></path>
-                      <path d="M14 11v6"></path>
+                      <path d="M12 5v14M5 12h14"></path>
                     </svg>
                   </span>
                   <span>New Query chat</span>
@@ -1584,6 +1580,9 @@
               <button id="associationOpenBtn" type="button" class="query-chip query-chip-deterministic">Use these measurements</button>
               <p id="associationStatus" class="section-note" role="status">Choose two measurements to fill the analysis prompt. Review the question and scope, then select Run analysis. Keep A/B comparison off.</p>
             </details>
+              <div id="analysisRequestHome">
+              <div id="analysisRequestComposer">
+              <div class="analysis-continue-header"><strong>Continue the conversation</strong><button id="analysisEditSetupBtn" type="button" class="query-chip">Edit setup</button></div>
               <p id="analysisRunReview" class="section-note" role="status"></p>
               <div class="query-row">
                 <details id="analysisRequestDetails" class="analysis-request-details">
@@ -1600,6 +1599,8 @@
                 </button>
               </div>
               <div id="analysisComposerStatus" class="query-status is-hidden"></div>
+              </div>
+              </div>
             </div>
             </details>
             <div class="analysis-history-header analysis-results-header">
@@ -1609,6 +1610,7 @@
             <div id="analysisThread" class="analysis-thread">
               <div class="empty">Run an analysis prompt to start a threaded analysis workspace.</div>
             </div>
+            <div id="analysisContinueHost"></div>
           </div>
         </div>
       </section>

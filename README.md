@@ -4,6 +4,11 @@
 
 <h1 align="center">COHORTome</h1>
 
+[![Version](https://img.shields.io/badge/version-0.1.0--pre--release-blue)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-Apache--2.0-0298c3)](LICENSE)
+[![Documentation](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml)
+[![Zenodo DOI pending](https://img.shields.io/badge/Zenodo-DOI%20pending-lightgrey)](#citation)
+
 <p align="center">
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/">📚 Documentation</a> ·
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/getting-started/desktop">📦 Installation</a> ·
