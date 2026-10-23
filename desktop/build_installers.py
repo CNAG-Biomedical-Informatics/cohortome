@@ -10,9 +10,10 @@ import subprocess
 import sys
 
 from package_desktop import source_is_dirty
+from collect_installer import collect
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGETS = {'linux': ['deb', 'appimage'], 'darwin': ['app', 'dmg'], 'win32': ['nsis']}
+TARGETS = {'linux': ['appimage'], 'darwin': ['app', 'dmg'], 'win32': ['nsis']}
 TAURI_CLI = '@tauri-apps/cli@2.11.4'
 
 
@@ -98,7 +99,8 @@ def main():
         'redistribution_review': 'pending', 'sha256': files,
         'not_bundled': manifest.get('not_bundled', []),
     }, indent=2) + '\n', encoding='utf-8')
-    print(f'Installer test output (not approved for publication): {artifacts}')
+    collect(output, output / 'downloads')
+    print(f'Installer test output (not approved for publication): {output / "downloads"}')
 
 
 if __name__ == '__main__':

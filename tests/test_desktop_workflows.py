@@ -38,7 +38,11 @@ def test_binary_upload_requires_explicit_opt_in(name):
     uploads = [step for job in data["jobs"].values() for step in job.get("steps", [])
                if step.get("uses", "").startswith("actions/upload-artifact@")]
     assert uploads
-    assert all(step["if"] == "inputs.upload_artifact" for step in uploads)
+    expected = ('inputs.upload_artifact' if name == 'desktop-native-r-runtime-test.yml'
+                else 'inputs.upload_artifact && inputs.build_installers')
+    assert all(step["if"] == expected for step in uploads)
+    if name != 'desktop-native-r-runtime-test.yml':
+        assert all(step['with']['path'].endswith('/cohortome-installers/downloads/') for step in uploads)
 
 
 @pytest.mark.parametrize("name", [

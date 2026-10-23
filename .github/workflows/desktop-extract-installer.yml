@@ -1,0 +1,43 @@
+name: Extract an existing test installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful workflow run containing the existing test bundle
+        type: string
+        required: true
+      platform:
+        description: Existing bundle platform
+        type: choice
+        options: [linux-aarch64, linux-x86_64, macos-arm64, macos-x86_64, windows-x86_64]
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: cohortome-${{ inputs.platform }}-test
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/existing
+      - name: Verify and collect installer
+        run: python desktop/collect_installer.py --source "$RUNNER_TEMP/existing" --output "$RUNNER_TEMP/downloads"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cohortome-${{ inputs.platform }}-installer-test
+          path: ${{ runner.temp }}/downloads/
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error

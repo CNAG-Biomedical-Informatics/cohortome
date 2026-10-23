@@ -115,10 +115,19 @@ Choose the target platform and run its workflow. Leave `upload_artifact` disable
 until the binary redistribution review is complete.
 
 The optional `build_installers` input wraps the tested engine with the pinned
-Tauri CLI used by Pheno-Ranker Desktop (2.11.4): Linux DEB/AppImage, macOS
-app/DMG, and Windows per-user NSIS with a WebView2 bootstrapper. It defaults to
-off. This new installer path still needs native CI and clean-machine testing;
-the previous successful runs cover portable archives only.
+Tauri CLI used by Pheno-Ranker Desktop (2.11.4): Linux AppImage, macOS DMG,
+and Windows per-user NSIS with a WebView2 bootstrapper. It defaults to off.
+ARM64 Linux/macOS and x86_64 Windows installer builds passed CI; clean-machine
+installation still needs testing.
+
+Downloads follow Pheno-Ranker's release layout: one installer per platform and
+architecture, plus its `.sha256` file. No DEB or portable runtime archives are
+uploaded. Portable archives and macOS app bundles remain build/test intermediates.
+`desktop/collect_installer.py` checks the installer against its build manifest
+before collecting and naming downloads. The manual **Extract an existing test
+installer** workflow can collect an installer from an older successful build
+without compiling again. Required third-party sources/notices are separate
+release obligations, not extra application installer formats.
 
 For a clean checkout and matching portable package:
 

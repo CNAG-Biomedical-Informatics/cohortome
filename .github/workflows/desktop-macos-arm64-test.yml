@@ -95,22 +95,11 @@ jobs:
         if: inputs.build_installers
         shell: bash
         run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-macos-arm64" --output "$RUNNER_TEMP/cohortome-installers"
-      - name: Record archive checksum
-        run: |
-          cd "$RUNNER_TEMP"
-          shasum -a 256 cohortome-macos-arm64.tar.gz > cohortome-macos-arm64.tar.gz.sha256
       - uses: actions/upload-artifact@v4
-        if: inputs.upload_artifact
+        if: inputs.upload_artifact && inputs.build_installers
         with:
-          name: cohortome-macos-arm64-test
-          path: |
-            ${{ runner.temp }}/cohortome-macos-arm64.tar.gz
-            ${{ runner.temp }}/cohortome-macos-arm64.tar.gz.sha256
-            ${{ runner.temp }}/cohortome-macos-arm64/package-manifest.json
-            ${{ runner.temp }}/cohortome-installers/installer-manifest.json
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.deb
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.AppImage
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.dmg
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*-setup.exe
+          name: cohortome-macos-arm64-installer-test
+          path: ${{ runner.temp }}/cohortome-installers/downloads/
+          compression-level: 0
           retention-days: 7
           if-no-files-found: error

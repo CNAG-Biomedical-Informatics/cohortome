@@ -102,46 +102,11 @@ jobs:
         if: inputs.build_installers
         shell: bash
         run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-linux-aarch64" --output "$RUNNER_TEMP/cohortome-installers"
-      - name: Inspect completed DEB after installer failure
-        id: recover_deb
-        if: failure() && inputs.upload_artifact && steps.installers.outcome == 'failure'
-        shell: bash
-        run: |
-          shopt -s nullglob
-          packages=("$RUNNER_TEMP/cohortome-installers/target/release/bundle/deb/"*.deb)
-          test "${#packages[@]}" -eq 1
-          package="${packages[0]}"
-          test "$(dpkg-deb --field "$package" Architecture)" = arm64
-          dpkg-deb --info "$package"
-          dpkg-deb --contents "$package" > "$RUNNER_TEMP/deb-contents.txt"
-          mkdir "$RUNNER_TEMP/completed-installers"
-          cp "$package" "$RUNNER_TEMP/completed-installers/"
-          cd "$RUNNER_TEMP/completed-installers"
-          sha256sum -- *.deb > SHA256SUMS
-      - name: Retain inspected DEB from partial build
-        if: failure() && inputs.upload_artifact && steps.recover_deb.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cohortome-linux-aarch64-deb-test
-          path: ${{ runner.temp }}/completed-installers/
-          retention-days: 7
-          if-no-files-found: error
-      - name: Record archive checksum
-        run: |
-          cd "$RUNNER_TEMP"
-          sha256sum "cohortome-linux-aarch64.tar.gz" > "cohortome-linux-aarch64.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
-        if: inputs.upload_artifact
+        if: inputs.upload_artifact && inputs.build_installers
         with:
-          name: cohortome-linux-aarch64-test
-          path: |
-            ${{ runner.temp }}/cohortome-linux-aarch64.tar.gz
-            ${{ runner.temp }}/cohortome-linux-aarch64.tar.gz.sha256
-            ${{ runner.temp }}/cohortome-linux-aarch64/package-manifest.json
-            ${{ runner.temp }}/cohortome-installers/installer-manifest.json
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.deb
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.AppImage
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*.dmg
-            ${{ runner.temp }}/cohortome-installers/target/release/bundle/**/*-setup.exe
+          name: cohortome-linux-aarch64-installer-test
+          path: ${{ runner.temp }}/cohortome-installers/downloads/
+          compression-level: 0
           retention-days: 7
           if-no-files-found: error
