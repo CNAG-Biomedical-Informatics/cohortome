@@ -91,6 +91,13 @@ def test_workflow_entry_points_and_local_dependencies():
         assert not (WORKFLOWS / legacy).exists()
 
 
+@pytest.mark.parametrize("arch", ["aarch64", "x86_64"])
+def test_linux_installer_has_numba_tbb_dependency(arch):
+    steps = workflow(f"desktop-linux-{arch}-test.yml")["jobs"]["package"]["steps"]
+    libraries = next(step for step in steps if step.get("name") == "Install build-host libraries")
+    assert "libtbb12" in libraries["run"].split()
+
+
 def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     data = workflow("desktop-release-draft.yml")
     assert data["permissions"]["actions"] == "read"

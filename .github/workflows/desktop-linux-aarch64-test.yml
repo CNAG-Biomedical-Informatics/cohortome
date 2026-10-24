@@ -66,7 +66,7 @@ jobs:
       - name: Install build-host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev libtbb12 patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
