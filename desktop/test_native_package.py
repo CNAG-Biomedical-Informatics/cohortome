@@ -26,6 +26,10 @@ def main():
             env['GTK_MODULES'] = 'canberra-gtk-module'
         command = [str(binary)]
         if args.xvfb:
+            # Xvfb has no hardware DRI3 display, even when the host exposes
+            # /dev/dri. Match its software-only renderer explicitly; retain
+            # strict plugin/graphics warning checks below.
+            env['LIBGL_ALWAYS_SOFTWARE'] = '1'
             command = ["xvfb-run", "-a", *command]
         process = subprocess.Popen(command, cwd=temporary, env=env, start_new_session=os.name != "nt",
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

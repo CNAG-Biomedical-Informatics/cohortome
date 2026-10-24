@@ -150,6 +150,9 @@ build products are not shared across platforms or architectures.
 Linux AppImages include GStreamer media plugins and the Canberra GTK module.
 On software-only hosts without `/dev/dri`, startup defaults to Mesa software
 rendering; an explicit `LIBGL_ALWAYS_SOFTWARE` setting is preserved.
+The Xvfb smoke test explicitly uses software rendering: its virtual display
+cannot use DRI3, regardless of graphics devices exposed by the build host.
+Missing-plugin and graphics warnings still fail the final AppImage check.
 
 macOS/Windows packaging builds and tests R on the same runner, using shared
 R preparation steps. No runtime artifact from an earlier run is required.
