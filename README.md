@@ -4,7 +4,7 @@
 
 <h1 align="center">COHORTome</h1>
 
-[![Version](https://img.shields.io/badge/version-0.1.0--pre--release-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-0298c3)](LICENSE)
 [![Documentation](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml)
 [![Zenodo DOI pending](https://img.shields.io/badge/Zenodo-DOI%20pending-lightgrey)](#citation)
@@ -26,7 +26,7 @@ questions and explain results, but are optional.
 
 **Desktop is recommended for individual use.**
 Follow the [installation guide](https://cnag-biomedical-informatics.github.io/cohortome/docs/getting-started/desktop)
-for release availability and source setup. Packaged installers are forthcoming.
+for Linux, macOS and Windows installers or source setup.
 
 **Web is recommended only for centralized, multi-user systems with dataset
 permissions.** See the
@@ -43,14 +43,14 @@ cohort analysis.* **Manuscript in preparation.**
 
 Until a preprint or published paper is available, please cite the Zenodo record
 for the software release used. The DOI is forthcoming; see
-[citation details](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/citation-and-funding).
+[citation details](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/citation).
 
 Funding and institutional support are listed in
 [Acknowledgements](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/acknowledgements).
 
 Licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE).
 
-COHORTome is pre-release research software, not a clinical decision system.
+COHORTome is research software, not a clinical decision system.
 For dependency and reference-data terms, see
 [Third-party notices](THIRD_PARTY_NOTICES.md). Report vulnerabilities privately
 using the [security policy](SECURITY.md).

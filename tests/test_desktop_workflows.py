@@ -16,7 +16,7 @@ def workflow(name):
 def test_desktop_packages_include_and_check_viewer(arch):
     data = workflow(f'desktop-{arch}-test.yml')
     trigger = data.get("on", data.get(True))
-    assert set(trigger) == {"workflow_call", "workflow_dispatch"}
+    assert set(trigger) == {"workflow_call"}
     assert trigger["workflow_call"]["inputs"]["checkout_ref"]["default"] == ""
     jobs = data['jobs']
     assert jobs['viewer']['uses'] == './.github/workflows/desktop-viewer-assets.yml'
@@ -37,24 +37,19 @@ def test_desktop_packages_include_and_check_viewer(arch):
 @pytest.mark.parametrize("name", [
     "desktop-linux-aarch64-test.yml", "desktop-linux-x86_64-test.yml",
     "desktop-macos-arm64-test.yml", "desktop-macos-x86_64-test.yml",
-    "desktop-windows-x86_64-test.yml", "desktop-native-r-runtime-test.yml",
+    "desktop-windows-x86_64-test.yml",
 ])
 def test_binary_upload_requires_explicit_opt_in(name):
     data = workflow(name)
     trigger = data.get("on", data.get(True))  # YAML 1.1 parses 'on' as True.
-    expected_triggers = ({"workflow_dispatch"} if name == 'desktop-native-r-runtime-test.yml'
-                         else {"workflow_call", "workflow_dispatch"})
-    assert set(trigger) == expected_triggers
-    assert trigger["workflow_dispatch"]["inputs"]["upload_artifact"]["default"] is False
+    assert set(trigger) == {"workflow_call"}
+    assert trigger["workflow_call"]["inputs"]["upload_artifact"]["default"] is False
     uploads = [step for job in data["jobs"].values() for step in job.get("steps", [])
                if step.get("uses", "").startswith("actions/upload-artifact@")]
     assert uploads
-    expected = ('inputs.upload_artifact' if name == 'desktop-native-r-runtime-test.yml'
-                else 'inputs.upload_artifact && inputs.build_installers')
+    expected = 'inputs.upload_artifact && inputs.build_installers'
     assert all(step["if"] == expected for step in uploads)
-    if name != 'desktop-native-r-runtime-test.yml':
-        assert trigger["workflow_call"]["inputs"]["upload_artifact"]["default"] is False
-        assert all(step['with']['path'].endswith('/cohortome-installers/downloads/') for step in uploads)
+    assert all(step['with']['path'].endswith('/cohortome-installers/downloads/') for step in uploads)
 
 
 @pytest.mark.parametrize("name", [
@@ -64,15 +59,36 @@ def test_binary_upload_requires_explicit_opt_in(name):
 def test_native_packages_can_build_r_without_an_artifact(name):
     data = workflow(name)
     trigger = data.get("on", data.get(True))
-    assert trigger["workflow_dispatch"]["inputs"]["r_runtime_run_id"]["required"] is False
+    assert "r_runtime_run_id" not in trigger["workflow_call"]["inputs"]
     steps = data["jobs"]["package"]["steps"]
     build = next(s for s in steps if s.get("uses") == "./.github/actions/build-native-r")
-    assert build["if"] == "inputs.r_runtime_run_id == ''"
+    assert "if" not in build
     for title in ("Download verified R runtime", "Extract verified R runtime"):
-        assert next(s for s in steps if s.get("name") == title)["if"] == "inputs.r_runtime_run_id != ''"
+        assert not any(s.get("name") == title for s in steps)
     action = yaml.safe_load((ROOT / ".github/actions/build-native-r/action.yml").read_text())
     assert action["runs"]["using"] == "composite"
     assert all("shell" in step for step in action["runs"]["steps"] if "run" in step)
+
+
+def test_workflow_entry_points_and_local_dependencies():
+    manual = set()
+    for path in WORKFLOWS.glob("*.yml"):
+        data = workflow(path.name)
+        if "workflow_dispatch" in data.get("on", data.get(True, {})):
+            manual.add(path.name)
+        for job in data["jobs"].values():
+            reference = job.get("uses", "")
+            if reference.startswith("./"):
+                assert (ROOT / reference).is_file(), reference
+    assert manual == {
+        "desktop-release-draft.yml", "docker-release.yml",
+        "docker-test.yml", "docs-pages.yml",
+    }
+    for legacy in (
+        "desktop-extract-installer.yml", "desktop-linux-pheno-runtime-test.yml",
+        "desktop-linux-r-runtime-test.yml", "desktop-native-r-runtime-test.yml",
+    ):
+        assert not (WORKFLOWS / legacy).exists()
 
 
 def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
@@ -103,11 +119,16 @@ def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     assert "--verify-tag" in commands
 
 
-def test_docker_release_is_manual_native_and_updates_version_and_latest():
+def test_docker_release_is_manual_native_and_latest_is_opt_in():
     data = workflow("docker-release.yml")
     trigger = data.get("on", data.get(True))
     assert set(trigger) == {"workflow_dispatch"}
-    assert set(trigger["workflow_dispatch"]["inputs"]) == {"tag"}
+    inputs = trigger["workflow_dispatch"]["inputs"]
+    assert set(inputs) == {"tag", "update_latest"}
+    assert inputs["update_latest"]["default"] is False
+    guard = next(step for step in data["jobs"]["release"]["steps"]
+                 if step.get("name") == "Require a published GitHub release")
+    assert guard["if"] == "inputs.update_latest"
     assert {item["arch"] for item in data["jobs"]["build"]["strategy"]["matrix"]["include"]} == {
         "amd64", "arm64",
     }
@@ -118,3 +139,11 @@ def test_docker_release_is_manual_native_and_updates_version_and_latest():
     assert "imagetools create" in publish_commands
     assert "$IMAGE:$IMAGE_TAG" in publish_commands
     assert "$IMAGE:latest" in publish_commands
+    version = next(step for step in data["jobs"]["publish"]["steps"]
+                   if step.get("name") == "Publish one tested multi-platform image")
+    assert "$IMAGE:latest" not in version["run"]
+    latest = next(step for step in data["jobs"]["publish"]["steps"]
+                  if step.get("name") == "Update latest for a published release")
+    assert latest["if"] == "inputs.update_latest"
+    assert "isDraft" in latest["run"]
+    assert "isPrerelease" in latest["run"]

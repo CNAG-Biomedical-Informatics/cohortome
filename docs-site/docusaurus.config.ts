@@ -150,7 +150,7 @@ const config: Config = {
             },
             {
               label: 'Citation',
-              to: '/docs/about/citation-and-funding',
+              to: '/docs/about/citation',
             },
             {
               label: 'Acknowledgements',

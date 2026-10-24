@@ -49,11 +49,10 @@ and [clarid-tools](https://github.com/mrueda/clarid-tools).
 <summary>Is COHORTome only for 3TR?</summary>
 
 No. COHORTome is generic open-source software that can be deployed for other
-approved biomedical datasets. Its first planned consortium-scale deployment is
-in the context of 3TR, with PRECISESADS as the first real reference
-implementation.
+approved biomedical datasets. It is being developed in the context of 3TR,
+but does not depend on a particular consortium or study.
 
-Read [3TR And PRECISESADS](../project/3tr-and-precisesads.md) for that project
+Read [Project context](../project/3tr-and-precisesads.md) for that project
 context.
 
 </details>

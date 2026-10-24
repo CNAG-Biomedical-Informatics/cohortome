@@ -34,7 +34,7 @@
     </g>
     <text x="131" y="250" fill="#203d4e" font-size="17" font-weight="700">Data warehouse</text>
     <text x="131" y="273" fill="#597079" font-size="13">3TR example: Omics DM</text>
-    <text x="131" y="292" fill="#315f82" font-size="12" font-weight="800">PRECISESADS</text>
+    <text x="131" y="292" fill="#315f82" font-size="12" font-weight="800">STUDY DATA</text>
 
     <rect x="352" y="225" width="270" height="82" rx="6" fill="#f4faf5" stroke="#8fbb97"/>
     <rect x="370" y="239" width="42" height="53" rx="3" fill="#ffffff" stroke="#2f7d4e" stroke-width="2"/>

@@ -7,6 +7,10 @@ on:
         description: Existing annotated release tag, for example v0.1.0
         required: true
         type: string
+      update_latest:
+        description: Also update latest (requires a published GitHub release)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -73,6 +77,7 @@ jobs:
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tag_object=$(git rev-parse "refs/tags/$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
       - name: Require a published GitHub release
+        if: inputs.update_latest
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,8 +230,19 @@ jobs:
           done
           docker buildx imagetools create \
             --tag "$IMAGE:$IMAGE_TAG" \
-            --tag "$IMAGE:latest" \
             "${sources[@]}"
           docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG"
-          printf 'Published `%s` from two tested native images and updated `latest`.\n' \
+          printf 'Published `%s` from two tested native images.\n' \
             "$IMAGE:$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Update latest for a published release
+        if: inputs.update_latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          IMAGE_TAG: ${{ needs.release.outputs.image_tag }}
+        run: |
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = false
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:$IMAGE_TAG"
+          printf 'Updated `latest` to `%s`.\n' "$IMAGE:$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"

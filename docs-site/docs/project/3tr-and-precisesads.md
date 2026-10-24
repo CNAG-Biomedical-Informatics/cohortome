@@ -1,4 +1,4 @@
-# 3TR And PRECISESADS
+# Project context
 
 3TR is the first planned consortium deployment of COHORTome. The software can
 also be configured for other approved clinical and assay datasets.
@@ -29,24 +29,22 @@ The 3TR Omics DM Warehouse and COHORTome solve different problems.
 | --- | --- |
 | Keeps and distributes project files. | Turns an authorized release into a research workspace. |
 | Preserves the data delivered by each project. | Connects clinical records, assays, patients, samples, and visits. |
-| Provides PRECISESADS and other authorized data releases. | Helps researchers explore data, find cohorts, run analyses, and keep the results. |
+| Provides authorized study data releases. | Helps researchers explore data, find cohorts, run analyses, and keep the results. |
 | Remains the source system. | Remains a separate application with its own access and analysis workflow. |
 
 COHORTome can consume authorized warehouse exports, but core behavior must not depend
 on warehouse-specific paths, APIs, or storage conventions. The same deployment
 model can operate on institutional files or other approved services.
 
-## PRECISESADS as the first real reference implementation
+## Scientific use case
 
 [PRECISESADS](https://www.ihi.europa.eu/projects-results/project-factsheets/precisesads)
 studied molecular reclassification across systemic autoimmune diseases and
-provides an appropriate real-world setting for cross-condition cohort analysis.
-The PRECISESADS data are stored in the 3TR Omics DM Warehouse. COHORTome receives an
-authorized release from that warehouse; PRECISESADS is not a separate storage
-system. The COHORTome demonstrator is being developed with collaborators at FPS in
-Granada.
+is one candidate for evaluating cross-condition cohort analysis. The dataset
+and scientific question for the publication have not been finalized. Their
+selection depends on access, available measurements, and scientific review.
 
-The reference implementation is intended to exercise a complete path:
+The selected use case should exercise a complete path:
 
 1. map restricted source files into explicit clinical and assay contracts
 2. validate patients, samples, time points, conditions, and feature provenance
@@ -59,20 +57,20 @@ The reference implementation is intended to exercise a complete path:
 
 The exact disease contrast, assay, endpoint, and cohort sizes remain publication
 decisions until they are agreed with the scientific collaborators and verified
-against the restricted files.
+against the selected data.
 
 ## Data categories
 
 | Category | Repository status | Intended use |
 | --- | --- | --- |
 | Public synthetic fixtures | Checked in | Development, screenshots, smoke tests, and automated tests. |
-| Restricted PRECISESADS files | Never checked in | Scientific demonstrator and evaluation under approved access. |
+| Restricted study files | Never checked in | Scientific analysis and evaluation under approved access. |
 | Released 3TR datasets | Registered when authorized | Consortium-wide workspaces and cross-condition analyses. |
 | Derived run artifacts | User- and deployment-scoped | Auditable analysis evidence subject to retention policy. |
 
 ## Publication role
 
-The PRECISESADS use case will test a complete workflow: prepare clinical and
+The selected use case should test a complete workflow: prepare clinical and
 assay data, select cohorts, run an analysis, and review the result with
 collaborators. The paper will describe the reusable software and report the
 results and limitations of that use case.

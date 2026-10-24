@@ -12,7 +12,7 @@ still needs a mapping of its identifiers, measurements, and visits.
 | Assay input | Manifested transcriptomics, OLINK, proteomics, genotyping, and derived-imaging matrices. | Additional assay definitions, quality metadata, and consistent feature names. |
 | Imaging | DICOM metadata linkage, OHIF launch, and derived-feature matrices. | Authenticated institutional DICOMweb plus validated external preprocessing outputs. |
 | Workspaces | One or more authorized prepared dataset stores with preserved provenance. | Cross-study workspaces, first over released and approved 3TR datasets. |
-| Query | Deterministic clinical questions and policy-controlled LLM assistance. | Evaluated natural-language cohort tasks, starting with PRECISESADS and 3TR use cases. |
+| Query | Deterministic clinical questions and policy-controlled LLM assistance. | Evaluated natural-language cohort tasks on approved study data. |
 | Analysis | Clinical summaries, trajectories, survival views, transcriptomics, enrichment, external runners, and Pheno-Ranker. | Prespecified cross-condition and multimodal analyses selected with collaborators. |
 | Multimodal | Readiness, overlap, missingness, and a bounded feature preview. | Exportable analysis matrices, modality-specific QC, and curated integration methods. |
 | Deployment | Local/source operation and a single-VM Docker pilot. | Hardened institutional deployment with protected data services and reproducible releases. |
@@ -96,8 +96,7 @@ first planned 3TR deployment. Its clinical trajectories, assay values, treatment
 effects, and DICOM pixels are synthetic. They validate software behavior, not
 disease biology.
 
-Scientific claims require the restricted PRECISESADS demonstrator or another
-approved real dataset, a prespecified question, appropriate statistical methods,
+Scientific claims require an approved real dataset, a prespecified question, appropriate statistical methods,
 and collaborator review.
 
 ## Non-goals

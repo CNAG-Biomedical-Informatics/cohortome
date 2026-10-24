@@ -15,7 +15,7 @@
   <rect x="54" y="134" width="238" height="104" rx="6" fill="#f3f6f8" stroke="#b8c5cc"/>
   <text x="74" y="164" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Data warehouse</text>
   <text x="74" y="190" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">3TR example: Omics DM</text>
-  <text x="74" y="214" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">with PRECISESADS data</text>
+  <text x="74" y="214" fill="#526571" font-family="Inter, Arial, sans-serif" font-size="14">Authorized study data</text>
 
   <rect x="54" y="254" width="238" height="104" rx="6" fill="#f3f6f8" stroke="#b8c5cc"/>
   <text x="74" y="284" fill="#1c2b33" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Other approved data</text>

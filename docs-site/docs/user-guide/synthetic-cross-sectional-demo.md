@@ -1,8 +1,7 @@
 # Synthetic cross-sectional demo
 
 This cross-sectional dataset lets reviewers try autoimmune research workflows.
-It illustrates the type of use case planned for PRECISESADS, but is not derived
-from its data.
+It is independent of real study data.
 Participants, measurements, effects, batches and missingness are independently
 simulated, not copied, anonymized, or fitted to patient-level study records.
 
@@ -23,7 +22,7 @@ Prefixes are readable labels; they do not restart the numeric counter.
 Sample IDs retain the source patient ID and their visit suffix. The ClarID
 generator reads the numeric suffix rather than assigning numbers by row order,
 and rejects duplicate numbers or IDs outside each fixture's reserved range.
-These conventions apply only to bundled synthetic data, not PRECISESADS.
+These conventions apply only to synthetic fixtures; imported studies retain their source identifiers.
 
 Older synthetic cohorts, projects and runs are not migrated after renumbering.
 Prepare the synthetic query stores again and create new selections. Regenerate
@@ -77,7 +76,7 @@ features and quantitative markers have artificial group effects. A shared
 participant component creates limited cross-modal correlation; RNA and methylation
 also have batch effects. `simulation_truth.json` records feature-level planted
 effects. These are engineering checks, not biological findings or a reproduction
-of published PRECISESADS results. No exact significance threshold is guaranteed.
+of published study results. No exact significance threshold is guaranteed.
 
 The RNA values were **not produced by RSEM**. Fictional CpG identifiers cannot
 be used for genomic annotation. The small gene panel is not a transcriptome-wide

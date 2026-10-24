@@ -61,9 +61,11 @@ The manual **Test Docker deployment** Actions workflow builds on native Linux
 amd64 and arm64 runners. It checks login, both synthetic stores, Pheno-Ranker,
 a queued R analysis and settings persistence after restart. It does not publish images.
 
-After publishing the GitHub draft, run **Publish Docker release** manually with
-the same annotated tag. Both native architectures must pass before the versioned
-image and `latest` are assigned. Pushing a Git tag alone does nothing.
+Run **Publish Docker release** manually with the same annotated tag as desktop.
+Both native architectures must pass before the versioned image is published to
+Docker Hub; no published GitHub release is required. Leave `update_latest` off
+while testing. Enable it only for a published GitHub release to also update
+`latest`. Pushing a Git tag alone does nothing.
 
 - [Web deployment and runtime configuration](../docs-site/docs/admin-guide/starting-and-stopping.md)
 - [Accounts and OIDC](../docs-site/docs/admin-guide/local-auth-and-groups.mdx)

@@ -110,13 +110,13 @@ Docker sandboxes, OHIF assets and Nextflow/Snakemake demo runners are separate.
 
 ## GitHub Actions
 
-All package workflows are manual and create neither tags nor releases.
-Choose the target platform and run its workflow. Leave `upload_artifact` disabled
-until the binary redistribution review is complete.
+Four workflows can be started manually: desktop release draft, Docker release,
+Docker smoke test, and documentation. The five desktop platform builders and
+viewer helper are reusable workflows called by the release workflow.
 
-The optional `build_installers` input wraps the tested engine with the pinned
+The release workflow wraps the tested engine with the pinned
 Tauri CLI used by Pheno-Ranker Desktop (2.11.4): Linux AppImage, macOS DMG,
-and Windows per-user NSIS with a WebView2 bootstrapper. It defaults to off.
+and Windows per-user NSIS with a WebView2 bootstrapper.
 ARM64 Linux/macOS and x86_64 Windows installer builds passed CI; clean-machine
 installation still needs testing.
 
@@ -124,9 +124,7 @@ Downloads follow Pheno-Ranker's release layout: one installer per platform and
 architecture, plus its `.sha256` file. No DEB or portable runtime archives are
 uploaded. Portable archives and macOS app bundles remain build/test intermediates.
 `desktop/collect_installer.py` checks the installer against its build manifest
-before collecting and naming downloads. The manual **Extract an existing test
-installer** workflow can collect an installer from an older successful build
-without compiling again. Required third-party sources/notices are separate
+before collecting and naming downloads. Required third-party sources/notices are separate
 release obligations, not extra application installer formats.
 
 For a clean checkout and matching portable package:
@@ -140,11 +138,8 @@ The builder checks the package commit, platform and file hashes before embedding
 records installer hashes and never publishes. macOS signing remains ad hoc;
 these are not notarized installers. No Docker workflow is involved.
 
-macOS/Windows packaging builds and tests R on the same runner by default. An
-optional `r_runtime_run_id` can reuse an available, reviewed matching artifact
-from **Test macOS and Windows R runtimes**. Artifacts expire after seven days;
-deleted run artifacts cannot be reused. Platform, architecture and checksums are
-verified. Both workflows share the same R preparation steps.
+macOS/Windows packaging builds and tests R on the same runner, using shared
+R preparation steps. No runtime artifact from an earlier run is required.
 
 Linux caches successful R/Perl builds using architecture, Ubuntu baseline,
 builder scripts and workflow content as keys, without partial-key fallbacks.
@@ -193,7 +188,7 @@ Run **Create desktop release draft** manually with an existing annotated tag
 such as `v0.1.0`. It verifies the tag and version metadata, builds all five
 installers from the resolved commit, checks their hashes, and creates a draft
 with the matching changelog notes. Pushing a tag alone does nothing. The
-individual platform workflows remain available for development tests.
+platform builders retain their runtime and package checks as reusable workflows.
 
 Verify scientific runs, source preparation, native save/open dialogs
 and clean-machine installation. Confirm Hallmark access, viewer distribution,

@@ -1,8 +1,8 @@
 # Evaluation And Evidence
 
 COHORTome needs tests of software correctness and usefulness for research.
-The public synthetic fixture supports the first level. The restricted
-PRECISESADS demonstrator is required for the second.
+The public synthetic fixtures support the first level. Research usefulness
+requires evaluation on approved real study data with scientific review.
 
 ## Evaluation areas
 
@@ -13,7 +13,7 @@ PRECISESADS demonstrator is required for the second.
 | Performance | Does preparation and interactive use remain practical at representative scale? | Preparation, reload, dashboard, matrix, and workflow timings. |
 | Model assistance | Does the model select the right data, give supported answers, and follow access rules? | Reference tasks, cohort agreement, review of unsupported claims, and disclosure tests. |
 | Usability | Can clinical and translational researchers complete tasks without manual scripting? | Prespecified task completion, errors, time, and structured collaborator feedback. |
-| Scientific demonstrator | Does PRECISESADS produce a meaningful, reviewed analysis result? | Prespecified cohorts, real assay output, statistics, figures, and collaborator interpretation. |
+| Scientific demonstrator | Does the selected study support a meaningful, reviewed analysis result? | Prespecified cohorts, real assay output, statistics, figures, and collaborator interpretation. |
 
 ## What the synthetic data can test
 
@@ -28,10 +28,10 @@ The checked-in data is synthetic. It can verify:
 - multimodal overlap and missingness behavior
 
 It cannot validate disease mechanisms, treatment-response biomarkers,
-PRECISESADS clusters, medically realistic MRI findings, or model utility for
+study-specific patient clusters, medically realistic MRI findings, or model utility for
 real clinical research.
 
-## PRECISESADS demonstrator requirements
+## Real-data evaluation requirements
 
 Before a publication claim is considered supported, record:
 

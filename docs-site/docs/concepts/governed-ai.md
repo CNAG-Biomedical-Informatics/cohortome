@@ -94,7 +94,7 @@ detailed local response was also sent to the provider.
 
 ## How model responses will be evaluated
 
-The PRECISESADS demonstrator should evaluate model-assisted tasks against
+Evaluation should compare model-assisted tasks against
 reviewed reference outcomes. Relevant measures include:
 
 - fidelity of patient and sample scope

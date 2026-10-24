@@ -1,4 +1,4 @@
-name: Test Linux aarch64 desktop package
+name: Build Linux aarch64 desktop package
 
 on:
   workflow_call:
@@ -15,20 +15,6 @@ on:
       checkout_ref:
         type: string
         default: ''
-  workflow_dispatch:
-    inputs:
-      build_installers:
-        description: Also build native test installers (not approved release downloads)
-        type: boolean
-        default: false
-      clean_build:
-        description: Rebuild R and Perl without reading or writing the runtime cache
-        type: boolean
-        default: false
-      upload_artifact:
-        description: Upload the test bundle only after redistribution review
-        type: boolean
-        default: false
 
 permissions:
   contents: read

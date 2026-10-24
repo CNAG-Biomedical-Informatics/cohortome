@@ -1,4 +1,4 @@
-name: Test macOS Apple Silicon desktop package
+name: Build macOS Apple Silicon desktop package
 
 on:
   workflow_call:
@@ -6,29 +6,12 @@ on:
       build_installers:
         type: boolean
         default: false
-      r_runtime_run_id:
-        type: string
-        default: ''
       upload_artifact:
         type: boolean
         default: false
       checkout_ref:
         type: string
         default: ''
-  workflow_dispatch:
-    inputs:
-      build_installers:
-        description: Also build native test installers (not approved release downloads)
-        type: boolean
-        default: false
-      r_runtime_run_id:
-        description: Run ID with the verified r-runtime-macos-arm64 artifact
-        required: false
-        type: string
-      upload_artifact:
-        description: Upload the test bundle only after redistribution review
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -78,19 +61,7 @@ jobs:
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
       - name: Build R runtime on this runner
-        if: inputs.r_runtime_run_id == ''
         uses: ./.github/actions/build-native-r
-      - name: Download verified R runtime
-        if: inputs.r_runtime_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: r-runtime-macos-arm64
-          run-id: ${{ inputs.r_runtime_run_id }}
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/r-artifact
-      - name: Extract verified R runtime
-        if: inputs.r_runtime_run_id != ''
-        run: tar -xzf "$RUNNER_TEMP/r-artifact/r-runtime.tar.gz" -C "$RUNNER_TEMP"
       - name: Build portable test bundle with R
         run: |
           python desktop/package_desktop.py --with-native --with-umap \

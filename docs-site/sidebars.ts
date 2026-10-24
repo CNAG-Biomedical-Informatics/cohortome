@@ -41,7 +41,7 @@ const sidebars: SidebarsConfig = {
       label: 'About',
       items: [
         'about/faq',
-        'about/citation-and-funding',
+        'about/citation',
         'about/acknowledgements',
       ],
     },
