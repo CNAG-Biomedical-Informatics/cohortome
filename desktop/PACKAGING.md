@@ -138,6 +138,10 @@ The builder checks the package commit, platform and file hashes before embedding
 records installer hashes and never publishes. macOS signing remains ad hoc;
 these are not notarized installers. No Docker workflow is involved.
 
+macOS uses Tauri to build and sign the `.app`, then Apple's `hdiutil` to create
+and verify a compressed DMG from a folder containing the app and an Applications
+shortcut. No mounted-volume customization is used; Finder uses its default layout.
+
 macOS/Windows packaging builds and tests R on the same runner, using shared
 R preparation steps. No runtime artifact from an earlier run is required.
 

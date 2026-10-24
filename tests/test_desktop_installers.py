@@ -14,7 +14,7 @@ spec.loader.exec_module(builder)
 sys.path.pop(0)
 
 
-@pytest.mark.parametrize('system,targets', [('linux', ['appimage']), ('darwin', ['app', 'dmg']), ('win32', ['nsis'])])
+@pytest.mark.parametrize('system,targets', [('linux', ['appimage']), ('darwin', ['app']), ('win32', ['nsis'])])
 def test_installer_resources_preserve_engine_layout(tmp_path, system, targets):
     package = tmp_path / 'package with spaces'
     config = builder.installer_config(package, system)
@@ -57,6 +57,34 @@ def test_installer_rejects_unverified_package(tmp_path, damage):
             builder.verify_package(package, 'a' * 40)
     else:
         assert builder.verify_package(package, 'a' * 40) == manifest
+
+
+def test_macos_dmg_uses_folder_without_writable_mount(tmp_path, monkeypatch):
+    artifacts = tmp_path / 'bundle'
+    app = artifacts / 'macos' / 'App with spaces.app'
+    app.mkdir(parents=True)
+    calls = []
+    monkeypatch.setattr(builder.subprocess, 'run', lambda command, **kwargs: calls.append((command, kwargs)))
+    builder.build_macos_dmg(artifacts, tmp_path)
+    assert calls[0][0] == ['codesign', '--verify', '--deep', '--strict', str(app)]
+    assert calls[1][0] == ['ditto', str(app), str(tmp_path / 'dmg-staging' / app.name)]
+    assert (tmp_path / 'dmg-staging' / 'Applications').readlink() == Path('/Applications')
+    assert calls[2][0] == ['hdiutil', 'create', '-volname', 'COHORTome',
+                           '-srcfolder', str(tmp_path / 'dmg-staging'), '-fs', 'HFS+',
+                           '-format', 'UDZO', str(artifacts / 'dmg' / 'COHORTome.dmg')]
+    assert calls[3][0] == ['hdiutil', 'verify', str(artifacts / 'dmg' / 'COHORTome.dmg')]
+    assert all(options == {'check': True} for _, options in calls)
+
+
+def test_macos_dmg_stops_on_signing_failure(tmp_path, monkeypatch):
+    app = tmp_path / 'bundle' / 'macos' / 'Test.app'
+    app.mkdir(parents=True)
+    def fail(command, **kwargs):
+        raise builder.subprocess.CalledProcessError(1, command)
+    monkeypatch.setattr(builder.subprocess, 'run', fail)
+    with pytest.raises(builder.subprocess.CalledProcessError):
+        builder.build_macos_dmg(tmp_path / 'bundle', tmp_path)
+    assert not (tmp_path / 'dmg-staging').exists()
 
 
 @pytest.mark.parametrize('system,arch,filename', [

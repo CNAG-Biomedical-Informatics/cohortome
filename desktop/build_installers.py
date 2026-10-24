@@ -13,7 +13,7 @@ from package_desktop import source_is_dirty
 from collect_installer import collect
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGETS = {'linux': ['appimage'], 'darwin': ['app', 'dmg'], 'win32': ['nsis']}
+TARGETS = {'linux': ['appimage'], 'darwin': ['app'], 'win32': ['nsis']}
 TAURI_CLI = '@tauri-apps/cli@2.11.4'
 
 
@@ -64,6 +64,27 @@ def installer_config(package, system):
     return {'productName': 'COHORTome Desktop Preview', 'bundle': bundle}
 
 
+def build_macos_dmg(artifacts, output):
+    """Create a plain DMG without mounting a writable image for customization."""
+    apps = list((artifacts / 'macos').glob('*.app'))
+    if len(apps) != 1:
+        raise ValueError('Expected exactly one signed macOS application.')
+    app = apps[0]
+    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
+    staging = output / 'dmg-staging'
+    staging.mkdir(exist_ok=False)
+    # ditto preserves the signed bundle's metadata and internal symbolic links.
+    subprocess.run(['ditto', str(app), str(staging / app.name)], check=True)
+    (staging / 'Applications').symlink_to('/Applications', target_is_directory=True)
+    dmg_dir = artifacts / 'dmg'
+    dmg_dir.mkdir(exist_ok=False)
+    dmg = dmg_dir / 'COHORTome.dmg'
+    subprocess.run(['hdiutil', 'create', '-volname', 'COHORTome',
+                    '-srcfolder', str(staging), '-fs', 'HFS+', '-format', 'UDZO',
+                    str(dmg)], check=True)
+    subprocess.run(['hdiutil', 'verify', str(dmg)], check=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package', type=Path, required=True)
@@ -89,6 +110,8 @@ def main():
                     '--config', str(config_path), '--bundles', ','.join(TARGETS[sys.platform]),
                     '--', '--locked'], cwd=ROOT / 'desktop', env=env, check=True)
     artifacts = output / 'target/release/bundle'
+    if sys.platform == 'darwin':
+        build_macos_dmg(artifacts, output)
     files = {str(p.relative_to(artifacts)): sha256(p) for p in sorted(artifacts.rglob('*')) if p.is_file()}
     if not files:
         raise RuntimeError('Tauri did not produce installers.')
