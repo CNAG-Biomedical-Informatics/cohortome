@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import platform
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -85,6 +86,39 @@ def test_macos_dmg_stops_on_signing_failure(tmp_path, monkeypatch):
     with pytest.raises(builder.subprocess.CalledProcessError):
         builder.build_macos_dmg(tmp_path / 'bundle', tmp_path)
     assert not (tmp_path / 'dmg-staging').exists()
+
+
+@pytest.mark.parametrize('system', ['linux', 'darwin', 'win32'])
+def test_installer_reuses_cargo_target_and_moves_bundle(tmp_path, monkeypatch, system):
+    package = tmp_path / 'package'
+    package.mkdir()
+    (package / 'package-manifest.json').write_text('{}')
+    output = tmp_path / 'installers'
+    target = tmp_path / 'desktop/target'
+    (target / 'release/deps').mkdir(parents=True)
+    dependency = target / 'release/deps/compiled-dependency'
+    dependency.write_text('keep')
+    monkeypatch.setattr(builder, 'ROOT', tmp_path)
+    monkeypatch.setattr(builder, 'sys', SimpleNamespace(platform=system))
+    monkeypatch.setattr(sys, 'argv', ['build_installers.py', '--package', str(package), '--output', str(output)])
+    monkeypatch.setattr(builder, 'source_is_dirty', lambda: False)
+    monkeypatch.setattr(builder, 'verify_package', lambda *_: {})
+    monkeypatch.setattr(builder.subprocess, 'check_output', lambda *a, **k: 'commit')
+    monkeypatch.setattr(builder.shutil, 'which', lambda _: '/npm')
+    monkeypatch.setattr(builder, 'collect', lambda *_: None)
+    monkeypatch.setattr(builder, 'build_macos_dmg', lambda *_: None)
+    def build(command, **options):
+        assert options['env']['CARGO_TARGET_DIR'] == str(target)
+        bundle = target / 'release/bundle'
+        bundle.mkdir()
+        (bundle / 'installer').write_text('new')
+    monkeypatch.setattr(builder.subprocess, 'run', build)
+    builder.main()
+    assert dependency.read_text() == 'keep'
+    assert not (target / 'release/bundle').exists()
+    assert (output / 'bundle/installer').read_text() == 'new'
+    manifest = json.loads((output / 'installer-manifest.json').read_text())
+    assert set(manifest['sha256']) == {'installer'}
 
 
 @pytest.mark.parametrize('system,arch,filename', [

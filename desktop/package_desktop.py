@@ -186,7 +186,8 @@ def main():
     r_manifest = stage_r_runtime(args.r_runtime, output / 'engine') if args.r_runtime else None
     if args.with_native:
         subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path",
-                        str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"], check=True)
+                        str(ROOT / "desktop/Cargo.toml"), "--features", "custom-protocol"],
+                       env=dict(os.environ, CARGO_TARGET_DIR=str(ROOT / 'desktop/target')), check=True)
         native = "cohortome-desktop.exe" if os.name == "nt" else "cohortome-desktop"
         shutil.copy2(ROOT / "desktop/target/release" / native, output / native)
         if sys.platform == "darwin":

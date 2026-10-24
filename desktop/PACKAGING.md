@@ -142,6 +142,11 @@ macOS uses Tauri to build and sign the `.app`, then Apple's `hdiutil` to create
 and verify a compressed DMG from a folder containing the app and an Applications
 shortcut. No mounted-volume customization is used; Finder uses its default layout.
 
+Portable tests and installer packaging reuse `desktop/target` on each build host.
+Cargo rebuilds changed configuration as needed, while retaining compiled
+dependencies. Installer bundles are moved into the requested output directory;
+build products are not shared across platforms or architectures.
+
 macOS/Windows packaging builds and tests R on the same runner, using shared
 R preparation steps. No runtime artifact from an earlier run is required.
 

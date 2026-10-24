@@ -102,14 +102,21 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     config_path = output / 'installer-config.json'
     config_path.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')
-    env = dict(os.environ, CARGO_TARGET_DIR=str(output / 'target'))
+    # Reuse the portable build's dependencies; Cargo tracks configuration changes.
+    target = ROOT / 'desktop/target'
+    bundle = target / 'release/bundle'
+    if bundle.exists():
+        parser.error(f'Existing installer output at {bundle}; move it aside before rebuilding.')
+    env = dict(os.environ, CARGO_TARGET_DIR=str(target))
     npm = shutil.which('npm')
     if not npm:
         parser.error('Node.js/npm is required for the pinned Tauri installer builder.')
     subprocess.run([npm, 'exec', '--yes', '--package', TAURI_CLI, '--', 'tauri', 'build', '--verbose',
                     '--config', str(config_path), '--bundles', ','.join(TARGETS[sys.platform]),
                     '--', '--locked'], cwd=ROOT / 'desktop', env=env, check=True)
-    artifacts = output / 'target/release/bundle'
+    # Keep installer artifacts separate without discarding compiled dependencies.
+    artifacts = output / 'bundle'
+    shutil.move(str(bundle), artifacts)
     if sys.platform == 'darwin':
         build_macos_dmg(artifacts, output)
     files = {str(p.relative_to(artifacts)): sha256(p) for p in sorted(artifacts.rglob('*')) if p.is_file()}
