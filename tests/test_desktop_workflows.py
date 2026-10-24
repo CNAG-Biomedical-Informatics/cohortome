@@ -77,6 +77,7 @@ def test_native_packages_can_build_r_without_an_artifact(name):
 
 def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     data = workflow("desktop-release-draft.yml")
+    assert data["permissions"]["actions"] == "read"
     trigger = data.get("on", data.get(True))
     assert set(trigger) == {"workflow_dispatch"}
     assert trigger["workflow_dispatch"]["inputs"]["tag"]["required"] is True
