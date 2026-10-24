@@ -110,7 +110,7 @@ Docker sandboxes, OHIF assets and Nextflow/Snakemake demo runners are separate.
 
 ## GitHub Actions
 
-Four workflows can be started manually: desktop release draft, Docker release,
+Four workflows can be started manually: desktop installers, Docker release,
 Docker smoke test, and documentation. The five desktop platform builders and
 viewer helper are reusable workflows called by the release workflow.
 
@@ -184,8 +184,12 @@ For runtime locations and backup/reset instructions, see the
 
 ## Before release
 
-Run **Create desktop release draft** manually with an existing annotated tag
-such as `v0.1.0`. It verifies the tag and version metadata, builds all five
+Run **Build desktop installers** on `main` and choose one platform or `all` for
+testing. Leave `tag` empty and `create_draft` unchecked. Installers are available
+as workflow artifacts; no release is created.
+
+For release, select `all`, check `create_draft`, and enter an existing annotated
+tag such as `v0.1.0`. It verifies the tag and version metadata, builds all five
 installers from the resolved commit, checks their hashes, and creates a draft
 with the matching changelog notes. Pushing a tag alone does nothing. The
 platform builders retain their runtime and package checks as reusable workflows.

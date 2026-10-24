@@ -103,19 +103,27 @@ def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     assert data["permissions"]["actions"] == "read"
     trigger = data.get("on", data.get(True))
     assert set(trigger) == {"workflow_dispatch"}
-    assert trigger["workflow_dispatch"]["inputs"]["tag"]["required"] is True
-    assert set(trigger["workflow_dispatch"]["inputs"]) == {"tag"}
+    inputs = trigger["workflow_dispatch"]["inputs"]
+    assert inputs["tag"]["required"] is False
+    assert set(inputs) == {"tag", "platforms", "create_draft"}
+    assert inputs["create_draft"]["default"] is False
+    assert inputs["platforms"]["default"] == "all"
+    steps = data["jobs"]["release"]["steps"]
+    assert "github.sha" in next(s for s in steps if s.get("uses") == "actions/checkout@v5")["with"]["ref"]
+    assert 'test "$PLATFORMS" = all' in steps[0]["run"]
     platforms = {
         "linux-aarch64", "linux-x86_64", "macos-arm64",
         "macos-x86_64", "windows-x86_64",
     }
     for platform in platforms:
         job = data["jobs"][platform]
+        assert job["if"] == f"inputs.platforms == 'all' || inputs.platforms == '{platform}'"
         assert job["uses"] == f"./.github/workflows/desktop-{platform}-test.yml"
         assert job["with"]["build_installers"] is True
         assert job["with"]["upload_artifact"] is True
         assert job["with"]["checkout_ref"] == "${{ needs.release.outputs.revision }}"
     publish = data["jobs"]["publish"]
+    assert publish["if"] == "inputs.create_draft && inputs.platforms == 'all'"
     assert set(publish["needs"]) == {"release", *platforms}
     commands = "\n".join(step.get("run", "") for step in publish["steps"])
     assert "gh release create" in commands
