@@ -17,19 +17,20 @@ Both use the same application code and research interface.
 1. Open [COHORTome Releases](https://github.com/CNAG-Biomedical-Informatics/cohortome/releases).
 2. Choose a release with an installer for your operating system and processor.
    Check its release notes for supported platforms and analysis dependencies.
-3. Follow the installation instructions supplied with that release, then open
-   **COHORTome** and try a bundled synthetic dataset.
+3. Install the matching download, then open **COHORTome** and try a bundled
+   synthetic dataset.
 
-:::info[Downloads forthcoming]
+| Platform | Download | Install |
+| --- | --- | --- |
+| Linux x86_64 or ARM64 | `.AppImage` | Make the file executable, then open it. |
+| macOS Apple Silicon or Intel | `.dmg` | Open the disk image and drag the app to Applications. |
+| Windows x86_64 | `-setup.exe` | Run the installer for your user account. |
 
-Packaged installers have not yet been published. These instructions describe
-the release installation path; the source setup below is available for development.
-
-:::
+Each installer has an accompanying `.sha256` checksum file.
 
 ### First launch on macOS
 
-Current preview builds are signed ad hoc but are not notarized by Apple. On the
+The macOS installers are signed ad hoc but are not notarized by Apple. On the
 first launch, macOS may therefore prevent COHORTome from opening.
 
 1. Try to open **COHORTome** once and dismiss the warning.
@@ -170,10 +171,10 @@ Paste the path into File Explorer's address bar.
 </TabItem>
 </Tabs>
 
-:::info[Current preview builds]
+:::info[Application storage identifier]
 
 These paths use the current application identifier, `org.cnag.cohortome.preview`.
-Installers have not yet been published. Source launches use
+Source launches use
 `org.cnag.cohortome.source-preview` under the same platform app-data directory,
 not the checkout. Source and packaged apps do not share saved work automatically.
 
@@ -186,15 +187,15 @@ data folder above.
 
 ### Update or uninstall
 
-Close COHORTome before replacing or removing its program files. For the current
-Linux portable build, remove the extracted application directory, including
-`engine/`. **This does not remove the per-user data folder.**
+Close COHORTome before updating or uninstalling it. On Linux, replace or remove
+the AppImage. On macOS, replace or remove the app in Applications. On Windows,
+run the new installer to update, or uninstall through Settings → Apps.
+**This does not remove the per-user data folder.**
 
 Keeping that folder preserves saved work for reopening under the same operating
 system account and application identifier. Dataset paths must still be available;
 moving or changing datasets can require rebuilding their stores and can invalidate
-saved project references. Platform-specific installer removal options will be
-documented when those installers are available.
+saved project references.
 
 ### Reset or remove saved work
 

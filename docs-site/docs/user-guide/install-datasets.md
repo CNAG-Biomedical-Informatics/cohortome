@@ -128,9 +128,9 @@ paths remain in use, and duplicate detection still checks them. The query-store
 cache remains in the app's runtime directory.
 
 The default import location is `state/resources/` under the runtime directory.
-In the source desktop preview, that is the checkout's ignored
-`runtime/desktop-preview/state/resources/`. Packaged desktop apps use their
-platform application-data directory.
+Desktop uses its per-user application-data directory, separately for source
+launches and packaged apps. See [Desktop storage](../getting-started/desktop#where-desktop-data-is-stored)
+for the paths.
 
 In Docker, select a path backed by a persistent mounted volume. This setting
 does not create a Docker mount. An external disk must remain connected while

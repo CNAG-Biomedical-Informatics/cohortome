@@ -10,8 +10,7 @@ person, use [Desktop](../getting-started/desktop).
 ## Start with Docker
 
 Install Docker with Compose, then open a terminal in the COHORTome checkout.
-These commands currently build the image from source; a published Docker Hub
-image is not available yet.
+These commands build the image from the checked-out source version.
 
 1. Copy the configuration:
 
