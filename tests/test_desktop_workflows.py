@@ -162,3 +162,10 @@ def test_docker_release_is_manual_native_and_latest_is_opt_in():
     assert latest["if"] == "inputs.update_latest"
     assert "isDraft" in latest["run"]
     assert "isPrerelease" in latest["run"]
+
+
+def test_compose_web_and_worker_share_configurable_image():
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text())
+    for service in ("web", "worker"):
+        assert compose["services"][service]["image"] == "${COHORTOME_IMAGE:-cohortome:pilot}"
+    assert "COHORTOME_IMAGE=manuelrueda/cohortome:0.1.0" in (ROOT / "docker/env.example").read_text()

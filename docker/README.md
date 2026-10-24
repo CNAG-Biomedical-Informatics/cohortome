@@ -6,21 +6,26 @@ synthetic demos, Python, R and Pheno-Ranker.
 
 ## Start
 
-From the repository root:
+Install Docker with Compose. Clone the repository for its deployment files:
 
 ```bash
+git clone https://github.com/CNAG-Biomedical-Informatics/cohortome.git
+cd cohortome
 cp docker/env.example docker/.env
 ```
 
 Edit `docker/.env`: replace `COHORTOME_SESSION_SECRET`, review bootstrap users,
-and configure any model endpoint. Keep this file private.
+replace all example users/passwords, and configure any model endpoint. Keep this
+file private. `COHORTOME_IMAGE` selects the Docker Hub version for web and worker.
 
 ```bash
-docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+docker compose -f docker/docker-compose.yml --env-file docker/.env pull web worker redis
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --no-build
 ```
 
-Open <http://127.0.0.1:8000>. Sign in as an administrator and prepare the selected
-dataset's store in **Admin > Data** before loading it.
+Open <http://127.0.0.1:8000> and sign in as your administrator. Docker selects the
+amd64 or arm64 image for the host. See the [web guide](../docs-site/docs/admin-guide/starting-and-stopping.md)
+for dataset setup and HTTPS/network precautions before sharing the server.
 
 ## Operate
 
@@ -31,7 +36,8 @@ docker compose -f docker/docker-compose.yml --env-file docker/.env ps
 docker compose -f docker/docker-compose.yml --env-file docker/.env logs -f web worker
 ```
 
-After updating the source, repeat the start command to rebuild. To stop:
+To update, back up the runtime volume, change `COHORTOME_IMAGE` in `docker/.env`
+to the desired version, then repeat the pull and start commands. To stop:
 
 ```bash
 docker compose -f docker/docker-compose.yml --env-file docker/.env down
@@ -54,6 +60,17 @@ that state is intentional**.
 Back up the volume and source datasets. Restricted data must stay outside the
 repository and Docker build context. Any replacement bind mount must use a
 protected host location outside the checkout. Test-only fixtures are not installed.
+
+## Build from source instead
+
+Set `COHORTOME_IMAGE=cohortome:local` in `docker/.env`, then run:
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file docker/.env build web
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --no-build
+```
+
+Both web and worker use that locally built image.
 
 ## Configuration guides
 

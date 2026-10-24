@@ -107,7 +107,7 @@ export default function Home() {
         <aside className={styles.deploymentSection} aria-label="Choose a deployment">
           <div className={styles.deploymentPanel}>
             <div><h2>Desktop for individual research</h2><p>Install the app and work with datasets on your computer.</p><Link to="/docs/getting-started/desktop">Desktop installation →</Link></div>
-            <div><h2>Web for research teams</h2><p>Centralize project data with shared access and dataset permissions.</p><Link to="/docs/admin-guide/starting-and-stopping">Web deployment →</Link></div>
+            <div><h2>Web for research teams</h2><p>Deploy from Docker Hub with user accounts, shared data and dataset permissions.</p><Link to="/docs/admin-guide/starting-and-stopping">Web deployment →</Link></div>
           </div>
         </aside>
       </main>

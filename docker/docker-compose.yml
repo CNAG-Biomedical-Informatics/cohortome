@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: cohortome:pilot
+    image: ${COHORTOME_IMAGE:-cohortome:pilot}
     env_file:
       - path: env.example
         required: true
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: cohortome:pilot
+    image: ${COHORTOME_IMAGE:-cohortome:pilot}
     env_file:
       - path: env.example
         required: true

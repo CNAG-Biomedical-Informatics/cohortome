@@ -8,8 +8,8 @@ import TabItem from '@theme/TabItem';
 
 **Desktop is the recommended installation for individual use.**
 
-[Web deployment](../admin-guide/starting-and-stopping) is recommended only for
-a centralized system serving multiple users with managed dataset permissions.
+[Web deployment](../admin-guide/starting-and-stopping) provides a Docker Hub
+installation for shared servers with user accounts and dataset permissions.
 Both use the same application code and research interface.
 
 ## Install a release
