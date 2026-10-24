@@ -120,6 +120,16 @@ def main():
     if bundle.exists():
         parser.error(f'Existing installer output at {bundle}; move it aside before rebuilding.')
     env = dict(os.environ, CARGO_TARGET_DIR=str(target))
+    if sys.platform == 'linux':
+        # linuxdeploy scans runtime ELFs directly, without their launchers.
+        # Resolve their staged libraries even on a cache-hit host with no R.
+        runtime = package / 'engine/runtimes'
+        libraries = [runtime / 'r/lib', runtime / 'r/R/lib', runtime / 'perl/lib']
+        paths = [str(path) for path in libraries if path.is_dir()]
+        if env.get('LD_LIBRARY_PATH'):
+            paths.append(env['LD_LIBRARY_PATH'])
+        if paths:
+            env['LD_LIBRARY_PATH'] = os.pathsep.join(paths)
     npm = shutil.which('npm')
     if not npm:
         parser.error('Node.js/npm is required for the pinned Tauri installer builder.')

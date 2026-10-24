@@ -94,6 +94,11 @@ def test_macos_dmg_stops_on_signing_failure(tmp_path, monkeypatch):
 def test_installer_reuses_cargo_target_and_moves_bundle(tmp_path, monkeypatch, system):
     package = tmp_path / 'package'
     package.mkdir()
+    runtime_libraries = [package / 'engine/runtimes' / name
+                         for name in ('r/lib', 'r/R/lib', 'perl/lib')]
+    for library in runtime_libraries:
+        library.mkdir(parents=True)
+    monkeypatch.setenv('LD_LIBRARY_PATH', '/existing/host/lib')
     (package / 'package-manifest.json').write_text('{}')
     output = tmp_path / 'installers'
     target = tmp_path / 'desktop/target'
@@ -115,6 +120,10 @@ def test_installer_reuses_cargo_target_and_moves_bundle(tmp_path, monkeypatch, s
     monkeypatch.setattr(builder, 'build_macos_dmg', lambda *_: None)
     def build(command, **options):
         assert options['env']['CARGO_TARGET_DIR'] == str(target)
+        expected = '/existing/host/lib'
+        if system == 'linux':
+            expected = ':'.join([*(str(path) for path in runtime_libraries), expected])
+        assert options['env']['LD_LIBRARY_PATH'] == expected
         bundle = target / 'release/bundle'
         bundle.mkdir()
         (bundle / 'installer').write_text('new')
