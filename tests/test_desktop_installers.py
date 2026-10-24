@@ -25,6 +25,8 @@ def test_installer_resources_preserve_engine_layout(tmp_path, system, targets):
     assert 'identifier' not in config
     if system == 'win32':
         assert config['bundle']['windows']['nsis']['installMode'] == 'currentUser'
+    if system == 'linux':
+        assert config['bundle']['linux']['appimage']['bundleMediaFramework'] is True
 
 
 @pytest.mark.parametrize('damage', ['', 'modified', 'extra', 'commit', 'dirty', 'platform', 'symlink', 'missing'])
@@ -103,7 +105,11 @@ def test_installer_reuses_cargo_target_and_moves_bundle(tmp_path, monkeypatch, s
     monkeypatch.setattr(sys, 'argv', ['build_installers.py', '--package', str(package), '--output', str(output)])
     monkeypatch.setattr(builder, 'source_is_dirty', lambda: False)
     monkeypatch.setattr(builder, 'verify_package', lambda *_: {})
-    monkeypatch.setattr(builder.subprocess, 'check_output', lambda *a, **k: 'commit')
+    module = tmp_path / 'gtk-3.0/modules/libcanberra-gtk-module.so'
+    module.parent.mkdir(parents=True)
+    module.write_text('test module')
+    monkeypatch.setattr(builder.subprocess, 'check_output',
+                        lambda command, **k: str(tmp_path) if command[0] == 'pkg-config' else 'commit')
     monkeypatch.setattr(builder.shutil, 'which', lambda _: '/npm')
     monkeypatch.setattr(builder, 'collect', lambda *_: None)
     monkeypatch.setattr(builder, 'build_macos_dmg', lambda *_: None)
@@ -119,6 +125,11 @@ def test_installer_reuses_cargo_target_and_moves_bundle(tmp_path, monkeypatch, s
     assert (output / 'bundle/installer').read_text() == 'new'
     manifest = json.loads((output / 'installer-manifest.json').read_text())
     assert set(manifest['sha256']) == {'installer'}
+    if system == 'linux':
+        config = json.loads((output / 'installer-config.json').read_text())
+        assert config['bundle']['linux']['appimage']['files'] == {
+            'usr/lib/gtk-3.0/modules/libcanberra-gtk-module.so': str(module),
+        }
 
 
 @pytest.mark.parametrize('system,arch,filename', [

@@ -123,6 +123,13 @@ impl Engine {
 impl Drop for Engine { fn drop(&mut self) { self.stop(); } }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    if !std::path::Path::new("/dev/dri").exists()
+        && std::env::var_os("LIBGL_ALWAYS_SOFTWARE").is_none()
+    {
+        // Software-only VMs cannot satisfy Mesa's DRI3 device probe.
+        std::env::set_var("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![save_project_file, open_project_file, save_export_file, pick_dataset_folder])

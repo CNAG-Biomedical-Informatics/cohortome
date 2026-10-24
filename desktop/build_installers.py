@@ -58,6 +58,8 @@ def installer_config(package, system):
     if system == 'darwin':
         # Test installers only. Ad-hoc signing is not notarization.
         bundle['macOS'] = {'signingIdentity': '-'}
+    if system == 'linux':
+        bundle['linux'] = {'appimage': {'bundleMediaFramework': True}}
     if system == 'win32':
         bundle['windows'] = {'nsis': {'installMode': 'currentUser'},
                              'webviewInstallMode': {'type': 'downloadBootstrapper'}}
@@ -99,6 +101,16 @@ def main():
         parser.error('Commit application and packaging changes before building installers.')
     manifest = verify_package(package, commit)
     config = installer_config(package, sys.platform)
+    if sys.platform == 'linux':
+        # GTK_PATH inside the AppImage does not include the host's modules.
+        libdir = Path(subprocess.check_output(
+            ['pkg-config', '--variable=libdir', 'gtk+-3.0'], text=True).strip())
+        module = libdir / 'gtk-3.0/modules/libcanberra-gtk-module.so'
+        if not module.is_file():
+            parser.error('Install libcanberra-gtk3-module before building the AppImage.')
+        config['bundle']['linux']['appimage']['files'] = {
+            'usr/lib/gtk-3.0/modules/libcanberra-gtk-module.so': str(module.resolve()),
+        }
     output.mkdir(parents=True, exist_ok=False)
     config_path = output / 'installer-config.json'
     config_path.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')

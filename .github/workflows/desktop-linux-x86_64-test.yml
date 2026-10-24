@@ -64,7 +64,7 @@ jobs:
       - name: Install build-host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev libtbb12 patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev libtbb12 libcanberra-gtk3-module gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-tools patchelf xvfb xauth build-essential curl libbz2-dev libexpat1-dev libssl-dev zlib1g-dev
       - name: Install build dependencies
         run: |
           python -m pip install -r desktop/requirements-desktop-test.txt
@@ -113,6 +113,9 @@ jobs:
         if: inputs.build_installers
         shell: bash
         run: python desktop/build_installers.py --package "$RUNNER_TEMP/cohortome-linux-x86_64" --output "$RUNNER_TEMP/cohortome-installers"
+      - name: Test the final AppImage startup
+        if: inputs.build_installers
+        run: python desktop/test_native_package.py "$RUNNER_TEMP/cohortome-installers/downloads/cohortome-linux-x86_64.AppImage" --xvfb --check-linux-warnings
       - uses: actions/upload-artifact@v4
         if: inputs.upload_artifact && inputs.build_installers
         with:

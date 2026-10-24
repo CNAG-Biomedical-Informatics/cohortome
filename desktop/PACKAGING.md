@@ -147,6 +147,10 @@ Cargo rebuilds changed configuration as needed, while retaining compiled
 dependencies. Installer bundles are moved into the requested output directory;
 build products are not shared across platforms or architectures.
 
+Linux AppImages include GStreamer media plugins and the Canberra GTK module.
+On software-only hosts without `/dev/dri`, startup defaults to Mesa software
+rendering; an explicit `LIBGL_ALWAYS_SOFTWARE` setting is preserved.
+
 macOS/Windows packaging builds and tests R on the same runner, using shared
 R preparation steps. No runtime artifact from an earlier run is required.
 

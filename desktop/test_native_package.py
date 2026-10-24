@@ -11,6 +11,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     parser.add_argument("--xvfb", action="store_true", help="Use a virtual display on Linux CI")
+    parser.add_argument("--check-linux-warnings", action="store_true",
+                        help="Reject missing GTK/GStreamer plugins and DRI3 warnings")
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="cohortome-native-") as temporary:
@@ -19,6 +21,9 @@ def main():
         env.update(HOME=temporary, XDG_DATA_HOME=str(Path(temporary) / "data"),
                    XDG_CACHE_HOME=str(Path(temporary) / "cache"),
                    COHORTOME_DESKTOP_SMOKE_TEST="1", WEBKIT_DISABLE_DMABUF_RENDERER="1")
+        if args.check_linux_warnings:
+            env.pop('WEBKIT_DISABLE_DMABUF_RENDERER', None)
+            env['GTK_MODULES'] = 'canberra-gtk-module'
         command = [str(binary)]
         if args.xvfb:
             command = ["xvfb-run", "-a", *command]
@@ -36,6 +41,11 @@ def main():
         print(output)
         if process.returncode or "PASS: packaged native window loaded" not in output:
             raise RuntimeError(f"Native startup failed (exit {process.returncode})")
+        if args.check_linux_warnings and any(message in output for message in (
+            'Failed to load module "canberra-gtk-module"',
+            'GStreamer element appsink not found', 'DRI3 error:',
+        )):
+            raise RuntimeError('AppImage startup reported missing plugins or unusable graphics.')
 
 
 if __name__ == "__main__":

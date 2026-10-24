@@ -96,6 +96,11 @@ def test_linux_installer_has_numba_tbb_dependency(arch):
     steps = workflow(f"desktop-linux-{arch}-test.yml")["jobs"]["package"]["steps"]
     libraries = next(step for step in steps if step.get("name") == "Install build-host libraries")
     assert "libtbb12" in libraries["run"].split()
+    for package in ("libcanberra-gtk3-module", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good"):
+        assert package in libraries["run"].split()
+    smoke = next(step for step in steps if step.get("name") == "Test the final AppImage startup")
+    assert smoke["if"] == "inputs.build_installers"
+    assert ".AppImage" in smoke["run"] and "--check-linux-warnings" in smoke["run"]
 
 
 def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
