@@ -12,6 +12,8 @@ Select a task below. Use the bundled Synthetic longitudinal demo for clinical ex
 and the [Synthetic cross-sectional demo](synthetic-cross-sectional-demo.md) for molecular
 analyses. Apply your dataset selection before starting.
 
+Prefer a demonstration? See the [video tutorials](../video-tutorials.md).
+
 :::note[Synthetic examples]
 
 These examples demonstrate the software, not biological findings. The autoimmune

@@ -42,8 +42,9 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'About',
+      label: 'Help',
       items: [
+        'video-tutorials',
         'about/faq',
         'about/citation',
         'about/acknowledgements',
