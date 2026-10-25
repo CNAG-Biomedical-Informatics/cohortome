@@ -1,29 +1,6 @@
 name: Build and test
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - 'config/**'
-      - 'datasets/**'
-      - 'static/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - '.github/workflows/build-and-test.yml'
-  pull_request:
-    paths:
-      - 'app/**'
-      - 'config/**'
-      - 'datasets/**'
-      - 'static/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - '.github/workflows/build-and-test.yml'
   workflow_dispatch:
 
 permissions:
