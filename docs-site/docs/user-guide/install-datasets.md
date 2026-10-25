@@ -102,6 +102,9 @@ manifest and source files. A local import is structurally validated; unlike a
 catalogue download, it has no independently reviewed archive checksum.
 Only import packages from sources you trust.
 
+To create a package from your own tables, see
+[Prepare and contribute datasets](../admin-guide/prepare-datasets).
+
 COHORTome downloads to disk, verifies catalogue checksums, checks the package
 structure and prepares its DuckDB store. ZIPs are limited to 1 GiB and extracted
 contents to 4 GiB. Unsafe paths, symlinks and encrypted ZIPs are rejected.

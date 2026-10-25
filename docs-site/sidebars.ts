@@ -29,6 +29,10 @@ const sidebars: SidebarsConfig = {
         {type: 'doc', id: 'admin-guide/datasets-and-access', label: 'Dataset configuration'},
         {type: 'doc', id: 'admin-guide/model-providers', label: 'Model configuration'},
         {type: 'doc', id: 'admin-guide/dicom-viewing', label: 'Imaging setup'},
+        {type: 'category', label: 'Prepare and contribute datasets', collapsed: true, items: [
+          'admin-guide/prepare-datasets', 'admin-guide/dataset-packages',
+          'admin-guide/dataset-review-checklist',
+        ]},
         {type: 'category', label: 'Deployment details', collapsed: true, items: [
           'admin-guide/native-installation', 'admin-guide/institutional-sign-in',
           'admin-guide/model-deployment', 'admin-guide/dataset-registration-reference',

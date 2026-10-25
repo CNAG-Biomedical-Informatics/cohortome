@@ -1,5 +1,9 @@
 # Validate a dataset package
 
+For the preparation workflow and a runnable example, start with
+[Prepare and contribute datasets](prepare-datasets). This page is the format
+reference; the canonical schemas and validator remain in the application.
+
 ## Source preparation
 
 The app ships reviewed recipes for GSE85034, GSE117239, GSE191328, GSE42296,
@@ -38,8 +42,9 @@ data model or a scientific QC pipeline. To install a prepared archive, see
 
 For project-specific clinical tables, use **Convert-Pheno's CSV → BFF route**
 with a reviewed Mapping V2 YAML or JSON file. This avoids writing a separate
-clinical converter for each resource. Dataset preparation happens outside
-COHORTome; importing a package does not run Convert-Pheno.
+clinical converter for each resource. When preparing your own package, run
+conversion before ZIP import; that import does not run Convert-Pheno. The app's
+separate fetch-and-prepare route does run the tools in its shipped recipes.
 
 The mapping relates source columns to demographics, diagnoses, phenotypic
 features, measurements, treatments and other BFF fields. Convert-Pheno can
@@ -102,13 +107,13 @@ be imported as observations.
 
 ### IBDMDB mapping status
 
-An initial Convert-Pheno pilot mapped sex, Crohn disease/ulcerative colitis,
-CRP and ESR while retaining the original source columns. This demonstrated
-the conversion route; it did **not** complete the clinical mapping or replace
-the installed resource. Repeated source rows, snapshot grouping, converter
-placeholders and the remaining clinical variables still require review.
-The preparation recipe and mapping decisions belong with the versioned
-resource, alongside provenance and use terms.
+The current recipe maps sex, Crohn disease/ulcerative colitis and 224 CRP/ESR
+measurements into 898 clinical snapshots for 112 participants. It reconciles
+source modality rows using participant, visit and relative week, retains other
+source fields, and removes converter placeholders. This is not a complete
+structured mapping of every clinical variable. See the Store's
+[mapping notes](https://github.com/CNAG-Biomedical-Informatics/cohortome-store/blob/main/datasets/ibdmdb/CLINICAL_MAPPING.md)
+for decisions and the distinction between the integrated package and the older pilot.
 
 ## Validate before importing
 
@@ -128,10 +133,11 @@ It scans matrix rows to check structure and value types, so validation time is
 proportional to input size. Run it during package preparation, not on each
 Dashboard visit. No matrix normalization or filtering is performed.
 
-Validation is currently a standalone preparation command. Registration and
-store preparation retain their existing checks; they do not yet automatically
-invoke this validator. A successful report is not a licence review, a complete
-BFF validation or a guarantee that every analysis supports the dataset.
+Run this command before packaging. The ZIP/source installer also invokes the
+package validator before registration and automatic DuckDB preparation. Direct
+registration and store rebuilding have their own checks; they are not a
+substitute for this preparation review. A successful report is not a licence
+review, complete BFF validation or a guarantee that every analysis supports the dataset.
 
 ## Two small schemas
 
@@ -234,6 +240,12 @@ pixels, DICOM study manifests and DICOMweb services are not validated by this
 command. They still need their own checks before distribution or viewing.
 
 ## What this does not package
+
+For ZIP import, the single dataset root must also contain `resource.json` with
+`manifest_version: 1`, `schema_version: 1`, `dataset_id` and `version`. This is
+release metadata, separate from `manifest.json`. See the
+[worked example](https://github.com/CNAG-Biomedical-Informatics/cohortome-store/tree/main/examples/minimal-dataset)
+for file checksums, preparation provenance and the archive checksum record.
 
 Keep user accounts, access grants, model-provider policies, credentials and
 runtime caches out of distributed datasets. The receiving deployment sets its
