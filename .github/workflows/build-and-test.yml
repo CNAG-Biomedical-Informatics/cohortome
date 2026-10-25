@@ -38,10 +38,10 @@ jobs:
     name: Core and UI regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      COHORTOME_RUNTIME_ROOT: ${{ runner.temp }}/cohortome-ci
     steps:
       - uses: actions/checkout@v5
+      - name: Isolate test runtime
+        run: echo "COHORTOME_RUNTIME_ROOT=$RUNNER_TEMP/cohortome-ci" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
