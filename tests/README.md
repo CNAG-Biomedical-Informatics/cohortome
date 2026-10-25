@@ -1,5 +1,11 @@
 # Test layout
 
+The **Build and test** GitHub workflow runs a selected core regression suite,
+JavaScript checks and two Chromium UI tests on code pushes to `main` and pull
+requests. It can also be started manually. It builds the Python wheel, not desktop
+installers, and needs no live LLM, R, Perl or Redis service. Desktop packaging and
+Docker integration remain separate workflows. This is not the full test suite.
+
 `test_bff.py` covers clinical record normalization, grouping and the basic patient
 API. The former mixed suite is split into feature modules:
 

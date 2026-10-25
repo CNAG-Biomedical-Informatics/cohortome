@@ -6,6 +6,7 @@
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-0298c3)](LICENSE)
+[![Build and test](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/build-and-test.yml)
 [![Desktop build](https://img.shields.io/github/actions/workflow/status/CNAG-Biomedical-Informatics/cohortome/desktop-release-draft.yml?branch=main&label=Desktop%20build)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/desktop-release-draft.yml)
 [![Docker Hub pulls](https://img.shields.io/docker/pulls/manuelrueda/cohortome?label=Docker%20Hub)](https://hub.docker.com/r/manuelrueda/cohortome)
 [![Documentation](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml)
