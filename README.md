@@ -9,7 +9,7 @@
 [![Desktop build](https://img.shields.io/github/actions/workflow/status/CNAG-Biomedical-Informatics/cohortome/desktop-release-draft.yml?branch=main&label=Desktop%20build)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/desktop-release-draft.yml)
 [![Docker Hub pulls](https://img.shields.io/docker/pulls/manuelrueda/cohortome?label=Docker%20Hub)](https://hub.docker.com/r/manuelrueda/cohortome)
 [![Documentation](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/docs-pages.yml)
-[![Zenodo DOI pending](https://img.shields.io/badge/Zenodo-DOI%20pending-lightgrey)](#citation)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23638366.svg)](https://doi.org/10.5281/zenodo.23638366)
 
 <p align="center">
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/">📚 Documentation</a> ·
@@ -45,8 +45,9 @@ Synthetic results demonstrate software behaviour, not biological findings.
 Rueda et al. *COHORTome: an open-source application for clinical and multimodal
 cohort analysis.* **Manuscript in preparation.**
 
-Until a preprint or published paper is available, please cite the Zenodo record
-for the software release used. The DOI is forthcoming; see
+Software: Rueda, M. (2026). *COHORTome* [Software]. Zenodo.
+[doi:10.5281/zenodo.23638366](https://doi.org/10.5281/zenodo.23638366).
+This DOI covers all versions; include the version used in your work. See
 [citation details](https://cnag-biomedical-informatics.github.io/cohortome/docs/about/citation).
 
 Funding and institutional support are listed in
