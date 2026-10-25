@@ -16,7 +16,8 @@
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/">📚 Documentation</a> ·
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/getting-started/desktop">📦 Desktop</a> ·
   <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/admin-guide/starting-and-stopping">🌐 Web deployment</a> ·
-  <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/user-journeys">🧭 User guide</a>
+  <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/user-journeys">🧭 User guide</a> ·
+  <a href="https://www.youtube.com/playlist?list=PLITMLc8FnGyQ">▶ Video tutorials</a>
 </p>
 
 COHORTome is an open-source application for clinical and multimodal cohort
