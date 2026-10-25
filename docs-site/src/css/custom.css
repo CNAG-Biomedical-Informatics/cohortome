@@ -204,6 +204,103 @@
   background: #fff;
 }
 
+.datasetWorkflow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem minmax(0, 1fr);
+  align-items: stretch;
+  gap: .65rem;
+}
+
+.datasetWorkflowPanel {
+  padding: 1.25rem;
+  text-align: left;
+  border: 1px solid var(--cohortome-line);
+  border-top: 3px solid var(--ifm-color-primary);
+  border-radius: 8px;
+  background: var(--cohortome-wash);
+}
+
+.datasetWorkflowLabel {
+  color: var(--cohortome-muted);
+  font-size: .7rem;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.datasetWorkflowTitle {
+  margin: .2rem 0 1.25rem;
+  color: var(--cohortome-ink);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.datasetWorkflowSteps {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: .85rem;
+}
+
+.datasetWorkflowSteps li::marker {
+  color: var(--ifm-color-primary);
+  font-weight: 650;
+}
+
+.datasetWorkflowSteps strong,
+.datasetWorkflowSteps span {
+  display: block;
+}
+
+.datasetWorkflowSteps span {
+  margin-top: .2rem;
+  color: var(--cohortome-muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.datasetWorkflowTransfer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  color: var(--cohortome-muted);
+  font-size: .72rem;
+  line-height: 1.4;
+}
+
+.datasetWorkflowArrow {
+  color: var(--ifm-color-primary);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.datasetWorkflowPackage {
+  padding: .3rem .6rem;
+  border: 1px solid var(--cohortome-line);
+  border-radius: 4px;
+  color: var(--cohortome-ink);
+  font-size: .75rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+}
+
+@media (max-width: 640px) {
+  .datasetWorkflow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .datasetWorkflowTransfer {
+    padding: .3rem 0;
+  }
+
+  .datasetWorkflowArrow {
+    transform: rotate(90deg);
+  }
+}
+
 .cohortomeFundingImage {
   display: block;
   width: min(760px, 100%);

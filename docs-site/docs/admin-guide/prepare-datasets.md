@@ -1,107 +1,184 @@
-# Prepare and contribute datasets
+# COHORTome Store
 
-Start here to turn clinical tables and processed assays into a COHORTome
-package. Preparation scripts and study mappings live in
-[COHORTome Store](https://github.com/CNAG-Biomedical-Informatics/cohortome-store).
-This guide explains the workflow; the [package reference](dataset-packages)
-describes the format and validator.
+**[COHORTome Store](https://github.com/CNAG-Biomedical-Informatics/cohortome-store)
+is the repository for dataset preparation and contributions.** It holds the
+preparation scripts, clinical mappings, worked examples, and study-specific
+provenance and licensing notes.
 
-## Choose a route
+Use **Store** to prepare a dataset; use the **COHORTome app** to import, explore,
+and analyze it. This guide explains that workflow. Start with the small example,
+then adapt the mapping to your study.
 
-| Your starting point | Next step |
-| --- | --- |
-| A study listed in the app | [Install datasets](../user-guide/install-datasets): use its reviewed fetch-and-prepare recipe. |
-| A Store recipe you want to inspect or reproduce | Read that dataset's README, mapping and licensing notes, then run its preparation command. |
-| Your own clinical table and assay products | Follow the steps below, starting with the small worked example. |
+:::tip[Just want to use a listed study?]
 
-Adding a Store recipe does **not** make it executable from the app. The app's
-fetch-and-build recipes are separately reviewed and shipped with COHORTome.
-This guide does not change that mechanism.
+Follow [Install datasets](../user-guide/install-datasets). The app can fetch and
+prepare supported studies for you; you do not need to work in Store yourself.
 
-## Start with the worked example
+:::
 
-The Store's [minimal dataset example](https://github.com/CNAG-Biomedical-Informatics/cohortome-store/tree/main/examples/minimal-dataset)
-contains a clinical CSV, a Convert-Pheno mapping, an assay matrix and explicit
-sample links. Run its README commands in order to create a ZIP, validate it and
-import it through **Admin → Data → Add dataset → Import local package**.
+## Try the example first
 
-It has two invented patients, two visits each and three invented count features.
-It demonstrates identity and packaging, not differential expression or biology.
-No source downloads, LLM, R, Redis or running COHORTome server are needed to
-prepare it. Python 3.11+, COHORTome's Python dependencies and Convert-Pheno 0.35
-are required. ClarIDs are optional and deliberately omitted from this example.
+The [worked example](https://github.com/CNAG-Biomedical-Informatics/cohortome-store/tree/main/examples/minimal-dataset)
+uses **two invented patients, two visits each, and three count features**.
+Follow its README commands to create and validate an importable ZIP.
 
-## Prepare your own data
+<figure className="datasetWorkflow" aria-label="Dataset preparation and import workflow">
+  <div className="datasetWorkflowPanel">
+    <div className="datasetWorkflowLabel">Prepare</div>
+    <div className="datasetWorkflowTitle">COHORTome Store</div>
+    <ol className="datasetWorkflowSteps">
+      <li><strong>Gather inputs</strong><span>Clinical table, processed assays, sample links</span></li>
+      <li><strong>Map and validate</strong><span>Run the recipe and review the checks</span></li>
+    </ol>
+  </div>
+  <div className="datasetWorkflowTransfer">
+    <span className="datasetWorkflowArrow" aria-hidden="true">→</span>
+    <span className="datasetWorkflowPackage">ZIP</span>
+    <span>Dataset package</span>
+  </div>
+  <div className="datasetWorkflowPanel">
+    <div className="datasetWorkflowLabel">Use</div>
+    <div className="datasetWorkflowTitle">COHORTome app</div>
+    <ol className="datasetWorkflowSteps" start="3">
+      <li><strong>Import the package</strong><span>DuckDB is prepared automatically</span></li>
+      <li><strong>Select and explore</strong><span>Apply the dataset to your workspace</span></li>
+    </ol>
+  </div>
+</figure>
 
-### 1. Review the source
+**You need:** Python 3.11+, COHORTome's Python dependencies, and Convert-Pheno
+0.35. Preparation needs no source downloads, LLM, R, Redis, or running server.
+The example demonstrates packaging and patient–sample links, not biology.
+ClarIDs are optional and omitted here.
 
-Record the study citation, product URLs or authorized source, retrieval date,
-checksums, access conditions and permitted use. Work from processed assay
-products when possible; COHORTome is not a sequencing or array-QC pipeline.
+Already using a Store recipe? Read that study's README, mapping, and licensing
+notes, then run its preparation command.
 
-Permission to access data is not permission to redistribute it. A recipe may be
-shareable when its input data are not. Keep restricted inputs and patient-level
-outputs outside source repositories, including their ignored folders. Do not
-copy tokens, credentials or private access details into shared provenance.
+## Prepare your study in five steps
 
-### 2. Resolve identities and timepoints
+### 1. Check the source
 
-Identify the patient, visit, specimen and assay-sample columns before converting.
-Use one BFF object per patient/timepoint for longitudinal data, and link assay
-columns through a sample table. Keep original identifiers when adapting them to
-the package's conventions.
+Use processed assay products. Record where they came from and what you are
+allowed to do with them.
+
+**Keep:** the study citation, source, retrieval date, checksums, and access and
+reuse conditions.
+
+:::warning[Access is not permission to redistribute]
+
+A recipe may be shareable when its data are not. Keep restricted inputs and
+patient-level outputs outside source repositories, including ignored folders.
+Never include credentials or private access details in shared provenance.
+
+:::
+
+### 2. Link patients, visits, and samples
+
+Identify these columns **before converting**. For longitudinal data, create one
+Beacon Friendly Format (BFF) object per patient and timepoint. Link assay columns
+to those records through a sample table, retaining original identifiers.
+
+**Check:** can every assay sample be traced to the correct patient and visit?
+
+<details>
+<summary>Repeated samples, technical replicates, and missing dates</summary>
 
 Document repeated specimens and technical replicates. Do not count them as
 independent patients, average them, or discard them without a study-specific
 reason. Do not invent dates from relative study days or merge conflicting rows
-merely because they share a patient ID.
+just because they share a patient ID.
 
-### 3. Map clinical variables
+</details>
 
-Use Convert-Pheno's CSV-to-BFF route with an explicit mapping file. Follow the
-[clinical mapping guidance](dataset-packages#prepare-clinical-csv-data-with-convert-pheno).
-Record a decision for every source column: structured mapping, retained source
-metadata, assay metadata or exclusion with a reason. Review ontology matches,
-units, timing, negative findings and converter placeholders.
+### 3. Map the clinical table
+
+Use **Convert-Pheno CSV → BFF** with an explicit mapping file. Review the
+resulting diagnoses, measurements, units, and timing—not just whether conversion
+finishes.
+
+**Keep:** a decision for every source column: structured mapping, source
+metadata, assay metadata, or exclusion with a reason.
+
+<details>
+<summary>Clinical mapping checks</summary>
+
+Follow the [clinical mapping guidance](dataset-packages#prepare-clinical-csv-data-with-convert-pheno).
+Check ontology matches, units, negative findings, and converter placeholders.
+Unknown fields should remain unknown, not be filled to match the example.
+
+</details>
 
 ### 4. Describe the assays
 
-Provide feature-by-sample numeric matrices, their measurement scale and explicit
-sample-to-patient links. Distinguish integer counts, RSEM expected counts,
-normalized expression, microarray values and methylation scales. Record any
-upstream normalization, filtering and batch correction; do not silently redo it.
+Provide numeric matrices with **features as rows and samples as columns**,
+explicit sample links, and the measurement scale. Record any upstream
+normalization, filtering, or batch correction; do not silently redo it.
 
-Required fields are listed in the [package reference](dataset-packages#assay-tables-and-links).
-A clinical-only package needs no assay manifest. ClarIDs and imaging are optional.
-Unknown clinical fields should remain unknown, not be filled to match an example.
+**Check:** integer counts, RSEM expected counts, normalized expression,
+microarray values, and methylation values are distinct input types.
 
-### 5. Validate, package and inspect
+<details>
+<summary>Required files and optional data</summary>
 
-Run `python -m app.dataset_validation /path/to/package` using the COHORTome
-checkout/environment selected for preparation. Record the validator version or
-commit and its report. BFF content and terminology need separate review; this
-command primarily checks package structure, identities and assay values.
+See the [assay fields and links](dataset-packages#assay-tables-and-links).
+A clinical-only package needs no assay manifest. ClarIDs and imaging are
+optional. COHORTome is not a sequencing or array-QC pipeline.
 
-For ZIP import, include `resource.json` inside the single dataset root, with
-`manifest_version: 1`, `schema_version: 1`, a dataset ID and a resource version.
-The example shows file checksums, provenance and archive creation. A checksum
-detects changed bytes; it does not establish that the source is trustworthy.
+</details>
 
-Import into a disposable COHORTome instance, then inspect patients, visits,
-clinical fields and assay coverage. Import prepares DuckDB automatically.
-Installation does not change the active workspace: add the dataset to the
-selection and apply it. Use the [review checklist](dataset-review-checklist)
-before sharing a recipe or package.
+### 5. Validate and open it
 
-## Contribute to Store
+Run the validator in your COHORTome preparation environment:
 
-Keep the study README, mapping and preparation script together or clearly linked.
-Include expected aggregate counts, source-specific limitations and reproducible
-commands. Generated datasets and archives are not Git source files. Do not add
-a release asset or catalogue entry until its contents and distribution terms
-have been reviewed.
+```bash
+python -m app.dataset_validation /path/to/package
+```
 
-For a coding agent, read this page, the package reference, the example and the
-target study's README first. Do not guess clinical meaning, units, sample
-relationships, replicate handling or licensing. Record unresolved decisions
-and ask the dataset owner when they affect the result.
+Then test the ZIP in a disposable installation:
+
+1. Open **Data → Add dataset → Import local package** (under **Admin** on Web).
+2. Wait for import and automatic DuckDB preparation to finish.
+3. Select the dataset and apply it to the workspace.
+4. Inspect patients, visits, clinical fields, and assay coverage.
+
+**Keep:** the validator version or commit and its report. Validation checks
+structure, identities, and assay values; clinical meaning and terminology still
+need review.
+
+<details>
+<summary>ZIP metadata and checksums</summary>
+
+Include `resource.json` inside the single dataset root, with
+`manifest_version: 1`, `schema_version: 1`, a dataset ID, and a resource version.
+The worked example creates the archive and records file checksums and provenance.
+A checksum detects changed bytes; it does not establish source trustworthiness.
+See the [package reference](dataset-packages) for the full format.
+
+Installation does not change the active workspace: selecting and applying the
+dataset is a separate step.
+
+</details>
+
+## Ready to contribute?
+
+Use the [review checklist](dataset-review-checklist) before sharing a recipe or
+package. Keep these together or clearly linked in Store:
+
+- **Study README:** sources, licensing, expected counts, and known limitations.
+- **Mapping and script:** reproducible preparation commands and field decisions.
+- **Validation record:** the checks performed and unresolved issues.
+
+Generated datasets and archives are not Git source files. Review their contents
+and distribution terms before adding release assets or catalogue entries.
+Adding a Store recipe does **not** make it executable in the app: fetch-and-build
+recipes are separately reviewed and shipped with COHORTome.
+
+<details>
+<summary>Preparing data with a coding agent</summary>
+
+Have the agent read this page, the package reference, the worked example, and the
+study README first. Do not guess clinical meaning, units, sample relationships,
+replicate handling, or licensing. Record unresolved decisions and ask the dataset
+owner when they affect the result.
+
+</details>

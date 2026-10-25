@@ -63,6 +63,10 @@ Replies contain the method summary, usable sample and feature counts, plots,
 and any exclusions or limitations. Expand **Result files** for tables, images,
 parameters, logs, and available source snapshots.
 
+![Completed deterministic cohort summary with patient and timepoint counts and expandable method details](/img/screenshots/analysis-result.png)
+
+*A completed summary using the Synthetic longitudinal demo; no LLM is needed. Other methods add their own plots and result files.*
+
 Use **Runs** above the avatar to find a previous execution. The Queue view shows
 background-job status. A chat can hold several runs and follow-up questions.
 

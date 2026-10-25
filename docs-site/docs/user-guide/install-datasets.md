@@ -1,34 +1,65 @@
 # Install a dataset
 
-Open **Admin → Data → Add dataset**. Desktop owners and web administrators can
-install packages. Other web users select datasets already made available to them.
+Open **Data → Add dataset** on Desktop, or **Admin → Data → Add dataset** on
+Web. Installation is available to the desktop owner and web administrators.
+Other web users select datasets already made available to them.
 
-Choose **Browse available datasets**, then **Download and install**. Each entry
-shows its version, download size, contents and source terms. The two bundled
-synthetic datasets show **Included with COHORTome** and cannot be reinstalled,
-including through ZIP import.
+![Add dataset dialog with the available catalogue and local ZIP import action](/img/screenshots/install-dataset.png)
 
-The catalogue downloads packages from
-[COHORTome Store](https://github.com/CNAG-Biomedical-Informatics/cohortome-store),
-a curated collection of datasets ready to use in COHORTome.
-The repository is currently private. Open **GitHub access for private
-downloads** and supply a token with read access to its contents. COHORTome uses
-it for that download only; it is not saved. Public releases need no token.
-Never paste a token into a chat or a dataset URL.
+*Choose a listed study or import a package you prepared yourself. Scroll the catalogue to see more entries.*
 
-## Fetch and prepare from the original source
+## Download, prepare, explore
 
-The research datasets below use **Fetch and prepare**, rather than a Store
-archive. Review the linked study and source terms, then confirm the download.
-No GitHub token is needed. The confirmation links to the study and its usage
-policy or consortium data-access statement. Check
-**I have reviewed the source information and applicable usage conditions** to
-enable **Download and prepare**. The installation receipt records the local
-account, UTC time, dataset/recipe version, notice and links acknowledged. This
-records your acknowledgement, not a licence grant or proof of legal permission.
-The app downloads the processed products from their original provider,
-checks its exact size and SHA-256 checksum, and prepares the dataset locally.
-This is not a download of raw sequencing or array-intensity files.
+1. Choose **Browse available datasets** and select a study.
+2. Review its contents and source terms, then choose **Download and prepare**
+   or **Download and install**, as offered.
+3. Keep the app open while it downloads, validates, and prepares the database.
+4. When **Ready** appears, choose **Add to workspace selection**, then
+   **Apply workspace**.
+
+:::tip[Ready means installed—not yet selected]
+
+DuckDB preparation is automatic. To start browsing, add the dataset to your
+workspace selection and apply it.
+
+:::
+
+:::note[Bundled demos are already included]
+
+The two synthetic datasets show **Included with COHORTome**. They cannot be
+reinstalled, including through ZIP import.
+
+:::
+
+## Choose where the data comes from
+
+| Route | What happens |
+| --- | --- |
+| **Fetch and prepare** | Downloads processed study products from the original provider and prepares them locally. No GitHub token needed. |
+| **Download and install** | Downloads a prepared package from [COHORTome Store](https://github.com/CNAG-Biomedical-Informatics/cohortome-store). |
+| **Import local package** | Imports a resource ZIP you already have. Only use packages from a trusted source. |
+
+For your own clinical tables and assays, start with
+[COHORTome Store: prepare a dataset](../admin-guide/prepare-datasets).
+
+:::warning[Review data-use and AI permissions]
+
+For **Fetch and prepare**, read the linked source conditions and check
+**I have reviewed the source information and applicable usage conditions**.
+Acknowledgement is recorded; it is not a licence grant or permission to
+redistribute the data.
+
+New imports start with **AI access blocked**, private classification, and
+admin-only visibility on Web. Review their policies in **Data → Installed
+datasets** before enabling model access or sharing them.
+
+:::
+
+<details>
+<summary>Available studies and preparation notes</summary>
+
+These studies use **Fetch and prepare**, not a Store archive. The app downloads
+processed products, not raw sequencing or array-intensity files.
 
 | Dataset | Prepared contents |
 | --- | --- |
@@ -73,11 +104,28 @@ suitable for limma-voom. Multiple biopsies from one participant are not
 independent participants. Ambiguous source visit labels retain their labels
 without invented elapsed times.
 
-Progress reports downloading, local preparation, validation and database
-preparation. The final dataset uses the same permissions and workspace selection
-as a package import. Source downloads and intermediate staging files are removed
-when the attempt ends; source checksums, the mapping and preparation provenance
-remain with the installed dataset.
+</details>
+
+<details>
+<summary>Private Store downloads and GitHub tokens</summary>
+
+The Store repository is currently private. Open **GitHub access for private
+downloads** and supply a token with read access to its contents. The token is
+used for that download only and is not saved. Public releases need no token.
+Never paste a token into a chat or a dataset URL.
+
+</details>
+
+<details>
+<summary>Source checks, conversion tools, and download records</summary>
+
+The app checks the exact size and SHA-256 checksum of source downloads. Progress
+shows downloading, local preparation, validation, and database preparation.
+Source downloads and intermediate staging files are removed when the attempt
+ends; checksums, mappings, and preparation provenance remain with the dataset.
+
+The acknowledgement receipt records the local account, UTC time, dataset/recipe
+version, notice, and links reviewed. It is not proof of legal permission.
 
 Only reviewed recipes shipped with COHORTome can run. An arbitrary GEO accession,
 download URL or script cannot be supplied. If the upstream bytes change, the app
@@ -94,35 +142,40 @@ contain Pheno-Ranker only. Native deployments can configure
 `COHORTOME_CLARID_CODEBOOK` (the versioned YAML file). Missing tools produce an
 error before the download starts.
 
-## Import a package
+</details>
 
-Alternatively, choose **Import local package** and select a resource ZIP.
-It must contain one dataset folder, including `resource.json`, the dataset
-manifest and source files. A local import is structurally validated; unlike a
-catalogue download, it has no independently reviewed archive checksum.
-Only import packages from sources you trust.
+<details>
+<summary>Local ZIP format, size limits, and interrupted imports</summary>
 
-To create a package from your own tables, see
-[Prepare and contribute datasets](../admin-guide/prepare-datasets).
+Choose **Import local package** and select a resource ZIP containing one dataset
+folder, including `resource.json`, the dataset manifest, and source files.
+Local imports are structurally validated but have no independently reviewed
+archive checksum.
 
-COHORTome downloads to disk, verifies catalogue checksums, checks the package
-structure and prepares its DuckDB store. ZIPs are limited to 1 GiB and extracted
-contents to 4 GiB. Unsafe paths, symlinks and encrypted ZIPs are rejected.
-Cancellation is available before database preparation. Keep the app open until
-installation finishes. Failed installations are rolled back; retry downloads
-start again rather than resuming a partial archive.
+Catalogue downloads are written to disk and their checksums verified before
+package validation and DuckDB preparation. ZIPs are limited to 1 GiB and
+extracted contents to 4 GiB. Unsafe paths, symlinks, and encrypted ZIPs are rejected.
 
-Once **Ready** appears, choose **Add to workspace selection**, then **Apply
-workspace**. Installation alone never changes the active workspace. New imports
-start with private classification, AI access blocked and admin-only visibility
-on the web. Review these policies under **Admin → Data → Installed datasets** before sharing them.
+Cancellation is available before database preparation. Failed installations are
+rolled back. Retry downloads start again rather than resuming a partial archive.
 
-## Storage
+</details>
 
-Under **Settings → Jobs & storage → Dataset storage**, choose the folder for
-new imports. Desktop provides a folder picker. On the web, enter an existing
-absolute server path; only administrators can edit it. The app checks write
-access and reports available disk space.
+## Where are datasets stored?
+
+Change the location in **Settings → Jobs & storage → Dataset storage**.
+
+| Deployment | Choose a location |
+| --- | --- |
+| Desktop | Use the folder picker. |
+| Web | An administrator enters an existing absolute server path. |
+| Docker | Use a path inside a persistent mounted volume. |
+
+The setting affects **new imports only**. Keep external disks connected while
+using their data.
+
+<details>
+<summary>Storage layout and recovery after a restart</summary>
 
 The selected folder holds temporary downloads/extraction files and an
 `installed/` subfolder with a separate directory for each imported package.
@@ -144,23 +197,37 @@ It does not need Redis. Progress can be reopened while that process is running;
 after a restart, retry an interrupted installation. A completed dataset that an
 administrator disabled is preserved, not replaced by a retry.
 
-## Remove an installed dataset
+</details>
 
-In **Admin → Data**, expand the dataset and choose **Remove dataset**.
-Type its dataset ID to confirm. Bundled examples cannot be removed.
-Finish or cancel queued and running jobs first; the removal check covers
-all users, including jobs for other datasets.
+## Remove a dataset
 
-Removal unregisters the dataset and clears its prepared DuckDB store.
-Saved chats, cohorts and results remain, but references to the removed dataset
-will no longer load. Reimporting a package does not repair those references.
+Open the dataset in **Data**, then choose **Remove dataset** and type its ID.
+Bundled examples cannot be removed. Finish or cancel queued and running jobs
+first, including jobs for other datasets and users.
 
-Source files are retained by default. The optional file-removal checkbox
-only accepts installer-managed packages. It moves the package to a `removed/`
-directory beside `installed/` in its original storage location, allowing manual
-recovery. This does not free disk space or permanently erase data.
-Other source folders are never moved or deleted.
+:::warning[Saved work can lose access to its data]
+
+Chats, cohorts, and results remain, but links to the removed dataset stop
+working. Reimporting does not repair those references. Source files are kept
+unless you explicitly choose the file-removal option.
+
+:::
+
+<details>
+<summary>What removal changes and how files can be recovered</summary>
+
+| Item | After removal |
+| --- | --- |
+| Dataset registration and prepared DuckDB store | Removed. |
+| Chats, cohorts, and results | Kept; dataset references no longer load. |
+| Source files, by default | Kept in place. |
+| Installer-managed files, with file removal selected | Moved to `removed/` beside `installed/` for manual recovery. |
+| Other source folders | Never moved or deleted. |
+
+Moving files to `removed/` does **not** free disk space or permanently erase them.
 
 After removal, use **Reload workspace**, then select and apply the datasets
 you want to use. A revised resource must have a new resource version and
 matching archive checksum; do not overwrite an existing release.
+
+</details>

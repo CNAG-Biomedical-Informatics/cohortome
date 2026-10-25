@@ -30,6 +30,10 @@ Use **Load more patients**, or type a patient ID or ClarID to filter the list.
 Arrow keys and Enter also work. Selecting a patient opens their **Timeline**.
 Identical IDs from different datasets remain separate.
 
+![Patient browser with disease filters, sortable columns, and cohort actions in the synthetic demo](/img/screenshots/dashboard-patients.png)
+
+*Filter by disease or search by ID; save the matching patients or refine them by assay availability.*
+
 The Timeline inventory lists clinical records alongside linked sample IDs and assays. Dates, visits, specimen
 material, and sample ClarIDs appear when supplied. **Not recorded** means that
 the source metadata does not provide the field.
@@ -45,6 +49,15 @@ under **Visit not recorded**. Matching dates alone do not establish a visit link
 **Technical details** holds source metadata and the complete BFF JSON,
 collapsed by default. Clinical records are loaded in batches of 20;
 use **Load more records** for longer histories.
+
+<details>
+<summary>See the visit-grouped clinical and assay inventory</summary>
+
+![Synthetic patient's clinical records grouped by naturally ordered visits in the shared inventory](/img/screenshots/dashboard-patient-visits.png)
+
+*Clinical records and assays share one inventory. Missing visit links remain explicit.*
+
+</details>
 
 Selecting a clinical marker opens that timepoint's record. **All clinical
 timepoints** restores the patient's full record list. The sample inventory
@@ -92,6 +105,8 @@ analyse comes from the expected dataset.
 Laboratory assay totals exclude imaging. Use Imaging for studies and derived
 imaging measurements.
 
+![Assay overview distinguishing patient coverage by modality from assay counts in the synthetic workspace](/img/screenshots/dashboard-assays.png)
+
 ## Imaging dashboard
 
 Open a listed study when its viewer is available. COHORTome launches OHIF;
@@ -131,6 +146,10 @@ combination, then open **Matching patients**.
 Choose **Save cohort** to keep the matching patients. Membership includes the
 source dataset, so repeated IDs across datasets do not merge into one patient.
 See [saved cohorts](saved-cohorts-and-handoffs.md) to export or analyse the group.
+
+![Multimodal selection of SLE patients with transcriptomics and methylation, showing 28 matching synthetic patients and the Save cohort action](/img/screenshots/multimodal-selection.png)
+
+*The synthetic example matches 28 patients. The combination rows show which additional data types they have.*
 
 :::warning[Patient overlap is not sample matching]
 

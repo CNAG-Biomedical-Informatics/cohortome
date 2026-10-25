@@ -20,6 +20,13 @@ Choose **Save cohort** from:
 Give the group a descriptive name. Saving a paginated Query result includes
 all matching members, not just the visible page.
 
+<details>
+<summary>Example: name a cohort selected in Multimodal</summary>
+
+![Save cohort dialog naming an SLE group with RNA and methylation data](/img/screenshots/save-cohort.png)
+
+</details>
+
 ## Find and use a saved cohort
 
 1. Open **Cohorts** in the left navigation.
@@ -32,6 +39,10 @@ the cohort library alone does not change the workspace.
 
 Use **Rename** in the three-dot menu to change the name. This does not change
 membership or references from existing chats.
+
+![Saved cohort library containing an SLE cohort selected by RNA and methylation availability](/img/screenshots/cohort-library.png)
+
+*A saved cohort retains its source dataset and patient count, with actions for reuse and export.*
 
 To narrow a patient cohort by available assays, open **Dashboard → Multimodal**,
 choose it under **Start from**, and select the required data types. Saving creates
@@ -59,6 +70,10 @@ Open **Export** and choose the data you need:
 Desktop opens a save dialog. Web uses the browser download.
 Exports require ownership of the cohort and current Detailed access to every
 source dataset.
+
+![Molecular export dialog listing the available synthetic assays and their sample counts](/img/screenshots/cohort-export.png)
+
+*Choose which assay matrices to export. A patient cohort includes its linked samples; a sample cohort retains only its saved samples.*
 
 :::warning[Exports contain research data]
 

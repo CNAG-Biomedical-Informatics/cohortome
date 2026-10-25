@@ -36,6 +36,10 @@ missing data—not evidence that nobody takes a treatment.
 General questions require a model and do not create cohorts. Supported workspace
 queries remain available without one.
 
+![Real LM Studio response in General question mode, with No workspace context displayed above the conversation](/img/screenshots/query-llm-answer.png)
+
+*A real gpt-oss-20b reply from LM Studio. General question does not attach dataset records; this example illustrates the interface, not a validated medical answer.*
+
 ## Read, sort, and reuse results
 
 Click a table heading to sort all matching rows, not just the visible page.
