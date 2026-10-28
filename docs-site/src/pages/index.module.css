@@ -93,7 +93,15 @@
 .pathCard h3 span { color: var(--ifm-color-primary); font-weight: 400; }
 .pathCard p { margin: 0; color: var(--cohortome-muted); font-size: .9rem; line-height: 1.65; }
 
-.videoNote { margin: 0 0 2rem; color: var(--cohortome-muted); font-size: .9rem; line-height: 1.65; }
+.videoSection { padding-bottom: 2.5rem; }
+.videoFrame { aspect-ratio: 16 / 9; max-width: 960px; margin: 1.5rem auto 0; overflow: hidden; border: 1px solid var(--cohortome-line); border-radius: 12px; background: #172126; }
+.videoFrame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.videoPreview { position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; background: #172126; color: #fff; }
+.videoPreview img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: .65; transition: opacity .15s; }
+.videoPreview:hover img { opacity: .85; }
+.videoPlay { position: absolute; inset: auto 0 12%; display: flex; justify-content: center; align-items: center; gap: .8rem; width: fit-content; max-width: 90%; margin: auto; padding: .85rem 1.4rem; border-radius: 8px; background: #164f50; color: #fff; font-size: 1rem; font-weight: 600; box-shadow: 0 4px 20px #0005; }
+.videoPreview:focus-visible { outline: 3px solid var(--ifm-color-primary); outline-offset: -4px; }
+.videoFooter { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; max-width: 960px; margin: .85rem auto 0; font-size: .85rem; color: var(--cohortome-muted); }
 .deploymentSection { padding-bottom: 3rem; }
 .deploymentPanel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; padding: 1.5rem; border-left: 3px solid var(--ifm-color-primary); border-radius: 0 6px 6px 0; background: var(--cohortome-wash); }
 .deploymentPanel > div + div { padding-left: 2rem; border-left: 1px solid var(--cohortome-line); }

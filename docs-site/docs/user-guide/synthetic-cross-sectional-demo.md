@@ -1,9 +1,17 @@
 # Synthetic cross-sectional demo
 
-This cross-sectional dataset lets reviewers try autoimmune research workflows.
-It is independent of real study data.
-Participants, measurements, effects, batches and missingness are independently
-simulated, not copied, anonymized, or fitted to patient-level study records.
+This cross-sectional dataset lets users test and demonstrate autoimmune research
+workflows in COHORTome. Its measurements, group effects, technical variation, and
+missingness are generated using predefined rules and random variation.
+
+:::note[Software demonstration, not biological evidence]
+
+Analysis results reflect programmed patterns. They should not be interpreted as
+biological findings, treatment effects, or clinical evidence. Disease and marker
+names provide context for testing the app; they do not validate the generated
+values as a model of a real patient cohort.
+
+:::
 
 The Synthetic longitudinal demo remains available for longitudinal demonstrations.
 

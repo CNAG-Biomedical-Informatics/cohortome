@@ -16,7 +16,8 @@ Prefer a demonstration? See the [video tutorials](../video-tutorials.md).
 
 :::note[Synthetic examples]
 
-These examples demonstrate the software, not biological findings. The autoimmune
+The synthetic datasets test and demonstrate the app. Analysis results reflect
+programmed patterns, not biological findings or clinical evidence. The autoimmune
 demo has no treatment history or repeated visits; use the Synthetic longitudinal demo for
 medication and longitudinal examples.
 

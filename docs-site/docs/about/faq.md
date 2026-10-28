@@ -81,6 +81,21 @@ those derived features with clinical and assay data.
 </details>
 
 <details>
+<summary>Are results from the synthetic demo datasets biologically informative?</summary>
+
+No. The bundled synthetic datasets are provided to test and demonstrate
+COHORTome. Their values combine predefined patterns with random variation so
+users can try cohort selection, missing-data handling, and analysis workflows.
+The results reflect those programmed patterns, not biological findings or
+clinical evidence. A significant difference or correlation in a demo is not
+evidence about a disease or treatment.
+
+See the [cross-sectional demo](../user-guide/synthetic-cross-sectional-demo.md)
+for its contents and limitations.
+
+</details>
+
+<details>
 <summary>Are the bundled MRI images realistic multiple-sclerosis scans?</summary>
 
 No. Their metadata exercises an MS brain-MRI workflow, but the visible pixels

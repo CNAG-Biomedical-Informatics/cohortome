@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Dashboard
 
+import MultimodalWalkthrough from '@site/src/components/MultimodalWalkthrough';
+
 Check the available records and measurements before selecting patients or
 running an analysis.
 
@@ -117,6 +119,8 @@ is reachable. Use the viewer status and error message to check access.
 Derived imaging measurements are separate matrices produced outside COHORTome.
 
 ## Multimodal dashboard
+
+<MultimodalWalkthrough />
 
 ### Find shared coverage
 

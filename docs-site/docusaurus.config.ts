@@ -111,6 +111,11 @@ const config: Config = {
           position: 'left',
         },
         {
+          to: '/docs/video-tutorials',
+          label: 'Videos',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/CNAG-Biomedical-Informatics/cohortome',
           label: 'GitHub',
           position: 'right',

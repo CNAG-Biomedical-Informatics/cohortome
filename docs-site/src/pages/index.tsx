@@ -1,4 +1,5 @@
 import Link from '@docusaurus/Link';
+import {useState} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import Layout from '@theme/Layout';
 
@@ -32,6 +33,7 @@ const researchPaths = [
 ];
 
 export default function Home() {
+  const [showOverview, setShowOverview] = useState(false);
   const workspaceScreenshot = useBaseUrl('/img/screenshots/workspace-shell.png');
 
   return (
@@ -79,6 +81,35 @@ export default function Home() {
         </section>
 
 
+        <section className={styles.videoSection} aria-labelledby="overview-video-heading">
+          <div className={styles.inner}>
+            <div className={styles.sectionHeading}>
+              <h2 id="overview-video-heading">See COHORTome in action</h2>
+              <p>A two-minute introduction using synthetic demo data.</p>
+            </div>
+            <div className={styles.videoFrame}>
+              {showOverview ? (
+                <iframe
+                  src="https://www.youtube-nocookie.com/embed/YwmfDPM9hMY?rel=0"
+                  title="COHORTome overview"
+                  allow="encrypted-media; picture-in-picture; fullscreen"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              ) : (
+                <button className={styles.videoPreview} onClick={() => setShowOverview(true)} aria-label="Load the COHORTome overview video from YouTube">
+                  <img src={workspaceScreenshot} alt="" loading="lazy" width="1440" height="1000" />
+                  <span className={styles.videoPlay}><span aria-hidden="true">▶</span> Watch the overview</span>
+                </button>
+              )}
+            </div>
+            <div className={styles.videoFooter}>
+              <span>YouTube loads only when you click. No autoplay.</span>
+              <Link to="/docs/video-tutorials">Watch all four tutorials →</Link>
+            </div>
+          </div>
+        </section>
+
         <section className={styles.pathsSection}>
           <div className={styles.inner}>
             <div className={styles.sectionHeading}>
@@ -98,9 +129,6 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-            <p className={styles.videoNote}>
-              <a href="https://www.youtube.com/playlist?list=PLITMLc8FnGyQ">Video tutorials on YouTube <span aria-hidden="true">↗</span></a>
-            </p>
           </div>
         </section>
 
