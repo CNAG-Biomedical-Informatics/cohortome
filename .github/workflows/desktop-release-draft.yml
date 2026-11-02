@@ -199,6 +199,8 @@ jobs:
             test -f "release-assets/$installer.sha256"
             (cd release-assets && sha256sum -c "$installer.sha256")
           done
+          (cd release-assets && sha256sum "${expected[@]}" > SHA256SUMS)
+          (cd release-assets && sha256sum -c SHA256SUMS)
       - name: Extract concise release notes
         shell: bash
         env:
@@ -228,7 +230,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG" release-assets/* \
+          gh release create "$RELEASE_TAG" \
+            release-assets/*.AppImage release-assets/*.dmg release-assets/*.exe \
+            release-assets/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --draft \

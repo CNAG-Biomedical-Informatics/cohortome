@@ -26,7 +26,27 @@ Both use the same application code and research interface.
 | macOS Apple Silicon or Intel | `.dmg` | Open the disk image and drag the app to Applications. |
 | Windows x86_64 | `-setup.exe` | Run the installer for your user account. |
 
-Each installer has an accompanying `.sha256` checksum file.
+Releases include a single **`SHA256SUMS`** file listing the SHA-256 checksum of
+each installer. You do not need this file to install COHORTome.
+
+<details>
+<summary>Optional: verify your download</summary>
+
+Download `SHA256SUMS` from the same release. Calculate your installer's checksum
+using the command for your platform, replacing the example filename as needed:
+
+| Platform | Command |
+| --- | --- |
+| Linux | `sha256sum cohortome-linux-x86_64.AppImage` |
+| macOS | `shasum -a 256 cohortome-macos-apple-silicon.dmg` |
+| Windows (PowerShell) | `Get-FileHash .\cohortome-windows-x86_64-setup.exe -Algorithm SHA256` |
+
+Compare the result with the entry for that filename in `SHA256SUMS` (letter case
+does not matter). If they differ, do not run the installer; download it again.
+Checksums detect damaged or changed downloads; they do not replace code signing.
+Older releases may provide a separate `.sha256` file for each installer instead.
+
+</details>
 
 ### First launch on macOS
 
@@ -40,7 +60,7 @@ first launch, macOS may therefore prevent COHORTome from opening.
 
 macOS saves this approval for subsequent launches. Only override this protection
 for an installer downloaded from the official COHORTome release page whose
-SHA-256 checksum matches the accompanying `.sha256` file. See
+SHA-256 checksum matches its entry in the release's checksum file. See
 [Apple's instructions for opening an unnotarized app](https://support.apple.com/en-gb/guide/mac-help/mh40617/mac).
 
 <details>

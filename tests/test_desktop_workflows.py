@@ -82,7 +82,7 @@ def test_workflow_entry_points_and_local_dependencies():
                 assert (ROOT / reference).is_file(), reference
     assert manual == {
         "desktop-release-draft.yml", "docker-release.yml",
-        "docker-test.yml", "docs-pages.yml",
+        "docker-test.yml", "docs-pages.yml", "build-and-test.yml",
     }
     for legacy in (
         "desktop-extract-installer.yml", "desktop-linux-pheno-runtime-test.yml",
@@ -137,6 +137,16 @@ def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     assert "--prerelease" not in commands
     assert "--generate-notes" not in commands
     assert "--verify-tag" in commands
+    assert 'sha256sum "${expected[@]}" > SHA256SUMS' in commands
+    assert 'sha256sum -c SHA256SUMS' in commands
+    upload = next(step["run"] for step in publish["steps"]
+                  if step.get("name") == "Create immutable release draft")
+    assert "release-assets/SHA256SUMS" in upload
+    assert "release-assets/*.AppImage" in upload
+    assert "release-assets/*.dmg" in upload
+    assert "release-assets/*.exe" in upload
+    assert "release-assets/* " not in upload
+    assert ".sha256" not in upload
 
 
 def test_docker_release_is_manual_native_and_latest_is_opt_in():
