@@ -3141,6 +3141,11 @@ def test_dashboard_imaging_panel_lists_dicom_studies(page) -> None:
 
 def test_dashboard_assays_panel_filters_modalities(page, tmp_path) -> None:
     _mock_dashboard_load(page)
+    page.route('**/variants/panels?*', lambda route: route.fulfill(json=[{
+        'dataset_id': 'dna-demo', 'label': 'DNA panel', 'variants': 44, 'samples': 3,
+        'patient_ids': ['P1', 'P2', 'P3'], 'sample_ids': ['D1', 'D2', 'D3'],
+        'provenance': {'technology': 'dna_sequencing'},
+    }]))
     _mock_multimodal_assay_datasets(page)
     _mock_dicom_studies(page)
     _mock_dicom_status(page)
@@ -3155,7 +3160,14 @@ def test_dashboard_assays_panel_filters_modalities(page, tmp_path) -> None:
     page.locator("#dashboardAssaysBtn").click()
 
     expect(page.locator("#assayDashboardOverview")).to_contain_text("Assays")
-    expect(page.locator('#assayDashboardOverview .assay-coverage-chart')).to_contain_text('Patients by modality')
+    expect(page.locator('#assayModalityTabs')).to_contain_text('DNA sequencing')
+    expect(page.locator('#assayDashboardOverview .assay-coverage-chart')).to_contain_text('DNA sequencing')
+    page.locator('#assayModalityTabs button', has_text='DNA sequencing').click()
+    expect(page.locator('#assayDashboardCards')).to_contain_text('44 variants')
+    expect(page.locator('#assayDashboardCards')).not_to_contain_text('Expression assay')
+    expect(page.locator('#assayDashboardCards button', has_text='Browse variants')).to_be_visible()
+    page.locator('#assayModalityTabs button', has_text='All').click()
+    expect(page.locator('#assayDashboardOverview .assay-coverage-chart')).to_contain_text('patients with any assay')
     expect(page.locator('.assay-coverage-row').first.locator('svg')).to_be_visible()
     expect(page.locator('#assayDashboardCards .assay-linkage').first).to_contain_text('5 of 5 assay patients')
     details = page.locator('#assayDashboardCards details.assay-technical-details').first
@@ -3185,7 +3197,7 @@ def test_dashboard_assays_panel_filters_modalities(page, tmp_path) -> None:
     page.locator("#dashboardMultimodalBtn").click()
 
     expect(page.locator("#multimodalReadinessPanel")).to_be_visible()
-    expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Multimodal analysis readiness")
+    expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Patients by data type")
     expect(page.locator("#multimodalReadinessPanel")).to_contain_text("Imaging features")
     expect(page.locator("#multimodalReadinessPanel")).not_to_contain_text("Suggested next steps")
     expect(page.locator("[data-readiness-analysis-key]")).to_have_count(0)

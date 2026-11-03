@@ -7,6 +7,26 @@
     "schema_version": {"type": "integer", "const": 1},
     "name": {"type": "string", "minLength": 1},
     "study_design": {"enum": ["cross_sectional", "longitudinal"]},
+    "variants": {
+      "type": "object",
+      "required": ["schema_version", "annotations_file", "samples_file", "genotypes_file"],
+      "properties": {
+        "schema_version": {"type": "integer", "const": 1},
+        "annotations_file": {"type": "string", "minLength": 1},
+        "samples_file": {"type": "string", "minLength": 1},
+        "genotypes_file": {"type": "string", "minLength": 1},
+        "provenance": {
+          "type": "object",
+          "properties": {"technology": {"enum": ["dna_sequencing", "genotyping_array", "synthetic", ""]}},
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "biosamples": {
+      "type": "object",
+      "required": ["file"],
+      "properties": {"file": {"type": "string", "minLength": 1}}
+    },
     "clinical": {
       "type": "object",
       "required": ["representation"],

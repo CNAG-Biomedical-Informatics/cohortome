@@ -24,6 +24,7 @@ from app import datasets, query_store
 from app.state_io import advisory_file_lock
 from app.resource_storage import import_root
 from app.geo_source import SourcePreparationError
+from app import resource_catalogue
 
 router = APIRouter(prefix="/resources", tags=["datasets"])
 REPOSITORY = "CNAG-Biomedical-Informatics/cohortome-store"
@@ -131,7 +132,7 @@ def remove_dataset(dataset_id: str, payload: RemoveRequest, request: Request):
 
 
 def catalogue():
-    return json.loads((CONFIG_DIR / "resources.json").read_text(encoding="utf-8"))
+    return resource_catalogue.read()[0]
 
 
 def snapshot(job):
@@ -397,8 +398,18 @@ def install(job, user, entry=None, token="", uploaded=None):
 @router.get("")
 def list_resources(request: Request):
     require_admin(request)
-    return {"resources": [{**entry, "included": entry["dataset_id"] in BUNDLED} for entry in catalogue()],
-            "repository": REPOSITORY}
+    entries, source = resource_catalogue.read()
+    return {"resources": [{**entry, "included": entry["dataset_id"] in BUNDLED,
+                            "install_mode": "included" if entry["dataset_id"] in BUNDLED else entry.get("install_mode", "archive"),
+                            "compatible": resource_catalogue.compatible(entry)} for entry in entries],
+            "repository": REPOSITORY, "catalogue_source": source}
+
+
+@router.post("/refresh")
+def refresh_resources(request: Request):
+    require_admin(request)
+    message = resource_catalogue.refresh()
+    return {**list_resources(request), "message": message}
 
 
 @router.get("/jobs")
@@ -418,8 +429,12 @@ def start_download(payload: DownloadRequest, request: Request):
     entry = next((x for x in catalogue() if x["dataset_id"] == payload.dataset_id), None)
     if not entry:
         raise HTTPException(404, "Resource is not in the reviewed catalogue.")
+    if not resource_catalogue.compatible(entry):
+        raise HTTPException(409, "Update COHORTome to use this preparation recipe.")
     if entry["dataset_id"] in BUNDLED:
         raise HTTPException(409, "This dataset is already included with COHORTome. Select the bundled dataset instead.")
+    if entry.get("install_mode") == "included":
+        raise HTTPException(409, "This entry is bundled with an app release, not available as a download.")
     if entry.get("install_mode") == "source":
         if not payload.source_terms_acknowledged:
             raise HTTPException(400, "Review the source terms before downloading data.")

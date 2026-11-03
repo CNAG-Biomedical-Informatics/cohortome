@@ -274,6 +274,9 @@
       .coverage-selectors label > span { min-width: 0; overflow-wrap: anywhere; }
       .coverage-selectors label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--theme-surface, white)); }
       .coverage-selectors label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .coverage-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+      .coverage-filter-row > label { min-width: 0; max-width: 100%; margin: 0; }
+      @media (max-width: 600px) { .coverage-filter-row > label { flex-basis: 100%; } }
       .coverage-match-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: .85rem; }
       .coverage-match-mode select { width: auto; max-width: 100%; margin: 0; }
       .coverage-diseases { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }

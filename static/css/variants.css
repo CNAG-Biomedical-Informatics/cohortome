@@ -1,0 +1,54 @@
+.variant-browser { margin-top: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-strong); min-width: 0; }
+.variant-browser[hidden], .variant-detail[hidden] { display: none; }
+#assayOverviewView[hidden], #variantPanelCards[hidden] { display: none; }
+#assayOverviewView { min-width: 0; }
+.variant-panel-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-strong); }
+.variant-panel-heading { display: flex; align-items: center; gap: 10px; }
+.variant-panel-heading > svg { width: 22px; height: 22px; flex-shrink: 0; }
+.variant-panel-heading h4 { margin: 0 0 3px; font-size: .85rem; }
+.variant-panel-heading .section-note { font-size: .76rem; overflow-wrap: anywhere; }
+.variant-panel-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: .76rem; color: var(--muted); }
+.variant-panel-footer button { width: auto; margin: 0; font-size: .77rem; }
+.variant-browser .variant-back { margin-bottom: 18px; }
+#dashboardAssaysPanel .variant-browser { margin-top: 0; border: 0; padding: 0; background: transparent; }
+.variant-header, .variant-heading, .variant-detail > header, .variant-pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.variant-heading { justify-content: flex-start; }
+.variant-heading > svg { width: 28px; height: 28px; flex-shrink: 0; }
+.variant-heading h3 { margin: 0 0 3px; font-size: 1rem; }
+.variant-count { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.variant-toolbar { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.5fr) minmax(120px, .75fr) minmax(150px, 1fr); gap: 12px; margin: 20px 0 12px; }
+.variant-toolbar label { display: grid; gap: 6px; min-width: 0; font-size: .75rem; color: var(--muted); }
+.variant-toolbar input, .variant-toolbar select { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; font-size: .82rem; }
+.variant-status:empty { display: none; }
+.variant-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.variant-browser table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: .81rem; }
+.variant-browser th, .variant-browser td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.variant-browser th { background: var(--bg); color: var(--muted); font-size: .74rem; }
+.variant-browser tr:last-child td { border-bottom: 0; }
+.variant-browser tbody tr:hover, .variant-browser tbody tr:focus-within { background: var(--accent-soft); }
+.variant-browser th button, .variant-browser .variant-open { width: auto; margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; color: inherit; font: inherit; text-align: left; }
+.variant-browser .variant-open { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.variant-browser td small { display: block; color: var(--muted); margin-top: 4px; max-width: 260px; overflow-wrap: anywhere; }
+.variant-class-label { display: inline-block; padding: 3px 7px; border-radius: 5px; background: var(--bg); border: 1px solid var(--line); font-size: .74rem; }
+.variant-carrier-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+.variant-pagination { margin-top: 12px; font-size: .76rem; color: var(--muted); }
+.variant-pagination > div, .variant-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.variant-browser .ghost, .variant-actions button { width: auto; margin: 0; padding: 6px 10px; font-size: .78rem; }
+.variant-browser .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); box-shadow: none; border-radius: 6px; }
+.variant-browser .ghost:hover:not(:disabled) { background: var(--accent-soft); color: var(--ink); }
+.variant-toolbar label { text-transform: none; letter-spacing: normal; }
+.variant-toolbar input, .variant-toolbar select { border-radius: 7px; padding: 9px 10px; }
+.variant-actions button { border-radius: 6px; box-shadow: none; }
+.variant-detail > .section-note { font-size: .76rem; margin-top: 12px; }
+.variant-detail { margin-top: 20px; padding: 18px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; }
+.variant-detail h4 { margin: 0; font-size: .9rem; overflow-wrap: anywhere; }
+.variant-call-counts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0; font-size: .77rem; color: var(--muted); }
+.variant-call-counts strong { color: var(--ink); }
+.variant-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; margin: 16px 0; }
+.variant-fields dt { font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+.variant-fields dd { margin: 0; font-size: .8rem; overflow-wrap: anywhere; }
+.variant-detail summary { cursor: pointer; font-size: .78rem; color: var(--muted); }
+.variant-detail pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .73rem; }
+.variant-actions { margin-top: 16px; font-size: .78rem; }
+@media (max-width: 1000px) { .variant-toolbar { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .variant-browser { padding: 12px; } .variant-toolbar, .variant-fields { grid-template-columns: 1fr; } .variant-header { flex-wrap: wrap; } }

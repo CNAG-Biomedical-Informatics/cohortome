@@ -2,151 +2,89 @@
 sidebar_position: 3
 ---
 
-# Assays and modalities
+import ModalityTable from '@site/src/components/ModalityTable';
 
-COHORTome presents Clinical, Assays, and Imaging separately. Clinical describes
-patients, visits, diagnoses, treatments, and outcomes. Assays covers molecular
-and cellular laboratory measurements. Imaging covers image studies and derived
-measurements. Multimodal connects these data through patient and timepoint links.
+# Supported data and modalities
 
-Imaging uses the shared assay manifest and analysis infrastructure internally;
-existing `assays/imaging/` files and API routes remain unchanged. An imaging
-study is not necessarily a collected biosample; use its recorded patient/visit
-links rather than inventing a specimen identifier.
+**Clinical** describes patients and visits. **Assays** contains laboratory
+measurements. **Imaging** links studies and derived measurements.
+**Multimodal** shows which patients have combinations of these data.
 
-## Assay model
+## Supported data
 
-Each assay dataset is identified by stable metadata:
+<ModalityTable />
 
-- `assay_id`: stable identifier for the matrix or resource.
-- `modality`: the measurement family, such as transcriptomics, DNA methylation, OLINK, proteomics, genotyping, or imaging.
-- `data_type`: the value shape, such as raw counts, processed methylation M-values, relative abundance, protein abundance, allele dosage, or DICOM-derived measurements.
-- `feature_namespace`: the feature identifier system, such as Ensembl gene IDs, Illumina CpG probe IDs, protein symbols, UniProt-backed protein IDs, dbSNP rsIDs, or DICOM standard tags.
-- `level`: whether analysis is patient-level or sample-level.
+**DNA sequencing and genotyping arrays are separate assay types.** Both can
+produce genotype calls. The variant browser accepts prepared panels from either
+technology, but does not browse dosage matrices directly. The bundled synthetic
+genotyping matrix is simulated data, not measurements from an array.
 
-Curated Analysis tools currently support transcriptomics, externally stored processed methylation M-value matrices, flow-cytometry immune-cell abundance, and quantitative serology. The two compact quantitative modalities support bounded Query summaries plus exploratory Wilcoxon cohort comparisons. OLINK, proteomics, genotyping, and DICOM-standard imaging metadata matrices are included as scaffold fixtures so the UI and catalog can reason about multimodal assays consistently.
+:::note[Prepared data, not raw-data processing]
 
-The bundled public datasets include deterministic compact fixtures for four
-synthetic systemic lupus erythematosus patients and four synthetic rheumatoid
-arthritis patients at baseline, with complete sample-to-patient metadata.
-These fixtures exercise Query and Analysis end to end; their contrasts are not
-biological evidence.
+COHORTome does not align reads, call variants, preprocess IDAT files, gate FCS
+files, process mass spectra or segment images. Importing a modality does not
+make every analysis suitable for it.
 
-Methylation matrices stay in the protected dataset files, outside DuckDB.
-COHORTome stores their metadata and sample links. An analysis runner reads the
-selected matrix and returns QC, principal-component, or differential-methylation
-results. These analyses use supplied processed M-values; they do not repeat
-array preprocessing or probe filtering from raw IDAT files.
-
-Publication and interactive workflows may use versioned, replaceable CpG
-feature panels over that complete external assay. See
-[Methylation feature panels](../developer-guide/methylation-feature-panels.md)
-for panel selection, extraction, and the source information recorded with each result.
-
-## Patient and sample linkage
-
-Assay columns use sample IDs. General synthetic matrices use the explicit manifest convention `patient_id_column: derived_from_sample_id_prefix`. Methylation and compact quantitative inference runners use the stricter `sample_metadata_file` contract: the table must contain unique, complete `sample_id` and `patient_id` columns, and every selected matrix column must link to a clinical patient. Cohort tools use the same metadata mapping for inventory and overlap checks, so assay selection and execution agree even when sample IDs do not resemble patient IDs.
-
-Optional methylation model covariates also live in this protected sample metadata table. The manifest declares them with `analysis_covariates` and must type each one in `analysis_covariate_types` as `numeric` or `categorical`; numeric-looking plate, chip, or position codes should be categorical. A run with no varying declared covariates is labeled unadjusted and exploratory.
-
-## DICOM imaging
-
-Imaging assays must use the DICOM standard. The current fixture represents imaging as DICOM-derived measurement matrices keyed by DICOM tag identifiers such as `DICOM:0018,0087_MagneticFieldStrength` and `DICOM:0028,0030_PixelSpacingRow`.
-
-Raw DICOM pixel viewing is implemented as an optional DICOM-native integration. Dataset roots can include `assays/imaging/dicom_studies.json` with Study/Series/SOP Instance UIDs linked to COHORTome patient and sample IDs. When `COHORTOME_DICOM_ENABLED=true`, the Imaging dashboard lists those studies and launches OHIF against a DICOMweb endpoint such as Orthanc.
-
-COHORTome uses OHIF to view DICOM images. Deployments can use separately hosted
-OHIF and DICOM services. The local prototype can also serve separately prepared
-OHIF assets for authorized bundled synthetic studies. It does not implement
-its own image viewer or PACS.
-
-## Synthetic imaging data
-
-The bundled DICOM fixtures are intentionally small. They are for smoke testing
-the metadata flow and the OHIF launch path, not for clinical image-analysis
-validation.
-
-The checked-in DICOM files are generated by
-`scripts/dicom/generate_synthetic_dicom.py` using a fixed-seed procedural brain
-phantom, not patient pixels. Older revisions used pydicom's `MR_small.dcm` test
-image. The generator sets MR image metadata for standard viewers and assigns fixture-specific UIDs from
-`assays/imaging/dicom_studies.json`, and can create patient-specific visible
-pixel variants for synthetic multiple-sclerosis brain MRI examples.
-
-The Synthetic longitudinal demo keeps one stable smoke-test study,
-`synthetic-mri-syn001-week0`, with StudyInstanceUID
-`1.2.826.0.1.3680043.10.54321.1.1`. Additional synthetic MS brain studies such
-as `synthetic-ms-brain-syn011-week0` and `synthetic-ms-brain-syn012-week0` are
-demo patient studies linked to fixture patients with `Multiple Sclerosis`
-clinical diagnoses. They set `body_part` to `BRAIN` and use synthetic profiles
-that add visible, deterministic hyperintense regions to the phantom.
-
-For real MS cohorts, the expected pattern is:
-
-- DICOM pixels remain in Orthanc or an institutional DICOMweb archive.
-- `dicom_studies.json` links each study to COHORTome patient, sample, and timepoint IDs.
-- Derived imaging features, such as lesion count or lesion volume, are stored in an imaging assay matrix.
-- OHIF is used for visual review of the corresponding study.
+:::
 
 ## Multimodal readiness
 
-Before COHORTome runs cross-modal analyses, the Dashboard checks whether the workspace
-is actually ready for them. The readiness report compares clinical records,
-assay matrices, imaging-derived features, and DICOM study metadata at two
-levels:
+| Question | What to check |
+| --- | --- |
+| Which patients have RNA **and** proteins? | Patient overlap in Multimodal |
+| Were measurements taken from the same specimen or visit? | Explicit sample and timepoint links—not patient overlap alone |
+| Can I analyse an image? | DICOM supports viewing; quantitative analyses need externally derived measurements |
 
-- patient overlap, where modalities belong to the same patient;
-- exact sample/timepoint overlap, where modalities share the same sample ID.
-
-This distinction matters because patient-level overlap can support exploratory
-association questions, while exact sample/timepoint overlap is needed for
-visit-matched analyses. Raw DICOM studies contribute viewer/readiness metadata;
-only derived imaging matrices contribute analyzable imaging features.
-
-## Multimodal feature matrix
-
-The matrix builder turns that readiness check into an inspectable table. It
-uses clinical sample/timepoint IDs as rows, includes core clinical covariates,
-adds a bounded number of representative assay features per dataset, and reports
-column-level missingness and provenance. DICOM contributes study-count and OHIF
-readiness metadata; quantitative MRI or radiomics values must come from a
-derived imaging matrix under `assays/`.
+Save the matching patients as a cohort, then select a compatible tool in Analysis.
 
 ## Analysis requirements
 
-Curated Analysis tools declare their assay capabilities explicitly. For example, transcriptomics differential expression requires:
+The selected assay's **value type**, sample links and cohort coverage determine
+which tools can run. Normalized expression is not interchangeable with counts.
 
-- transcriptomics modality;
-- raw-count data;
-- sample-level analysis;
-- compare mode with Cohort A and Cohort B;
-- one selected compatible assay dataset.
+<details>
+<summary>Requirements for curated analyses</summary>
 
-The Analysis Catalog shows these requirements before you configure a run.
+| Workflow | Required input |
+| --- | --- |
+| Count-based transcriptomics | Raw counts, or the separate RSEM expected-count workflow; two compatible cohorts for comparisons |
+| Methylation QC/PCA | Processed M-values and linked samples |
+| Differential methylation | M-values and two disjoint cohorts overlapping the same assay |
+| Immune-cell / serology comparison | Processed abundance / quantitative measurements, detailed access and at least three linked samples per cohort |
 
-The methylation catalog tools similarly require one sample-level assay declared with:
+Immune-cell and serology comparisons use exploratory Wilcoxon tests with
+Benjamini–Hochberg correction. They do not normalize, impute or adjust for
+covariates. Review missingness and whether cell abundances are compositional.
 
-- `modality: methylation`;
-- `data_type: m_values`;
-- complete sample-to-patient linkage for the selected scope.
+Methylation uses externally prepared matrices or
+[replaceable CpG panels](../developer-guide/methylation-feature-panels.md).
+Declared covariates can support adjusted methylation models; runs without
+varying covariates are labelled unadjusted.
 
-`Methylation QC and PCA` runs over one Analysis scope. `limma differential methylation` additionally requires disjoint saved Cohort A and Cohort B selections that both overlap the same assay.
+</details>
 
-The immune-cell and quantitative-serology comparison tools require one
-sample-level assay declared with one of these exact capability pairs:
+<details>
+<summary>Preparing data and linking samples</summary>
 
-- `modality: flow_cytometry` and `data_type: cell_population_abundance`; or
-- `modality: serology` and `data_type: quantitative_measurement`.
+Assay manifests declare the modality, value type, feature identifiers and file
+locations. Sample metadata links each assay column to a patient; imported
+sample names do not have to resemble patient IDs. Use explicit specimen and
+visit links rather than inferring them from a shared patient.
 
-They also require `Detailed` in-app access, disjoint Cohort A and Cohort B saved
-cohorts, and at least three linked assay samples per cohort. The shared curated
-runner performs a feature-wise Wilcoxon rank-sum test, reports rank-biserial
-effects, and applies Benjamini-Hochberg correction across tested features.
+See [Dataset packages](../admin-guide/dataset-packages.md) for the manifest,
+sample metadata and optional biosample input.
 
-This is an exploratory, unadjusted supplied-scale comparison. It does not
-normalize or impute the matrix and does not account for clinical or technical
-covariates. The source matrix remains external to DuckDB and is read in place;
-only compact aggregate results enter the job output and Analysis thread.
-Immune-cell abundance may be compositional, and serology missingness may be
-feature-dependent, so both effect direction and per-cohort missing counts must
-be reviewed before interpretation.
+</details>
+
+<details>
+<summary>DICOM viewing and synthetic images</summary>
+
+OHIF displays linked DICOM studies; COHORTome is not a PACS. Images may be
+served locally or through a configured DICOM service. Derived measurements,
+such as lesion volume, are separate assay inputs.
+
+Bundled brain images are generated phantoms, not patient images or validated
+clinical examples. See [Imaging setup](../admin-guide/dicom-viewing.md) and
+[Pre-installed datasets](../user-guide/included-datasets.md).
+
+</details>

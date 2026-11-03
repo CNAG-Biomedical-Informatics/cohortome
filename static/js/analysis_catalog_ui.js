@@ -1,6 +1,7 @@
 import { formatAssayRequirementLabel } from "./assay_labels.js";
 import { createMeasurementSelector } from "./analysis_measurements.js";
 import { createScriptEditor } from "./analysis_script_editor.js";
+import { modalityIcon } from './modalities.js';
 
 export function createAnalysisCatalogUi(ctx) {
   const { refs, state, helpers, callbacks, constants } = ctx;
@@ -323,17 +324,17 @@ export function createAnalysisCatalogUi(ctx) {
     const badges = [];
     const analysisLevel = String(item && item.analysis_level ? item.analysis_level : "").trim().toLowerCase();
     if (analysisLevel) {
-      badges.push(`${formatAssayRequirementLabel(analysisLevel)} level`);
+      badges.push({label: `${formatAssayRequirementLabel(analysisLevel)} level`});
     }
     const modalities = Array.isArray(item && item.required_modalities) ? item.required_modalities : [];
     modalities.forEach((modality) => {
       const label = formatAssayRequirementLabel(modality);
-      if (label) badges.push(`Requires ${label}`);
+      if (label) badges.push({label: `Requires ${label}`, modality});
     });
     const dataTypes = Array.isArray(item && item.required_data_types) ? item.required_data_types : [];
     dataTypes.forEach((dataType) => {
       const label = formatAssayRequirementLabel(dataType);
-      if (label) badges.push(`Requires ${label}`);
+      if (label) badges.push({label: `Requires ${label}`});
     });
     return badges;
   }
@@ -760,7 +761,7 @@ export function createAnalysisCatalogUi(ctx) {
       const badges = [];
       badges.push(`<span class="query-chip badge">${requiresAssay ? "Needs assay" : "No assay required"}</span>`);
       analysisCatalogCapabilityBadges(item).forEach((badge) => {
-        badges.push(`<span class="query-chip badge">${escapeHtml(badge)}</span>`);
+        badges.push(`<span class="query-chip badge">${badge.modality ? modalityIcon(badge.modality, 'analysis-badge-icon') : ''}${escapeHtml(badge.label)}</span>`);
       });
       badges.push(`<span class="query-chip badge">${compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"}</span>`);
       if (compareRequired) {
@@ -1089,7 +1090,7 @@ export function createAnalysisCatalogUi(ctx) {
       metaBadges.push('<span class="query-chip badge">Assays</span>');
     }
     analysisCatalogCapabilityBadges(item).forEach((badge) => {
-      metaBadges.push(`<span class="query-chip badge">${escapeHtml(badge)}</span>`);
+      metaBadges.push(`<span class="query-chip badge">${badge.modality ? modalityIcon(badge.modality, 'analysis-badge-icon') : ''}${escapeHtml(badge.label)}</span>`);
     });
     if (item.requires_detailed_access) {
       metaBadges.push('<span class="query-chip badge">Detailed required</span>');

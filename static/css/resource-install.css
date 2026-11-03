@@ -22,6 +22,13 @@
 .resource-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .resource-toolbar h3 { margin: 0 auto 0 0; font-size: 13px; font-weight: 650; }
 .resource-catalogue { display: grid; gap: 12px; }
+.resource-card[hidden], #resourceFilterEmpty[hidden] { display: none; }
+.resource-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 16px; }
+.resource-filters button { display: inline-flex; align-items: center; gap: 6px; }
+.resource-filters svg, .resource-install-kind svg { width: 14px; height: 14px; flex-shrink: 0; }
+.resource-filters button[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.resource-filters button > span { font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.resource-install-kind { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .resource-card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
 .resource-card:not(.resource-card-included) {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));

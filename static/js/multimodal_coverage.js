@@ -64,11 +64,13 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
     const handoff = state.multimodalPatientSelection?.scope === scope ? state.multimodalPatientSelection : null;
     let selectedDiseases = new Set(handoff?.diseases || []), showAllDiseases = false;
     host.innerHTML = `<h3>Find shared coverage</h3>
-      <label class="coverage-match-mode"><span>Start from</span><select class="coverage-cohort" aria-label="Starting cohort"><option value="">All workspace patients</option>${handoff ? `<option value="patient-filter" selected>${handoff.members.length} filtered patients</option>` : ''}${cohorts.map(c => `<option value="${esc(c.id)}">${esc(c.name)} · ${c.patient_count} patients</option>`).join('')}</select></label>
+      <div class="coverage-filter-row">
+      <label class="coverage-match-mode"><span>Patient group</span><select class="coverage-cohort" aria-label="Patient group" ${!handoff && !cohorts.length ? 'disabled' : ''}><option value="">All patients in this workspace</option>${handoff ? `<option value="patient-filter" selected>${handoff.members.length} filtered patients</option>` : ''}${cohorts.map(c => `<option value="${esc(c.id)}">${esc(c.name)} · ${c.patient_count} patients</option>`).join('')}</select></label>
+      <label class="coverage-match-mode"><span>Match</span><select class="coverage-mode"><option value="includes">At least these types</option><option value="exact">Only these types</option></select></label>
+      </div>
       <p class="coverage-start-description section-note" ${handoff ? '' : 'hidden'}>${handoff ? esc(handoff.description) : ''}</p>
       <div class="coverage-diseases" role="group" aria-label="Disease filters"></div>
       <div class="coverage-selectors" role="group" aria-label="Required data types">${modalities.map(m => `<label><input type="checkbox" value="${esc(m)}">${modalityIcon(m)}<span>${esc(label(m))}</span></label>`).join('')}</div>
-      <label class="coverage-match-mode"><span>Match</span><select class="coverage-mode"><option value="includes">At least these types</option><option value="exact">Only these types</option></select></label>
       <p class="section-note">Patient-level matches—not necessarily the same specimen or visit.</p>
       <div class="coverage-result" aria-live="polite"></div>
       <h4>Available combinations</h4><p class="section-note">Filled dots show available data. Click a count to select a combination.</p>

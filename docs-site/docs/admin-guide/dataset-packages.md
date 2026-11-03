@@ -38,6 +38,64 @@ This contract describes the input format. It does not introduce a new clinical
 data model or a scientific QC pipeline. To install a prepared archive, see
 [Install datasets](../user-guide/install-datasets).
 
+## Optional biosamples
+
+Keep Beacon v2 biosample records **outside `clinical/`**. Declare their JSON
+array in the dataset's `manifest.json`:
+
+```json
+"biosamples": {"file": "biosamples.json"}
+```
+
+Each record needs a unique `id` and an `individualId` matching a clinical
+patient. Optional `sampleOriginType`, `sampleOriginDetail` and `biosampleStatus`
+retain their ontology `id` and `label`. Other Beacon fields are preserved;
+the package validator checks linkage and these terms, not the full Beacon schema.
+
+**Patients → Sample origin** filters by `sampleOriginType` and saves the
+matching patients as a cohort. It appears only when origins are recorded.
+Counts are distinct patients, not specimen counts. Saving selects patients,
+not only their matching specimens.
+
+An assay's sample metadata can include `biosample_id` to link its sample to a
+record. Without that explicit link, COHORTome does not assume two assays used
+the same specimen. Linked origins supply missing material labels in the sample
+inventory; assay metadata takes precedence. Missing origins remain unknown.
+
+## Optional variant panels
+
+Prepared biallelic panels live separately from quantitative assay matrices:
+
+```json
+"variants": {
+  "schema_version": 1,
+  "annotations_file": "variants/variants.tsv",
+  "samples_file": "variants/samples.tsv",
+  "genotypes_file": "variants/genotypes.tsv.gz",
+  "provenance": {"technology": "dna_sequencing", "method": "WGS", "input_format": "VCF"}
+}
+```
+
+| TSV | Required columns |
+| --- | --- |
+| Variants | `variant_id`, `assembly`, `chromosome`, `position` (1-based), `ref`, `alt` |
+| Samples | `sample_id`, `patient_id`; optional `biosample_id` |
+| Genotypes | `variant_id`, `sample_id`, `GT`, `call_status`, `alt_dosage`, `ploidy`, `phased` |
+
+Include every sample–variant combination. `call_status` is `called`, `partial`
+or `missing`; missing/partial calls have empty dosage. `phased` is `true` or
+`false`. The validator checks these fields against the original biallelic GT.
+
+Annotations are optional. The browser reads `gene`, `classification`,
+`classification_source`, `classification_version`, `review_status` and `condition`,
+or supplied `CLINVAR_*` and `snpeff_ann` fields. Other columns remain available
+in row details. Technology may be `dna_sequencing`, `genotyping_array` or
+`synthetic`; absent provenance is shown as **Not recorded**, not inferred from VCF.
+
+This compact-panel format is not a whole-genome VCF importer. Unannotated
+dosage-only demo matrices remain separate and do not imply reference/alternate
+allele identities.
+
 ## Prepare clinical CSV data with Convert-Pheno
 
 For project-specific clinical tables, use **Convert-Pheno's CSV → BFF route**

@@ -787,7 +787,7 @@ export function createDatasetsUi(ctx) {
               <div class="dataset-picker-access-actions">
                 <button type="button" class="secondary-btn" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
                 <button type="button" class="secondary-btn" data-dataset-prepare="${escapeHtml(datasetId)}" ${storeBuilding ? "disabled" : ""}>${escapeHtml(storeButtonLabel)}</button>
-                ${["default", "synthetic-autoimmune-demo"].includes(datasetId) ? "" : `<button type="button" class="query-chip danger-btn" data-dataset-remove="${escapeHtml(datasetId)}">Remove dataset…</button>`}
+                <button type="button" class="query-chip danger-btn" data-dataset-remove="${escapeHtml(datasetId)}" ${bundledDesktopDatasetIds.has(datasetId) ? 'disabled title="Bundled datasets cannot be removed."' : ""}>Remove dataset…</button>
               </div>
               ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
             </div>
@@ -887,6 +887,7 @@ export function createDatasetsUi(ctx) {
 
   function removeDataset(datasetId) {
     if (!canManageDataset()) return;
+    if (bundledDesktopDatasetIds.has(datasetId)) return;
     const dataset = state.availableDatasets.find(item => item.dataset_id === datasetId);
     if (!dataset) return;
     const dialog = document.createElement("dialog");

@@ -10,6 +10,29 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   let sortBy = 'patient_id', sortDirection = 'asc';
   let selectedDiseases = new Set(), diseases = [], showAllDiseases = false, diseaseGeneration = 0;
   const filters = document.getElementById('patientDiseaseFilters');
+  const originFilter = document.getElementById('patientSampleOriginFilter');
+  const originSelect = document.getElementById('patientSampleOrigin');
+  let originGeneration = 0;
+  async function loadOrigins() {
+    const ticket = ++originGeneration, selectedScope = scope();
+    if (!selectedScope) return;
+    try {
+      const rows = await request('sample-origins', {workspace:selectedScope});
+      if (ticket !== originGeneration || selectedScope !== scope()) return;
+      const selected = originSelect.value;
+      originSelect.innerHTML = '<option value="">All sample origins</option>' + rows.map(row =>
+        `<option value="${esc(row.id)}">${esc(row.label)} · ${esc(row.id)} (${Number(row.patient_count)})</option>`).join('');
+      originSelect.value = selected;
+      originFilter.hidden = !rows.length;
+      if (selected && originSelect.value !== selected) searchPatients();
+    } catch (_) {
+      if (ticket === originGeneration && selectedScope === scope()) {
+        originFilter.hidden = true;
+        status.textContent = 'Sample-origin filters could not be loaded.';
+      }
+    }
+  }
+  originSelect.addEventListener('change', () => { clearSelection(); searchPatients(); });
   function renderDiseases() {
     const items = showAllDiseases ? diseases : diseases.slice(0, 8);
     filters.innerHTML = `<button type="button" class="query-chip query-chip-deterministic" data-disease="" aria-pressed="${!selectedDiseases.size}">All patients</button>` + items.map(item => `<button type="button" class="query-chip query-chip-deterministic" data-disease="${esc(item.disease)}" aria-pressed="${selectedDiseases.has(item.disease)}">${esc(item.disease)} <span class="query-chip badge">${Number(item.patient_count) || 0}</span></button>`).join('') + (diseases.length > 8 ? `<button type="button" class="query-chip" data-more-diseases aria-expanded="${showAllDiseases}">${showAllDiseases ? 'Show fewer' : 'More diseases…'}</button>` : '') + (selectedDiseases.size > 1 ? '<span class="section-note">Matching any selected disease</span>' : '');
@@ -54,6 +77,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     list.querySelector('thead tr').innerHTML = headers.map(([label, path], i) => `<th scope="col" aria-sort="${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="patient-sort" data-sort="${sortKeys[i]}" aria-label="Sort by ${label}">${icon(path)}${label}<span aria-hidden="true">${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button></th>`).join('');
   }
   function reset() {
+    originGeneration++; originSelect.value = ''; originFilter.hidden = true;
     saveButton.disabled = refineButton.disabled = true; saveStatus.textContent = '';
     selectedDiseases.clear(); diseases = []; showAllDiseases = false; diseaseGeneration++; renderDiseases();
     clearSelection();
@@ -103,7 +127,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     timer = setTimeout(async () => {
       controller = new AbortController();
       try {
-        const data = await request('search', {workspace:selectedScope, q, disease:[...selectedDiseases], sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
+        const data = await request('search', {workspace:selectedScope, q, disease:[...selectedDiseases], sample_origin:originSelect.value, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
         if (ticket !== generation || selectedScope !== scope()) return;
         matches = data.matches;
         saveButton.querySelector('span').textContent = Number.isInteger(data.total)
@@ -138,7 +162,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     const ticket = generation, selectedScope = scope();
     const isCurrent = () => ticket === generation && selectedScope === scope();
     const params = {workspace:selectedScope, q:input.value.trim(), disease:[...selectedDiseases],
-      sort_by:'patient_id', direction:'asc'};
+      sample_origin:originSelect.value, sort_by:'patient_id', direction:'asc'};
     const members = [], seen = new Set();
     let cursor = {};
     saveStatus.textContent = 'Collecting all matching patients…';
@@ -154,7 +178,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         saveStatus.textContent = `Collected ${members.length} matching patients…`;
       } while (cursor);
       if (!members.length) throw new Error('No matching patients.');
-      const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}`;
+      const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}${params.sample_origin ? `; sample origin: ${params.sample_origin}` : ''}`;
       if (refine) {
         refineInMultimodal({scope:selectedScope, members, description, diseases:params.disease});
         saveStatus.textContent = `Sent ${members.length} patients to Multimodal.`;
@@ -191,7 +215,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     if (state.patientOverviewSelection && !timelineButton.disabled) void openTimeline(state.patientOverviewSelection.patientId, state.patientOverviewSelection.datasetId);
   });
   document.getElementById('dashboardPatientsBtn').addEventListener('click', () => {
-    navigation.setDashboardSubtab('patients'); searchPatients(); void loadDiseases();
+    navigation.setDashboardSubtab('patients'); searchPatients(); void loadDiseases(); void loadOrigins();
   });
   render(); renderDiseases();
 }

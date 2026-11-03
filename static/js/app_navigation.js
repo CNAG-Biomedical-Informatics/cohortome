@@ -1,4 +1,4 @@
-import { modalityIcon } from './modalities.js';
+import { modalityIcon, mountModalityIcons } from './modalities.js';
 
 export function createNavigationUi(ctx) {
   const { refs, state, constants, callbacks } = ctx;
@@ -37,6 +37,7 @@ export function createNavigationUi(ctx) {
   } = refs;
   const { ACTIVE_TAB_STORAGE_KEY, DASHBOARD_SUBTAB_STORAGE_KEY, TAB_HELPER_TEXT } = constants;
   const { effectiveQueryGranularityCeiling, renderGlobalContext, closeJobSurfaces } = callbacks;
+  mountModalityIcons();
   for (const [button, modality] of [[dashboardClinicalBtnEl, 'clinical'], [dashboardAssaysBtnEl, 'assay'], [dashboardImagingBtnEl, 'imaging']]) {
     const icon = button?.querySelector('.dashboard-subtab-icon, .button-icon');
     if (icon) icon.innerHTML = modalityIcon(modality, '');

@@ -90,7 +90,7 @@ The results reflect those programmed patterns, not biological findings or
 clinical evidence. A significant difference or correlation in a demo is not
 evidence about a disease or treatment.
 
-See the [cross-sectional demo](../user-guide/synthetic-cross-sectional-demo.md)
+See the [cross-sectional demo](../user-guide/included-datasets.md#synthetic-cross-sectional-demo)
 for its contents and limitations.
 
 </details>
@@ -108,17 +108,15 @@ evidence.
 <details>
 <summary>Is a language model required?</summary>
 
-**No.** You can import and explore datasets, select and save cohorts, run
-supported queries, perform preconfigured analyses, use Pheno-Ranker, and export
-results without a language model. You do not need LM Studio, an AI subscription,
-or hardware capable of running an LLM.
+**No. COHORTome works without an LLM.** You can browse data, build cohorts,
+run the built-in analyses and Pheno-Ranker, and export results.
 
-A model adds natural-language query planning and AI-generated explanations;
-arbitrary free-text questions are not supported without one. The desktop owner
-or web administrator can configure a provider later. Dataset policy determines
-what information, if any, may be sent to it.
+**Connect an LLM** if you want help interpreting questions or explaining results.
+Without one, Query supports the application's predefined query patterns, not
+arbitrary questions. **LM Studio and an AI subscription are not required.**
 
-Read [Governed AI](../concepts/governed-ai.md) for the operating model.
+You control which dataset information can be sent to a model. See
+[Governed AI](../concepts/governed-ai.md) for the permissions.
 
 </details>
 

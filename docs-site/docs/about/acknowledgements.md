@@ -4,6 +4,10 @@ title: Acknowledgements
 
 # Acknowledgements
 
+We would like to thank the members of the
+[Biomedical Genomics laboratory](https://www.cnag.eu/teams/genome-research-unit/biomedical-genomics-group)
+for their feedback.
+
 ## Funding and support
 
 <div className="cohortomeFundingPanel">

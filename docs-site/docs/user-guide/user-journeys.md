@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 # User journeys
 
 Select a task below. Use the bundled Synthetic longitudinal demo for clinical examples
-and the [Synthetic cross-sectional demo](synthetic-cross-sectional-demo.md) for molecular
+and the [Synthetic cross-sectional demo](included-datasets.md#synthetic-cross-sectional-demo) for molecular
 analyses. Apply your dataset selection before starting.
 
 Prefer a demonstration? See the [video tutorials](../video-tutorials.md).

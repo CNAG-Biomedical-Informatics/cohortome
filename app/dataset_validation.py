@@ -11,6 +11,8 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from app.bff import extract_patient_id, extract_visit_id
+from app.biosamples import read_biosamples
+from app.variants import read_variant_panel
 from app.query_store import (
     _detect_matrix_delimiter, _manifest_assay_sample_patient_links,
     _read_subject_clarid_rows,
@@ -116,6 +118,7 @@ def _table(path):
 
 
 def _metadata(root, relative, patients):
+    biosamples = {r['id']: r for r in read_biosamples(root, patients)}
     rows = _table(_inside(root, relative))
     header = next(rows, [])
     if len(set(header)) != len(header) or not {"sample_id", "patient_id"} <= set(header):
@@ -131,6 +134,10 @@ def _metadata(root, relative, patients):
             _fail(location, "duplicate sample_id")
         if patient not in patients:
             _fail(location, "patient_id is absent from clinical records")
+        if 'biosample_id' in header:
+            bid = row[header.index('biosample_id')]
+            if bid and (bid not in biosamples or biosamples[bid]['individualId'] != patient):
+                _fail(location, "biosample_id is absent or linked to a different patient")
         samples.add(sample)
 
 
@@ -197,6 +204,8 @@ def validate_package(root):
     try:
         manifest = _manifest(root, "manifest.json", "dataset.schema.json")
         patients, records = _clinical(root, manifest["clinical"]["representation"])
+        biosamples = read_biosamples(root, patients)
+        variant_panel = read_variant_panel(root, patients)
         clarid = manifest.get("identifiers", {}).get("clarid_subjects")
         if clarid:
             _inside(root, clarid["file"])
@@ -225,7 +234,9 @@ def validate_package(root):
         for path in _inside(root, "assays").glob("*/*.csv"):
             if path.resolve() not in declared:
                 _fail("assays/", "a CSV file is not declared in the assay manifest")
-        return dict(valid=True, clinical_records=records, patients=len(patients),
+        return dict(valid=True, clinical_records=records, patients=len(patients), biosamples=len(biosamples),
+                    variants=len(variant_panel['variants']) if variant_panel else 0,
+                    variant_samples=len(variant_panel['samples']) if variant_panel else 0,
                     assays=len(items), assay_sample_columns=samples, feature_rows=features,
                     missing_values=missing, warnings=warnings)
     except PackageValidationError:

@@ -9,14 +9,22 @@ const sidebars: SidebarsConfig = {
       label: 'User guide',
       items: [
         'user-guide/user-journeys',
-        'user-guide/datasets',
-        'user-guide/install-datasets',
-        'user-guide/synthetic-cross-sectional-demo',
-        'user-guide/dashboard',
-        'user-guide/query',
-        'user-guide/saved-cohorts-and-handoffs',
-        'user-guide/analysis',
-        'user-guide/pheno-ranker',
+        {type: 'category', label: 'Datasets', collapsed: false, link: {type: 'doc', id: 'user-guide/datasets'}, items: [
+          'user-guide/included-datasets',
+          'user-guide/downloadable-datasets',
+          'user-guide/fetch-datasets',
+          {type: 'doc', id: 'concepts/assays-and-modalities', label: 'Supported data and modalities'},
+          'user-guide/install-datasets',
+        ]},
+        {type: 'category', label: 'Explore and build cohorts', items: [
+          'user-guide/dashboard',
+          'user-guide/query',
+          'user-guide/saved-cohorts-and-handoffs',
+        ]},
+        {type: 'category', label: 'Analysis', items: [
+          'user-guide/analysis',
+          'user-guide/pheno-ranker',
+        ]},
       ],
     },
     {

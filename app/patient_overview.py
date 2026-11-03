@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.auth import require_authenticated
 from app.bff import relative_study_days, get_patient_context
+from app.biosamples import read_biosamples, origin_key
+from app.variants import read_variant_panel
 from app.datasets import get_dataset
 from app.query_store import (
     _connect, _relation_exists, _assay_manifest_items_for_root,
@@ -20,6 +22,13 @@ from app.routes import _require_detailed_assay_access, _resolve_route_dataset_di
 router = APIRouter(prefix='/patient-overview', tags=['patients'])
 
 
+def biosample_records(root):
+    try:
+        return read_biosamples(root)
+    except ValueError:
+        raise HTTPException(409, 'Biosample metadata are invalid. Check the dataset package before filtering by sample origin.') from None
+
+
 def sources(request, workspace):
     require_authenticated(request)
     ids = _require_detailed_assay_access(request, workspace)
@@ -27,7 +36,7 @@ def sources(request, workspace):
              str((get_dataset(identifier) or {}).get('name') or identifier)) for identifier in ids]
 
 
-def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False):
+def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False, sample_origin=''):
     ensure_query_store(root)
     con = _connect(root)
     try:
@@ -36,6 +45,10 @@ def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', de
         human = "coalesce(c.human_id, '')" if has_clarids else "''"
         predicate = 'p.patient_id = ?' if exact else f'(contains(lower(p.patient_id), lower(?)) OR contains(lower({human}), lower(?)))'
         params = [term] if exact else [term, term]
+        if sample_origin:
+            ids = sorted({r['individualId'] for r in biosample_records(root) if origin_key(r) == sample_origin})
+            predicate += ' AND p.patient_id IN (SELECT unnest(?))'
+            params.append(ids)
         if disease:
             if not _relation_exists(con, 'patient_diseases'):
                 return []
@@ -72,6 +85,7 @@ def inside(root, relative):
 def sample_inventory(root, patient_id=None, include_imaging=False):
     root = Path(root)
     rows, warnings = [], []
+    biosamples = {r['id']: r for r in biosample_records(root)}
     for item in _assay_manifest_items_for_root(root):
         assay_id = str(item.get('assay_id') or '')
         label = str(item.get('label') or assay_id or 'Assay')
@@ -108,14 +122,34 @@ def sample_inventory(root, patient_id=None, include_imaging=False):
                             metadata[sid] = row
             for sid in selected:
                 meta = metadata.get(sid, {})
+                specimen = biosamples.get(meta.get('biosample_id'), {})
+                if specimen and specimen['individualId'] != links['links'][sid]:
+                    raise ValueError('Conflicting biosample patient linkage')
                 rows.append(dict(patient_id=links['links'][sid], sample_id=sid, assay_id=assay_id, assay=label,
                     modality=item.get('modality') or 'assay', data_type=item.get('data_type') or 'Not recorded',
                     linkage=links['linkage_source'], visit=meta.get('visit_id') or meta.get('timepoint') or '',
                     days_from_baseline=relative_study_days(meta),
-                    collection_date=meta.get('collection_date') or '', material=meta.get('material') or meta.get('specimen_type') or '',
+                    collection_date=meta.get('collection_date') or '', material=meta.get('material') or meta.get('specimen_type') or (specimen.get('sampleOriginType') or {}).get('label', ''),
+                    biosample_id=specimen.get('id', ''),
                     sample_clarid=meta.get('clarid') or ''))
         except (OSError, ValueError, UnicodeError, csv.Error, StopIteration):
             warnings.append(f'{label}: sample inventory unavailable; not included in counts.')
+    try:
+        panel = read_variant_panel(root)
+        for meta in (panel or {}).get('samples', []):
+            if patient_id is not None and meta['patient_id'] != patient_id:
+                continue
+            specimen = biosamples.get(meta.get('biosample_id'), {})
+            rows.append(dict(patient_id=meta['patient_id'], sample_id=meta['sample_id'],
+                assay_id='variant_panel', assay='DNA variant panel',
+                modality='dna_sequencing' if panel['provenance'].get('technology') == 'dna_sequencing' else 'genotyping_array' if panel['provenance'].get('technology') == 'genotyping_array' else 'genotyping',
+                data_type='annotated_genotypes', linkage='sample_metadata_file',
+                visit=meta.get('visit_id', ''), days_from_baseline=relative_study_days(meta),
+                collection_date=meta.get('collection_date', ''),
+                material=meta.get('material') or (specimen.get('sampleOriginType') or {}).get('label', ''),
+                biosample_id=specimen.get('id', ''), sample_clarid=meta.get('clarid', '')))
+    except ValueError:
+        warnings.append('DNA variant panel: invalid input; not included in counts.')
     rows.sort(key=lambda r: (r['sample_id'], r['assay']))
     return rows, warnings
 
@@ -144,12 +178,25 @@ def timeline(request: Request, workspace: str):
     return dict(timelines=patients, warnings=warnings)
 
 
+@router.get('/sample-origins')
+def sample_origins(request: Request, workspace: str):
+    terms = {}
+    for identifier, root, label in sources(request, workspace):
+        for row in biosample_records(root):
+            key = origin_key(row)
+            if key:
+                item = terms.setdefault(key, dict(id=key, label=row['sampleOriginType']['label'], patients=set()))
+                item['patients'].add((identifier, row['individualId']))
+    return [dict(id=r['id'], label=r['label'], patient_count=len(r['patients']))
+            for r in sorted(terms.values(), key=lambda r: (r['label'].casefold(), r['id']))]
+
+
 @router.get('/search')
 def search(request: Request, workspace: str, q: str = Query('', max_length=150),
            dataset_index: int = Query(0, ge=0), after: str = Query('', max_length=1000),
            sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] | None = None,
            direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0),
-           disease: list[str] | None = Query(None)):
+           disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
     if disease and (len(disease) > 100 or any(len(label) > 1000 for label in disease)):
         raise HTTPException(422, 'Too many or overly long disease filters.')
     disease = [label for label in (disease or []) if label]
@@ -160,7 +207,7 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
             total = 0
             for identifier, root, label in available:
                 rows = lookup(root, q.strip(), offset + 21, sort_by=sort_by,
-                              descending=direction == 'desc', disease=disease, include_total=True)
+                              descending=direction == 'desc', disease=disease, include_total=True, sample_origin=sample_origin)
                 total += rows[0]['_total'] if rows else 0
                 for row in rows:
                     row.pop('_total', None)
@@ -179,6 +226,7 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
             matches.extend(dict(row, dataset_id=identifier, dataset_label=label, dataset_index=index)
                            for row in lookup(root, q.strip(), remaining,
                                              after=after if index == dataset_index else '',
+                                             **({'sample_origin': sample_origin} if sample_origin else {}),
                                              **({'disease': disease} if disease else {})))
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient search is unavailable until the dataset stores are ready.') from None
@@ -236,7 +284,8 @@ def detail(request: Request, workspace: str, dataset_id: str, patient_id: str = 
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient data are unavailable until the dataset store is ready.') from None
     return dict(patient=patients[0], dataset_id=dataset_id, dataset_label=label,
-                samples=rows, warnings=warnings)
+                samples=rows, warnings=warnings,
+                biosamples=[r for r in biosample_records(root) if r['individualId'] == patient_id])
 
 
 @router.get('/clinical')

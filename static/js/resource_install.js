@@ -1,5 +1,13 @@
 /** Dataset installation controls; no credentials are persisted in browser storage. */
 import { modalityIcon, modalityLabel } from './modalities.js';
+const installationTypes = {
+  included: {label:'Included', icon:'<path d="M5 12l4 4L19 6"/>'},
+  archive: {label:'Ready to install', icon:'<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>'},
+  source: {label:'Fetch & prepare', icon:'<path d="M12 3v9m-3-3 3 3 3-3M5 16l3 3-3 3M11 19h8"/>'},
+};
+function typeIcon(mode) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${installationTypes[mode].icon}</svg>`;
+}
 export function createResourceInstaller({ escapeHtml, refresh, select }) {
   const el = (id) => document.getElementById(id);
   const add = el("resourceAdd"), panel = el("resourcePanel"), list = el("resourceList");
@@ -8,6 +16,24 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
   let current = null, timer = null, busy = false, refreshedId = null;
   let monitoring = false, notice = null, notified = "";
   let catalogue = new Map();
+  let category = 'all';
+  function filterCatalogue() {
+    let count = 0;
+    list.querySelectorAll('[data-install-mode]').forEach(card => {
+      card.hidden = category !== 'all' && card.dataset.installMode !== category;
+      if (!card.hidden) count++;
+    });
+    el('resourceFilters')?.querySelectorAll('[data-category]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.category === category));
+    });
+    if (el('resourceFilterEmpty')) el('resourceFilterEmpty').hidden = count > 0;
+  }
+  el('resourceFilters')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-category]');
+    if (!button) return;
+    category = button.dataset.category;
+    filterCatalogue();
+  });
   const terms = el("resourceTerms"), termsCheck = el("resourceTermsCheck"), termsAccept = el("resourceTermsAccept");
   function reviewSource(resource) {
     if (terms.open) return Promise.resolve(false);
@@ -112,7 +138,7 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
     use.disabled = job.stage === "ready" && refreshedId !== job.id;
     file.disabled = busy;
     el("resourceImport").disabled = busy;
-    list.querySelectorAll("button").forEach((button) => { button.disabled = busy || button.dataset.included === "true"; });
+    list.querySelectorAll("button").forEach((button) => { button.disabled = busy || button.dataset.included === "true" || catalogue.get(button.dataset.resource)?.compatible === false; });
     notifyFinished(job);
   }
   async function poll() {
@@ -138,19 +164,28 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
       if (busy) timer = setTimeout(poll, 3000);
     }
   }
-  async function browse() {
+  async function browse(refreshCatalogue = false) {
     const browseButton = el("resourceBrowse");
     browseButton.disabled = true;
     if (!list.children.length) list.innerHTML = '<p class="section-note">Loading catalogue…</p>';
     try {
-      const { resources, repository } = await api("/resources");
+      const { resources, repository, message, catalogue_source } = await api(
+        refreshCatalogue ? "/resources/refresh" : "/resources",
+        refreshCatalogue ? { method: "POST" } : { cache: "no-store" });
+      el("resourceCatalogueStatus").textContent = message || (catalogue_source === "cached"
+        ? "Saved COHORTome-store catalogue. Refresh to check for new datasets."
+        : "Bundled catalogue. Refresh to check COHORTome-store for new datasets.");
       catalogue = new Map(resources.map(resource => [resource.dataset_id, resource]));
+      if (el('resourceFilters')) el('resourceFilters').innerHTML = ['all', ...Object.keys(installationTypes)].map(mode => {
+        const count = resources.filter(r => mode === 'all' || (r.install_mode || 'archive') === mode).length;
+        return `<button type="button" class="query-chip" data-category="${mode}" aria-pressed="${category === mode}">${mode === 'all' ? '' : typeIcon(mode)}${mode === 'all' ? 'All' : escapeHtml(installationTypes[mode].label)}<span>${count}</span></button>`;
+      }).join('');
       list.innerHTML = resources.slice().sort((a, b) => Number(Boolean(a.included)) - Number(Boolean(b.included))).map((r) => `
-        <article class="resource-card${r.included ? " resource-card-included" : ""}">
+        <article class="resource-card${r.included ? " resource-card-included" : ""}" data-install-mode="${escapeHtml(r.install_mode || 'archive')}">
           <div class="resource-card-heading">
             <span class="resource-card-symbol">${modalityIcon(r.synthetic ? "clinical" : "assay", "")}</span>
-            <div><h4>${escapeHtml(r.name)}</h4><span class="resource-card-meta">${((r.source_bytes || r.archive_bytes) / 1e6).toFixed(2)} MB${r.install_mode === "source" ? " source download" : ""} <span aria-hidden="true">·</span> ${escapeHtml(r.version)}</span></div>
-            <span class="resource-kind">${r.synthetic ? "Synthetic" : "Research data"}</span>
+            <div><h4>${escapeHtml(r.name)}</h4><span class="resource-card-meta">${r.install_mode === 'included' ? 'No download needed' : `${((r.source_bytes || r.archive_bytes) / 1e6).toFixed(2)} MB${r.install_mode === 'source' ? ' source download' : ''}`} <span aria-hidden="true">·</span> ${escapeHtml(r.version)}${r.synthetic ? ' · Synthetic' : ''}</span></div>
+            <span class="resource-kind resource-install-kind">${typeIcon(r.install_mode || 'archive')}${escapeHtml(installationTypes[r.install_mode || 'archive'].label)}</span>
           </div>
           <p class="resource-description">${escapeHtml(r.description)}</p>
           <div class="resource-modalities" aria-label="${escapeHtml(r.modalities)}">${(r.modality_keys || []).map(key => `<span>${modalityIcon(key, "")}${escapeHtml(modalityLabel(key))}</span>`).join("")}</div>
@@ -158,9 +193,10 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
           <details class="view-help"><summary>Source &amp; terms</summary><p>${escapeHtml(r.terms)}</p>
             ${r.source_page ? `<a href="${escapeHtml(r.source_page)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.source_label)} study record</a>` : ""}
             <a href="https://github.com/${escapeHtml(repository)}/tree/main/datasets/${encodeURIComponent(r.dataset_id)}" target="_blank" rel="noopener noreferrer">Preparation and source documentation</a></details>
-          <button class="${r.included ? "resource-included" : "resource-install-button"}" type="button" data-resource="${escapeHtml(r.dataset_id)}" data-source="${r.install_mode === "source"}" data-included="${Boolean(r.included)}" ${busy || r.included ? "disabled" : ""}>${r.included ? "✓ Included" : r.install_mode === "source" ? "↓ Fetch and prepare" : "↓ Download and install"}</button>
+          <button class="${r.included ? "resource-included" : "resource-install-button"}" type="button" data-resource="${escapeHtml(r.dataset_id)}" data-source="${r.install_mode === "source"}" data-included="${Boolean(r.included)}" ${busy || r.included || r.compatible === false ? "disabled" : ""}>${r.included ? "✓ Included" : r.compatible === false ? "Requires app update" : r.install_mode === "source" ? "↓ Fetch and prepare" : "↓ Download and install"}</button>
           </div>
         </article>`).join("");
+      filterCatalogue();
     } catch (error) { status.textContent = error.message; }
     finally { browseButton.disabled = false; }
   }
@@ -174,10 +210,10 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
     add.focus();
   });
   el("resourceImport")?.addEventListener("click", () => file.click());
-  el("resourceBrowse")?.addEventListener("click", browse);
+  el("resourceBrowse")?.addEventListener("click", () => browse(true));
   list?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-resource]");
-    if (!button || busy) return;
+    if (!button || button.disabled || busy) return;
     const fromSource = button.dataset.source === "true";
     if (fromSource && !(await reviewSource(catalogue.get(button.dataset.resource)))) return;
     if (busy || !monitoring) return;

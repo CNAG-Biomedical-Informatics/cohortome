@@ -10,12 +10,23 @@ const definitions = {
   proteomics: ['Proteomics', 'teal', '#0f766e', '<path d="M4 5c0-3 16-3 16 1S4 9 4 13s16 1 16 5-16 5-16 1M4 5c0 5 16 8 16 13"/>'],
   genotyping: ['Genotyping', 'green', '#166534', '<path d="M7 3c0 4 10 5 10 9s-10 5-10 9M17 3c0 4-10 5-10 9s10 5 10 9M8 6h8M8 18h8"/>'],
 };
+definitions.dna_sequencing = ['DNA sequencing', ...definitions.genotyping.slice(1)];
+definitions.genotyping_array = ['Genotyping array', ...definitions.genotyping.slice(1)];
+const darkColors = {purple: '#ceb4ff', green: '#8de2af', teal: '#75ded1', blue: '#93c5fd', amber: '#f6c570', red: '#ffaaaa'};
+
+// DOM-free presentation data shared by the app and documentation site.
+export function modalityPresentation(value) {
+  const key = modalityKey(value);
+  const [, tone, color, icon] = definitions[key];
+  return {key, label: modalityLabel(value), color, darkColor: darkColors[tone], icon};
+}
 export function modalityKey(value) {
   const key = String(value || 'assay').trim().toLowerCase();
   if (key === 'dicom' || key.startsWith('imaging')) return 'imaging';
   if (key.startsWith('olink') || key.startsWith('proteomics')) return 'proteomics';
   if (key.startsWith('immune_cell') || key.startsWith('flow_cytometry')) return 'flow_cytometry';
   if (key.startsWith('variant')) return 'genotyping';
+  if (Object.hasOwn(definitions, key)) return key;
   return Object.keys(definitions).find(name => key === name || key.startsWith(name + '_')) || 'assay';
 }
 export function modalityLabel(value) {
@@ -34,4 +45,10 @@ export function modalityColor(value, resolved = false) {
 export function modalityIcon(value, className = 'assay-overview-icon') {
   const key = modalityKey(value);
   return `<svg class="${className}" data-modality-icon="${key}" style="color:${modalityColor(key)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${definitions[key][3]}</svg>`;
+}
+
+export function mountModalityIcons(root = document) {
+  root.querySelectorAll('[data-modality-symbol]').forEach(element => {
+    element.innerHTML = modalityIcon(element.dataset.modalitySymbol, '');
+  });
 }

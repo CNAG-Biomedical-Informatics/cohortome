@@ -18,7 +18,7 @@ def job():
 
 
 def test_bundled_catalogue_names_match_registry():
-    entries = {entry["dataset_id"]: entry for entry in resources.catalogue()}
+    entries = {entry["dataset_id"]: entry for entry in resources.resource_catalogue.bundled()}
     seed = json.loads((resources.CONFIG_DIR / "datasets/registry.json").read_text())
     for record in seed:
         if record["dataset_id"] in resources.BUNDLED:
@@ -40,6 +40,7 @@ def package(path):
 
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(resources.resource_catalogue, "CACHE", tmp_path / "catalogue.json")
     monkeypatch.setattr(resources, "ROOT", tmp_path / "resources")
     monkeypatch.setattr(resources.datasets, "DATASET_REGISTRY_PATH", tmp_path / "registry.json")
     monkeypatch.setattr(resources.datasets, "STATE_ROOT_DIR", tmp_path / "state")

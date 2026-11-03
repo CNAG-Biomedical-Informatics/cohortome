@@ -3,6 +3,7 @@ import { fallbackCopyText } from "./shared.js";
 import { createTimelineUi } from "./timeline.js";
 import { modalityIcon, modalityColor } from './modalities.js';
 import { createMultimodalCoverage } from './multimodal_coverage.js';
+import { createVariantBrowser } from './variant_browser.js';
 import { displayIdentity, decodeIdentity, identityKey } from './identities.js';
 
 export function createDashboardUi(ctx) {
@@ -58,6 +59,13 @@ export function createDashboardUi(ctx) {
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const multimodalCoverage = createMultimodalCoverage({state, escapeHtml, saveIdsAsCohort});
+  let variantPanelItems = [];
+  const variantBrowser = createVariantBrowser({state, escapeHtml, saveIdsAsCohort, onPanels: panels => {
+    variantPanelItems = panels.map(panel => ({...panel, variant_panel: true,
+      modality: ['dna_sequencing', 'genotyping_array'].includes(panel.provenance?.technology) ? panel.provenance.technology : 'genotyping',
+      feature_count: panel.variants, sample_count: panel.samples}));
+    renderAssayDashboardCards(state.assayDatasetsState || []);
+  }});
   const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
   const { renderDashboardTimeline, timelinePanelMarkup } = createTimelineUi({
     state, refs,
@@ -1264,6 +1272,7 @@ export function createDashboardUi(ctx) {
     if (normalized.startsWith("olink")) return "olink";
     if (normalized.startsWith("flow_cytometry") || normalized.startsWith("immune_cell")) return "flow_cytometry";
     if (normalized.startsWith("serology")) return "serology";
+    if (normalized === "genotyping_array") return normalized;
     if (normalized.startsWith("genotyping") || normalized.startsWith("variant")) return "genotyping";
     if (normalized.startsWith("imaging") || normalized === "dicom") return "imaging";
     return normalized;
@@ -1291,13 +1300,14 @@ export function createDashboardUi(ctx) {
 
   function selectedAssayModalityFilter() {
     const value = String(state.assayDashboardModalityFilter || "all").trim() || "all";
-    const tabs = assayModalityTabs(state.assayDatasetsState || []);
+    const tabs = assayModalityTabs([...(state.assayDatasetsState || []), ...variantPanelItems]);
     return tabs.some((tab) => tab.key === value) ? value : "all";
   }
 
   function renderAssayDashboardOverview(datasets) {
     if (!assayDashboardOverviewEl) return;
-    const items = (Array.isArray(datasets) ? datasets : []).filter((item) => normalizedAssayModality(item.modality) !== "imaging");
+    const items = [...(Array.isArray(datasets) ? datasets : []).filter(item => !item.variant_panel), ...variantPanelItems]
+      .filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     if (!items.length) {
       assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assays to review modality coverage.</div>';
       return;
@@ -1635,6 +1645,7 @@ export function createDashboardUi(ctx) {
 
   function renderAssayDashboardCard(item) {
     const modality = normalizedAssayModality(item.modality);
+    if (item.variant_panel) return `<article class="variant-panel-card"><div class="variant-panel-heading">${assayOverviewIcon(modality)}<div><h4>${escapeHtml(formatAssayModality(modality))}</h4><span class="section-note">${escapeHtml(item.label)}</span></div></div><div class="variant-panel-footer"><span>${Number(item.variants).toLocaleString()} variants · ${Number(item.samples).toLocaleString()} samples</span><button type="button" class="query-chip" data-variant-dataset="${escapeHtml(item.dataset_id)}">Browse variants <span aria-hidden="true">→</span></button></div></article>`;
     const isTranscriptomics = modality === "transcriptomics";
     return `
       <article class="assay-dashboard-card assay-dashboard-card-${escapeHtml(modality)}">
@@ -1802,7 +1813,7 @@ export function createDashboardUi(ctx) {
     if (imagingCards) imagingCards.innerHTML = imagingItems.length
       ? imagingItems.map((item) => renderAssayDashboardCard(item)).join("")
       : '<div class="empty">No derived imaging measurements in this workspace. DICOM studies, when available, are listed above.</div>';
-    const items = allItems.filter((item) => normalizedAssayModality(item.modality) !== "imaging");
+    const items = [...allItems, ...variantPanelItems].filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     renderAssayDashboardOverview(items);
     renderAssayModalityTabs(items);
     renderDicomPanelVisibility();
@@ -1830,6 +1841,9 @@ export function createDashboardUi(ctx) {
         </div>
       </section>
     `;
+    assayDashboardCardsEl.querySelectorAll('[data-variant-dataset]').forEach(button => {
+      button.onclick = () => void variantBrowser.open(button.dataset.variantDataset, button);
+    });
   }
 
   function handleAssayModalityFilter(value) {
@@ -1920,6 +1934,7 @@ export function createDashboardUi(ctx) {
     const previousScopeId = String(state.assayDatasetsScopeId || "").trim();
     const scopeChanged = previousScopeId !== scopeId;
     state.assayDatasetsScopeId = scopeId;
+    void variantBrowser.load(scopeId);
     if (scopeChanged) {
       clearAssayWorkspaceSelection();
     }
@@ -1960,7 +1975,7 @@ export function createDashboardUi(ctx) {
           analysisCatalogAssayStatusEl.textContent = "No compatible assay datasets are currently available in this workspace.";
         }
         assayDashboardStatusEl.className = "query-status";
-        assayDashboardStatusEl.textContent = "No assay datasets are currently available.";
+        assayDashboardStatusEl.textContent = "Assay inventory loaded.";
         renderAssayExpressionResult(null);
         return;
       }
@@ -1975,8 +1990,7 @@ export function createDashboardUi(ctx) {
           : `${datasets.length} assays available. Some assay tools require exactly one selected assay.`;
       }
       assayDashboardStatusEl.className = "query-status";
-      const laboratoryCount = datasets.filter((item) => normalizedAssayModality(item.modality) !== "imaging").length;
-      assayDashboardStatusEl.textContent = `Loaded ${laboratoryCount} laboratory assay${laboratoryCount === 1 ? "" : "s"}.`;
+      assayDashboardStatusEl.textContent = "Assay inventory loaded.";
       await loadAssayFeatureSuggestions();
     } catch (error) {
       if (!isCurrentWorkspaceScope(scopeId)) return;

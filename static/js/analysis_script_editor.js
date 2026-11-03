@@ -1,5 +1,6 @@
 import { escapeHtml, fallbackCopyText } from './shared.js';
 import { formatAssayRequirementLabel } from './assay_labels.js';
+import { modalityIcon } from './modalities.js';
 
 export function createScriptEditor({ host, state, getContext, onChange }) {
   const panel = document.createElement('section');
@@ -51,7 +52,7 @@ export function createScriptEditor({ host, state, getContext, onChange }) {
       <dt>Cohort B</dt><dd>${escapeHtml(bName)}${context.compare_mode ? ` · ${count(contract?.cohort_b)}` : ''}</dd></dl>
       ${!context.compare_mode ? '<p class="section-note">This template does not define a Cohort B. For an A-versus-B question, enable comparison in Patients and prepare again.</p>' : ''}
       ${contract ? `<div class="query-result-table-scroll"><table><thead><tr><th>Assay</th><th>A samples</th>${context.compare_mode ? '<th>B samples</th>' : ''}<th>Features</th></tr></thead><tbody>${Object.entries(contract.assays || {}).map(([name, assay]) => `<tr><td>${escapeHtml(formatAssayRequirementLabel(name))}</td><td>${escapeHtml(assay.cohort_a_samples ?? 'Not checked')}</td>${context.compare_mode ? `<td>${escapeHtml(assay.cohort_b_samples ?? 'Not checked')}</td>` : ''}<td>${escapeHtml(assay.features ?? 'Not checked')}</td></tr>`).join('')}</tbody></table></div>
-      ${(contract.omitted_assays || []).map(assay => `<p class="section-note">${escapeHtml(formatAssayRequirementLabel(assay.modality))}: not included — ${escapeHtml(assay.reason)}</p>`).join('')}
+      ${(contract.omitted_assays || []).map(assay => `<p class="section-note">${modalityIcon(assay.modality)} ${escapeHtml(formatAssayRequirementLabel(assay.modality))}: not included — ${escapeHtml(assay.reason)}</p>`).join('')}
       ${context.compare_mode && Object.values(contract.assays || {}).some(assay => !assay.cohort_a_samples || !assay.cohort_b_samples) ? '<p class="section-note">Some assays have no samples in one group. They cannot support an A/B comparison; choose an assay with samples in both groups.</p>' : ''}` : '<p class="section-note">Assay coverage has not been checked. Prepare the template to see the matched sample counts.</p>'}`;
   }
   editor.addEventListener('input', () => {

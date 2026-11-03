@@ -532,13 +532,14 @@ def multimodal_readiness(data_dir: str) -> Dict[str, Any]:
 
     dicom_patients = {_clean(study.get("patient_id")) for study in studies if _clean(study.get("patient_id"))}
     dicom_samples = {_clean(study.get("sample_id")) for study in studies if _clean(study.get("sample_id"))}
-    modalities["dicom"] = _modality_item(
-        "dicom",
-        study_count=len(studies),
-        patient_ids=dicom_patients,
-        sample_ids=dicom_samples,
-        clinical_patient_ids=clinical_patients,
-    )
+    if studies:
+        modalities["dicom"] = _modality_item(
+            "dicom",
+            study_count=len(studies),
+            patient_ids=dicom_patients,
+            sample_ids=dicom_samples,
+            clinical_patient_ids=clinical_patients,
+        )
 
     pairwise = []
     for left_key, right_key in combinations(sorted(modalities), 2):
