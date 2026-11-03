@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import queue
 import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,10 +27,37 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'docs-site/static/img/screenshots'
 
 
+def prepare_variant_example(runtime):
+    """Fictional documentation-only panel; never changes the bundled dataset."""
+    root = Path(runtime) / 'documentation-demo'
+    shutil.copytree(ROOT / 'datasets/synthetic-longitudinal-demo', root)
+    manifest = json.loads((root / 'manifest.json').read_text())
+    manifest['biosamples'] = {'file': 'biosamples.json'}
+    manifest['variants'] = dict(schema_version=1, annotations_file='variants.tsv',
+        samples_file='variant-samples.tsv', genotypes_file='genotypes.tsv',
+        provenance={'technology': 'synthetic', 'method': 'Fictional documentation example'})
+    (root / 'manifest.json').write_text(json.dumps(manifest))
+    (root / 'biosamples.json').write_text(json.dumps([
+        {'id': f'DOC{i}', 'individualId': f'SYN{i:03}',
+         'sampleOriginType': {'id': 'UBERON:0000178', 'label': 'blood'}} for i in range(1, 4)]))
+    (root / 'variants.tsv').write_text(
+        'variant_id\tassembly\tchromosome\tposition\tref\talt\tgene\tclassification_source\n'
+        'DEMO-V1\tFictional\t22\t1000\tA\tG\tDEMO1\tFictional documentation example\n'
+        'DEMO-V2\tFictional\t22\t2000\tC\tT\tDEMO2\tFictional documentation example\n')
+    (root / 'variant-samples.tsv').write_text('sample_id\tpatient_id\tbiosample_id\n' +
+        ''.join(f'DOC{i}\tSYN{i:03}\tDOC{i}\n' for i in range(1, 4)))
+    (root / 'genotypes.tsv').write_text(
+        'variant_id\tsample_id\tGT\tcall_status\talt_dosage\tploidy\tphased\n' +
+        ''.join(f'DEMO-V{v}\tDOC{i}\t0/{int(i == v)}\tcalled\t{int(i == v)}\t2\tfalse\n'
+                for v in (1, 2) for i in range(1, 4)))
+    return root
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--llm-url', help='Explicit OpenAI-compatible endpoint for the AI example')
     parser.add_argument('--llm-model', default='openai/gpt-oss-20b')
+    parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
     args = parser.parse_args()
     plotly = ROOT / 'node_modules/plotly.js-dist-min/plotly.min.js'
     if not plotly.is_file():
@@ -45,6 +73,8 @@ def main() -> int:
         if args.llm_url:
             env.update(LM_STUDIO_ENABLED='true', LM_STUDIO_BASE_URL=args.llm_url,
                        LM_STUDIO_MODEL=args.llm_model, LM_STUDIO_TIMEOUT='120')
+        if args.updated_views:
+            env['COHORTOME_DOCS_EXAMPLE_ROOT'] = str(prepare_variant_example(runtime))
         # Only the two bundled fixtures are registered. No machine-local registry is read.
         subprocess.run([sys.executable, '-c', """
 from app.datasets import DATASET_REGISTRY_PATH, _seed_dataset_records
@@ -53,8 +83,15 @@ from app.query_store import prepare_dataset_query_store
 from app.lm import initialize_desktop_default_provider, update_managed_lm_provider
 import os
 bundled = {'default', 'synthetic-cross-sectional-demo'}
-atomic_write_json(DATASET_REGISTRY_PATH, [d for d in _seed_dataset_records() if d['dataset_id'] in bundled])
-prepare_dataset_query_store('default')
+records = [d for d in _seed_dataset_records() if d['dataset_id'] in bundled]
+if os.environ.get('COHORTOME_DOCS_EXAMPLE_ROOT'):
+    for record in records:
+        if record['dataset_id'] == 'default':
+            record['root_path'] = os.environ['COHORTOME_DOCS_EXAMPLE_ROOT']
+            record['dataset_id'] = 'documentation-demo'
+            record['name'] = 'Fictional documentation demo'
+atomic_write_json(DATASET_REGISTRY_PATH, records)
+prepare_dataset_query_store('documentation-demo' if os.environ.get('COHORTOME_DOCS_EXAMPLE_ROOT') else 'default')
 prepare_dataset_query_store('synthetic-cross-sectional-demo')
 initialize_desktop_default_provider()
 if os.environ.get('LM_STUDIO_ENABLED') == 'true':
@@ -82,7 +119,8 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     path=str(plotly), content_type='application/javascript'))
                 page = context.new_page()
                 page.goto(bootstrap, wait_until='networkidle')
-                response = page.request.post(url + '/datasets/select', data={'dataset_ids': ['default']})
+                initial_dataset = 'documentation-demo' if args.updated_views else 'default'
+                response = page.request.post(url + '/datasets/select', data={'dataset_ids': [initial_dataset]})
                 assert response.ok, response.status
                 page.reload(wait_until='networkidle')
 
@@ -105,6 +143,51 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     target.screenshot(path=str(OUTPUT / name), animations='disabled')
                     captured.append(name)
                     print(f'Captured {name}', flush=True)
+
+                if args.updated_views:
+                    panel_response = page.request.get(url + '/variants/panels?workspace=documentation-demo')
+                    assert panel_response.ok, panel_response.text()
+                    assert panel_response.json(), 'Documentation variant panel was not registered'
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardPatientsBtn').click()
+                    expect(page.locator('#patientSampleOriginFilter')).to_be_visible()
+                    expect(page.locator('#patientOverviewMatches [data-match]').first).to_be_visible()
+                    capture('dashboard-patients.png', '#dashboardPatientsPanel')
+                    page.locator('#dashboardAssaysBtn').click()
+                    page.locator('#assayModalityTabs button', has_text='Genotyping').click()
+                    expect(page.locator('[data-variant-dataset]')).to_be_visible()
+                    capture('dashboard-assays.png', '#assayOverviewView')
+                    page.locator('[data-variant-dataset]').click()
+                    expect(page.locator('.variant-open').first).to_be_visible()
+                    page.locator('.variant-open').first.click()
+                    expect(page.locator('.variant-fields').first).to_be_visible()
+                    capture('variant-browser.png', '#variantBrowser')
+                    response = page.request.post(url + '/datasets/select', data={
+                        'dataset_ids': ['synthetic-cross-sectional-demo']})
+                    assert response.ok
+                    page.reload(wait_until='networkidle')
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardMultimodalBtn').click()
+                    coverage = page.locator('.multimodal-coverage')
+                    expect(coverage.locator('.coverage-result')).to_contain_text('90 matching patients')
+                    coverage.locator('[data-disease="Systemic Lupus Erythematosus"]').click()
+                    coverage.locator('input[value=transcriptomics]').check()
+                    coverage.locator('input[value=methylation]').check()
+                    expect(coverage.locator('.coverage-result')).to_contain_text('28 matching patients')
+                    capture('multimodal-selection.png', '.multimodal-coverage')
+                    page.locator('#accountMenuButton').click()
+                    page.locator('#adminTabBtn').click()
+                    page.locator('#dataTabBtn').click()
+                    page.locator('#resourceAdd').click()
+                    expect(page.locator('#resourceList [data-resource]').first).to_be_visible()
+                    page.locator('#resourceBrowse').click()
+                    expect(page.locator('#resourceCatalogueStatus')).to_contain_text('Catalogue refreshed', timeout=20000)
+                    page.locator('[data-category="archive"]').click()
+                    expect(page.locator('.resource-card:visible')).to_contain_text('CINECA')
+                    capture('install-dataset.png', '#resourcePanel')
+                    browser.close()
+                    print(f'Captured {len(captured)} updated views using fictional documentation data.')
+                    return 0
 
                 page.locator('#dashboardTabBtn').click()
                 expect(page.locator('#contextCohort')).not_to_contain_text('Loading')

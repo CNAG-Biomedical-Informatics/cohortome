@@ -109,6 +109,15 @@ imaging measurements.
 
 ![Assay overview distinguishing patient coverage by modality from assay counts in the synthetic workspace](/img/screenshots/dashboard-assays.png)
 
+Choose **Browse variants** on a prepared panel to search variants, inspect
+annotations and save carriers as a cohort. Genotype dosage matrices do not
+offer this browser.
+
+![Variant browser showing fictional variants, call counts and the carrier-cohort action](/img/screenshots/variant-browser.png)
+
+*The patient-origin and variant examples shown here use a fictional documentation
+fixture, not an additional dataset included with the app.*
+
 ## Imaging dashboard
 
 Open a listed study when its viewer is available. COHORTome launches OHIF;

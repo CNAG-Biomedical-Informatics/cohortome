@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Improve dataset loading, error handling and release packaging.
+- Add variant-panel browsing, carrier cohorts and biosample-origin filters.
+- Update the Store catalogue and multimodal controls.
 
 ## 0.1.0 - 2026-10-25
 

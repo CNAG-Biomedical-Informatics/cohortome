@@ -14,13 +14,12 @@ Both use the same application code and research interface.
 
 :::info[No LLM required]
 
-Import and explore datasets, select and save cohorts, run supported queries,
-perform preconfigured analyses, use Pheno-Ranker, and export results without
-connecting a language model. You do not need LM Studio, an AI subscription,
-or hardware capable of running an LLM.
+**COHORTome works without an LLM.** You can explore data, build cohorts, run
+built-in analyses and Pheno-Ranker, and export results.
 
-A model adds natural-language query planning and AI-generated explanations.
-It is optional in both Desktop and Web deployments.
+**Connect a model if you want** natural-language query planning and help
+explaining results. This is optional on both Desktop and Web—**no AI
+subscription or LLM-capable computer is required** to use the app.
 
 :::
 
