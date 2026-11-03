@@ -234,8 +234,10 @@ def _analysis_session_workspace_status(session: Dict[str, Any], request: Request
         resolved_scope_id = dataset_scope_id(selected_ids)
         resolved_dir = resolve_dataset_dir(request, dataset_key)
         current = workspace_fingerprint_for_data_dir(resolved_dir, dataset_id=resolved_scope_id, dataset_ids=selected_ids)
-    except HTTPException as exc:
-        detail = str(exc.detail or "").strip() or "The original dataset is no longer available."
+    except (HTTPException, FileNotFoundError) as exc:
+        detail = (str(exc.detail or "").strip() if isinstance(exc, HTTPException)
+                  else "Dataset files are unavailable. Check the dataset location in Admin > Data. This chat and its results are kept.")
+        detail = detail or "The original dataset is no longer available."
         return {
             "state": "unavailable",
             "message": detail,
@@ -963,6 +965,8 @@ def prepare_dataset_route(dataset_id: str, request: Request) -> Dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except QueryStoreNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail="Dataset files are unavailable. Check the dataset location in Admin > Data before rebuilding DuckDB.") from exc
 
 
 def get_patients(request: Request = None, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> List[Dict]:

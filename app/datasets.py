@@ -13,6 +13,7 @@ from fastapi import HTTPException, Request
 
 from app.auth import auth_enabled, require_authenticated, session_user
 from app.bff import extract_patient_id, resolve_project_data_dir
+from app.env import app_env
 from app.config import (
     BASE_DIR,
     CONFIG_DIR,
@@ -407,6 +408,11 @@ def _read_registry_unlocked() -> List[Dict[str, Any]]:
         if normalized is not None:
             if str(normalized.get("dataset_id") or "") == DEFAULT_DATASET_ID:
                 normalized["root_path"] = str(Path(DEFAULT_DATA_DIR).resolve())
+            elif (normalized["dataset_id"] == "synthetic-cross-sectional-demo"
+                  and app_env("COHORTOME_DESKTOP_MODE").lower() in {"1", "true", "yes", "on"}):
+                # AppImage mount paths change between launches. The bundled demo
+                # belongs to this installation, not a persisted temporary mount.
+                normalized["root_path"] = str((BASE_DIR / "datasets" / "synthetic-cross-sectional-demo").resolve())
             items.append(normalized)
     if not any(str(item.get("dataset_id") or "") == DEFAULT_DATASET_ID for item in items):
         items.insert(0, _default_dataset_record())

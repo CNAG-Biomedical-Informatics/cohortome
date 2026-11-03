@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improve dataset loading, error handling and release packaging.
+
 ## 0.1.0 - 2026-10-25
 
 - First public COHORTome release for desktop and shared web deployment.

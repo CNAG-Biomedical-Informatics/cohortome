@@ -12,6 +12,18 @@ import TabItem from '@theme/TabItem';
 installation for shared servers with user accounts and dataset permissions.
 Both use the same application code and research interface.
 
+:::info[No LLM required]
+
+Import and explore datasets, select and save cohorts, run supported queries,
+perform preconfigured analyses, use Pheno-Ranker, and export results without
+connecting a language model. You do not need LM Studio, an AI subscription,
+or hardware capable of running an LLM.
+
+A model adds natural-language query planning and AI-generated explanations.
+It is optional in both Desktop and Web deployments.
+
+:::
+
 ## Install a release
 
 1. Open [COHORTome Releases](https://github.com/CNAG-Biomedical-Informatics/cohortome/releases).
