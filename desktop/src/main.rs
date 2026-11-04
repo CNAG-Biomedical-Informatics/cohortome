@@ -173,7 +173,7 @@ fn main() {
             app.add_capability(serde_json::json!({
                 "identifier": "project-dialogs", "windows": ["main"], "local": false,
                 "remote": {"urls": [format!("{}/*", origin.ascii_serialization())]},
-                "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file", "allow-pick-dataset-folder"]
+                "permissions": ["allow-save-project-file", "allow-open-project-file", "allow-save-export-file", "allow-pick-dataset-folder", "core:window:allow-set-title"]
             }).to_string())?;
             app.manage(engine);
             let smoke = std::env::var("COHORTOME_DESKTOP_SMOKE_TEST").as_deref() == Ok("1");
@@ -182,7 +182,7 @@ fn main() {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .initialization_script("window.__COHORTOME_DESKTOP__ = true; document.addEventListener('contextmenu', event => event.preventDefault());")
                 .devtools(false)
-                .title("COHORTome — Desktop Preview")
+                .title("Untitled — COHORTome")
                 .inner_size(1440.0, 960.0).min_inner_size(800.0, 600.0)
                 .on_navigation(move |target| target.origin() == origin)
                 .on_new_window(move |target, _| {

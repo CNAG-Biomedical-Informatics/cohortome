@@ -56,8 +56,23 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.cohortome,application/json'; input.hidden = true;
   section.append(input);
-  let busy = false, projectName = 'My project';
+  let busy = false, projectName = 'Untitled';
   const native = () => window.__COHORTOME_DESKTOP__ && window.__TAURI__?.core;
+  function updateProjectTitle(name) {
+    projectName = name.trim();
+    const title = `${projectName} — COHORTome`;
+    document.title = title;
+    if (native()) {
+      try { sessionStorage.setItem('cohortome.desktop.project-name', projectName); } catch (_) { /* Storage may be unavailable. */ }
+      window.__TAURI__.window.getCurrentWindow().setTitle(title).catch(error => {
+        console.warn('Could not update the project window title.', error);
+      });
+    }
+  }
+  if (native()) {
+    try { projectName = sessionStorage.getItem('cohortome.desktop.project-name') || projectName; } catch (_) { /* Use the default. */ }
+  }
+  updateProjectTitle(projectName);
   function idle() {
     if (busy || state.queryInFlight || state.analysisInFlight || state.loadInFlight) {
       throw new Error('Wait for the current operation to finish before saving or opening a project.');
@@ -101,7 +116,7 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
       link.download = name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.cohortome'; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     }
-    projectName = name; status.textContent = `Saved project: ${name}. Data and results stay in this installation.`;
+    updateProjectTitle(name); status.textContent = `Saved project: ${name.trim()}. Data and results stay in this installation.`;
   }
   async function restore(text) {
     if (new TextEncoder().encode(text).length > 1024*1024) throw new Error('Choose a project smaller than 1 MiB.');
@@ -126,7 +141,7 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
     state.queryHistory = [];
     query.renderQueryThread(); refs.questionEl.value = project.query_prompt;
     navigation.setActiveTab(project.view);
-    projectName = project.name;
+    updateProjectTitle(project.name);
     status.textContent = `Opened ${project.name}. Saved Query text is read-only history; rerun queries for tables and cohort actions. ${result.warnings.join(' ')}`;
   }
   save.addEventListener('click', () => run(saveProject));

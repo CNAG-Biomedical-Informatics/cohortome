@@ -11,6 +11,57 @@ import httpx
 from playwright.sync_api import sync_playwright, expect
 
 
+def test_native_project_titles_and_cancelled_save():
+    root = Path(__file__).resolve().parents[1]
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route('http://projects.test/', lambda r: r.fulfill(content_type='text/html', body=
+            '<div class="app-icon-rail"><button id="runHistoryDrawerBtn"></button></div>'))
+        page.route('http://projects.test/projects.js', lambda r: r.fulfill(
+            content_type='text/javascript', body=(root / 'static/js/projects.js').read_text()))
+        page.route('http://projects.test/projects/*', lambda r: r.fulfill(json={
+            'name': 'Saved study', 'dataset_ids': ['demo'], 'warnings': []}))
+        page.goto('http://projects.test/')
+        setup = '''async () => {
+          window.nativeTitles = []; window.saveSucceeds = false;
+          window.__COHORTOME_DESKTOP__ = true;
+          window.__TAURI__ = {
+            window: {getCurrentWindow: () => ({setTitle: async title => nativeTitles.push(title)})},
+            core: {invoke: async command => command === 'save_project_file' ? saveSucceeds : JSON.stringify({
+              name: 'Opened study', conversation: [], query_prompt: '', query_context: 'workspace', view: 'dashboard'
+            })}
+          };
+          const {createProjectsUi} = await import('/projects.js');
+          createProjectsUi({state: {currentDatasetIds:['demo'], queryTurns:[]}, refs:{questionEl:{value:''}},
+            sessions:{flushCurrentForProject:async()=>null, loadAnalysisSessionsFromBackend:async()=>{}},
+            datasets:{currentDatasetSelectionKey:()=> 'demo', loadDatasets:async()=>{}},
+            workspace:{loadPatients:async()=>{}}, navigation:{setActiveTab:()=>{}},
+            query:{resetQueryWorkspace:()=>{}, setContextMode:()=>{}, renderQueryThread:()=>{}}});
+        }'''
+        page.evaluate(setup)
+        expect(page).to_have_title('Untitled — COHORTome')
+        assert page.evaluate('nativeTitles') == ['Untitled — COHORTome']
+        page.locator('#projectsMenuBtn').click()
+        page.once('dialog', lambda d: d.accept('Saved study'))
+        page.locator('#saveProjectBtn').click()
+        expect(page.locator('[role=status]')).to_have_text('Save cancelled.')
+        expect(page).to_have_title('Untitled — COHORTome')
+        page.evaluate('saveSucceeds = true')
+        page.once('dialog', lambda d: d.accept('Saved study'))
+        page.locator('#saveProjectBtn').click()
+        expect(page).to_have_title('Saved study — COHORTome')
+        assert page.evaluate('nativeTitles.at(-1)') == 'Saved study — COHORTome'
+        page.once('dialog', lambda d: d.accept())
+        page.locator('#openProjectBtn').click()
+        expect(page).to_have_title('Opened study — COHORTome')
+        assert page.evaluate('nativeTitles.at(-1)') == 'Opened study — COHORTome'
+        page.reload()
+        page.evaluate(setup)
+        expect(page).to_have_title('Opened study — COHORTome')
+        browser.close()
+
+
 def test_project_download_and_reopen_restores_query_draft(tmp_path):
     root = Path(__file__).resolve().parents[1]
     env = {k:v for k,v in os.environ.items() if not k.startswith(('COHORTOME_', 'LM_STUDIO_'))}
@@ -38,6 +89,7 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
                 body='window.Plotly={newPlot:async()=>{},react:async()=>{},purge:()=>{},Plots:{resize:()=>{}}};'))
             page.goto(url)
             expect(page.locator('#projectsMenuBtn')).to_be_visible(timeout=30000)
+            expect(page).to_have_title('Untitled — COHORTome')
             expect(page.locator('#saveProjectBtn')).to_be_hidden()
             assert page.locator('#projectsMenuBtn').evaluate('(el) => el.nextElementSibling.id') == 'runHistoryDrawerBtn'
             page.locator('#projectsMenuBtn').click()
@@ -115,6 +167,7 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
                 raise
             target = tmp_path / 'review.cohortome'
             download.value.save_as(target)
+            expect(page).to_have_title('Synthetic project — COHORTome')
             project = json.loads(target.read_text())
             assert project['format'] == 'cohortome-project'
             assert project['query_prompt'] == 'Review the synthetic lupus cohort'
@@ -125,6 +178,7 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             page.locator('#projectsMenu input[type=file]').set_input_files(target)
             expect(page.locator('#question')).to_have_value('Review the synthetic lupus cohort', timeout=20000)
             expect(page.locator('#projectsMenu [role=status]')).to_contain_text('Opened Synthetic project')
+            expect(page).to_have_title('Synthetic project — COHORTome')
             browser.close()
     finally:
         child.terminate()
