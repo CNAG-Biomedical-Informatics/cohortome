@@ -80,6 +80,8 @@ def test_search_is_literal_bounded_and_supports_clarid(tmp_path, monkeypatch):
     assert overview.lookup('unused', '', disease="Crohn disease' OR TRUE --") == []
     rows = overview.lookup('unused', '', limit=1, disease=['Crohn disease', 'Other'], include_total=True)
     assert len(rows) == 1 and rows[0]['_total'] == 2
+    assert overview.lookup('unused', '', limit=1000, disease=['Crohn disease', 'Other'], ids_only=True) == [
+        {'patient_id':'SYN003'}, {'patient_id':'SYN004'}]
 
 
 def test_inventory_uses_headers_and_explicit_metadata_only(tmp_path):
@@ -128,6 +130,23 @@ def test_duplicate_patient_ids_remain_dataset_scoped(client, monkeypatch):
     assert client.get('/patient-overview/detail', params=dict(workspace='scope', dataset_id='c', patient_id='P1')).status_code == 403
 
 
+def test_collect_selection_in_one_request_per_dataset(client, monkeypatch):
+    monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'a', 'A'), ('b', 'b', 'B')])
+    calls = []
+    def collect(root, term, limit, **kwargs):
+        calls.append((root, term, kwargs))
+        return [{'patient_id': f'P{i}'} for i in range(300)]
+    monkeypatch.setattr(overview, 'lookup', collect)
+    response = client.get('/patient-overview/selection', params={
+        'workspace':'scope', 'q':' P ', 'disease':['D1', 'D2'], 'sample_origin':'blood'})
+    assert response.status_code == 200
+    assert response.json()['patient_count'] == 600
+    assert len({(m['dataset_id'], m['patient_id']) for m in response.json()['members']}) == 600
+    assert len(calls) == 2
+    assert calls[0][1:] == ('P', {'disease':['D1','D2'], 'sample_origin':'blood', 'ids_only':True})
+    assert client.get('/patient-overview/selection', params={'workspace':'scope','disease':['x']*101}).status_code == 422
+
+
 def test_browse_paginates_across_datasets_without_losing_duplicates(client, monkeypatch):
     monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'a', 'A'), ('b', 'b', 'B')])
     def lookup(root, term, limit, after=''):
@@ -151,6 +170,10 @@ def test_full_clinical_records_are_scoped_paginated_and_keep_source_values(clien
     from types import SimpleNamespace
     monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root-a', 'A')])
     monkeypatch.setattr(overview, 'ensure_query_store', lambda root: None)
+    def subject_label(root, pid):
+        assert (root, pid) == ('root-a', 'P1')
+        return {'human_id': 'subject-label', 'stub_id': 'subject-stub', 'subject_id': 1}
+    monkeypatch.setattr(overview, 'patient_clarid', subject_label)
     raw = {'id': 'P1:V1', 'info': {'days_from_baseline': 0},
            'measures': [{'measurementValue': {'quantity': {'value': 0}}}]}
     visits = [SimpleNamespace(visit_id=f'V{i}', event_date=None,
@@ -162,6 +185,7 @@ def test_full_clinical_records_are_scoped_paginated_and_keep_source_values(clien
     params = dict(workspace='scope', dataset_id='a', patient_id='P1')
     response = client.get('/patient-overview/clinical', params=params)
     payload = response.json()
+    assert payload['clarid']['human_id'] == 'subject-label'
     assert payload['total'] == 25 and payload['next_offset'] == 20
     assert len(payload['records']) == 20
     assert [r['visit_id'] for r in payload['records']] == [f'V{i}' for i in range(20)]
@@ -185,6 +209,7 @@ def test_search_and_detail_require_authorized_detailed_access(client, monkeypatc
     assert client.get('/patient-overview/search', params=dict(workspace='a', q='P1')).status_code == status
     assert client.get('/patient-overview/timeline', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/coverage', params=dict(workspace='a')).status_code == status
+    assert client.get('/patient-overview/selection', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/detail', params=dict(workspace='a', dataset_id='a', patient_id='P1')).status_code == status
 
 

@@ -4,6 +4,10 @@ Compose runs the web app, one RQ worker and Redis. OHIF is embedded in the app;
 the optional Orthanc service supplies image storage. The image includes both
 synthetic demos, Python, R and Pheno-Ranker.
 
+Source builds also include Convert-Pheno 0.35 and ClarID-Tools 0.05 for
+**Admin → Data → Download and prepare**. These additions require a new image;
+they are not installed by changing settings in an existing container.
+
 ## Start
 
 Install Docker with Compose. Clone the repository for its deployment files:
@@ -75,7 +79,8 @@ Both web and worker use that locally built image.
 ## Configuration guides
 
 The manual **Test Docker deployment** Actions workflow builds on native Linux
-amd64 and arm64 runners. It checks login, both synthetic stores, Pheno-Ranker,
+amd64 and arm64 runners. It checks clinical conversion, ClarID generation,
+login, both synthetic stores, Pheno-Ranker,
 a queued R analysis and settings persistence after restart. It does not publish images.
 
 Run **Publish Docker release** manually with the same annotated tag as desktop.

@@ -2,6 +2,7 @@ import { modalityIcon } from './modalities.js';
 import { createResourceInstaller } from './resource_install.js';
 import { createDatasetBulkAi } from './dataset_bulk_ai.js';
 import { openDicomFolderDialog } from './dicom_folder.js';
+import { openDatasetAbout } from './dataset_about.js';
 
 export function createDatasetsUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
@@ -20,6 +21,15 @@ export function createDatasetsUi(ctx) {
     datasetAdminListEl,
   } = refs;
   const { escapeHtml } = helpers;
+  for (const container of [datasetPickerEl, datasetAdminListEl]) {
+    container?.addEventListener('click', event => {
+      const button = event.target.closest('[data-dataset-about]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openDatasetAbout(button.dataset.datasetAbout, escapeHtml);
+    });
+  }
   const {
     canManageDataset,
     isWorkspaceAccessible,
@@ -601,6 +611,7 @@ export function createDatasetsUi(ctx) {
             <div class="dataset-picker-title">
               <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
               ${stateBadges.join("")}
+              <button type="button" class="query-chip secondary-btn dataset-about-button" data-dataset-about="${escapeHtml(datasetId)}" aria-label="About ${escapeHtml(dataset.name || datasetId)}"><span aria-hidden="true">ⓘ</span> About</button>
             </div>
             ${traitKeys.length ? `<div class="dataset-trait-icons">${traitKeys.map((key) => renderDatasetTraitIcon(key)).join("")}</div>` : ""}
             <div class="dataset-picker-meta">
@@ -682,6 +693,7 @@ export function createDatasetsUi(ctx) {
             <span class="dataset-picker-tag ${storeReady ? "dataset-picker-tag-ready" : storeState === "failed" ? "dataset-picker-tag-danger" : "dataset-picker-tag-warning"}">${escapeHtml(storeLabel)}</span>
           </summary>
           <div class="dataset-admin-body">
+            <button type="button" class="query-chip secondary-btn dataset-about-button" data-dataset-about="${escapeHtml(datasetId)}">ⓘ About this dataset</button>
             <div class="dataset-picker-title">
               <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
             </div>

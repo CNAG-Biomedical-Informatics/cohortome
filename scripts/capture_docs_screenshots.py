@@ -5,6 +5,8 @@ Requires Playwright/Chromium and the repository frontend dependencies.
 Does not use native.env, the Desktop runtime, or private datasets.
 Optional: --llm-url http://HOST:1234/v1 --llm-model MODEL captures a real
 General-question reply. Only the example prompt is sent, not dataset records.
+Use --walkthrough-video to refresh the small silent multimodal clip and poster.
+Use --updated-views for the dataset, patient, assay, variant and multimodal screenshots.
 """
 from __future__ import annotations
 
@@ -19,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
@@ -58,6 +61,7 @@ def main() -> int:
     parser.add_argument('--llm-url', help='Explicit OpenAI-compatible endpoint for the AI example')
     parser.add_argument('--llm-model', default='openai/gpt-oss-20b')
     parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
+    parser.add_argument('--walkthrough-video', action='store_true', help='Record only the silent multimodal docs walkthrough')
     args = parser.parse_args()
     plotly = ROOT / 'node_modules/plotly.js-dist-min/plotly.min.js'
     if not plotly.is_file():
@@ -114,7 +118,9 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
             OUTPUT.mkdir(parents=True, exist_ok=True)
             with sync_playwright() as pw:
                 browser = pw.chromium.launch()
-                context = browser.new_context(viewport={'width': 1440, 'height': 1000}, reduced_motion='reduce')
+                context = browser.new_context(viewport={'width': 1440, 'height': 1000}, reduced_motion='reduce',
+                    **({'record_video_dir': str(Path(runtime) / 'video'),
+                        'record_video_size': {'width': 1440, 'height': 1000}} if args.walkthrough_video else {}))
                 context.route('https://cdn.plot.ly/**', lambda route: route.fulfill(
                     path=str(plotly), content_type='application/javascript'))
                 page = context.new_page()
@@ -125,6 +131,57 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                 page.reload(wait_until='networkidle')
 
                 captured = []
+
+                if args.walkthrough_video:
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardMultimodalBtn').click()
+                    coverage = page.locator('.multimodal-coverage')
+                    expect(coverage.locator('.coverage-result')).to_contain_text('matching patients')
+                    page.evaluate('document.fonts.ready')
+                    # A visible pointer and click pulse make the real interactions readable.
+                    page.evaluate('''() => {
+                      const pointer = document.createElement('div');
+                      pointer.style.cssText = 'position:fixed;width:14px;height:14px;border:2px solid #2563eb;border-radius:50%;background:#ffffffaa;pointer-events:none;z-index:99999;transform:translate(-50%,-50%)';
+                      document.body.append(pointer);
+                      document.addEventListener('mousemove', e => {pointer.style.left=e.clientX+'px';pointer.style.top=e.clientY+'px';});
+                      document.addEventListener('mousedown', () => pointer.animate([{boxShadow:'0 0 0 0 #2563eb88'}, {boxShadow:'0 0 0 18px #2563eb00'}], {duration:450}));
+                    }''')
+                    def click_visible(locator):
+                        locator.scroll_into_view_if_needed()
+                        box = locator.bounding_box()
+                        page.mouse.move(box['x'] + box['width']/2, box['y'] + box['height']/2, steps=18)
+                        page.wait_for_timeout(350)
+                        locator.click()
+                    started = time.monotonic()
+                    page.wait_for_timeout(2500)
+                    click_visible(coverage.locator('input[value=clinical]'))
+                    page.wait_for_timeout(1800)
+                    click_visible(coverage.locator('input[value=proteomics]'))
+                    expect(coverage.locator('.coverage-result')).to_contain_text('8 matching patients')
+                    page.wait_for_timeout(3000)
+                    media = ROOT / 'docs-site/static/media'
+                    page.screenshot(path=str(media / 'multimodal-cohort-poster.jpg'), type='jpeg', quality=80)
+                    click_visible(coverage.locator('.coverage-save'))
+                    page.locator('#cohortNameInput').fill('Clinical + proteomics')
+                    page.wait_for_timeout(2200)
+                    click_visible(page.locator('#cohortNameDialog button[type=submit]'))
+                    expect(coverage.locator('.coverage-save-status')).to_contain_text('Cohort saved')
+                    page.wait_for_timeout(1800)
+                    click_visible(page.locator('#cohortsTabBtn'))
+                    expect(page.locator('.cohort-library-card')).to_contain_text('Clinical + proteomics')
+                    page.wait_for_timeout(3500)
+                    duration = time.monotonic() - started
+                    recording = page.video
+                    recording_path = recording.path()
+                    context.close()
+                    # Keep just the recorded interaction, excluding bootstrap/preparation.
+                    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-sseof', f'-{duration:.3f}',
+                        '-i', str(recording_path), '-an', '-vf', 'scale=1280:-2,fps=25',
+                        '-c:v', 'libx264', '-preset', 'medium', '-crf', '25', '-pix_fmt', 'yuv420p',
+                        '-movflags', '+faststart', str(media / 'multimodal-cohort.mp4')], check=True)
+                    browser.close()
+                    print(f'Recorded {duration:.1f}s of real synthetic-data interactions; no audio.')
+                    return 0
 
                 def capture(name, selector=None):
                     page.evaluate("""() => {

@@ -11,6 +11,7 @@ export function createDeploymentBrandingUi() {
     host.hidden = !value.logo;
     if (!value.logo) return;
     const content = document.createElement(linked && value.website ? 'a' : 'div');
+    content.title = value.name || 'Deployment logo';
     if (content.tagName === 'A') {
       content.href = value.website; content.target = '_blank'; content.rel = 'noopener noreferrer';
       content.title = `Visit ${value.name} website (opens a new tab)`;

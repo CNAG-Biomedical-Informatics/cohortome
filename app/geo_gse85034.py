@@ -261,7 +261,7 @@ def codebook_path():
 
 
 def preflight():
-    for tool, expected in (("convert-pheno", "0.35"), ("clarid-tools", "0.04")):
+    for tool, expected in (("convert-pheno", "0.35"), ("clarid-tools", "0.05")):
         command = preparation_command(tool)
         if not command:
             fail(f"{tool} is not installed. Install the preparation runtime first.")
@@ -349,7 +349,7 @@ def build_package(source, archive, *, check_cancel=lambda: None, report=lambda *
     name = "Psoriasis adalimumab/methotrexate skin study"
     write_json(package / "manifest.json", dict(schema_version=1, name=name, study_design="longitudinal",
         clinical={"representation": "snapshot"}, identifiers={"clarid_subjects": dict(
-            entity="subject", file="identifiers/clarid_subjects.csv", delimiter=",", codebook_version="0.04", tools_version="0.04")}))
+            entity="subject", file="identifiers/clarid_subjects.csv", delimiter=",", codebook_version="0.04", tools_version="0.05")}))
     write_json(package / "assays/manifest.json", {"version": 1, "assays": [dict(
         assay_id="gse85034_microarray", label=name + " expression", modality="transcriptomics",
         data_type="microarray_expression", level="sample", feature_namespace="illumina_probe_id",
@@ -357,7 +357,7 @@ def build_package(source, archive, *, check_cancel=lambda: None, report=lambda *
         patient_linkage="sample_metadata_file", sample_metadata_file="assays/samples.tsv",
         file="assays/expression.csv", feature_count=counts["features"])]})
     write_json(package / "provenance/preparation.json", dict(source=GSE85034, counts=counts,
-        tools={"convert-pheno": "0.35", "clarid-tools": "0.04"},
+        tools={"convert-pheno": "0.35", "clarid-tools": "0.05"},
         mapping_sha256=hashlib.sha256(MAPPING.encode()).hexdigest()))
     (package / "README.md").write_text(
         "# GSE85034\n\nDownloaded directly from GEO and prepared locally by COHORTome.\n"

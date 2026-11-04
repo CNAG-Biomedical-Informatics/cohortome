@@ -16,7 +16,7 @@ export default function MultimodalWalkthrough() {
         Your browser does not support embedded video.
       </video>
       <figcaption style={{marginTop: '0.5rem', fontSize: '0.9rem'}}>
-        28-second silent walkthrough with synthetic demo data: select Clinical
+        Short silent walkthrough with synthetic demo data: select Clinical
         and Proteomics, save the eight matching patients, then find the saved
         group in Cohorts. Results illustrate the interface, not biological findings.
       </figcaption>

@@ -112,7 +112,7 @@ def prepare(source, package, check_cancel, report):
     write_json(package / 'manifest.json', dict(schema_version=1, name='Psoriasis ustekinumab/etanercept skin study',
         study_design='longitudinal', clinical={'representation': 'snapshot'},
         identifiers={'clarid_subjects': dict(entity='subject', file='identifiers/clarid_subjects.csv', delimiter=',',
-            codebook_version='0.04', tools_version='0.04')}))
+            codebook_version='0.04', tools_version='0.05')}))
     write_json(package / 'assays/manifest.json', {'version': 1, 'assays': [dict(
         assay_id='gse117239_microarray', label='Skin microarray expression', modality='transcriptomics',
         data_type='microarray_expression', level='sample', feature_namespace='affymetrix_probeset_id',

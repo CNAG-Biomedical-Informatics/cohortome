@@ -165,7 +165,7 @@ def _prepare(source, package, converter, mapping, clarid_tools, codebook):
         manifest = json.loads((package / 'manifest.json').read_text())
         manifest['identifiers'] = {'clarid_subjects': {
             'entity': 'subject', 'file': 'identifiers/clarid_subjects.csv',
-            'delimiter': ',', 'codebook_version': '0.04', 'tools_version': '0.04'}}
+            'delimiter': ',', 'codebook_version': '0.04', 'tools_version': '0.05'}}
         write_json(package / 'manifest.json', manifest)
     with (package / 'assays/samples.tsv').open('w', newline='') as handle:
         writer = csv.DictWriter(handle, fieldnames=list(samples[0]), delimiter='\t', lineterminator='\n')

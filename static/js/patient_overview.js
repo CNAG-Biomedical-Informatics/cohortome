@@ -1,4 +1,5 @@
 import { sortDiseaseOptions } from './shared.js';
+import { createSelectionMetadata } from './app_helpers.js';
 
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort, refineInMultimodal}) {
   const input = document.getElementById('patientOverviewSearch');
@@ -162,25 +163,17 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     const ticket = generation, selectedScope = scope();
     const isCurrent = () => ticket === generation && selectedScope === scope();
     const params = {workspace:selectedScope, q:input.value.trim(), disease:[...selectedDiseases],
-      sample_origin:originSelect.value, sort_by:'patient_id', direction:'asc'};
-    const members = [], seen = new Set();
-    let cursor = {};
+      sample_origin:originSelect.value};
     saveStatus.textContent = 'Collecting all matching patients…';
     try {
-      do {
-        const data = await request('search', {...params, ...cursor});
-        if (!isCurrent()) throw new Error('Filters or workspace changed. Please try again.');
-        for (const row of data.matches) {
-          const key = JSON.stringify([row.dataset_id, row.patient_id]);
-          if (!seen.has(key)) { seen.add(key); members.push({dataset_id:row.dataset_id, patient_id:row.patient_id}); }
-        }
-        cursor = data.next;
-        saveStatus.textContent = `Collected ${members.length} matching patients…`;
-      } while (cursor);
+      const data = await request('selection', params);
+      if (!isCurrent()) throw new Error('Filters or workspace changed. Please try again.');
+      const members = data.members || [];
       if (!members.length) throw new Error('No matching patients.');
       const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}${params.sample_origin ? `; sample origin: ${params.sample_origin}` : ''}`;
       if (refine) {
-        refineInMultimodal({scope:selectedScope, members, description, diseases:params.disease});
+        refineInMultimodal({...createSelectionMetadata({members, idType:'patient', sourceKind:'patients', sourcePrompt:description}),
+          scope:selectedScope, description, diseases:params.disease});
         saveStatus.textContent = `Sent ${members.length} patients to Multimodal.`;
         return;
       }

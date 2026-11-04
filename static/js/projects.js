@@ -25,6 +25,8 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
   toggle.setAttribute('aria-expanded', 'false');
   toggle.append(save.querySelector('.button-icon').cloneNode(true));
   rail.insertBefore(toggle, document.getElementById('runHistoryDrawerBtn'));
+  const brand = document.getElementById('deploymentBrand');
+  if (brand) rail.insertBefore(brand, toggle);
   const section = document.createElement('div');
   section.id = 'projectsMenu'; section.className = 'account-menu app-project-menu';
   section.hidden = true; section.setAttribute('role', 'dialog');

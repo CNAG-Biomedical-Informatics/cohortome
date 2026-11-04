@@ -1,6 +1,10 @@
 import json
 import os
 import re
+from app.query_biosamples import (
+    parse_origin_question, answer_origin_question, origin_catalog,
+    public_origins, resolve_origin, origin_problem,
+)
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import error
 
@@ -898,6 +902,8 @@ def _follow_up_execution_kind(prompt: str) -> str:
     lowered = text.lower().rstrip("?.")
     if not lowered:
         return "planner"
+    if parse_origin_question(text):
+        return "deterministic"
 
     if _extract_patient_id(text) is not None:
         return "deterministic"
@@ -1512,7 +1518,7 @@ def _semantic_query_catalog(
 ) -> Dict[str, Any]:
     if _normalize_ai_provider_access(ai_provider_access) == "safe_summary":
         return {
-            "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
+            "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count", "sample_origin"],
             "supported_outputs": ["count", "patient_list"],
             "supported_logic": ["and", "or"],
             "supported_string_operators": ["contains", "eq"],
@@ -1521,15 +1527,20 @@ def _semantic_query_catalog(
         }
     context = scope_context or _build_query_scope_context(data_dir, scoped_patient_ids=scoped_patient_ids)
     external_assays = store_external_assay_feature_catalog(data_dir, limit=100)
+    try:
+        sample_origins = public_origins(origin_catalog(data_dir, context.patient_ids))[:100]
+    except ValueError:
+        sample_origins = []
     return {
         "patient_count": len(context.patient_ids),
-        "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count"],
+        "supported_domains": ["patient_id", "disease", "treatment", "medication_count", "visit_count", "sample_origin"],
         "supported_outputs": ["count", "patient_list"],
         "supported_logic": ["and", "or"],
         "supported_string_operators": ["contains", "eq"],
         "supported_numeric_operators": ["eq", "gt", "gte", "lt", "lte"],
         "known_diseases": [item["disease"] for item in context.disease_counts[:50]],
         "known_treatments": [item["medication"] for item in context.medication_counts[:50]],
+        "known_sample_origins": sample_origins,
         "external_assays": external_assays,
     }
 
@@ -1599,6 +1610,14 @@ def _validate_semantic_query_plan(plan: Dict[str, Any]) -> Optional[Dict[str, An
         domain = str(item.get("domain", "")).strip().lower()
         operator = str(item.get("operator", "")).strip().lower()
         negate = bool(item.get("negate", False))
+        if domain == 'sample_origin':
+            value = item.get('value')
+            # Missing metadata is not evidence of absence. No negation or
+            # inferred ontology expansion in this first origin filter.
+            if operator != 'eq' or negate or not isinstance(value, str) or not value.strip() or len(value) > 256:
+                return None
+            validated_filters.append({'domain': domain, 'operator': 'eq', 'value': value.strip(), 'negate': False})
+            continue
         if domain in {"patient_id", "disease", "treatment"}:
             if operator not in {"contains", "eq"}:
                 return None
@@ -1647,6 +1666,8 @@ def _semantic_filter_matches(row: Dict[str, Any], condition: Dict[str, Any]) -> 
             value.lower() == label.lower() if operator == "eq" else value.lower() in label.lower()
             for label in labels
         )
+    elif domain == 'sample_origin':
+        matched = value.casefold() in row.get('_sample_origins', set())
     elif domain == "medication_count":
         matched = _matches_numeric_constraint(int(row.get("medication_count", 0)), operator, int(value))
     else:
@@ -1667,6 +1688,8 @@ def _semantic_condition_label(condition: Dict[str, Any]) -> str:
         return ("does not have disease '%s'" if negate else "has disease '%s'") % value
     if domain == "treatment":
         return ("does not take '%s'" if negate else "takes '%s'") % value
+    if domain == 'sample_origin':
+        return "has a sample with recorded origin '%s'" % value
     if domain == "medication_count":
         prefix = "does not have " if negate else "has "
         return prefix + _format_medication_count_constraint(operator, int(value))
@@ -1676,6 +1699,8 @@ def _semantic_condition_label(condition: Dict[str, Any]) -> str:
 
 def _semantic_query_follow_ups(plan: Dict[str, Any], filtered_rows: List[Dict[str, Any]]) -> List[str]:
     first = plan["filters"][0]
+    if first['domain'] == 'sample_origin':
+        return ['Which sample origins are available?', f"Which patients have samples from {first['value']}?"]
     if first["domain"] in {"patient_id", "disease", "treatment"}:
         return _follow_up_suggestions(str(first["value"]))
     if first["domain"] == "medication_count":
@@ -1707,10 +1732,29 @@ def _execute_semantic_query_plan(
 ) -> Dict[str, Any]:
     inventory = _apply_patient_scope_to_rows(_patient_query_index(data_dir), scoped_patient_ids)
     conditions = plan["filters"]
+    if any(c['domain'] == 'sample_origin' for c in conditions):
+        try:
+            catalog = origin_catalog(data_dir, [r['patient_id'] for r in inventory])
+        except ValueError:
+            return {'query': query, 'intent': 'sample_origin_clarification',
+                    'reply': 'Sample-origin metadata could not be read. Check the dataset biosample metadata.', 'data': {}}
+        for condition in conditions:
+            if condition['domain'] == 'sample_origin':
+                problem = origin_problem(query, catalog, resolve_origin(catalog, condition['value']))
+                if problem:
+                    return problem
+        inventory = [dict(row, _sample_origins={term.casefold() for origin in catalog
+                     if row['patient_id'] in origin['patients'] for term in [origin['id'], *origin['labels']]})
+                     for row in inventory]
     if plan["logic"] == "or":
         filtered_rows = [row for row in inventory if any(_semantic_filter_matches(row, item) for item in conditions)]
     else:
         filtered_rows = [row for row in inventory if all(_semantic_filter_matches(row, item) for item in conditions)]
+
+    private_fields = {'_sample_origins'}
+    if any(c['domain'] == 'sample_origin' for c in conditions):
+        private_fields.add('original_record_ids')
+    filtered_rows = [{k: v for k, v in row.items() if k not in private_fields} for row in filtered_rows]
 
     patient_ids = [row["patient_id"] for row in filtered_rows]
     labels = [_semantic_condition_label(condition) for condition in conditions]
@@ -1776,7 +1820,7 @@ def _semantic_query_plan(
                     "If unsupported, return {\"intent\":\"unsupported\",\"reason\":\"...\"}. "
                     "Supported schema: "
                     "{\"intent\":\"cohort_query\",\"output\":\"count|patient_list\",\"logic\":\"and|or\","
-                    "\"filters\":[{\"domain\":\"patient_id|disease|treatment|medication_count|visit_count\","
+                    "\"filters\":[{\"domain\":\"patient_id|disease|treatment|medication_count|visit_count|sample_origin\","
                     "\"operator\":\"contains|eq|gt|gte|lt|lte\",\"value\":\"string or number\",\"negate\":false}]}. "
                     "For approved compact assays, use "
                     "{\"intent\":\"assay_query\",\"operation\":\"inventory|summary|compare\","
@@ -1784,6 +1828,8 @@ def _semantic_query_plan(
                     "\"cohort_a\":\"disease label\",\"cohort_b\":\"disease label\"}. "
                     "Inventory does not need feature or cohorts; summary needs feature; compare needs feature and both cohorts. "
                     "Use string operators only for patient_id/disease/treatment and numeric operators only for medication_count/visit_count. "
+                    "For sample_origin use only eq, negate=false, with a recorded label or ontology ID from known_sample_origins. "
+                    "This selects patients with matching biosamples, not individual specimens; do not infer assay/tissue linkage or missing origins. "
                     "Use only assay modalities and feature identifiers listed in the catalog. "
                     "If the question uses a category term such as biologics, expand it into all matching explicit treatment filters using the known treatments in the catalog. "
                     "Use at most 50 filters; if more are needed, return unsupported rather than an incomplete selection."
@@ -2394,6 +2440,15 @@ def _answer_query_impl(
                 "conversation_history": history[-8:] if history else [],
             },
         }
+
+    origin_question = parse_origin_question(text)
+    if origin_question:
+        try:
+            return answer_origin_question(data_dir, query, origin_question, scope_context.patient_rows)
+        except ValueError:
+            return {'query': query, 'intent': 'sample_origin_clarification',
+                    'reply': 'Sample-origin metadata could not be read. Check the dataset biosample metadata.',
+                    'data': {'execution': 'deterministic'}}
 
     try:
         assay_response = _deterministic_assay_query(

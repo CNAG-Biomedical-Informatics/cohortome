@@ -5,7 +5,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     R_LIBS_USER=/usr/local/lib/R/site-library \
-    COHORTOME_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker
+    COHORTOME_PHENO_RANKER_BIN=/usr/local/bin/pheno-ranker \
+    COHORTOME_CONVERT_PHENO_BIN=/usr/local/bin/convert-pheno \
+    COHORTOME_CLARID_TOOLS_BIN=/usr/local/bin/clarid-tools \
+    COHORTOME_CLARID_CODEBOOK=/usr/local/share/cohortome/clarid-codebook.yaml
 
 ARG PHENO_RANKER_SPEC=Pheno::Ranker
 
@@ -18,6 +21,7 @@ RUN apt-get update \
       cpanminus \
       curl \
       git \
+      libexpat1-dev \
       libgsl-dev \
       libcurl4-openssl-dev \
       libfontconfig1-dev \
@@ -44,6 +48,9 @@ RUN cpanm --notest "$PHENO_RANKER_SPEC" \
     && test -x /usr/local/bin/pheno-ranker \
     && rm -rf /root/.cpanm
 
+COPY docker/install_preparation_tools.sh /tmp/install_preparation_tools.sh
+RUN sh /tmp/install_preparation_tools.sh && rm /tmp/install_preparation_tools.sh
+
 COPY pyproject.toml ./
 RUN python -m pip install --upgrade pip setuptools wheel \
     && python -m pip install '.[dicom]'
@@ -61,6 +68,9 @@ RUN mkdir -p /var/lib/cohortome \
     && chown -R cohortome:cohortome /app /var/lib/cohortome
 
 USER cohortome
+
+# Exercise the installed vocabularies and CLIs as the non-root service account.
+RUN python -m scripts.test_preparation_runtime
 
 EXPOSE 8000
 

@@ -29,7 +29,7 @@ One serology column (220948) has no exact match in the published serology
 metadata. It is omitted from the linked matrix, listed in exclusions.json and
 retained in assays/serology_source.tsv. No participant identity is guessed.
 
-Subject ClarIDs use codebook/tools 0.04. CD maps to K50.9, UC to K51.9 and the
+Subject ClarIDs use codebook 0.04 and ClarID-Tools 0.05. CD maps to K50.9, UC to K51.9 and the
 non-IBD comparison group to Z00.00, following the ClarID identifier convention.
 The last code is not a BFF diagnosis or a claim that the comparison group is
 healthy. Unknown age remains unavailable. Both identifier formats are decoded

@@ -67,7 +67,7 @@ No GitHub token is needed for these studies.
 <details>
 <summary>Tools, download checks and preparation records</summary>
 
-Fetch-and-prepare uses Convert-Pheno 0.35 and ClarID-Tools 0.04 with codebook 0.04.
+Fetch-and-prepare uses Convert-Pheno 0.35 and ClarID-Tools 0.05 with codebook 0.04.
 Native installations can configure `COHORTOME_CONVERT_PHENO_BIN`,
 `COHORTOME_CLARID_TOOLS_BIN` and `COHORTOME_CLARID_CODEBOOK`. Missing tools are
 reported before downloading.

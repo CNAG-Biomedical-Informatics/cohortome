@@ -53,7 +53,7 @@ def build(dataset_id, source, archive, check_cancel, report):
     provenance = package / "provenance"
     provenance.mkdir(exist_ok=True)
     write_json(provenance / "preparation.json", dict(recipe_version=1, sources=specs, counts=counts,
-        tools={"convert-pheno": "0.35", "clarid-tools": "0.04"}))
+        tools={"convert-pheno": "0.35", "clarid-tools": "0.05"}))
     hashes = {p.relative_to(package).as_posix(): sha256(p) for p in sorted(package.rglob("*")) if p.is_file()}
     write_json(package / "resource.json", dict(manifest_version=1, schema_version=1, dataset_id=dataset_id,
         version="0.1.0-preview", recipe_version=1, distribution_status="locally-built", validation=validation,

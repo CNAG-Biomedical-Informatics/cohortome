@@ -1,6 +1,6 @@
 """Prepare subject ClarIDs for the named repository fixtures, never study inputs.
 
-Requires clarid-tools 0.04 for regeneration only. The app consumes the CSVs.
+Requires clarid-tools 0.05 for regeneration only. The app consumes the CSVs.
 Outputs go to a new directory for review before replacing fixture sidecars.
 """
 from __future__ import annotations
@@ -87,8 +87,8 @@ def subject_rows(root, offset):
 def build(output, executable, codebook):
     output.mkdir(parents=True, exist_ok=False)
     version = subprocess.run([str(executable), "--version"], check=True, capture_output=True, text=True).stdout
-    if version.strip().split()[-1] != "0.04":
-        raise ValueError("Regenerate these fixtures with clarid-tools 0.04.")
+    if version.strip().split()[-1] != "0.05":
+        raise ValueError("Regenerate these fixtures with clarid-tools 0.05.")
     vocabulary = yaml.safe_load(codebook.read_text())
     if str(vocabulary["metadata"]["version"]) != "0.04":
         raise ValueError("Expected codebook 0.04.")

@@ -164,7 +164,7 @@ def prepare(source, package, check_cancel, report):
     write_json(package / 'manifest.json', dict(schema_version=1, name='Respiratory infection and recovery',
         study_design='longitudinal', clinical={'representation': 'snapshot'},
         identifiers={'clarid_subjects': dict(entity='subject', file='identifiers/clarid_subjects.csv', delimiter=',',
-            codebook_version='0.04', tools_version='0.04')}))
+            codebook_version='0.04', tools_version='0.05')}))
     write_json(package / 'assays/manifest.json', {'version': 1, 'assays': [dict(
         assay_id='gse68310_microarray', label='Harmonized respiratory expression', modality='transcriptomics',
         data_type='microarray_expression', level='sample', feature_namespace='gene_symbol', feature_id_column='feature_id',

@@ -35,6 +35,17 @@
     "identifiers": {
       "type": "object",
       "properties": {
+        "clarid_biosamples": {
+          "type": "object",
+          "required": ["file", "codebook_version", "tools_version"],
+          "properties": {
+            "entity": {"const": "biosample"},
+            "file": {"type": "string", "pattern": "\\S"},
+            "delimiter": {"enum": [",", ";", "\t", "\\t"]},
+            "codebook_version": {"type": "string", "pattern": "\\S"},
+            "tools_version": {"type": "string", "pattern": "\\S"}
+          }
+        },
         "clarid_subjects": {
           "type": "object",
           "required": ["file", "codebook_version", "tools_version"],

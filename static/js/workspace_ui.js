@@ -1,3 +1,5 @@
+import { selectionScopeLabel, createSelectionMetadata } from './app_helpers.js';
+
 export function createWorkspaceUi(ctx) {
   const desktop = document.documentElement.dataset.deployment === "desktop";
   const bundledDesktopDatasetIds = new Set(["default", "synthetic-cross-sectional-demo"]);
@@ -142,6 +144,17 @@ export function createWorkspaceUi(ctx) {
   }
 
   function summarizeScopeForTab(tabName) {
+    if (tabName === 'dashboard' && state.currentDashboardSubtab === 'multimodal') {
+      const scope = state.multimodalCoverageScope;
+      if (scope?.workspace === state.currentDatasetScopeId) {
+        if (scope.status === 'loading') return 'Loading patient scope…';
+        if (scope.status === 'error') return 'Patient scope unavailable';
+        return selectionScopeLabel(scope.selection) || 'Full workspace';
+      }
+      const handoff = state.multimodalPatientSelection;
+      return handoff?.scope === state.currentDatasetScopeId
+        ? selectionScopeLabel(handoff) || 'Full workspace' : 'Full workspace';
+    }
     const selectedAnalysisCohortA = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
       : null;
@@ -152,17 +165,7 @@ export function createWorkspaceUi(ctx) {
       && state.currentDashboardSubtab === 'assays');
     if (analysisView) {
       const selectionLabel = (cohort, metadata, input) => {
-        const source = cohort || metadata || {};
-        const sample = source.id_type === 'sample' || Boolean(cohort?.sample_ids?.length);
-        const count = sample
-          ? source.sample_count ?? source.sample_ids?.length
-          : source.patient_count ?? source.patient_ids?.length;
-        if (cohort || source.query_result_handle || Number(count) > 0) {
-          if (count === undefined) return 'Selected cohort';
-          return `${formatNumber(Number(count))} ${sample ? (Number(count) === 1 ? 'sample' : 'samples') : (Number(count) === 1 ? 'patient' : 'patients')}`;
-        }
-        const ids = String(input?.value || '').split(',').map(id => id.trim()).filter(Boolean);
-        return ids.length ? `${formatNumber(ids.length)} ${source.id_type === 'sample' ? 'samples' : 'patients'}` : '';
+        return selectionScopeLabel(cohort || metadata || {}, input?.value, cohort?.id);
       };
       const a = selectionLabel(selectedAnalysisCohortA, state.analysisScopeMetadata, analysisSelectedPatientIdsEl);
       const b = selectionLabel(selectedAnalysisCohortB, state.analysisCompareScopeMetadata, analysisCompareSelectedPatientIdsEl);
@@ -170,8 +173,14 @@ export function createWorkspaceUi(ctx) {
       return a || 'Full workspace';
     }
     if (tabName === "pheno") {
+      if (state.phenoQuerySelection?.selection_active && !state.phenoSelectedSavedCohortIds.length) {
+        return selectionScopeLabel(state.phenoQuerySelection);
+      }
       if (state.phenoQuerySelection?.handle && !state.phenoSelectedSavedCohortIds.length) {
-        return `${state.phenoQuerySelection.count} ${state.phenoQuerySelection.idType === 'sample' ? 'samples' : 'patients'}`;
+        const source = state.phenoQuerySelection;
+        return selectionScopeLabel(createSelectionMetadata({queryResultHandle:source.handle,
+          idType:source.idType, patientCount:source.idType === 'sample' ? 0 : source.count,
+          sampleCount:source.idType === 'sample' ? source.count : 0, sourceKind:'query'}));
       }
       const ids = getCurrentScopeIds();
       if (!ids.length && !state.phenoSelectedSavedCohortIds.length) {
@@ -180,7 +189,7 @@ export function createWorkspaceUi(ctx) {
       if (state.phenoSelectedSavedCohortIds.length) {
         return `${state.phenoSelectedSavedCohortIds.length} saved cohort${state.phenoSelectedSavedCohortIds.length === 1 ? "" : "s"}`;
       }
-      return `${ids.length} IDs in Pheno scope`;
+      return selectionScopeLabel({}, ids);
     }
     return "Full workspace";
   }
@@ -236,6 +245,9 @@ export function createWorkspaceUi(ctx) {
     contextScopeEl.textContent = summarizeScopeForTab(currentTabName());
     for (const element of [contextDataDirEl, contextCohortEl, contextScopeEl]) {
       element.title = element.textContent;
+    }
+    if (currentTabName() === 'dashboard' && state.currentDashboardSubtab === 'multimodal') {
+      contextScopeEl.title = `${contextScopeEl.textContent}. Patient-level coverage; all samples from these patients remain included. This does not change Analysis or Pheno-Ranker selections.`;
     }
     if (contextAuthEl) {
       if (!state.authState.enabled) {

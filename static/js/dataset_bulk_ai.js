@@ -4,29 +4,55 @@ export function createDatasetBulkAi({container, escapeHtml, reload, canManage}) 
   const selected = new Set();
   const labels = {blocked: 'Blocked', safe_summary: 'Summary only', detailed_allowed: 'Detailed context'};
   let notice = '';
+  let menuEvents;
+  let menuOpen = false;
   function mount(datasets) {
+    menuEvents?.abort();
+    menuEvents = new AbortController();
     for (const id of selected) if (!datasets.some(d => d.dataset_id === id)) selected.delete(id);
     const bar = document.createElement('div');
     bar.className = 'dataset-bulk-toolbar';
     bar.innerHTML = `<label><input type="checkbox" data-select-all> Select all</label>
-      <span data-count></span><button type="button" class="secondary-btn" data-prepare>Rebuild query stores</button>
-      <button type="button" class="secondary-btn" data-edit>Change AI permissions</button>
+      <div class="dataset-bulk-selection" data-selection hidden>
+        <span data-count aria-live="polite"></span>
+        <details class="dataset-bulk-menu">
+          <summary>Actions <span aria-hidden="true">▾</span></summary>
+          <div class="dataset-bulk-options">
+            <span class="dataset-bulk-group">Data</span>
+            <button type="button" data-prepare>Rebuild DuckDB</button>
+            <span class="dataset-bulk-group">Permissions</span>
+            <button type="button" data-edit>Change AI permissions…</button>
+          </div>
+        </details>
+        <button type="button" class="query-chip secondary-btn" data-clear>Clear</button>
+      </div>
       <span role="status" data-status></span>`;
     container.prepend(bar);
     const boxes = [];
     const all = bar.querySelector('[data-select-all]');
     const edit = bar.querySelector('[data-edit]');
     const prepare = bar.querySelector('[data-prepare]');
+    const menu = bar.querySelector('details');
+    menu.open = menuOpen;
+    const closeMenu = () => { menuOpen = false; menu.open = false; };
+    menu.querySelector('summary').addEventListener('click', () => { menuOpen = !menu.open; });
     function sync() {
       const selectedDatasets = datasets.filter(d => selected.has(d.dataset_id));
       const preparable = selectedDatasets.filter(d => !d.query_store_status?.ready
         && String(d.query_store_status?.status || 'not_built') !== 'building');
-      boxes.forEach(box => { box.checked = selected.has(box.value); });
+      boxes.forEach(box => {
+        box.checked = selected.has(box.value);
+        box.closest('[data-dataset-admin-card]').classList.toggle('is-bulk-selected', box.checked);
+      });
       all.checked = datasets.length > 0 && selected.size === datasets.length;
+      all.disabled = !datasets.length;
       all.indeterminate = selected.size > 0 && !all.checked;
       edit.disabled = !selected.size;
       prepare.disabled = !preparable.length;
-      prepare.textContent = preparable.length ? `Rebuild query stores (${preparable.length})` : 'Rebuild query stores';
+      prepare.textContent = preparable.length ? `Rebuild DuckDB (${preparable.length})` : 'Rebuild DuckDB';
+      prepare.title = preparable.length ? 'Rebuild stores that are not ready.' : 'Selected stores are already ready or being built.';
+      bar.querySelector('[data-selection]').hidden = !selected.size;
+      if (!selected.size) closeMenu();
       bar.querySelector('[data-count]').textContent = `${selected.size} selected`;
       bar.querySelector('[data-status]').textContent = notice;
     }
@@ -39,8 +65,15 @@ export function createDatasetBulkAi({container, escapeHtml, reload, canManage}) 
       card.querySelector('summary').prepend(box); boxes.push(box);
     });
     all.onchange = () => { selected.clear(); if (all.checked) datasets.forEach(d => selected.add(d.dataset_id)); sync(); };
-    edit.onclick = () => review(datasets.filter(d => selected.has(d.dataset_id)));
-    prepare.onclick = () => reviewPreparation(datasets.filter(d => selected.has(d.dataset_id)));
+    bar.querySelector('[data-clear]').onclick = () => { selected.clear(); sync(); all.focus(); };
+    edit.onclick = () => { closeMenu(); review(datasets.filter(d => selected.has(d.dataset_id))); };
+    prepare.onclick = () => { closeMenu(); reviewPreparation(datasets.filter(d => selected.has(d.dataset_id))); };
+    document.addEventListener('click', event => { if (!menu.contains(event.target)) closeMenu(); }, {signal:menuEvents.signal});
+    menu.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault(); closeMenu(); menu.querySelector('summary').focus();
+      }
+    });
     sync();
   }
   function reviewPreparation(datasets) {

@@ -1,5 +1,6 @@
 import { addChatMenuIcons } from './chat_folders.js';
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
+import { analysisSessionScopeSummary } from './app_helpers.js';
 
 export function createAnalysisSessionsUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -72,27 +73,6 @@ export function createAnalysisSessionsUi(ctx) {
     const trimmed = String(raw).trim();
     if (!trimmed) return "New chat";
     return trimmed.length > 56 ? `${trimmed.slice(0, 56)}...` : trimmed;
-  }
-
-  function analysisSessionScopeSummary(session) {
-    if (session.contextMode === "general") return "General questions";
-    const selection = (metadata, input, cohortId) => {
-      const source = metadata || {};
-      const sample = source.id_type === 'sample';
-      const ids = sample ? source.sample_ids : source.patient_ids;
-      const count = source[sample ? 'sample_count' : 'patient_count'] ?? ids?.length;
-      if (count !== undefined && (ids?.length || source.query_result_handle || cohortId)) {
-        return `${count} ${sample ? 'samples' : 'patients'}`;
-      }
-      const manual = String(input || '').split(',').filter(id => id.trim());
-      return manual.length ? `${manual.length} patients` : cohortId ? 'Saved cohort' : '';
-    };
-    const a = selection(session.scopeMetadata, session.scope, session.savedCohortIdA);
-    const b = selection(session.compareScopeMetadata, session.compareScope, session.savedCohortIdB);
-    if (session.compareMode) {
-      return `A: ${a || 'not set'} vs B: ${b || 'not set'}`;
-    }
-    return a || 'Full workspace';
   }
 
   function analysisWorkspaceStatusLabel(session) {

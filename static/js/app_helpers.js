@@ -67,26 +67,27 @@ export function createAnalysisSession(overrides = {}, defaultDataDir = "") {
 export function normalizeSelectionMetadata(source = {}) {
   const item = source && typeof source === "object" ? source : {};
   const members = Array.isArray(item.members) ? item.members : [];
-  const datasetIds = normalizeIdList(item.dataset_ids || item.datasetIds || []);
+  const datasetIds = normalizeIdList([...normalizeIdList(item.dataset_ids || item.datasetIds || []), ...members.map(m => m.dataset_id)]);
   const qualify = (values, kind) => normalizeIdList(values).map(id =>
     decodeIdentity(id) || datasetIds.length !== 1 ? id : identityKey(datasetIds[0], kind, id));
   const sampleIds = qualify(members.length ? members.filter(m => m.sample_id).map(m => identityKey(m.dataset_id, 'sample', m.sample_id)) : item.sample_ids || item.sampleIds || [], 'sample');
   const patientIds = qualify(members.length ? members.map(m => identityKey(m.dataset_id, 'patient', m.patient_id)) : item.patient_ids || item.patientIds || [], 'patient');
   const queryResultHandle = String(item.query_result_handle || item.result_handle || item.queryResultHandle || item.resultHandle || "").trim();
-  if (!sampleIds.length && !patientIds.length && !queryResultHandle) {
+  if (!sampleIds.length && !patientIds.length && !queryResultHandle && !item.selection_active) {
     return {};
   }
   const derivedPatientIds = patientIds;
   const normalizedSampleIds = sampleIds;
   const sourceInfo = item.source && typeof item.source === "object" ? item.source : {};
   return {
+    selection_active: true,
     id: typeof item.id === "string" ? item.id : "",
     name: typeof item.name === "string" ? item.name : "",
     dataset_id: typeof item.dataset_id === "string" ? item.dataset_id : (typeof item.datasetId === "string" ? item.datasetId : ""),
     dataset_ids: datasetIds,
     members: members.map(m => ({dataset_id:m.dataset_id, patient_id:m.patient_id, patient_key:m.patient_key, ...(m.sample_id ? {sample_id:m.sample_id, sample_key:m.sample_key} : {})})),
     data_dir: typeof item.data_dir === "string" ? item.data_dir : (typeof item.dataDir === "string" ? item.dataDir : ""),
-    id_type: typeof item.id_type === "string" ? item.id_type : (typeof item.idType === "string" ? item.idType : (sampleIds.length ? "sample" : "patient")),
+    id_type: ['patient', 'sample'].includes(item.id_type || item.idType) ? (item.id_type || item.idType) : (sampleIds.length ? 'sample' : 'patient'),
     query_result_handle: queryResultHandle,
     sample_ids: normalizedSampleIds,
     patient_ids: derivedPatientIds,
@@ -113,11 +114,12 @@ export function createSelectionMetadata(options = {}) {
     sample_ids: source.sampleIds || source.sample_ids || [],
     patient_ids: source.patientIds || source.patient_ids || [],
     members: source.members || [],
+    selection_active: source.selection_active || false,
     sample_count: source.sampleCount ?? source.sample_count,
     patient_count: source.patientCount ?? source.patient_count,
     source: {
-      kind: source.sourceKind || source.source_kind || "",
-      prompt: source.sourcePrompt || source.source_prompt || "",
+      kind: source.sourceKind || source.source_kind || source.source?.kind || "",
+      prompt: source.sourcePrompt || source.source_prompt || source.source?.prompt || "",
     },
   });
 }
@@ -130,6 +132,20 @@ function normalizeIdList(items) {
     seen.add(value);
     return true;
   });
+}
+
+// Shared by temporary selections, saved cohorts and chat scopes. Never infer
+// sample identity from punctuation in a source identifier.
+export function selectionScopeLabel(source = {}, input = '', cohortId = '') {
+  const selection = normalizeSelectionMetadata(source);
+  if (selection.selection_active) {
+    const sample = selection.id_type === 'sample';
+    const count = sample ? selection.sample_count : selection.patient_count;
+    return `${formatNumber(count)} ${sample ? (count === 1 ? 'sample' : 'samples') : (count === 1 ? 'patient' : 'patients')}`;
+  }
+  const ids = normalizeIdList(input);
+  return ids.length ? `${formatNumber(ids.length)} ${source.id_type === 'sample' ? 'samples' : 'patients'}`
+    : cohortId ? 'Saved cohort' : '';
 }
 
 export function analysisSessionTitle(session) {
@@ -151,24 +167,10 @@ export function analysisSessionTitle(session) {
 }
 
 export function analysisSessionScopeSummary(session) {
-  const scopeIds = String(session && session.scope || "").split(",").map((item) => item.trim()).filter(Boolean);
-  const compareIds = String(session && session.compareScope || "").split(",").map((item) => item.trim()).filter(Boolean);
-  const scopeCount = scopeIds.length;
-  const compareCount = compareIds.length;
-  const scopeUnit = scopeIds.some((item) => item.includes(":")) ? "sample IDs" : "patient IDs";
-  const compareUnit = compareIds.some((item) => item.includes(":")) ? "sample IDs" : "patient IDs";
-  const scopeMetadata = session && session.scopeMetadata && typeof session.scopeMetadata === "object" ? session.scopeMetadata : {};
-  const handledScopeCount = scopeMetadata.query_result_handle
-    ? Number(scopeMetadata.id_type === "sample" ? scopeMetadata.sample_count || 0 : scopeMetadata.patient_count || 0)
-    : 0;
-  const handledScopeUnit = scopeMetadata.id_type === "sample" ? "samples" : "patients";
-  if (session && session.compareMode) {
-    const aLabel = scopeCount ? `${scopeCount} ${scopeUnit} in A` : "full workspace in A";
-    const bLabel = compareCount ? `${compareCount} ${compareUnit} in B` : "full workspace in B";
-    return `${aLabel} vs ${bLabel}`;
-  }
-  if (handledScopeCount) return `${handledScopeCount} ${handledScopeUnit} in scoped Query result`;
-  return scopeCount ? `${scopeCount} ${scopeUnit} in scope` : "Full workspace";
+  if (session?.contextMode === 'general') return 'General questions';
+  const a = selectionScopeLabel(session?.scopeMetadata || {}, session?.scope, session?.savedCohortIdA);
+  const b = selectionScopeLabel(session?.compareScopeMetadata || {}, session?.compareScope, session?.savedCohortIdB);
+  return session?.compareMode ? `A: ${a || 'not set'} vs B: ${b || 'not set'}` : a || 'Full workspace';
 }
 
 export function formatNumber(value) {

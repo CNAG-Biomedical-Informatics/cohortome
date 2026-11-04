@@ -40,7 +40,7 @@ def prepare(source, package, check_cancel, report):
     encode_subjects(subjects, package / "identifiers", preparation_command("clarid-tools"), codebook_path(), "IBDMDB", "IBD")
     manifest = json.loads((package / "manifest.json").read_text())
     manifest["identifiers"] = {"clarid_subjects": dict(entity="subject", file="identifiers/clarid_subjects.csv",
-        delimiter=",", codebook_version="0.04", tools_version="0.04")}
+        delimiter=",", codebook_version="0.04", tools_version="0.05")}
     write_json(package / "manifest.json", manifest)
     provenance = package / "provenance"
     provenance.mkdir()

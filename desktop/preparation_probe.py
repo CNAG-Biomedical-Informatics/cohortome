@@ -17,7 +17,7 @@ def check(runtime, work, env):
         return subprocess.check_output([*command, *map(str, args)], cwd=work, env=env,
                                        text=True, stderr=subprocess.STDOUT, timeout=120)
 
-    for tool, version in (("convert-pheno", "0.35"), ("clarid-tools", "0.04")):
+    for tool, version in (("convert-pheno", "0.35"), ("clarid-tools", "0.05")):
         if run(tool, "--version").strip().split()[-1] != version:
             raise RuntimeError(f"Unexpected {tool} version")
     source = work / "clinical.csv"

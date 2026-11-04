@@ -17,6 +17,9 @@ playwright = pytest.importorskip("playwright.sync_api")
 
 def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     expect = playwright.expect
+    clinical_requests = []
+    page.on('request', lambda request: clinical_requests.append(request.url)
+            if '/patient-overview/clinical?' in request.url else None)
     patient = dict(patient_id='["default","P1"]', source_patient_id="P1",
                    dataset_id="default", dataset_label="Test dataset",
                    events=[dict(visit_id="V1", event_date="", days_from_baseline=0)],
@@ -56,6 +59,11 @@ def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     page.keyboard.press("Enter")
     expect(page.locator("#dashboardTimelinePanel .inline-view-help > p")).not_to_be_visible()
     expect(page.locator(".clinical-record")).to_have_count(1)
+    expect(page.locator('[data-clinical-more]')).to_be_hidden()
+    expect(page.locator('[data-clinical-more]')).to_be_disabled()
+    request_count = len(clinical_requests)
+    page.locator('[data-clinical-more]').dispatch_event('click')
+    assert len(clinical_requests) == request_count
     expect(page.locator("#patientOverviewDetail .patient-inventory")).to_have_count(0)
     inventory = page.locator("[data-patient-inventory] > .patient-inventory-scroll > table")
     expect(inventory).to_have_count(1)
@@ -124,10 +132,21 @@ def test_patient_browser_pagination_and_search(page):
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
     page.screenshot(path='/tmp/cohortome-patient-browser.png')
 
-def test_patient_browser_saves_all_filtered_pages(page):
+def test_patient_browser_collects_selection_once_for_save_and_handoff(page):
     from urllib.parse import parse_qs, urlsplit
     expect = playwright.expect
     saved = []
+    _mock_multimodal_readiness(page)
+    page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={'patients':[
+        {'patient_id':'P1', 'dataset_id':d, 'dataset_label':'Study', 'has_clinical':True,
+         'modalities':['clinical'], 'diseases':['Colitis']} for d in ['a','b']
+    ] + [{'patient_id':'P2', 'dataset_id':'a', 'dataset_label':'Study', 'has_clinical':True,
+          'modalities':['clinical'], 'diseases':['Crohn disease']}], 'warnings':[]}))
+    collected = []
+    def selection(route):
+        collected.append(parse_qs(urlsplit(route.request.url).query))
+        route.fulfill(json={'members':[{'dataset_id':d, 'patient_id':'P1'} for d in ['a', 'b']]})
+    page.route('**/patient-overview/selection?*', selection)
     def search(route):
         params = parse_qs(urlsplit(route.request.url).query)
         second = params.get('offset') == ['1']
@@ -154,6 +173,25 @@ def test_patient_browser_saves_all_filtered_pages(page):
     dialog.get_by_label('Cohort name').fill('Colitis patients')
     dialog.get_by_role('button', name='Save cohort', exact=True).click()
     expect(page.locator('#patientSaveStatus')).to_contain_text('Saved 2 patients')
+    assert len(collected) == 1
+    assert collected[0]['disease'] == ['Colitis']
+    page.locator('#patientRefineMultimodal').click()
+    expect(page.locator('#dashboardMultimodalPanel')).to_be_visible()
+    assert len(collected) == 2
+    panel = page.locator('.multimodal-coverage')
+    expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
+    expect(panel.locator('[data-disease="Crohn disease"]')).to_have_count(0)
+    expect(panel.locator('[data-disease="Colitis"] .badge')).to_have_text('2')
+    expect(panel.locator('[data-disease="Colitis"]')).to_be_disabled()
+    expect(panel.locator('[data-disease=""]')).to_be_disabled()
+    expect(panel.locator('.coverage-diseases')).to_have_class(re.compile('is-locked'))
+    panel.locator('[data-disease=""]').dispatch_event('click')
+    expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
+    panel.locator('.coverage-cohort').select_option('')
+    expect(panel.locator('[data-disease="Colitis"]')).to_be_enabled()
+    expect(panel.locator('[data-disease="Crohn disease"] .badge')).to_have_text('1')
+    panel.locator('[data-disease="Crohn disease"]').click()
+    expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
     expect(page.locator('#analysisStatus')).to_have_text(previous_analysis_status)
     assert saved[0]['members'] == [{'dataset_id':'a', 'patient_id':'P1'}, {'dataset_id':'b', 'patient_id':'P1'}]
     assert 'Colitis' in saved[0]['source_prompt']
@@ -319,6 +357,8 @@ def test_deployment_branding_admin_preview_persistence_and_researcher_access(pag
     page.reload(wait_until='networkidle')
     expect(page.locator('#deploymentBrand')).to_contain_text('Test programme')
     expect(page.locator('#deploymentBrand a')).to_have_attribute('href', 'https://example.org/')
+    assert page.locator('#deploymentBrand').evaluate("el => el.parentElement.classList.contains('app-icon-rail') && el.nextElementSibling.id === 'projectsMenuBtn'")
+    assert page.locator('#deploymentBrand').bounding_box()['y'] < page.locator('#projectsMenuBtn').bounding_box()['y']
     expect(page.locator('#appShell .hero-logo')).to_have_attribute('src', original_logo)
     assert page.request.post(base + '/auth/login', data={'username': 'researcher', 'password': 'secret'}).ok
     page.reload(wait_until='networkidle')
@@ -2467,6 +2507,47 @@ def test_dashboard_load_renders_clinical_overview(page) -> None:
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
 
 
+def test_dataset_about_dialog_preserves_selection_and_renders_safe_docs(page):
+    expect = playwright.expect
+    page.route('**/datasets/secondary/about', lambda r: r.fulfill(json={
+        'name': 'Example study', 'description': 'Study description', 'unavailable': [],
+        'documents': [
+            {'filename': 'README.md', 'title': 'Overview', 'text':
+             '# Study sources\n\n**Real measurements**, synthetic clinical attributes.\n\n'
+             '| Input | Source |\n| --- | --- |\n| RNA | Example |\n\n'
+             '[Terms](TERMS.md) and [Source](https://example.org/study).\n\n'
+             '<script>window.injected=true</script>\n\n[Bad](javascript:alert)\n'},
+            {'filename': 'TERMS.md', 'title': 'Terms and attribution', 'text': '# Reuse\n\nCredit the study.'}]}))
+    page.locator('#datasetsTabBtn').click()
+    checkbox = page.locator('[data-dataset-checkbox="secondary"]')
+    checked = checkbox.is_checked()
+    button = page.locator('[data-dataset-about="secondary"]').first
+    button.click()
+    dialog = page.get_by_role('dialog', name='Example study')
+    expect(dialog).to_be_visible()
+    assert checkbox.is_checked() == checked
+    expect(dialog).to_contain_text('Study description')
+    expect(dialog.locator('.dataset-about-content')).to_be_hidden()
+    expect(dialog.locator('table')).to_have_count(0)
+    expect(dialog.get_by_role('link', name='Read full documentation')).to_have_attribute('href', '/datasets/secondary/about/README.md')
+    dialog.get_by_role('link', name='Read full documentation').click()
+    expect(dialog.locator('strong')).to_have_text('Real measurements')
+    expect(dialog.locator('table tbody td').first).to_have_text('RNA')
+    expect(dialog.locator('.dataset-about-content a')).to_have_count(1)
+    expect(dialog.locator('[download]')).to_have_count(0)
+    assert page.evaluate('window.injected') is None
+    dialog.get_by_role('button', name='Terms', exact=True).click()
+    expect(dialog).to_contain_text('Credit the study.')
+    dialog.get_by_role('button', name='← Summary', exact=True).click()
+    expect(dialog.locator('.dataset-about-content')).to_be_hidden()
+    expect(dialog).to_contain_text('Study description')
+    page.set_viewport_size({'width': 390, 'height': 700})
+    assert dialog.evaluate('e => e.getBoundingClientRect().right <= window.innerWidth')
+    page.keyboard.press('Escape')
+    expect(dialog).to_have_count(0)
+    expect(button).to_be_focused()
+
+
 def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) -> None:
     expect = playwright.expect
     page.locator("#datasetsTabBtn").click()
@@ -2605,8 +2686,14 @@ def test_admin_can_rebuild_selected_dataset_stores_in_bulk(page_auth) -> None:
     page_auth.locator('#adminTabBtn').click()
     page_auth.locator('#dataTabBtn').click()
     toolbar = page_auth.locator('#datasetAdminList .dataset-bulk-toolbar')
+    expect(toolbar.locator('[data-selection]')).to_be_hidden()
     toolbar.locator('[data-select-all]').check()
-    expect(toolbar.locator('[data-prepare]')).to_have_text('Rebuild query stores (1)')
+    expect(toolbar.locator('[data-selection]')).to_be_visible()
+    toolbar.locator('[data-clear]').click()
+    expect(toolbar.locator('[data-selection]')).to_be_hidden()
+    toolbar.locator('[data-select-all]').check()
+    toolbar.locator('summary').click()
+    expect(toolbar.locator('[data-prepare]')).to_have_text('Rebuild DuckDB (1)')
     expect(toolbar.locator('[data-prepare]')).to_be_enabled()
     toolbar.locator('[data-prepare]').click()
     dialog = page_auth.locator('dialog[aria-label="Rebuild query stores"]')
@@ -2614,8 +2701,47 @@ def test_admin_can_rebuild_selected_dataset_stores_in_bulk(page_auth) -> None:
     expect(dialog.locator('li')).to_have_text('Secondary demo')
     dialog.locator('[data-apply]').click()
     expect(toolbar.locator('[data-status]')).to_have_text('Rebuilt 1 store.')
+    expect(toolbar.locator('[data-selection]')).to_be_hidden()
     assert prepared == ['secondary']
     expect(toolbar.locator('[data-prepare]')).to_be_disabled()
+
+
+def test_dataset_bulk_actions_selection_menu_and_ai_review(page_auth, tmp_path):
+    expect = playwright.expect
+    page_auth.locator('#authUsername').fill('admin')
+    page_auth.locator('#authPassword').fill('secret')
+    page_auth.locator('#authLoginBtn').click()
+    expect(page_auth.locator('#appShell')).to_be_visible()
+    page_auth.locator('#accountMenuButton').click()
+    page_auth.locator('#adminTabBtn').click()
+    page_auth.locator('#dataTabBtn').click()
+    toolbar = page_auth.locator('#datasetAdminList .dataset-bulk-toolbar')
+    card = page_auth.locator('[data-dataset-admin-card]').first
+    card.locator('summary > input').check()
+    expect(toolbar.locator('[data-count]')).to_have_text('1 selected')
+    assert toolbar.locator('[data-select-all]').evaluate('e => e.indeterminate')
+    expect(card).not_to_have_attribute('open', '')
+    toolbar.locator('summary').click()
+    page_auth.screenshot(path=str(tmp_path / 'bulk-actions-light.png'))
+    toolbar.locator('[data-edit]').click()
+    dialog = page_auth.get_by_role('dialog', name='Change AI permissions')
+    expect(dialog.locator('li')).to_have_count(1)
+    dialog.locator('[data-cancel]').click()
+    expect(toolbar.locator('[data-count]')).to_have_text('1 selected')
+    page_auth.set_viewport_size({'width': 390, 'height': 844})
+    page_auth.evaluate("document.documentElement.dataset.theme = 'dark'")
+    toolbar.locator('summary').click()
+    options = toolbar.locator('.dataset-bulk-options')
+    expect(options).to_be_visible()
+    bounds = options.bounding_box()
+    assert bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= 390
+    page_auth.screenshot(path=str(tmp_path / 'bulk-actions-mobile-dark.png'))
+    toolbar.locator('[data-edit]').focus()
+    page_auth.keyboard.press('Escape')
+    expect(options).to_be_hidden()
+    toolbar.locator('[data-clear]').click()
+    expect(toolbar.locator('[data-selection]')).to_be_hidden()
+    expect(card.locator('summary > input')).not_to_be_checked()
 
 
 def test_applying_first_dataset_uses_pending_selection_key(page) -> None:
@@ -2989,12 +3115,16 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
     page.locator('#dashboardMultimodalBtn').click()
     panel = page.locator('.multimodal-coverage')
     playwright.expect(panel.locator('.coverage-result')).to_contain_text('4 matching patients')
+    playwright.expect(page.locator('#contextScope')).to_have_text('Full workspace')
     for modality in ['transcriptomics', 'methylation', 'proteomics']:
         panel.locator(f'input[value="{modality}"]').check()
     playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
+    playwright.expect(page.locator('#contextScope')).to_have_text('3 patients')
+    playwright.expect(page.locator('#contextScope')).to_have_attribute('title', re.compile('all samples'))
     playwright.expect(panel.locator('[data-combination]')).to_have_count(3)
     panel.locator('.coverage-mode').select_option('exact')
     playwright.expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
+    playwright.expect(page.locator('#contextScope')).to_have_text('2 patients')
     playwright.expect(panel.locator('[data-combination]')).to_have_count(2)
     panel.locator('input[value="clinical"]').check()
     playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
@@ -3029,6 +3159,14 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
     playwright.expect(panel.locator('.coverage-patient-list')).to_contain_text('P1')
     panel.get_by_role('button', name='Inspect', exact=True).click()
     playwright.expect(panel.locator('.coverage-inspector')).to_contain_text('P1 · Synthetic')
+    selected_modalities = panel.locator('.coverage-selectors input:checked').evaluate_all('(items) => items.map(i => i.value)')
+    for modality in selected_modalities:
+        panel.locator(f'.coverage-selectors input[value="{modality}"]').uncheck()
+    panel.locator('input[value="clinical"]').check()
+    playwright.expect(page.locator('#contextScope')).to_have_text('0 patients')
+    panel.locator('input[value="clinical"]').uncheck()
+    panel.locator('.coverage-mode').select_option('includes')
+    playwright.expect(page.locator('#contextScope')).to_have_text('Full workspace')
     page.set_viewport_size({'width':390, 'height':844})
     assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 

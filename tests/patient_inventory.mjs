@@ -32,3 +32,22 @@ const missing = patientInventoryMarkup([
 ], String);
 assert(missing.indexOf('<code>known</code>') < missing.indexOf('<code>unknown</code>'));
 console.log('Patient inventory natural ordering passed');
+
+const esc = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+const specimens = patientInventoryMarkup(['one', 'two'].map(id => ({sample_id:id,
+  biosample_id:`specimen-${id}`, biosample_clarid:{entity:'biosample', subject_id:41,
+    human_id:'shared', stub_id:'shared-stub', tissue:'Blood', condition_name:'<script>',
+    condition:'C22.0', tools_version:'0.05', codebook_version:'0.04'}})), esc);
+assert.equal((specimens.match(/data-clarid-toggle/g) || []).length, 2);
+assert(specimens.includes('specimen-one') && specimens.includes('specimen-two'));
+assert(specimens.includes('ClarID biosample') && specimens.includes('Tissue:</b> Blood'));
+assert(!specimens.includes('<script>') && specimens.includes('&lt;script>'));
+const combined = patientInventoryMarkup([{sample_id:'unlabelled', sample_clarid:'not-a-verified-specimen'}], esc,
+  [{visit_id:'V1', record:{}}], {human_id:'subject-label', stub_id:'subject-stub', subject_id:96});
+assert(combined.includes('<th scope="col">ClarID</th>'));
+assert(!combined.includes('Patient link') && !combined.includes('Metadata table'));
+assert.equal((combined.match(/data-clarid-toggle/g) || []).length, 1);
+assert(combined.includes('ClarID subject 96'));
+assert(!combined.includes('not-a-verified-specimen'));
+assert.match(combined, /<td><span class="clarid-identity is-compact">/);
+assert.match(specimens, /<td><span class="clarid-identity is-compact">/);

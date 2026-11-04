@@ -78,7 +78,7 @@ def stage_perl_runtime(source, engine):
         raise ValueError('Perl runtime must match this build platform and architecture')
     perl_version = str(manifest.get('perl', ''))
     if (not perl_version.startswith('5.42.') if sys.platform == 'win32' else perl_version != '5.42.3') or manifest.get('tools') != {
-            'pheno-ranker': '1.09', 'convert-pheno': '0.35', 'clarid-tools': '0.04'}:
+            'pheno-ranker': '1.09', 'convert-pheno': '0.35', 'clarid-tools': '0.05'}:
         raise ValueError('Unsupported or incomplete Perl runtime')
     executables = ('bin/pheno-ranker', 'perl/bin/perl.exe', 'portable.perl') if sys.platform == 'win32' else ('bin/pheno-ranker', 'perl/bin/perl')
     executables += ('bin/convert-pheno', 'bin/clarid-tools')

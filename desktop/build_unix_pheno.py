@@ -20,12 +20,12 @@ SOURCES = {
               "02504c0559c6e934718a928e1641a3c3dbf4c7d4ba3d00c59b989b4c804db1c8"),
     "convert": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/Convert-Pheno-0.35.tar.gz",
                 "e39cfd33b4c297ef1f16c27588915a32463dc4d8d9d7ae1c57981bfd7e44be0a"),
-    "clarid": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/ClarID-Tools-0.04.tar.gz",
-               "3a99768d3590a82ac04d95d3637b85e47ee08d9f12aff2abadb2ec7aadf3fcdd"),
+    "clarid": ("https://cpan.metacpan.org/authors/id/M/MR/MRUEDA/ClarID-Tools-0.05.tar.gz",
+               "877a6bdadf64772055f250e410f10979b8afc1a0da7a33280e0df9c9129f7e39"),
     "net_idn": ("https://github.com/ernix/Net-IDN-Encode/archive/3ebe6f2e239b470efcb64a044edc8202798188af.tar.gz",
                 "58772f38115f5a15b22d622e144200b0d9715c53560b229048d0a5f541eef4c7"),
 }
-TOOLS = {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.04"}
+TOOLS = {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.05"}
 
 
 def fetch_source(kind, work, sources):

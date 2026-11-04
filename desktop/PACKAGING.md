@@ -63,7 +63,7 @@ publishing installers; the new workflow wiring still needs a CI run.
 
 ### Shared Perl
 
-The builders install Pheno-Ranker 1.09, Convert-Pheno 0.35 and ClarID-Tools 0.04
+The builders install Pheno-Ranker 1.09, Convert-Pheno 0.35 and ClarID-Tools 0.05
 from checksum-verified CPAN sources. They precompile Inline::C metrics and test
 relocation, phenotype comparison, CSV-to-BFF mapping and ClarID encoding.
 The packager rejects older Pheno-Ranker-only runtimes.

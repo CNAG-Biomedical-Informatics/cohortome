@@ -361,8 +361,11 @@ def install(job, user, entry=None, token="", uploaded=None):
                 **({"source_review": job["_source_review"]} if job.get("_source_review") else {}),
             })
             name = entry["name"] if entry else str(resource.get("dataset_id") or "Imported dataset")[:120]
+            description = resource.get('description')
+            if not isinstance(description, str) or not description.strip():
+                description = (entry or {}).get('description') or ''
             record = datasets.register_dataset(
-                name=name, root_path=str(target), description=f'Imported resource {resource.get("version", "")}',
+                name=name, root_path=str(target), description=description.strip(),
                 visibility="admin_only", data_classification="private",
                 query_granularity_ceiling="detailed", ai_provider_access="blocked",
                 enabled=False, created_by=user,

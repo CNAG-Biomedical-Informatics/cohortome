@@ -230,6 +230,8 @@ def sample_count_from_data(data: Dict[str, Any]) -> Optional[int]:
 
 
 def shape_summary_reply(intent: str, data: Dict[str, Any], original_reply: str) -> str:
+    if intent in {'sample_origin_inventory', 'sample_origin_clarification', 'sample_origin_cohort'}:
+        return original_reply
     if intent == "treatment_data_unavailable":
         return "No treatment records are available for the current selection. This does not establish that no patients take the medication."
     patient_count = patient_count_from_data(data)

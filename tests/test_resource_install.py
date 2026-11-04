@@ -32,7 +32,7 @@ def package(path):
         for name, data in {
             "manifest.json": {"schema_version": 1, "clinical": {"representation": "person"}},
             "clinical/records.json": [{"id": "P1", "sex": {"id": "NCIT:C16576", "label": "female"}}],
-            "resource.json": {"manifest_version": 1, "schema_version": 1, "dataset_id": "test-resource", "version": "1"},
+            "resource.json": {"manifest_version": 1, "schema_version": 1, "dataset_id": "test-resource", "version": "1", "description": "Fictional clinical records for software testing."},
         }.items():
             archive.writestr(zipfile.ZipInfo("example/" + name, date_time=(1980, 1, 1, 0, 0, 0)), json.dumps(data))
     return path
@@ -87,6 +87,7 @@ def test_real_install_safe_permissions_store_and_no_workspace_change(isolated):
     resources.install(task, "owner", uploaded=package(isolated / "input.zip"))
     assert task["stage"] == "ready", task
     record = resources.datasets.get_dataset(task["dataset_id"])
+    assert record['description'] == 'Fictional clinical records for software testing.'
     assert record["visibility"] == "admin_only"
     assert record["data_classification"] == "private"
     assert record["ai_provider_access"] == "blocked"

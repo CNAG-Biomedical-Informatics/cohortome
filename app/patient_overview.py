@@ -16,15 +16,16 @@ from app.query_store import (
     _connect, _relation_exists, _assay_manifest_items_for_root,
     _manifest_assay_sample_patient_links, _detect_matrix_delimiter,
     ensure_query_store, QueryStoreNotReadyError,
+    patient_clarid,
 )
 from app.routes import _require_detailed_assay_access, _resolve_route_dataset_dir
 
 router = APIRouter(prefix='/patient-overview', tags=['patients'])
 
 
-def biosample_records(root):
+def biosample_records(root, *, include_clarids=True):
     try:
-        return read_biosamples(root)
+        return read_biosamples(root, include_clarids=include_clarids)
     except ValueError:
         raise HTTPException(409, 'Biosample metadata are invalid. Check the dataset package before filtering by sample origin.') from None
 
@@ -36,7 +37,7 @@ def sources(request, workspace):
              str((get_dataset(identifier) or {}).get('name') or identifier)) for identifier in ids]
 
 
-def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False, sample_origin=''):
+def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False, sample_origin='', ids_only=False):
     ensure_query_store(root)
     con = _connect(root)
     try:
@@ -46,7 +47,7 @@ def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', de
         predicate = 'p.patient_id = ?' if exact else f'(contains(lower(p.patient_id), lower(?)) OR contains(lower({human}), lower(?)))'
         params = [term] if exact else [term, term]
         if sample_origin:
-            ids = sorted({r['individualId'] for r in biosample_records(root) if origin_key(r) == sample_origin})
+            ids = sorted({r['individualId'] for r in biosample_records(root, include_clarids=False) if origin_key(r) == sample_origin})
             predicate += ' AND p.patient_id IN (SELECT unnest(?))'
             params.append(ids)
         if disease:
@@ -58,6 +59,10 @@ def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', de
         if after:
             predicate += ' AND p.patient_id > ?'
             params.append(after)
+        if ids_only:
+            rows = con.execute(f'''SELECT DISTINCT p.patient_id FROM patients p {join}
+                WHERE {predicate} ORDER BY p.patient_id LIMIT ?''', params + [limit]).fetchall()
+            return [dict(patient_id=row[0]) for row in rows]
         diagnoses = ("(SELECT string_agg(DISTINCT d.disease, ', ' ORDER BY d.disease) "
                      "FROM patient_diseases d WHERE d.patient_id = p.patient_id)"
                      if _relation_exists(con, 'patient_diseases') else "''")
@@ -82,10 +87,10 @@ def inside(root, relative):
     return path
 
 
-def sample_inventory(root, patient_id=None, include_imaging=False):
+def sample_inventory(root, patient_id=None, include_imaging=False, include_clarids=True):
     root = Path(root)
     rows, warnings = [], []
-    biosamples = {r['id']: r for r in biosample_records(root)}
+    biosamples = {r['id']: r for r in biosample_records(root, include_clarids=include_clarids)}
     for item in _assay_manifest_items_for_root(root):
         assay_id = str(item.get('assay_id') or '')
         label = str(item.get('label') or assay_id or 'Assay')
@@ -131,6 +136,7 @@ def sample_inventory(root, patient_id=None, include_imaging=False):
                     days_from_baseline=relative_study_days(meta),
                     collection_date=meta.get('collection_date') or '', material=meta.get('material') or meta.get('specimen_type') or (specimen.get('sampleOriginType') or {}).get('label', ''),
                     biosample_id=specimen.get('id', ''),
+                    biosample_clarid=specimen.get('clarid'),
                     sample_clarid=meta.get('clarid') or ''))
         except (OSError, ValueError, UnicodeError, csv.Error, StopIteration):
             warnings.append(f'{label}: sample inventory unavailable; not included in counts.')
@@ -147,7 +153,8 @@ def sample_inventory(root, patient_id=None, include_imaging=False):
                 visit=meta.get('visit_id', ''), days_from_baseline=relative_study_days(meta),
                 collection_date=meta.get('collection_date', ''),
                 material=meta.get('material') or (specimen.get('sampleOriginType') or {}).get('label', ''),
-                biosample_id=specimen.get('id', ''), sample_clarid=meta.get('clarid', '')))
+                biosample_id=specimen.get('id', ''), biosample_clarid=specimen.get('clarid'),
+                sample_clarid=meta.get('clarid', '')))
     except ValueError:
         warnings.append('DNA variant panel: invalid input; not included in counts.')
     rows.sort(key=lambda r: (r['sample_id'], r['assay']))
@@ -182,7 +189,7 @@ def timeline(request: Request, workspace: str):
 def sample_origins(request: Request, workspace: str):
     terms = {}
     for identifier, root, label in sources(request, workspace):
-        for row in biosample_records(root):
+        for row in biosample_records(root, include_clarids=False):
             key = origin_key(row)
             if key:
                 item = terms.setdefault(key, dict(id=key, label=row['sampleOriginType']['label'], patients=set()))
@@ -191,15 +198,38 @@ def sample_origins(request: Request, workspace: str):
             for r in sorted(terms.values(), key=lambda r: (r['label'].casefold(), r['id']))]
 
 
+def disease_filter(disease):
+    if disease and (len(disease) > 100 or any(len(label) > 1000 for label in disease)):
+        raise HTTPException(422, 'Too many or overly long disease filters.')
+    return [label for label in (disease or []) if label]
+
+
+@router.get('/selection')
+def select_patients(request: Request, workspace: str, q: str = Query('', max_length=150),
+                    disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
+    """Collect a filtered patient selection once, without browsing every page."""
+    disease = disease_filter(disease)
+    members = []
+    limit = 100_000
+    try:
+        for identifier, root, _ in sources(request, workspace):
+            rows = lookup(root, q.strip(), limit - len(members) + 1, disease=disease,
+                          sample_origin=sample_origin, ids_only=True)
+            members.extend(dict(dataset_id=identifier, patient_id=r['patient_id']) for r in rows)
+            if len(members) > limit:
+                raise HTTPException(422, 'Select at most 100,000 patients. Narrow the filters and try again.')
+    except (FileNotFoundError, QueryStoreNotReadyError):
+        raise HTTPException(409, 'Patient selection is unavailable until the dataset stores are ready.') from None
+    return {'members': members, 'patient_count': len(members), 'id_type': 'patient'}
+
+
 @router.get('/search')
 def search(request: Request, workspace: str, q: str = Query('', max_length=150),
            dataset_index: int = Query(0, ge=0), after: str = Query('', max_length=1000),
            sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] | None = None,
            direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0),
            disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
-    if disease and (len(disease) > 100 or any(len(label) > 1000 for label in disease)):
-        raise HTTPException(422, 'Too many or overly long disease filters.')
-    disease = [label for label in (disease or []) if label]
+    disease = disease_filter(disease)
     available = sources(request, workspace)
     matches = []
     try:
@@ -256,7 +286,7 @@ def coverage(request: Request, workspace: str):
         except (FileNotFoundError, QueryStoreNotReadyError):
             raise HTTPException(409, 'Coverage is unavailable until the dataset stores are ready.') from None
         available = {pid: {'clinical'} for pid in clinical_ids}
-        inventory, issues = sample_inventory(root, include_imaging=True)
+        inventory, issues = sample_inventory(root, include_imaging=True, include_clarids=False)
         warnings.extend(f'{label}: {issue}' for issue in issues)
         for sample in inventory:
             available.setdefault(sample['patient_id'], set()).add(sample['modality'])
@@ -317,5 +347,5 @@ def clinical_records(request: Request, workspace: str, dataset_id: str,
              record=visit.provenance.raw_bff)
         for visit in visits[offset:offset + 20]
     ]
-    return dict(records=records, total=len(visits),
+    return dict(records=records, total=len(visits), clarid=patient_clarid(root, patient_id),
                 next_offset=offset + 20 if offset + 20 < len(visits) else None)

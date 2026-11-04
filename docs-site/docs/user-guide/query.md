@@ -24,6 +24,19 @@ The exact disease query above works without an LLM. Questions such as
 drug category into explicit filters. Missing treatment records are reported as
 missing data—not evidence that nobody takes a treatment.
 
+### Find patients by sample origin
+
+When a dataset includes biosample origins, these questions work **without an LLM**:
+
+- “Which sample origins are available?”
+- “Which patients have skin samples?”
+- “How many patients have samples from UBERON:0000178?”
+
+Use a recorded label or ontology ID. Results select **patients**, counting each
+once even if several specimens match. Missing origins are not evidence that a
+patient has no samples. An optional LLM planner can combine an exact origin with
+other supported patient filters; it does not infer tissue or assay links.
+
 ## Choose the right context
 
 | Context | Use it for |

@@ -189,7 +189,7 @@ def prepare(source, package, check_cancel, report):
     write_json(package / 'manifest.json', dict(schema_version=1, name='GSE191328 longitudinal IBD blood RNA-seq',
         study_design='longitudinal', clinical={'representation': 'snapshot'},
         identifiers={'clarid_subjects': dict(entity='subject', file='identifiers/clarid_subjects.csv', delimiter=',',
-            codebook_version='0.04', tools_version='0.04')}))
+            codebook_version='0.04', tools_version='0.05')}))
     write_json(package / 'assays/manifest.json', {'version': 1, 'assays': [dict(
         assay_id='gse191328_transcriptomics', label='Whole-blood RNA-seq gene counts', modality='transcriptomics',
         data_type='raw_counts', level='sample', feature_namespace='ensembl_gene_id', feature_id_column='gene_id',

@@ -38,6 +38,38 @@ participant at one visit or timepoint. New registrations are rejected when
 this declaration is missing, because COHORTome should not guess that one
 record equals one visit.
 
+### Optional biosample ClarIDs
+
+For datasets with `biosamples.json`, declare a prepared CSV under
+`identifiers.clarid_biosamples`:
+
+```json
+{
+  "entity": "biosample",
+  "file": "identifiers/clarid_biosamples.csv",
+  "codebook_version": "0.04",
+  "tools_version": "0.05"
+}
+```
+
+Required columns:
+
+```text
+unique_id,individual_id,subject_id,project,species,tissue,sample_type,assay,condition,timepoint,duration,clar_id,stub_id
+```
+
+`unique_id` matches the BFF biosample `id`; `individual_id` matches its
+`individualId`. Reuse the subject-number map when generating labels with
+[ClarID-Tools' BFF utility](https://github.com/mrueda/clarid-tools/tree/main/utils/bff).
+Keep decoded fields alongside the human and stub labels. `batch`, `replicate`
+and `condition_name` are optional. Use the codebook's missing-value terms,
+not invented specimen characteristics.
+
+**Different specimens may share a ClarID.** Source IDs remain distinct, and
+partial label coverage is allowed. COHORTome checks parent links and consistent
+subject numbering. The sample table shows the label only when assay metadata
+explicitly links to that specimen through `biosample_id`.
+
 ### Optional ClarID subject identities
 
 A release can provide precomputed, decoded ClarID subject identities. Generate
@@ -90,7 +122,7 @@ they are not added to Summary-mode responses or external model context.
 Both bundled demos and the test-only fixtures include subject ClarIDs.
 Identifiers do not change a dataset's disclosure policy.
 
-To regenerate fixture sidecars with ClarID-Tools 0.04:
+To regenerate fixture sidecars with ClarID-Tools 0.05 and codebook 0.04:
 
 ```bash
 python3 scripts/generate_synthetic_clarids.py \
@@ -189,3 +221,14 @@ absolute filesystem location.
 
 Use **Datasets** to select a workspace. Use **Admin > Data** to register datasets,
 set policy and prepare stores; **Admin > Users** manages user accounts.
+
+### About this dataset
+
+The **About** button shows the registered dataset description as a quick summary,
+with links to read `README.md` and `TERMS.md` from the dataset root.
+Keep the description short; the README can begin with the same summary.
+Use the README for sources, preparation notes and limitations; put reuse terms
+and attribution in TERMS. These documents are visible to users with access to
+the dataset, even before its query store is prepared. Do not include credentials,
+private paths or patient records. Markdown headings, lists, tables and web links
+are supported; HTML and embedded images are not. Each document is limited to 256 KiB.

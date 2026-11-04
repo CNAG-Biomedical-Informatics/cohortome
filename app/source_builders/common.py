@@ -31,8 +31,8 @@ def encode_subjects(rows, output, executable, codebook, study, study_stub):
     """Shared encoder; dataset adapters supply their reviewed subject fields."""
     vocabulary = yaml.safe_load(codebook.read_text())
     version = subprocess.check_output([*executable, '--version'], text=True, timeout=30).strip()
-    if str(vocabulary['metadata']['version']) != '0.04' or version.split()[-1] != '0.04':
-        raise ValueError('Requires clarid-tools and codebook 0.04')
+    if str(vocabulary['metadata']['version']) != '0.04' or version.split()[-1] != '0.05':
+        raise ValueError('Requires clarid-tools 0.05 and codebook 0.04')
     output.mkdir(parents=True, exist_ok=False)
     vocabulary['entities']['subject']['study'][study] = dict(
         code=study, stub_code=study_stub, label=study, id='NCIT:C17998')

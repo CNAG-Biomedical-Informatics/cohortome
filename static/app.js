@@ -288,13 +288,23 @@ function renderQueryReply(payloadOrValue) {
 
 function sendPatientIdsToPhenoRanker() {
   const scopeIds = state.latestQueryRecordIds.length ? state.latestQueryRecordIds : state.latestQueryPatientIds;
+  const idType = state.latestQueryRecordIds.length ? 'sample' : state.latestQueryIdType;
   const handle = String(state.latestQueryResultHandle || '');
   if (!scopeIds.length && !handle) {
     return;
   }
   refs.phenoActionEl.value = "compare";
   state.phenoSelectedSavedCohortIds = [];
-  state.phenoQuerySelection = handle ? {handle, count:state.latestQueryTotalCount, idType:state.latestQueryIdType} : null;
+  state.phenoQuerySelection = {
+    ...createSelectionMetadata({...currentAnalysisDatasetMetadata(),
+      patientIds:state.latestQueryPatientIds, sampleIds:state.latestQueryRecordIds,
+      queryResultHandle:handle, idType,
+      patientCount:idType === 'sample' ? undefined : state.latestQueryTotalCount || state.latestQueryPatientIds.length,
+      sampleCount:idType === 'sample' ? state.latestQueryTotalCount || state.latestQueryRecordIds.length : 0,
+      sourceKind:'query', sourcePrompt:state.latestQueryPrompt}),
+    // Pheno-Ranker's request/session transport still uses these aliases.
+    handle, count:state.latestQueryTotalCount, idType,
+  };
   savedCohortsUi.renderPhenoSavedCohortsSelection();
   refs.phenoModeEl.value = "cohort";
   refs.phenoSelectedPatientIdsEl.value = scopeIds.join(",");

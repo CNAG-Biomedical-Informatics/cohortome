@@ -73,8 +73,10 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     const more = detailEl.querySelector('[data-clinical-more]');
     const all = detailEl.querySelector('[data-clinical-all]');
     if (all) all.onclick = () => inspect(p, null, summary);
-    let offset = 0;
+    let offset = 0, loadingRecords = false;
     async function loadRecords() {
+      if (loadingRecords || offset === null) return;
+      loadingRecords = true;
       more.disabled = true;
       try {
         const response = await fetch('/patient-overview/clinical?' + new URLSearchParams({
@@ -86,7 +88,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
         const expanded = [...inventoryEl.querySelectorAll('[data-clinical-index][open]')].map(el => el.dataset.clinicalIndex);
         const scrollTop = inventoryEl.querySelector('.patient-inventory-scroll')?.scrollTop || 0;
         clinicalRecords = offset ? clinicalRecords.concat(payload.records) : payload.records;
-        inventoryEl.innerHTML = patientInventoryMarkup(p.samples || [], esc, clinicalRecords);
+        inventoryEl.innerHTML = patientInventoryMarkup(p.samples || [], esc, clinicalRecords, payload.clarid);
         expanded.forEach(index => inventoryEl.querySelector(`[data-clinical-index="${index}"]`)?.setAttribute('open', ''));
         if (!offset && event?.modality === 'clinical') inventoryEl.querySelector('.clinical-record')?.setAttribute('open', '');
         inventoryEl.querySelector('.patient-inventory-scroll').scrollTop = scrollTop;
@@ -98,7 +100,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
         if (ticket !== inspection || selectedScope !== scope()) return;
         statusEl.textContent = error.message;
         more.hidden = false; more.textContent = 'Retry clinical records';
-      } finally { more.disabled = false; }
+      } finally { loadingRecords = false; more.disabled = offset === null; }
     }
     more.onclick = loadRecords;
     void loadRecords();

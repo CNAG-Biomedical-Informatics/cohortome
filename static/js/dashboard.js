@@ -1,5 +1,6 @@
 import { formatAssayModality, formatAssayDataType } from "./assay_labels.js";
 import { fallbackCopyText } from "./shared.js";
+import { claridMarkup } from './clarid.js';
 import { createTimelineUi } from "./timeline.js";
 import { modalityIcon, modalityColor } from './modalities.js';
 import { createMultimodalCoverage } from './multimodal_coverage.js';
@@ -58,7 +59,7 @@ export function createDashboardUi(ctx) {
     setDashboardSubtab,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
-  const multimodalCoverage = createMultimodalCoverage({state, escapeHtml, saveIdsAsCohort});
+  const multimodalCoverage = createMultimodalCoverage({state, escapeHtml, saveIdsAsCohort, renderGlobalContext});
   let variantPanelItems = [];
   const variantBrowser = createVariantBrowser({state, escapeHtml, saveIdsAsCohort, onPanels: panels => {
     variantPanelItems = panels.map(panel => ({...panel, variant_panel: true,
@@ -196,28 +197,7 @@ export function createDashboardUi(ctx) {
   }
 
   function claridIdentityMarkup(patient, compact = false) {
-    const clarid = normalizedClarid(patient);
-    if (!clarid) return "";
-    const decoded = claridDecodedSummary(clarid);
-    const subjectId = String(clarid.subject_id ?? "").trim();
-    const version = [
-      clarid.codebook_version ? `Codebook ${clarid.codebook_version}` : "",
-      clarid.tools_version ? `Tools ${clarid.tools_version}` : "",
-    ].filter(Boolean).join(" · ");
-    return `
-      <span class="clarid-identity${compact ? " is-compact" : ""}">
-        <button type="button" class="clarid-badge" data-clarid-toggle aria-expanded="false" title="Show decoded ClarID metadata">
-          ClarID
-        </button>
-        <span class="clarid-popover" role="dialog" aria-label="Decoded ClarID metadata">
-          <strong>ClarID subject${subjectId ? ` ${escapeHtml(subjectId)}` : ""}</strong>
-          <span class="clarid-decoded-summary">${escapeHtml(decoded || "Decoded subject metadata")}</span>
-          <span class="clarid-code-row"><b>Human</b><code>${escapeHtml(clarid.human_id)}</code><button type="button" data-clarid-copy="${escapeHtml(clarid.human_id)}" aria-label="Copy human-readable ClarID">Copy</button></span>
-          <span class="clarid-code-row"><b>Stub</b><code>${escapeHtml(clarid.stub_id)}</code><button type="button" data-clarid-copy="${escapeHtml(clarid.stub_id)}" aria-label="Copy ClarID stub">Copy</button></span>
-          ${version ? `<small>${escapeHtml(version)}</small>` : ""}
-        </span>
-      </span>
-    `;
+    return claridMarkup(normalizedClarid(patient), escapeHtml, compact);
   }
 
   function claridSearchFeedback(items) {
@@ -2114,7 +2094,7 @@ export function createDashboardUi(ctx) {
       const nextOpen = identity && !identity.classList.contains("is-open");
       closeClaridPopovers(nextOpen ? identity : null);
       const popover = identity?.querySelector('.clarid-popover');
-      const floating = identity?.closest('.query-result-table') && popover?.showPopover;
+      const floating = identity?.closest('.query-result-table, .patient-inventory') && popover?.showPopover;
       // Set floating layout before opening, so it never expands the table row.
       if (floating) popover.setAttribute('popover', 'manual');
       if (identity) identity.classList.toggle("is-open", Boolean(nextOpen));

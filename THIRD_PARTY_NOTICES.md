@@ -20,6 +20,8 @@ and reference data retain their own licences and copyright notices.
 - The shared Perl runtime provides Pheno-Ranker, Convert-Pheno and ClarID tools.
   Its builder retains their top-level notices under `licenses/` and downloaded
   source archives under `sources/` within that runtime.
+  Docker retains Convert-Pheno and ClarID sources and top-level notices under
+  `/usr/local/share/cohortome/sources/` and `/usr/local/share/cohortome/licenses/`.
 - OHIF provides DICOM viewing under an [MIT licence](https://github.com/OHIF/Viewers).
   Desktop workflows and the Docker build include pinned static viewer assets.
   Desktop package manifests record the source image and asset checksums.

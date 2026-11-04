@@ -156,7 +156,7 @@ def pheno_runtime_fixture(tmp_path, monkeypatch):
         path.chmod(0o755)
         hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {"platform": "linux", "architecture": module.platform.machine(),
-                "perl": "5.42.3", "tools": {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.04"},
+                "perl": "5.42.3", "tools": {"pheno-ranker": "1.09", "convert-pheno": "0.35", "clarid-tools": "0.05"},
                 "runtime_sha256": hashes}
     (source / "runtime-manifest.json").write_text(json.dumps(manifest))
     return module, source, manifest

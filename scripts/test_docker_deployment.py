@@ -1,5 +1,8 @@
 """Exercise a fresh synthetic Compose deployment; never use on a real runtime."""
 import argparse
+from pathlib import Path
+import subprocess
+import sys
 import time
 
 import httpx
@@ -31,6 +34,8 @@ def main():
             assert client.get('/user-settings').json()['appearance'] == 'dark'
             print('PASS: authentication, worker and settings survive restart')
             return
+        subprocess.run([sys.executable, "-m", "scripts.test_preparation_runtime"],
+                       cwd=Path(__file__).resolve().parents[1], check=True, timeout=600)
         for dataset in ('default', 'synthetic-cross-sectional-demo'):
             client.post(f'/datasets/{dataset}/prepare-store').raise_for_status()
             response = client.get('/query', params={'q': 'List all patients', 'dataset_id': dataset})

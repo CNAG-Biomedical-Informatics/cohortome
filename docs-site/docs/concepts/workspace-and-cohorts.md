@@ -22,6 +22,17 @@ from multiple datasets; their dataset identities remain attached.
 
 Query's previous-result scope does not change the global workspace.
 
+## Selection and Scope
+
+You do not need to save a cohort to pass a selection to another view. For
+example, **Open in Analysis** carries the Query result directly; **Refine in
+Multimodal** carries the filtered patient group from Patients.
+
+**Scope** describes the selection used by the current tool, not a global filter.
+Multimodal reports its matching patients; clearing its filters returns to the
+full workspace. Selecting patients includes all their samples—it does not
+restrict an analysis to a particular specimen. Other chats keep their own inputs.
+
 ## After changing datasets
 
 Saved cohorts retain their source datasets rather than becoming selections of

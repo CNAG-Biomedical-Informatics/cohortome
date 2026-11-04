@@ -34,6 +34,68 @@
 .app-content .metric-card strong { font-size: 1.5rem; }
 .app-content .context-pill strong { font-size: 0.875rem; }
 
+/* Search fields use the same compact control scale as dropdowns. */
+#analysisChatSearch,
+.app-content input[type="search"],
+.cohort-library-search input,
+.analysis-catalog-search input {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--theme-surface, #fff);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: .8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-align: left;
+}
+.app-content .patient-search-field > input { padding-left: 38px; }
+.cohort-library-search input { padding-left: 38px; }
+#analysisChatSearch:focus-visible,
+.app-content input[type="search"]:focus-visible,
+.cohort-library-search input:focus-visible,
+.analysis-catalog-search input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.app-content input[type="search"]::placeholder,
+#analysisChatSearch::placeholder { color: var(--muted); opacity: 1; }
+
+/* Native dropdowns share one text/control scale across views and settings.
+   Keep native keyboard behaviour and the platform's option picker. */
+:is(.app-content, .user-settings-content, dialog) select {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: var(--theme-surface, #fff);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+:is(.app-content, .user-settings-content, dialog) select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:is(.app-content, .user-settings-content, dialog) select:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
 /* Shared text actions: colour indicates purpose, not a different size hierarchy.
    Leave navigation, icon-only controls and plot toolbars to their own styles. */
 .job-completion-notice button,
