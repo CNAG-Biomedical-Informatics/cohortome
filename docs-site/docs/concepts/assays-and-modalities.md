@@ -29,6 +29,11 @@ make every analysis suitable for it.
 
 ## Multimodal readiness
 
+**Biosamples describe specimens**, rather than a separate assay modality.
+Optional Beacon v2 biosample records link specimens to patients and can supply
+their tissue or material of origin. Assay metadata links measurements to those
+specimens explicitly. See [finding patients by sample origin](../user-guide/dashboard.md#find-patients-by-sample-origin).
+
 | Question | What to check |
 | --- | --- |
 | Which patients have RNA **and** proteins? | Patient overlap in Multimodal |

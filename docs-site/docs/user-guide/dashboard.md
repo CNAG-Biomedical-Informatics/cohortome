@@ -32,13 +32,44 @@ Use **Load more patients**, or type a patient ID or ClarID to filter the list.
 Arrow keys and Enter also work. Selecting a patient opens their **Timeline**.
 Identical IDs from different datasets remain separate.
 
-![Patient browser with disease filters, sortable columns, and cohort actions in the synthetic demo](/img/screenshots/dashboard-patients.png)
+### Find patients by sample origin
 
-*Filter by disease or search by ID; save the matching patients or refine them by assay availability.*
+When the dataset supplies biosample metadata, use **Sample origin** to choose a
+recorded tissue or material, such as blood or skin. Combine it with disease or
+ID filters, then **save the matching patients as a cohort** or choose
+**Refine in Multimodal dashboard** to check their assay coverage.
+
+![Patients filtered by blood sample origin in the public CINECA UK1 + GEUVADIS demo](/img/screenshots/dashboard-patients.png)
+
+*The CINECA demo combines synthetic clinical attributes with public molecular data.*
+
+:::note[Patients, not individual specimens]
+
+A patient with several matching biosamples is counted once. The selection keeps
+all that patient's samples; it does not restrict an analysis to the chosen tissue.
+Missing origin metadata means **unknown**, not that the patient has no samples.
+
+:::
+
+You can also [query recorded sample origins](./query.md#find-patients-by-sample-origin)
+without an LLM.
+
+### Inspect samples and clinical records
 
 The Timeline inventory lists clinical records alongside linked sample IDs and assays. Dates, visits, specimen
-material, and sample ClarIDs appear when supplied. **Not recorded** means that
+material, and ClarIDs appear when supplied. **Not recorded** means that
 the source metadata does not provide the field.
+
+| In the ClarID column | What it describes |
+| --- | --- |
+| Clinical row | The subject |
+| Assay row with an explicit biosample link | The linked specimen |
+
+Click **ClarID** to read its decoded fields. Biosample labels can describe tissue,
+sample type and assay when supplied. **Different specimens may share a ClarID**;
+the source specimen ID, not the label, identifies the biosample.
+
+![Clinical and assay inventory with subject and biosample ClarIDs in the CINECA UK1 + GEUVADIS demo](/img/screenshots/dashboard-biosamples.png)
 
 Clinical rows use the same table layout as assays: visit identifier, data type,
 recorded time and counts of clinical entries. **View clinical values** expands
@@ -134,7 +165,7 @@ Derived imaging measurements are separate matrices produced outside COHORTome.
 ### Find shared coverage
 
 From **Patients**, choose **Refine in Multimodal dashboard** to carry all filtered
-patients across, including disease and ID/ClarID searches—not just the visible
+patients across, including disease, sample-origin and ID/ClarID filters—not just the visible
 page. **Start from** shows the filtered group and its size. Choose **All workspace
 patients** there to remove this starting restriction. Switching tabs alone does
 not transfer filters.

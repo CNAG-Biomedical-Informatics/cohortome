@@ -1,4 +1,4 @@
-"""Capture real UI states from bundled synthetic data in a disposable runtime.
+"""Capture real UI states from demo data in a disposable runtime.
 
 Run: PYTHONPATH=.deps:. python3 scripts/capture_docs_screenshots.py
 Requires Playwright/Chromium and the repository frontend dependencies.
@@ -7,6 +7,7 @@ Optional: --llm-url http://HOST:1234/v1 --llm-model MODEL captures a real
 General-question reply. Only the example prompt is sent, not dataset records.
 Use --walkthrough-video to refresh the small silent multimodal clip and poster.
 Use --updated-views for the dataset, patient, assay, variant and multimodal screenshots.
+Use --biosamples-demo PATH with the public CINECA + GEUVADIS package for two biosample views.
 """
 from __future__ import annotations
 
@@ -62,7 +63,15 @@ def main() -> int:
     parser.add_argument('--llm-model', default='openai/gpt-oss-20b')
     parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
     parser.add_argument('--walkthrough-video', action='store_true', help='Record only the silent multimodal docs walkthrough')
+    parser.add_argument('--biosamples-demo', type=Path, help='Public CINECA + GEUVADIS package root; capture only biosample views')
     args = parser.parse_args()
+    if args.biosamples_demo:
+        args.biosamples_demo = args.biosamples_demo.resolve()
+        resource = json.loads((args.biosamples_demo / 'resource.json').read_text())
+        if resource.get('dataset_id') != 'cineca-uk1-demo':
+            parser.error('--biosamples-demo requires the public CINECA demo package')
+        if args.updated_views or args.walkthrough_video:
+            parser.error('Choose only one capture mode')
     plotly = ROOT / 'node_modules/plotly.js-dist-min/plotly.min.js'
     if not plotly.is_file():
         raise RuntimeError('Install the repository frontend dependencies first (npm ci).')
@@ -79,7 +88,11 @@ def main() -> int:
                        LM_STUDIO_MODEL=args.llm_model, LM_STUDIO_TIMEOUT='120')
         if args.updated_views:
             env['COHORTOME_DOCS_EXAMPLE_ROOT'] = str(prepare_variant_example(runtime))
-        # Only the two bundled fixtures are registered. No machine-local registry is read.
+        if args.biosamples_demo:
+            env['COHORTOME_DOCS_EXAMPLE_ROOT'] = str(args.biosamples_demo)
+            env['COHORTOME_DOCS_EXAMPLE_NAME'] = 'CINECA UK1 + GEUVADIS demo'
+        # Seed bundled fixtures, optionally replacing one with the explicit demo.
+        # No machine-local registry is read.
         subprocess.run([sys.executable, '-c', """
 from app.datasets import DATASET_REGISTRY_PATH, _seed_dataset_records
 from app.state_io import atomic_write_json
@@ -93,7 +106,7 @@ if os.environ.get('COHORTOME_DOCS_EXAMPLE_ROOT'):
         if record['dataset_id'] == 'default':
             record['root_path'] = os.environ['COHORTOME_DOCS_EXAMPLE_ROOT']
             record['dataset_id'] = 'documentation-demo'
-            record['name'] = 'Fictional documentation demo'
+            record['name'] = os.environ.get('COHORTOME_DOCS_EXAMPLE_NAME', 'Fictional documentation demo')
 atomic_write_json(DATASET_REGISTRY_PATH, records)
 prepare_dataset_query_store('documentation-demo' if os.environ.get('COHORTOME_DOCS_EXAMPLE_ROOT') else 'default')
 prepare_dataset_query_store('synthetic-cross-sectional-demo')
@@ -125,7 +138,7 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     path=str(plotly), content_type='application/javascript'))
                 page = context.new_page()
                 page.goto(bootstrap, wait_until='networkidle')
-                initial_dataset = 'documentation-demo' if args.updated_views else 'default'
+                initial_dataset = 'documentation-demo' if args.updated_views or args.biosamples_demo else 'default'
                 response = page.request.post(url + '/datasets/select', data={'dataset_ids': [initial_dataset]})
                 assert response.ok, response.status
                 page.reload(wait_until='networkidle')
@@ -200,6 +213,29 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     target.screenshot(path=str(OUTPUT / name), animations='disabled')
                     captured.append(name)
                     print(f'Captured {name}', flush=True)
+
+                if args.biosamples_demo:
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardPatientsBtn').click()
+                    expect(page.locator('#patientSampleOriginFilter')).to_be_visible(timeout=30000)
+                    page.locator('#patientSampleOrigin').select_option('UBERON:0000178')
+                    page.locator('#patientOverviewSearch').fill('HG0009')
+                    expect(page.locator('#patientOverviewMatches .patient-open')).to_have_count(3, timeout=30000)
+                    capture('dashboard-patients.png', '#dashboardPatientsPanel')
+                    page.locator('#patientOverviewSearch').fill('HG00096')
+                    expect(page.locator('#patientOverviewMatches .patient-open')).to_have_count(1, timeout=30000)
+                    patient = page.get_by_role('button', name='Open patient HG00096', exact=True)
+                    expect(patient).to_be_visible(timeout=30000)
+                    with page.expect_response(lambda r: '/patient-overview/clinical?' in r.url, timeout=60000) as clinical:
+                        patient.click()
+                    assert clinical.value.ok, f'Clinical inventory response: {clinical.value.status} {clinical.value.text()[:200]}'
+                    inventory = page.locator('[data-patient-inventory]')
+                    expect(inventory.locator('.clinical-record')).to_be_visible(timeout=30000)
+                    expect(inventory.locator('[data-clarid-toggle]')).to_have_count(3)
+                    capture('dashboard-biosamples.png', '[data-patient-inventory]')
+                    browser.close()
+                    print('Captured patient origins and biosample inventory from the public CINECA demo.')
+                    return 0
 
                 if args.updated_views:
                     panel_response = page.request.get(url + '/variants/panels?workspace=documentation-demo')
