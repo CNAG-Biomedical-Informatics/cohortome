@@ -74,6 +74,16 @@ def test_optional(tmp_path):
     assert read_variant_panel(tmp_path) is None
 
 
+def test_panel_reuses_validated_biosamples(panel, monkeypatch):
+    from app import variants
+    def unexpected(*args, **kwargs):
+        pytest.fail('Do not read biosamples again in the same request')
+    monkeypatch.setattr(variants, 'read_biosamples', unexpected)
+    assert read_variant_panel(panel, biosample_records=[])['samples']
+    with pytest.raises(ValueError):
+        read_variant_panel(panel, {'P1', 'P2', 'P3'}, biosample_records=[{'id':'X', 'individualId':'unknown'}])
+
+
 def test_inventory_counts_samples_not_carriers(panel):
     from app.patient_overview import sample_inventory
     rows, warnings = sample_inventory(panel)

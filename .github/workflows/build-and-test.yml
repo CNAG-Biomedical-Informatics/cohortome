@@ -39,6 +39,10 @@ jobs:
             tests/test_workspace_identities.py \
             tests/test_cohort_members.py \
             tests/test_dataset_scope_security.py \
+            tests/test_dataset_sources.py \
+            tests/test_biosamples.py \
+            tests/test_patient_overview.py \
+            tests/test_variants.py \
             tests/test_query_results.py \
             tests/test_query_sessions.py \
             tests/test_analysis_job_security.py \

@@ -87,10 +87,12 @@ def inside(root, relative):
     return path
 
 
-def sample_inventory(root, patient_id=None, include_imaging=False, include_clarids=True):
+def sample_inventory(root, patient_id=None, include_imaging=False, include_clarids=True, *, specimens=None):
     root = Path(root)
     rows, warnings = [], []
-    biosamples = {r['id']: r for r in biosample_records(root, include_clarids=include_clarids)}
+    if specimens is None:
+        specimens = biosample_records(root, include_clarids=include_clarids)
+    biosamples = {r['id']: r for r in specimens}
     for item in _assay_manifest_items_for_root(root):
         assay_id = str(item.get('assay_id') or '')
         label = str(item.get('label') or assay_id or 'Assay')
@@ -101,6 +103,7 @@ def sample_inventory(root, patient_id=None, include_imaging=False, include_clari
             warnings.append(f'{label}: no declared patient linkage; not included.')
             continue
         try:
+            assay_rows = []
             path = inside(root, str(item.get('file') or ''))
             with path.open(encoding='utf-8-sig', newline='') as handle:
                 first = handle.readline()
@@ -128,9 +131,9 @@ def sample_inventory(root, patient_id=None, include_imaging=False, include_clari
             for sid in selected:
                 meta = metadata.get(sid, {})
                 specimen = biosamples.get(meta.get('biosample_id'), {})
-                if specimen and specimen['individualId'] != links['links'][sid]:
+                if meta.get('biosample_id') and (not specimen or specimen['individualId'] != links['links'][sid]):
                     raise ValueError('Conflicting biosample patient linkage')
-                rows.append(dict(patient_id=links['links'][sid], sample_id=sid, assay_id=assay_id, assay=label,
+                assay_rows.append(dict(patient_id=links['links'][sid], sample_id=sid, assay_id=assay_id, assay=label,
                     modality=item.get('modality') or 'assay', data_type=item.get('data_type') or 'Not recorded',
                     linkage=links['linkage_source'], visit=meta.get('visit_id') or meta.get('timepoint') or '',
                     days_from_baseline=relative_study_days(meta),
@@ -138,10 +141,11 @@ def sample_inventory(root, patient_id=None, include_imaging=False, include_clari
                     biosample_id=specimen.get('id', ''),
                     biosample_clarid=specimen.get('clarid'),
                     sample_clarid=meta.get('clarid') or ''))
+            rows.extend(assay_rows)
         except (OSError, ValueError, UnicodeError, csv.Error, StopIteration):
             warnings.append(f'{label}: sample inventory unavailable; not included in counts.')
     try:
-        panel = read_variant_panel(root)
+        panel = read_variant_panel(root, biosample_records=specimens)
         for meta in (panel or {}).get('samples', []):
             if patient_id is not None and meta['patient_id'] != patient_id:
                 continue
@@ -310,12 +314,13 @@ def detail(request: Request, workspace: str, dataset_id: str, patient_id: str = 
         patients = lookup(root, patient_id, 1, exact=True)
         if not patients:
             raise HTTPException(404, 'Patient not found in this dataset.')
-        rows, warnings = sample_inventory(root, patient_id)
+        specimens = biosample_records(root)
+        rows, warnings = sample_inventory(root, patient_id, specimens=specimens)
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient data are unavailable until the dataset store is ready.') from None
     return dict(patient=patients[0], dataset_id=dataset_id, dataset_label=label,
                 samples=rows, warnings=warnings,
-                biosamples=[r for r in biosample_records(root) if r['individualId'] == patient_id])
+                biosamples=[r for r in specimens if r['individualId'] == patient_id])
 
 
 @router.get('/clinical')

@@ -174,3 +174,34 @@ def test_biosample_numbers_match_existing_subjects(package):
     write_clarids(package, rows)
     with pytest.raises(ValueError, match='Biosample input is invalid'):
         read_biosamples(package)
+
+
+@pytest.mark.parametrize('specimen', ['S3', 'absent'])
+def test_invalid_later_sample_does_not_leave_partial_assay(package, specimen):
+    folder = package / 'assays'
+    folder.mkdir()
+    (folder / 'values.csv').write_text('feature_id,A,B\nf1,1,2\n')
+    (folder / 'samples.tsv').write_text(
+        'sample_id\tpatient_id\tbiosample_id\nA\tP1\tS1\nB\tP1\t' + specimen + '\n')
+    (folder / 'manifest.json').write_text(json.dumps({'assays': [dict(
+        assay_id='rna', modality='transcriptomics', file='assays/values.csv',
+        sample_metadata_file='assays/samples.tsv')]}))
+    rows, warnings = overview.sample_inventory(package)
+    assert rows == []
+    assert any('not included in counts' in w for w in warnings)
+
+
+def test_inventory_reads_biosamples_once(package, monkeypatch):
+    calls = []
+    original = overview.biosample_records
+    def counted(*args, **kwargs):
+        calls.append(kwargs)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(overview, 'biosample_records', counted)
+    # A panel with no records still must reuse the supplied, validated list.
+    def panel(root, *, biosample_records):
+        assert len(biosample_records) == 3
+        return None
+    monkeypatch.setattr(overview, 'read_variant_panel', panel)
+    overview.sample_inventory(package, include_clarids=False)
+    assert calls == [{'include_clarids': False}]

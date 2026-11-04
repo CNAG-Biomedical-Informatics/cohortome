@@ -38,7 +38,7 @@ def _unique(rows, key):
     return result
 
 
-def read_variant_panel(root, patient_ids=None):
+def read_variant_panel(root, patient_ids=None, *, biosample_records=None):
     """Validate a complete sample×variant grid; return annotations and carrier links.
 
     Raw GTs remain in the source file. A carrier here has a fully called genotype
@@ -69,7 +69,10 @@ def read_variant_panel(root, patient_ids=None):
                 raise ValueError
         samples = _unique(_table(root, config['samples_file'], {
             'sample_id', 'patient_id'}), 'sample_id')
-        biosamples = {r['id']: r for r in read_biosamples(root, patient_ids)}
+        records = read_biosamples(root, patient_ids, include_clarids=False) if biosample_records is None else biosample_records
+        if patient_ids is not None and any(r['individualId'] not in patient_ids for r in records):
+            raise ValueError
+        biosamples = {r['id']: r for r in records}
         for row in samples.values():
             patient, specimen = row['patient_id'], row.get('biosample_id')
             if (not patient.strip() or patient != patient.strip()

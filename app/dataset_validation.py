@@ -117,8 +117,8 @@ def _table(path):
         yield from csv.reader(handle, delimiter=delimiter, strict=True)
 
 
-def _metadata(root, relative, patients):
-    biosamples = {r['id']: r for r in read_biosamples(root, patients)}
+def _metadata(root, relative, patients, biosamples):
+    biosamples = {r['id']: r for r in biosamples}
     rows = _table(_inside(root, relative))
     header = next(rows, [])
     if len(set(header)) != len(header) or not {"sample_id", "patient_id"} <= set(header):
@@ -141,7 +141,7 @@ def _metadata(root, relative, patients):
         samples.add(sample)
 
 
-def _matrix(root, item, patients):
+def _matrix(root, item, patients, biosamples):
     relative = item["file"]
     rows = _table(_inside(root, relative))
     header = next(rows, [])
@@ -151,7 +151,7 @@ def _matrix(root, item, patients):
     if len(set(samples)) != len(samples):
         _fail(relative, "duplicate matrix sample columns")
     if item.get("sample_metadata_file"):
-        _metadata(root, item["sample_metadata_file"], patients)
+        _metadata(root, item["sample_metadata_file"], patients, biosamples)
     links = _manifest_assay_sample_patient_links(root, item, samples)
     if links["unlinked_sample_ids"]:
         _fail(relative, "matrix samples are missing patient linkage metadata")
@@ -205,7 +205,7 @@ def validate_package(root):
         manifest = _manifest(root, "manifest.json", "dataset.schema.json")
         patients, records = _clinical(root, manifest["clinical"]["representation"])
         biosamples = read_biosamples(root, patients)
-        variant_panel = read_variant_panel(root, patients)
+        variant_panel = read_variant_panel(root, patients, biosample_records=biosamples)
         clarid = manifest.get("identifiers", {}).get("clarid_subjects")
         if clarid:
             _inside(root, clarid["file"])
@@ -224,7 +224,7 @@ def validate_package(root):
                     if not path.is_file():
                         _fail(f"assays/manifest.json, assay {number}, {key}", "referenced file is missing")
                     declared.add(path.resolve())
-            count, size, absent, linkage = _matrix(root, item, patients)
+            count, size, absent, linkage = _matrix(root, item, patients, biosamples)
             samples += count
             features += size
             missing += absent

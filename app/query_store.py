@@ -330,6 +330,7 @@ def _identifier_source_files(root: Path) -> List[Path]:
 
 
 def _source_files_signature(data_dir: str) -> Dict[str, Any]:
+    from app.dataset_sources import dataset_input_signature
     resolved_dir = ensure_data_dir(data_dir)
     project_root = resolve_project_data_dir(data_dir)
     files = []
@@ -369,6 +370,7 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
         "data_dir": str(resolved_dir),
         "files": files,
         "assay_files": assay_files,
+        "source_files": dataset_input_signature(project_root),
     }
     if identifier_files:
         payload["identifier_files"] = identifier_files
@@ -583,6 +585,7 @@ def _store_has_required_tables(db_path: Path) -> bool:
 
 
 def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
+    from app.dataset_sources import dataset_input_signature
     dataset_root = _dataset_root_path(dataset_id)
     clinical_dir = dataset_root / "clinical"
     files = []
@@ -622,6 +625,7 @@ def _dataset_source_signature(dataset_id: str) -> Dict[str, Any]:
     payload = {
         "schema_version": QUERY_STORE_SCHEMA_VERSION,
         "dataset_id": normalize_dataset_id(dataset_id),
+        "source_files": dataset_input_signature(dataset_root),
         "root_path": str(dataset_root),
         "files": files,
         "assay_files": assay_files,

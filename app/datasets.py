@@ -22,6 +22,7 @@ from app.config import (
     private_artifact_runtime_is_safe,
 )
 from app.state_io import advisory_file_lock, atomic_write_json
+from app.dataset_sources import dataset_input_signature
 from app.user_state import normalize_user_id, user_state_file
 
 
@@ -246,10 +247,22 @@ def workspace_fingerprint_for_data_dir(
             }
         )
     normalized_ids = [normalize_dataset_id(item) for item in (dataset_ids or []) if normalize_dataset_id(item)]
+    from app.query_store import _workspace_dataset_ids
+    source_ids = normalized_ids or _workspace_dataset_ids(data_dir)
+    sources = []
+    if source_ids:
+        for identifier in sorted(set(source_ids)):
+            record = get_dataset(identifier)
+            if record is None:
+                raise ValueError('Workspace dataset is no longer registered.')
+            sources.append(dict(dataset_id=identifier, files=dataset_input_signature(record['root_path'])))
+    else:
+        sources.append(dict(files=dataset_input_signature(resolve_project_data_dir(data_dir))))
     payload = {
         "dataset_id": str(dataset_id or "").strip(),
         "dataset_ids": normalized_ids,
         "clinical_files": items,
+        "source_files": sources,
     }
     token = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     return {

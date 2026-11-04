@@ -4,6 +4,10 @@ title: Frequently Asked Questions
 
 # Frequently Asked Questions
 
+[General](#general) · [Desktop](#desktop) · [Web](#web)
+
+## General
+
 <details>
 <summary>Why is it called COHORTome?</summary>
 
@@ -30,8 +34,11 @@ Click a **ClarID** label to inspect its decoded fields, including the condition
 name when available. You can also search for a patient by ClarID.
 
 A **Subject ClarID** shown beside a sample describes the linked patient; it is
-not a biosample ClarID. The original patient and sample IDs, together with their
-source dataset, remain the identifiers COHORTome uses to link records.
+not a biosample ClarID. In Timeline, an assay row can instead show a **biosample
+ClarID** when it explicitly links to a labelled specimen. Different specimens
+may share that label. The original patient and sample IDs, together with their
+source dataset, remain the identifiers COHORTome uses to link records. See
+[biosamples in Dashboard](../user-guide/dashboard.md#inspect-samples-and-clinical-records).
 
 :::note[ClarID is not anonymization]
 
@@ -171,5 +178,80 @@ run parameters, provenance bundle, and command logs.
 No. It is an exploratory research workbench. Results require appropriate
 scientific review and must not be presented as diagnosis, treatment advice, or
 validated clinical decision support.
+
+</details>
+
+## Desktop
+
+<details>
+<summary>Do I need an account or extra setup to run analyses?</summary>
+
+**No.** Desktop opens without signing in and runs analyses within the app.
+Keep it open until an analysis finishes. Closing it interrupts active analyses,
+but completed results remain saved.
+
+</details>
+
+<details>
+<summary>Where is my work saved? Will updating the app remove it?</summary>
+
+Chats, cohorts, settings and managed results live in a **per-user data folder**,
+separate from the installed app. Replacing the app does not remove that folder.
+Registered source datasets must remain available at their recorded locations.
+
+See [storage, updates and removal](../getting-started/desktop.md#storage-updates-and-removal)
+for paths and backup instructions. **Save project is not a backup**: it stores
+references, not copies of datasets or results.
+
+</details>
+
+<details>
+<summary>LM Studio is running. Why is the model unavailable?</summary>
+
+Check that a model is loaded and its API server is running. In **Admin → Models**,
+save the API URL and model name, enable the connection, then **Test connection**.
+Use an address reachable from the computer running COHORTome. If LM Studio is
+on your host and COHORTome is in a VM, `localhost` points to the VM, not the host.
+
+Choose the correct **Local / External** data boundary; it is not a connectivity
+switch. The connection settings persist after closing the app. See
+[Connect an LLM](../admin-guide/model-providers.mdx).
+
+</details>
+
+## Web
+
+<details>
+<summary>Why can't I see or open a dataset?</summary>
+
+A web administrator must enable the dataset and grant your account access.
+Its query store must also be ready. Select it in **Datasets** and apply the
+workspace. Ask the administrator if it is missing or needs preparation; signing
+in alone does not grant access to every dataset.
+
+See [dataset configuration](../admin-guide/datasets-and-access.mdx).
+
+</details>
+
+<details>
+<summary>Why are background jobs unavailable?</summary>
+
+Web background jobs need **Redis and an RQ worker**, using the same runtime and
+configuration as the web server. An administrator manages these services.
+The complete Docker Compose deployment includes them; starting only the web
+process does not. See [starting and stopping](../admin-guide/starting-and-stopping.md).
+
+</details>
+
+<details>
+<summary>Can I change the model connection or its dataset permissions?</summary>
+
+An **administrator** configures providers and dataset policies. Users select an
+approved provider in Settings. A deployment-managed provider may be read-only
+in the interface. With multiple datasets, the strictest model-context policy
+applies; selecting a provider does not override it.
+
+See [Connect an LLM](../admin-guide/model-providers.mdx). Desktop has the same
+data-sharing controls, but its local owner manages them without web accounts.
 
 </details>

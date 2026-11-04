@@ -122,7 +122,7 @@ def client():
 def test_duplicate_patient_ids_remain_dataset_scoped(client, monkeypatch):
     monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root-a', 'A'), ('b', 'root-b', 'B')])
     monkeypatch.setattr(overview, 'lookup', lambda *a, **kw: [dict(patient_id='P1')])
-    monkeypatch.setattr(overview, 'sample_inventory', lambda root, _: ([{'sample_id': root}], []))
+    monkeypatch.setattr(overview, 'sample_inventory', lambda root, _, **kw: ([{'sample_id': root}], []))
     matches = client.get('/patient-overview/search', params=dict(workspace='scope', q='P1')).json()['matches']
     assert [m['dataset_id'] for m in matches] == ['a', 'b']
     result = client.get('/patient-overview/detail', params=dict(workspace='scope', dataset_id='b', patient_id='P1'))
@@ -145,6 +145,25 @@ def test_collect_selection_in_one_request_per_dataset(client, monkeypatch):
     assert len(calls) == 2
     assert calls[0][1:] == ('P', {'disease':['D1','D2'], 'sample_origin':'blood', 'ids_only':True})
     assert client.get('/patient-overview/selection', params={'workspace':'scope','disease':['x']*101}).status_code == 422
+
+
+def test_detail_reuses_specimens_for_inventory_and_response(client, monkeypatch):
+    records = [{'id':'S1', 'individualId':'P1'}]
+    calls = []
+    monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root', 'A')])
+    monkeypatch.setattr(overview, 'lookup', lambda *a, **kw: [{'patient_id':'P1'}])
+    def load(root):
+        calls.append(root)
+        return records
+    monkeypatch.setattr(overview, 'biosample_records', load)
+    def inventory(root, patient_id, *, specimens):
+        assert specimens is records
+        return [], []
+    monkeypatch.setattr(overview, 'sample_inventory', inventory)
+    response = client.get('/patient-overview/detail', params=dict(workspace='a', dataset_id='a', patient_id='P1'))
+    assert response.status_code == 200
+    assert response.json()['biosamples'] == records
+    assert calls == ['root']
 
 
 def test_browse_paginates_across_datasets_without_losing_duplicates(client, monkeypatch):
