@@ -21,6 +21,31 @@ def test_source_checksum_checked_before_extraction(tmp_path, monkeypatch):
         module.fetch_source("pheno", tmp_path, tmp_path)
 
 
+def test_cpan_failure_exposes_compiler_log(tmp_path, monkeypatch, capsys):
+    module = builder()
+    log = tmp_path / "cpanm/work/build-1/build.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("fatal error: openssl/ssl.h not found\n")
+    error = subprocess.CalledProcessError(1, ["cpanm"])
+
+    def fail(command, **kwargs):
+        assert kwargs["env"]["OPENSSL_PREFIX"] == "/example/openssl"
+        raise error
+
+    monkeypatch.setattr(module.subprocess, "run", fail)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        module.install_cpan(["cpanm"], tmp_path, {"OPENSSL_PREFIX": "/example/openssl"})
+    assert caught.value is error
+    assert "fatal error: openssl/ssl.h not found" in capsys.readouterr().err
+
+
+def test_cpan_success_does_not_print_build_log(tmp_path, monkeypatch, capsys):
+    module = builder()
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: None)
+    module.install_cpan(["cpanm"], tmp_path, {})
+    assert capsys.readouterr().err == ""
+
+
 def test_macos_vendor_skips_debug_symbols(tmp_path, monkeypatch):
     module = builder()
     library = tmp_path / "libR.dylib"

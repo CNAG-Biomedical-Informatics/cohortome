@@ -91,6 +91,16 @@ def test_workflow_entry_points_and_local_dependencies():
         assert not (WORKFLOWS / legacy).exists()
 
 
+def test_apple_silicon_selects_openssl_before_perl_build():
+    steps = workflow("desktop-macos-arm64-test.yml")["jobs"]["package"]["steps"]
+    setup = next(s for s in steps if s.get("name") == "Configure OpenSSL for Perl")
+    build = next(s for s in steps if s.get("name") == "Build and relocation-test Perl runtime")
+    assert steps.index(setup) < steps.index(build)
+    assert "brew --prefix openssl@3" in setup["run"]
+    assert 'echo "OPENSSL_PREFIX=$openssl_prefix" >> "$GITHUB_ENV"' in setup["run"]
+    assert '"$openssl_prefix/bin/openssl" version -a' in setup["run"]
+
+
 @pytest.mark.parametrize("arch", ["aarch64", "x86_64"])
 def test_linux_installer_has_numba_tbb_dependency(arch):
     steps = workflow(f"desktop-linux-{arch}-test.yml")["jobs"]["package"]["steps"]

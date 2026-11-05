@@ -108,6 +108,17 @@ def retain_notices(output, distributions):
                 shutil.copy2(source / name, destination / name)
 
 
+def install_cpan(command, work, env):
+    """Expose compiler diagnostics before the temporary build directory is removed."""
+    try:
+        subprocess.run(command, cwd=work, env=env, check=True)
+    except subprocess.CalledProcessError:
+        for log in sorted((work / "cpanm/work").glob("*/build.log")):
+            print(f"\n--- CPAN build log: {log.name} ---", file=sys.stderr, flush=True)
+            print(log.read_text(encoding="utf-8", errors="replace"), file=sys.stderr, flush=True)
+        raise
+
+
 def write_manifest(output, perl_version):
     sources = output / "sources"
     manifest = {"perl": perl_version, "tools": TOOLS, "source": "CPAN",
@@ -149,11 +160,11 @@ def main():
         subprocess.run(["make", "install"], cwd=perl_source, env=env, check=True)
         perl = prefix / "bin/perl"
         env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
-        subprocess.run([str(perl), str(cpanm_source / "bin/cpanm"), "--notest",
+        install_cpan([str(perl), str(cpanm_source / "bin/cpanm"), "--notest",
                         "--mirror", "https://cpan.metacpan.org", "--mirror-only",
                         "--save-dists", str(sources), "File::HomeDir", str(pheno_source),
                         str(convert_source), str(clarid_source)],
-                       cwd=work, env=env, check=True)
+                     work, env)
         retain_notices(output, [pheno_source, convert_source, clarid_source])
         env["PHENO_RANKER_INLINE_DIR"] = str(output / "inline")
         subprocess.run([str(perl), "-MPheno::Ranker::Metrics", "-e",

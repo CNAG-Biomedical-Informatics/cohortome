@@ -58,6 +58,15 @@ jobs:
           python -m pip install -r desktop/requirements-umap-test.txt
           python -m pip install --no-deps --no-build-isolation .
           npm install --prefix "$RUNNER_TEMP/charts" --no-save --package-lock=false plotly.js-dist-min@2.35.2 cytoscape@3.33.1
+      - name: Configure OpenSSL for Perl
+        shell: bash
+        run: |
+          brew list --versions openssl@3 >/dev/null || brew install openssl@3
+          openssl_prefix=$(brew --prefix openssl@3)
+          test -f "$openssl_prefix/include/openssl/ssl.h"
+          echo "OPENSSL_PREFIX=$openssl_prefix" >> "$GITHUB_ENV"
+          "$openssl_prefix/bin/openssl" version -a
+          file "$openssl_prefix/lib/libssl.3.dylib"
       - name: Build and relocation-test Perl runtime
         run: python desktop/build_unix_pheno.py --output "$RUNNER_TEMP/pheno-runtime"
       - name: Build R runtime on this runner
