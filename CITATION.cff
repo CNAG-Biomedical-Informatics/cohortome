@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use COHORTome in your research, please cite this software and indicate the version used."
+type: software
+title: COHORTome
+authors:
+  - family-names: Rueda
+    given-names: Manuel
+version: 0.1.1
+date-released: '2026-11-05'
+doi: 10.5281/zenodo.23638366
+license: Apache-2.0
+repository-code: https://github.com/CNAG-Biomedical-Informatics/cohortome
+url: https://cnag-biomedical-informatics.github.io/cohortome/

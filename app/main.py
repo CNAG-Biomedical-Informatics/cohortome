@@ -89,7 +89,7 @@ app = FastAPI(
         "COHORTome exposes a browser-facing API for governed multi-dataset workspaces, "
         "longitudinal clinical and assay exploration, cohort discovery, and traceable analysis."
     ),
-    version="0.1.0",
+    version="0.1.1",
     openapi_tags=OPENAPI_TAGS,
 )
 app.add_middleware(SessionMiddleware, secret_key=_session_secret())

@@ -4,7 +4,7 @@
 
 <h1 align="center">COHORTome</h1>
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-0298c3)](LICENSE)
 [![Build and test](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/build-and-test.yml)
 [![Desktop build](https://img.shields.io/github/actions/workflow/status/CNAG-Biomedical-Informatics/cohortome/desktop-release-draft.yml?branch=main&label=Desktop%20build)](https://github.com/CNAG-Biomedical-Informatics/cohortome/actions/workflows/desktop-release-draft.yml)

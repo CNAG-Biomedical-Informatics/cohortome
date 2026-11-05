@@ -27,7 +27,7 @@ cd cohortome
 
 2. Edit `docker/.env` before starting:
    - Set `COHORTOME_IMAGE` to the version to deploy, for example
-     `manuelrueda/cohortome:0.1.0`. Web and worker use the same image.
+     `manuelrueda/cohortome:0.1.1`. Web and worker use the same image.
    - Set `COHORTOME_SESSION_SECRET` to a long random value and keep it unchanged.
    - Replace the example users in `COHORTOME_LOCAL_USERS_JSON` with your
      administrator account and a strong password.

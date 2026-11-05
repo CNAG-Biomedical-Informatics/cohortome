@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cohortome"
-version = "0.1.0"
+version = "0.1.1"
 description = "Open-source workspace for integrated clinical and multimodal cohort research"
 authors = [{ name = "Manuel Rueda - CNAG" }]
 license = { file = "LICENSE" }
