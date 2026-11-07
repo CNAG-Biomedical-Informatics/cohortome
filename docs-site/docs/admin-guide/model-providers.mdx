@@ -9,6 +9,13 @@ LLM assistance is optional. Supported deterministic queries and analyses work
 without it. On Desktop, the local owner configures models; on Web, an
 administrator does this.
 
+:::info[Compatible providers]
+
+COHORTome uses the **OpenAI-compatible API**, not LM Studio's native API.
+Providers must support `/v1/models` and `/v1/chat/completions`.
+
+:::
+
 ## Add a connection
 
 1. Start your model service, such as LM Studio, and load a model.
@@ -23,6 +30,44 @@ The API URL must be reachable from the machine running COHORTome. Inside Docker,
 On Desktop, **System default (LM Studio)** is editable. Web providers supplied
 by deployment configuration are read-only in the UI; see
 [deployment-managed models](./model-deployment).
+
+:::tip[LM Studio: starting settings]
+
+For **GPT-OSS 20B**, start with:
+
+- **Context:** 16,384 tokens; try 32,768 if needed and memory allows.
+- **Reasoning:** low for routine queries; medium may take longer.
+- **Concurrency:** 1 for single-user use; increase for simultaneous requests.
+
+Keep the model loaded while working. Adjust for your model and hardware.
+
+:::
+
+## Ollama
+
+With Ollama running, download a model, for example `ollama pull gpt-oss:20b`.
+In **Admin > Models**, add:
+
+| Field | Value |
+| --- | --- |
+| Name | Ollama |
+| Base URL | `http://localhost:11434/v1` |
+| Model | `gpt-oss:20b` (or your installed model name) |
+| API key | `ollama` (ignored by the local server) |
+
+Choose the data boundary, enable and save, then **Test connection**. Select the
+provider in **Settings**.
+
+:::note[Running Ollama on another machine]
+
+Replace `localhost` with an address reachable from COHORTome. Ollama must listen
+on that interface; see [Ollama's network configuration](https://docs.ollama.com/faq#how-can-i-expose-ollama-on-my-network).
+Keep access restricted to trusted machines. Choose **Local** only when inference
+stays within your approved environment; Ollama cloud models are not local.
+
+:::
+
+See [Ollama's OpenAI-compatible API](https://docs.ollama.com/api/openai-compatibility).
 
 ## Choose the data boundary carefully
 

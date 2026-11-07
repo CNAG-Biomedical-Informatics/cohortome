@@ -85,9 +85,9 @@ a queued R analysis and settings persistence after restart. It does not publish 
 
 Run **Publish Docker release** manually with the same annotated tag as desktop.
 Both native architectures must pass before the versioned image is published to
-Docker Hub; no published GitHub release is required. Leave `update_latest` off
-while testing. Enable it only for a published GitHub release to also update
-`latest`. Pushing a Git tag alone does nothing.
+Docker Hub. By default, `latest` is updated to the same tested image; disable
+`update_latest` for test builds or older releases. A published GitHub release is
+not required. Pushing a Git tag alone does nothing.
 
 - [Web deployment and runtime configuration](../docs-site/docs/admin-guide/starting-and-stopping.md)
 - [Accounts and OIDC](../docs-site/docs/admin-guide/local-auth-and-groups.mdx)

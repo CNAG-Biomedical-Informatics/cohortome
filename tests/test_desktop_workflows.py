@@ -159,16 +159,14 @@ def test_desktop_release_draft_is_manual_tag_gated_and_builds_every_installer():
     assert ".sha256" not in upload
 
 
-def test_docker_release_is_manual_native_and_latest_is_opt_in():
+def test_docker_release_is_manual_native_and_latest_is_default():
     data = workflow("docker-release.yml")
     trigger = data.get("on", data.get(True))
     assert set(trigger) == {"workflow_dispatch"}
     inputs = trigger["workflow_dispatch"]["inputs"]
     assert set(inputs) == {"tag", "update_latest"}
-    assert inputs["update_latest"]["default"] is False
-    guard = next(step for step in data["jobs"]["release"]["steps"]
-                 if step.get("name") == "Require a published GitHub release")
-    assert guard["if"] == "inputs.update_latest"
+    assert inputs["update_latest"]["default"] is True
+    assert "gh release view" not in (WORKFLOWS / "docker-release.yml").read_text()
     assert {item["arch"] for item in data["jobs"]["build"]["strategy"]["matrix"]["include"]} == {
         "amd64", "arm64",
     }
@@ -183,10 +181,10 @@ def test_docker_release_is_manual_native_and_latest_is_opt_in():
                    if step.get("name") == "Publish one tested multi-platform image")
     assert "$IMAGE:latest" not in version["run"]
     latest = next(step for step in data["jobs"]["publish"]["steps"]
-                  if step.get("name") == "Update latest for a published release")
+                  if step.get("name") == "Update latest to the tested image")
     assert latest["if"] == "inputs.update_latest"
-    assert "isDraft" in latest["run"]
-    assert "isPrerelease" in latest["run"]
+    steps = data["jobs"]["publish"]["steps"]
+    assert steps.index(latest) > steps.index(version)
 
 
 def test_compose_web_and_worker_share_configurable_image():
