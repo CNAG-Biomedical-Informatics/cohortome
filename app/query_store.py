@@ -22,6 +22,7 @@ from app.bff import (
 )
 from app.datasets import get_dataset, list_registered_datasets, normalize_dataset_id, parse_scope_dataset_ids
 from app.state_io import advisory_file_lock, atomic_write_json
+from app.clinical_store import CLINICAL_TABLES, ClinicalStoreWriter
 
 try:
     import duckdb
@@ -32,7 +33,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 QUERY_STORE_DIR = CACHE_ROOT_DIR / "query-store"
 GENE_ANNOTATION_PATH = BASE_DIR / "scripts" / "data" / "hgnc_protein_coding_symbols.tsv"
 ASSAY_DATA_DIR: Path | None = None
-QUERY_STORE_SCHEMA_VERSION = 4
+QUERY_STORE_SCHEMA_VERSION = 5
 
 
 class QueryStoreNotReadyError(RuntimeError):
@@ -334,7 +335,7 @@ def _source_files_signature(data_dir: str) -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
     project_root = resolve_project_data_dir(data_dir)
     files = []
-    for path in sorted(resolved_dir.glob("*.json")):
+    for path in sorted([*resolved_dir.glob("*.json"), *resolved_dir.glob("*.json.gz")]):
         if not path.is_file():
             continue
         stat = path.stat()
@@ -580,6 +581,7 @@ def _store_has_required_tables(db_path: Path) -> bool:
         "medication_events",
         "assay_samples",
         "transcript_counts",
+        *CLINICAL_TABLES,
     }
     return required.issubset(existing)
 
@@ -993,6 +995,16 @@ def _connect_workspace(dataset_ids: List[str]):
     con.execute(f"CREATE TEMP VIEW patient_clarids AS {patient_clarids_sql}")
     con.execute(f"CREATE TEMP VIEW assay_samples AS {' UNION ALL '.join(assay_samples_parts)}")
     con.execute(f"CREATE TEMP VIEW transcript_counts AS {' UNION ALL '.join(transcript_counts_parts)}")
+    # Clinical record/item keys are source-local. Keep the dataset column on
+    # every table so joins cannot mix repeated IDs, visits or array positions.
+    # Source IDs and record JSON remain unchanged; only patient_id is adapted
+    # to the existing multi-dataset execution identity.
+    for table in CLINICAL_TABLES:
+        parts = [f'''SELECT * REPLACE (
+            {_sql_literal(dataset_id)} AS dataset_id,
+            cohortome_identity({_sql_literal(dataset_id)}, 'patient', patient_id) AS patient_id
+        ) FROM ds{index}.{table}''' for index, dataset_id in enumerate(normalized)]
+        con.execute(f"CREATE TEMP VIEW {table} AS {' UNION ALL '.join(parts)}")
     con.execute(
         """
         CREATE TEMP VIEW patients AS
@@ -1051,6 +1063,9 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
 
     con = duckdb.connect(str(db_path))
     try:
+        db_path.chmod(0o600)
+        con.execute('BEGIN TRANSACTION')
+        clinical = ClinicalStoreWriter(con, str(signature.get('dataset_id') or ''))
         con.execute(
             """
             CREATE TABLE patients (
@@ -1162,11 +1177,12 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
 
         for path, index, record in read_bff_records(resolved_dir):
             patient_id = extract_patient_id(record)
+            visit = build_visit_context(path, index, record, patient_id) if patient_id is not None else None
+            source_label = path.relative_to(resolved_dir).as_posix()
+            clinical.add(source_label, index, record, patient_id, visit)
             if patient_id is None:
                 continue
 
-            visit = build_visit_context(path, index, record, patient_id)
-            source_label = path.relative_to(resolved_dir).as_posix()
             original_id = normalize_value(record.get("id"))
             stat = patient_stats.setdefault(
                 patient_id,
@@ -1237,6 +1253,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
                     )
                 )
 
+        clinical.finish()
         seen_assay_samples = set()
         for matrix_path in _assay_matrix_files(data_dir):
             for dataset_name, sample_id, patient_id, modality, data_type in _insert_transcript_matrix(con, matrix_path):
@@ -1293,6 +1310,7 @@ def _build_query_store(data_dir: str, db_path: Path, meta_path: Path, signature:
         con.execute("CREATE INDEX idx_assay_samples_patient_id ON assay_samples(patient_id)")
         con.execute("CREATE INDEX idx_transcript_counts_gene_id ON transcript_counts(gene_id)")
         con.execute("CREATE INDEX idx_transcript_counts_sample_id ON transcript_counts(sample_id)")
+        con.execute('COMMIT')
     finally:
         con.close()
 

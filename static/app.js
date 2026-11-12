@@ -25,6 +25,7 @@ import { createUserSettingsUi } from "/static/js/user_settings.js";
 import { createDeploymentBrandingUi } from "/static/js/deployment_branding.js";
 import { createProjectsUi } from "/static/js/projects.js";
 import { createPatientOverview } from "/static/js/patient_overview.js";
+import { createClinicalSummaryUi } from '/static/js/clinical_summary.js';
 
 const refs = createAppRefs(document);
 const state = createAppState();
@@ -84,6 +85,7 @@ let datasetsUi;
 let analysisCatalogUi;
 let jobsUi;
 let dashboardUi;
+let patientOverviewUi;
 let analysisSessionsUi;
 let savedCohortsUi;
 let phenoUi;
@@ -622,6 +624,7 @@ navigationUi = createNavigationUi({
   callbacks: {
     effectiveQueryGranularityCeiling: (datasetIds) => datasetsUi.effectiveQueryGranularityCeiling(datasetIds),
     loadCohortLibrary: () => savedCohortsUi?.loadLibrary(),
+    refreshPatientOverview: () => patientOverviewUi?.refresh(),
     renderChatList: () => analysisSessionsUi?.renderAnalysisSessionList(),
     renderGlobalContext: () => workspaceUi.renderGlobalContext(),
     closeJobSurfaces: () => {
@@ -961,6 +964,7 @@ workspaceUi = createWorkspaceUi({
     formatNumber,
   },
   callbacks: {
+    refreshPatientOverview: () => patientOverviewUi?.refresh(),
     canManageDataset: () => authUi.canManageDataset(),
     loadDatasets: (options) => datasetsUi.loadDatasets(options),
     openDatasets: () => navigationUi.setActiveTab('datasets'),
@@ -1891,8 +1895,8 @@ function initializeUiShell() {
   analysisCatalogUi.renderAnalysisStarterPrompts();
   initializeAnalysisSidebarCollapsed();
   initializeNavigationShell();
-  navigationUi.setDashboardSubtab(state.currentDashboardSubtab);
   applyStoredTabPreferences();
+  navigationUi.setDashboardSubtab(state.currentDashboardSubtab);
   phenoUi.updatePhenoExplainActions();
   phenoUi.updatePhenoResultActions();
   phenoUi.updatePhenoRunAvailability();
@@ -1918,7 +1922,10 @@ function initializeUiShell() {
 
 async function bootstrap() {
   bindEvents();
-  createPatientOverview({state, navigation:navigationUi, escapeHtml,
+  createClinicalSummaryUi({state, navigation:navigationUi,
+    renderDashboard: summary => dashboardUi.renderDashboard(summary),
+    renderGlobalContext: () => workspaceUi.renderGlobalContext()});
+  patientOverviewUi = createPatientOverview({state, navigation:navigationUi, escapeHtml,
     refineInMultimodal: selection => dashboardUi.refinePatientCoverage(selection),
     saveIdsAsCohort: options => savedCohortsUi.saveIdsAsCohort(options),
     scope:() => datasetsUi.currentDatasetSelectionKey(),

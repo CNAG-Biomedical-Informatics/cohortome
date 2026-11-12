@@ -63,6 +63,11 @@ Replies contain the method summary, usable sample and feature counts, plots,
 and any exclusions or limitations. Expand **Result files** for tables, images,
 parameters, logs, and available source snapshots.
 
+Completed results put plots first, with group counts where reported. Summary
+charts include a table of their plotted values. The written interpretation
+follows; **Method and technical details** stays collapsed, and follow-up questions
+appear last.
+
 ![Completed deterministic cohort summary with patient and timepoint counts and expandable method details](/img/screenshots/analysis-result.png)
 
 *A completed summary using the Synthetic longitudinal demo; no LLM is needed. Other methods add their own plots and result files.*

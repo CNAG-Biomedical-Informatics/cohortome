@@ -144,6 +144,14 @@ export function createWorkspaceUi(ctx) {
   }
 
   function summarizeScopeForTab(tabName) {
+    if (tabName === 'dashboard' && state.currentDashboardSubtab === 'clinical') {
+      const selected = state.clinicalSelection;
+      if (selected?.workspace === state.currentDatasetScopeId) {
+        return selected.status === 'ready' ? `${selected.data.selection_count} selected patients`
+          : selected.status === 'loading' ? 'Loading patient scope…' : 'Patient scope unavailable';
+      }
+      return 'Full workspace';
+    }
     if (tabName === 'dashboard' && state.currentDashboardSubtab === 'multimodal') {
       const scope = state.multimodalCoverageScope;
       if (scope?.workspace === state.currentDatasetScopeId) {
@@ -584,6 +592,7 @@ export function createWorkspaceUi(ctx) {
       renderLoadButtonState();
       updateLoadButtonAvailability();
       renderWelcome();
+      callbacks.refreshPatientOverview?.();
     }
   }
 

@@ -1,5 +1,6 @@
 import { sortDiseaseOptions } from './shared.js';
 import { createSelectionMetadata } from './app_helpers.js';
+import { openClinicalSummary } from './clinical_summary.js';
 
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort, refineInMultimodal}) {
   const input = document.getElementById('patientOverviewSearch');
@@ -7,6 +8,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const status = document.getElementById('patientOverviewStatus');
   const detail = document.getElementById('patientOverviewDetail');
   let timer, controller, generation = 0, matches = [], nextPage = null, loading = false;
+  let loadedScope = null;
   let pages = [{}], pageIndex = 0;
   let sortBy = 'patient_id', sortDirection = 'asc';
   let selectedDiseases = new Set(), diseases = [], showAllDiseases = false, diseaseGeneration = 0;
@@ -57,6 +59,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const timelineButton = document.getElementById('patientTimelineBtn');
   const saveButton = document.getElementById('patientSaveCohort');
   const refineButton = document.getElementById('patientRefineMultimodal');
+  const clinicalButton = document.getElementById('patientClinicalSummary');
   const saveStatus = document.getElementById('patientSaveStatus');
   let saving = false;
   function clearSelection() {
@@ -78,15 +81,27 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     list.querySelector('thead tr').innerHTML = headers.map(([label, path], i) => `<th scope="col" aria-sort="${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="patient-sort" data-sort="${sortKeys[i]}" aria-label="Sort by ${label}">${icon(path)}${label}<span aria-hidden="true">${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button></th>`).join('');
   }
   function reset() {
+    loadedScope = null;
     originGeneration++; originSelect.value = ''; originFilter.hidden = true;
-    saveButton.disabled = refineButton.disabled = true; saveStatus.textContent = '';
+    saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true; saveStatus.textContent = '';
     selectedDiseases.clear(); diseases = []; showAllDiseases = false; diseaseGeneration++; renderDiseases();
     clearSelection();
     clearTimeout(timer); controller?.abort(); generation++;
     matches = []; pages = [{}]; pageIndex = 0; nextPage = null; loading = false;
+    list.removeAttribute('aria-busy');
     more.disabled = true; previous.disabled = true;
     render(); detail.replaceChildren(); input.value = '';
     status.textContent = 'Select a workspace to browse patients.';
+  }
+  function refresh() {
+    if (state.loadInFlight || navigation.currentTabName() !== 'dashboard'
+        || state.currentDashboardSubtab !== 'patients' || !state.currentDatasetIds.length) return;
+    const selectedScope = scope();
+    if (!selectedScope || selectedScope === loadedScope) return;
+    loadedScope = selectedScope;
+    searchPatients();
+    void loadDiseases();
+    void loadOrigins();
   }
   async function request(path, params, signal) {
     const query = new URLSearchParams();
@@ -115,11 +130,12 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   function searchPatients(changePage = false) {
-    saveButton.disabled = refineButton.disabled = true; saveStatus.textContent = '';
+    saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true; saveStatus.textContent = '';
     clearTimeout(timer); controller?.abort(); generation++;
     if (!changePage) { pages = [{}]; pageIndex = 0; nextPage = null; }
     nextPage = null;
     const q = input.value.trim();
+    if (state.loadInFlight) { status.textContent = 'Applying workspace selection…'; return; }
     if (!scope()) { matches = []; render(); status.textContent = 'Select and apply a dataset first.'; return; }
     status.textContent = q ? 'Searching…' : 'Loading patients…';
     loading = true; more.disabled = true; previous.disabled = true;
@@ -139,9 +155,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         status.textContent = matches.length ? `Page ${pageIndex + 1} · ${matches.length} ${matches.length === 1 ? 'patient' : 'patients'}` : 'No matching patients in the active datasets.';
       } catch (error) {
         if (ticket === generation && error.name !== 'AbortError') {
+          loadedScope = null;
           matches = []; render(); status.textContent = error.message;
         }
-      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; saveButton.disabled = refineButton.disabled = saving || !matches.length; list.removeAttribute('aria-busy'); } }
+      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = saving || !matches.length; list.removeAttribute('aria-busy'); } }
     }, 200);
   }
   input.addEventListener('input', () => {
@@ -159,7 +176,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   });
   async function useFilteredPatients(refine = false) {
     if (saving || loading || !matches.length) return;
-    saving = true; saveButton.disabled = refineButton.disabled = true;
+    saving = true; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true;
     const ticket = generation, selectedScope = scope();
     const isCurrent = () => ticket === generation && selectedScope === scope();
     const params = {workspace:selectedScope, q:input.value.trim(), disease:[...selectedDiseases],
@@ -171,6 +188,11 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
       const members = data.members || [];
       if (!members.length) throw new Error('No matching patients.');
       const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}${params.sample_origin ? `; sample origin: ${params.sample_origin}` : ''}`;
+      if (refine === 'clinical') {
+        openClinicalSummary({members, label:description});
+        saveStatus.textContent = `Sent ${members.length} patients to Clinical.`;
+        return;
+      }
       if (refine) {
         refineInMultimodal({...createSelectionMetadata({members, idType:'patient', sourceKind:'patients', sourcePrompt:description}),
           scope:selectedScope, description, diseases:params.disease});
@@ -182,9 +204,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
       saveStatus.textContent = !isCurrent() ? 'Filters or workspace changed. Please save again.'
         : saved ? `Saved ${members.length} patients. Find the cohort in Cohorts.` : 'Cohort was not saved.';
     } catch (error) { saveStatus.textContent = error.message || 'Unable to save cohort.'; }
-    finally { saving = false; saveButton.disabled = refineButton.disabled = loading || !matches.length; }
+    finally { saving = false; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = loading || !matches.length; }
   }
   saveButton.addEventListener('click', () => useFilteredPatients());
+  clinicalButton.addEventListener('click', () => useFilteredPatients('clinical'));
   refineButton.addEventListener('click', () => useFilteredPatients(true));
   more.addEventListener('click', () => {
     if (loading || !nextPage) return;
@@ -208,7 +231,8 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     if (state.patientOverviewSelection && !timelineButton.disabled) void openTimeline(state.patientOverviewSelection.patientId, state.patientOverviewSelection.datasetId);
   });
   document.getElementById('dashboardPatientsBtn').addEventListener('click', () => {
-    navigation.setDashboardSubtab('patients'); searchPatients(); void loadDiseases(); void loadOrigins();
+    navigation.setDashboardSubtab('patients');
   });
   render(); renderDiseases();
+  return { refresh };
 }

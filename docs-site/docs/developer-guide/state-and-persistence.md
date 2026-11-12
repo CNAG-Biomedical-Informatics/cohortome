@@ -77,6 +77,11 @@ Each dataset has its own DuckDB store and source fingerprint. A source or schema
 change can make it stale. The app reports missing, building, stale, or failed
 stores instead of rebuilding them during an ordinary query.
 
+Prepared stores contain complete clinical records as well as derived indexes.
+Protect them like the source data; they are not anonymous caches. A clinical
+schema upgrade requires preparation through the usual dataset workflow (or
+**Rebuild DuckDB**). It does not change source files or delete saved chats/cohorts.
+
 Multi-dataset queries attach those stores. Some file-based helpers also need
 materialized workspace files under `state/datasets/scopes/`; these do not
 replace the per-dataset stores.

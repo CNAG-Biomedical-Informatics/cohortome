@@ -1607,6 +1607,18 @@
         gap: 12px;
         margin-top: 12px;
       }
+      .analysis-result-heading h3 { margin: 0; font-size: 1.05rem; }
+      .analysis-result-cohorts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+      .analysis-cohort-badge { padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; }
+      .analysis-cohort-badge.cohort-a { border-left: 3px solid var(--analysis-cohort-a, #2563eb); }
+      .analysis-cohort-badge.cohort-b { border-left: 3px solid var(--analysis-cohort-b, #0ea5e9); }
+      .analysis-evidence-card { grid-column: 1 / -1; }
+      .analysis-evidence-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr); gap: 20px; align-items: start; }
+      .analysis-evidence-layout > * { min-width: 0; }
+      .analysis-evidence-layout table { width: 100%; }
+      .analysis-evidence-layout th[scope="row"] { font-weight: 400; }
+      .analysis-evidence-layout td { text-align: right; font-variant-numeric: tabular-nums; }
+      @media (max-width: 1000px) { .analysis-evidence-layout { grid-template-columns: minmax(0, 1fr); } }
       .analysis-result-content > .analysis-turn-body {
         padding: 14px;
         border-radius: 16px;

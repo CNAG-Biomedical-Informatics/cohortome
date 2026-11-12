@@ -1,3 +1,4 @@
+import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -451,8 +452,10 @@ def read_bff_records(data_dir: Path) -> Iterable[Tuple[Path, int, Dict[str, Any]
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         if len(manifest.get('dataset_ids') or []) > 1:
             source_files = {item['target']: item['dataset_id'] for item in manifest.get('clinical_files', [])}
-    for path in sorted(data_dir.glob("*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
+    for path in sorted([*data_dir.glob("*.json"), *data_dir.glob("*.json.gz")]):
+        opener = gzip.open if path.name.endswith('.json.gz') else open
+        with opener(path, 'rt', encoding='utf-8-sig') as handle:
+            payload = json.load(handle)
         if isinstance(payload, list):
             records = payload
         elif isinstance(payload, dict):
@@ -623,7 +626,7 @@ def ensure_data_dir(data_dir: str) -> Path:
     clinical_dir = path / "clinical"
     if clinical_dir.exists() and clinical_dir.is_dir():
         return clinical_dir.resolve()
-    if any(path.glob("*.json")):
+    if any(path.glob("*.json")) or any(path.glob("*.json.gz")):
         return path
     raise FileNotFoundError(
         f"Clinical data directory does not exist under: {path}. Expected JSON files directly in the folder or under {clinical_dir}."
@@ -757,6 +760,10 @@ def medication_cohort(data_dir: str, medication_query: str) -> Dict[str, Any]:
 def medication_counts(data_dir: str) -> List[Dict[str, Any]]:
     resolved_dir = ensure_data_dir(data_dir)
     bundles = group_patients(resolved_dir)
+    return medication_counts_local(bundles)
+
+
+def medication_counts_local(bundles: Dict[str, PatientBundle]) -> List[Dict[str, Any]]:
     counts: Dict[str, Dict[str, Any]] = {}
 
     for patient_id, bundle in bundles.items():
@@ -780,11 +787,15 @@ def medication_counts(data_dir: str) -> List[Dict[str, Any]]:
     return sorted(counts.values(), key=lambda item: (-item["patient_count"], item["medication"]))
 
 
-def dashboard_summary(data_dir: str) -> Dict[str, Any]:
+def dashboard_summary(data_dir: str, patient_ids: List[str] | None = None) -> Dict[str, Any]:
     resolved_dir = ensure_data_dir(data_dir)
     bundles = group_patients(resolved_dir)
+    workspace_count = len(bundles)
+    if patient_ids is not None:
+        selected = set(patient_ids)
+        bundles = {key: value for key, value in bundles.items() if key in selected}
     summaries = sorted((bundle.summary for bundle in bundles.values()), key=lambda item: item.patient_id)
-    meds = medication_counts(data_dir)[:8]
+    meds = medication_counts_local(bundles)[:8]
     diseases = disease_counts_local(bundles)[:8]
     disease_medication_matrix = disease_medication_matrix_local(bundles, diseases, meds)
 
@@ -851,6 +862,7 @@ def dashboard_summary(data_dir: str) -> Dict[str, Any]:
         )
 
     return {
+        "workspace_patient_count": workspace_count,
         "totals": {
             "patients": len(summaries),
             "visits": total_visits,

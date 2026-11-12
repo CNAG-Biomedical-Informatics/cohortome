@@ -241,6 +241,14 @@ class SavedCohortRenameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
+class ClinicalSummaryRequest(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    members: List[CohortMember] | None = Field(default=None, max_length=100000)
+    patient_ids: List[str] = Field(default_factory=list, max_length=100000)
+    result_handle: str = Field(default="", max_length=96)
+    cohort_id: str = Field(default="", max_length=200)
+
+
 class CohortAssaySelection(BaseModel):
     key: str = Field(min_length=1, max_length=1000)
     fingerprint: str = Field(pattern=r'^[a-f0-9]{64}$')

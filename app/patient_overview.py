@@ -1,14 +1,14 @@
 """Dataset-scoped patient lookup and sample inventory, without matrix scans."""
 import csv
 import json
-import re
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.auth import require_authenticated
-from app.bff import relative_study_days, get_patient_context
+from app.bff import relative_study_days
+from app.clinical_store import patient_records_page
 from app.biosamples import read_biosamples, origin_key
 from app.variants import read_variant_panel
 from app.datasets import get_dataset
@@ -290,7 +290,10 @@ def coverage(request: Request, workspace: str):
         except (FileNotFoundError, QueryStoreNotReadyError):
             raise HTTPException(409, 'Coverage is unavailable until the dataset stores are ready.') from None
         available = {pid: {'clinical'} for pid in clinical_ids}
-        inventory, issues = sample_inventory(root, include_imaging=True, include_clarids=False)
+        specimens = biosample_records(root, include_clarids=False)
+        for specimen in specimens:
+            available.setdefault(specimen['individualId'], set())
+        inventory, issues = sample_inventory(root, include_imaging=True, include_clarids=False, specimens=specimens)
         warnings.extend(f'{label}: {issue}' for issue in issues)
         for sample in inventory:
             available.setdefault(sample['patient_id'], set()).add(sample['modality'])
@@ -332,25 +335,9 @@ def clinical_records(request: Request, workspace: str, dataset_id: str,
         raise HTTPException(403, 'Select an authorized dataset in the active workspace.')
     root = available[dataset_id]
     try:
-        ensure_query_store(root)
-        patient = get_patient_context(root, patient_id)
+        page = patient_records_page(root, patient_id, visit_id=visit_id, offset=offset)
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient records are unavailable until the dataset store is ready.') from None
-    if patient is None:
+    if page is None:
         raise HTTPException(404, 'Patient not found in this dataset.')
-    visits = [v for v in patient.visits if not visit_id or v.visit_id == visit_id]
-    # Sort before pagination: V2 belongs before V10, even across page boundaries.
-    visits.sort(key=lambda v: (
-        not bool(v.visit_id),
-        [(1, int(part)) if part.isdigit() else (0, part.casefold())
-         for part in re.split(r'(\d+)', v.visit_id or '')],
-        v.provenance.raw_bff.get('id', ''),
-    ))
-    records = [
-        dict(visit_id=visit.visit_id, event_date=visit.event_date,
-             days_from_baseline=relative_study_days(visit.provenance.raw_bff.get('info') or {}),
-             record=visit.provenance.raw_bff)
-        for visit in visits[offset:offset + 20]
-    ]
-    return dict(records=records, total=len(visits), clarid=patient_clarid(root, patient_id),
-                next_offset=offset + 20 if offset + 20 < len(visits) else None)
+    return dict(page, clarid=patient_clarid(root, patient_id))

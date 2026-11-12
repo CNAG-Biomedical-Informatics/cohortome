@@ -250,7 +250,8 @@ export function createAnalysisUi(ctx) {
 
   function renderBarChartCard(id, title, items, labelKey, valueKey) {
     if (!items.length) return `<div class="viz-card"><h3>${escapeHtml(title)}</h3><div class="empty">No data.</div></div>`;
-    return `<div class="viz-card"><h3>${escapeHtml(title)}</h3>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div>`;
+    const rows = items.map(item => `<tr><th scope="row">${escapeHtml(String(item[labelKey]))}</th><td>${escapeHtml(String(item[valueKey]))}</td></tr>`).join('');
+    return `<section class="viz-card analysis-evidence-card"><h3>${escapeHtml(title)}</h3><div class="analysis-evidence-layout"><div>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div><div class="assay-table-wrap"><table class="assay-table"><caption class="section-note">Values shown in the plot</caption><thead><tr><th scope="col">Category</th><th scope="col">Value</th></tr></thead><tbody>${rows}</tbody></table></div></div></section>`;
   }
 
   function formatAnalysisCount(value) {
@@ -1689,6 +1690,8 @@ export function createAnalysisUi(ctx) {
           label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`,
           value: Math.abs(Number(item.delta || 0)),
         })), "label", "value", "#7c3aed");
+        overviewA.traces[0].meta = {cohortome_group:0};
+        overviewB.traces[0].meta = {cohortome_group:1};
         mountPlot(`analysis-plot-${turnIndex}-compare-a`, overviewA.traces, overviewA.layout);
         mountPlot(`analysis-plot-${turnIndex}-compare-b`, overviewB.traces, overviewB.layout);
         mountPlot(`analysis-plot-${turnIndex}-compare-disease`, disease.traces, disease.layout);
@@ -1923,6 +1926,7 @@ export function createAnalysisUi(ctx) {
   function analysisPayloadHasPlots(payload) {
     const context = payload && payload.data ? payload.data.context : null;
     const mode = context && typeof context.mode === "string" ? context.mode : "";
+    if (payload?.data?.source === 'deterministic' && (context?.overview || mode === 'compare')) return true;
     return [
       "custom_script",
       "external_rscript_transcriptomics_deseq2_differential_expression",
@@ -2093,7 +2097,21 @@ export function createAnalysisUi(ctx) {
       const audit = turn.payload?.data?.implementation_audit;
       const auditHtml = audit ? `<details class="query-section"><summary>Analysis implementation</summary><p>${escapeHtml(audit.note)}</p>${renderArtifactDownloads("Source snapshot", [{name: audit.filename, url: audit.url}])}<p>SHA-256: <code>${escapeHtml(audit.sha256)}</code></p></details>` : "";
       const detailsHtml = `<details class="query-section analysis-response-details"><summary>${generalAnswer ? "Response details" : "Method and technical details"}</summary><div class="analysis-turn-meta">${getAnalysisProvenanceChips(turn.payload).join("")}</div>${framingHtml}${auditHtml}${dataHtml}</details>`;
-      const resultHtml = `<div class="analysis-result-content"><div class="analysis-turn-body" data-chat-copy-content>${renderQueryReply(turn.payload)}</div>${chatCopyButton()}${visualHtml}${contextHtml}${followupHtml}${detailsHtml}</div>`;
+      const titles = {summary:'Clinical cohort summary', compare:'Clinical cohort comparison',
+        survival:'Time-to-event analysis', survival_compare:'Time-to-event comparison',
+        trajectory:'Clinical trajectory', trajectory_compare:'Trajectory comparison',
+        external_rscript_transcriptomics_limma_voom_differential_expression:'limma-voom differential expression',
+        external_rscript_transcriptomics_deseq2_differential_expression:'DESeq2 differential expression'};
+      const overview = context?.overview;
+      const cohortA = context?.cohort_a?.overview || context?.cohort_a, cohortB = context?.cohort_b?.overview || context?.cohort_b;
+      const scopeBadge = (label, values, side = '') => values && Number.isFinite(values.patient_count)
+        ? `<span class="analysis-cohort-badge ${side}">${escapeHtml(label)} · ${formatAnalysisCount(values.patient_count)} patients${Number.isFinite(values.timepoint_count) ? ` · ${formatAnalysisCount(values.timepoint_count)} records` : ''}</span>` : '';
+      const sampleBadge = (side, value) => Number.isFinite(value)
+        ? `<span class="analysis-cohort-badge cohort-${side.toLowerCase()}">Cohort ${side} · ${formatAnalysisCount(value)} samples</span>` : '';
+      const headingHtml = !generalAnswer && !isErrorTurn && turn.showPlots
+        ? `<header class="analysis-result-heading"><h3>${escapeHtml(titles[context?.mode] || context?.method || (overview ? 'Clinical cohort summary' : 'Analysis results'))}</h3><div class="analysis-result-cohorts">${scopeBadge('Selected group', overview || context)}${scopeBadge('Cohort A', cohortA, 'cohort-a')}${scopeBadge('Cohort B', cohortB, 'cohort-b')}${sampleBadge('A', context?.cohort_a_sample_count)}${sampleBadge('B', context?.cohort_b_sample_count)}</div></header>` : '';
+      const summaryHtml = `<div class="analysis-turn-body" data-chat-copy-content>${renderQueryReply(turn.payload)}</div>${chatCopyButton()}`;
+      const resultHtml = `<div class="analysis-result-content">${headingHtml}${visualHtml}${summaryHtml}${contextHtml}${detailsHtml}${followupHtml}</div>`;
       return `<article class="${turnClass}${turnIndex === latestAssistantIndex ? " is-latest-result" : " is-previous-result"}" data-analysis-turn-index="${turnIndex}"><div class="analysis-turn-label">${turnLabel}</div>${resultHtml}</article>`;
     }).join("");
     mountAnalysisPlots();

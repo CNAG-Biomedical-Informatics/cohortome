@@ -2,6 +2,8 @@ import { modalityIcon, modalityLabel, modalityKey, modalityColor } from './modal
 import { patientInventoryMarkup } from './patient_inventory.js';
 import { sortDiseaseOptions } from './shared.js';
 import { createSelectionMetadata } from './app_helpers.js';
+import { openClinicalSummary } from './clinical_summary.js';
+import { createClinicalFilters } from './clinical_filters.js';
 
 // DICOM study records and quantitative imaging measurements are different inputs.
 const key = value => ['dicom', 'imaging'].includes(value) ? value
@@ -20,8 +22,8 @@ export function coverageGroups(patients) {
 }
 
 export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohort, renderGlobalContext = () => {}}) {
-  let generation = 0, controller;
-  function reset() { generation++; controller?.abort(); }
+  let generation = 0, controller, clinicalFilters;
+  function reset() { generation++; controller?.abort(); clinicalFilters?.destroy(); clinicalFilters = null; }
   window.addEventListener('cohortome:workspace-changing', () => {
     state.multimodalPatientSelection = null; state.multimodalCoverageScope = null; reset(); renderGlobalContext();
   });
@@ -58,6 +60,7 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
       return;
     }
     let selected = [], exact = false, page = 0;
+    let clinicalMatch = {active:false, status:'ready', members:[], description:''};
     // Coverage is patient-level: sample cohorts are intentionally not offered.
     const cohorts = (state.savedCohorts || []).filter(c => !c.sample_count && c.members?.length);
     const patientKey = p => JSON.stringify([p.dataset_id, p.patient_id]);
@@ -70,6 +73,7 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
       </div>
       <p class="coverage-start-description section-note" ${handoff ? '' : 'hidden'}>${handoff ? esc(handoff.description) : ''}</p>
       <div class="coverage-diseases" role="group" aria-label="Disease filters"></div>
+      <div class="coverage-clinical-filters"></div>
       <div class="coverage-selectors" role="group" aria-label="Required data types">${modalities.map(m => `<label><input type="checkbox" value="${esc(m)}">${modalityIcon(m)}<span>${esc(label(m))}</span></label>`).join('')}</div>
       <p class="section-note">Patient-level matches—not necessarily the same specimen or visit.</p>
       <div class="coverage-result" aria-live="polite"></div>
@@ -122,14 +126,24 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
       const startingPatients = cohortSelect.value === 'patient-filter' ? handoff : null;
       host.querySelector('.coverage-start-description').hidden = !startingPatients;
       const source = startingPatients || cohort;
-      groups = coverageGroups(patientGroup().filter(p => !selectedDiseases.size || (p.diseases || []).some(d => selectedDiseases.has(d))));
+      if (clinicalMatch.active && clinicalMatch.status !== 'ready') {
+        state.multimodalCoverageScope = {workspace:scope, status:clinicalMatch.status,
+          selection:createSelectionMetadata({selection_active:true, idType:'patient', sourceKind:'multimodal'})};
+        renderGlobalContext();
+        result.innerHTML = `<strong>${clinicalMatch.status === 'loading' ? 'Updating clinical matches…' : 'Clinical selection unavailable'}</strong><button type="button" class="coverage-save" disabled>Save matching patients</button><button type="button" class="query-chip" disabled>View clinical summary</button>`;
+        list.replaceChildren(); intersection.replaceChildren(); host.querySelector('.coverage-inspector').replaceChildren();
+        return;
+      }
+      const clinicalMembers = clinicalMatch.active ? new Set(clinicalMatch.members.map(patientKey)) : null;
+      groups = coverageGroups(patientGroup().filter(p => (!clinicalMembers || clinicalMembers.has(patientKey(p)))
+        && (!selectedDiseases.size || (p.diseases || []).some(d => selectedDiseases.has(d)))));
       const matches = groups.filter(g => selected.every(m => g.modalities.includes(m))
         && (!exact || g.modalities.every(m => m === 'clinical' || selected.includes(m))));
       const patients = matches.flatMap(g => g.patients);
-      const filtered = Boolean(source || selectedDiseases.size || selected.length || exact);
+      const filtered = Boolean(source || selectedDiseases.size || selected.length || exact || clinicalMatch.active);
       state.multimodalCoverageScope = {workspace:scope, status:'ready', selection:filtered
         ? createSelectionMetadata({selection_active:true, members:patients, idType:'patient', sourceKind:'multimodal',
-          sourcePrompt:startingPatients?.description || 'Multimodal coverage filters'}) : {}};
+          sourcePrompt:[startingPatients?.description || 'Multimodal coverage filters', clinicalMatch.active ? clinicalMatch.description : ''].filter(Boolean).join('; ')}) : {}};
       renderGlobalContext();
       result.innerHTML = `<strong>${patients.length} matching patients</strong><button type="button" class="coverage-save" title="Save all matching patients for later use in Analysis or Pheno-Ranker" ${!patients.length ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg>Save ${patients.length} ${patients.length === 1 ? 'patient' : 'patients'} as a cohort</button><span class="coverage-save-status" role="status"></span>`;
       result.querySelector('button').onclick = async event => {
@@ -137,11 +151,16 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
         const status = result.querySelector('.coverage-save-status');
         button.disabled = true;
         status.textContent = 'Saving…';
-        const saved = await saveIdsAsCohort({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), sourceKind:'manual', statusTarget:'none', isCurrent:() => ticket === generation && button.isConnected, sourcePrompt:`Multimodal coverage: ${startingPatients ? startingPatients.description : cohort ? 'cohort ' + cohort.name : 'all workspace patients'}; ${selectedDiseases.size ? 'any disease: ' + [...selectedDiseases].join(', ') : 'all diseases'}; ${exact ? 'only' : 'at least'} ${selected.map(label).join(', ') || 'no required types'}; Clinical ${selected.includes('clinical') ? 'required' : 'optional'}`});
+        const saved = await saveIdsAsCohort({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), sourceKind:'manual', statusTarget:'none', isCurrent:() => ticket === generation && button.isConnected, sourcePrompt:`Multimodal coverage: ${startingPatients ? startingPatients.description : cohort ? 'cohort ' + cohort.name : 'all workspace patients'}; ${selectedDiseases.size ? 'any disease: ' + [...selectedDiseases].join(', ') : 'all diseases'}; ${exact ? 'only' : 'at least'} ${selected.map(label).join(', ') || 'no required types'}; Clinical ${selected.includes('clinical') ? 'required' : 'optional'}${clinicalMatch.active ? '; Clinical filters: ' + clinicalMatch.description : ''}`});
         if (ticket !== generation || !button.isConnected) return;
         status.textContent = saved ? 'Cohort saved. Find it in Cohorts.' : 'Cohort was not saved.';
         button.disabled = false;
       };
+      const clinicalButton = document.createElement('button');
+      clinicalButton.type = 'button'; clinicalButton.className = 'query-chip';
+      clinicalButton.textContent = 'View clinical summary'; clinicalButton.disabled = !patients.length;
+      clinicalButton.onclick = () => openClinicalSummary({members:patients.map(p => ({dataset_id:p.dataset_id, patient_id:p.patient_id})), label:'Multimodal selection' + (clinicalMatch.active ? ': ' + clinicalMatch.description : '')});
+      result.append(clinicalButton);
       const max = Math.max(1, ...matches.map(g => g.patients.length));
       intersection.innerHTML = `<table class="assay-table"><thead><tr><th>Patients</th>${modalities.map(m => `<th>${modalityIcon(m)} ${esc(label(m))}</th>`).join('')}</tr></thead><tbody>${matches.map(g => `<tr class="coverage-match"><td><button class="query-chip" type="button" data-combination="${groups.indexOf(g)}" aria-label="${esc(g.modalities.map(label).join(' + '))}: ${g.patients.length} patients">${g.patients.length}</button><span class="coverage-bar" style="width:${g.patients.length / max * 85}px" aria-hidden="true"></span></td>${modalities.map(m => `<td class="coverage-dot" style="color:${modalityColor(m)}"><span aria-label="${g.modalities.includes(m) ? 'Available' : 'Not recorded'}">${g.modalities.includes(m) ? '●' : '·'}</span></td>`).join('')}</tr>`).join('')}</tbody></table>`;
       if (!matches.length) intersection.innerHTML = '<p class="empty">No matches. Broaden the cohort, disease or data-type filters.</p>';
@@ -192,6 +211,10 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
       else selectedDiseases.add(disease);
       page = 0; renderDiseases(); update();
     };
+    clinicalFilters = createClinicalFilters({host:host.querySelector('.coverage-clinical-filters'), workspace:scope,
+      escapeHtml:esc, isCurrent:() => ticket === generation && host.isConnected,
+      onReload:() => load(host, scope),
+      onChange:selection => { clinicalMatch = selection; page = 0; update(); }});
     renderDiseases();
     update();
   }

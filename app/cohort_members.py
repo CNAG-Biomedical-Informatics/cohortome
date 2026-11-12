@@ -13,8 +13,12 @@ def source_inventory(root):
         if sid and pid:
             samples.setdefault(sid, set()).add(pid)
     # Includes assay-only participants and explicitly declared sample links.
-    from app.patient_overview import sample_inventory
-    rows, _ = sample_inventory(root, include_imaging=True)
+    from app.patient_overview import sample_inventory, biosample_records
+    from app.dicom import dicom_studies
+    specimens = biosample_records(root, include_clarids=False)
+    patients.update(row['individualId'] for row in specimens)
+    patients.update(row['patient_id'] for row in dicom_studies(root) if row.get('patient_id'))
+    rows, _ = sample_inventory(root, include_imaging=True, include_clarids=False, specimens=specimens)
     for row in rows:
         patients.add(row['patient_id'])
         samples.setdefault(row['sample_id'], set()).add(row['patient_id'])

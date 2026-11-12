@@ -3,6 +3,7 @@ import { downloadIcon } from './shared.js';
 const iconPaths = {
   cohort: '<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v3"/>',
   inspect: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>',
+  'clinical-summary': '<path d="M4 3v17h17M8 16v-4M13 16V7M18 16v-7"/>',
   'load-analysis': '<path d="M4 3v17h17M8 16v-4M13 16V7M18 16v-7"/>',
   'load-pheno': '<circle cx="5" cy="6" r="3"/><circle cx="18" cy="7" r="3"/><circle cx="10" cy="19" r="3"/><path d="m8 6 7 1M6 9l3 7m7-6-4 6"/>',
   'load-datasets': '<path d="M3 7h7l2 2h9v11H3Z"/><path d="M3 7V4h7l2 3h8v2"/>',
@@ -51,6 +52,7 @@ export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, 
         </dl>
         <div class="cohort-card-actions saved-cohort-actions">
           ${action(item, 'inspect', 'Members')}
+          ${action(item, 'clinical-summary', 'View clinical summary', !available)}
           <details class="cohort-card-menu cohort-library-more"><summary>${downloadIcon()}Export</summary>
             <div class="cohort-card-menu-items">
               ${action(item, 'export-clinical', 'Export clinical data')}

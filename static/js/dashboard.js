@@ -503,6 +503,14 @@ export function createDashboardUi(ctx) {
 
   function renderDashboard(summary) {
     state.dashboardSummary = summary;
+    const workspaceSummary = summary;
+    const selection = state.clinicalSelection?.workspace === state.currentDatasetScopeId ? state.clinicalSelection : null;
+    if (selection?.status === 'ready') summary = selection.data;
+    const scopeMarkup = `<div class="clinical-scope-bar" role="status"><span>${selection
+      ? `<strong>${escapeHtml(selection.label)}</strong> · ${selection.status === 'ready'
+        ? `${formatNumber(summary.selection_count)} selected · ${formatNumber(summary.totals.patients)} with clinical records`
+        : selection.status === 'loading' ? 'Loading summary…' : escapeHtml(selection.error)}`
+      : '<strong>Full workspace</strong>'}</span>${selection ? '<button type="button" class="query-chip" data-clinical-reset>Show full workspace</button>' : ''}</div>`;
     const expanded = Boolean(state.dashboardClinicalExpanded);
     const totals = summary && summary.totals ? summary.totals : {};
     const representation = clinicalRepresentation(summary);
@@ -552,8 +560,10 @@ export function createDashboardUi(ctx) {
       <section class="section-card dashboard-hero">
         <div class="patient-finder-heading">
           <h2>Clinical dashboard</h2>
-          <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts and clinical distributions describe the active workspace. Open Patients to inspect an individual record.</p></details>
+          <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts describe the group shown below. Disease and medication counts use unique patients; a patient may appear in several categories. All their clinical records are included, not only the visit or sample that matched a filter.</p></details>
         </div>
+        ${scopeMarkup}
+        <p class="section-note">${selection?.status === 'ready' ? `${formatNumber(summary.workspace_patient_count)} patients with clinical records in the full workspace. ` : ''}Distributions below use patients with clinical records. Missing sex is shown as Unknown.</p>
         <div class="assay-kpi-grid">
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Timepoints" : "Clinical records"}</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(recordCount))}</strong></div>
@@ -563,6 +573,9 @@ export function createDashboardUi(ctx) {
       </section>
       ${overviewMarkup}
     `;
+    if (selection && selection.status !== 'ready') {
+      dashboardEl.innerHTML = `<section class="section-card"><h2>Clinical dashboard</h2>${scopeMarkup}</section>`;
+    }
     if (dashboardTimelineEl) {
       dashboardTimelineEl.innerHTML = timelinePanelMarkup(snapshotRepresentation);
     }
@@ -573,9 +586,9 @@ export function createDashboardUi(ctx) {
         renderDashboard(state.dashboardSummary || summary);
       });
     }
-    renderDashboardCharts(summary);
+    if (!selection || selection.status === 'ready') renderDashboardCharts(summary);
     if (state.currentDashboardSubtab === "timeline") {
-      renderDashboardTimeline(summary);
+      renderDashboardTimeline(workspaceSummary);
     }
   }
 
@@ -1396,7 +1409,7 @@ export function createDashboardUi(ctx) {
     `).join("");
     return `
       <div class="assay-card-section">
-        ${renderCoverageBars('Patients by data type', (Array.isArray(modalities) ? modalities : []).map(item => ({label:item.label || item.key || 'Modality', modality:item.key, count:item.patient_count})), 'patients')}
+        ${renderCoverageBars('Patients by data type · whole workspace', (Array.isArray(modalities) ? modalities : []).map(item => ({label:item.label || item.key || 'Modality', modality:item.key, count:item.patient_count})), 'patients')}
         <p class="section-note">Patients may appear in several types.</p>
         <details><summary>Detailed coverage counts</summary>
         <div class="assay-table-wrap">

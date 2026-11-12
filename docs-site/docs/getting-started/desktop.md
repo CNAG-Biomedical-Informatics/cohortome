@@ -75,6 +75,23 @@ SHA-256 checksum matches its entry in the release's checksum file. See
 [Apple's instructions for opening an unnotarized app](https://support.apple.com/en-gb/guide/mac-help/mh40617/mac).
 
 <details>
+<summary>If Open Anyway does not work: Terminal fallback</summary>
+
+After checking the download as described above, copy the app to **Applications**
+and run this in Terminal. The current bundle is named **COHORTome Desktop Preview.app**:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/COHORTome Desktop Preview.app"
+```
+
+Then open the app again. If you renamed or installed it elsewhere, use its actual
+path. This removes the quarantine flag from this app and its bundled files; it
+does **not** sign or notarize them. Do not use it to bypass a malware warning or
+your organization's security policy.
+
+</details>
+
+<details>
 <summary>Development: run from source</summary>
 
 The current source setup targets Linux. Use Python 3.12, Rust's stable toolchain

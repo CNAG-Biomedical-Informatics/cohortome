@@ -1,5 +1,6 @@
 import { downloadFile, downloadStatus, chatCopyButton } from "./shared.js";
 import { decodeIdentity, displayIdentity } from "./identities.js";
+import { openClinicalSummary } from './clinical_summary.js';
 
 export function createQueryUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -921,7 +922,8 @@ export function createQueryUi(ctx) {
     const canUsePheno = availableActions.use_in_pheno_ranker && (resultHandle || recordIds.length > 0 || allCompatible);
     const canCopyIds = !resultHandle && availableActions.copy_patient_ids && patientIds.length > 0;
     const incompatiblePheno = !resultHandle && availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible;
-    const moreActions = canCopyIds || canUsePheno || incompatiblePheno;
+    const canSummarize = Boolean(resultHandle || patientIds.length);
+    const moreActions = canSummarize || canCopyIds || canUsePheno || incompatiblePheno;
     return `
       <div class="query-actions query-actions-inline" style="margin-top:12px;">
         ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
@@ -929,6 +931,7 @@ export function createQueryUi(ctx) {
         ${moreActions ? `<details class="query-inline-actions">
           <summary><span>More options</span></summary>
           <div class="query-actions">
+            ${canSummarize ? '<button type="button" class="query-chip" data-query-action="clinical-summary">View clinical summary</button>' : ''}
             ${canCopyIds ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
             ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Pheno-Ranker</span></button>` : ""}
             ${incompatiblePheno ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
@@ -1444,6 +1447,16 @@ export function createQueryUi(ctx) {
     }
     const queryActionButton = event.target.closest("[data-query-action]");
     if (queryActionButton && queryTabEl && queryTabEl.contains(queryActionButton)) {
+      if (queryActionButton.dataset.queryAction === 'clinical-summary') {
+        const turn = queryActionButton.closest('[data-query-turn-index]');
+        const payload = state.queryTurns[Number(turn?.dataset.queryTurnIndex)]?.payload;
+        if (!payload) return;
+        const selection = queryActionContext(payload);
+        openClinicalSummary(selection.resultHandle
+          ? {result_handle:selection.resultHandle, label:'Query selection'}
+          : {patient_ids:selection.patientIds, label:'Query selection'});
+        return;
+      }
       if (queryActionButton.dataset.queryAction === "use-pheno") {
         sendPatientIdsToPhenoRanker();
         return;

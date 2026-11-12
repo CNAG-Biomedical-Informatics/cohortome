@@ -36,6 +36,8 @@
   }
   function applyPalettes(settings) {
     preferences = settings;
+    root.style.setProperty('--analysis-cohort-a', palettes[preferences.plot_palette]?.[0] || '#2563eb');
+    root.style.setProperty('--analysis-cohort-b', palettes[preferences.plot_palette]?.[1] || '#0ea5e9');
     for (const el of graphElements) {
       if (!el.isConnected) { graphElements.delete(el); continue; }
       if (!el._fullLayout || !window.Plotly?.restyle) continue;

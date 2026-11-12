@@ -1,3 +1,16 @@
+      .clinical-scope-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        margin: 10px 0;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent, #2563eb);
+        border-radius: 8px;
+        background: var(--theme-surface, #fff);
+      }
       .assay-hero {
         padding: 18px 20px;
         border-radius: 24px;
@@ -295,6 +308,36 @@
       .coverage-diseases { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
       .coverage-diseases[hidden] { display: none; }
       .coverage-diseases [aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+      .coverage-clinical-filters { margin: 10px 0; min-width: 0; }
+      .clinical-filter-toolbar, .clinical-filter-rules, .clinical-filter-value-row, .clinical-filter-values, .clinical-filter-draft-values { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .clinical-filter-add svg { width: 15px; height: 15px; flex: 0 0 15px; }
+      .clinical-filter-toolbar .query-chip { display: inline-flex; align-items: center; gap: 6px; }
+      .clinical-filter-rules:empty, .clinical-filter-status:empty, .clinical-filter-validation:empty, .clinical-filter-source:empty { display: none; }
+      .clinical-filter-rules:not(:empty) { margin-top: 8px; }
+      .clinical-filter-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 3px 5px 3px 9px; font-size: .8125rem; background: var(--theme-surface, #fff); }
+      .clinical-filter-chip > span { overflow-wrap: anywhere; min-width: 0; }
+      .clinical-filter-chip .query-chip { padding: 3px 6px; margin: 0; border: 0; background: transparent; }
+      .clinical-filter-editor { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 8px; background: var(--theme-surface, #fff); }
+      .clinical-filter-editor[hidden], .clinical-filter-controls[hidden], .clinical-filter-form[hidden], .clinical-filter-clear[hidden] { display: none; }
+      .clinical-filter-field-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr); gap: 12px; }
+      .clinical-filter-groups { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+      .clinical-filter-browse { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:6px; max-height:240px; overflow:auto; margin-top:10px; }
+      .clinical-filter-field-card { display:flex; flex-direction:column; gap:4px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--theme-surface, #fff); color:var(--text); cursor:pointer; min-width:0; overflow-wrap:anywhere; font:inherit; font-size:.8125rem; }
+      .clinical-filter-field-card small { color:var(--muted); }
+      .clinical-filter-field-card[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--theme-surface, #fff)); }
+      .clinical-filter-recorded-values { display:flex; flex-wrap:wrap; gap:5px; max-height:150px; overflow:auto; flex-basis:100%; }
+      .clinical-filter-recorded-values > small { flex-basis:100%; color:var(--muted); }
+      .clinical-filter-editor label { display: flex; flex-direction: column; gap: 5px; font-size: .8125rem; margin: 0; min-width: 0; }
+      .clinical-filter-editor input, .clinical-filter-editor select { margin: 0; min-width: 0; max-width: 100%; font: inherit; }
+      .clinical-filter-editor select { text-overflow: ellipsis; }
+      .clinical-filter-value-row { align-items: end; }
+      .clinical-filter-values { align-items: end; min-width: 0; }
+      .clinical-filter-values input { width: 160px; }
+      .clinical-filter-values select { min-width: 100px; }
+      .clinical-filter-source, .clinical-filter-controls > .section-note { margin: 8px 0; font-size: .75rem; }
+      .clinical-filter-status, .clinical-filter-validation { font-size: .8125rem; margin-top: 8px; color: var(--text); }
+      .clinical-filter-validation { color: var(--danger, #b42318); }
+      @media (max-width: 680px) { .clinical-filter-field-row { grid-template-columns: minmax(0, 1fr); } .clinical-filter-values input { width: 140px; } }
       .coverage-result { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 16px 0; padding: 16px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-left: 4px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 7%, var(--panel-strong)); }
       .app-content .coverage-result button.coverage-save { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; margin: 0; padding: 10px 16px; font-size: .8125rem; background: var(--accent-deep); border: 1px solid var(--accent-deep); color: #fff; }
       .app-content .coverage-result button.coverage-save:hover:not(:disabled) { filter: brightness(1.1); }

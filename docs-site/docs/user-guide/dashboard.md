@@ -129,6 +129,15 @@ Check patient and timepoint totals, disease and medication distributions, and
 visits per patient. These summaries describe the loaded records; missing
 medication data does not establish that a patient takes no medication.
 
+Choose **View clinical summary** from Patients, Multimodal, a saved cohort, or
+Query's **More options** to summarize that group. The scope bar shows the selected
+patient count and how many have clinical records. **Show full workspace** clears
+the selection. Timeline and Analysis keep their own scopes.
+
+All clinical records for the selected patients are included, even when the
+selection came from a particular sample. Disease and medication counts count
+each patient once per category; categories can overlap.
+
 ## Assays dashboard
 
 Check each assay's source dataset, modality, feature inventory, and sample
@@ -200,6 +209,35 @@ See [saved cohorts](saved-cohorts-and-handoffs.md) to export or analyse the grou
 Having two modalities for a patient does not establish that measurements came
 from the same specimen or visit. Read **Coverage limitations** and check the
 sample links before analysis. Coverage is not a quality-control result.
+
+:::
+
+### Refine with clinical values
+
+Choose **Add clinical filter**, browse a category and select a field and a condition, then **Apply
+filter**. The matching count and combination display update together. Clinical
+filters narrow the starting patient group alongside disease and data-type
+selections; **Clear clinical filters** removes only the clinical rules.
+
+Search is optional. Field cards show units and source datasets. Categorical
+fields offer recorded choices (up to 50); numeric fields show their recorded
+range across visits, not a clinical reference range.
+
+Fields come from the prepared clinical data. Check the **source datasets and
+units** shown with each field. Similar labels do not imply equivalent
+measurements, and patients from datasets without that field are excluded.
+The menu covers structured clinical fields and measurements, not arbitrary
+free-text metadata or molecular-feature thresholds. Disease-chip counts still
+describe the starting group; the **matching patient count** applies all filters.
+The lower workspace-wide data-type chart and feature preview remain separate.
+
+:::note[What a match means]
+
+All rules must match the patient, at **any recorded visit**. Different rules
+may match different visits; a numeric range must match one observation.
+**Not recorded** means no usable value was found, not that a condition was absent.
+Saving a cohort keeps the matching patients and a description of the filters,
+not a rule that automatically changes membership later.
 
 :::
 

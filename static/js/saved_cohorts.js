@@ -1,6 +1,7 @@
 import { downloadFile, downloadIcon, downloadStatus } from "./shared.js";
 import { openMolecularExport } from './cohort_export.js';
 import { createCohortLibrary } from './cohort_library.js';
+import { openClinicalSummary } from './clinical_summary.js';
 
 function requestCohortName(defaultName, rename = false) {
   return new Promise(resolve => {
@@ -137,6 +138,7 @@ export function createSavedCohortsUi(ctx) {
             ${datasetLabels.length ? `<small>${escapeHtml(datasetLabels.join(", "))}</small>` : ""}
             <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
             <div class="saved-cohort-actions">
+              <button type="button" class="query-chip" data-saved-cohort-action="clinical-summary" data-saved-cohort-id="${escapeHtml(item.id)}">View clinical summary</button>
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
               ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
@@ -482,6 +484,11 @@ export function createSavedCohortsUi(ctx) {
   function handleSavedCohortAction(button) {
     const cohortId = button.dataset.savedCohortId;
     if (!cohortId) return;
+    if (button.dataset.savedCohortAction === 'clinical-summary') {
+      const item = findCohort(cohortId);
+      openClinicalSummary({cohort_id:cohortId, label:item?.name || 'Saved cohort'});
+      return;
+    }
     if (button.dataset.savedCohortAction === 'export-molecular') return void openMolecularExport(cohortId, escapeHtml);
     if (button.dataset.savedCohortAction === "rename") return void renameSavedCohort(cohortId);
     if (["export", "export-clinical"].includes(button.dataset.savedCohortAction)) {

@@ -185,22 +185,22 @@ def test_browse_paginates_across_datasets_without_losing_duplicates(client, monk
     assert client.get('/patient-overview/search', params=dict(workspace='scope', dataset_index=-1)).status_code == 422
 
 
-def test_full_clinical_records_are_scoped_paginated_and_keep_source_values(client, monkeypatch):
-    from types import SimpleNamespace
-    monkeypatch.setattr(overview, 'sources', lambda *a: [('a', 'root-a', 'A')])
-    monkeypatch.setattr(overview, 'ensure_query_store', lambda root: None)
+def test_full_clinical_records_are_scoped_paginated_and_keep_source_values(client, tmp_path, monkeypatch):
+    from app import query_store
+    root = str(tmp_path)
+    monkeypatch.setattr(query_store, 'QUERY_STORE_DIR', tmp_path / 'cache')
+    monkeypatch.setattr(query_store, 'list_registered_datasets', lambda: [])
+    monkeypatch.setattr(overview, 'sources', lambda *a: [('a', root, 'A')])
     def subject_label(root, pid):
-        assert (root, pid) == ('root-a', 'P1')
+        assert (root, pid) == (str(tmp_path), 'P1')
         return {'human_id': 'subject-label', 'stub_id': 'subject-stub', 'subject_id': 1}
     monkeypatch.setattr(overview, 'patient_clarid', subject_label)
-    raw = {'id': 'P1:V1', 'info': {'days_from_baseline': 0},
+    raw = {'id': 'P1:V0', 'info': {'days_from_baseline': 0},
            'measures': [{'measurementValue': {'quantity': {'value': 0}}}]}
-    visits = [SimpleNamespace(visit_id=f'V{i}', event_date=None,
-              provenance=SimpleNamespace(raw_bff=raw, source_file='/not-exposed'))
-              for i in range(25)]
-    visits.sort(key=lambda visit: visit.visit_id)  # Deliberately lexical input.
-    monkeypatch.setattr(overview, 'get_patient_context',
-                        lambda root, pid: SimpleNamespace(visits=visits) if pid == 'P1' else None)
+    records = [dict(raw, id=f'P1:V{i}') for i in range(25)]
+    records.sort(key=lambda record: record['id'])  # Deliberately lexical input.
+    (tmp_path / 'clinical').mkdir()
+    (tmp_path / 'clinical/records.json').write_text(json.dumps(records))
     params = dict(workspace='scope', dataset_id='a', patient_id='P1')
     response = client.get('/patient-overview/clinical', params=params)
     payload = response.json()
@@ -210,7 +210,7 @@ def test_full_clinical_records_are_scoped_paginated_and_keep_source_values(clien
     assert [r['visit_id'] for r in payload['records']] == [f'V{i}' for i in range(20)]
     assert payload['records'][0]['record'] == raw
     assert payload['records'][0]['days_from_baseline'] == 0
-    assert '/not-exposed' not in response.text
+    assert root not in response.text
     last = client.get('/patient-overview/clinical', params={**params, 'offset': 20}).json()
     assert len(last['records']) == 5 and last['next_offset'] is None
     assert [r['visit_id'] for r in last['records']] == [f'V{i}' for i in range(20, 25)]
@@ -230,6 +230,7 @@ def test_search_and_detail_require_authorized_detailed_access(client, monkeypatc
     assert client.get('/patient-overview/coverage', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/selection', params=dict(workspace='a')).status_code == status
     assert client.get('/patient-overview/detail', params=dict(workspace='a', dataset_id='a', patient_id='P1')).status_code == status
+    assert client.get('/patient-overview/clinical', params=dict(workspace='a', dataset_id='a', patient_id='P1')).status_code == status
 
 
 def test_coverage_is_dataset_scoped_and_includes_assay_only_patients(client, tmp_path, monkeypatch):
@@ -245,14 +246,17 @@ def test_coverage_is_dataset_scoped_and_includes_assay_only_patients(client, tmp
     monkeypatch.setattr(overview, 'ensure_query_store', lambda _: None)
     monkeypatch.setattr(overview, '_connect', lambda _: duckdb.connect(path, read_only=True))
     monkeypatch.setattr(dicom, 'dicom_studies', lambda _: [])
+    monkeypatch.setattr(overview, 'biosample_records', lambda *a, **kw: [{'id':'S3', 'individualId':'P3'}])
     monkeypatch.setattr(overview, 'sample_inventory', lambda root, **kw: ([
         dict(patient_id='P1', modality=m) for m in (['transcriptomics', 'methylation', 'proteomics'] if root == 'root-a' else ['serology'])
     ] + [dict(patient_id='P2', modality='transcriptomics')], ['Missing linkage']))
     payload = client.get('/patient-overview/coverage', params={'workspace':'scope'}).json()
     patients = payload['patients']
-    assert len(patients) == 4
+    assert len(patients) == 6
     assert patients[0]['modalities'] == ['clinical', 'methylation', 'proteomics', 'transcriptomics']
-    assert patients[2]['modalities'] == ['clinical', 'serology']
+    assert patients[3]['modalities'] == ['clinical', 'serology']
+    assert patients[2]['patient_id'] == 'P3' and patients[2]['modalities'] == []
+    assert not patients[2]['has_clinical']
     assert not patients[1]['has_clinical']
     assert patients[0]['diseases'] == ['RA', 'SLE']
     assert patients[1]['diseases'] == []

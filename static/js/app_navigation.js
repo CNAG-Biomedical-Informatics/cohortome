@@ -143,6 +143,7 @@ export function createNavigationUi(ctx) {
     renderGlobalContext();
     callbacks.renderChatList?.();
     if (showCohorts) void callbacks.loadCohortLibrary?.();
+    if (showDashboard) callbacks.refreshPatientOverview?.();
   }
 
   function setDashboardSubtab(subtabName) {
@@ -169,6 +170,7 @@ export function createNavigationUi(ctx) {
     if (currentTabName() === "dashboard") {
       renderTabHelperText("dashboard");
       renderGlobalContext();
+      callbacks.refreshPatientOverview?.();
     }
   }
 

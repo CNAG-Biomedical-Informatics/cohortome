@@ -42,6 +42,21 @@ def test_identity_keys_are_stable_typed_and_collision_safe():
     assert identity_key('étude', 'patient', 'P,01:雪') == identity_key('étude', 'patient', 'P,01:雪')
 
 
+def test_patient_cohorts_include_declared_specimen_and_imaging_only_participants(sources, monkeypatch):
+    from pathlib import Path
+    from app import dicom
+    from app.cohort_members import source_inventory
+    root = Path(sources['study-a'])
+    (root / 'biosamples.json').write_text(json.dumps([{'id':'S3', 'individualId':'P3'}]))
+    (root / 'manifest.json').write_text(json.dumps({'biosamples':{'file':'biosamples.json'}}))
+    monkeypatch.setattr(dicom, 'dicom_studies', lambda _: [{'patient_id':'P4'}])
+    members = resolve_members({'study-a':str(root)}, patient_ids=['P3', 'P4'])
+    assert {m['patient_id'] for m in members} == {'P3', 'P4'}
+    assert all(m['dataset_id'] == 'study-a' for m in members)
+    _, samples = source_inventory(str(root))
+    assert 'S3' not in samples  # Specimen metadata do not assert an assay execution.
+
+
 def test_single_dataset_members_keep_keys_until_runner_boundary(sources, monkeypatch):
     from app.identities import execution_ids
     monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *args: ['study-a'])

@@ -40,6 +40,30 @@ Large assay matrices can remain outside DuckDB. Runners read the selected
 matrix and its linkage metadata. DICOM pixels remain in the configured image
 service; derived imaging measurements use the assay-matrix format.
 
+## Clinical storage
+
+**BFF is the source format; DuckDB holds the complete prepared clinical data.**
+Preparation reads JSON or gzipped JSON without changing the source files.
+
+| Table | Contents |
+| --- | --- |
+| `clinical_records` | Complete record JSON, patient and visit context, source file and record position |
+| `clinical_values` | Typed values and exact paths, including study-specific fields and nested arrays |
+| `clinical_observations` | Coded diseases, phenotypes, measurements, treatments, procedures and exposures; units, exclusion flags and visit context |
+
+The clinical-record inspector reads its pages from DuckDB. Existing summary
+tables remain available; some analysis and export paths still read BFF files.
+
+Null, false, zero and negative numbers remain distinct. Missing fields are not
+invented. Array-item paths preserve which attributes belong together. In a
+combined workspace, joins use **dataset ID and record ID**, not record ID alone.
+Source identifiers and record JSON remain unchanged.
+
+Indexing a field does not expose it to a model or automatically make it a UI
+filter. Fields with similar labels, different units or different meanings are
+not automatically harmonized. The index performs no clinical quality control
+or unit conversion. Large molecular matrices keep their existing storage path.
+
 ## Execution
 
 | | Desktop | Web |

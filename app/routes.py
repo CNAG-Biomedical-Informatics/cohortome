@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from app import query_sessions
-from app.schemas import QuerySessionRequest
+from app.schemas import QuerySessionRequest, ClinicalSummaryRequest
 from app.chat_folders import router as chat_folders_router
 
 import os
@@ -2566,6 +2566,47 @@ def explain_pheno_ranker_results_llm(job_id: str, request: Request, top_n: int =
         )
 
 
+def selected_clinical_summary(selection: ClinicalSummaryRequest, request: Request) -> Dict:
+    """Explicit patient selection; never interpret an empty selection as all patients."""
+    from app.cohort_members import resolve_members
+    from app.identities import execution_ids
+    require_authenticated(request)
+    selected_ids = resolve_dataset_ids(request, selection.dataset_id)
+    if not selected_ids:
+        raise HTTPException(409, 'Select a workspace first.')
+    if effective_query_granularity_ceiling(selected_ids) != 'detailed':
+        raise HTTPException(403, 'Patient selections require Detailed in-app access.')
+    members = [m.model_dump() for m in selection.members] if selection.members is not None else None
+    patient_ids = selection.patient_ids
+    if sum(bool(value) for value in [selection.members is not None, patient_ids, selection.result_handle, selection.cohort_id]) != 1:
+        raise HTTPException(400, 'Supply one patient selection.')
+    if selection.result_handle:
+        _, membership = _load_authorized_query_result(request, selection.result_handle, dataset_id=dataset_scope_id(selected_ids))
+        patient_ids = membership['patient_ids']
+    if selection.cohort_id:
+        cohort = next((c for c in list_saved_cohorts(user_id=request_user_id(request)) if c['id'] == selection.cohort_id), None)
+        if not cohort or not set(cohort.get('dataset_ids') or []).issubset(selected_ids):
+            raise HTTPException(409, 'Load this cohort’s datasets into the workspace first.')
+        members = cohort['members']
+    try:
+        roots = {key: resolve_dataset_dir(request, key) for key in selected_ids}
+        resolved = resolve_members(roots, members=members, patient_ids=patient_ids, id_type='patient')
+        ids = execution_ids([m['patient_key'] for m in resolved], selected_ids)
+        root = resolve_dataset_dir(request, dataset_scope_id(selected_ids))
+        ensure_query_store(root)
+        payload = dashboard_summary(root, patient_ids=ids)
+        payload['selection_count'] = len(ids)
+        payload['clinical_representation'] = clinical_representation(root)
+        payload['totals']['clinical_records'] = payload['totals']['visits']
+        return _sanitize_response_paths(payload, request)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError:
+        raise HTTPException(409, 'Selected source data are unavailable. Reload the workspace.') from None
+    except QueryStoreNotReadyError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAULT_DATA_DIR) -> Dict:
     require_authenticated(request)
     try:
@@ -2674,3 +2715,4 @@ def register_routes(app: FastAPI, template_engine: Jinja2Templates) -> None:
     app.add_api_route("/pheno-ranker/explain/{job_id}", explain_pheno_ranker_results, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results deterministically", description="Builds a deterministic summary from the top ranked Pheno-Ranker matches.")
     app.add_api_route("/pheno-ranker/explain-llm/{job_id}", explain_pheno_ranker_results_llm, methods=["GET"], tags=["pheno-ranker"], summary="Explain Pheno-Ranker results with the LLM", description="Builds an LLM-assisted explanation from the top ranked Pheno-Ranker matches.")
     app.add_api_route("/dashboard", get_dashboard, methods=["GET"], tags=["patients"], summary="Get the dashboard summary", description="Returns the dashboard summary payload used by the clinical and assay overview panels.")
+    app.add_api_route('/dashboard/selection', selected_clinical_summary, methods=['POST'], tags=['patients'])

@@ -15,6 +15,90 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
+
+def test_clinical_summary_selection_and_reset(page):
+    expect = playwright.expect
+    requests = []
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.route('**/patient-overview/search?*', lambda route: route.fulfill(json={
+        'matches':[dict(patient_id='P1', dataset_id='default', dataset_label='Demo', diagnosis='Example')],
+        'total': 83, 'next': None}))
+    page.route('**/patient-overview/selection?*', lambda route: route.fulfill(json={
+        'members':[dict(dataset_id='default', patient_id='P1')]}))
+    def summarize(route):
+        requests.append(route.request.post_data_json)
+        route.fulfill(json={'totals':{'patients':1, 'visits':3, 'clinical_records':3, 'source_files':1},
+                            'selection_count':1, 'workspace_patient_count':600,
+                            'sex_counts':{'Unknown':1}, 'visit_distribution':{'2-4':1},
+                            'top_diseases':[], 'top_medications':[], 'patients':[], 'timelines':[]})
+    page.route('**/dashboard/selection', summarize)
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientClinicalSummary')).to_be_enabled()
+    page.locator('#patientClinicalSummary').click()
+    expect(page.locator('#dashboardClinicalPanel')).to_be_visible()
+    expect(page.locator('.clinical-scope-bar')).to_contain_text('1 selected')
+    expect(page.locator('#dashboardClinicalPanel')).to_contain_text('600 patients with clinical records')
+    assert requests[0]['members'] == [dict(dataset_id='default', patient_id='P1')]
+    expect(page.locator('#contextScope')).to_contain_text('1 selected patients')
+    page.locator('[data-clinical-reset]').click()
+    expect(page.locator('.clinical-scope-bar')).to_contain_text('Full workspace')
+    assert not errors
+
+
+def test_clinical_summary_query_handle_failure_does_not_show_full_workspace(page):
+    expect = playwright.expect
+    page.route('**/query', lambda route: route.fulfill(json={
+        'intent':'patient_inventory', 'reply':'Found 100 patients.',
+        'data':{'source':'deterministic', 'execution':'deterministic',
+                'available_actions':{'open_in_analysis':True}, 'patient_count':100,
+                'result_handle':'qr_all_patients', 'result_page':{
+                    'result_handle':'qr_all_patients', 'total_count':100, 'returned_count':1,
+                    'patient_ids':['P1'], 'sample_ids':[], 'rows':[{'patient_id':'P1'}],
+                    'has_more':True, 'next_cursor':'next', 'id_type':'patient'}},
+        'action_context':{'result_handle':'qr_all_patients', 'patient_ids':[], 'id_type':'patient'}}))
+    bodies = []
+    def unavailable(route):
+        bodies.append(route.request.post_data_json)
+        route.fulfill(status=410, json={'detail':'Query selection has expired. Run it again.'})
+    page.route('**/dashboard/selection', unavailable)
+    _open_query_tab(page)
+    page.locator('#question').fill('List patients')
+    page.locator('#askBtn').click()
+    menu = page.locator('#queryThread .query-inline-actions > summary')
+    expect(menu).to_be_visible()
+    menu.click()
+    page.locator('#queryThread [data-query-action="clinical-summary"]').click()
+    expect(page.locator('.clinical-scope-bar')).to_contain_text('expired')
+    expect(page.locator('#dashboardClinicalPanel .assay-kpi')).to_have_count(0)
+    assert bodies[0]['result_handle'] == 'qr_all_patients'
+    assert 'patient_ids' not in bodies[0]
+
+
+def test_analysis_summary_evidence_cards(page):
+    expect = playwright.expect
+    page.route('**/analysis', lambda route: route.fulfill(json={
+        'intent':'analysis_summary', 'reply':'Two patients have clinical records.',
+        'data':{'source':'deterministic', 'execution':'deterministic', 'context':{
+            'mode':'summary', 'overview':{'patient_count':2, 'timepoint_count':4},
+            'top_diseases':[{'disease':'Example condition', 'patient_count':2}],
+            'top_medications':[{'medication':'Example treatment', 'patient_count':1}],
+            'timepoints_by_period':[], 'visit_distribution':[]}}}))
+    _open_analysis_tab(page)
+    page.locator('#analysisPrompt').fill('Summarize this cohort')
+    page.locator('#analysisRunBtn').click()
+    expect(page.locator('.analysis-result-heading')).to_contain_text('2 patients · 4 records')
+    expect(page.locator('.analysis-evidence-card table').first).to_contain_text('Example condition')
+    card = page.locator('.analysis-evidence-card').first
+    expect(card.locator('[data-plotly-ready]')).to_have_count(1)
+    summary = page.locator('.is-latest-result .analysis-turn-body')
+    assert summary.bounding_box()['y'] > card.bounding_box()['y']
+    page.set_viewport_size({'width':900, 'height':900})
+    assert card.evaluate('(el) => el.scrollWidth <= el.clientWidth + 1')
+    page.screenshot(path='/tmp/cohortome-analysis-evidence.png', full_page=True)
+
+
 def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     expect = playwright.expect
     clinical_requests = []
@@ -86,6 +170,66 @@ def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     page.locator(".clinical-record-json summary").click()
     expect(page.locator(".clinical-record-json pre")).to_contain_text("<script>not executed</script>")
     expect(page.locator(".clinical-record script")).to_have_count(0)
+
+def test_patient_browser_restored_tab_loads_without_click(page):
+    expect = playwright.expect
+    page.route('**/user-settings', lambda route: route.fulfill(json={'landing_tab_mode': 'last'}))
+    page.route('**/patient-overview/search?*', lambda route: route.fulfill(json={
+        'matches': [dict(patient_id='P1', dataset_id='default', dataset_label='Demo')],
+        'total': 1, 'next': None}))
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    page.reload(wait_until='networkidle')
+    expect(page.locator('#dashboardPatientsPanel')).to_be_visible()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    expect(page.locator('#patientSaveCohort')).to_be_enabled()
+
+
+@pytest.mark.parametrize('failed_switch', [False, True])
+def test_patient_browser_refreshes_after_workspace_load(page, failed_switch):
+    expect = playwright.expect
+    searches = []
+    def search(route):
+        searches.append(route.request.url)
+        route.fulfill(json={
+            'matches': [dict(patient_id='P1', dataset_id='default', dataset_label='Demo')],
+            'total': 1, 'next': None})
+    page.route('**/patient-overview/search?*', search)
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    previous_searches = len(searches)
+    if failed_switch:
+        page.route('**/patients?dataset_id=secondary', lambda route: route.fulfill(
+            status=409, json={'detail': 'Dataset store needs preparation.'}))
+    page.evaluate('ids => window.__cohortomeLoadPatients({respectAdminGate:false, targetDatasetIds:ids})',
+                  ['secondary' if failed_switch else 'default'])
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    expect(page.locator('#patientSaveCohort')).to_be_enabled()
+    assert len(searches) == previous_searches + 1
+    assert 'workspace=default' in searches[-1]
+
+
+def test_patient_browser_retries_failed_search_on_tab_entry(page):
+    expect = playwright.expect
+    searches = []
+    def search(route):
+        searches.append(route.request.url)
+        if len(searches) == 1:
+            route.fulfill(status=503, json={'detail': 'Patient search temporarily unavailable.'})
+        else:
+            route.fulfill(json={
+                'matches': [dict(patient_id='P1', dataset_id='default', dataset_label='Demo')],
+                'total': 1, 'next': None})
+    page.route('**/patient-overview/search?*', search)
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientOverviewStatus')).to_contain_text('temporarily unavailable')
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    assert len(searches) == 2
+
 
 def test_patient_browser_pagination_and_search(page):
     expect = playwright.expect
@@ -3171,6 +3315,114 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
     assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
+def _clinical_filter_panel(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    _mock_multimodal_readiness(page)
+    patients = [
+        dict(patient_id='P1', dataset_id='default', dataset_label='Demo',
+             has_clinical=True, modalities=['clinical', 'transcriptomics']),
+        dict(patient_id='P1', dataset_id='other', dataset_label='Other',
+             has_clinical=True, modalities=['clinical', 'transcriptomics']),
+        dict(patient_id='P2', dataset_id='default', dataset_label='Demo',
+             has_clinical=True, modalities=['clinical', 'proteomics']),
+    ]
+    page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={'patients':patients, 'warnings':[]}))
+    page.route('**/cohort-builder/fields?*', lambda route: route.fulfill(json={
+        'fingerprint':'synthetic-fingerprint', 'fields':[{
+            'id':'marker', 'label':'Marker', 'kind':'number', 'unit':'mg/L',
+            'group':'Measurements', 'observed_range':[0, 12],
+            'dataset_ids':['default'], 'dataset_labels':['Demo'],
+            'operators':['eq', 'gt', 'between', 'is_present', 'is_missing'], 'options':[]}]}))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardMultimodalBtn').click()
+    return page.locator('.multimodal-coverage')
+
+
+def test_clinical_filters_compose_with_existing_coverage_and_save(page):
+    requests, saved = [], []
+    def evaluate(route):
+        requests.append(route.request.post_data_json)
+        route.fulfill(json={'members':[{'dataset_id':'default', 'patient_id':'P1'}],
+            'patient_count':1, 'description':'Marker > 5 mg/L, at any visit',
+            'fingerprint':'synthetic-fingerprint'})
+    page.route('**/cohort-builder/evaluate', evaluate)
+    def save(route):
+        saved.append(route.request.post_data_json)
+        route.fulfill(json={'id':'clinical-filter-cohort'})
+    page.route('**/saved-cohorts', save)
+    panel = _clinical_filter_panel(page)
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    panel.locator('[data-field-group="Measurements"]').click()
+    panel.locator('[data-field-id="marker"]').click()
+    playwright.expect(panel.locator('.clinical-filter-source')).to_contain_text('Recorded range: 0–12')
+    panel.get_by_label('Operator', exact=True).select_option('gt')
+    panel.get_by_label('Value', exact=True).fill('5')
+    panel.get_by_role('button', name='Apply filter', exact=True).click()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    assert requests[0]['fingerprint'] == 'synthetic-fingerprint'
+    assert requests[0]['filters'] == [{'field_id':'marker', 'operator':'gt', 'values':[5]}]
+    page.screenshot(path='/tmp/cohortome-clinical-filters-desktop.png', full_page=True)
+    panel.locator('.coverage-selectors input[value="proteomics"]').check()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('0 matching patients')
+    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
+    panel.locator('.coverage-selectors input[value="proteomics"]').uncheck()
+    panel.locator('.coverage-selectors input[value="transcriptomics"]').check()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    panel.locator('.coverage-save').click()
+    dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
+    dialog.get_by_label('Cohort name').fill('Clinical selection')
+    dialog.get_by_role('button', name='Save cohort', exact=True).click()
+    playwright.expect(panel.locator('.coverage-save-status')).to_contain_text('Cohort saved')
+    assert saved[0]['members'] == [{'dataset_id':'default', 'patient_id':'P1'}]
+    assert 'Marker' in saved[0]['source_prompt']
+    panel.get_by_role('button', name='Clear clinical filters', exact=True).click()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
+    page.set_viewport_size({'width':390, 'height':844})
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    page.screenshot(path='/tmp/cohortome-clinical-filters.png', full_page=True)
+
+
+def test_clinical_filter_failure_does_not_restore_full_population(page):
+    page.route('**/cohort-builder/evaluate', lambda route: route.fulfill(
+        status=500, json={'detail':'Clinical filtering is temporarily unavailable.'}))
+    panel = _clinical_filter_panel(page)
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    panel.get_by_label('Clinical field', exact=True).select_option('marker')
+    panel.get_by_label('Operator', exact=True).select_option('is_present')
+    panel.get_by_role('button', name='Apply filter', exact=True).click()
+    playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('temporarily unavailable')
+    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
+    playwright.expect(panel.get_by_role('button', name='View clinical summary', exact=True)).to_be_disabled()
+    playwright.expect(panel.locator('.coverage-patient-list tbody tr')).to_have_count(0)
+    panel.get_by_role('button', name='Clear clinical filters', exact=True).click()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
+
+
+def test_stale_clinical_filter_requires_fresh_coverage(page):
+    page.route('**/cohort-builder/evaluate', lambda route: route.fulfill(
+        status=409, json={'detail':'Dataset contents changed. Reload clinical filters.'}))
+    panel = _clinical_filter_panel(page)
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    panel.get_by_label('Clinical field', exact=True).select_option('marker')
+    panel.get_by_label('Operator', exact=True).select_option('is_present')
+    panel.get_by_role('button', name='Apply filter', exact=True).click()
+    playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('Dataset contents changed')
+    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
+    playwright.expect(panel.get_by_role('button', name='Clear clinical filters', exact=True)).to_be_disabled()
+    page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={
+        'patients':[dict(patient_id='new', dataset_id='default', dataset_label='Demo',
+                         has_clinical=True, modalities=['clinical'])], 'warnings':[]}))
+    panel.get_by_role('button', name='Reload coverage and clear filters', exact=True).click()
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(0)
+
+
 def test_bundled_imaging_status_does_not_require_external_services(page):
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
@@ -5416,6 +5668,7 @@ def test_analysis_renders_completed_limma_voom_result(page, adjusted) -> None:
     # Earlier answers remain readable after another turn, as in a conversation.
     page.locator('[data-analysis-flow-target="prompt"]').click()
     expect(setup).to_have_attribute('open', '')
+    page.locator('#analysisPrompt').fill('Run the completed limma-voom comparison again.')
     page.locator('#analysisRunBtn').click()
     expect(page.locator('#analysisThread .analysis-turn-assistant')).to_have_count(2)
     expect(page.locator('#analysisThread .is-previous-result .analysis-turn-body')).to_be_visible()
