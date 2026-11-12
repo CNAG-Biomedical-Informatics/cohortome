@@ -3359,6 +3359,10 @@ def test_clinical_filters_compose_with_existing_coverage_and_save(page):
     panel.get_by_role('button', name='Add clinical filter', exact=True).click()
     panel.locator('[data-field-group="Measurements"]').click()
     panel.locator('[data-field-id="marker"]').click()
+    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_hidden()
+    panel.get_by_role('button', name='Change field', exact=True).click()
+    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_visible()
+    panel.locator('[data-field-id="marker"]').click()
     playwright.expect(panel.locator('.clinical-filter-source')).to_contain_text('Recorded range: 0–12')
     panel.get_by_label('Operator', exact=True).select_option('gt')
     panel.get_by_label('Value', exact=True).fill('5')
@@ -3388,12 +3392,61 @@ def test_clinical_filters_compose_with_existing_coverage_and_save(page):
     page.screenshot(path='/tmp/cohortome-clinical-filters.png', full_page=True)
 
 
+def test_clinical_filter_browsing_layout_and_menu_surface(page):
+    evaluations = []
+    def evaluate(route):
+        evaluations.append(route.request.post_data_json)
+        route.fulfill(json={'members':[{'dataset_id':'default', 'patient_id':'P1'}],
+                           'fingerprint':'synthetic-fingerprint'})
+    page.route('**/cohort-builder/evaluate', evaluate)
+    panel = _clinical_filter_panel(page)
+    fields = [dict(id=str(i), label=label, group=group, kind='string', unit='',
+                   dataset_ids=['default'], dataset_labels=['Synthetic demo'],
+                   operators=['eq', 'in'], options=['Category A', 'Category B'])
+              for i, (label, group) in enumerate([
+                  ('Sex', 'Demographics and time'), ('Age at visit', 'Demographics and time'),
+                  ('Recorded diagnoses', 'Diagnoses'), ('Recorded treatments', 'Treatments'),
+                  ('Marker A', 'Measurements'), ('Marker B', 'Measurements')])]
+    page.route('**/cohort-builder/fields?*', lambda route: route.fulfill(json={
+        'fields': fields, 'fingerprint': 'synthetic-fingerprint'}))
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    playwright.expect(panel.locator('.clinical-filter-field-card')).to_have_count(6)
+    for theme in ('light', 'dark'):
+        page.evaluate('(theme) => document.documentElement.dataset.theme = theme', theme)
+        panel.screenshot(path=f'/tmp/cohortome-filter-layout-{theme}.png')
+        page.locator('#accountMenuButton').click()
+        assert page.locator('#accountMenu').evaluate(
+            "el => getComputedStyle(el).backgroundColor.startsWith('rgb(')")
+        page.keyboard.press('Escape')
+    panel.locator('[data-field-id="0"]').click()
+    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_hidden()
+    panel.locator('[data-value-index="1"]').click()
+    playwright.expect(panel.get_by_label('Value', exact=True)).to_have_value('Category B')
+    page.set_viewport_size({'width':390, 'height':844})
+    assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    panel.screenshot(path='/tmp/cohortome-filter-condition-mobile.png')
+    panel.get_by_role('button', name='Apply filter', exact=True).click()
+    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(1)
+    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_visible()
+    playwright.expect(panel.locator('.clinical-filter-field-card')).to_have_count(6)
+    playwright.expect(panel.locator('.clinical-filter-form')).to_be_hidden()
+    panel.locator('[data-field-id="2"]').click()
+    panel.locator('[data-value-index="0"]').click()
+    panel.get_by_role('button', name='Apply filter', exact=True).click()
+    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(2)
+    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    assert evaluations[-1]['filters'] == [
+        {'field_id':'0', 'operator':'eq', 'values':['Category B']},
+        {'field_id':'2', 'operator':'eq', 'values':['Category A']}]
+
+
 def test_clinical_filter_failure_does_not_restore_full_population(page):
     page.route('**/cohort-builder/evaluate', lambda route: route.fulfill(
         status=500, json={'detail':'Clinical filtering is temporarily unavailable.'}))
     panel = _clinical_filter_panel(page)
     panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    panel.get_by_label('Clinical field', exact=True).select_option('marker')
+    panel.locator('[data-field-id="marker"]').click()
     panel.get_by_label('Operator', exact=True).select_option('is_present')
     panel.get_by_role('button', name='Apply filter', exact=True).click()
     playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('temporarily unavailable')
@@ -3409,7 +3462,7 @@ def test_stale_clinical_filter_requires_fresh_coverage(page):
         status=409, json={'detail':'Dataset contents changed. Reload clinical filters.'}))
     panel = _clinical_filter_panel(page)
     panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    panel.get_by_label('Clinical field', exact=True).select_option('marker')
+    panel.locator('[data-field-id="marker"]').click()
     panel.get_by_label('Operator', exact=True).select_option('is_present')
     panel.get_by_role('button', name='Apply filter', exact=True).click()
     playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('Dataset contents changed')

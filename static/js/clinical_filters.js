@@ -55,27 +55,30 @@ export function createClinicalFilters({host, workspace, escapeHtml: esc, isCurre
     <div class="clinical-filter-editor" hidden>
       <div class="clinical-filter-catalogue-status" role="status"></div>
       <div class="clinical-filter-controls" hidden>
+        <div class="clinical-filter-picker">
+        <div class="clinical-filter-picker-heading"><strong>Choose a field</strong><input type="search" class="clinical-filter-search" aria-label="Search clinical fields" placeholder="Search fields…"></div>
         <div class="clinical-filter-groups" aria-label="Clinical field categories"></div>
-        <div class="clinical-filter-field-row">
-          <label>Search clinical fields<input type="search" class="clinical-filter-search" aria-label="Search clinical fields" placeholder="Optional: narrow the list below"></label>
-          <label>Clinical field<select class="clinical-filter-field" aria-label="Clinical field"><option value="">Choose a field</option></select></label>
-        </div><div class="clinical-filter-browse"></div><p class="clinical-filter-source section-note"></p>
+        <div class="clinical-filter-browse"></div></div>
         <form class="clinical-filter-form" hidden>
+          <div class="clinical-filter-picker-heading"><strong class="clinical-filter-selected-name"></strong><button type="button" class="query-chip clinical-filter-change">Change field</button></div>
+          <p class="clinical-filter-source section-note"></p>
           <div class="clinical-filter-value-row"><label>Operator<select class="clinical-filter-operator" aria-label="Operator"></select></label><div class="clinical-filter-values"></div>
           <button type="submit" class="query-chip">Apply filter</button></div>
           <div class="clinical-filter-validation" role="alert"></div>
         </form>
-        <p class="section-note">Recorded at any visit. All filters must match; they may match different visits. Missing fields in other datasets are not included.</p>
+        <details class="clinical-filter-help"><summary>How clinical filters work</summary><p>Recorded at any visit. All filters must match; they may match different visits. Missing fields in other datasets are not included. Recorded ranges are not clinical reference ranges.</p></details>
       </div>
     </div><div class="clinical-filter-status" role="status"></div>`;
   const add = host.querySelector('.clinical-filter-add'), clear = host.querySelector('.clinical-filter-clear');
   const editor = host.querySelector('.clinical-filter-editor'), controls = host.querySelector('.clinical-filter-controls');
   const catalogueStatus = host.querySelector('.clinical-filter-catalogue-status');
   const status = host.querySelector('.clinical-filter-status'), search = host.querySelector('.clinical-filter-search');
-  const fieldSelect = host.querySelector('.clinical-filter-field'), operator = host.querySelector('.clinical-filter-operator');
+  const operator = host.querySelector('.clinical-filter-operator');
+  let selectedFieldId = '';
+  const picker = host.querySelector('.clinical-filter-picker');
   const form = host.querySelector('.clinical-filter-form'), valuesHost = host.querySelector('.clinical-filter-values');
   const validation = host.querySelector('.clinical-filter-validation');
-  const selectedField = () => fields.find(f => f.id === fieldSelect.value);
+  const selectedField = () => fields.find(f => f.id === selectedFieldId);
   let selectedGroup = '';
   const groups = host.querySelector('.clinical-filter-groups');
   const browse = host.querySelector('.clinical-filter-browse');
@@ -114,19 +117,17 @@ export function createClinicalFilters({host, workspace, escapeHtml: esc, isCurre
     } finally { clearTimeout(timer); }
   }
   function renderFieldChoices() {
-    const previous = fieldSelect.value, term = search.value.trim().toLocaleLowerCase();
+    const term = search.value.trim().toLocaleLowerCase();
     const categories = [...new Set(fields.map(f => f.group || 'Clinical fields'))].sort();
     groups.innerHTML = ['', ...categories].map(group => `<button type="button" class="query-chip" data-field-group="${esc(group)}" aria-pressed="${group === selectedGroup}">${esc(group || 'All fields')} <span class="badge">${fields.filter(f => !group || (f.group || 'Clinical fields') === group).length}</span></button>`).join('');
     groups.querySelectorAll('[data-field-group]').forEach(button => button.onclick = () => { selectedGroup = button.dataset.fieldGroup; renderFieldChoices(); });
     const choices = fields.filter(f => (!selectedGroup || (f.group || 'Clinical fields') === selectedGroup) && `${f.label} ${f.unit} ${f.dataset_labels.join(' ')}`.toLocaleLowerCase().includes(term));
     browse.innerHTML = choices.map(f => `<button type="button" class="clinical-filter-field-card" data-field-id="${esc(f.id)}"><strong>${esc(f.label)}</strong><small>${esc([f.unit, ...f.dataset_labels].filter(Boolean).join(' · '))}</small></button>`).join('') || '<p class="section-note">No matching fields.</p>';
-    browse.querySelectorAll('[data-field-id]').forEach(button => button.onclick = () => { fieldSelect.value = button.dataset.fieldId; renderField(); form.scrollIntoView({block:'nearest'}); });
-    fieldSelect.innerHTML = '<option value="">Choose a field</option>' + choices.map(f => `<option value="${esc(f.id)}">${esc(f.label)}${f.unit ? ' · ' + esc(f.unit) : ''} · ${esc(f.dataset_labels.join(', '))}</option>`).join('');
-    fieldSelect.value = choices.some(f => f.id === previous) ? previous : '';
-    renderField();
+    browse.querySelectorAll('[data-field-id]').forEach(button => button.onclick = () => { selectedFieldId = button.dataset.fieldId; picker.hidden = true; renderField(); operator.focus(); });
   }
   function renderField() {
     const field = selectedField(); form.hidden = !field; validation.textContent = ''; draftValues = [];
+    host.querySelector('.clinical-filter-selected-name').textContent = field?.label || '';
     host.querySelector('.clinical-filter-source').textContent = field ? `Available in: ${field.dataset_labels.join(', ')}${field.unit ? ' · ' + field.unit : ''}${field.observed_range ? ' · Recorded range: ' + field.observed_range.join('–') + ' (any visit; not a reference range)' : ''}` : '';
     browse.querySelectorAll('[data-field-id]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.fieldId === field?.id)));
     if (!field) return;
@@ -199,11 +200,17 @@ export function createClinicalFilters({host, workspace, escapeHtml: esc, isCurre
   }
   add.onclick = async () => {
     editor.hidden = !editor.hidden; add.setAttribute('aria-expanded', String(!editor.hidden));
-    if (!editor.hidden) { if (!loaded) await loadFields(); groups.querySelector('button')?.focus(); }
+    if (!editor.hidden) {
+      // Adding starts a new rule; the previously applied rule stays in the chips.
+      selectedFieldId = ''; selectedGroup = ''; search.value = ''; draftValues = [];
+      picker.hidden = false; renderField();
+      if (!loaded) await loadFields(); else renderFieldChoices();
+      search.focus();
+    }
   };
   clear.onclick = () => { if (!stale) { rules = []; renderRules(); evaluate(); } };
   search.oninput = renderFieldChoices;
-  fieldSelect.onchange = renderField;
+  host.querySelector('.clinical-filter-change').onclick = () => { form.hidden = true; picker.hidden = false; renderFieldChoices(); search.focus(); };
   operator.onchange = () => {draftValues = []; renderValues();};
   form.onsubmit = event => {
     event.preventDefault();

@@ -281,6 +281,15 @@
       }
       .assay-overview-icon { width: 20px; height: 20px; flex: 0 0 20px; color: var(--accent); }
       .multimodal-coverage { min-width: 0; }
+      .coverage-filter-section, .coverage-data-section { border:1px solid var(--line); border-radius:10px; padding:18px; background:var(--theme-surface, #fff); }
+      .coverage-filter-section > h3, .coverage-data-section > h4 { margin:0 0 14px; font-size:.9375rem; }
+      .coverage-clinical-section, .coverage-modality-section { border-top:1px solid var(--line); padding-top:14px; margin-top:16px; }
+      .coverage-clinical-section > h4, .coverage-modality-section > h4 { margin:0 0 8px; font-size:.8125rem; font-weight:600; color:var(--muted); }
+      .coverage-filter-section .coverage-selectors { margin:8px 0 0; }
+      .coverage-filter-section .coverage-diseases { margin:8px 0; }
+      .coverage-filter-section .coverage-diseases .query-chip:not([aria-pressed="true"]) { background:transparent; border-color:var(--line); color:var(--muted); }
+      .coverage-filter-section .coverage-selectors label { min-height:38px; padding:7px 10px; background:transparent; }
+      .coverage-filter-section .coverage-selectors label:has(input:checked) { background:color-mix(in srgb, var(--accent) 7%, var(--theme-surface, #fff)); }
       .coverage-selectors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; margin: 16px 0; }
       .coverage-selectors label { display: grid; grid-template-columns: 16px 20px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 46px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--theme-surface, transparent); font-size: .85rem; line-height: 1.35; }
       .coverage-selectors input[type="checkbox"] { width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--accent); }
@@ -319,12 +328,22 @@
       .clinical-filter-chip .query-chip { padding: 3px 6px; margin: 0; border: 0; background: transparent; }
       .clinical-filter-editor { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 8px; background: var(--theme-surface, #fff); }
       .clinical-filter-editor[hidden], .clinical-filter-controls[hidden], .clinical-filter-form[hidden], .clinical-filter-clear[hidden] { display: none; }
-      .clinical-filter-field-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr); gap: 12px; }
+      .clinical-filter-picker[hidden] { display:none; }
+      .clinical-filter-picker-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px; font-size:.8125rem; }
+      .clinical-filter-picker-heading .clinical-filter-search { width:min(100%, 260px); padding:7px 10px; font-size:.8125rem; }
+      .clinical-filter-picker-heading > strong { overflow-wrap:anywhere; min-width:0; }
+      .clinical-filter-help { margin-top:12px; color:var(--muted); font-size:.75rem; }
+      .clinical-filter-help p { margin:8px 0 0; }
+      .clinical-filter-groups .query-chip { background:transparent; border-color:transparent; color:var(--muted); padding:5px 8px; }
+      .clinical-filter-groups .query-chip[aria-pressed="true"] { background:var(--accent-soft); color:var(--ink); }
+      .clinical-filter-groups .badge { font-size:.7rem; font-variant-numeric:tabular-nums; opacity:.75; }
+      .clinical-filter-field-card:hover { border-color:var(--accent); }
+      .clinical-filter-field-card:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
       .clinical-filter-groups { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
       .clinical-filter-browse { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:6px; max-height:240px; overflow:auto; margin-top:10px; }
-      .clinical-filter-field-card { display:flex; flex-direction:column; gap:4px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--theme-surface, #fff); color:var(--text); cursor:pointer; min-width:0; overflow-wrap:anywhere; font:inherit; font-size:.8125rem; }
+      .app-content button.clinical-filter-field-card { display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--theme-surface, #fff); color:var(--text); cursor:pointer; min-width:0; overflow-wrap:anywhere; font:inherit; font-size:.8125rem; box-shadow:none; transform:none; }
       .clinical-filter-field-card small { color:var(--muted); }
-      .clinical-filter-field-card[aria-pressed="true"] { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--theme-surface, #fff)); }
+      .app-content button.clinical-filter-field-card[aria-pressed="true"], .app-content button.clinical-filter-field-card:hover { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 5%, var(--theme-surface, #fff)); }
       .clinical-filter-recorded-values { display:flex; flex-wrap:wrap; gap:5px; max-height:150px; overflow:auto; flex-basis:100%; }
       .clinical-filter-recorded-values > small { flex-basis:100%; color:var(--muted); }
       .clinical-filter-editor label { display: flex; flex-direction: column; gap: 5px; font-size: .8125rem; margin: 0; min-width: 0; }
