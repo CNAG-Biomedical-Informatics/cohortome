@@ -34,12 +34,14 @@ test('system preference and Plotly recolouring preserve data and zoom', async ()
 test('palettes are opt-in, reversible and keep centred heatmaps and semantic colours', async () => {
   let rendered;
   const updates = [];
+  const css = new Map();
+  const root = {dataset: {}, style: {setProperty: (key, value) => css.set(key, value)}};
   const window = {matchMedia: () => ({matches: false, addEventListener() {}}), Plotly: {
     newPlot(el, traces) { rendered = traces; el._fullLayout = {}; return Promise.resolve(el); },
     restyle(el, patch, indexes) { updates.push({patch, indexes}); return Promise.resolve(); },
   }};
   vm.runInNewContext(readFileSync('static/js/theme.js', 'utf8'), {
-    structuredClone, window, document: {documentElement: {dataset: {}, style: {}}, querySelectorAll: () => []},
+    structuredClone, window, document: {documentElement: root, querySelectorAll: () => []},
     getComputedStyle: () => ({getPropertyValue: () => '#123456'}),
   });
   const traces = [
@@ -49,6 +51,7 @@ test('palettes are opt-in, reversible and keep centred heatmaps and semantic col
     {type: 'heatmap', z: [[0, 2]], colorscale: 'Blues'},
   ];
   window.CohortomeTheme.applyPalettes({plot_palette: 'okabe-ito', heatmap_palette: 'viridis', diverging_palette: 'blue-orange'});
+  assert.equal(css.get('--analysis-cohort-a'), '#0072b2');
   await window.CohortomeTheme.newPlot({isConnected: true}, traces);
   assert.equal(rendered[0].line.color, '#0072b2');
   assert.equal(rendered[1].marker.color, '#dc2626');
@@ -58,6 +61,8 @@ test('palettes are opt-in, reversible and keep centred heatmaps and semantic col
   assert.equal(traces[0].line.color, '#2563eb');
   assert.equal(rendered[0].x, traces[0].x);
   window.CohortomeTheme.applyPalettes({plot_palette: 'default', heatmap_palette: 'default', diverging_palette: 'default'});
+  assert.equal(css.get('--analysis-cohort-a'), '#2563eb');
+  assert.equal(css.get('--analysis-cohort-b'), '#0ea5e9');
   assert.equal(updates[0].patch.line[0].color, '#2563eb');
   assert.equal(updates[1].patch.colorscale[0], 'RdBu');
   assert.equal(updates[2].patch.colorscale[0], 'Blues');
