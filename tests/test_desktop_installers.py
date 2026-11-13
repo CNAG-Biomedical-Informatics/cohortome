@@ -19,6 +19,10 @@ sys.path.pop(0)
 def test_installer_resources_preserve_engine_layout(tmp_path, system, targets):
     package = tmp_path / 'package with spaces'
     config = builder.installer_config(package, system)
+    assert config['productName'] == 'COHORTome Desktop'
+    base = json.loads((Path(__file__).parents[1] / 'desktop/tauri.conf.json').read_text())
+    assert base['productName'] == config['productName']
+    assert base['identifier'] == 'org.cnag.cohortome.preview'
     assert config['bundle']['resources'][str(package / 'engine')] == 'engine'
     assert config['bundle']['targets'] == targets
     # Do not silently move existing preview user data to a new app identifier.

@@ -45,6 +45,7 @@ jobs:
             tests/test_local_agent_tools.py \
             tests/test_local_agent_runs.py \
             tests/test_desktop_packaging.py \
+            tests/test_desktop_installers.py \
             tests/test_clinical_characteristics.py \
             tests/test_patient_clinical_filters.py \
             tests/test_state_io.py \

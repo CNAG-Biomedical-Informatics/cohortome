@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 - Unreleased
 
 - Add clinical filters and a shared patient scope across Dashboard and new chats.
 - Add per-dataset clinical characteristics tables.
-- Add read-only local MCP access to bundled synthetic demos in Desktop.
+- Add MCP exploration and owner-approved analyses for bundled demos in Desktop.
+- Rename the installed application to COHORTome Desktop.
 
 ## 0.1.1 - 2026-11-05
 

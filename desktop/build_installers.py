@@ -63,7 +63,7 @@ def installer_config(package, system):
     if system == 'win32':
         bundle['windows'] = {'nsis': {'installMode': 'currentUser'},
                              'webviewInstallMode': {'type': 'downloadBootstrapper'}}
-    return {'productName': 'COHORTome Desktop Preview', 'bundle': bundle}
+    return {'productName': 'COHORTome Desktop', 'bundle': bundle}
 
 
 def build_macos_dmg(artifacts, output):

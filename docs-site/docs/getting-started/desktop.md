@@ -78,11 +78,14 @@ SHA-256 checksum matches its entry in the release's checksum file. See
 <summary>If Open Anyway does not work: Terminal fallback</summary>
 
 After checking the download as described above, copy the app to **Applications**
-and run this in Terminal. The current bundle is named **COHORTome Desktop Preview.app**:
+and run this in Terminal:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/COHORTome Desktop Preview.app"
+xattr -dr com.apple.quarantine "/Applications/COHORTome Desktop.app"
 ```
+
+Older installers name the app **COHORTome Desktop Preview.app**; use that name
+if it is the one in Applications.
 
 Then open the app again. If you renamed or installed it elsewhere, use its actual
 path. This removes the quarantine flag from this app and its bundled files; it
