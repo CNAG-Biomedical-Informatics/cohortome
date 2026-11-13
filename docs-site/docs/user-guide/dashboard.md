@@ -41,12 +41,16 @@ Choose **Add clinical filter**, browse the available fields and set a condition.
 Combine rules with disease, sample-origin and ID filters. Patients and Multimodal
 share the same draft, shown as removable labels in both views.
 
+![Available clinical filter fields in the synthetic longitudinal demo](/img/screenshots/clinical-filter-fields.png)
+
 | Action | Effect |
 | --- | --- |
 | Edit filters | Marks **Unapplied changes**; the current scope stays unchanged. |
 | **Apply to scope** | Evaluates all conditions together and updates the patient scope. |
 | **Discard changes** | Restores the filters used by the current scope. |
 | **Clear filters**, then **Apply to scope** | Returns to the full workspace. |
+
+![A disease filter awaiting Apply to scope; the patient table still shows the applied group](/img/screenshots/cohort-scope-draft.png)
 
 The table and **Save patients as cohort** count describe the applied group,
 including **all matches**, not just the page. Click a clinical filter to edit
@@ -181,6 +185,24 @@ All clinical records for the selected patients are included, even when the
 selection came from a particular sample. Disease and medication counts count
 each patient once per category; categories can overlap.
 
+### Clinical characteristics
+
+Switch to **Table** for summary statistics, with one dataset shown at a time.
+The table follows the **applied scope**, just like the charts.
+
+![Clinical characteristics of the selected synthetic patients, with recorded and missing counts](/img/screenshots/clinical-characteristics.png)
+
+| Values | Summary |
+| --- | --- |
+| Categories | Patients and percentages; a patient may appear in several categories |
+| Numbers | Median and interquartile range of per-patient medians across visits |
+| Recorded / Missing | Patients with / without a usable value |
+
+These are **not baseline statistics**. Use **?** for the calculation details.
+Clinical, Timeline, Assays and Imaging follow the applied scope. New chats inherit
+it; existing chats, completed runs and saved cohorts keep their own selections.
+If applying filters fails, the previous scope remains active.
+
 ## Assays dashboard
 
 Check each assay's source dataset, modality, feature inventory, and sample
@@ -209,18 +231,6 @@ pixels remain in the configured DICOM service.
 A study listing confirms that metadata was registered, not that the image server
 is reachable. Use the viewer status and error message to check access.
 Derived imaging measurements are separate matrices produced outside COHORTome.
-
-### Clinical characteristics tables
-
-In **Clinical**, switch from **Charts** to **Table** to see the summary statistics.
-Use the dataset selector to view one dataset at a time; the patient selection
-and counts remain visible in either mode. The **?** explains the statistics.
-Clinical, Timeline, Assays and Imaging use the applied scope. New chats inherit
-it; existing chats, completed runs and saved cohorts keep their own selections.
-If applying filters fails, the previous scope remains active.
-Categories show patient counts and percentages; numeric fields show the median
-and interquartile range of per-patient medians across visits. These are not
-baseline statistics. Recorded and missing patient counts are shown for each field.
 
 ## Multimodal dashboard
 

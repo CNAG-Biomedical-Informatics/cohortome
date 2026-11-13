@@ -23,6 +23,8 @@ LM Studio or another provider inside COHORTome.
 4. Configure your local MCP client using the
    [connector setup](https://github.com/CNAG-Biomedical-Informatics/cohortome/tree/main/integrations/mcp).
 
+![Desktop settings for explicitly sharing a synthetic patient scope with a local agent](/img/screenshots/local-agents.png)
+
 Keep Desktop open. Treat the connection token like a password; do not paste it
 into a chat. You can revoke access from the same panel. Access also ends after
 eight hours or when Desktop restarts.

@@ -7,6 +7,7 @@ Optional: --llm-url http://HOST:1234/v1 --llm-model MODEL captures a real
 General-question reply. Only the example prompt is sent, not dataset records.
 Use --walkthrough-video to refresh the small silent multimodal clip and poster.
 Use --updated-views for the dataset, patient, assay, variant and multimodal screenshots.
+Use --cohort-scope for shared filters, clinical statistics and local-agent settings.
 Use --biosamples-demo PATH with the public CINECA + GEUVADIS package for two biosample views.
 """
 from __future__ import annotations
@@ -62,9 +63,13 @@ def main() -> int:
     parser.add_argument('--llm-url', help='Explicit OpenAI-compatible endpoint for the AI example')
     parser.add_argument('--llm-model', default='openai/gpt-oss-20b')
     parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
+    parser.add_argument('--cohort-scope', action='store_true', help='Capture shared filters, clinical statistics and local-agent settings using bundled demos')
     parser.add_argument('--walkthrough-video', action='store_true', help='Record only the silent multimodal docs walkthrough')
     parser.add_argument('--biosamples-demo', type=Path, help='Public CINECA + GEUVADIS package root; capture only biosample views')
     args = parser.parse_args()
+    if sum(bool(value) for value in (args.updated_views, args.walkthrough_video,
+                                    args.biosamples_demo, args.cohort_scope)) > 1:
+        parser.error('Choose only one capture mode')
     if args.biosamples_demo:
         args.biosamples_demo = args.biosamples_demo.resolve()
         resource = json.loads((args.biosamples_demo / 'resource.json').read_text())
@@ -235,6 +240,52 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     capture('dashboard-biosamples.png', '[data-patient-inventory]')
                     browser.close()
                     print('Captured patient origins and biosample inventory from the public CINECA demo.')
+                    return 0
+
+                if args.cohort_scope:
+                    page.locator('#dashboardTabBtn').click()
+                    expect(page.locator('#contextCohort')).not_to_contain_text('Loading')
+                    expect(page.locator('[data-clinical-mode="table"]')).to_be_visible()
+                    capture('workspace-shell.png')
+                    page.locator('#dashboardPatientsBtn').click()
+                    panel = page.locator('#dashboardPatientsPanel')
+                    expect(panel.locator('[data-match]').first).to_be_visible()
+                    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+                    expect(panel.locator('[data-field-id]').first).to_be_visible()
+                    capture('clinical-filter-fields.png', '#dashboardPatientsPanel')
+                    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
+                    page.locator('#patientDiseaseFilters [data-disease="Crohn Disease"]').click()
+                    expect(panel.locator('.cohort-scope-pending')).to_be_visible()
+                    capture('cohort-scope-draft.png', '#dashboardPatientsPanel')
+                    panel.locator('[data-scope-apply]').click()
+                    expect(panel.locator('.cohort-scope-pending')).to_be_hidden(timeout=30000)
+                    page.locator('#dashboardClinicalBtn').click()
+                    page.locator('[data-clinical-mode="table"]').click()
+                    expect(page.locator('.clinical-stats-table')).to_be_visible()
+                    capture('clinical-characteristics.png', '#dashboardClinicalPanel')
+                    response = page.request.post(url + '/datasets/select', data={
+                        'dataset_ids': ['synthetic-cross-sectional-demo']})
+                    assert response.ok
+                    page.reload(wait_until='networkidle')
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardMultimodalBtn').click()
+                    coverage = page.locator('.multimodal-coverage')
+                    expect(coverage.locator('.coverage-result')).to_contain_text('90 patients in scope')
+                    coverage.locator('[data-disease="Systemic Lupus Erythematosus"]').click()
+                    coverage.locator('input[value=transcriptomics]').check()
+                    coverage.locator('input[value=methylation]').check()
+                    coverage.locator('[data-scope-apply]').click()
+                    expect(coverage.locator('.coverage-result')).to_contain_text('28 patients in scope', timeout=30000)
+                    capture('multimodal-selection.png', '.multimodal-coverage')
+                    page.locator('#accountMenuButton').click()
+                    page.locator('#userSettingsBtn').click()
+                    page.locator('[data-settings-section="query"]').click()
+                    page.locator('#localAgentsSettings > summary').click()
+                    expect(page.locator('#localAgentsConsent')).to_be_visible()
+                    # Capture the permission screen, never a connection token.
+                    capture('local-agents.png', '#userSettingsPanel')
+                    browser.close()
+                    print(f'Captured {len(captured)} shared-scope views from bundled synthetic data.')
                     return 0
 
                 if args.updated_views:

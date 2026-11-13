@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add clinical filters and a shared patient scope across Dashboard and new chats.
+- Add per-dataset clinical characteristics tables.
+- Add read-only local MCP access to bundled synthetic demos in Desktop.
+
 ## 0.1.1 - 2026-11-05
 
 - Improve dataset loading, error handling and release packaging.
