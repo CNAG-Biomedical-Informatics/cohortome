@@ -28,6 +28,7 @@ class QueryRequest(BaseModel):
     scoped_record_ids: List[str] = Field(default_factory=list, max_length=100, description="Legacy bounded prior-subset sample or record IDs. Prefer scoped_result_handle for paged Query results.")
     scoped_id_type: str = Field(default="patient", description="The primary ID level used by the carried scoped context.")
     scoped_result_handle: str = Field(default="", max_length=96, pattern=r"^(?:|qr_[A-Za-z0-9_-]+)$", description="Opaque user-scoped Query result handle used for follow-up filtering without resending identifiers.")
+    scope_metadata: Dict[str, Any] = Field(default_factory=dict, description="Captured patient scope for this chat. An active empty selection is not the full workspace.")
 
     @field_validator("scoped_patient_ids", "scoped_record_ids")
     @classmethod
@@ -140,6 +141,7 @@ class QuerySessionRequest(BaseModel):
     execution_mode: Literal["auto", "planner_only", "deterministic_only"] = "auto"
     history: List[Dict[str, Any]] = Field(default_factory=list, max_length=16)
     turns: List[Dict[str, Any]] = Field(default_factory=list, max_length=200)
+    scope_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalysisSessionRequest(BaseModel):
@@ -174,6 +176,7 @@ class AnalysisSessionRenameRequest(BaseModel):
 
 
 class PhenoRankerRequest(BaseModel):
+    scope_metadata: Dict[str, Any] = Field(default_factory=dict)
     query_result_handle: str = Field(default='', max_length=200, description='Complete server-side Query selection for cohort mode.')
     prompt: str = Field(default="", description="Current Pheno-Ranker prompt used for run metadata and queued job labels.")
     action: str = Field(default="compare", description="Pheno-Ranker action, typically compare.")

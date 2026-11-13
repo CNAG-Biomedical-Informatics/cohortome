@@ -52,7 +52,7 @@ export function createCohortLibrary({escapeHtml: esc, datasetLabels, activeIds, 
         </dl>
         <div class="cohort-card-actions saved-cohort-actions">
           ${action(item, 'inspect', 'Members')}
-          ${action(item, 'clinical-summary', 'View clinical summary', !available)}
+          ${action(item, 'clinical-summary', 'Apply to scope', !available)}
           <details class="cohort-card-menu cohort-library-more"><summary>${downloadIcon()}Export</summary>
             <div class="cohort-card-menu-items">
               ${action(item, 'export-clinical', 'Export clinical data')}

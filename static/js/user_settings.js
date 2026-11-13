@@ -1,5 +1,6 @@
 import { fallbackCopyText } from "./shared.js";
 import { createResourceStorage } from './resource_storage.js';
+import { createLocalAgentsUi } from './local_agents.js';
 
 const DEFAULT_USER_SETTINGS = {
   appearance: "light",
@@ -75,6 +76,7 @@ export function createUserSettingsUi(ctx) {
   const { refs, state, callbacks } = ctx;
   const exportPanel = document.getElementById("exportLimitsSettings");
   const resourceStorage = createResourceStorage();
+  const localAgents = createLocalAgentsUi({state});
   const exportStatus = document.getElementById("exportLimitsStatus");
   const exportInputs = {
     source_mib: document.getElementById("exportSourceMib"),
@@ -236,6 +238,9 @@ export function createUserSettingsUi(ctx) {
       renderAuthSummary();
       void loadExportLimits();
       void resourceStorage.load();
+      void localAgents.load();
+    } else {
+      localAgents.hide();
     }
   }
 

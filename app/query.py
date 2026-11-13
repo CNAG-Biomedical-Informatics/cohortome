@@ -1453,7 +1453,7 @@ def _lm_studio_context(
     history_context = _lm_history_context(history, granularity_mode)
     if history_context:
         context["conversation_history"] = history_context
-    if granularity_mode != "summary" and patient_id is not None and _lm_studio_include_patient_workspace():
+    if granularity_mode != "summary" and patient_id is not None and (not allowed or patient_id in allowed) and _lm_studio_include_patient_workspace():
         patient_workspace = build_patient_workspace(data_dir, patient_id)
         if patient_workspace is not None:
             context["patient_workspace"] = {
@@ -2358,13 +2358,17 @@ def _answer_query_impl(
     scoped_patient_ids: Optional[List[str]] = None,
     granularity_mode: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
+    force_scope: bool = False,
 ) -> Dict[str, Any]:
     text = normalize_entity_synonym_mentions(query.strip(), "patient", "patient", "patients")
     lowered = text.lower()
     mode = str(query_mode or "auto").strip().lower()
     normalized_ai_provider_access = _normalize_ai_provider_access(ai_provider_access)
     provider_granularity_mode = _ai_provider_granularity_mode(granularity_mode, normalized_ai_provider_access)
-    active_scoped_patient_ids = scoped_patient_ids if _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
+    active_scoped_patient_ids = scoped_patient_ids if force_scope or _should_apply_scoped_context(text, history=history, scoped_patient_ids=scoped_patient_ids) else []
+    if force_scope and not active_scoped_patient_ids:
+        return {"query": query, "intent": "empty_scope", "reply": "This chat's scope contains no patients. Apply another scope and start a new chat.",
+                "data": {"source": "deterministic", "patient_count": 0, "patient_ids": [], "patients": []}}
 
     if not text:
         return {
@@ -2935,6 +2939,8 @@ def _answer_query_impl(
     if requested_patient_identifier is not None:
         resolved_identifier = store_resolve_patient_identifier(data_dir, requested_patient_identifier)
         patient_id = str((resolved_identifier or {}).get("patient_id") or requested_patient_identifier)
+        if active_scoped_patient_ids and patient_id not in set(active_scoped_patient_ids):
+            return {"query": query, "intent": "patient_lookup", "reply": "That patient is not in this chat's scope.", "data": {"source": "deterministic"}}
         patient_workspace = build_patient_workspace(data_dir, patient_id)
         if patient_workspace is None:
             return {
@@ -3105,6 +3111,7 @@ def answer_query(
     granularity_mode: str = "detailed",
     granularity_ceiling: str = "detailed",
     ai_provider_access: str = "detailed_allowed",
+    force_scope: bool = False,
 ) -> Dict[str, Any]:
     normalized_mode = _normalize_query_granularity_mode(granularity_mode)
     normalized_ceiling = _normalize_query_granularity_ceiling(granularity_ceiling)
@@ -3118,6 +3125,7 @@ def answer_query(
         scoped_patient_ids=scoped_patient_ids,
         granularity_mode=applied_mode,
         ai_provider_access=normalized_ai_provider_access,
+        force_scope=force_scope,
     )
     finalized = _finalize_query_response(payload, normalized_mode, applied_mode, normalized_ai_provider_access)
     finalized_data = finalized.get("data")

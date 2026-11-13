@@ -16,6 +16,8 @@ from app.resource_storage import router as resource_storage_router
 from app.projects import router as projects_router
 from app.patient_overview import router as patient_overview_router
 from app.cohort_filters import router as cohort_filters_router
+from app.cohort_scope import router as cohort_scope_router
+from app.local_agents import router as local_agents_router
 from app.variant_browser import router as variant_browser_router
 from app.dataset_about import router as dataset_about_router
 from app.local_viewer import router as local_viewer_router
@@ -105,6 +107,8 @@ app.include_router(resource_storage_router)
 app.include_router(projects_router)
 app.include_router(patient_overview_router)
 app.include_router(cohort_filters_router)
+app.include_router(cohort_scope_router)
+app.include_router(local_agents_router)
 app.include_router(variant_browser_router)
 app.include_router(dataset_about_router)
 app.include_router(local_viewer_router)

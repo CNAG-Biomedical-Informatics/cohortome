@@ -1,4 +1,6 @@
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
+import { captureChatScope, compactPatientScope } from './chat_scope.js';
+import { selectionScopeLabel } from './app_helpers.js';
 // Query persistence uses the same user-owned server storage as Analysis, not browser storage.
 export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuery, closeDrawer, renderList, organizationActions, restoreWorkspace }) {
   const list = document.getElementById('analysisSessionList');
@@ -44,8 +46,11 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     const source = current?.dataset_id || '';
     const record = state.availableDatasets?.find(item => item.dataset_id === source);
     const context = issue || (restored ? 'Saved results. Rerun a query to refresh tables and cohort actions.' : '');
-    contextNotice.textContent = context ? `${context}${source ? ` Original workspace: ${record?.name || source}.` : ''}` : '';
-    contextNotice.hidden = !context;
+    const captured = current ? state.queryScopeMetadata : captureChatScope(state);
+    const scopeText = state.queryContextMode === 'general' ? 'General question: no workspace data.'
+      : `${current ? 'Chat scope' : 'New chat scope'}: ${selectionScopeLabel(captured || {}) || 'Full workspace'}.`;
+    contextNotice.textContent = `${scopeText}${context ? ` ${context}${source ? ` Original workspace: ${record?.name || source}.` : ''}` : ''}`;
+    contextNotice.hidden = false;
     const chatId = current?.id;
     addWorkspaceRestoreAction(contextNotice, { scope: source, currentScope: dataset(),
       restore: restoreWorkspace, reopen: () => open(chatId, true) });
@@ -84,7 +89,10 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     message();
   }
   function snapshot() {
-    if (!current) current = { id: crypto.randomUUID(), dataset_id: dataset(), revision: 0 };
+    if (!current) {
+      current = { id: crypto.randomUUID(), dataset_id: dataset(), revision: 0 };
+      state.queryScopeMetadata = captureChatScope(state);
+    }
     const first = state.queryTurns.find(turn => turn.role === 'user');
     const data = {
       id: current.id, revision: current.revision, dataset_id: current.dataset_id,
@@ -93,6 +101,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
       prompt_draft: refs.questionEl.value, context_mode: state.queryContextMode,
       execution_mode: state.queryExecutionMode, history: state.queryHistory,
       turns: state.queryTurns.filter(turn => !turn.pending),
+      scope_metadata: compactPatientScope(state.queryScopeMetadata),
     };
     return JSON.parse(JSON.stringify(data));
   }
@@ -156,6 +165,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
       if (version !== epoch) return;
       query.resetQueryWorkspace();
       current = item;
+      state.queryScopeMetadata = item.scope_metadata || {};
       saveState = 'Saved';
       state.queryHistory = item.history || [];
       state.queryTurns = item.turns || [];
@@ -177,6 +187,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     return '';
   }
   search.addEventListener('input', render);
+  window.addEventListener('cohortome:scope-applied', render);
   refs.questionEl.addEventListener('input', () => {
     clearTimeout(timer);
     editVersion += 1;

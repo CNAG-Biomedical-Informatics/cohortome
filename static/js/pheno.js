@@ -2802,6 +2802,7 @@ export function createPhenoUi(ctx) {
           data_dir: (dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim(),
           patient_id: patientPicker.get(),
           selected_patient_ids: selectedSavedCohortIds.length ? "" : phenoSelectedPatientIdsEl.value.trim(),
+          scope_metadata: selectedSavedCohortIds.length ? {} : ctx.state?.phenoQuerySelection || {},
           selected_saved_cohort_ids: selectedSavedCohortIds,
           query_result_handle: selectedSavedCohortIds.length ? '' : ctx.state?.phenoQuerySelection?.handle || '',
           include_terms: parsePhenoTermsInput(phenoIncludeTermsEl.value),

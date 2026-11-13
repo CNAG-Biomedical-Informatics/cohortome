@@ -1,4 +1,5 @@
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
+import { captureChatScope, chatExecutionIds } from './chat_scope.js';
 // Persist structured runs, not HTML. Existing renderers restore plots and tables.
 export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, actions, restoreWorkspace}) {
   let items = [], current = null, chain = Promise.resolve(), epoch = 0, restoring = false, timer, runSetup;
@@ -14,6 +15,14 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     document.getElementById('phenoChatReload').classList.toggle('is-hidden', !conflict);
   }
   const scope = () => String(refs.dataDirEl.dataset.scopeId || '');
+  window.addEventListener('cohortome:scope-applied', () => {
+    if (current || restoring || pheno.chatBusy()) return;
+    const captured = captureChatScope(state);
+    const existing = setup();
+    if (existing.selected_saved_cohort_ids.length) return;
+    pheno.restoreChatSetup({...existing, selected_patient_ids:chatExecutionIds(state, captured).join(','),
+      query_selection:captured.selection_active ? captured : null});
+  });
   const fields = {prompt:'phenoPrompt', action:'phenoAction', mode:'phenoMode', patient_id:'phenoPatientId',
     selected_patient_ids:'phenoSelectedPatientIds', similarity_metric_cohort:'phenoSimilarityMetric',
     sort_by:'phenoSortBy', max_out:'phenoMaxOut', graph_min_weight:'phenoGraphMinWeight', graph_max_weight:'phenoGraphMaxWeight'};
@@ -75,7 +84,13 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     renderList();
   }
   function ensure() {
-    if (!current) current = {id:crypto.randomUUID(), revision:0, dataset_id:scope(), title:setup().prompt.slice(0,100) || 'New chat', turns:[]};
+    if (!current) {
+      const existing = setup(), captured = captureChatScope(state);
+      if (!existing.selected_patient_ids && !existing.selected_saved_cohort_ids.length && !existing.query_selection && captured.selection_active) {
+        pheno.restoreChatSetup({...existing, selected_patient_ids:chatExecutionIds(state, captured).join(','), query_selection:captured});
+      }
+      current = {id:crypto.randomUUID(), revision:0, dataset_id:scope(), title:setup().prompt.slice(0,100) || 'New chat', turns:[]};
+    }
     return current;
   }
   function save() {
@@ -152,7 +167,9 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
   async function newChat() {
     if (pheno.chatBusy() || restoring) {status.textContent = 'Wait for the current operation to finish.'; return;}
     if (!issue() && !await save()) return;
-    detach(); pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup({}); openTab();
+    const captured = captureChatScope(state);
+    detach(); pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup({
+      selected_patient_ids:chatExecutionIds(state, captured).join(','), query_selection:captured.selection_active ? captured : null}); openTab();
     document.getElementById('analysisChatSearch').value = '';
     if (scope()) {ensure(); await save();}
     render();

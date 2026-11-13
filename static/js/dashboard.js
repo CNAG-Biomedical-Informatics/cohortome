@@ -6,6 +6,7 @@ import { modalityIcon, modalityColor } from './modalities.js';
 import { createMultimodalCoverage } from './multimodal_coverage.js';
 import { createVariantBrowser } from './variant_browser.js';
 import { displayIdentity, decodeIdentity, identityKey } from './identities.js';
+import { characteristicsMarkup } from './clinical_characteristics.js';
 
 export function createDashboardUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -59,6 +60,22 @@ export function createDashboardUi(ctx) {
     setDashboardSubtab,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
+  const appliedScope = () => state.activePatientScope?.workspace === state.currentDatasetScopeId
+    ? state.activePatientScope : null;
+  const dashboardAssays = datasets => appliedScope() ? (appliedScope().assays || []) : (datasets || []);
+  let scopeSnapshot = null, patientScopeKeys = new Set();
+  const scopeHasPatient = (patientId, datasetId) => {
+    const scope = appliedScope();
+    if (!scope) return true;
+    if (scopeSnapshot !== scope) {
+      scopeSnapshot = scope;
+      patientScopeKeys = new Set((scope.selection.members || []).map(member => JSON.stringify([member.dataset_id, member.patient_id])));
+    }
+    const identity = decodeIdentity(patientId);
+    const dataset = identity?.datasetId || datasetId || (state.currentDatasetIds.length === 1 ? state.currentDatasetIds[0] : '');
+    const id = identity?.sourceId || patientId;
+    return patientScopeKeys.has(JSON.stringify([dataset, id]));
+  };
   const multimodalCoverage = createMultimodalCoverage({state, escapeHtml, saveIdsAsCohort, renderGlobalContext});
   let variantPanelItems = [];
   const variantBrowser = createVariantBrowser({state, escapeHtml, saveIdsAsCohort, onPanels: panels => {
@@ -76,6 +93,16 @@ export function createDashboardUi(ctx) {
       refreshPatientList: () => renderPatientList(currentRosterPatients()),
       saveIdsAsCohort, sendPatientIdsToAnalysis, handleClaridAction,
     },
+  });
+  window.addEventListener('cohortome:scope-applied', () => {
+    // Keep the workspace inventories used by captured Analysis chats intact.
+    // Scope changes affect the displayed dashboards, not those stored inputs.
+    variantPanelItems = [];
+    renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
+    renderAssayDashboardCards(state.assayDatasetsState || []);
+    renderDicomStudies(state.dicomStatus || {});
+    renderMultimodalMatrixVisibility();
+    void variantBrowser.load(state.currentDatasetScopeId);
   });
 
   function isCurrentWorkspaceScope(scopeId) {
@@ -504,8 +531,11 @@ export function createDashboardUi(ctx) {
   function renderDashboard(summary) {
     state.dashboardSummary = summary;
     const workspaceSummary = summary;
-    const selection = state.clinicalSelection?.workspace === state.currentDatasetScopeId ? state.clinicalSelection : null;
+    const scope = appliedScope();
+    const selection = scope ? {status:'ready', data:scope.summary,
+      label:scope.selection.source?.prompt || 'Applied patient scope'} : null;
     if (selection?.status === 'ready') summary = selection.data;
+    const tableMode = state.dashboardClinicalMode === 'table';
     const scopeMarkup = `<div class="clinical-scope-bar" role="status"><span>${selection
       ? `<strong>${escapeHtml(selection.label)}</strong> · ${selection.status === 'ready'
         ? `${formatNumber(summary.selection_count)} selected · ${formatNumber(summary.totals.patients)} with clinical records`
@@ -558,20 +588,18 @@ export function createDashboardUi(ctx) {
 
     dashboardEl.innerHTML = `
       <section class="section-card dashboard-hero">
-        <div class="patient-finder-heading">
+        <div class="dashboard-view-heading">
           <h2>Clinical dashboard</h2>
-          <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts describe the group shown below. Disease and medication counts use unique patients; a patient may appear in several categories. All their clinical records are included, not only the visit or sample that matched a filter.</p></details>
+          <div class="dashboard-heading-counts"><span class="dashboard-count">${escapeHtml(formatNumber(totals.patients ?? summary.patients ?? 0))} ${Number(totals.patients ?? summary.patients) === 1 ? 'patient' : 'patients'}</span><span class="dashboard-count">${escapeHtml(formatNumber(recordCount))} ${recordCount === 1 ? 'record' : 'records'}</span></div>
+          <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts describe the group shown below. Disease and medication counts use unique patients; a patient may appear in several categories. All their clinical records are included, not only the visit or sample that matched a filter. Distributions use patients with clinical records. Missing sex is shown as Unknown.${selection?.status === 'ready' ? ` The full workspace contains ${formatNumber(summary.workspace_patient_count)} patients with clinical records.` : ''}</p><p>${escapeHtml(formatNumber(totals.source_files || 0))} source files · ${snapshotRepresentation ? `Average visits per patient: ${escapeHtml(String(totals.avg_visits_per_patient || 0))}` : representation === 'person' ? 'One record per person' : 'Mixed or unspecified representation'}.</p></details>
         </div>
         ${scopeMarkup}
-        <p class="section-note">${selection?.status === 'ready' ? `${formatNumber(summary.workspace_patient_count)} patients with clinical records in the full workspace. ` : ''}Distributions below use patients with clinical records. Missing sex is shown as Unknown.</p>
-        <div class="assay-kpi-grid">
-          <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.patients || summary.patients || 0))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Timepoints" : "Clinical records"}</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(recordCount))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">${snapshotRepresentation ? "Avg visits / patient" : "Representation"}</span><strong class="assay-kpi-value">${snapshotRepresentation ? escapeHtml(String(totals.avg_visits_per_patient || 0)) : escapeHtml(representation === "person" ? "One record per person" : "Mixed or unspecified")}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">Source files</span><strong class="assay-kpi-value">${escapeHtml(formatNumber(totals.source_files || 0))}</strong></div>
-        </div>
       </section>
-      ${overviewMarkup}
+      <div class="clinical-view-switch" role="group" aria-label="Clinical presentation">
+        <button type="button" class="query-chip" data-clinical-mode="charts" aria-pressed="${!tableMode}">Charts</button>
+        <button type="button" class="query-chip" data-clinical-mode="table" aria-pressed="${tableMode}">Table</button>
+      </div>
+      ${tableMode ? characteristicsMarkup(summary.characteristics, escapeHtml, state.dashboardClinicalDataset) : overviewMarkup}
     `;
     if (selection && selection.status !== 'ready') {
       dashboardEl.innerHTML = `<section class="section-card"><h2>Clinical dashboard</h2>${scopeMarkup}</section>`;
@@ -586,7 +614,16 @@ export function createDashboardUi(ctx) {
         renderDashboard(state.dashboardSummary || summary);
       });
     }
-    if (!selection || selection.status === 'ready') renderDashboardCharts(summary);
+    dashboardEl.querySelectorAll('[data-clinical-mode]').forEach(button => button.onclick = () => {
+      state.dashboardClinicalMode = button.dataset.clinicalMode;
+      renderDashboard(workspaceSummary);
+    });
+    const datasetSelector = dashboardEl.querySelector('#clinicalTableDataset');
+    if (datasetSelector) datasetSelector.onchange = () => {
+      state.dashboardClinicalDataset = datasetSelector.value;
+      renderDashboard(workspaceSummary);
+    };
+    if (!tableMode && (!selection || selection.status === 'ready')) renderDashboardCharts(summary);
     if (state.currentDashboardSubtab === "timeline") {
       renderDashboardTimeline(workspaceSummary);
     }
@@ -1033,7 +1070,7 @@ export function createDashboardUi(ctx) {
       dicomDashboardHealthEl.innerHTML = `<div class="empty">${escapeHtml(signedOut ? "Sign in to inspect DICOM viewer status." : "Load a workspace to inspect DICOM viewer status.")}</div>`;
     }
     if (dicomDashboardStatusEl) {
-      dicomDashboardStatusEl.className = "query-status";
+      dicomDashboardStatusEl.className = "dashboard-count";
       dicomDashboardStatusEl.textContent = signedOut ? "Sign in to access DICOM studies." : "No workspace loaded.";
     }
     if (dicomDashboardStudiesEl) {
@@ -1136,13 +1173,14 @@ export function createDashboardUi(ctx) {
     if (!dicomDashboardStatusEl || !dicomDashboardStudiesEl) return;
     const source = payload && typeof payload === "object" ? payload : {};
     const enabled = Boolean(source.enabled);
-    const studies = Array.isArray(source.studies) ? source.studies : [];
+    const allStudies = Array.isArray(source.studies) ? source.studies : [];
+    const studies = allStudies.filter(study => scopeHasPatient(study.patient_id, study.source_dataset_id));
     state.dicomStatus = { ...(state.dicomStatus || {}), ...source };
-    state.dicomStudiesState = studies;
-    dicomDashboardStatusEl.className = "query-status";
+    state.dicomStudiesState = allStudies;
+    dicomDashboardStatusEl.className = "dashboard-count";
     if (!studies.length) {
-      dicomDashboardStatusEl.textContent = "No imaging studies listed in this workspace.";
-      dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
+      dicomDashboardStatusEl.textContent = appliedScope() ? 'No imaging studies in the applied scope.' : 'No imaging studies listed in this workspace.';
+      dicomDashboardStudiesEl.innerHTML = `<div class="empty">${appliedScope() ? 'No linked DICOM studies for these patients.' : 'No DICOM studies configured.'}</div>`;
       renderAssayDashboardOverview(state.assayDatasetsState || []);
       return;
     }
@@ -1231,7 +1269,7 @@ export function createDashboardUi(ctx) {
     if (!dicomDashboardStatusEl || !dicomDashboardStudiesEl) return;
     const scopeId = String(options.scopeId || ((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim()) || "").trim();
     const dataDir = encodeURIComponent(scopeId);
-    dicomDashboardStatusEl.className = "query-status loading";
+    dicomDashboardStatusEl.className = "dashboard-count loading";
     dicomDashboardStatusEl.textContent = "Checking DICOM studies...";
     if (dicomDashboardHealthEl) {
       dicomDashboardHealthEl.innerHTML = '<div class="empty">Checking DICOM viewer status...</div>';
@@ -1246,7 +1284,7 @@ export function createDashboardUi(ctx) {
     } else {
       const error = studiesResult.status === "rejected" ? studiesResult.reason : null;
       state.dicomStudiesState = [];
-      dicomDashboardStatusEl.className = "query-status";
+      dicomDashboardStatusEl.className = "dashboard-count";
       dicomDashboardStatusEl.textContent = error && error.message ? error.message : "Unable to load DICOM studies.";
       dicomDashboardStudiesEl.innerHTML = '<div class="empty">No DICOM studies configured.</div>';
     }
@@ -1293,16 +1331,16 @@ export function createDashboardUi(ctx) {
 
   function selectedAssayModalityFilter() {
     const value = String(state.assayDashboardModalityFilter || "all").trim() || "all";
-    const tabs = assayModalityTabs([...(state.assayDatasetsState || []), ...variantPanelItems]);
+    const tabs = assayModalityTabs([...dashboardAssays(state.assayDatasetsState), ...variantPanelItems]);
     return tabs.some((tab) => tab.key === value) ? value : "all";
   }
 
   function renderAssayDashboardOverview(datasets) {
     if (!assayDashboardOverviewEl) return;
-    const items = [...(Array.isArray(datasets) ? datasets : []).filter(item => !item.variant_panel), ...variantPanelItems]
+    const items = [...dashboardAssays(datasets).filter(item => !item.variant_panel), ...variantPanelItems]
       .filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     if (!items.length) {
-      assayDashboardOverviewEl.innerHTML = '<div class="empty">Load assays to review modality coverage.</div>';
+      assayDashboardOverviewEl.innerHTML = `<div class="dashboard-view-heading"><h2>Assays</h2></div><div class="empty">${appliedScope() ? 'No linked assays in the applied patient scope.' : 'Load assays to review modality coverage.'}</div>`;
       return;
     }
     const patientIds = new Set();
@@ -1321,20 +1359,14 @@ export function createDashboardUi(ctx) {
       return { modality, count: known ? patients.size : null };
     });
     const totalKnown = items.every(item => Array.isArray(item.patient_ids));
+    const featureCountsKnown = items.every(item => (item.feature_count ?? item.gene_count) != null);
     const totalPatients = [...patientIds].filter(Boolean).length;
     const denominator = totalKnown ? totalPatients : Math.max(1, ...coverage.map(item => item.count || 0));
     assayDashboardOverviewEl.innerHTML = `
       <section class="assay-overview-summary">
-        <div class="assay-overview-copy">
-          <strong class="assay-workspace-summary-title">Patient coverage</strong>
-          <span class="section-note">Whole workspace</span>
-        </div>
-        <div class="assay-workspace-kpis">
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Assays</span><strong class="assay-kpi-value">${escapeHtml(String(items.length))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(sampleIds.size))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(patientIds.size))}</strong></div>
-          <div class="assay-kpi assay-kpi-compact"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(featureTotal))}</strong></div>
-        </div>
+        <div class="dashboard-view-heading"><h2>Assays</h2><div class="dashboard-heading-counts">
+          <span class="dashboard-count">${items.length} assays</span><span class="dashboard-count">${sampleIds.size} samples</span><span class="dashboard-count">${patientIds.size} patients</span></div>
+          <details class="inline-view-help"><summary aria-label="About assays">?</summary><p>Patient coverage in ${appliedScope() ? 'the applied scope' : 'the whole workspace'}. Modalities may overlap. ${featureCountsKnown ? `${escapeHtml(String(featureTotal))} features across the listed assays.` : 'Feature counts are not reported for every assay.'}</p></details></div>
         <div class="assay-coverage-chart">
           <p class="section-note">${totalKnown ? `Share of ${escapeHtml(formatNumber(totalPatients))} patients with any assay` : 'Unique patients by modality'} · modalities may overlap.</p>
           ${coverage.map(({ modality, count }) => `<div class="assay-coverage-row">
@@ -1367,7 +1399,7 @@ export function createDashboardUi(ctx) {
 
   function renderTranscriptomicsQuickExpressionVisibility() {
     if (!transcriptomicsQuickExpressionPanelEl) return;
-    const visible = selectedAssayModalityFilter() === "transcriptomics"
+    const visible = !appliedScope() && selectedAssayModalityFilter() === "transcriptomics"
       && state.assayDatasetsState.some((dataset) => isQuickExpressionDataset(dataset));
     transcriptomicsQuickExpressionPanelEl.classList.toggle("is-hidden", !visible);
     transcriptomicsQuickExpressionPanelEl.setAttribute("aria-hidden", visible ? "false" : "true");
@@ -1381,8 +1413,9 @@ export function createDashboardUi(ctx) {
 
   function renderMultimodalMatrixVisibility() {
     if (!multimodalMatrixPanelEl) return;
-    multimodalMatrixPanelEl.classList.remove("is-hidden");
-    multimodalMatrixPanelEl.setAttribute("aria-hidden", "false");
+    const hidden = Boolean(appliedScope());
+    multimodalMatrixPanelEl.classList.toggle('is-hidden', hidden);
+    multimodalMatrixPanelEl.setAttribute('aria-hidden', String(hidden));
   }
 
   function renderCoverageBars(title, rows, unit) {
@@ -1568,6 +1601,7 @@ export function createDashboardUi(ctx) {
   }
 
   function renderTranscriptomicsHighlights(item) {
+    if (item.count_summary_status === 'not_calculated_for_scope') return '<p class="section-note">Expression summaries for this group are available in Analysis.</p>';
     const expected = item.data_type === "rsem_expected_counts";
     const summaryNumber = (value) => value != null && Number.isFinite(Number(value))
       ? escapeHtml(Number(value).toFixed(1)) : "Not calculated";
@@ -1656,11 +1690,11 @@ export function createDashboardUi(ctx) {
         <div class="assay-kpi-grid">
           <div class="assay-kpi"><span class="assay-kpi-label">Samples</span><strong class="assay-kpi-value">${escapeHtml(String(item.sample_count || 0))}</strong></div>
           <div class="assay-kpi"><span class="assay-kpi-label">Patients</span><strong class="assay-kpi-value">${escapeHtml(String(item.patient_count || 0))}</strong></div>
-          <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count || item.gene_count || 0))}</strong></div>
+          <div class="assay-kpi"><span class="assay-kpi-label">Features</span><strong class="assay-kpi-value">${escapeHtml(String(item.feature_count ?? item.gene_count ?? 'Not reported'))}</strong></div>
         </div>
         ${renderAssayLinkage(item)}
         ${isTranscriptomics ? renderTranscriptomicsHighlights(item) : renderGenericAssayHighlights(item)}
-        ${renderAssayOverlapSection(item)}
+        ${appliedScope() ? '' : renderAssayOverlapSection(item)}
       </article>
     `;
   }
@@ -1801,12 +1835,13 @@ export function createDashboardUi(ctx) {
         document.getElementById("associationStatus").textContent = "Comparison prompt ready. Review the question and cohort scope, keep A/B comparison off, then select Run analysis.";
       };
     }
-    const imagingItems = allItems.filter((item) => normalizedAssayModality(item.modality) === "imaging");
+    const displayedItems = dashboardAssays(allItems);
+    const imagingItems = displayedItems.filter((item) => normalizedAssayModality(item.modality) === "imaging");
     const imagingCards = document.getElementById("imagingDashboardCards");
     if (imagingCards) imagingCards.innerHTML = imagingItems.length
       ? imagingItems.map((item) => renderAssayDashboardCard(item)).join("")
       : '<div class="empty">No derived imaging measurements in this workspace. DICOM studies, when available, are listed above.</div>';
-    const items = [...allItems, ...variantPanelItems].filter((item) => normalizedAssayModality(item.modality) !== "imaging");
+    const items = [...displayedItems, ...variantPanelItems].filter((item) => normalizedAssayModality(item.modality) !== "imaging");
     renderAssayDashboardOverview(items);
     renderAssayModalityTabs(items);
     renderDicomPanelVisibility();
@@ -2145,14 +2180,6 @@ export function createDashboardUi(ctx) {
   }
 
   return {
-    refinePatientCoverage(selection) {
-      if (selection.scope !== state.currentDatasetScopeId) return;
-      state.multimodalPatientSelection = selection;
-      setDashboardSubtab('multimodal');
-      const host = multimodalReadinessContentEl.querySelector('.multimodal-coverage');
-      if (host) void multimodalCoverage.load(host, selection.scope);
-      else void loadMultimodalReadiness({scopeId: selection.scope});
-    },
     claridIdentityMarkup,
     renderPatientList,
     renderDetail,

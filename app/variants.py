@@ -38,7 +38,7 @@ def _unique(rows, key):
     return result
 
 
-def read_variant_panel(root, patient_ids=None, *, biosample_records=None):
+def read_variant_panel(root, patient_ids=None, *, biosample_records=None, selected_patient_ids=None):
     """Validate a complete sample×variant grid; return annotations and carrier links.
 
     Raw GTs remain in the source file. A carrier here has a fully called genotype
@@ -99,13 +99,17 @@ def read_variant_panel(root, patient_ids=None, *, biosample_records=None):
                     or row['phased'] != str('|' in gt).lower()):
                 raise ValueError
             seen[vid].add(sid)
+            if selected_patient_ids is not None and samples[sid]['patient_id'] not in selected_patient_ids:
+                continue
             counts[status] += 1
             variant_counts[vid][('alternate' if int(dosage) > 0 else 'reference') if status == 'called' else status] += 1
             if status == 'called' and int(dosage) > 0:
                 carriers[vid].add(samples[sid]['patient_id'])
         if any(len(ids) != len(samples) for ids in seen.values()):
             raise ValueError
-        return dict(variants=list(variants.values()), samples=list(samples.values()),
+        selected_samples = [sample for sample in samples.values()
+                            if selected_patient_ids is None or sample['patient_id'] in selected_patient_ids]
+        return dict(variants=list(variants.values()), samples=selected_samples,
                     carriers=carriers, call_counts=counts, variant_counts=variant_counts,
                     provenance=provenance)
     except (OSError, EOFError, UnicodeError, csv.Error, ValueError, TypeError,

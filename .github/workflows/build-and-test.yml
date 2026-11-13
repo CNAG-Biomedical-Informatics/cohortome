@@ -37,6 +37,14 @@ jobs:
             tests/test_bff.py \
             tests/test_clinical_store.py \
             tests/test_cohort_filters.py \
+            tests/test_cohort_scope.py \
+            tests/test_chat_patient_scope.py \
+            tests/test_scoped_dashboard.py \
+            tests/test_apply_scope_integration.py \
+            tests/test_local_agents.py \
+            tests/test_local_agent_tools.py \
+            tests/test_clinical_characteristics.py \
+            tests/test_patient_clinical_filters.py \
             tests/test_state_io.py \
             tests/test_workspace_identities.py \
             tests/test_cohort_members.py \
@@ -57,4 +65,9 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Browser regression tests
-        run: python -m pytest -q tests/test_clarid_table_browser.py tests/test_imaging_table_browser.py
+        run: python -m pytest -q tests/test_clarid_table_browser.py tests/test_imaging_table_browser.py tests/test_scope_builder_ui.py tests/test_dashboard_scope_ui.py tests/test_chat_scope_ui.py tests/test_local_agents_ui.py
+      - name: Local MCP connector (isolated SDK)
+        run: |
+          python -m venv "$RUNNER_TEMP/cohortome-mcp"
+          "$RUNNER_TEMP/cohortome-mcp/bin/python" -m pip install -r integrations/mcp/requirements.txt 'pytest>=8.3,<9'
+          COHORTOME_TEST_APP_PYTHON="$(command -v python)" "$RUNNER_TEMP/cohortome-mcp/bin/python" -m pytest -q integrations/mcp/test_connector.py integrations/mcp/test_desktop_e2e.py

@@ -130,6 +130,10 @@ def _catalogue(available):
                                    for key in keys if key not in {'info', 'label'})
                 _add(fields, ['scalar', keys, kind, dataset if kind == 'number' else None], label[:1].upper() + label[1:], kind, '', dataset, dataset_label,
                      ('clinical_values', 'field_path = ? AND value_type = ?', [path, value_type], value))
+                if kind == 'number' and keys[-1] in {'age', 'age_at_visit'}:
+                    field = fields[_digest(['scalar', keys, kind, dataset])]
+                    field['is_recorded_age'] = True
+                    field['label'] = 'Age at recorded visit'
             for collection, label in COLLECTION_LABELS.items():
                 # Codes stay attached to labels. Uncoded text is not silently
                 # harmonized with the same label in another source dataset.

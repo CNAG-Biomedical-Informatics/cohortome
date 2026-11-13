@@ -1,8 +1,8 @@
 import { sortDiseaseOptions } from './shared.js';
-import { createSelectionMetadata } from './app_helpers.js';
-import { openClinicalSummary } from './clinical_summary.js';
+import { createClinicalFilters } from './clinical_filters.js';
 
-export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort, refineInMultimodal}) {
+export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort}) {
+  const scopeUi = state.cohortScope;
   const input = document.getElementById('patientOverviewSearch');
   const list = document.getElementById('patientOverviewMatches');
   const status = document.getElementById('patientOverviewStatus');
@@ -15,19 +15,46 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const filters = document.getElementById('patientDiseaseFilters');
   const originFilter = document.getElementById('patientSampleOriginFilter');
   const originSelect = document.getElementById('patientSampleOrigin');
+  const clinicalHost = document.getElementById('patientClinicalFilters');
+  const matchCount = document.getElementById('patientMatchCount');
+  let workspaceTotal = null;
+  let clinicalFilters = null;
+  let clinicalSignature = '';
+  const scopeBar = document.createElement('div');
+  document.querySelector('#dashboardPatientsPanel .dashboard-view-heading').after(scopeBar);
+  scopeUi.mount(scopeBar);
   let originGeneration = 0;
+  function mountClinicalFilters() {
+    clinicalFilters?.destroy();
+    const draft = scopeUi.getDraft();
+    clinicalSignature = JSON.stringify(draft.clinical_filters);
+    const selectedScope = scope();
+    clinicalHost.hidden = false;
+    clinicalFilters = createClinicalFilters({host:clinicalHost, workspace:selectedScope, escapeHtml:esc,
+      isCurrent:() => selectedScope === scope() && !state.loadInFlight,
+      initialFilters:draft.clinical_filters, initialFingerprint:draft.fingerprint, initialLabels:draft.clinical_labels,
+      onChange:result => {
+        clinicalSignature = JSON.stringify(result.filters);
+        scopeUi.patch({clinical_filters:result.filters, fingerprint:result.fingerprint, clinical_labels:result.rule_labels});
+        scopeUi.setValidation('clinical', result.status === 'ready' ? '' : result.message || 'Finish editing the clinical filter.');
+      },
+      onReload:() => {
+        scopeUi.setValidation('clinical', '');
+        scopeUi.patch({clinical_filters:[], fingerprint:'', clinical_labels:[]}); mountClinicalFilters();
+      },
+    });
+  }
   async function loadOrigins() {
     const ticket = ++originGeneration, selectedScope = scope();
     if (!selectedScope) return;
     try {
       const rows = await request('sample-origins', {workspace:selectedScope});
       if (ticket !== originGeneration || selectedScope !== scope()) return;
-      const selected = originSelect.value;
+      const selected = scopeUi.getDraft().sample_origin;
       originSelect.innerHTML = '<option value="">All sample origins</option>' + rows.map(row =>
         `<option value="${esc(row.id)}">${esc(row.label)} · ${esc(row.id)} (${Number(row.patient_count)})</option>`).join('');
       originSelect.value = selected;
       originFilter.hidden = !rows.length;
-      if (selected && originSelect.value !== selected) searchPatients();
     } catch (_) {
       if (ticket === originGeneration && selectedScope === scope()) {
         originFilter.hidden = true;
@@ -35,10 +62,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
       }
     }
   }
-  originSelect.addEventListener('change', () => { clearSelection(); searchPatients(); });
+  originSelect.addEventListener('change', () => scopeUi.patch({sample_origin:originSelect.value}));
   function renderDiseases() {
-    const items = showAllDiseases ? diseases : diseases.slice(0, 8);
-    filters.innerHTML = `<button type="button" class="query-chip query-chip-deterministic" data-disease="" aria-pressed="${!selectedDiseases.size}">All patients</button>` + items.map(item => `<button type="button" class="query-chip query-chip-deterministic" data-disease="${esc(item.disease)}" aria-pressed="${selectedDiseases.has(item.disease)}">${esc(item.disease)} <span class="query-chip badge">${Number(item.patient_count) || 0}</span></button>`).join('') + (diseases.length > 8 ? `<button type="button" class="query-chip" data-more-diseases aria-expanded="${showAllDiseases}">${showAllDiseases ? 'Show fewer' : 'More diseases…'}</button>` : '') + (selectedDiseases.size > 1 ? '<span class="section-note">Matching any selected disease</span>' : '');
+    const items = showAllDiseases ? diseases : diseases.filter((item, index) => index < 8 || selectedDiseases.has(item.disease));
+    filters.innerHTML = `<button type="button" class="query-chip query-chip-deterministic" data-disease="" aria-pressed="${!selectedDiseases.size}">All diseases</button>` + items.map(item => `<button type="button" class="query-chip query-chip-deterministic" data-disease="${esc(item.disease)}" aria-pressed="${selectedDiseases.has(item.disease)}">${esc(item.disease)} <span class="query-chip badge">${Number(item.patient_count) || 0}</span></button>`).join('') + (diseases.length > 8 ? `<button type="button" class="query-chip" data-more-diseases aria-expanded="${showAllDiseases}">${showAllDiseases ? 'Show fewer' : 'More diseases…'}</button>` : '') + (selectedDiseases.size > 1 ? '<span class="section-note">Matching any selected disease</span>' : '');
   }
   async function loadDiseases() {
     const ticket = ++diseaseGeneration, selectedScope = scope();
@@ -62,11 +89,33 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   const clinicalButton = document.getElementById('patientClinicalSummary');
   const saveStatus = document.getElementById('patientSaveStatus');
   let saving = false;
-  function clearSelection() {
+  refineButton.textContent = 'Multimodal filters';
+  clinicalButton.textContent = 'View Clinical';
+  function updateActions() {
+    saveButton.disabled = saving || loading || scopeUi.isDirty() || scopeUi.isBusy() || !matches.length;
+    refineButton.disabled = clinicalButton.disabled = !scope();
+  }
+  scopeUi.subscribe((snapshot, reason) => {
+    input.value = snapshot.draft.q;
+    originSelect.value = snapshot.draft.sample_origin;
+    selectedDiseases = new Set(snapshot.draft.diseases); renderDiseases();
+    const next = JSON.stringify(snapshot.draft.clinical_filters);
+    if (next !== clinicalSignature || ['discard', 'clear'].includes(reason)) {
+      clinicalSignature = next;
+      clinicalFilters?.setFilters(snapshot.draft.clinical_filters, snapshot.draft.fingerprint, snapshot.draft.clinical_labels);
+    }
+    updateActions();
+    if (reason === 'applied') { clearSelection(false); searchPatients(); }
+    if (reason === 'settled' && snapshot.errorStatus === 409 && snapshot.draft.clinical_filters.length) {
+      clinicalFilters?.invalidate(snapshot.error);
+    }
+    if (reason === 'workspace-settled') refresh();
+  });
+  function clearSelection(navigate = true) {
     state.patientOverviewSelection = null;
     timelineButton.disabled = true;
     timelineButton.hidden = true;
-    if (state.currentDashboardSubtab === 'timeline') navigation.setDashboardSubtab('patients');
+    if (navigate && state.currentDashboardSubtab === 'timeline') navigation.setDashboardSubtab('patients');
   }
   const value = text => esc(String(text || 'Not recorded'));
   const icon = path => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">${path}</svg>`;
@@ -81,7 +130,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     list.querySelector('thead tr').innerHTML = headers.map(([label, path], i) => `<th scope="col" aria-sort="${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="patient-sort" data-sort="${sortKeys[i]}" aria-label="Sort by ${label}">${icon(path)}${label}<span aria-hidden="true">${sortBy === sortKeys[i] ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span></button></th>`).join('');
   }
   function reset() {
+    workspaceTotal = null; matchCount.textContent = '';
     loadedScope = null;
+    clinicalFilters?.destroy(); clinicalFilters = null;
+    clinicalHost.replaceChildren(); clinicalHost.hidden = true;
     originGeneration++; originSelect.value = ''; originFilter.hidden = true;
     saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true; saveStatus.textContent = '';
     selectedDiseases.clear(); diseases = []; showAllDiseases = false; diseaseGeneration++; renderDiseases();
@@ -99,6 +151,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     const selectedScope = scope();
     if (!selectedScope || selectedScope === loadedScope) return;
     loadedScope = selectedScope;
+    if (!clinicalFilters) mountClinicalFilters();
     searchPatients();
     void loadDiseases();
     void loadOrigins();
@@ -106,9 +159,19 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   async function request(path, params, signal) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, val]) => (Array.isArray(val) ? val : [val]).forEach(item => query.append(key, item)));
-    const response = await fetch(`/patient-overview/${path}?${query}`, {signal});
+    const options = {signal};
+    const active = state.activePatientScope?.workspace === scope() ? state.activePatientScope : null;
+    if (active && path === 'search') {
+      path = 'scoped-search';
+      Object.assign(options, {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({members:active.selection.members})});
+    }
+    const response = await fetch(`/patient-overview/${path}?${query}`, options);
     const data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to load patient information.');
+    if (!response.ok) {
+      const error = new Error(typeof data.detail === 'string' ? data.detail : 'Unable to load patient information.');
+      error.status = response.status; throw error;
+    }
     return data;
   }
   async function choose(index) {
@@ -130,23 +193,26 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   function searchPatients(changePage = false) {
+    matchCount.textContent = '';
     saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true; saveStatus.textContent = '';
     clearTimeout(timer); controller?.abort(); generation++;
+    loading = false;
     if (!changePage) { pages = [{}]; pageIndex = 0; nextPage = null; }
     nextPage = null;
-    const q = input.value.trim();
     if (state.loadInFlight) { status.textContent = 'Applying workspace selection…'; return; }
     if (!scope()) { matches = []; render(); status.textContent = 'Select and apply a dataset first.'; return; }
-    status.textContent = q ? 'Searching…' : 'Loading patients…';
+    status.textContent = 'Loading patients in scope…';
     loading = true; more.disabled = true; previous.disabled = true;
     list.setAttribute('aria-busy', 'true');
     const ticket = generation, selectedScope = scope();
     timer = setTimeout(async () => {
       controller = new AbortController();
       try {
-        const data = await request('search', {workspace:selectedScope, q, disease:[...selectedDiseases], sample_origin:originSelect.value, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
+        const data = await request('search', {workspace:selectedScope, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
         if (ticket !== generation || selectedScope !== scope()) return;
         matches = data.matches;
+        if (!state.activePatientScope && Number.isInteger(data.total)) workspaceTotal = data.total;
+        if (Number.isInteger(data.total)) matchCount.textContent = `${data.total.toLocaleString()}${workspaceTotal !== null ? ` of ${workspaceTotal.toLocaleString()}` : ''} patients in scope`;
         saveButton.querySelector('span').textContent = Number.isInteger(data.total)
           ? `Save ${data.total.toLocaleString()} ${data.total === 1 ? 'patient' : 'patients'} as cohort`
           : 'Save filtered patients as cohort';
@@ -158,11 +224,11 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
           loadedScope = null;
           matches = []; render(); status.textContent = error.message;
         }
-      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = saving || !matches.length; list.removeAttribute('aria-busy'); } }
+      } finally { if (ticket === generation) { loading = false; more.disabled = !nextPage; previous.disabled = pageIndex === 0; updateActions(); list.removeAttribute('aria-busy'); } }
     }, 200);
   }
   input.addEventListener('input', () => {
-    clearSelection(); detail.replaceChildren(); searchPatients();
+    scopeUi.patch({q:input.value});
   });
   filters.addEventListener('click', event => {
     if (event.target.closest('[data-more-diseases]')) { showAllDiseases = !showAllDiseases; renderDiseases(); return; }
@@ -172,43 +238,36 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     if (!label) selectedDiseases.clear();
     else if (selectedDiseases.has(label)) selectedDiseases.delete(label);
     else selectedDiseases.add(label);
-    clearSelection(); renderDiseases(); searchPatients();
+    scopeUi.patch({diseases:[...selectedDiseases]});
   });
-  async function useFilteredPatients(refine = false) {
-    if (saving || loading || !matches.length) return;
+  async function useFilteredPatients() {
+    if (saving || loading || scopeUi.isDirty() || scopeUi.isBusy() || !matches.length) return;
     saving = true; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = true;
     const ticket = generation, selectedScope = scope();
     const isCurrent = () => ticket === generation && selectedScope === scope();
-    const params = {workspace:selectedScope, q:input.value.trim(), disease:[...selectedDiseases],
-      sample_origin:originSelect.value};
+    const params = {workspace:selectedScope};
     saveStatus.textContent = 'Collecting all matching patients…';
     try {
-      const data = await request('selection', params);
+      const active = state.activePatientScope?.workspace === scope() ? state.activePatientScope : null;
+      const data = active ? active.selection : await request('selection', params);
       if (!isCurrent()) throw new Error('Filters or workspace changed. Please try again.');
       const members = data.members || [];
       if (!members.length) throw new Error('No matching patients.');
-      const description = `Patients: ${params.disease.length ? 'Any of ' + params.disease.join(', ') : 'All diseases'}${params.q ? `; ID/ClarID search: ${params.q}` : ''}${params.sample_origin ? `; sample origin: ${params.sample_origin}` : ''}`;
-      if (refine === 'clinical') {
-        openClinicalSummary({members, label:description});
-        saveStatus.textContent = `Sent ${members.length} patients to Clinical.`;
-        return;
-      }
-      if (refine) {
-        refineInMultimodal({...createSelectionMetadata({members, idType:'patient', sourceKind:'patients', sourcePrompt:description}),
-          scope:selectedScope, description, diseases:params.disease});
-        saveStatus.textContent = `Sent ${members.length} patients to Multimodal.`;
-        return;
-      }
+      const description = active?.selection.source?.prompt || 'All workspace patients';
       const saved = await saveIdsAsCohort({members, sourceKind:'manual', statusTarget:'none', isCurrent,
         sourcePrompt:description});
       saveStatus.textContent = !isCurrent() ? 'Filters or workspace changed. Please save again.'
         : saved ? `Saved ${members.length} patients. Find the cohort in Cohorts.` : 'Cohort was not saved.';
-    } catch (error) { saveStatus.textContent = error.message || 'Unable to save cohort.'; }
-    finally { saving = false; saveButton.disabled = refineButton.disabled = clinicalButton.disabled = loading || !matches.length; }
+    } catch (error) {
+      if (isCurrent()) {
+        saveStatus.textContent = error.message || 'Unable to save cohort.';
+      }
+    }
+    finally { saving = false; updateActions(); }
   }
   saveButton.addEventListener('click', () => useFilteredPatients());
-  clinicalButton.addEventListener('click', () => useFilteredPatients('clinical'));
-  refineButton.addEventListener('click', () => useFilteredPatients(true));
+  clinicalButton.addEventListener('click', () => navigation.setDashboardSubtab('clinical'));
+  refineButton.addEventListener('click', () => navigation.setDashboardSubtab('multimodal'));
   more.addEventListener('click', () => {
     if (loading || !nextPage) return;
     pages[++pageIndex] = nextPage; searchPatients(true);

@@ -735,6 +735,7 @@ export function createQueryUi(ctx) {
 
   function resetQueryWorkspace() {
     callbacks.detachQueryChat?.();
+    state.queryScopeMetadata = null;
     state.queryHistory = [];
     state.queryTurns = [];
     queryPromptLibraryOpen = true;
@@ -931,7 +932,7 @@ export function createQueryUi(ctx) {
         ${moreActions ? `<details class="query-inline-actions">
           <summary><span>More options</span></summary>
           <div class="query-actions">
-            ${canSummarize ? '<button type="button" class="query-chip" data-query-action="clinical-summary">View clinical summary</button>' : ''}
+            ${canSummarize ? '<button type="button" class="query-chip" data-query-action="clinical-summary">Apply to scope</button>' : ''}
             ${canCopyIds ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
             ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Pheno-Ranker</span></button>` : ""}
             ${incompatiblePheno ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
@@ -1085,6 +1086,7 @@ export function createQueryUi(ctx) {
               : [],
             scoped_result_handle: submittedScope.resultHandle,
             scoped_id_type: submittedScope.idType,
+            scope_metadata: state.queryScopeMetadata || {},
           }),
       });
       if (!response.ok) {

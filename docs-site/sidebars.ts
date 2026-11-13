@@ -36,6 +36,7 @@ const sidebars: SidebarsConfig = {
         'admin-guide/local-auth-and-groups',
         {type: 'doc', id: 'admin-guide/datasets-and-access', label: 'Dataset configuration'},
         {type: 'doc', id: 'admin-guide/model-providers', label: 'Model configuration'},
+        'user-guide/local-agents',
         {type: 'doc', id: 'admin-guide/dicom-viewing', label: 'Imaging setup'},
         {type: 'category', label: 'Prepare and contribute datasets', collapsed: true, items: [
           'admin-guide/prepare-datasets', 'admin-guide/dataset-packages',

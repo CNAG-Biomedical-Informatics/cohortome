@@ -16,28 +16,70 @@ opens the workspace selector instead.
 
 ![Clinical dashboard using the bundled synthetic dataset](/img/screenshots/workspace-shell.png)
 
-| View | Use it to |
-| --- | --- |
-| Patients | Browse or search for a patient, then open their timeline |
-| Timeline | Inspect clinical records and linked samples over time |
-| Clinical | Check patient counts, visits, diseases, and medications |
-| Assays | Inspect laboratory matrices, feature counts, and coverage |
-| Imaging | Find DICOM studies, open the viewer, and inspect derived measurements |
-| Multimodal | Find patients with several data types and save a cohort |
+The view buttons are grouped by task. **Explore data** and **Build a cohort**
+are labels, not extra tabs; every view opens directly.
+
+| Group | View | Use it to |
+| --- | --- | --- |
+| Explore data | Clinical | Check patient counts, visits, diseases, and medications |
+| | Timeline | Inspect clinical records and linked samples over time |
+| | Assays | Inspect laboratory matrices, feature counts, and coverage |
+| | Imaging | Find DICOM studies, open the viewer, and inspect derived measurements |
+| Build a cohort | Patients | Filter by clinical or biosample information and save the matching patients |
+| | Multimodal | Refine patients by data availability, then save a cohort |
 
 ## Patient overview
 
-Open **Patients** and click the search field to browse the first 20 patients.
-Use **Load more patients**, or type a patient ID or ClarID to filter the list.
-Arrow keys and Enter also work. Selecting a patient opens their **Timeline**.
+Open **Patients** to browse the first 20 patients. Use **Next** and **Previous**,
+or add a patient ID or ClarID to the filter draft.
+Selecting a patient opens their **Timeline**.
 Identical IDs from different datasets remain separate.
+
+### Filter by clinical values
+
+Choose **Add clinical filter**, browse the available fields and set a condition.
+Combine rules with disease, sample-origin and ID filters. Patients and Multimodal
+share the same draft, shown as removable labels in both views.
+
+| Action | Effect |
+| --- | --- |
+| Edit filters | Marks **Unapplied changes**; the current scope stays unchanged. |
+| **Apply to scope** | Evaluates all conditions together and updates the patient scope. |
+| **Discard changes** | Restores the filters used by the current scope. |
+| **Clear filters**, then **Apply to scope** | Returns to the full workspace. |
+
+The table and **Save patients as cohort** count describe the applied group,
+including **all matches**, not just the page. Click a clinical filter to edit
+it. For **is any of**, click recorded values to select
+or deselect them; selected values are highlighted.
+
+Field cards show source datasets and units. Categories offer recorded choices;
+numeric fields show their observed range, not a clinical reference range.
+Patients from datasets without the field are excluded. Disease-chip counts
+describe the workspace, not the clinically filtered group.
+
+:::note[What a match means]
+
+All rules must match at **any recorded visit**, possibly at different visits.
+A numeric range must match one observation. **Not recorded** does not mean
+a condition is absent. Saving keeps the patients and filter description;
+membership does not change automatically later.
+
+:::
+
+**Clear clinical filters** removes only those rules. If source data change,
+**Reload clinical filters** clears them so you can choose from the updated fields.
+
+For numeric ranges, adjust the sliders or enter exact limits before applying
+the draft. Recorded age does not require a date of birth. Age filters
+match any recorded visit, not a calculated current age.
 
 ### Find patients by sample origin
 
 When the dataset supplies biosample metadata, use **Sample origin** to choose a
 recorded tissue or material, such as blood or skin. Combine it with disease or
-ID filters, then **save the matching patients as a cohort** or choose
-**Refine in Multimodal dashboard** to check their assay coverage.
+ID filters. Continue in **Multimodal** to add data-availability requirements,
+then **Apply to scope**. Saving the group as a cohort is optional.
 
 ![Patients filtered by blood sample origin in the public CINECA UK1 + GEUVADIS demo](/img/screenshots/dashboard-patients.png)
 
@@ -129,10 +171,11 @@ Check patient and timepoint totals, disease and medication distributions, and
 visits per patient. These summaries describe the loaded records; missing
 medication data does not establish that a patient takes no medication.
 
-Choose **View clinical summary** from Patients, Multimodal, a saved cohort, or
+Choose **Apply to scope** from a saved cohort or
 Query's **More options** to summarize that group. The scope bar shows the selected
-patient count and how many have clinical records. **Show full workspace** clears
-the selection. Timeline and Analysis keep their own scopes.
+patient count and how many have clinical records. **Show full workspace** asks
+for confirmation before clearing the shared scope. Existing chats keep their
+captured selections.
 
 All clinical records for the selected patients are included, even when the
 selection came from a particular sample. Disease and medication counts count
@@ -167,17 +210,27 @@ A study listing confirms that metadata was registered, not that the image server
 is reachable. Use the viewer status and error message to check access.
 Derived imaging measurements are separate matrices produced outside COHORTome.
 
+### Clinical characteristics tables
+
+In **Clinical**, switch from **Charts** to **Table** to see the summary statistics.
+Use the dataset selector to view one dataset at a time; the patient selection
+and counts remain visible in either mode. The **?** explains the statistics.
+Clinical, Timeline, Assays and Imaging use the applied scope. New chats inherit
+it; existing chats, completed runs and saved cohorts keep their own selections.
+If applying filters fails, the previous scope remains active.
+Categories show patient counts and percentages; numeric fields show the median
+and interquartile range of per-patient medians across visits. These are not
+baseline statistics. Recorded and missing patient counts are shown for each field.
+
 ## Multimodal dashboard
 
 <MultimodalWalkthrough />
 
 ### Find shared coverage
 
-From **Patients**, choose **Refine in Multimodal dashboard** to carry all filtered
-patients across, including disease, sample-origin and ID/ClarID filters—not just the visible
-page. **Start from** shows the filtered group and its size. Choose **All workspace
-patients** there to remove this starting restriction. Switching tabs alone does
-not transfer filters.
+Patients and Multimodal edit **one shared filter draft**. Switch between them
+freely; no transfer step is needed. **Apply to scope** is available in either
+view. Until applied, the displayed counts and results describe the previous scope.
 
 Start from all workspace patients or an existing saved patient cohort. Select
 one or more diseases if needed (patients may match any selected disease), then
@@ -194,7 +247,7 @@ Sample cohorts are not offered as starting groups because this view matches pati
 
 The combination plot shows observed data-type combinations and their patient
 counts. Filled dots indicate available types. Click a count to inspect a
-combination, then open **Matching patients**.
+combination in the draft, apply it, then open **Matching patients**.
 
 Choose **Save cohort** to keep the matching patients. Membership includes the
 source dataset, so repeated IDs across datasets do not merge into one patient.
@@ -209,35 +262,6 @@ See [saved cohorts](saved-cohorts-and-handoffs.md) to export or analyse the grou
 Having two modalities for a patient does not establish that measurements came
 from the same specimen or visit. Read **Coverage limitations** and check the
 sample links before analysis. Coverage is not a quality-control result.
-
-:::
-
-### Refine with clinical values
-
-Choose **Add clinical filter**, browse a category and select a field and a condition, then **Apply
-filter**. The matching count and combination display update together. Clinical
-filters narrow the starting patient group alongside disease and data-type
-selections; **Clear clinical filters** removes only the clinical rules.
-
-Search is optional. Field cards show units and source datasets. Categorical
-fields offer recorded choices (up to 50); numeric fields show their recorded
-range across visits, not a clinical reference range.
-
-Fields come from the prepared clinical data. Check the **source datasets and
-units** shown with each field. Similar labels do not imply equivalent
-measurements, and patients from datasets without that field are excluded.
-The menu covers structured clinical fields and measurements, not arbitrary
-free-text metadata or molecular-feature thresholds. Disease-chip counts still
-describe the starting group; the **matching patient count** applies all filters.
-The lower workspace-wide data-type chart and feature preview remain separate.
-
-:::note[What a match means]
-
-All rules must match the patient, at **any recorded visit**. Different rules
-may match different visits; a numeric range must match one observation.
-**Not recorded** means no usable value was found, not that a condition was absent.
-Saving a cohort keeps the matching patients and a description of the filters,
-not a rule that automatically changes membership later.
 
 :::
 

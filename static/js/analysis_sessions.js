@@ -1,6 +1,7 @@
 import { addChatMenuIcons } from './chat_folders.js';
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
 import { analysisSessionScopeSummary } from './app_helpers.js';
+import { analysisScopeDefaults } from './chat_scope.js';
 
 export function createAnalysisSessionsUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -43,6 +44,20 @@ export function createAnalysisSessionsUi(ctx) {
   let pendingDeleteSessionId = "";
   let deleteInFlight = false;
   const saveStates = new Map();
+  let initialPlaceholderId = null;
+  for (const eventName of ['input', 'change']) document.getElementById('analysisTab').addEventListener(eventName, () => {
+    initialPlaceholderId = null;
+  }, {capture:true});
+  window.addEventListener('cohortome:scope-applied', () => {
+    const session = currentAnalysisSession();
+    // Render callbacks auto-save the startup placeholder. It may still follow
+    // scope until the user edits/names/runs it; restored and explicit New chats
+    // are snapshots, even with no turns.
+    if (!session || session.id !== initialPlaceholderId || session.title
+        || session.turns?.length || session.history?.length) return;
+    Object.assign(session, analysisScopeDefaults(state));
+    applyAnalysisSession(session);
+  });
   function renderSaveStatus() {
     const status = saveStates.get(state.currentAnalysisSessionId) || {};
     document.getElementById('analysisChatPersistence').textContent = status.label || '';
@@ -471,6 +486,7 @@ export function createAnalysisSessionsUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ touch: false, render: false });
     const session = createAnalysisSession({
       promptDraft: '',
+      ...analysisScopeDefaults(state),
       ...(overrides || {}),
       datasetId: typeof currentDatasetSelectionKey === "function" ? String(currentDatasetSelectionKey() || "").trim() : "",
     });
@@ -492,7 +508,8 @@ export function createAnalysisSessionsUi(ctx) {
       stored = null;
     }
     const sessions = stored && Array.isArray(stored.sessions) ? stored.sessions.map((item) => createAnalysisSession(item)) : [];
-    state.analysisSessions = sessions.length ? sessions : [createAnalysisSession()];
+    state.analysisSessions = sessions.length ? sessions : [createAnalysisSession(analysisScopeDefaults(state))];
+    if (!sessions.length) initialPlaceholderId = state.analysisSessions[0].id;
     state.currentAnalysisSessionId = stored && typeof stored.currentId === "string" ? stored.currentId : state.analysisSessions[0].id;
     if (!state.analysisSessions.some((session) => session.id === state.currentAnalysisSessionId)) {
       state.currentAnalysisSessionId = state.analysisSessions[0].id;
@@ -505,7 +522,7 @@ export function createAnalysisSessionsUi(ctx) {
       window.localStorage.removeItem(analysisSessionsStorageKey());
     } catch (_error) {
     }
-    const session = createAnalysisSession({ dataDir: dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "" });
+    const session = createAnalysisSession({ ...analysisScopeDefaults(state), dataDir: dataDirEl && dataDirEl.value ? dataDirEl.value.trim() : "" });
     state.analysisSessions = [session];
     state.currentAnalysisSessionId = session.id;
     applyAnalysisSession(session);

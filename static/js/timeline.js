@@ -30,6 +30,10 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     required = []; active = ''; timeMode = '';
   }
   window.addEventListener('cohortome:workspace-changing', reset);
+  window.addEventListener('cohortome:scope-applied', () => {
+    inspection++; active = ''; detailEl.replaceChildren();
+    state.timelinePatientFilter = ''; state.timelinePage = 0;
+  });
   async function load(summary) {
     const key = scope();
     if (pending || !state.currentDatasetIds.length) return;
@@ -112,7 +116,9 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     if (!plot) return;
     if (scopeKey !== scope()) reset();
     if (!data) { plot.textContent = 'Loading data availability…'; void load(summary); return; }
-    const all = data.timelines || [];
+    const applied = state.activePatientScope?.workspace === state.currentDatasetScopeId ? state.activePatientScope : null;
+    const memberKeys = applied ? new Set((applied.selection.members || []).map(m => JSON.stringify([m.dataset_id, m.patient_id]))) : null;
+    const all = (data.timelines || []).filter(patient => !memberKeys || memberKeys.has(JSON.stringify([patient.dataset_id, patient.source_patient_id])));
     if (state.timelinePatientFilter && active !== state.timelinePatientFilter) required = [];
     if (!timeMode) timeMode = all.some(p => events(p).some(e => time(e.date) !== null)) ? 'calendar' : 'relative';
     const axis = document.getElementById('timelineTimeMode');
@@ -143,7 +149,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     const pages = Math.max(1, Math.ceil(filtered.length / 40));
     state.timelinePage = Math.min(state.timelinePage || 0, pages - 1);
     const visible = filtered.slice(state.timelinePage * 40, (state.timelinePage + 1) * 40);
-    document.getElementById('timelineScopeLabel').textContent = filtered.length + ' patients match · ' + all.length + ' in workspace';
+    document.getElementById('timelineScopeLabel').textContent = filtered.length + ' patients match · ' + all.length + (applied ? ' in applied scope' : ' in workspace');
     document.getElementById('timelinePageLabel').textContent = 'Page ' + (state.timelinePage + 1) + ' of ' + pages;
     for (const [id, delta] of [['timelinePrevious', -1], ['timelineNext', 1]]) {
       const button = document.getElementById(id);
@@ -166,7 +172,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     table.querySelectorAll('[data-timeline-inspect]').forEach(b => {b.onclick = () => inspect(visible[Number(b.dataset.timelineInspect)], null, summary);});
     const points = visible.flatMap(p => events(p).filter(e => coordinate(e) !== null).map(e => ({p,e})));
     if (!points.length) {
-      window.Plotly?.purge(plot);
+      window.Plotly?.purge?.(plot);
       plot.style.height = 'auto';
       plot.innerHTML = '<p class="empty">No observations with ' + (timeMode === 'relative' ? 'recorded study days' : 'calendar dates') + ' in this selection. Availability is listed below.</p>';
       return;
@@ -202,9 +208,8 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     });}, {displayModeBar:true, modeBarButtonsToRemove:['select2d','lasso2d']});
   }
   function timelinePanelMarkup() {
-    return '<section class="section-card dashboard-timeline-card"><h3>Data availability over time</h3>'
-      + '<p class="section-note">Find patients with particular data, then inspect when it was collected.</p>'
-      + '<div class="timeline-scope-controls"><strong id="timelineScopeLabel"></strong><label>Dataset <select id="timelineDatasetFilter"></select></label><button id="timelineShowAll" class="query-chip" type="button">Show all patients</button></div>'
+    return '<section class="section-card dashboard-timeline-card"><div class="dashboard-view-heading"><h2>Timeline</h2><span id="timelineScopeLabel" class="dashboard-count"></span><details class="inline-view-help"><summary aria-label="About timeline">?</summary><p>Data availability over time. Find patients with particular data, then inspect when it was collected.</p></details></div>'
+      + '<div class="timeline-scope-controls"><label>Dataset <select id="timelineDatasetFilter"></select></label><button id="timelineShowAll" class="query-chip" type="button">Show all patients</button></div>'
       + '<label>Time axis <select id="timelineTimeMode"><option value="calendar">Calendar dates</option><option value="relative">Study days</option></select></label><p id="timelineTimeNote" class="section-note"></p>'
       + '<h4>Has data</h4><p class="section-note">Patients must have every checked data type. Leave unchecked to include everyone.</p><div id="timelineHasData" class="dashboard-timeline-controls"></div>'
       + '<p class="section-note">Click a plot legend item to hide or show its markers. Grey bars span the earliest to latest recorded observations; they do not imply continuous monitoring.</p>'

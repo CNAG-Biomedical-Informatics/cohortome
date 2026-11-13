@@ -16,7 +16,9 @@ export function createVariantBrowser({state, escapeHtml: esc, saveIdsAsCohort, o
     if (opener?.isConnected) opener.focus();
   }
   async function request(route, params) {
-    const response = await fetch(`/variants/${route}?${new URLSearchParams({workspace:scope, ...params})}`);
+    const selected = state.activePatientScope?.workspace === scope ? state.activePatientScope.selection : null;
+    const response = await fetch(`/variants/${route}?${new URLSearchParams({workspace:scope, ...params})}`,
+      selected ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({members:selected.members || []})} : {});
     if (!response.ok) {
       let message = 'Unable to load variants.';
       try { message = (await response.json()).detail || message; } catch (_) { /* HTTP error without JSON */ }

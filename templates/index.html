@@ -242,6 +242,24 @@
           </div>
           <label class="user-settings-check"><input id="settingsLatestQueryDetails" type="checkbox"> Latest query details</label>
         </div>
+        <details id="localAgentsSettings" hidden>
+          <summary>Local agents (MCP)</summary>
+          <p class="section-note">Read-only access to the two included synthetic demos. Access ends after eight hours or when you close the app. <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/local-agents" target="_blank" rel="noopener noreferrer">Connector setup</a></p>
+          <p id="localAgentsStatus" class="section-note">Not shared.</p>
+          <p id="localAgentsScope" class="section-note"></p>
+          <label class="user-settings-check"><input id="localAgentsConsent" type="checkbox"> I allow the agent to read this data. Its model may run outside this computer.</label>
+          <div class="user-settings-actions">
+            <button id="localAgentsShare" type="button" class="primary-btn" disabled>Share current scope</button>
+            <button id="localAgentsRevoke" type="button" class="danger-btn" hidden>Revoke access</button>
+          </div>
+          <div id="localAgentsSecret" hidden>
+            <label for="localAgentsConfiguration">Connection settings · keep the token private</label>
+            <textarea id="localAgentsConfiguration" rows="5" readonly spellcheck="false" autocomplete="off" aria-describedby="localAgentsSecretHelp"></textarea>
+            <p id="localAgentsSecretHelp" class="section-note">Shown only now. Copy these values into the local connector configuration. Replacing the shared scope creates a new token.</p>
+            <div class="user-settings-actions"><button id="localAgentsCopy" type="button" class="secondary-btn">Copy connection settings</button></div>
+          </div>
+          <p id="localAgentsMessage" class="section-note" role="status" aria-live="polite"></p>
+        </details>
         </section>
         <section data-settings-page="jobs" aria-labelledby="settingsJobsTitle" hidden>
         <h3 id="settingsJobsTitle">Jobs &amp; storage</h3>
@@ -417,11 +435,9 @@
           <span>Dashboard</span>
         </button>
         <div class="dashboard-subtabs app-sidebar-subnav">
-          <button id="dashboardPatientsBtn" type="button" class="dashboard-subtab">
-            <span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg></span>
-            <span>Patients</span>
-          </button>
-          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab"><span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg></span><span>Timeline</span></button>
+          <div class="dashboard-view-group" role="group" aria-labelledby="dashboardExploreLabel">
+          <span id="dashboardExploreLabel" class="dashboard-view-group-label">Explore data</span>
+          <div class="dashboard-view-buttons">
           <button id="dashboardClinicalBtn" type="button" class="dashboard-subtab active">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -433,6 +449,7 @@
             </span>
             <span>Clinical</span>
           </button>
+          <button id="dashboardTimelineBtn" type="button" class="dashboard-subtab"><span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg></span><span>Timeline</span></button>
           <button id="dashboardAssaysBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -448,6 +465,14 @@
             <span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="12" cy="12" r="5"></circle><path d="M12 9v6M9 12h6"></path></svg></span>
             <span>Imaging</span>
           </button>
+          </div></div>
+          <div class="dashboard-view-group" role="group" aria-labelledby="dashboardBuildLabel">
+          <span id="dashboardBuildLabel" class="dashboard-view-group-label">Build a cohort</span>
+          <div class="dashboard-view-buttons">
+          <button id="dashboardPatientsBtn" type="button" class="dashboard-subtab">
+            <span class="dashboard-subtab-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg></span>
+            <span>Patients</span>
+          </button>
           <button id="dashboardMultimodalBtn" type="button" class="dashboard-subtab">
             <span class="dashboard-subtab-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -457,6 +482,7 @@
             </span>
             <span>Multimodal</span>
           </button>
+          </div></div>
         </div>
         </div>
         <button id="datasetsTabBtn" class="tab-btn" type="button">
@@ -588,9 +614,10 @@
       <section id="dashboardTab" class="tab-panel active">
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
           <div class="patient-finder">
-            <div class="patient-finder-heading">
+            <div class="dashboard-view-heading">
               <h2>Patients</h2>
-              <details class="inline-view-help"><summary aria-label="About patient search">?</summary><p>Browse patients or search by ID or ClarID. Select one to open their timeline, clinical records and sample inventory.</p></details>
+              <span id="patientMatchCount" class="dashboard-count" role="status"></span>
+              <details class="inline-view-help"><summary aria-label="About patient search">?</summary><p>Filter patients by disease, clinical characteristics or sample origin. Save the matching group or refine it by data availability in Multimodal. Click a patient to inspect their timeline.</p></details>
             </div>
             <div class="patient-lookup">
               <label for="patientOverviewSearch">Patient ID or ClarID</label>
@@ -604,6 +631,7 @@
               <label for="patientSampleOrigin">Sample origin</label>
               <select id="patientSampleOrigin"><option value="">All sample origins</option></select>
             </div>
+            <div id="patientClinicalFilters" class="patient-clinical-filters" hidden></div>
             <div class="patient-cohort-actions">
               <button id="patientSaveCohort" type="button" class="primary-btn coverage-save" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg><span>Save filtered patients as cohort</span></button>
               <button id="patientRefineMultimodal" type="button" class="secondary-btn" disabled>Refine in Multimodal dashboard</button>
@@ -708,7 +736,7 @@
         </section>
         <section id="dashboardImagingPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <h2>Imaging</h2>
+            <div class="dashboard-view-heading"><h2>Imaging</h2><span id="dicomDashboardStatus" class="dashboard-count" role="status"></span><details class="inline-view-help"><summary aria-label="About imaging">?</summary><p>Counts describe listed imaging studies, not individual images. Viewer availability is shown below.</p></details></div>
             <section id="dicomDashboardPanel" class="dicom-dashboard-panel">
               <div class="assay-modality-section-header">
                 <strong>Imaging studies</strong>
@@ -716,7 +744,6 @@
               <div id="dicomDashboardHealth" class="dicom-health-panel">
                 <div class="empty">DICOM viewer status not checked.</div>
               </div>
-              <div id="dicomDashboardStatus" class="query-status assay-status-strip">Checking DICOM studies...</div>
               <div id="dicomDashboardStudies" class="dicom-study-grid">
                 <div class="empty">No DICOM studies configured.</div>
               </div>
@@ -728,8 +755,9 @@
         </section>
         <section id="dashboardMultimodalPanel" class="dashboard-subpanel">
           <div class="controls dashboard-panel-frame">
-            <div class="multimodal-heading">
-              <h3>Multimodal</h3>
+            <div class="multimodal-heading dashboard-view-heading">
+              <h2>Multimodal</h2>
+              <span id="multimodalHeadingCount" class="dashboard-count" role="status"></span>
               <details class="inline-view-help"><summary aria-label="About multimodal coverage">?</summary><p>Find patients with the required data types and save the matching cohort. Coverage describes availability, not data quality or matching visits. <span id="multimodalReadinessSummary"></span></p></details>
               <details id="multimodalMoreOptions" class="query-inline-actions">
                 <summary>More options</summary>

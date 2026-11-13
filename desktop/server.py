@@ -131,6 +131,8 @@ def main():
     listener.bind(("127.0.0.1", 0))
     listener.listen(128)
     origin = f"http://127.0.0.1:{listener.getsockname()[1]}"
+    from app.local_agents import CALL_PATH, agent_endpoint, configure_desktop
+    configure_desktop(origin)
 
     async def protected(scope, receive, send):
         nonlocal bootstrap
@@ -142,6 +144,11 @@ def main():
             response = PlainTextResponse("Invalid local host", status_code=403)
         elif request.headers.get("origin") not in (None, origin):
             response = PlainTextResponse("Invalid local origin", status_code=403)
+        elif request.url.path == CALL_PATH:
+            # A separate token authorizes only read-only agent tools. It must
+            # never unlock the UI or its ordinary admin/data routes.
+            await agent_endpoint(scope, receive, send)
+            return
         elif bootstrap and request.url.path == "/desktop/open" and secrets.compare_digest(request.query_params.get("key", ""), bootstrap):
             bootstrap = None
             response = RedirectResponse("/", status_code=303)
@@ -151,6 +158,7 @@ def main():
         elif not secrets.compare_digest(request.cookies.get("cohortome_desktop", ""), token):
             response = PlainTextResponse("Open this workspace from COHORTome Desktop.", status_code=403)
         else:
+            scope.setdefault("state", {})["desktop_ui"] = True
             await app(scope, receive, send)
             return
         await response(scope, receive, send)

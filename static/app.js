@@ -26,6 +26,7 @@ import { createDeploymentBrandingUi } from "/static/js/deployment_branding.js";
 import { createProjectsUi } from "/static/js/projects.js";
 import { createPatientOverview } from "/static/js/patient_overview.js";
 import { createClinicalSummaryUi } from '/static/js/clinical_summary.js';
+import { createCohortScopeUi } from '/static/js/cohort_scope.js';
 
 const refs = createAppRefs(document);
 const state = createAppState();
@@ -1922,11 +1923,11 @@ function initializeUiShell() {
 
 async function bootstrap() {
   bindEvents();
+  createCohortScopeUi({state, escapeHtml, renderGlobalContext: () => workspaceUi.renderGlobalContext()});
   createClinicalSummaryUi({state, navigation:navigationUi,
     renderDashboard: summary => dashboardUi.renderDashboard(summary),
     renderGlobalContext: () => workspaceUi.renderGlobalContext()});
   patientOverviewUi = createPatientOverview({state, navigation:navigationUi, escapeHtml,
-    refineInMultimodal: selection => dashboardUi.refinePatientCoverage(selection),
     saveIdsAsCohort: options => savedCohortsUi.saveIdsAsCohort(options),
     scope:() => datasetsUi.currentDatasetSelectionKey(),
     openTimeline:async (patientId, datasetId) => {

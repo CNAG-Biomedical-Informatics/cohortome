@@ -1,47 +1,53 @@
-// Explicit handoffs only: this selection never changes Analysis or Timeline.
+// Explicit Query/saved-cohort handoffs use the shared applied patient scope.
 export function openClinicalSummary(selection) {
   window.dispatchEvent(new CustomEvent('cohortome:clinical-summary', {detail:selection}));
 }
 
 export function createClinicalSummaryUi({state, navigation, renderDashboard, renderGlobalContext}) {
-  let generation = 0, controller;
+  let resetDialog;
+  const clearNotice = () => document.getElementById('scopeHandoffStatus')?.remove();
+  const showNotice = message => {
+    clearNotice();
+    const host = document.getElementById('globalContextBar')?.closest('.app-header');
+    if (!host) return;
+    const notice = document.createElement('div');
+    notice.id = 'scopeHandoffStatus'; notice.className = 'query-status error'; notice.setAttribute('role', 'status');
+    const text = document.createElement('span'); text.textContent = message;
+    const dismiss = document.createElement('button'); dismiss.type = 'button'; dismiss.className = 'query-chip';
+    dismiss.textContent = 'Dismiss'; dismiss.onclick = clearNotice;
+    notice.append(text, document.createTextNode(' '), dismiss); host.after(notice);
+  };
   const refresh = () => {
     renderDashboard(state.dashboardSummaryState || {});
     renderGlobalContext();
   };
-  const reset = () => {
-    generation++; controller?.abort(); state.clinicalSelection = null;
-  };
-  window.addEventListener('cohortome:workspace-changing', reset);
+  window.addEventListener('cohortome:workspace-changing', () => {resetDialog?.close(); clearNotice();});
+  window.addEventListener('cohortome:scope-applied', clearNotice);
   window.addEventListener('cohortome:clinical-summary', async ({detail}) => {
-    reset();
     const workspace = state.currentDatasetScopeId;
-    const ticket = generation;
-    if (!workspace) return;
-    controller = new AbortController();
-    const activeController = controller;
-    state.clinicalSelection = {workspace, status:'loading', label:detail.label || 'Selected patients'};
-    navigation.setActiveTab('dashboard'); navigation.setDashboardSubtab('clinical'); refresh();
-    const timeout = setTimeout(() => activeController.abort(), 30000);
-    try {
-      const {members, patient_ids, result_handle, cohort_id} = detail;
-      const response = await fetch('/dashboard/selection', {method:'POST', signal:controller.signal,
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({dataset_id:workspace, members, patient_ids, result_handle, cohort_id})});
-      const data = await response.json();
-      if (ticket !== generation || workspace !== state.currentDatasetScopeId) return;
-      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Unable to summarize this selection.');
-      state.clinicalSelection = {...state.clinicalSelection, status:'ready', data};
-    } catch (error) {
-      if (ticket !== generation || workspace !== state.currentDatasetScopeId) return;
-      state.clinicalSelection = {...state.clinicalSelection, status:'error',
-        error:error.name === 'AbortError' ? 'The summary timed out. Send the selection again to retry.' : error.message};
-    } finally {
-      clearTimeout(timeout);
-      if (ticket === generation && workspace === state.currentDatasetScopeId) refresh();
+    if (!workspace || !state.cohortScope) return;
+    const applied = await state.cohortScope.applySelection(detail);
+    if (workspace !== state.currentDatasetScopeId) return;
+    if (!applied) {
+      showNotice(state.cohortScope.getError() || 'Wait for the current scope update to finish. The previous scope is unchanged.');
+      return;
     }
+    navigation.setActiveTab('dashboard'); navigation.setDashboardSubtab('clinical'); refresh();
   });
   document.addEventListener('click', event => {
-    if (event.target.closest('[data-clinical-reset]')) { reset(); refresh(); }
+    if (!event.target.closest('[data-clinical-reset]') || !state.activePatientScope || resetDialog) return;
+    const selection = state.activePatientScope;
+    const dialog = document.createElement('dialog');
+    resetDialog = dialog;
+    dialog.className = 'chat-move-dialog';
+    dialog.setAttribute('aria-labelledby', 'clinicalResetTitle');
+    dialog.innerHTML = `<form method="dialog"><h3 id="clinicalResetTitle">Show full workspace?</h3>
+      <p>This clears the shared filters and restores the full patient scope. Existing chats and saved cohorts are kept.</p>
+      <div class="chat-move-actions"><button class="secondary-btn" value="cancel" autofocus>Keep selection</button><button class="primary-btn" value="confirm">Show full workspace</button></div></form>`;
+    dialog.addEventListener('close', () => {
+      resetDialog = null; dialog.remove();
+      if (dialog.returnValue === 'confirm' && selection === state.activePatientScope) void state.cohortScope.clearScope();
+    }, {once:true});
+    document.body.append(dialog); dialog.showModal();
   });
 }

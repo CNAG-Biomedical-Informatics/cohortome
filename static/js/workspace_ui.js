@@ -144,24 +144,13 @@ export function createWorkspaceUi(ctx) {
   }
 
   function summarizeScopeForTab(tabName) {
-    if (tabName === 'dashboard' && state.currentDashboardSubtab === 'clinical') {
-      const selected = state.clinicalSelection;
-      if (selected?.workspace === state.currentDatasetScopeId) {
-        return selected.status === 'ready' ? `${selected.data.selection_count} selected patients`
-          : selected.status === 'loading' ? 'Loading patient scope…' : 'Patient scope unavailable';
-      }
-      return 'Full workspace';
+    if (tabName === 'dashboard') {
+      const active = state.activePatientScope;
+      return active?.workspace === state.currentDatasetScopeId
+        ? selectionScopeLabel(active.selection) : 'Full workspace';
     }
-    if (tabName === 'dashboard' && state.currentDashboardSubtab === 'multimodal') {
-      const scope = state.multimodalCoverageScope;
-      if (scope?.workspace === state.currentDatasetScopeId) {
-        if (scope.status === 'loading') return 'Loading patient scope…';
-        if (scope.status === 'error') return 'Patient scope unavailable';
-        return selectionScopeLabel(scope.selection) || 'Full workspace';
-      }
-      const handoff = state.multimodalPatientSelection;
-      return handoff?.scope === state.currentDatasetScopeId
-        ? selectionScopeLabel(handoff) || 'Full workspace' : 'Full workspace';
+    if (tabName === 'query') {
+      return selectionScopeLabel(state.queryScopeMetadata || {}) || 'Full workspace';
     }
     const selectedAnalysisCohortA = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisSelectedSavedCohortId)
@@ -169,8 +158,7 @@ export function createWorkspaceUi(ctx) {
     const selectedAnalysisCohortB = Array.isArray(state.savedCohorts)
       ? state.savedCohorts.find((item) => item.id === state.analysisCompareSavedCohortId)
       : null;
-    const analysisView = tabName === 'analysis' || (tabName === 'dashboard'
-      && state.currentDashboardSubtab === 'assays');
+    const analysisView = tabName === 'analysis';
     if (analysisView) {
       const selectionLabel = (cohort, metadata, input) => {
         return selectionScopeLabel(cohort || metadata || {}, input?.value, cohort?.id);
@@ -250,10 +238,11 @@ export function createWorkspaceUi(ctx) {
     if (!contextLmModelEl.textContent.trim()) {
       contextLmModelEl.textContent = "Checking...";
     }
-    contextScopeEl.textContent = summarizeScopeForTab(currentTabName());
+    contextScopeEl.textContent = summarizeScopeForTab('dashboard');
     for (const element of [contextDataDirEl, contextCohortEl, contextScopeEl]) {
       element.title = element.textContent;
     }
+    contextScopeEl.title += '. Used by Dashboard and new chats. Existing chats keep their own scope.';
     if (currentTabName() === 'dashboard' && state.currentDashboardSubtab === 'multimodal') {
       contextScopeEl.title = `${contextScopeEl.textContent}. Patient-level coverage; all samples from these patients remain included. This does not change Analysis or Pheno-Ranker selections.`;
     }
@@ -443,6 +432,7 @@ export function createWorkspaceUi(ctx) {
         state.currentDatasetIds = [];
         state.pendingDatasetIds = [];
         state.currentDatasetScopeId = "";
+        window.dispatchEvent(new Event('cohortome:workspace-committed'));
         if (dataDirEl) {
           dataDirEl.dataset.scopeId = "";
         }
@@ -502,6 +492,7 @@ export function createWorkspaceUi(ctx) {
       state.currentDatasetIds = committedIds.slice();
       state.pendingDatasetIds = committedIds.slice();
       state.currentDatasetScopeId = committedScopeId;
+      window.dispatchEvent(new Event('cohortome:workspace-committed'));
       workspaceCommitted = true;
       if (dataDirEl) {
         dataDirEl.dataset.scopeId = committedScopeId;
@@ -589,6 +580,7 @@ export function createWorkspaceUi(ctx) {
       renderGlobalContext();
     } finally {
       state.loadInFlight = false;
+      window.dispatchEvent(new Event('cohortome:workspace-settled'));
       renderLoadButtonState();
       updateLoadButtonAvailability();
       renderWelcome();

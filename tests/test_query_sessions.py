@@ -65,6 +65,17 @@ def test_original_workspace_cannot_be_rebound(setup, monkeypatch):
     assert error.value.status_code == 409
 
 
+def test_chat_patient_scope_is_saved_and_cannot_be_silently_replaced(setup):
+    scope = {'selection_active': True, 'members': [{'dataset_id': 'default', 'patient_id': 'P1'}]}
+    payload = QuerySessionRequest(id='scope-chat', dataset_id='default', scope_metadata=scope)
+    routes.save_query_session(payload, setup)
+    assert routes.get_query_session('scope-chat', setup)['scope_metadata'] == scope
+    routes.save_query_session(payload.model_copy(update={'revision': 1, 'title': 'Renamed'}), setup)
+    with pytest.raises(HTTPException) as error:
+        routes.save_query_session(payload.model_copy(update={'revision': 2, 'scope_metadata': {}}), setup)
+    assert error.value.status_code == 409
+
+
 def test_general_only_chat_needs_no_dataset_but_cannot_add_unbound_workspace_turns(setup):
     payload = QuerySessionRequest(id='general', context_mode='general', turns=[{'role': 'user', 'contextMode': 'general', 'prompt': 'Hello'}])
     routes.save_query_session(payload, setup)

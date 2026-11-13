@@ -145,3 +145,30 @@ def test_browser_enforces_shared_permissions(panel, monkeypatch):
     with pytest.raises(HTTPException) as error:
         browser.panel_for(None, 'scope', 'one')
     assert error.value.status_code == 403
+
+
+def test_browser_patient_scope_counts_and_duplicate_source_ids(panel, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app import variant_browser as browser
+    monkeypatch.setattr(browser, 'sources', lambda *args: [('one', panel, 'One'), ('two', panel, 'Two')])
+    app = FastAPI()
+    app.include_router(browser.router)
+    selected = {'members':[{'dataset_id':'two', 'patient_id':'P2'}]}
+    with TestClient(app) as client:
+        result = client.post('/variants/panels?workspace=scope', json=selected).json()
+        assert len(result) == 1 and result[0]['dataset_id'] == 'two' and result[0]['samples'] == 1
+        assert client.post('/variants/panels?workspace=scope', json={'members':[]}).json() == []
+        result = client.post('/variants/detail?workspace=scope&dataset_id=two&variant_id=v1', json=selected).json()
+        assert result['counts'] == {'reference':0, 'alternate':0, 'partial':0, 'missing':1}
+        assert result['members'] == []
+        result = client.post('/variants/search?workspace=scope&dataset_id=two', json=selected).json()
+        assert result['rows'][0]['carriers'] == 0
+        assert client.post('/variants/panels?workspace=scope', json={'members':[
+            {'dataset_id':'unavailable', 'patient_id':'P1'}]}).status_code == 403
+        # Scope filters counts, not validation: malformed excluded calls still fail.
+        with gzip.open(panel / 'genotypes.tsv.gz', 'rt') as handle:
+            text = handle.read()
+        with gzip.open(panel / 'genotypes.tsv.gz', 'wt') as handle:
+            handle.write(text.replace('called\t1', 'called\t0'))
+        assert client.post('/variants/search?workspace=scope&dataset_id=two', json=selected).status_code == 409

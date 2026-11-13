@@ -250,7 +250,10 @@ main:has(> #appShell:not(.is-hidden)) {
 .has-icon-rail:has(#analysisChatDock[hidden]) { grid-template-columns: 48px minmax(0, 1fr); }
 .has-icon-rail:has(#analysisChatDock[hidden]) .app-sidebar { display: none; }
 .has-icon-rail:has(#analysisChatDock[hidden]) .chat-width-divider { display: none; }
-.dashboard-page-tabs.dashboard-subtabs { display: flex; flex-wrap: wrap; margin: 0 0 12px; padding: 0; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); gap: 12px; background: transparent; }
+.dashboard-page-tabs.dashboard-subtabs { display: flex; flex-wrap: wrap; align-items: stretch; margin: 0 0 16px; padding: 0; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); gap: 12px 28px; background: transparent; }
+.dashboard-view-group { min-width: 0; max-width: 100%; padding:8px 12px 0; border:1px solid var(--line); border-bottom:0; border-radius:8px 8px 0 0; background:var(--theme-surface, #fff); }
+.dashboard-view-group-label { display: block; padding: 0 4px 5px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.dashboard-view-buttons { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .dashboard-page-tabs .dashboard-subtab { width: auto; font-size: 12px; min-height: 36px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); box-shadow: none; }
 .dashboard-page-tabs .dashboard-subtab.active { background: transparent; border-color: var(--ink); color: var(--ink); font-weight: 600; }
 .dashboard-page-tabs .dashboard-subtab:hover { background: transparent; color: var(--ink); }

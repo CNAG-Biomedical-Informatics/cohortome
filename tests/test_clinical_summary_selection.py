@@ -32,6 +32,8 @@ def test_summary_filters_every_distribution_and_deduplicates_visits(tmp_path):
 
 @pytest.fixture
 def selection_route(monkeypatch):
+    from app import clinical_characteristics
+    monkeypatch.setattr(clinical_characteristics, 'characteristics', lambda sources, members: members)
     monkeypatch.setattr(routes, 'require_authenticated', lambda _: None)
     monkeypatch.setattr(routes, 'resolve_dataset_ids', lambda *_: ['alpha', 'beta'])
     monkeypatch.setattr(routes, 'resolve_dataset_dir', lambda _, key: key)
@@ -50,7 +52,9 @@ def selection_route(monkeypatch):
 
 def test_route_preserves_dataset_identity(selection_route):
     payload = ClinicalSummaryRequest(dataset_id='workspace', members=[{'dataset_id':'beta', 'patient_id':'P1'}])
-    assert routes.selected_clinical_summary(payload, None)['selection_count'] == 1
+    result = routes.selected_clinical_summary(payload, None)
+    assert result['selection_count'] == 1
+    assert result['characteristics'][0]['dataset_id'] == 'beta'
     assert selection_route == [[identity_key('beta', 'patient', 'P1')]]
 
 

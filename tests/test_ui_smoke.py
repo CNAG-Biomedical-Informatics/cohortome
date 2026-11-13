@@ -16,64 +16,6 @@ import pytest
 playwright = pytest.importorskip("playwright.sync_api")
 
 
-def test_clinical_summary_selection_and_reset(page):
-    expect = playwright.expect
-    requests = []
-    errors = []
-    page.on('pageerror', lambda error: errors.append(str(error)))
-    page.route('**/patient-overview/search?*', lambda route: route.fulfill(json={
-        'matches':[dict(patient_id='P1', dataset_id='default', dataset_label='Demo', diagnosis='Example')],
-        'total': 83, 'next': None}))
-    page.route('**/patient-overview/selection?*', lambda route: route.fulfill(json={
-        'members':[dict(dataset_id='default', patient_id='P1')]}))
-    def summarize(route):
-        requests.append(route.request.post_data_json)
-        route.fulfill(json={'totals':{'patients':1, 'visits':3, 'clinical_records':3, 'source_files':1},
-                            'selection_count':1, 'workspace_patient_count':600,
-                            'sex_counts':{'Unknown':1}, 'visit_distribution':{'2-4':1},
-                            'top_diseases':[], 'top_medications':[], 'patients':[], 'timelines':[]})
-    page.route('**/dashboard/selection', summarize)
-    page.locator('#dashboardTabBtn').click()
-    page.locator('#dashboardPatientsBtn').click()
-    expect(page.locator('#patientClinicalSummary')).to_be_enabled()
-    page.locator('#patientClinicalSummary').click()
-    expect(page.locator('#dashboardClinicalPanel')).to_be_visible()
-    expect(page.locator('.clinical-scope-bar')).to_contain_text('1 selected')
-    expect(page.locator('#dashboardClinicalPanel')).to_contain_text('600 patients with clinical records')
-    assert requests[0]['members'] == [dict(dataset_id='default', patient_id='P1')]
-    expect(page.locator('#contextScope')).to_contain_text('1 selected patients')
-    page.locator('[data-clinical-reset]').click()
-    expect(page.locator('.clinical-scope-bar')).to_contain_text('Full workspace')
-    assert not errors
-
-
-def test_clinical_summary_query_handle_failure_does_not_show_full_workspace(page):
-    expect = playwright.expect
-    page.route('**/query', lambda route: route.fulfill(json={
-        'intent':'patient_inventory', 'reply':'Found 100 patients.',
-        'data':{'source':'deterministic', 'execution':'deterministic',
-                'available_actions':{'open_in_analysis':True}, 'patient_count':100,
-                'result_handle':'qr_all_patients', 'result_page':{
-                    'result_handle':'qr_all_patients', 'total_count':100, 'returned_count':1,
-                    'patient_ids':['P1'], 'sample_ids':[], 'rows':[{'patient_id':'P1'}],
-                    'has_more':True, 'next_cursor':'next', 'id_type':'patient'}},
-        'action_context':{'result_handle':'qr_all_patients', 'patient_ids':[], 'id_type':'patient'}}))
-    bodies = []
-    def unavailable(route):
-        bodies.append(route.request.post_data_json)
-        route.fulfill(status=410, json={'detail':'Query selection has expired. Run it again.'})
-    page.route('**/dashboard/selection', unavailable)
-    _open_query_tab(page)
-    page.locator('#question').fill('List patients')
-    page.locator('#askBtn').click()
-    menu = page.locator('#queryThread .query-inline-actions > summary')
-    expect(menu).to_be_visible()
-    menu.click()
-    page.locator('#queryThread [data-query-action="clinical-summary"]').click()
-    expect(page.locator('.clinical-scope-bar')).to_contain_text('expired')
-    expect(page.locator('#dashboardClinicalPanel .assay-kpi')).to_have_count(0)
-    assert bodies[0]['result_handle'] == 'qr_all_patients'
-    assert 'patient_ids' not in bodies[0]
 
 
 def test_analysis_summary_evidence_cards(page):
@@ -233,30 +175,47 @@ def test_patient_browser_retries_failed_search_on_tab_entry(page):
 
 def test_patient_browser_pagination_and_search(page):
     expect = playwright.expect
-    requests = []
+    requests, applications = [], []
     def respond(route):
         from urllib.parse import parse_qs, urlsplit
         params = parse_qs(urlsplit(route.request.url).query)
         requests.append(params)
         second = params.get('offset') == ['1']
-        filtered = bool(params.get('q'))
+        filtered = route.request.method == 'POST' and len(route.request.post_data_json['members']) == 1
         route.fulfill(json={'matches': [dict(patient_id='P2' if second else 'P1',
             dataset_id='default', dataset_label='Test dataset', diagnosis='Example')],
             'next': None if second or filtered else {'offset': 1}, 'total': 1 if filtered else 2})
+    def apply(route):
+        from test_scope_builder_ui import scope_response
+        body = route.request.post_data_json
+        applications.append(body)
+        members = ([{'dataset_id':'default', 'patient_id':pid} for pid in (['P1'] if body['q'] else ['P1', 'P2'])]
+                   if body['q'] or body['diseases'] else None)
+        route.fulfill(json=scope_response(members))
     page.route('**/patient-overview/search?*', respond)
+    page.route('**/patient-overview/scoped-search?*', respond)
+    page.route('**/cohort-builder/apply', apply)
     page.route('**/cohorts/diseases?*', lambda route: route.fulfill(json=[{'disease':'Crohn disease', 'patient_count':12}, {'disease':'Colitis', 'patient_count':4}]))
     page.locator('#dashboardTabBtn').click()
     page.locator('#dashboardPatientsBtn').click()
     expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
+    baseline_requests = len(requests)
     page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]').click()
     expect(page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]')).to_have_attribute('aria-pressed', 'true')
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
-    assert requests[-1]['disease'] == ['Crohn disease']
+    assert len(requests) == baseline_requests
     page.locator('#patientDiseaseFilters [data-disease="Colitis"]').click()
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
-    assert requests[-1]['disease'] == ['Crohn disease', 'Colitis']
+    assert len(requests) == baseline_requests
+    expect(page.locator('#patientSaveCohort')).to_be_disabled()
+    page.locator('#dashboardPatientsPanel [data-scope-apply]').click()
+    expect(page.locator('#patientSaveCohort')).to_be_enabled()
+    assert applications[-1]['diseases'] == ['Crohn disease', 'Colitis']
     expect(page.locator('#patientSaveCohort')).to_contain_text('Save 2 patients as cohort')
     page.locator('#patientDiseaseFilters [data-disease=""]').click()
+    expect(page.locator('#patientSaveCohort')).to_be_disabled()
+    page.locator('#dashboardPatientsPanel [data-scope-apply]').click()
+    expect(page.locator('#patientSaveCohort')).to_be_enabled()
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
     assert 'disease' not in requests[-1]
     page.locator('#patientOverviewMore').click()
@@ -272,6 +231,10 @@ def test_patient_browser_pagination_and_search(page):
     page.locator('#patientOverviewPrevious').click()
     expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
     page.locator('#patientOverviewSearch').fill('P1')
+    expect(page.locator('#patientOverviewMore')).to_be_enabled()
+    expect(page.locator('#dashboardPatientsPanel .cohort-scope-pending')).to_be_visible()
+    page.locator('#dashboardPatientsPanel [data-scope-apply]').click()
+    expect(page.locator('#patientSaveCohort')).to_contain_text('Save 1 patient as cohort')
     expect(page.locator('#patientOverviewMore')).to_be_disabled()
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
     page.screenshot(path='/tmp/cohortome-patient-browser.png')
@@ -279,7 +242,9 @@ def test_patient_browser_pagination_and_search(page):
 def test_patient_browser_collects_selection_once_for_save_and_handoff(page):
     from urllib.parse import parse_qs, urlsplit
     expect = playwright.expect
-    saved = []
+    saved, applications = [], []
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
     _mock_multimodal_readiness(page)
     page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={'patients':[
         {'patient_id':'P1', 'dataset_id':d, 'dataset_label':'Study', 'has_clinical':True,
@@ -291,20 +256,33 @@ def test_patient_browser_collects_selection_once_for_save_and_handoff(page):
         collected.append(parse_qs(urlsplit(route.request.url).query))
         route.fulfill(json={'members':[{'dataset_id':d, 'patient_id':'P1'} for d in ['a', 'b']]})
     page.route('**/patient-overview/selection?*', selection)
+    def apply(route):
+        from test_scope_builder_ui import scope_response
+        applications.append(route.request.post_data_json)
+        payload = scope_response([{'dataset_id':d, 'patient_id':'P1'} for d in ['a', 'b']])
+        payload['selection']['source']['prompt'] = 'Patients with Colitis'
+        route.fulfill(json=payload)
+    page.route('**/cohort-builder/apply', apply)
     def search(route):
         params = parse_qs(urlsplit(route.request.url).query)
         second = params.get('offset') == ['1']
         route.fulfill(json={'matches':[dict(patient_id='P1', dataset_id='b' if second else 'a',
-            dataset_label='Study', diagnosis='Colitis')], 'next':None if second else {'offset':1}})
+            dataset_label='Study', diagnosis='Colitis')], 'next':None if second else {'offset':1}, 'total':2})
     page.route('**/patient-overview/search?*', search)
+    page.route('**/patient-overview/scoped-search?*', search)
     page.route('**/cohorts/diseases?*', lambda route: route.fulfill(json=[{'disease':'Colitis','patient_count':2}]))
     def save(route):
         saved.append(route.request.post_data_json)
         route.fulfill(json={'id':'patient-cohort'})
     page.route('**/saved-cohorts', save)
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
     page.locator('#dashboardTabBtn').click()
     page.locator('#dashboardPatientsBtn').click()
     page.locator('#patientDiseaseFilters [data-disease="Colitis"]').click()
+    expect(page.locator('#patientSaveCohort')).to_be_disabled()
+    page.locator('#dashboardPatientsPanel [data-scope-apply]').click()
     expect(page.locator('#patientSaveCohort')).to_be_enabled()
     page.locator('#patientSaveCohort').click()
     previous_analysis_status = page.locator('#analysisStatus').text_content()
@@ -317,25 +295,29 @@ def test_patient_browser_collects_selection_once_for_save_and_handoff(page):
     dialog.get_by_label('Cohort name').fill('Colitis patients')
     dialog.get_by_role('button', name='Save cohort', exact=True).click()
     expect(page.locator('#patientSaveStatus')).to_contain_text('Saved 2 patients')
-    assert len(collected) == 1
-    assert collected[0]['disease'] == ['Colitis']
+    # Saving uses the complete applied snapshot, not the visible row or a
+    # second membership collection/evaluation request.
+    assert collected == []
+    assert len(applications) == 1
+    assert applications[0]['diseases'] == ['Colitis']
     page.locator('#patientRefineMultimodal').click()
     expect(page.locator('#dashboardMultimodalPanel')).to_be_visible()
-    assert len(collected) == 2
+    assert collected == []
     panel = page.locator('.multimodal-coverage')
-    expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
-    expect(panel.locator('[data-disease="Crohn disease"]')).to_have_count(0)
+    expect(panel.locator('.coverage-result')).to_contain_text('2 patients in scope')
+    expect(panel.locator('[data-disease="Crohn disease"]')).to_have_count(1)
     expect(panel.locator('[data-disease="Colitis"] .badge')).to_have_text('2')
-    expect(panel.locator('[data-disease="Colitis"]')).to_be_disabled()
-    expect(panel.locator('[data-disease=""]')).to_be_disabled()
-    expect(panel.locator('.coverage-diseases')).to_have_class(re.compile('is-locked'))
-    panel.locator('[data-disease=""]').dispatch_event('click')
-    expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
-    panel.locator('.coverage-cohort').select_option('')
     expect(panel.locator('[data-disease="Colitis"]')).to_be_enabled()
+    expect(panel.locator('[data-disease="Colitis"]')).to_have_attribute('aria-pressed', 'true')
     expect(panel.locator('[data-disease="Crohn disease"] .badge')).to_have_text('1')
     panel.locator('[data-disease="Crohn disease"]').click()
-    expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
+    expect(panel.locator('.coverage-result')).to_contain_text('2 patients in scope')
+    expect(panel.locator('.cohort-scope-pending')).to_be_visible()
+    expect(panel.locator('.coverage-save')).to_be_disabled()
+    assert len(applications) == 1
+    page.locator('#dashboardPatientsBtn').click()
+    expect(page.locator('#patientDiseaseFilters [data-disease="Colitis"]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('#dashboardPatientsPanel .cohort-scope-filters')).to_contain_text('Crohn disease')
     expect(page.locator('#analysisStatus')).to_have_text(previous_analysis_status)
     assert saved[0]['members'] == [{'dataset_id':'a', 'patient_id':'P1'}, {'dataset_id':'b', 'patient_id':'P1'}]
     assert 'Colitis' in saved[0]['source_prompt']
@@ -3316,6 +3298,7 @@ def test_multimodal_multiway_coverage_and_exact_combinations(page):
 
 
 def _clinical_filter_panel(page):
+    from urllib.parse import parse_qs, urlsplit
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)
     _mock_multimodal_readiness(page)
@@ -3327,6 +3310,27 @@ def _clinical_filter_panel(page):
         dict(patient_id='P2', dataset_id='default', dataset_label='Demo',
              has_clinical=True, modalities=['clinical', 'proteomics']),
     ]
+    requests = []
+    page._clinical_patient_requests = requests
+    def patient_request(route):
+        request = route.request
+        params = parse_qs(urlsplit(request.url).query)
+        path = urlsplit(request.url).path.rsplit('/', 1)[-1]
+        filtered = request.method == 'POST'
+        body = request.post_data_json if filtered else None
+        requests.append(dict(path=path, method=request.method, params=params, body=body))
+        rows = patients[:2] if filtered else patients
+        if path == 'selection':
+            route.fulfill(json={'members':[{'dataset_id':row['dataset_id'], 'patient_id':row['patient_id']}
+                                           for row in rows], 'patient_count':len(rows), 'id_type':'patient'})
+        else:
+            offset = int(params.get('offset', ['0'])[0])
+            route.fulfill(json={'matches':rows[offset:offset + 1], 'total':len(rows),
+                               'next':{'offset':offset + 1} if offset + 1 < len(rows) else None})
+    page.route('**/patient-overview/search?*', patient_request)
+    page.route('**/patient-overview/selection?*', patient_request)
+    page.route('**/patient-overview/sample-origins?*', lambda route: route.fulfill(json=[]))
+    page.route('**/cohorts/diseases?*', lambda route: route.fulfill(json=[]))
     page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={'patients':patients, 'warnings':[]}))
     page.route('**/cohort-builder/fields?*', lambda route: route.fulfill(json={
         'fingerprint':'synthetic-fingerprint', 'fields':[{
@@ -3338,142 +3342,12 @@ def _clinical_filter_panel(page):
     page.locator('#loadBtn').click()
     playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
     page.locator('#dashboardTabBtn').click()
-    page.locator('#dashboardMultimodalBtn').click()
-    return page.locator('.multimodal-coverage')
+    page.locator('#dashboardPatientsBtn').click()
+    panel = page.locator('#dashboardPatientsPanel')
+    playwright.expect(panel.locator('#patientSaveCohort')).to_contain_text('Save 3 patients as cohort')
+    return panel
 
 
-def test_clinical_filters_compose_with_existing_coverage_and_save(page):
-    requests, saved = [], []
-    def evaluate(route):
-        requests.append(route.request.post_data_json)
-        route.fulfill(json={'members':[{'dataset_id':'default', 'patient_id':'P1'}],
-            'patient_count':1, 'description':'Marker > 5 mg/L, at any visit',
-            'fingerprint':'synthetic-fingerprint'})
-    page.route('**/cohort-builder/evaluate', evaluate)
-    def save(route):
-        saved.append(route.request.post_data_json)
-        route.fulfill(json={'id':'clinical-filter-cohort'})
-    page.route('**/saved-cohorts', save)
-    panel = _clinical_filter_panel(page)
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    panel.locator('[data-field-group="Measurements"]').click()
-    panel.locator('[data-field-id="marker"]').click()
-    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_hidden()
-    panel.get_by_role('button', name='Change field', exact=True).click()
-    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_visible()
-    panel.locator('[data-field-id="marker"]').click()
-    playwright.expect(panel.locator('.clinical-filter-source')).to_contain_text('Recorded range: 0–12')
-    panel.get_by_label('Operator', exact=True).select_option('gt')
-    panel.get_by_label('Value', exact=True).fill('5')
-    panel.get_by_role('button', name='Apply filter', exact=True).click()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
-    assert requests[0]['fingerprint'] == 'synthetic-fingerprint'
-    assert requests[0]['filters'] == [{'field_id':'marker', 'operator':'gt', 'values':[5]}]
-    page.screenshot(path='/tmp/cohortome-clinical-filters-desktop.png', full_page=True)
-    panel.locator('.coverage-selectors input[value="proteomics"]').check()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('0 matching patients')
-    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
-    panel.locator('.coverage-selectors input[value="proteomics"]').uncheck()
-    panel.locator('.coverage-selectors input[value="transcriptomics"]').check()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
-    panel.locator('.coverage-save').click()
-    dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
-    dialog.get_by_label('Cohort name').fill('Clinical selection')
-    dialog.get_by_role('button', name='Save cohort', exact=True).click()
-    playwright.expect(panel.locator('.coverage-save-status')).to_contain_text('Cohort saved')
-    assert saved[0]['members'] == [{'dataset_id':'default', 'patient_id':'P1'}]
-    assert 'Marker' in saved[0]['source_prompt']
-    panel.get_by_role('button', name='Clear clinical filters', exact=True).click()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('2 matching patients')
-    page.set_viewport_size({'width':390, 'height':844})
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
-    page.screenshot(path='/tmp/cohortome-clinical-filters.png', full_page=True)
-
-
-def test_clinical_filter_browsing_layout_and_menu_surface(page):
-    evaluations = []
-    def evaluate(route):
-        evaluations.append(route.request.post_data_json)
-        route.fulfill(json={'members':[{'dataset_id':'default', 'patient_id':'P1'}],
-                           'fingerprint':'synthetic-fingerprint'})
-    page.route('**/cohort-builder/evaluate', evaluate)
-    panel = _clinical_filter_panel(page)
-    fields = [dict(id=str(i), label=label, group=group, kind='string', unit='',
-                   dataset_ids=['default'], dataset_labels=['Synthetic demo'],
-                   operators=['eq', 'in'], options=['Category A', 'Category B'])
-              for i, (label, group) in enumerate([
-                  ('Sex', 'Demographics and time'), ('Age at visit', 'Demographics and time'),
-                  ('Recorded diagnoses', 'Diagnoses'), ('Recorded treatments', 'Treatments'),
-                  ('Marker A', 'Measurements'), ('Marker B', 'Measurements')])]
-    page.route('**/cohort-builder/fields?*', lambda route: route.fulfill(json={
-        'fields': fields, 'fingerprint': 'synthetic-fingerprint'}))
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    playwright.expect(panel.locator('.clinical-filter-field-card')).to_have_count(6)
-    for theme in ('light', 'dark'):
-        page.evaluate('(theme) => document.documentElement.dataset.theme = theme', theme)
-        panel.screenshot(path=f'/tmp/cohortome-filter-layout-{theme}.png')
-        page.locator('#accountMenuButton').click()
-        assert page.locator('#accountMenu').evaluate(
-            "el => getComputedStyle(el).backgroundColor.startsWith('rgb(')")
-        page.keyboard.press('Escape')
-    panel.locator('[data-field-id="0"]').click()
-    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_hidden()
-    panel.locator('[data-value-index="1"]').click()
-    playwright.expect(panel.get_by_label('Value', exact=True)).to_have_value('Category B')
-    page.set_viewport_size({'width':390, 'height':844})
-    assert panel.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
-    panel.screenshot(path='/tmp/cohortome-filter-condition-mobile.png')
-    panel.get_by_role('button', name='Apply filter', exact=True).click()
-    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(1)
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    playwright.expect(panel.locator('.clinical-filter-picker')).to_be_visible()
-    playwright.expect(panel.locator('.clinical-filter-field-card')).to_have_count(6)
-    playwright.expect(panel.locator('.clinical-filter-form')).to_be_hidden()
-    panel.locator('[data-field-id="2"]').click()
-    panel.locator('[data-value-index="0"]').click()
-    panel.get_by_role('button', name='Apply filter', exact=True).click()
-    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(2)
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
-    assert evaluations[-1]['filters'] == [
-        {'field_id':'0', 'operator':'eq', 'values':['Category B']},
-        {'field_id':'2', 'operator':'eq', 'values':['Category A']}]
-
-
-def test_clinical_filter_failure_does_not_restore_full_population(page):
-    page.route('**/cohort-builder/evaluate', lambda route: route.fulfill(
-        status=500, json={'detail':'Clinical filtering is temporarily unavailable.'}))
-    panel = _clinical_filter_panel(page)
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    panel.locator('[data-field-id="marker"]').click()
-    panel.get_by_label('Operator', exact=True).select_option('is_present')
-    panel.get_by_role('button', name='Apply filter', exact=True).click()
-    playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('temporarily unavailable')
-    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
-    playwright.expect(panel.get_by_role('button', name='View clinical summary', exact=True)).to_be_disabled()
-    playwright.expect(panel.locator('.coverage-patient-list tbody tr')).to_have_count(0)
-    panel.get_by_role('button', name='Clear clinical filters', exact=True).click()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('3 matching patients')
-
-
-def test_stale_clinical_filter_requires_fresh_coverage(page):
-    page.route('**/cohort-builder/evaluate', lambda route: route.fulfill(
-        status=409, json={'detail':'Dataset contents changed. Reload clinical filters.'}))
-    panel = _clinical_filter_panel(page)
-    panel.get_by_role('button', name='Add clinical filter', exact=True).click()
-    panel.locator('[data-field-id="marker"]').click()
-    panel.get_by_label('Operator', exact=True).select_option('is_present')
-    panel.get_by_role('button', name='Apply filter', exact=True).click()
-    playwright.expect(panel.locator('.coverage-clinical-filters')).to_contain_text('Dataset contents changed')
-    playwright.expect(panel.locator('.coverage-save')).to_be_disabled()
-    playwright.expect(panel.get_by_role('button', name='Clear clinical filters', exact=True)).to_be_disabled()
-    page.route('**/patient-overview/coverage?*', lambda route: route.fulfill(json={
-        'patients':[dict(patient_id='new', dataset_id='default', dataset_label='Demo',
-                         has_clinical=True, modalities=['clinical'])], 'warnings':[]}))
-    panel.get_by_role('button', name='Reload coverage and clear filters', exact=True).click()
-    playwright.expect(panel.locator('.coverage-result')).to_contain_text('1 matching patients')
-    playwright.expect(panel.locator('.clinical-filter-chip')).to_have_count(0)
 
 
 def test_bundled_imaging_status_does_not_require_external_services(page):
@@ -4931,6 +4805,30 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
     page.locator("#analysisSessionDeleteCloseBtn").click()
     expect(dialog).to_be_hidden()
     expect(page.locator("#analysisChatsDrawer")).to_be_visible()
+
+
+def test_dashboard_flat_navigation_groups(page):
+    expect = playwright.expect
+    page.locator('#dashboardTabBtn').click()
+    nav = page.locator('#dashboardTab > .dashboard-page-tabs')
+    explore = nav.get_by_role('group', name='Explore data', exact=True)
+    build = nav.get_by_role('group', name='Build a cohort', exact=True)
+    expect(explore.get_by_role('button')).to_have_text(['Clinical', 'Timeline', 'Assays', 'Imaging'])
+    expect(build.get_by_role('button')).to_have_text(['Patients', 'Multimodal'])
+    expect(nav.locator('button')).to_have_count(6)
+    for name in ('Clinical', 'Assays', 'Imaging', 'Timeline', 'Patients', 'Multimodal'):
+        nav.get_by_role('button', name=name, exact=True).click()
+        expect(page.locator(f'#dashboard{name}Panel')).to_be_visible()
+        expect(nav.locator('.dashboard-subtab.active')).to_have_count(1)
+    for width in (1440, 390):
+        page.set_viewport_size({'width': width, 'height': 900})
+        assert nav.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+        for button in nav.get_by_role('button').all():
+            expect(button).to_be_visible()
+        nav.screenshot(path=f'/tmp/cohortome-dashboard-groups-{width}.png')
+    page.set_viewport_size({'width':1440, 'height':900})
+    page.evaluate("document.documentElement.dataset.theme = 'dark'")
+    nav.screenshot(path='/tmp/cohortome-dashboard-groups-dark.png')
 
 
 def test_navigation_rail_account_and_runs(page):

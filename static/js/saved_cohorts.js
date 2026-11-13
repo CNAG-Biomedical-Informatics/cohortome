@@ -138,7 +138,7 @@ export function createSavedCohortsUi(ctx) {
             ${datasetLabels.length ? `<small>${escapeHtml(datasetLabels.join(", "))}</small>` : ""}
             <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
             <div class="saved-cohort-actions">
-              <button type="button" class="query-chip" data-saved-cohort-action="clinical-summary" data-saved-cohort-id="${escapeHtml(item.id)}">View clinical summary</button>
+              <button type="button" class="query-chip" data-saved-cohort-action="clinical-summary" data-saved-cohort-id="${escapeHtml(item.id)}">Apply to scope</button>
               <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
               ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
               <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>

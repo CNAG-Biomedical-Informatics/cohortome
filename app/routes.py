@@ -1675,6 +1675,30 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
             dataset_id=resolved_scope_id,
         )
         scoped_patient_ids = list(membership["patient_ids"])
+    force_scope = bool(request.scope_metadata.get('selection_active'))
+    if force_scope:
+        from app.cohort_members import resolve_members
+        from app.identities import execution_ids
+        if effective_query_granularity_ceiling(selected_ids) != 'detailed':
+            raise HTTPException(403, 'Patient selections require Detailed in-app access.')
+        metadata = request.scope_metadata
+        if not isinstance(metadata.get('members', []), list) or len(metadata.get('members', [])) > 100000:
+            raise HTTPException(400, 'Invalid patient scope membership.')
+        try:
+            roots = {key: resolve_dataset_dir(raw_request, key) for key in selected_ids}
+            members = metadata.get('members') or []
+            if members:
+                resolved = resolve_members(roots, members=members, id_type='patient')
+                captured_ids = execution_ids([m['patient_key'] for m in resolved], selected_ids)
+            else:
+                captured_ids = []
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(409, 'The captured patient scope is unavailable. Start a new chat.') from exc
+        if request.scoped_result_handle or request.scoped_patient_ids:
+            allowed = set(scoped_patient_ids)
+            scoped_patient_ids = [pid for pid in captured_ids if pid in allowed]
+        else:
+            scoped_patient_ids = captured_ids
     try:
         with lm_provider_context(selected_lm_provider_id(raw_request)):
             payload = answer_query(
@@ -1686,6 +1710,7 @@ def query_app_post(request: QueryRequest, raw_request: Request) -> Dict:
                 granularity_mode=request.granularity_mode,
                 granularity_ceiling=effective_query_granularity_ceiling(selected_ids),
                 ai_provider_access=selected_ai_provider_access(raw_request, selected_ids),
+                force_scope=force_scope,
             )
             data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
             dataset_names_by_id = {
@@ -1746,6 +1771,8 @@ def _resolve_saved_analysis_members(request, raw_request, selected_ids):
         metadata = getattr(request, metadata_field)
         cohort_id = str(metadata.get('id') or '')
         if not cohort_id:
+            if metadata.get('selection_active') and not getattr(request, ids_field).strip() and not metadata.get('query_result_handle') and not (metadata_field == 'scope_metadata' and request.query_result_handle):
+                raise HTTPException(400, 'This chat has an empty patient scope. Apply another scope and start a new chat.')
             try:
                 ids = execution_ids([v.strip() for v in getattr(request, ids_field).split(',') if v.strip()], selected_ids)
             except ValueError as exc:
@@ -2182,6 +2209,8 @@ def save_query_session(payload: QuerySessionRequest, request: Request) -> Dict:
         _query_session_access(existing, request)
         if payload.dataset_id != existing.get("dataset_id"):
             raise HTTPException(status_code=409, detail="A chat cannot change its original workspace. Start a new chat.")
+        if payload.scope_metadata != existing.get('scope_metadata', {}):
+            raise HTTPException(409, 'A chat cannot change its captured patient scope. Start a new chat.')
         item["workspace_fingerprint"] = existing.get("workspace_fingerprint", {})
         item["granularity_ceiling"] = existing.get("granularity_ceiling", "")
     elif payload.dataset_id:
@@ -2375,6 +2404,8 @@ def run_inline_pheno_ranker_job(payload: PhenoRankerRequest, user_id: str) -> Di
 
 def run_pheno_ranker_route(request: PhenoRankerRequest, raw_request: Request) -> Dict:
     require_authenticated(raw_request)
+    if request.scope_metadata.get('selection_active') and not request.selected_patient_ids.strip() and not request.selected_saved_cohort_ids and not request.query_result_handle:
+        raise HTTPException(400, 'This chat has an empty patient scope. Apply another scope and start a new chat.')
     user_id = request_user_id(raw_request)
     resolved_dataset_id = request.dataset_id or request.data_dir
     selected_ids = resolve_dataset_ids(raw_request, resolved_dataset_id)
@@ -2598,6 +2629,11 @@ def selected_clinical_summary(selection: ClinicalSummaryRequest, request: Reques
         payload['selection_count'] = len(ids)
         payload['clinical_representation'] = clinical_representation(root)
         payload['totals']['clinical_records'] = payload['totals']['visits']
+        from app.clinical_characteristics import characteristics
+        from app.datasets import get_dataset
+        payload['characteristics'] = characteristics(
+            [(key, path, str((get_dataset(key) or {}).get('name') or key)) for key, path in roots.items()],
+            resolved)
         return _sanitize_response_paths(payload, request)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -2616,6 +2652,14 @@ def get_dashboard(request: Request, dataset_id: str = "", data_dir: str = DEFAUL
         representation = clinical_representation(resolved_dir)
         payload["clinical_representation"] = representation
         payload.setdefault("totals", {})["clinical_records"] = int(payload.get("totals", {}).get("visits") or 0)
+        if dataset_id:
+            selected_ids = resolve_dataset_ids(request, dataset_id)
+            if effective_query_granularity_ceiling(selected_ids) == 'detailed':
+                from app.clinical_characteristics import characteristics
+                from app.datasets import get_dataset
+                payload['characteristics'] = characteristics([
+                    (key, resolve_dataset_dir(request, key), str((get_dataset(key) or {}).get('name') or key))
+                    for key in selected_ids])
         return _sanitize_response_paths(payload, request)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

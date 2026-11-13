@@ -109,9 +109,10 @@ Model evaluation must identify the provider, model, configuration, prompt or
 task template, dataset snapshot, execution mode, and reference answer. A fluent
 response alone is not evidence of correctness.
 
-## Future tool integration
+## Local agent access
 
-Model Context Protocol integrations may later expose approved metadata or
-analysis tools. MCP is an extension point, not a currently validated scientific
-claim. Any connector must inherit COHORTome authorization, disclosure, scope, and
-audit rules rather than bypassing them.
+The optional [MCP prototype](../user-guide/local-agents.md) lets a local agent
+inspect an explicitly shared Desktop selection. It is read-only and limited to
+the two verified bundled synthetic demos. Sharing does not grant access to the
+rest of the workspace or permission to run analyses. A local connection does not
+prove that the agent's model runs locally; its client controls where results go.

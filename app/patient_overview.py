@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Body, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from app.auth import require_authenticated
 from app.bff import relative_study_days
@@ -37,7 +39,7 @@ def sources(request, workspace):
              str((get_dataset(identifier) or {}).get('name') or identifier)) for identifier in ids]
 
 
-def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False, sample_origin='', ids_only=False):
+def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', descending=False, disease='', include_total=False, sample_origin='', ids_only=False, allowed_patient_ids=None):
     ensure_query_store(root)
     con = _connect(root)
     try:
@@ -46,6 +48,9 @@ def lookup(root, term, limit=12, exact=False, after='', sort_by='patient_id', de
         human = "coalesce(c.human_id, '')" if has_clarids else "''"
         predicate = 'p.patient_id = ?' if exact else f'(contains(lower(p.patient_id), lower(?)) OR contains(lower({human}), lower(?)))'
         params = [term] if exact else [term, term]
+        if allowed_patient_ids is not None:
+            predicate += ' AND p.patient_id IN (SELECT unnest(?))'
+            params.append(allowed_patient_ids)
         if sample_origin:
             ids = sorted({r['individualId'] for r in biosample_records(root, include_clarids=False) if origin_key(r) == sample_origin})
             predicate += ' AND p.patient_id IN (SELECT unnest(?))'
@@ -208,9 +213,39 @@ def disease_filter(disease):
     return [label for label in (disease or []) if label]
 
 
+def clinical_filter_members(request, workspace, body):
+    # The filter engine uses patient inventories from this module.
+    from app.cohort_filters import FilterRequest, evaluate
+    try:
+        specification = FilterRequest.model_validate(body)
+    except ValidationError as exc:
+        raise RequestValidationError([
+            dict(error, loc=('body', *error['loc'])) for error in exc.errors()
+        ]) from exc
+    if specification.workspace != workspace:
+        raise HTTPException(422, 'Clinical filters must use the active patient workspace.')
+    result = evaluate(specification, request)
+    members = {}
+    for member in result['members']:
+        members.setdefault(member['dataset_id'], []).append(member['patient_id'])
+    return members
+
+
 @router.get('/selection')
 def select_patients(request: Request, workspace: str, q: str = Query('', max_length=150),
                     disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
+    return _select_patients(request, workspace, q, disease, sample_origin)
+
+
+@router.post('/selection')
+def select_patients_with_clinical_filters(request: Request, workspace: str,
+                    body: dict = Body(...), q: str = Query('', max_length=150),
+                    disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
+    members = clinical_filter_members(request, workspace, body)
+    return _select_patients(request, workspace, q, disease, sample_origin, members)
+
+
+def _select_patients(request, workspace, q, disease, sample_origin, allowed_members=None):
     """Collect a filtered patient selection once, without browsing every page."""
     disease = disease_filter(disease)
     members = []
@@ -218,7 +253,9 @@ def select_patients(request: Request, workspace: str, q: str = Query('', max_len
     try:
         for identifier, root, _ in sources(request, workspace):
             rows = lookup(root, q.strip(), limit - len(members) + 1, disease=disease,
-                          sample_origin=sample_origin, ids_only=True)
+                          sample_origin=sample_origin, ids_only=True,
+                          **({'allowed_patient_ids': allowed_members.get(identifier, [])}
+                             if allowed_members is not None else {}))
             members.extend(dict(dataset_id=identifier, patient_id=r['patient_id']) for r in rows)
             if len(members) > limit:
                 raise HTTPException(422, 'Select at most 100,000 patients. Narrow the filters and try again.')
@@ -233,6 +270,24 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
            sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] | None = None,
            direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0),
            disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
+    return _search(request, workspace, q, dataset_index, after, sort_by, direction,
+                   offset, disease, sample_origin)
+
+
+@router.post('/search')
+def search_with_clinical_filters(request: Request, workspace: str, body: dict = Body(...),
+           q: str = Query('', max_length=150), dataset_index: int = Query(0, ge=0),
+           after: str = Query('', max_length=1000),
+           sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] | None = None,
+           direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0),
+           disease: list[str] | None = Query(None), sample_origin: str = Query('', max_length=256)):
+    members = clinical_filter_members(request, workspace, body)
+    return _search(request, workspace, q, dataset_index, after, sort_by, direction,
+                   offset, disease, sample_origin, members)
+
+
+def _search(request, workspace, q, dataset_index, after, sort_by, direction,
+            offset, disease, sample_origin, allowed_members=None):
     disease = disease_filter(disease)
     available = sources(request, workspace)
     matches = []
@@ -241,7 +296,9 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
             total = 0
             for identifier, root, label in available:
                 rows = lookup(root, q.strip(), offset + 21, sort_by=sort_by,
-                              descending=direction == 'desc', disease=disease, include_total=True, sample_origin=sample_origin)
+                              descending=direction == 'desc', disease=disease, include_total=True, sample_origin=sample_origin,
+                              **({'allowed_patient_ids': allowed_members.get(identifier, [])}
+                                 if allowed_members is not None else {}))
                 total += rows[0]['_total'] if rows else 0
                 for row in rows:
                     row.pop('_total', None)
@@ -261,6 +318,8 @@ def search(request: Request, workspace: str, q: str = Query('', max_length=150),
                            for row in lookup(root, q.strip(), remaining,
                                              after=after if index == dataset_index else '',
                                              **({'sample_origin': sample_origin} if sample_origin else {}),
+                                             **({'allowed_patient_ids': allowed_members.get(identifier, [])}
+                                                if allowed_members is not None else {}),
                                              **({'disease': disease} if disease else {})))
     except (FileNotFoundError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Patient search is unavailable until the dataset stores are ready.') from None

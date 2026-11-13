@@ -2,6 +2,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 
 from app.patient_overview import sources
 from app.variants import read_variant_panel
@@ -10,13 +11,31 @@ from app.identities import identity_key
 router = APIRouter(prefix='/variants', tags=['variants'])
 
 
-def panel_for(request, workspace, dataset_id):
+class ScopeMember(BaseModel):
+    dataset_id: str = Field(min_length=1, max_length=200)
+    patient_id: str = Field(min_length=1, max_length=1000)
+
+
+class VariantScope(BaseModel):
+    members: list[ScopeMember] = Field(max_length=100000)
+
+
+def selected_ids(selection, dataset_id, available):
+    if selection is None:
+        return None
+    if any(member.dataset_id not in available for member in selection.members):
+        raise HTTPException(403, 'The patient scope contains an unavailable dataset.')
+    return {member.patient_id for member in selection.members if member.dataset_id == dataset_id}
+
+
+def panel_for(request, workspace, dataset_id, selection=None):
     available = {key: (root, label) for key, root, label in sources(request, workspace)}
     if dataset_id not in available:
         raise HTTPException(403, 'Select an authorized dataset in the active workspace.')
     root, label = available[dataset_id]
     try:
-        panel = read_variant_panel(root)
+        panel = read_variant_panel(root) if selection is None else read_variant_panel(
+            root, selected_patient_ids=selected_ids(selection, dataset_id, available))
     except ValueError:
         raise HTTPException(409, 'Variant input is invalid. Check the dataset package.') from None
     if not panel:
@@ -36,15 +55,17 @@ def chromosome_key(value):
 
 
 @router.get('/panels')
-def panels(request: Request, workspace: str):
+@router.post('/panels')
+def panels(request: Request, workspace: str, selection: VariantScope | None = None):
     result = []
     available = sources(request, workspace)
     for key, root, label in available:
         try:
-            panel = read_variant_panel(root)
+            panel = read_variant_panel(root) if selection is None else read_variant_panel(
+                root, selected_patient_ids=selected_ids(selection, key, {item[0] for item in available}))
         except ValueError:
             raise HTTPException(409, 'Variant input is invalid. Check the dataset package.') from None
-        if panel:
+        if panel and (selection is None or panel['samples']):
             result.append(dict(dataset_id=key, label=label, variants=len(panel['variants']),
                                samples=len(panel['samples']), provenance=panel['provenance'],
                                patient_ids=sorted({identity_key(key, 'patient', s['patient_id']) if len(available) > 1 else s['patient_id'] for s in panel['samples']}),
@@ -53,12 +74,13 @@ def panels(request: Request, workspace: str):
 
 
 @router.get('/search')
+@router.post('/search')
 def search(request: Request, workspace: str, dataset_id: str,
            q: str = Query('', max_length=200), chromosome: str = Query('', max_length=100),
            classification: str = Query('', max_length=500), offset: int = Query(0, ge=0),
            sort_by: Literal['position', 'variant_id', 'gene', 'classification', 'carriers'] = 'position',
-           direction: Literal['asc', 'desc'] = 'asc'):
-    panel = panel_for(request, workspace, dataset_id)
+           direction: Literal['asc', 'desc'] = 'asc', selection: VariantScope | None = None):
+    panel = panel_for(request, workspace, dataset_id, selection)
     rows = [annotation(r) for r in panel['variants']]
     chromosomes = sorted({r['chromosome'] for r in rows}, key=chromosome_key)
     classifications = sorted({r['classification'] for r in rows if r['classification']})
@@ -81,8 +103,9 @@ def search(request: Request, workspace: str, dataset_id: str,
 
 
 @router.get('/detail')
-def detail(request: Request, workspace: str, dataset_id: str, variant_id: str = Query(max_length=1000)):
-    panel = panel_for(request, workspace, dataset_id)
+@router.post('/detail')
+def detail(request: Request, workspace: str, dataset_id: str, variant_id: str = Query(max_length=1000), selection: VariantScope | None = None):
+    panel = panel_for(request, workspace, dataset_id, selection)
     row = next((r for r in panel['variants'] if r['variant_id'] == variant_id), None)
     if row is None:
         raise HTTPException(404, 'Variant not found in this dataset.')
