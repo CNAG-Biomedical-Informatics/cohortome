@@ -1,8 +1,16 @@
 """Exercise a bundled connector over stdio, with no Python/MCP on its PATH."""
 import json
+from pathlib import Path
 from queue import Queue
 import subprocess
 import threading
+
+
+def verify_connector(connector, executable):
+    # macOS temporary directories can be spelled /var or /private/var.
+    # Compare the actual destination, not its symlink spelling.
+    assert connector['args'] == []
+    assert Path(connector['command']).resolve(strict=True) == Path(executable).resolve(strict=True)
 
 
 def probe(client, executable, environment, cwd):
@@ -10,7 +18,8 @@ def probe(client, executable, environment, cwd):
     assert shared.status_code == 200, 'Could not share the synthetic test scope'
     grant = shared.json()
     if grant.get('connector'):
-        assert grant['connector'] == {'command': str(executable), 'args': []}
+        verify_connector(grant['connector'], executable)
+        executable = Path(grant['connector']['command'])
     process = subprocess.Popen([str(executable)], cwd=cwd,
         env={**environment, 'COHORTOME_MCP_URL': grant['url'], 'COHORTOME_MCP_TOKEN': grant['token']},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
