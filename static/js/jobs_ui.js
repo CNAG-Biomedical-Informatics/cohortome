@@ -1,5 +1,9 @@
 export function createJobsUi(ctx) {
   const { refs, state, helpers, callbacks } = ctx;
+  window.addEventListener('cohortome:mcp-run', () => {
+    void loadRecentJobs({silent:true});
+    void loadRunHistory({silent:true});
+  });
   let observedUser = "";
   let observedStatuses = new Map();
   let notice = null;

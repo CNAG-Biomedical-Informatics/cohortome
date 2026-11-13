@@ -106,6 +106,42 @@ def test_share_copies_members_and_rotates_token(isolated, connector):
                           headers={'Authorization': f"Bearer {result['token']}"}).status_code == 401
 
 
+def test_update_keeps_token_and_expiry_and_changes_scope(isolated, connector):
+    result = share(isolated)
+    previous = agents._grant
+    response = agents.update_share(agents.Share(workspace='default', members=[], acknowledge=True), isolated)
+    updated = json.loads(response.body)
+    assert 'token' not in updated and 'connector' not in updated
+    assert updated['patient_count'] == 0
+    assert updated['selection_signature'] != result['selection_signature']
+    assert agents._grant.token_hash == previous.token_hash
+    assert agents._grant.deadline == previous.deadline
+    assert updated['expires_at'] == result['expires_at']
+    reply = connector.post(agents.CALL_PATH, json={'operation':'call_tool', 'name':'describe_scope'},
+                           headers={'Authorization': f"Bearer {result['token']}"})
+    assert reply.status_code == 200 and reply.json()['result']['patient_count'] == 0
+
+
+def test_failed_update_preserves_scope_and_revoke_cancels_update(isolated, monkeypatch):
+    share(isolated)
+    original = agents._grant
+    def fail(*_):
+        raise HTTPException(403, 'Not allowed')
+    monkeypatch.setattr(agents, '_approved_sources', fail)
+    with pytest.raises(HTTPException):
+        agents.update_share(agents.Share(workspace='default', acknowledge=True), isolated)
+    assert agents._grant is original
+    def revoke_during_update(*_):
+        agents._revoke()
+        return [('default', '/fixture', 'Demo')]
+    monkeypatch.setattr(agents, '_approved_sources', revoke_during_update)
+    with pytest.raises(HTTPException):
+        agents.update_share(agents.Share(workspace='default', acknowledge=True), isolated)
+    assert agents._grant is None
+    with pytest.raises(HTTPException):
+        agents.update_share(agents.Share(workspace='default', acknowledge=True), isolated)
+
+
 def test_revoked_expired_and_restarted_grants(isolated, connector, monkeypatch):
     for mode in ('revoke', 'expiry', 'restart'):
         result = share(isolated)
@@ -125,7 +161,8 @@ def test_valid_tools_and_scope_bounded_outputs(isolated, connector):
     tools = connector.post(agents.CALL_PATH, json={'operation': 'list_tools'}, headers=headers)
     assert tools.status_code == 200
     names = {tool['name'] for tool in tools.json()['tools']}
-    assert names == {'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection'}
+    from app.local_agent_tools import TOOL_DEFINITIONS
+    assert names == {tool['name'] for tool in TOOL_DEFINITIONS}
     response = connector.post(agents.CALL_PATH, json={'operation': 'call_tool', 'name': 'describe_scope'}, headers=headers)
     assert response.json()['result']['patient_count'] == 0
     assert 'root_path' not in response.text and '/fixture' not in response.text

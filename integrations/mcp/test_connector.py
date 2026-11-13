@@ -124,6 +124,9 @@ def test_real_stdio_initialization_discovery_call_and_revocation(tmp_path):
                 status, result = 200, {'tools':[{
                     'name':'describe_scope', 'description':'Describe the shared synthetic selection.',
                     'inputSchema':{'type':'object', 'properties':{}, 'additionalProperties':False},
+                }, {
+                    'name':'prepare_analysis_run', 'description':'Request approval.',
+                    'inputSchema':{'type':'object', 'properties':{}, 'additionalProperties':False},
                 }]}
             else:
                 assert body == {'operation':'call_tool', 'name':'describe_scope', 'arguments':{}}
@@ -151,10 +154,12 @@ def test_real_stdio_initialization_discovery_call_and_revocation(tmp_path):
                     initialized = await client.initialize()
                     assert initialized.serverInfo.name == 'cohortome'
                     listed = await client.list_tools()
-                    assert [tool.name for tool in listed.tools] == ['describe_scope']
+                    assert [tool.name for tool in listed.tools] == ['describe_scope', 'prepare_analysis_run']
                     flags = listed.tools[0].annotations
                     assert flags.readOnlyHint and flags.idempotentHint
                     assert not flags.destructiveHint and not flags.openWorldHint
+                    proposal_flags = listed.tools[1].annotations
+                    assert not proposal_flags.readOnlyHint and not proposal_flags.idempotentHint
                     result = await client.call_tool('describe_scope', {})
                     assert not result.isError
                     assert result.structuredContent == {'patient_count':2, 'synthetic_only':True}

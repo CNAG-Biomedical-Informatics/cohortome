@@ -101,7 +101,10 @@ def test_real_desktop_share_mcp_scope_and_revoke(desktop, tmp_path):
                     await client.initialize()
                     tools = await client.list_tools()
                     assert {tool.name for tool in tools.tools} == {
-                        'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection'}
+                        'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection',
+                        'describe_dataset', 'get_clinical_records', 'list_biosamples', 'list_assay_features',
+                        'get_assay_measurements', 'list_analyses', 'check_analysis_requirements',
+                        'prepare_analysis_run', 'inspect_analysis_run'}
                     described = await client.call_tool('describe_scope', {})
                     assert not described.isError and described.structuredContent['patient_count'] == expected_count
                     found = await client.call_tool('find_patients', {'limit':2})

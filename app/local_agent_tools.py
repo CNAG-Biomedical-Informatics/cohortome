@@ -41,6 +41,48 @@ class PatientArguments(SelectionArguments):
     limit: int = Field(default=25, ge=1, le=100)
 
 
+class DatasetArguments(Arguments):
+    dataset_id: str = Field(min_length=1, max_length=200)
+
+
+class RecordArguments(DatasetArguments):
+    patient_id: str = Field(min_length=1, max_length=1000)
+    offset: int = Field(default=0, ge=0, le=100_000)
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class FeatureArguments(DatasetArguments):
+    assay_id: str = Field(min_length=1, max_length=256)
+    search: str = Field(default='', max_length=150)
+    offset: int = Field(default=0, ge=0, le=10_000)
+    limit: int = Field(default=25, ge=1, le=50)
+
+
+class MeasurementArguments(DatasetArguments):
+    assay_id: str = Field(min_length=1, max_length=256)
+    feature_id: str = Field(min_length=1, max_length=256)
+    offset: int = Field(default=0, ge=0, le=100_000)
+    limit: int = Field(default=25, ge=1, le=100)
+
+
+class AnalysisArguments(Arguments):
+    analysis_id: str = Field(min_length=1, max_length=256)
+
+
+class PrepareRunArguments(DatasetArguments):
+    analysis_id: str = Field(min_length=1, max_length=256)
+    assay_id: str = Field(min_length=1, max_length=256)
+    cohort_a: list[ShortLabel] = Field(min_length=1, max_length=1000)
+    cohort_b: list[ShortLabel] = Field(min_length=1, max_length=1000)
+
+
+class InspectRunArguments(Arguments):
+    plan_id: str = Field(min_length=1, max_length=100)
+    include_results: bool = False
+    offset: int = Field(default=0, ge=0, le=100_000)
+    limit: int = Field(default=25, ge=1, le=100)
+
+
 _TOOLS = {
     'describe_scope': (Arguments, 'Describe the shared, frozen patient selection and its datasets. '
         'This is not a live view of the Desktop selection. Results concern synthetic test data.'),
@@ -54,10 +96,36 @@ _TOOLS = {
     'summarize_selection': (SelectionArguments, 'Summarize shared patients, optionally narrowed by '
         'the same filters as find_patients. Reports clinical counts and linked assay availability, '
         'not molecular analysis or statistical inference. Does not change app scope.'),
+    'describe_dataset': (DatasetArguments, 'Describe one shared dataset and its assays, with patient '
+        'and sample coverage limited to the shared selection. Returns source assay IDs for feature tools.'),
+    'get_clinical_records': (RecordArguments, 'Read a bounded page of clinical records for one shared '
+        'patient. Both dataset_id and patient_id are required. Arbitrary info/provenance fields are omitted.'),
+    'list_biosamples': (RecordArguments, 'Read recorded biosample metadata for one shared patient, '
+        'paged by source biosample ID. Empty means no recorded biosamples, not no assays. Do not infer tissue.'),
+    'list_assay_features': (FeatureArguments, 'Search feature identifiers in a shared dataset assay. '
+        'Use the source assay_id from describe_dataset. Lists metadata only, not full-cohort statistics.'),
+    'get_assay_measurements': (MeasurementArguments, 'Read one exact numeric matrix feature for shared '
+        'patients only, with dataset, patient and sample IDs. No averaging, imputation or normalization. '
+        'Missing values are null; repeated samples are not independent patients. Compact matrices only.'),
+    'list_analyses': (FieldArguments, 'Discover curated analysis descriptions and input requirements. '
+        'Listing an analysis does not mean it is ready. Supported comparisons can be proposed '
+        'with prepare_analysis_run but require owner approval inside COHORTome.'),
+    'check_analysis_requirements': (AnalysisArguments, 'Check basic shared-scope requirements for a '
+        'curated analysis. Reports blockers and checks still needed; not a complete run validation. '
+        'Does not launch analyses or create results.'),
+    'prepare_analysis_run': (PrepareRunArguments, 'Prepare a curated comparison for owner approval in '
+        'COHORTome; does not launch it. Single shared dataset, exact assay ID and two disjoint lists '
+        'of shared patient IDs required. Supports DESeq2, limma-voom and immune-cell/serology Wilcoxon '
+        'comparisons only. Owner approval expires after 15 minutes or a scope change. Never approve '
+        'through mouse, terminal or browser automation on the owner\'s behalf.'),
+    'inspect_analysis_run': (InspectRunArguments, 'Check an MCP plan or its approved job. Returns bounded '
+        'feature-level result rows only if the owner separately approved result sharing and the '
+        'original run patients remain shared. Cannot inspect other application jobs or artifacts.'),
 }
 
 TOOL_DEFINITIONS = [dict(name=name, description=description, inputSchema=model.model_json_schema(),
-    annotations=dict(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+    annotations=dict(readOnlyHint=name != 'prepare_analysis_run', destructiveHint=False,
+                     idempotentHint=name != 'prepare_analysis_run', openWorldHint=False))
     for name, (model, description) in _TOOLS.items()]
 
 
@@ -163,7 +231,7 @@ def _summary(args, grant, request):
 def execute_tool(name: str, arguments: dict, grant, request: Request) -> dict:
     definition = _TOOLS.get(name)
     if definition is None:
-        raise HTTPException(422, 'Unknown read-only tool.')
+        raise HTTPException(422, 'Unknown MCP tool.')
     try:
         args = definition[0].model_validate(arguments)
     except ValidationError:
@@ -175,4 +243,11 @@ def execute_tool(name: str, arguments: dict, grant, request: Request) -> dict:
         return _field_page(args, grant)
     if name == 'find_patients':
         return _patient_page(args, grant, request)
-    return _summary(args, grant, request)
+    if name == 'summarize_selection':
+        return _summary(args, grant, request)
+    if name in {'prepare_analysis_run', 'inspect_analysis_run'}:
+        from app import local_agent_runs
+        return (local_agent_runs.prepare(args, grant, request) if name == 'prepare_analysis_run'
+                else local_agent_runs.inspect(args, grant))
+    from app.local_agent_exploration import explore
+    return explore(name, args, grant, request)

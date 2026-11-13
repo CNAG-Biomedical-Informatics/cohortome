@@ -866,3 +866,27 @@
     white-space: normal;
   }
 }
+.local-agents-badge {
+  display: inline-block;
+  margin-inline-start: .5rem;
+  padding: .15rem .5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.local-agents-badge[data-active="true"] {
+  color: var(--theme-green-ink, #166534);
+  background: var(--theme-green-soft, #dcfce7);
+}
+#localAgentsStatus { font-weight: 600; }
+.agent-run-plan {
+  padding: .8rem;
+  margin-block: .5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-strong);
+  overflow-wrap: anywhere;
+}
+.agent-run-plan p { font-size: .85rem; margin-block: .5rem; }
+.agent-run-plan details { max-height: 12rem; overflow: auto; }

@@ -6,6 +6,27 @@ A language model can help a researcher express a question or understand a
 result. COHORTome checks what data may be used, limits what may be sent, and remains
 responsible for running the requested operation.
 
+## Two different connections
+
+| | Model connected to COHORTome | Assistant connected through MCP |
+| --- | --- | --- |
+| Where you ask | Inside COHORTome, in Query or Analysis | In another application, such as Codex |
+| Who calls whom | COHORTome asks the configured model for help | The assistant calls COHORTome's scoped tools |
+| Example | LM Studio helps interpret a question in Query | Codex asks how many shared patients have transcriptomics |
+| Setup | [Connect an LLM](../admin-guide/model-providers.mdx) | [Agent access (MCP)](../user-guide/local-agents.md) |
+
+**These connections are independent.** MCP does not require a model configured
+inside COHORTome, and connecting LM Studio does not give Codex access to your data.
+
+:::warning[Local connection does not mean local model]
+
+LM Studio can run the model on your own computer. With MCP, the assistant is
+outside COHORTome and may send tool results to a cloud model—even when the
+connector runs locally. The current MCP prototype accepts only the two bundled
+synthetic demos and requires you to explicitly share a selection.
+
+:::
+
 ## Supported roles
 
 COHORTome uses approved models to assist with:
@@ -109,10 +130,12 @@ Model evaluation must identify the provider, model, configuration, prompt or
 task template, dataset snapshot, execution mode, and reference answer. A fluent
 response alone is not evidence of correctness.
 
-## Local agent access
+## Agent access (MCP)
 
 The optional [MCP prototype](../user-guide/local-agents.md) lets a local agent
-inspect an explicitly shared Desktop selection. It is read-only and limited to
-the two verified bundled synthetic demos. Sharing does not grant access to the
-rest of the workspace or permission to run analyses. A local connection does not
+inspect an explicitly shared Desktop selection, limited to the two verified
+bundled synthetic demos. Sharing does not grant access to the rest of the
+workspace. Agents may propose supported curated comparisons, but each run needs
+owner approval in COHORTome; sharing its result table needs separate permission.
+A local connection does not
 prove that the agent's model runs locally; its client controls where results go.

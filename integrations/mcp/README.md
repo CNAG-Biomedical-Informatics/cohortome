@@ -7,15 +7,18 @@ and stdio. It does not open databases or reuse the desktop browser cookie.
 ## Installed Desktop
 
 The connector is bundled with Desktop under `engine/mcp`; users do not need
-Python, pip or another application. In **Settings → Query & AI → Local agents
+Python, pip or another application. In **Settings → Query & AI → Agent access
 (MCP)**, confirm consent, then choose **Enable and share scope**. Copy the full
-configuration for ChatGPT Work / Codex (TOML) or another client (JSON).
+configuration for Codex (TOML) or another client (JSON).
 
 In the client's MCP settings, add a **STDIO** server using that executable and
 the supplied environment values. Do not use the loopback URL as a remote MCP
 URL. On macOS, first move COHORTome to Applications, not the mounted DMG.
-**Turn off** revokes access immediately. Restarting COHORTome or replacing a
-share requires copying fresh settings and restarting the client connection.
+**Update shared selection** keeps the token and its original expiry; the next
+tool call uses the new snapshot. Failed updates keep the previous snapshot.
+**Turn off** revokes access immediately. Restarting COHORTome, expiry, or turning
+access off requires enabling sharing again, copying fresh settings and restarting
+the client connection. Ask the assistant to call `describe_scope` after updates.
 The connector is not included in the Web deployment.
 
 ## Source-development setup
@@ -32,7 +35,7 @@ On Windows, use `py -3` for the first command and
 separate from COHORTome: the SDK requires newer dependencies than the app.
 
 1. Open Desktop and load one or both bundled synthetic demos.
-2. Apply any patient filters, then open **Settings → Query & AI → Local agents (MCP)**.
+2. Apply any patient filters, then open **Settings → Query & AI → Agent access (MCP)**.
 3. Review the consent checkbox and share the applied scope. Copy the connection
    values into your MCP client's local configuration:
 
@@ -64,10 +67,21 @@ Tokens expire after eight hours, when replaced or revoked, and on app restart.
 Ask: **“Describe the shared selection, then find patients with transcriptomics
 and proteomics. Give the count before listing any IDs.”**
 
-Tools discover clinical fields, filter patients and summarize the shared group.
-They do not run analyses, edit datasets, save cohorts or change the Dashboard.
-Changing the app's selection does not change an existing share; share again to
-replace it. An empty selection stays empty.
+Tools discover clinical fields, filter patients, inspect clinical/biosample
+records, browse bounded assay measurements and discover analysis requirements.
+They can also prepare a curated comparison for owner approval and inspect its
+status. They cannot approve requests, edit datasets, save cohorts or change the Dashboard.
+Changing the app's selection does not change an existing share; use **Update
+shared selection** to replace it without changing credentials. An empty selection
+stays empty. Analysis requirement checks are partial, not run authorization.
+
+For runs, share one dataset and provide disjoint patient groups A/B. Supported:
+DESeq2, limma-voom, flow cytometry and serology Wilcoxon comparisons. The owner
+reviews validated inputs in Agent access and explicitly approves execution.
+Sharing feature-level results is a separate, unchecked permission. Runs use
+existing Analysis chats and Jobs. Unapproved plans expire after 15 minutes or
+a scope update; revoking MCP access does not cancel already approved jobs.
+No arbitrary code, commands, SQL or user-supplied prompts are executed.
 
 This prototype accepts only the two verified bundled synthetic demos. **A local
 connector is not a local-model guarantee:** the client may forward results to a

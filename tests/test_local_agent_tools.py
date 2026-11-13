@@ -58,6 +58,10 @@ def test_describe_scope_has_explicit_membership_and_no_paths(grant):
     ('find_patients', {'clinical_filters':[dict(field_id='field', operator='eq', values=[1], sql='SELECT 1')]}),
     ('list_filter_fields', {'limit':51}),
     ('summarize_selection', {'sql':'SELECT * FROM patients'}),
+    ('get_clinical_records', {'dataset_id':'a', 'patient_id':'P1', 'limit':21}),
+    ('list_biosamples', {'dataset_id':'a', 'patient_id':'P1', 'path':'/secret'}),
+    ('get_assay_measurements', {'dataset_id':'a', 'assay_id':'rna', 'feature_id':'x', 'limit':101}),
+    ('list_analyses', {'run':True}),
 ])
 def test_tool_schema_rejects_widening_and_unbounded_requests(name, args, grant):
     with pytest.raises(HTTPException) as error:
@@ -138,10 +142,14 @@ def test_field_options_and_ranges_are_limited_to_shared_patients(tmp_path, monke
     assert all(not field.get('options') and 'observed_range' not in field for field in empty['fields'])
 
 
-def test_catalogue_only_exposes_read_only_tools():
+def test_catalogue_marks_proposals_as_state_changing_not_run_authority():
     assert {tool['name'] for tool in tools.TOOL_DEFINITIONS} == {
-        'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection'}
-    assert all(tool['annotations']['readOnlyHint'] and not tool['annotations']['destructiveHint']
+        'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection',
+        'describe_dataset', 'get_clinical_records', 'list_biosamples', 'list_assay_features',
+        'get_assay_measurements', 'list_analyses', 'check_analysis_requirements',
+        'prepare_analysis_run', 'inspect_analysis_run'}
+    assert all(tool['annotations']['readOnlyHint'] == (tool['name'] != 'prepare_analysis_run')
+               and not tool['annotations']['destructiveHint']
                and tool['inputSchema']['additionalProperties'] is False for tool in tools.TOOL_DEFINITIONS)
 
 
@@ -201,9 +209,103 @@ def test_bundled_prepared_stores_find_and_summarize_are_scoped(tmp_path, monkeyp
     found = tools.execute_tool('find_patients', {'modalities':['transcriptomics']}, grant, request)
     assert found['patients'] == sorted(with_rna, key=lambda m: (m['dataset_id'], m['patient_id']))
 
+    for dataset_id, source, _ in sources:
+        description = tools.execute_tool('describe_dataset', {'dataset_id':dataset_id}, grant, request)
+        assert description['patient_count'] == 2 and description['assays']
+        assert all(a['patient_count'] <= 2 for a in description['assays'])
+        first = next(m for m in members if m['dataset_id'] == dataset_id)
+        clinical = tools.execute_tool('get_clinical_records', {**first, 'limit':1}, grant, request)
+        assert len(clinical['records']) == 1
+        assert 'info' not in clinical['records'][0]['record']
+        specimens = tools.execute_tool('list_biosamples', first, grant, request)
+        assert all(r['individualId'] == first['patient_id'] for r in specimens['items'])
+        for assay in description['assays']:
+            parameters = dict(dataset_id=dataset_id, assay_id=assay['assay_id'])
+            features = tools.execute_tool('list_assay_features', {**parameters, 'limit':1}, grant, request)
+            assert len(features['features']) == 1
+            measurements = tools.execute_tool('get_assay_measurements',
+                {**parameters, 'feature_id':features['features'][0], 'limit':1}, grant, request)
+            assert len(measurements['items']) <= 1
+            assert all((dataset_id, r['patient_id']) in allowed for r in measurements['items'])
+            assert str(root) not in json.dumps(measurements)
+        assert str(root) not in json.dumps(description)
+    analyses = tools.execute_tool('list_analyses', {'limit':1}, grant, request)
+    assert len(analyses['items']) == 1 and analyses['next_offset'] == 1
+    check = tools.execute_tool('check_analysis_requirements',
+        {'analysis_id':analyses['items'][0]['id']}, grant, request)
+    assert check['validation'] == 'partial' and check['execution_via_mcp'] is False
+    assert check['checks_remaining']
+
     grant.members = []
     empty = tools.execute_tool('find_patients', {}, grant, request)
     assert empty['patient_count'] == 0 and empty['patients'] == []
     summary = tools.execute_tool('summarize_selection', {}, grant, request)
     assert summary['patient_count'] == summary['clinical_patient_count'] == summary['clinical_record_count'] == 0
     assert summary['sex_counts'] == {} and summary['assays'] == []
+    empty = tools.execute_tool('get_assay_measurements',
+        {**parameters, 'feature_id':features['features'][0]}, grant, request)
+    assert empty['items'] == [] and empty['total'] == 0
+
+
+@pytest.mark.parametrize('name', ['get_clinical_records', 'list_biosamples'])
+@pytest.mark.parametrize('dataset,patient', [('a','UNSHARED'), ('unknown','P1')])
+def test_record_tools_reject_unshared_before_reading(grant, monkeypatch, name, dataset, patient):
+    from app import local_agent_exploration as exploration
+    monkeypatch.setattr(exploration.clinical_store, 'patient_records_page',
+                        lambda *_a, **_k: pytest.fail('Must not read unshared patient'))
+    monkeypatch.setattr(exploration.biosamples, 'read_biosamples',
+                        lambda *_a, **_k: pytest.fail('Must not read unshared patient'))
+    with pytest.raises(HTTPException) as error:
+        tools.execute_tool(name, dict(dataset_id=dataset, patient_id=patient), grant, None)
+    assert error.value.status_code == 403
+
+
+def test_biosamples_paged_and_sanitized(grant, monkeypatch):
+    from app import local_agent_exploration as exploration
+    monkeypatch.setattr(exploration.biosamples, 'read_biosamples', lambda *_: [
+        dict(id='B2', individualId='P1', sampleOriginType={'id':'TEST:1', 'label':'Blood'}, info={'path':'SECRET'}),
+        dict(id='B1', individualId='P1'), dict(id='SECRET', individualId='UNSHARED')])
+    result = tools.execute_tool('list_biosamples', dict(dataset_id='a', patient_id='P1', limit=1), grant, None)
+    assert result['total'] == 2 and result['next_offset'] == 1
+    assert result['items'] == [dict(id='B1', individualId='P1')]
+    second = tools.execute_tool('list_biosamples', dict(dataset_id='a', patient_id='P1', offset=1), grant, None)
+    assert 'SECRET' not in json.dumps(second) and second['next_offset'] is None
+
+
+def test_measurements_keep_only_shared_samples_and_missing_values(grant, tmp_path, monkeypatch):
+    from app import local_agent_exploration as exploration
+    path = tmp_path / 'matrix.csv'
+    path.write_text('feature,S1,S2,S3\nF1,2,NA,999\nF2,3,4,888\n')
+    item = dict(assay_id='rna', modality='transcriptomics', data_type='counts')
+    monkeypatch.setattr(exploration, '_assay', lambda *_: ('/fixture', {'P1'}, item))
+    monkeypatch.setattr(exploration.query_store, '_external_assay_header', lambda *_:
+                        (path, ',', ['S1','S2','S3'], {'S1':'P1','S2':'P1','S3':'UNSHARED'}))
+    args = dict(dataset_id='a', assay_id='rna', feature_id='F1', limit=1)
+    result = tools.execute_tool('get_assay_measurements', args, grant, None)
+    assert result['total'] == 2 and result['next_offset'] == 1
+    assert result['items'] == [dict(patient_id='P1', sample_id='S1', value=2)]
+    result = tools.execute_tool('get_assay_measurements', {**args, 'offset':1}, grant, None)
+    assert result['items'] == [dict(patient_id='P1', sample_id='S2', value=None)]
+    assert not any(s in json.dumps(result) for s in ('UNSHARED','999','888',str(tmp_path)))
+    path.write_text('feature,S1,S2,S3\nF1,2,NA,999\nF1,3,4,888\n')
+    with pytest.raises(HTTPException) as error:
+        tools.execute_tool('get_assay_measurements', args, grant, None)
+    assert error.value.status_code == 409
+
+
+def test_analysis_check_does_not_claim_readiness_or_inspect_other_cohorts(grant, monkeypatch):
+    from app import local_agent_exploration as exploration
+    monkeypatch.setattr(exploration, '_inventory', lambda *_: ([], []))
+    monkeypatch.setattr(exploration.datasets, 'clinical_representation', lambda *_: 'person')
+    monkeypatch.setattr(exploration, '_analysis_items', lambda: [dict(
+        id='test', name='Test', requires_assays=True, required_modalities=['transcriptomics'],
+        requires_single_dataset_workspace=True, required_clinical_representation='snapshot',
+        requires_measurement=True, default_compare_mode=True, minimum_samples_per_cohort=3)])
+    result = tools.execute_tool('check_analysis_requirements', {'analysis_id':'test'}, grant, None)
+    assert len(result['blockers']) == 3
+    assert len(result['checks_remaining']) == 4
+    assert result['validation'] == 'partial' and result['execution_via_mcp'] is False
+    assert 'ready' not in result
+    grant.members = []
+    result = tools.execute_tool('check_analysis_requirements', {'analysis_id':'test'}, grant, None)
+    assert 'The shared selection is empty.' in result['blockers']

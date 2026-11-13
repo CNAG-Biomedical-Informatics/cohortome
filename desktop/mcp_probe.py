@@ -55,12 +55,22 @@ def probe(client, executable, environment, cwd):
         send({'method': 'notifications/initialized'})
         listed = call(2, 'tools/list', {})
         assert {t['name'] for t in listed['tools']} == {
-            'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection'}
+            'describe_scope', 'list_filter_fields', 'find_patients', 'summarize_selection',
+            'describe_dataset', 'get_clinical_records', 'list_biosamples', 'list_assay_features',
+            'get_assay_measurements', 'list_analyses', 'check_analysis_requirements',
+            'prepare_analysis_run', 'inspect_analysis_run'}
         result = call(3, 'tools/call', {'name': 'describe_scope', 'arguments': {}})
         assert not result.get('isError')
         assert result['structuredContent']['patient_count'] == grant['patient_count']
+        catalogue = call(4, 'tools/call', {'name': 'list_analyses', 'arguments': {'limit': 1}})
+        assert not catalogue.get('isError') and len(catalogue['structuredContent']['items']) == 1
+        dataset_id = result['structuredContent']['datasets'][0]['dataset_id']
+        description = call(5, 'tools/call', {'name': 'describe_dataset',
+                                           'arguments': {'dataset_id': dataset_id}})
+        assert not description.get('isError')
+        assert description['structuredContent']['dataset_id'] == dataset_id
         assert client.delete('/local-agent/share').status_code == 200
-        denied = call(4, 'tools/call', {'name': 'describe_scope', 'arguments': {}})
+        denied = call(6, 'tools/call', {'name': 'describe_scope', 'arguments': {}})
         assert denied.get('isError'), 'Turning off MCP did not revoke the running connector'
         process.stdin.close()
         assert process.wait(timeout=15) == 0

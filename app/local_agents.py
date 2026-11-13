@@ -1,7 +1,7 @@
 """Explicit, temporary Desktop grants for the optional local MCP connector.
 
 The connector never receives the Desktop cookie. Its token authorizes only the
-bounded read-only dispatcher below, not the ordinary application routes.
+bounded tool dispatcher below, not the ordinary application or approval routes.
 """
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -65,6 +65,12 @@ class ToolCall(BaseModel):
     arguments: dict = Field(default_factory=dict)
 
 
+class RunDecision(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    approve: bool = Field(strict=True)
+    allow_results: bool = Field(default=False, strict=True)
+
+
 @dataclass(frozen=True)
 class Grant:
     token_hash: str
@@ -76,6 +82,7 @@ class Grant:
     created: float
     expires: float
     deadline: float
+    selection_signature: str = ''
 
 
 def configure_desktop(origin):
@@ -116,7 +123,8 @@ def _status(grant):
         return dict(enabled=False)
     return dict(enabled=True, patient_count=len(grant.members),
                 datasets=[dict(dataset_id=key, name=label) for key, _, label in grant.sources],
-                created_at=_iso(grant.created), expires_at=_iso(grant.expires))
+                created_at=_iso(grant.created), expires_at=_iso(grant.expires),
+                selection_signature=grant.selection_signature)
 
 
 def _connector_command():
@@ -209,8 +217,42 @@ def revoke(request: Request):
     return JSONResponse(dict(enabled=False), headers={'Cache-Control': 'no-store'})
 
 
+@router.get('/plans')
+def pending_plans(request: Request):
+    _owner(request)
+    from app.local_agent_runs import pending
+    with _lock:
+        return JSONResponse({'plans': pending(_active(), owner=True)}, headers={'Cache-Control':'no-store'})
+
+
+@router.post('/plans/{plan_id}')
+def decide_plan(plan_id: str, body: RunDecision, request: Request):
+    _owner(request)
+    from app.local_agent_runs import decide
+    if not _work_lock.acquire(blocking=False):
+        raise HTTPException(429, 'An agent request is running. Try again shortly.')
+    try:
+        with _lock:
+            grant = _active()
+            if grant is None:
+                raise HTTPException(409, 'Agent access is off or expired.')
+            result = decide(plan_id, grant, request, approve=body.approve, allow_results=body.allow_results)
+        return JSONResponse(result, headers={'Cache-Control':'no-store'})
+    finally:
+        _work_lock.release()
+
+
 @router.post('/share')
 def share(body: Share, request: Request):
+    return _share(body, request, update=False)
+
+
+@router.put('/share')
+def update_share(body: Share, request: Request):
+    return _share(body, request, update=True)
+
+
+def _share(body: Share, request: Request, *, update):
     global _grant
     _owner(request)
     if not body.acknowledge:
@@ -219,9 +261,13 @@ def share(body: Share, request: Request):
     if not _work_lock.acquire(blocking=False):
         raise HTTPException(429, 'An agent request is running. Try again shortly.')
     try:
-        # Replacement revokes the old token even when preparing the new scope
-        # fails; a failed replacement must not leave an unexpected old grant.
-        _revoke()
+        previous = _active() if update else None
+        if update and previous is None:
+            raise HTTPException(409, 'Access expired or was turned off. Enable sharing again.')
+        # Scope updates are atomic: failures retain the previous snapshot. A
+        # new connection explicitly rotates credentials and revokes the old one.
+        if not update:
+            _revoke()
         with _lock:
             generation = _generation
         sources = _approved_sources(request, body.workspace)
@@ -240,18 +286,25 @@ def share(body: Share, request: Request):
             raise HTTPException(422, 'This prototype supports at most 10,000 shared patients.')
         if before != cohort_filters._fingerprint(sources, request_user_id(request)):
             raise HTTPException(409, 'The dataset changed. Apply the scope again before sharing.')
-        token = secrets.token_urlsafe(32)
+        token = None if update else secrets.token_urlsafe(32)
         now = time.time()
-        grant = Grant(hashlib.sha256(token.encode()).hexdigest(), workspace, members, sources,
-                      before, request_user_id(request), now, now + TTL_SECONDS,
-                      time.monotonic() + TTL_SECONDS)
+        selection = [body.workspace, None if body.members is None else
+                     sorted({(m.dataset_id, m.patient_id) for m in body.members})]
+        signature = hashlib.sha256(json.dumps(selection, ensure_ascii=False,
+                                   separators=(',', ':')).encode()).hexdigest()
+        grant = Grant(previous.token_hash if update else hashlib.sha256(token.encode()).hexdigest(),
+                      workspace, members, sources, before, request_user_id(request),
+                      previous.created if update else now,
+                      previous.expires if update else now + TTL_SECONDS,
+                      previous.deadline if update else time.monotonic() + TTL_SECONDS, signature)
         with _lock:
-            if generation != _generation:
+            if generation != _generation or (update and _active() is not previous):
                 raise HTTPException(409, 'Sharing was cancelled. Try again when ready.')
             _grant = grant
         logger.info('Local agent scope shared: %d datasets, %d synthetic patients', len(sources), len(members))
-        return JSONResponse({**_status(grant), 'url': _origin + CALL_PATH, 'token': token,
-                             'connector': connector},
+        credentials = {} if update else {'url': _origin + CALL_PATH, 'token': token,
+                                         'connector': connector}
+        return JSONResponse({**_status(grant), **credentials},
                             headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
     except HTTPException:
         raise

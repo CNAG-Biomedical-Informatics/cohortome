@@ -244,6 +244,13 @@ export function createUserSettingsUi(ctx) {
     }
   }
 
+  window.addEventListener('cohortome:review-agent-plans', () => {
+    setPanelOpen(true);
+    userSettingsPanelEl.querySelector('[data-settings-section="query"]').click();
+    document.getElementById('localAgentsSettings').open = true;
+    document.getElementById('localAgentsPlans').scrollIntoView({block:'nearest'});
+  });
+
   function authProviderLabel(authState) {
     const mode = String(authState && authState.mode || (authState && authState.enabled ? "local" : "none"));
     const provider = String(authState && authState.provider || mode || "none");

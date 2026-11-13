@@ -18,8 +18,36 @@ def setup_agents(page, *, dirty=False):
 
 
 def shared():
+    import hashlib
     return dict(enabled=True, patient_count=1, datasets=[dict(dataset_id='default', name='Demo')],
+                selection_signature=hashlib.sha256(b'["default",[["default","P1"]]]').hexdigest(),
                 created_at='2026-11-12T09:00:00Z', expires_at='2099-11-12T17:00:00Z')
+
+
+def test_run_approval_is_explicit_and_results_are_opt_in(page):
+    calls = []
+    plan = dict(plan_id='plan-test', analysis='Flow comparison', dataset_id='default', assay_id='cells',
+                cohort_a_patient_count=3, cohort_b_patient_count=3,
+                validated_inputs=dict(cohort_a_sample_count=3, cohort_b_sample_count=3, feature_count=12),
+                cohort_a=['P1', 'P2', 'P3'], cohort_b=['P4', 'P5', 'P6'])
+    page.route('**/local-agent/status', lambda r: r.fulfill(json=shared()))
+    page.route('**/local-agent/plans', lambda r: r.fulfill(json={'plans':[] if calls else [plan]}))
+    def decide(route):
+        calls.append(route.request.post_data_json)
+        route.fulfill(json={'status':'submitted', 'job_id':'fictional-job'})
+    page.route('**/local-agent/plans/plan-test', decide)
+    setup_agents(page)
+    page.evaluate("window.addEventListener('cohortome:mcp-run', e => window.approvedRun = e.detail)")
+    card = page.locator('#localAgentsPlans')
+    playwright.expect(card).to_contain_text('3 usable samples')
+    playwright.expect(card.locator('input[type=checkbox]')).not_to_be_checked()
+    assert calls == []
+    card.get_by_role('button', name='Approve and run').click()
+    playwright.expect(page.locator('#localAgentsMessage')).to_contain_text('Your current workspace is unchanged')
+    assert calls == [{'approve':True, 'allow_results':False}]
+    assert page.evaluate('window.approvedRun.job_id') == 'fictional-job'
+    assert page.evaluate('window.agentState.activePatientScope.selection.members[0].patient_id') == 'P1'
+    playwright.expect(card).not_to_contain_text('Approve and run')
 
 
 def test_bundled_configuration_formats_and_turn_off(page):
@@ -41,7 +69,7 @@ def test_bundled_configuration_formats_and_turn_off(page):
     page.locator('#localAgentsFormat').select_option('json')
     assert json.loads(page.locator('#localAgentsConfiguration').input_value())['mcpServers']['cohortome']['command'] == command
     page.locator('#localAgentsRevoke').click()
-    playwright.expect(page.locator('#localAgentsStatus')).to_have_text('Off.')
+    playwright.expect(page.locator('#localAgentsStatus')).to_have_text('MCP off · No agent access.')
     playwright.expect(page.locator('#localAgentsConfiguration')).to_have_value('')
 
 
@@ -57,6 +85,15 @@ def test_explicit_sharing_freezes_selection_and_revokes(page):
             route.fulfill(json=status)
         else:
             status.update(shared())
+            if route.request.method == 'PUT':
+                import hashlib
+                import json
+                body = route.request.post_data_json
+                pairs = sorted({(m['dataset_id'], m['patient_id']) for m in body['members']})
+                status['selection_signature'] = hashlib.sha256(json.dumps(
+                    [body['workspace'], pairs], separators=(',', ':')).encode()).hexdigest()
+                route.fulfill(json=status)
+                return
             route.fulfill(json={**status, 'url':'http://127.0.0.1:12345/local-agent/call', 'token':'fictional-test-token'})
     page.route('**/local-agent/share', share)
     setup_agents(page)
@@ -75,7 +112,15 @@ def test_explicit_sharing_freezes_selection_and_revokes(page):
       window.dispatchEvent(new CustomEvent('cohortome:scope-applied'));
     }''')
     assert len(calls) == 1
-    expect(page.locator('#localAgentsShare')).to_have_text('Replace shared scope')
+    expect(page.locator('#localAgentsShare')).to_have_text('Update shared selection')
+    expect(page.locator('#localAgentsScope')).to_contain_text('Selection changed—not shared yet')
+    page.locator('#localAgentsConsent').check()
+    page.locator('#localAgentsShare').click()
+    expect(page.locator('#localAgentsMessage')).to_contain_text('token is unchanged')
+    assert calls[-1][0] == 'PUT'
+    assert calls[-1][1]['members'] == [dict(dataset_id='default', patient_id='P2')]
+    expect(page.locator('#localAgentsBadge')).to_contain_text('On · 1 shared')
+    expect(page.locator('#localAgentsScope')).not_to_contain_text('Selection changed')
     page.evaluate('window.agents.hide()')
     expect(page.locator('#localAgentsConfiguration')).to_have_value('')
     page.evaluate('window.agents.load()')
@@ -135,7 +180,7 @@ def test_web_is_hidden_and_failed_replacement_clears_secret(page):
     expect(page.locator('#localAgentsMessage')).to_have_text('Scope unavailable.')
     expect(page.locator('#localAgentsSecret')).to_be_hidden()
     expect(page.locator('#localAgentsConfiguration')).to_have_value('')
-    expect(page.locator('#localAgentsStatus')).to_have_text('Off.')
+    expect(page.locator('#localAgentsStatus')).to_have_text('MCP off · No agent access.')
     expect(page.locator('#localAgentsRevoke')).to_be_hidden()
     assert len(status_calls) == 2
 

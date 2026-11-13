@@ -250,7 +250,7 @@ export function createAnalysisSessionsUi(ctx) {
     }
   }
 
-  async function loadAnalysisSessionsFromBackend() {
+  async function loadAnalysisSessionsFromBackend({preserveActive = false} = {}) {
     try {
       const response = await fetch("/analysis-sessions");
       if (!response.ok) return false;
@@ -288,17 +288,18 @@ export function createAnalysisSessionsUi(ctx) {
       });
       localSessions.forEach((session) => {
         const existing = merged.get(session.id);
-        if (!existing || timeValue(session.updatedAt) > timeValue(existing.updatedAt)) {
+        if ((preserveActive && session.id === state.currentAnalysisSessionId)
+            || !existing || timeValue(session.updatedAt) > timeValue(existing.updatedAt)) {
           merged.set(session.id, createAnalysisSession(session));
         }
       });
       const sessions = Array.from(merged.values());
       if (!sessions.length) return false;
       state.analysisSessions = sessions;
-      if (!state.analysisSessions.some((session) => session.id === state.currentAnalysisSessionId)) {
+      if (!preserveActive && !state.analysisSessions.some((session) => session.id === state.currentAnalysisSessionId)) {
         state.currentAnalysisSessionId = state.analysisSessions[0].id;
       }
-      applyAnalysisSession(currentAnalysisSession() || state.analysisSessions[0]);
+      if (!preserveActive) applyAnalysisSession(currentAnalysisSession() || state.analysisSessions[0]);
       persistAnalysisSessions();
       localSessions.forEach((session) => {
         const backend = backendSessions.find((item) => item.id === session.id);
@@ -311,6 +312,11 @@ export function createAnalysisSessionsUi(ctx) {
       return false;
     }
   }
+
+  window.addEventListener('cohortome:mcp-run', async () => {
+    await loadAnalysisSessionsFromBackend({preserveActive:true});
+    renderAnalysisSessionList();
+  });
 
   function renderAnalysisSessionList() {
     if (!analysisSessionListEl) return;

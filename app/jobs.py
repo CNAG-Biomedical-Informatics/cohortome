@@ -749,6 +749,7 @@ def submit_analysis_job(
     selected_patient_ids: str = "",
     compare_selected_patient_ids: str = "",
     compare_mode: bool = False,
+    mcp_approval: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     scope = _authorize_analysis_scope(user_id, dataset_id)
     _require_private_external_matrix_runtime(catalog_item, scope)
@@ -766,7 +767,8 @@ def submit_analysis_job(
         user_id=user_id,
         data={
             "feature": "analysis",
-            "name": str(catalog_item.get("name") or "").strip() or "Analysis job",
+            "name": ("MCP · " if mcp_approval else "") + (str(catalog_item.get("name") or "").strip() or "Analysis job"),
+            "mcp_approval": mcp_approval,
             "prompt": "Run the custom analysis on prepared synthetic inputs." if catalog_item.get("runner_type") == "container" else str(prompt or "").strip(),
             "script_parameters": json.loads(prompt) if catalog_item.get("runner_type") == "container" else {},
             "dataset_id": str(scope.get("dataset_id") or "").strip(),
@@ -878,6 +880,9 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         if runner_type not in {"rscript", "snakemake", "nextflow", "workflow", "container"}:
             raise RuntimeError(f"Queued execution is not supported for runner type '{runner_type}'.")
         scope = _authorize_analysis_scope(user_id, str(record.get("dataset_id") or ""))
+        if record.get("mcp_approval"):
+            from app.local_agent_runs import validate_job
+            validate_job(record, item)
         if runner_type == "container":
             from app.datasets import effective_query_granularity_ceiling
             if effective_query_granularity_ceiling(scope["dataset_ids"]) != "detailed":
@@ -900,6 +905,8 @@ def run_analysis_job(job_id: str, user_id: str) -> Dict[str, Any]:
         payload["data"]["catalog_item_name"] = str(item.get("name") or "").strip()
         payload["data"]["job_id"] = job_id
         payload["data"]["job_status"] = "completed"
+        if record.get("mcp_approval"):
+            validate_job(record, item)
         save_job_result(job_id, user_id, payload)
         record = update_job_record(
             job_id,

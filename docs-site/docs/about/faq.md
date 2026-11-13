@@ -184,6 +184,27 @@ validated clinical decision support.
 ## Desktop
 
 <details>
+<summary>What is the difference between connecting an LLM and using MCP?</summary>
+
+**An LLM helps you inside COHORTome.** You ask in Query or Analysis, and
+COHORTome contacts your configured model—for example, one running in LM Studio.
+
+**MCP lets another assistant use COHORTome's tools.** You ask in an application
+such as Codex, which can inspect the selection you explicitly shared and propose
+supported analyses. You approve each run in COHORTome; sharing its results needs
+separate permission. MCP is a connection protocol, not a language model.
+
+**The two connections are independent.** MCP does not require LM Studio or an
+LLM configured inside COHORTome. A local MCP connection does not mean the
+assistant's model runs locally: shared information may reach a cloud provider.
+
+See [Connect an LLM](../admin-guide/model-providers.mdx) or
+[Agent access (MCP)](../user-guide/local-agents.md). MCP currently supports
+Desktop and the two bundled synthetic demos only.
+
+</details>
+
+<details>
 <summary>Do I need an account or extra setup to run analyses?</summary>
 
 **No.** Desktop opens without signing in and runs analyses within the app.
