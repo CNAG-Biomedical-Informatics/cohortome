@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2 - Unreleased
+## 0.1.2 - 2026-11-13
 
 - Add clinical filters and a shared patient scope across Dashboard and new chats.
 - Add per-dataset clinical characteristics tables.
