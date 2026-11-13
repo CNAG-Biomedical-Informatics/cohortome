@@ -15,7 +15,8 @@ def verify_connector(connector, executable):
 
 def probe(client, executable, environment, cwd):
     shared = client.post('/local-agent/share', json={'workspace': 'default', 'acknowledge': True})
-    assert shared.status_code == 200, 'Could not share the synthetic test scope'
+    assert shared.status_code == 200, (
+        f'Could not share the synthetic test scope (HTTP {shared.status_code})')
     grant = shared.json()
     if grant.get('connector'):
         verify_connector(grant['connector'], executable)

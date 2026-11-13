@@ -1,0 +1,4 @@
+# Bundled demos are checksum-verified for MCP access. Preserve exact bytes,
+# including files whose original line endings are CRLF, on every platform.
+/datasets/synthetic-cross-sectional-demo/** -text
+/datasets/synthetic-longitudinal-demo/** -text

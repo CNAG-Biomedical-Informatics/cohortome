@@ -17,6 +17,28 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = os.environ.get('COHORTOME_TEST_MCP_BUNDLE')
 
 
+def test_demo_checkout_preserves_bytes_with_windows_git_defaults(tmp_path):
+    shutil.copyfile(ROOT / '.gitattributes', tmp_path / '.gitattributes')
+
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=tmp_path)
+
+    git('init', '--quiet')
+    git('config', 'core.autocrlf', 'true')
+    for dataset in ('synthetic-cross-sectional-demo', 'synthetic-longitudinal-demo'):
+        for name, payload in [('clinical.json', b'{"id": "test"}\n'),
+                              ('samples.csv', b'id,value\r\ntest,1\r\n')]:
+            relative = f'datasets/{dataset}/{name}'
+            path = tmp_path / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload)
+            git('add', '--', relative)
+            assert git('show', f':{relative}') == payload
+            path.unlink()
+            git('checkout-index', '--', relative)
+            assert path.read_bytes() == payload
+
+
 def test_connector_validation_accepts_symlink_spelling_not_another_executable(tmp_path):
     spec = importlib.util.spec_from_file_location('mcp_probe', ROOT / 'desktop/mcp_probe.py')
     probe = importlib.util.module_from_spec(spec)
