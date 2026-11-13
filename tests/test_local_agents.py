@@ -55,6 +55,28 @@ def test_disabled_and_invalid_tokens(isolated, connector):
                           headers={'Authorization': 'Bearer wrong'}).status_code == 401
 
 
+@pytest.mark.parametrize('platform,name', [('darwin', 'cohortome-mcp'), ('linux', 'cohortome-mcp'),
+                                         ('win32', 'cohortome-mcp.exe')])
+def test_bundled_connector_path_is_owned_by_installation(isolated, tmp_path, monkeypatch, platform, name):
+    engine = tmp_path / 'installed app' / 'engine'
+    binary = engine / 'mcp' / name
+    binary.parent.mkdir(parents=True)
+    binary.write_bytes(b'fictional executable')
+    monkeypatch.setattr(agents.sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(agents.sys, 'executable', str(engine / 'cohortome-backend'))
+    monkeypatch.setattr(agents.sys, 'platform', platform)
+    assert share(isolated)['connector'] == {'command': str(binary), 'args': []}
+    binary.unlink()
+    with pytest.raises(HTTPException) as error:
+        share(isolated)
+    assert error.value.status_code == 503
+
+
+def test_source_connector_is_not_misrepresented_as_bundled(isolated, monkeypatch):
+    monkeypatch.setattr(agents.sys, 'frozen', False, raising=False)
+    assert share(isolated)['connector'] is None
+
+
 def test_web_and_nonowner_cannot_create_grant(monkeypatch, isolated):
     request = Request({'type': 'http', 'headers': [], 'session': {'username': 'local'}})
     with pytest.raises(HTTPException) as error:

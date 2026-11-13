@@ -14,8 +14,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 TREES = {"app", "static", "templates", "datasets/synthetic-longitudinal-demo", "datasets/synthetic-cross-sectional-demo"}
 FILES = {"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "licenses/pydicom-3.0.2.txt", "scripts/data/README.md", "pyproject.toml", "config/analysis/catalog.yaml", "config/resources.json",
-         "config/analysis/synthetic_script_inputs.json", "scripts/data/hgnc_protein_coding_symbols.tsv"}
-SOURCE_PATHS = ['app', 'desktop', 'static', 'templates', 'datasets', 'config', 'scripts',
+         "config/analysis/synthetic_script_inputs.json", "config/mcp/synthetic_inputs.json", "scripts/data/hgnc_protein_coding_symbols.tsv"}
+SOURCE_PATHS = ['app', 'desktop', 'integrations/mcp', 'static', 'templates', 'datasets', 'config', 'scripts',
                 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'licenses', 'pyproject.toml']
 CHARTS = {
     "plotly.js-dist-min": ("2.35.2", "plotly.min.js", "https://cdn.plot.ly/plotly-2.35.2.min.js"),
@@ -138,6 +138,7 @@ def stage_ohif_assets(source, destination):
 
 
 def main():
+    from build_mcp import build as build_mcp
     from python_notices import collect as collect_python_notices
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="New directory; existing directories are refused")
@@ -182,6 +183,7 @@ def main():
         subprocess.run(command, cwd=staging, env=environment, check=True)
     shutil.move(str(output / "frozen/cohortome-backend"), output / "engine")
     (output / "frozen").rmdir()
+    mcp_manifest = build_mcp(output / 'engine/mcp')
     perl_manifest = stage_perl_runtime(args.perl_runtime, output / 'engine') if args.perl_runtime else None
     r_manifest = stage_r_runtime(args.r_runtime, output / 'engine') if args.r_runtime else None
     if args.with_native:
@@ -198,6 +200,7 @@ def main():
                 "perl_runtime": perl_manifest,
                 "r_runtime": r_manifest,
                 "viewer": viewer_manifest,
+                "mcp_connector": mcp_manifest,
                 "not_bundled": ([] if perl_manifest else ["Perl/Pheno-Ranker/Convert-Pheno/ClarID"]) + ([] if r_manifest else ["R/Bioconductor"]) + ([] if args.with_umap else ["UMAP"]) + ([] if args.ohif_assets else ["OHIF"]) + ["Docker"],
                 "python_packages": json.loads(subprocess.check_output(
                     [sys.executable, "-m", "pip", "list", "--format=json"], text=True)),

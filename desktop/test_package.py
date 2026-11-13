@@ -16,6 +16,7 @@ import zipfile
 from urllib.parse import urlsplit
 
 import httpx
+from mcp_probe import probe as probe_mcp
 
 
 def test_pheno(client, with_umap=False):
@@ -158,6 +159,9 @@ def main():
                                 assert response.status_code == 200, response.text[:200]
                                 assert response.json()["data"].get("patient_count", 0) > 0
                             # Save the synthetic Query result through its server-side handle.
+                            connector = engine / 'mcp' / ('cohortome-mcp.exe' if os.name == 'nt' else 'cohortome-mcp')
+                            assert connector.is_file(), 'Bundled MCP connector is missing'
+                            probe_mcp(client, connector, environment, root)
                             handle = response.json()["data"]["result_handle"]
                             saved = client.post("/saved-cohorts", json={"name": "Package test",
                                 "dataset_id": "synthetic-cross-sectional-demo", "result_handle": handle,

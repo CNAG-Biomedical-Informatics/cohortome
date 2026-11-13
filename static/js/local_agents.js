@@ -15,11 +15,14 @@ export function createLocalAgentsUi({state}) {
   const secret = document.getElementById('localAgentsSecret');
   const configuration = document.getElementById('localAgentsConfiguration');
   const copy = document.getElementById('localAgentsCopy');
+  const format = document.getElementById('localAgentsFormat');
+  let clientConfig = null;
   let connection = {enabled:false}, loaded = false, busy = false, revision = 0, secretRevision = 0, scopeRevision = 0;
 
   function clearSecret() {
     secretRevision++;
     configuration.value = '';
+    clientConfig = null;
     secret.hidden = true;
   }
   function blockedReason() {
@@ -42,7 +45,7 @@ export function createLocalAgentsUi({state}) {
     scope.textContent = reason || (active
       ? `Ready to share: ${active.selection.members.length.toLocaleString()} selected ${active.selection.members.length === 1 ? 'patient' : 'patients'}.`
       : 'Ready to share: all patients in the current workspace.');
-    share.textContent = connection?.enabled ? 'Replace shared scope' : 'Share current scope';
+    share.textContent = connection?.enabled ? 'Replace shared scope' : 'Enable and share scope';
     share.disabled = !loaded || busy || !consent.checked || Boolean(reason);
     consent.disabled = busy;
     revoke.hidden = connection !== null && !connection.enabled;
@@ -50,8 +53,8 @@ export function createLocalAgentsUi({state}) {
     status.textContent = connection === null
       ? 'Agent access could not be checked. Reopen Settings to check or revoke access.'
       : connection.enabled
-      ? `${Number(connection.patient_count || 0).toLocaleString()} ${connection.patient_count === 1 ? 'patient' : 'patients'} shared · ${(connection.datasets || []).map(item => item.name).join(', ')}. Expires ${new Date(connection.expires_at).toLocaleString()}.`
-      : 'Not shared.';
+      ? `On · ${Number(connection.patient_count || 0).toLocaleString()} ${connection.patient_count === 1 ? 'patient' : 'patients'} shared · ${(connection.datasets || []).map(item => item.name).join(', ')}. Expires ${new Date(connection.expires_at).toLocaleString()}.`
+      : 'Off.';
   }
   async function payload(response, fallback) {
     const data = await response.json().catch(() => ({}));
@@ -111,11 +114,12 @@ export function createLocalAgentsUi({state}) {
         headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
       const data = await payload(response, 'Unable to share this scope.');
       // Never retain the credential in application state or browser storage.
-      const {url, token, ...summary} = data;
+      const {url, token, connector, ...summary} = data;
       connection = summary;
       const changed = scopeTicket !== scopeRevision || body.workspace !== state.currentDatasetScopeId;
       if (revealTicket === secretRevision && !changed) {
-        configuration.value = JSON.stringify({COHORTOME_MCP_URL:url, COHORTOME_MCP_TOKEN:token}, null, 2);
+        clientConfig = {connector, env:{COHORTOME_MCP_URL:url, COHORTOME_MCP_TOKEN:token}};
+        renderConfiguration();
         secret.hidden = false;
       }
       consent.checked = false;
@@ -128,6 +132,23 @@ export function createLocalAgentsUi({state}) {
       message.textContent = error.message;
     } finally { busy = false; render(); }
   });
+  function renderConfiguration() {
+    if (!clientConfig) return;
+    const {connector, env} = clientConfig;
+    format.disabled = !connector;
+    if (!connector) {
+      configuration.value = JSON.stringify(env, null, 2);
+      document.getElementById('localAgentsSecretHelp').textContent = 'Source checkout: use the development connector setup linked above. Installed Desktop builds include the executable. Copy these values now; restart or replacement requires new settings.';
+    } else if (format.value === 'toml') {
+      // JSON basic string escaping is also valid for these TOML path/env strings.
+      configuration.value = '[mcp_servers.cohortome]\ncommand = ' + JSON.stringify(connector.command)
+        + '\nargs = []\n\n[mcp_servers.cohortome.env]\n'
+        + Object.entries(env).map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n');
+    } else {
+      configuration.value = JSON.stringify({mcpServers:{cohortome:{...connector, env}}}, null, 2);
+    }
+  }
+  format.addEventListener('change', renderConfiguration);
   revoke.addEventListener('click', async () => {
     if (busy) return;
     ++revision;

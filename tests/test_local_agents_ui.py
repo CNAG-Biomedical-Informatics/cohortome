@@ -22,6 +22,29 @@ def shared():
                 created_at='2026-11-12T09:00:00Z', expires_at='2099-11-12T17:00:00Z')
 
 
+def test_bundled_configuration_formats_and_turn_off(page):
+    import json
+    import tomllib
+    page.route('**/local-agent/status', lambda route: route.fulfill(json={'enabled': False}))
+    command = '/Applications/COHORTome Desktop Preview.app/Contents/Resources/engine/mcp/cohortome-mcp'
+    page.route('**/local-agent/share', lambda route: route.fulfill(json=(
+        {'enabled': False} if route.request.method == 'DELETE' else
+        {**shared(), 'connector': {'command': command, 'args': []},
+         'url': 'http://127.0.0.1:12345/local-agent/call', 'token': 'fictional-test-token'})))
+    setup_agents(page)
+    page.locator('#localAgentsConsent').check()
+    page.locator('#localAgentsShare').click()
+    playwright.expect(page.locator('#localAgentsSecret')).to_be_visible()
+    config = tomllib.loads(page.locator('#localAgentsConfiguration').input_value())
+    assert config['mcp_servers']['cohortome']['command'] == command
+    assert config['mcp_servers']['cohortome']['env']['COHORTOME_MCP_TOKEN'] == 'fictional-test-token'
+    page.locator('#localAgentsFormat').select_option('json')
+    assert json.loads(page.locator('#localAgentsConfiguration').input_value())['mcpServers']['cohortome']['command'] == command
+    page.locator('#localAgentsRevoke').click()
+    playwright.expect(page.locator('#localAgentsStatus')).to_have_text('Off.')
+    playwright.expect(page.locator('#localAgentsConfiguration')).to_have_value('')
+
+
 def test_explicit_sharing_freezes_selection_and_revokes(page):
     expect = playwright.expect
     calls, status = [], {'enabled': False}
@@ -112,7 +135,7 @@ def test_web_is_hidden_and_failed_replacement_clears_secret(page):
     expect(page.locator('#localAgentsMessage')).to_have_text('Scope unavailable.')
     expect(page.locator('#localAgentsSecret')).to_be_hidden()
     expect(page.locator('#localAgentsConfiguration')).to_have_value('')
-    expect(page.locator('#localAgentsStatus')).to_have_text('Not shared.')
+    expect(page.locator('#localAgentsStatus')).to_have_text('Off.')
     expect(page.locator('#localAgentsRevoke')).to_be_hidden()
     assert len(status_calls) == 2
 

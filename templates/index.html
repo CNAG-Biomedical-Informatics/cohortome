@@ -245,17 +245,19 @@
         <details id="localAgentsSettings" hidden>
           <summary>Local agents (MCP)</summary>
           <p class="section-note">Read-only access to the two included synthetic demos. Access ends after eight hours or when you close the app. <a href="https://cnag-biomedical-informatics.github.io/cohortome/docs/user-guide/local-agents" target="_blank" rel="noopener noreferrer">Connector setup</a></p>
-          <p id="localAgentsStatus" class="section-note">Not shared.</p>
+          <p id="localAgentsStatus" class="section-note">Off.</p>
           <p id="localAgentsScope" class="section-note"></p>
           <label class="user-settings-check"><input id="localAgentsConsent" type="checkbox"> I allow the agent to read this data. Its model may run outside this computer.</label>
           <div class="user-settings-actions">
-            <button id="localAgentsShare" type="button" class="primary-btn" disabled>Share current scope</button>
-            <button id="localAgentsRevoke" type="button" class="danger-btn" hidden>Revoke access</button>
+            <button id="localAgentsShare" type="button" class="primary-btn" disabled>Enable and share scope</button>
+            <button id="localAgentsRevoke" type="button" class="danger-btn" hidden>Turn off</button>
           </div>
           <div id="localAgentsSecret" hidden>
+            <label for="localAgentsFormat">Client configuration</label>
+            <select id="localAgentsFormat"><option value="toml">ChatGPT Work / Codex (TOML)</option><option value="json">Other clients (JSON)</option></select>
             <label for="localAgentsConfiguration">Connection settings · keep the token private</label>
             <textarea id="localAgentsConfiguration" rows="5" readonly spellcheck="false" autocomplete="off" aria-describedby="localAgentsSecretHelp"></textarea>
-            <p id="localAgentsSecretHelp" class="section-note">Shown only now. Copy these values into the local connector configuration. Replacing the shared scope creates a new token.</p>
+            <p id="localAgentsSecretHelp" class="section-note">In your client's MCP settings, choose STDIO and use the command and environment values below. The connector is included in installed Desktop builds; no Python installation is needed. Copy now: replacing the scope or restarting COHORTome requires new connection settings.</p>
             <div class="user-settings-actions"><button id="localAgentsCopy" type="button" class="secondary-btn">Copy connection settings</button></div>
           </div>
           <p id="localAgentsMessage" class="section-note" role="status" aria-live="polite"></p>

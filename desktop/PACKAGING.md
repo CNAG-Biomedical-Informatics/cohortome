@@ -44,6 +44,11 @@ assets must therefore be tracked before packaging.
 | Shared Perl | `build_unix_pheno.py` or `build_windows_pheno.py`; package with `--perl-runtime PATH` | `--require-pheno` |
 | R | `build_linux_r.py` or `build_native_r.py`; package with `--r-runtime PATH` | `--require-r`, `--require-extended-r` |
 | UMAP | Install `requirements-umap-test.txt`; package with `--with-umap` | `--require-umap` |
+| MCP connector | Automatically frozen in a separate build venv using `requirements-mcp.txt` | Standard package test: stdio tools and revocation with an empty PATH |
+
+The connector ships under `engine/mcp`, including Python and dependency notices.
+Its SDK pins do not change the app's Python environment. Package manifests record
+its installed size. Web images do not include this Desktop connector.
 
 All five Desktop workflows include the pinned OHIF static files. A Linux job
 extracts them without executing the image, then passes a one-day build-input

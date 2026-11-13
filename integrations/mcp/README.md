@@ -4,7 +4,21 @@ Connect a local MCP client to a selection explicitly shared by COHORTome Desktop
 The connector uses the official [Python MCP SDK](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x)
 and stdio. It does not open databases or reuse the desktop browser cookie.
 
-## Setup
+## Installed Desktop
+
+The connector is bundled with Desktop under `engine/mcp`; users do not need
+Python, pip or another application. In **Settings → Query & AI → Local agents
+(MCP)**, confirm consent, then choose **Enable and share scope**. Copy the full
+configuration for ChatGPT Work / Codex (TOML) or another client (JSON).
+
+In the client's MCP settings, add a **STDIO** server using that executable and
+the supplied environment values. Do not use the loopback URL as a remote MCP
+URL. On macOS, first move COHORTome to Applications, not the mounted DMG.
+**Turn off** revokes access immediately. Restarting COHORTome or replacing a
+share requires copying fresh settings and restarting the client connection.
+The connector is not included in the Web deployment.
+
+## Source-development setup
 
 From the COHORTome repository root, with Python 3.11 or newer:
 

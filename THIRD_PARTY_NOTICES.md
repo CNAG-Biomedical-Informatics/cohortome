@@ -16,7 +16,8 @@ and reference data retain their own licences and copyright notices.
 ## Software components
 
 - The optional local MCP connector uses the [Python MCP SDK](https://github.com/modelcontextprotocol/python-sdk)
-  under its MIT licence. It is installed separately from the app.
+  under its MIT licence. Desktop includes it in an isolated runtime under
+  `engine/mcp`, with dependency notices in `engine/mcp/licenses`.
 - Plotly.js and Cytoscape.js provide interactive plots and networks. The desktop
   packager retains their package licence files under `static/vendor/`.
 - The shared Perl runtime provides Pheno-Ranker, Convert-Pheno and ClarID tools.

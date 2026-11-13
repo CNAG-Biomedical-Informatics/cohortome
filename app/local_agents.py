@@ -10,6 +10,7 @@ import json
 import logging
 from pathlib import Path
 import secrets
+import sys
 import threading
 import time
 
@@ -118,6 +119,17 @@ def _status(grant):
                 created_at=_iso(grant.created), expires_at=_iso(grant.expires))
 
 
+def _connector_command():
+    """Installed executable only; never accept a command/path from the client."""
+    if not getattr(sys, 'frozen', False):
+        return None  # Source developers use the separate SDK environment.
+    binary = Path(sys.executable).resolve().parent / 'mcp' / (
+        'cohortome-mcp.exe' if sys.platform == 'win32' else 'cohortome-mcp')
+    if not binary.is_file():
+        raise HTTPException(503, 'The bundled MCP connector is missing. Reinstall COHORTome.')
+    return {'command': str(binary), 'args': []}
+
+
 def _verify_fixture(identifier, root):
     """A synthetic label alone is not proof: verify the bundled file set/content."""
     if identifier not in BUNDLED:
@@ -203,6 +215,7 @@ def share(body: Share, request: Request):
     _owner(request)
     if not body.acknowledge:
         raise HTTPException(422, 'Confirm that the agent may receive the selected synthetic data.')
+    connector = _connector_command()
     if not _work_lock.acquire(blocking=False):
         raise HTTPException(429, 'An agent request is running. Try again shortly.')
     try:
@@ -237,7 +250,8 @@ def share(body: Share, request: Request):
                 raise HTTPException(409, 'Sharing was cancelled. Try again when ready.')
             _grant = grant
         logger.info('Local agent scope shared: %d datasets, %d synthetic patients', len(sources), len(members))
-        return JSONResponse({**_status(grant), 'url': _origin + CALL_PATH, 'token': token},
+        return JSONResponse({**_status(grant), 'url': _origin + CALL_PATH, 'token': token,
+                             'connector': connector},
                             headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
     except HTTPException:
         raise
