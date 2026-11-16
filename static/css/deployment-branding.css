@@ -1,4 +1,7 @@
 .deployment-brand[hidden] { display: none; }
+/* Branding may load before Projects moves it into the navigation rail. */
+#deploymentBrand { display: none; }
+.app-icon-rail > #deploymentBrand:not([hidden]) { display: block; }
 .deployment-brand { max-width: 100%; padding: 12px 8px; }
 .deployment-brand > a, .deployment-brand > div {
   display: flex; flex-direction: column; align-items: center; gap: 8px;

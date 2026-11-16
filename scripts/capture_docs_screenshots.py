@@ -64,11 +64,12 @@ def main() -> int:
     parser.add_argument('--llm-model', default='openai/gpt-oss-20b')
     parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
     parser.add_argument('--cohort-scope', action='store_true', help='Capture shared filters, clinical statistics and local-agent settings using bundled demos')
+    parser.add_argument('--clinical-views', action='store_true', help='Capture only Clinical charts, measurement distributions and tables using bundled demos')
     parser.add_argument('--walkthrough-video', action='store_true', help='Record only the silent multimodal docs walkthrough')
     parser.add_argument('--biosamples-demo', type=Path, help='Public CINECA + GEUVADIS package root; capture only biosample views')
     args = parser.parse_args()
     if sum(bool(value) for value in (args.updated_views, args.walkthrough_video,
-                                    args.biosamples_demo, args.cohort_scope)) > 1:
+                                    args.biosamples_demo, args.cohort_scope, args.clinical_views)) > 1:
         parser.error('Choose only one capture mode')
     if args.biosamples_demo:
         args.biosamples_demo = args.biosamples_demo.resolve()
@@ -219,6 +220,29 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     captured.append(name)
                     print(f'Captured {name}', flush=True)
 
+                if args.clinical_views:
+                    response = page.request.post(url + '/datasets/select', data={
+                        'dataset_ids':['default', 'synthetic-cross-sectional-demo']})
+                    assert response.ok
+                    page.reload(wait_until='networkidle')
+                    page.locator('#dashboardTabBtn').click()
+                    page.locator('#dashboardClinicalBtn').click()
+                    expect(page.locator('#clinicalTableDataset')).to_have_value('')
+                    expect(page.locator('#dashboard-plot-sex .main-svg').first).to_be_visible()
+                    capture('workspace-shell.png')
+                    picker = page.locator('#clinicalMeasurementSelect')
+                    options = picker.locator('option').evaluate_all('(items) => items.map(item => ({value:item.value, text:item.textContent}))')
+                    crp = next((item for item in options if 'CRP' in item['text']), options[0])
+                    picker.select_option(crp['value'])
+                    expect(page.locator('#clinicalMeasurements .main-svg').first).to_be_visible()
+                    capture('clinical-distributions.png', '#clinicalMeasurements')
+                    page.locator('[data-clinical-mode="table"]').click()
+                    expect(page.locator('.clinical-stats-table').first).to_be_visible()
+                    capture('clinical-characteristics.png')
+                    browser.close()
+                    print('Captured Clinical charts and tables from bundled synthetic data.')
+                    return 0
+
                 if args.biosamples_demo:
                     page.locator('#dashboardTabBtn').click()
                     page.locator('#dashboardPatientsBtn').click()
@@ -261,7 +285,7 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     expect(panel.locator('.cohort-scope-pending')).to_be_hidden(timeout=30000)
                     page.locator('#dashboardClinicalBtn').click()
                     page.locator('[data-clinical-mode="table"]').click()
-                    expect(page.locator('.clinical-stats-table')).to_be_visible()
+                    expect(page.locator('.clinical-stats-table').first).to_be_visible()
                     capture('clinical-characteristics.png', '#dashboardClinicalPanel')
                     response = page.request.post(url + '/datasets/select', data={
                         'dataset_ids': ['synthetic-cross-sectional-demo']})

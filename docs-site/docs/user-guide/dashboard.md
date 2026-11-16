@@ -176,21 +176,37 @@ visits per patient. These summaries describe the loaded records; missing
 medication data does not establish that a patient takes no medication.
 
 Choose **Apply to scope** from a saved cohort or
-Query's **More options** to summarize that group. The scope bar shows the selected
-patient count and how many have clinical records. **Show full workspace** asks
-for confirmation before clearing the shared scope. Existing chats keep their
+Query's **More options** to summarize that group. The global **Scope** indicator
+shows the active selection. To restore the full workspace, use **Clear filters**
+and then **Apply to scope** in Patients or Multimodal. Existing chats keep their
 captured selections.
+
+**View** defaults to **All active datasets** in both Charts and Table. Choose
+one dataset to inspect it without changing scope; the choice carries between views.
 
 All clinical records for the selected patients are included, even when the
 selection came from a particular sample. Disease and medication counts count
 each patient once per category; categories can overlap.
 
+### Charts
+
+Diagnoses show patient counts; the sex donut shows counts and percentages.
+Capitalization variants such as `male` and `Male` share a chart category without
+changing source records. **Visits and treatments** expands the other charts.
+
+Choose a **Measurement** to see its distribution. Each histogram counts patients
+using their median across recorded visits, with measured and missing counts above.
+Datasets remain separate; matching labels alone do not establish comparable fields.
+
+![CRP distributions from the bundled synthetic demos, shown separately by dataset](/img/screenshots/clinical-distributions.png)
+
 ### Clinical characteristics
 
-Switch to **Table** for summary statistics, with one dataset shown at a time.
+Switch to **Table** for numeric measurements and patient characteristics.
+**All active datasets** shows separate sections, not pooled statistics.
 The table follows the **applied scope**, just like the charts.
 
-![Clinical characteristics of the selected synthetic patients, with recorded and missing counts](/img/screenshots/clinical-characteristics.png)
+![Clinical characteristics of bundled synthetic patients, with measured and missing counts](/img/screenshots/clinical-characteristics.png)
 
 | Values | Summary |
 | --- | --- |

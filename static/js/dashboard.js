@@ -7,6 +7,7 @@ import { createMultimodalCoverage } from './multimodal_coverage.js';
 import { createVariantBrowser } from './variant_browser.js';
 import { displayIdentity, decodeIdentity, identityKey } from './identities.js';
 import { characteristicsMarkup } from './clinical_characteristics.js';
+import { clinicalSexCounts, clinicalMeasurements } from './clinical_chart_data.js';
 
 export function createDashboardUi(ctx) {
   const { refs, helpers, callbacks, state, constants } = ctx;
@@ -248,6 +249,58 @@ export function createDashboardUi(ctx) {
         label: String(item[labelKey] || item.label || "Unknown"),
         value: Number(item.patient_count || item.value || 0),
       };
+    }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+  }
+
+  function renderMeasurementDistributions(datasets) {
+    const host = document.getElementById('clinicalMeasurements');
+    if (!host) return;
+    const fields = clinicalMeasurements(datasets);
+    if (!fields.length) {
+      host.innerHTML = '<p class="section-note">No numeric clinical measurements recorded in this view.</p>';
+      return;
+    }
+    const selected = fields.find(field => field.id === state.dashboardClinicalMeasurement) || fields[0];
+    state.dashboardClinicalMeasurement = selected.id;
+    host.innerHTML = `<div class="clinical-measurement-heading"><h4>Measurement distribution</h4>
+      <details class="inline-view-help"><summary aria-label="About measurement distributions">?</summary><p>One median value per patient across recorded visits, not baseline values. Bars count patients, not observations. Each dataset uses up to 20 equal-width bins; the last bin includes its upper edge. Datasets remain separate. Only matching catalogue identities and units share a measurement choice. Missing means no usable numeric value. All records of selected patients contribute, not only visits matching a filter.</p></details></div>
+      <label class="clinical-measurement-picker" for="clinicalMeasurementSelect">Measurement<select id="clinicalMeasurementSelect">${fields.map(field => `<option value="${escapeHtml(field.id)}" ${field === selected ? 'selected' : ''}>${escapeHtml(field.label)} · ${escapeHtml(field.unit || 'unit not reported')}${datasets.length > 1 && field.sources.length < datasets.length ? ` — ${escapeHtml(field.sources.map(source => source.dataset.label).join(', '))}` : ''}</option>`).join('')}</select></label>
+      <p class="clinical-chart-caption">One median per patient · ${escapeHtml(selected.unit || 'Unit not reported')}</p>
+      <div class="dashboard-plot-grid clinical-distribution-grid">${datasets.map((dataset, index) => {
+        const row = selected.sources.find(source => source.dataset === dataset)?.row;
+        return `<section class="dashboard-plot-card"><h4>${escapeHtml(dataset.label)}</h4>${row ? `<p class="clinical-chart-caption">${formatNumber(row.recorded)} measured · ${formatNumber(row.missing)} missing</p><div class="dashboard-plot-frame" id="clinical-distribution-${index}"></div>` : '<p class="section-note">This measurement is not recorded in this dataset.</p>'}</section>`;
+      }).join('')}</div>`;
+    host.querySelector('#clinicalMeasurementSelect').onchange = event => {
+      state.dashboardClinicalMeasurement = event.target.value;
+      renderMeasurementDistributions(datasets);
+    };
+    const bounds = selected.sources.flatMap(({row}) => (row.distribution || []).flatMap(bin => [bin.low, bin.high]));
+    const low = bounds.length ? Math.min(...bounds) : 0;
+    const high = bounds.length ? Math.max(...bounds) : 0;
+    datasets.forEach((dataset, index) => {
+      const row = selected.sources.find(source => source.dataset === dataset)?.row;
+      if (!row) return;
+      const bins = row.distribution || [];
+      const target = `clinical-distribution-${index}`;
+      if (!bins.length) {
+        document.getElementById(target).innerHTML = `<div class="clinical-chart-empty">${row.recorded ? 'Distribution unavailable for this numeric range.' : 'No measured patients in this scope.'}</div>`;
+        return;
+      }
+      const constant = bins.length === 1 && bins[0].low === bins[0].high;
+      const numeric = value => Number(value).toLocaleString(undefined, {maximumSignificantDigits:6});
+      mountPlot(target, [{type:'bar', x:bins.map(bin => bin.low / 2 + bin.high / 2),
+        y:bins.map(bin => bin.count), ...(constant ? {} : {width:bins.map(bin => bin.high - bin.low)}),
+        customdata:bins.map((bin, i) => constant ? numeric(bin.low)
+          : `[${numeric(bin.low)}, ${numeric(bin.high)}${i === bins.length - 1 ? ']' : ')'}`),
+        marker:{color:'#3b82f6', line:{color:'rgba(255,255,255,.5)', width:1}}, meta:{cohortome_group:0},
+        hovertemplate:'%{customdata}<br>%{y} patients<extra></extra>'}], dashboardPlotLayout({
+          margin:{t:12, r:16, b:48, l:48}, bargap:0.02,
+          xaxis:{...dashboardPlotLayout().xaxis, title:{text:selected.unit || 'Recorded value'},
+            ...(low < high ? {range:[low, high]} : {tickvals:[low], ticktext:[numeric(low)]})},
+          yaxis:{...dashboardPlotLayout().yaxis, title:{text:'Patients'}, rangemode:'tozero', tickformat:',d'},
+          ...(constant ? {annotations:[{text:'All measured patients have the same value',
+            x:.5,y:1.08,xref:'paper',yref:'paper',showarrow:false,font:{size:10}}]} : {}),
+        }));
     });
   }
 
@@ -258,22 +311,39 @@ export function createDashboardUi(ctx) {
     const topMedications = normalizeRankedItems(summary && summary.top_medications ? summary.top_medications : summary && summary.top_treatments, "medication").slice(0, 8);
     const diseaseMedicationMatrix = summary && summary.disease_medication_matrix ? summary.disease_medication_matrix : {};
 
-    const sexEntries = Object.entries(sexCounts);
+    const sexEntries = clinicalSexCounts(sexCounts);
+    const sexTotal = sexEntries.reduce((total, [, count]) => total + count, 0);
+    const sexColors = sexEntries.map(([label], index) =>
+      ({Female:'#0d9488', Male:'#3b82f6', Unknown:'#94a3b8'})[label] || ['#8b5cf6', '#d97706'][index % 2]);
+    const sexLegend = document.getElementById('clinicalSexLegend');
+    if (sexLegend) sexLegend.innerHTML = sexEntries.map(([label, count], index) =>
+      `<li><span class="clinical-sex-label"><span class="clinical-sex-swatch" style="background:${sexColors[index]}" aria-hidden="true"></span>${escapeHtml(label)}</span><strong>${formatNumber(count)}</strong><span>${(100 * count / sexTotal).toFixed(1)}%</span></li>`).join('');
+    // Empty plots should explain absence, rather than resemble a rendering failure.
+    for (const [id, present, label] of [
+      ['sex', sexEntries.length, 'sex values'],
+      ['visits', Object.keys(visitDistribution).length, 'clinical records'],
+      ['diseases', topDiseases.length, 'diagnoses'],
+      ['medications', topMedications.length, 'treatments'],
+      ['disease-medication', diseaseMedicationMatrix.values?.length, 'linked diagnoses and treatments'],
+    ]) {
+      const frame = document.getElementById(`dashboard-plot-${id}`);
+      if (frame && !present) frame.innerHTML = `<div class="clinical-chart-empty">No ${label} recorded in this view.</div>`;
+    }
     if (sexEntries.length) {
       mountPlot(
         "dashboard-plot-sex",
         [{
-          type: "pie",
+          type: 'pie', hole: .74, sort:false, direction:'clockwise', rotation:90,
           labels: sexEntries.map(([label]) => label),
-          values: sexEntries.map(([, value]) => Number(value || 0)),
-          hole: 0.45,
-          meta: { cohortome_group: sexEntries.map((_, index) => index) },
-          marker: { colors: DASHBOARD_PLOT_COLORS },
-          textinfo: "label+percent",
-          hovertemplate: "%{label}: %{value}<extra></extra>",
+          values: sexEntries.map(([, count]) => count),
+          marker: {colors:sexColors},
+          textinfo:'none',
+          hovertemplate: '%{label}<br>%{value} patients · %{percent}<extra></extra>',
         }],
         dashboardPlotLayout({
-          margin: { t: 10, r: 10, b: 10, l: 10 },
+          margin: { t: 8, r: 8, b: 8, l: 8 },
+          annotations:[{x:.5, y:.5, xref:'paper', yref:'paper', showarrow:false,
+            text:`<b>${formatNumber(sexTotal)}</b><br><span style="font-size:11px">patients</span>`, font:{size:26}}],
           showlegend: false,
         })
       );
@@ -288,7 +358,8 @@ export function createDashboardUi(ctx) {
           type: "bar",
           x: visitEntries.map(([label]) => label),
           y: visitEntries.map(([, value]) => Number(value || 0)),
-          marker: { color: "#7c3aed" },
+          marker: { color: '#3b82f6' },
+          text: visitEntries.map(([, count]) => formatNumber(count)), textposition:'outside', cliponaxis:false,
           hovertemplate: snapshotRepresentation ? "%{x} visits: %{y}<extra></extra>" : "%{x} records: %{y}<extra></extra>",
         }],
         dashboardPlotLayout({
@@ -306,11 +377,14 @@ export function createDashboardUi(ctx) {
           orientation: "h",
           y: topDiseases.map((item) => item.label),
           x: topDiseases.map((item) => item.value),
-          meta: { cohortome_group: topDiseases.map((_, index) => index) },
-          marker: { color: topDiseases.map((_, index) => DASHBOARD_PLOT_COLORS[index % DASHBOARD_PLOT_COLORS.length]) },
-          hovertemplate: "%{y}: %{x}<extra></extra>",
+          meta: { cohortome_group: 0 },
+          marker: { color: '#2563eb' },
+          text: topDiseases.map(item => formatNumber(item.value)), textposition:'outside', cliponaxis:false,
+          hovertemplate: '%{y}<br>%{x} patients<extra></extra>',
         }],
-        dashboardPlotLayout({ margin: { t: 16, r: 16, b: 32, l: 150 } })
+        dashboardPlotLayout({ margin: { t: 12, r: 45, b: 40, l: 155 },
+          xaxis:{...dashboardPlotLayout().xaxis, title:{text:'Patients'}, rangemode:'tozero'},
+          yaxis:{...dashboardPlotLayout().yaxis, autorange:'reversed', showgrid:false}, bargap:.35 })
       );
     }
 
@@ -322,11 +396,14 @@ export function createDashboardUi(ctx) {
           orientation: "h",
           y: topMedications.map((item) => item.label),
           x: topMedications.map((item) => item.value),
-          meta: { cohortome_group: topMedications.map((_, index) => index + 1) },
-          marker: { color: topMedications.map((_, index) => DASHBOARD_PLOT_COLORS[(index + 1) % DASHBOARD_PLOT_COLORS.length]) },
-          hovertemplate: "%{y}: %{x}<extra></extra>",
+          meta: { cohortome_group: 1 },
+          marker: { color: '#0d9488' },
+          text: topMedications.map(item => formatNumber(item.value)), textposition:'outside', cliponaxis:false,
+          hovertemplate: '%{y}<br>%{x} patients<extra></extra>',
         }],
-        dashboardPlotLayout({ margin: { t: 16, r: 16, b: 32, l: 150 } })
+        dashboardPlotLayout({ margin: { t: 12, r: 45, b: 40, l: 155 },
+          xaxis:{...dashboardPlotLayout().xaxis, title:{text:'Patients'}, rangemode:'tozero'},
+          yaxis:{...dashboardPlotLayout().yaxis, autorange:'reversed', showgrid:false}, bargap:.35 })
       );
     }
 
@@ -535,12 +612,12 @@ export function createDashboardUi(ctx) {
     const selection = scope ? {status:'ready', data:scope.summary,
       label:scope.selection.source?.prompt || 'Applied patient scope'} : null;
     if (selection?.status === 'ready') summary = selection.data;
+    const datasets = summary.characteristics || [];
+    const viewedDataset = datasets.find(item => item.dataset_id === state.dashboardClinicalDataset);
+    if (!viewedDataset) state.dashboardClinicalDataset = '';
+    const characteristics = datasets;
+    if (viewedDataset?.chart_summary) summary = {...summary, ...viewedDataset.chart_summary};
     const tableMode = state.dashboardClinicalMode === 'table';
-    const scopeMarkup = `<div class="clinical-scope-bar" role="status"><span>${selection
-      ? `<strong>${escapeHtml(selection.label)}</strong> · ${selection.status === 'ready'
-        ? `${formatNumber(summary.selection_count)} selected · ${formatNumber(summary.totals.patients)} with clinical records`
-        : selection.status === 'loading' ? 'Loading summary…' : escapeHtml(selection.error)}`
-      : '<strong>Full workspace</strong>'}</span>${selection ? '<button type="button" class="query-chip" data-clinical-reset>Show full workspace</button>' : ''}</div>`;
     const expanded = Boolean(state.dashboardClinicalExpanded);
     const totals = summary && summary.totals ? summary.totals : {};
     const representation = clinicalRepresentation(summary);
@@ -552,36 +629,43 @@ export function createDashboardUi(ctx) {
     }
     const recordCount = Number(totals.clinical_records ?? totals.visits ?? summary.visits ?? 0);
     const extraPlotsMarkup = expanded ? `
+        <div class="dashboard-plot-grid clinical-secondary-plots">
           <div class="dashboard-plot-card">
-            <h4>Disease by medication</h4>
-            <div class="dashboard-plot-frame" id="dashboard-plot-disease-medication"></div>
-          </div>
-    ` : "";
-    const toggleLabel = expanded ? "Show less" : "See more";
-    const overviewMarkup = `
-      <section class="section-card">
-        <div class="dashboard-plot-grid">
-          <div class="dashboard-plot-card">
-            <h4>Sex distribution</h4>
-            <div class="dashboard-plot-frame" id="dashboard-plot-sex"></div>
-          </div>
-          <div class="dashboard-plot-card">
-            <h4>${snapshotRepresentation ? "Visits per patient" : "Clinical records per patient"}</h4>
+            <h4>${snapshotRepresentation ? 'Visits per patient' : 'Clinical records per patient'}</h4>
             <div class="dashboard-plot-frame" id="dashboard-plot-visits"></div>
           </div>
           <div class="dashboard-plot-card">
-            <h4>Top diseases</h4>
-            <div class="dashboard-plot-frame" id="dashboard-plot-diseases"></div>
-          </div>
-          <div class="dashboard-plot-card">
-            <h4>Top medications</h4>
+            <h4>Recorded treatments</h4>
             <div class="dashboard-plot-frame" id="dashboard-plot-medications"></div>
           </div>
-          ${extraPlotsMarkup}
+          <div class="dashboard-plot-card clinical-association-chart">
+            <h4>Disease by medication</h4>
+            <p class="clinical-chart-caption">Patient-level overlap, not necessarily the same visit.</p>
+            <div class="dashboard-plot-frame" id="dashboard-plot-disease-medication"></div>
+          </div>
         </div>
-        <div class="query-examples-toggle">
-          <button id="dashboardClinicalToggleBtn" type="button" class="query-chip query-chip-toggle">${toggleLabel}</button>
+    ` : "";
+    const toggleLabel = expanded ? 'Hide visits and treatments' : 'Visits and treatments';
+    const overviewMarkup = `
+      <section class="section-card clinical-charts">
+        <div class="dashboard-plot-grid clinical-primary-plots">
+          <div class="dashboard-plot-card">
+            <h4>Recorded diagnoses</h4>
+            <p class="clinical-chart-caption">Most frequent · patients may have more than one diagnosis.</p>
+            <div class="dashboard-plot-frame" id="dashboard-plot-diseases"></div>
+          </div>
+          <div class="dashboard-plot-card clinical-sex-card">
+            <h4>Recorded sex</h4>
+            <p class="clinical-chart-caption">Patients, n (%) · includes unknown values.</p>
+            <div class="dashboard-plot-frame" id="dashboard-plot-sex"></div>
+            <ul id="clinicalSexLegend" class="clinical-sex-legend" aria-label="Recorded sex counts and percentages"></ul>
+          </div>
         </div>
+        <div class="clinical-chart-toggle">
+          <button id="dashboardClinicalToggleBtn" type="button" class="query-chip query-chip-toggle" aria-expanded="${expanded}" aria-controls="clinicalSecondaryPlots">${toggleLabel}</button>
+        </div>
+        <div id="clinicalSecondaryPlots" ${expanded ? '' : 'hidden'}>${extraPlotsMarkup}</div>
+        <section id="clinicalMeasurements" class="clinical-measurements"></section>
       </section>
     `;
 
@@ -593,17 +677,14 @@ export function createDashboardUi(ctx) {
           <div class="dashboard-heading-counts"><span class="dashboard-count">${escapeHtml(formatNumber(totals.patients ?? summary.patients ?? 0))} ${Number(totals.patients ?? summary.patients) === 1 ? 'patient' : 'patients'}</span><span class="dashboard-count">${escapeHtml(formatNumber(recordCount))} ${recordCount === 1 ? 'record' : 'records'}</span></div>
           <details class="inline-view-help"><summary aria-label="About the clinical dashboard">?</summary><p>Counts describe the group shown below. Disease and medication counts use unique patients; a patient may appear in several categories. All their clinical records are included, not only the visit or sample that matched a filter. Distributions use patients with clinical records. Missing sex is shown as Unknown.${selection?.status === 'ready' ? ` The full workspace contains ${formatNumber(summary.workspace_patient_count)} patients with clinical records.` : ''}</p><p>${escapeHtml(formatNumber(totals.source_files || 0))} source files · ${snapshotRepresentation ? `Average visits per patient: ${escapeHtml(String(totals.avg_visits_per_patient || 0))}` : representation === 'person' ? 'One record per person' : 'Mixed or unspecified representation'}.</p></details>
         </div>
-        ${scopeMarkup}
       </section>
-      <div class="clinical-view-switch" role="group" aria-label="Clinical presentation">
+      <div class="clinical-view-toolbar"><div class="clinical-view-switch" role="group" aria-label="Clinical presentation">
         <button type="button" class="query-chip" data-clinical-mode="charts" aria-pressed="${!tableMode}">Charts</button>
         <button type="button" class="query-chip" data-clinical-mode="table" aria-pressed="${tableMode}">Table</button>
       </div>
-      ${tableMode ? characteristicsMarkup(summary.characteristics, escapeHtml, state.dashboardClinicalDataset) : overviewMarkup}
+      ${datasets.length ? `<label class="clinical-table-dataset-label" for="clinicalTableDataset">View<select id="clinicalTableDataset" title="Display a dataset within the current scope; this does not change scope."><option value="" ${!viewedDataset ? 'selected' : ''}>All active datasets</option>${datasets.map(item => `<option value="${escapeHtml(item.dataset_id)}" ${item === viewedDataset ? 'selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}</select></label>` : ''}</div>
+      ${tableMode ? characteristicsMarkup(characteristics, escapeHtml, state.dashboardClinicalDataset) : overviewMarkup}
     `;
-    if (selection && selection.status !== 'ready') {
-      dashboardEl.innerHTML = `<section class="section-card"><h2>Clinical dashboard</h2>${scopeMarkup}</section>`;
-    }
     if (dashboardTimelineEl) {
       dashboardTimelineEl.innerHTML = timelinePanelMarkup(snapshotRepresentation);
     }
@@ -623,7 +704,10 @@ export function createDashboardUi(ctx) {
       state.dashboardClinicalDataset = datasetSelector.value;
       renderDashboard(workspaceSummary);
     };
-    if (!tableMode && (!selection || selection.status === 'ready')) renderDashboardCharts(summary);
+    if (!tableMode && (!selection || selection.status === 'ready')) {
+      renderDashboardCharts(summary);
+      renderMeasurementDistributions(viewedDataset ? [viewedDataset] : datasets);
+    }
     if (state.currentDashboardSubtab === "timeline") {
       renderDashboardTimeline(workspaceSummary);
     }
