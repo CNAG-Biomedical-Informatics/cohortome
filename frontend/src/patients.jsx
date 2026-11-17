@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useLayoutEffect, useRef } from 'react';
+import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
 
 const columns = [
   {key:'patient_id', label:'Patient ID', icon:<><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></>},
@@ -33,27 +34,6 @@ function PatientTable({matches, sortBy, sortDirection, onSort, onChoose}) {
       </tr>) : <tr><td colSpan="4" className="patient-browser-empty">No patients to display.</td></tr>}
     </tbody>
   </table>;
-}
-
-function DiseaseChips({diseases, selected, showAll, onSelect, onToggle}) {
-  const items = showAll ? diseases : diseases.filter((item, index) => index < 8 || selected.has(item.disease));
-  return <>
-    <button type="button" className="query-chip query-chip-deterministic" data-disease=""
-      aria-pressed={!selected.size} onClick={() => onSelect('')}>All diseases</button>
-    {items.map(item => <button key={item.disease} type="button" className="query-chip query-chip-deterministic"
-      data-disease={item.disease} aria-pressed={selected.has(item.disease)} onClick={() => onSelect(item.disease)}>
-      {item.disease} <span className="query-chip badge">{Number(item.patient_count) || 0}</span>
-    </button>)}
-    {diseases.length > 8 && <button type="button" className="query-chip" data-more-diseases=""
-      aria-expanded={showAll} onClick={onToggle}>{showAll ? 'Show fewer' : 'More diseases…'}</button>}
-    {selected.size > 1 && <span className="section-note">Matching any selected disease</span>}
-  </>;
-}
-
-function ScopeBar({scopeUi}) {
-  const host = useRef(null);
-  useLayoutEffect(() => scopeUi.mount(host.current), [scopeUi]);
-  return <div ref={host}/>;
 }
 
 function ClinicalEditor({workspace, revision, mount}) {
@@ -96,7 +76,7 @@ function Patients({model, actions, scopeUi, mountClinical}) {
       <ClinicalEditor workspace={clinicalWorkspace} revision={clinicalRevision} mount={mountClinical}/>
       <div className="patient-cohort-actions">
         <button id="patientSaveCohort" type="button" className="primary-btn coverage-save" disabled={!canSave} onClick={actions.save}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg><span>{saveLabel}</span>
+          <SaveIcon/><span>{saveLabel}</span>
         </button>
         <button id="patientRefineMultimodal" type="button" className="secondary-btn" disabled={!canNavigate} onClick={actions.multimodal}>Multimodal filters</button>
         <button id="patientClinicalSummary" type="button" className="secondary-btn" disabled={!canNavigate} onClick={actions.clinical}>View Clinical</button>

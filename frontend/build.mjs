@@ -6,8 +6,8 @@ const output = new URL('../static/js/react/', import.meta.url);
 await mkdir(output, { recursive: true });
 await build({
   absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
-  entryPoints: ['src/patients.jsx'],
-  outfile: fileURLToPath(new URL('patients.js', output)),
+  entryPoints: ['src/index.js'],
+  outfile: fileURLToPath(new URL('ui.js', output)),
   bundle: true,
   format: 'esm',
   platform: 'browser',

@@ -7,7 +7,7 @@ def test_react_patient_rows_keep_dataset_identity_and_escape_labels(page):
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.evaluate('''async () => {
-        const {createPatientsView} = await import('/static/js/react/patients.js');
+        const {createPatientsView} = await import('/static/js/react/ui.js');
         const tableHost = document.createElement('div'); tableHost.id = 'reactPatientTest';
         document.body.append(tableHost);
         window.patientTestCalls = [];

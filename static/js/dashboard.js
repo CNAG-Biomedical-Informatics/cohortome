@@ -1167,6 +1167,7 @@ export function createDashboardUi(ctx) {
       multimodalReadinessStatusEl.textContent = workspaceMessage;
     }
     if (multimodalReadinessContentEl) {
+      multimodalCoverage.reset();
       multimodalReadinessContentEl.innerHTML = '<div class="empty">Load a workspace to review multimodal readiness.</div>';
     }
     if (multimodalMatrixStatusEl) {
@@ -1559,6 +1560,7 @@ export function createDashboardUi(ctx) {
 
   function renderMultimodalReadiness(payload) {
     if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
+    multimodalCoverage.reset();
     const source = payload && typeof payload === "object" ? payload : {};
     const modalities = Array.isArray(source.modalities) ? source.modalities : [];
     const issues = Array.isArray(source.issues) ? source.issues : [];
@@ -1579,6 +1581,7 @@ export function createDashboardUi(ctx) {
 
   function renderMultimodalReadinessError(message) {
     if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
+    multimodalCoverage.reset();
     state.multimodalReadinessState = null;
     multimodalReadinessStatusEl.className = "query-status";
     multimodalReadinessStatusEl.hidden = false;
@@ -1971,6 +1974,7 @@ export function createDashboardUi(ctx) {
     multimodalReadinessStatusEl.hidden = false;
     document.getElementById('multimodalReadinessSummary').textContent = '';
     multimodalReadinessStatusEl.textContent = "Checking multimodal readiness...";
+    multimodalCoverage.reset();
     multimodalReadinessContentEl.innerHTML = '<div class="empty">Checking modality overlap and linkage...</div>';
     try {
       const response = await fetch(`/assays/readiness?data_dir=${dataDir}`);

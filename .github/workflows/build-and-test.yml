@@ -27,6 +27,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Verify generated React bundle
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          git diff --exit-code -- ../static/js/react
       - name: Install test dependencies
         run: python -m pip install '.[test,ui_test]' wheel
       - name: Build Python wheel
@@ -68,7 +74,7 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Browser regression tests
-        run: python -m pytest -q tests/test_clarid_table_browser.py tests/test_imaging_table_browser.py tests/test_scope_builder_ui.py tests/test_dashboard_scope_ui.py tests/test_chat_scope_ui.py tests/test_local_agents_ui.py
+        run: python -m pytest -q tests/test_clarid_table_browser.py tests/test_imaging_table_browser.py tests/test_scope_builder_ui.py tests/test_dashboard_scope_ui.py tests/test_chat_scope_ui.py tests/test_local_agents_ui.py tests/test_patient_react_ui.py tests/test_multimodal_react_ui.py
       - name: Local MCP connector (isolated SDK)
         run: |
           python -m venv "$RUNNER_TEMP/cohortome-mcp"

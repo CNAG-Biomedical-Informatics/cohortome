@@ -1,6 +1,6 @@
 import { sortDiseaseOptions } from './shared.js';
 import { createClinicalFilters } from './clinical_filters.js';
-import { createPatientsView } from './react/patients.js';
+import { createPatientsView } from './react/ui.js';
 
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort}) {
   const scopeUi = state.cohortScope;
