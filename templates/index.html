@@ -616,43 +616,7 @@
 
       <section id="dashboardTab" class="tab-panel active">
         <section id="dashboardPatientsPanel" class="dashboard-subpanel patient-overview">
-          <div class="patient-finder">
-            <div class="dashboard-view-heading">
-              <h2>Patients</h2>
-              <span id="patientMatchCount" class="dashboard-count" role="status"></span>
-              <details class="inline-view-help"><summary aria-label="About patient search">?</summary><p>Filter patients by disease, clinical characteristics or sample origin. Save the matching group or refine it by data availability in Multimodal. Click a patient to inspect their timeline.</p></details>
-            </div>
-            <div class="patient-lookup">
-              <label for="patientOverviewSearch">Patient ID or ClarID</label>
-              <div class="patient-search-field">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-                <input id="patientOverviewSearch" type="search" autocomplete="off" aria-controls="patientOverviewMatches" placeholder="Search by patient ID or ClarID…">
-              </div>
-            </div>
-            <div id="patientDiseaseFilters" class="query-composer-disease-chips patient-disease-filters" role="group" aria-label="Filter patients by disease"></div>
-            <div id="patientSampleOriginFilter" class="patient-lookup" hidden>
-              <label for="patientSampleOrigin">Sample origin</label>
-              <select id="patientSampleOrigin"><option value="">All sample origins</option></select>
-            </div>
-            <div id="patientClinicalFilters" class="patient-clinical-filters" hidden></div>
-            <div class="patient-cohort-actions">
-              <button id="patientSaveCohort" type="button" class="primary-btn coverage-save" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg><span>Save filtered patients as cohort</span></button>
-              <button id="patientRefineMultimodal" type="button" class="secondary-btn" disabled>Refine in Multimodal dashboard</button>
-              <button id="patientClinicalSummary" type="button" class="secondary-btn" disabled>View clinical summary</button>
-              <span id="patientSaveStatus" class="section-note" role="status"></span>
-            </div>
-            <div id="patientOverviewMatches" class="patient-browser-table"></div>
-            <div class="patient-browser-footer">
-              <div id="patientOverviewStatus" class="section-note" role="status">Select a workspace to browse patients.</div>
-              <div class="patient-browser-pages">
-                <button id="patientOverviewPrevious" type="button" class="query-chip" disabled>Previous</button>
-                <button id="patientOverviewMore" type="button" class="query-chip" disabled>Next</button>
-              </div>
-            </div>
-          </div>
-          <nav class="patient-view-switch" aria-label="Patient views">
-            <button id="patientTimelineBtn" type="button" class="query-chip" disabled hidden>View this patient's timeline</button>
-          </nav>
+          <div id="patientOverviewRoot"></div>
           <div id="patientOverviewDetail"></div>
         </section>
         <section id="dashboardTimelinePanel" class="dashboard-subpanel">

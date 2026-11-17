@@ -1,0 +1,126 @@
+import { createRoot } from 'react-dom/client';
+import { useLayoutEffect, useRef } from 'react';
+
+const columns = [
+  {key:'patient_id', label:'Patient ID', icon:<><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></>},
+  {key:'dataset_label', label:'Dataset', icon:<><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></>},
+  {key:'diagnosis', label:'Diagnosis', icon:<><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></>},
+  {key:'clarid', label:'ClarID', icon:<><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h3M7 14h3M13 10h4M13 14h4"/></>},
+];
+const value = text => String(text || 'Not recorded');
+
+function PatientTable({matches, sortBy, sortDirection, onSort, onChoose}) {
+  return <table>
+    <thead><tr>{columns.map(column => {
+      const active = sortBy === column.key;
+      return <th key={column.key} scope="col" aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
+        <button type="button" className="patient-sort" data-sort={column.key}
+          aria-label={`Sort by ${column.label}`} onClick={() => onSort(column.key)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">{column.icon}</svg>
+          {column.label}<span aria-hidden="true">{active ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}</span>
+        </button>
+      </th>;
+    })}</tr></thead>
+    <tbody>{matches.length ? matches.map((match, index) =>
+      <tr key={JSON.stringify([match.dataset_id, match.patient_id])} data-match={index} onClick={() => onChoose(match)}>
+        <td><button type="button" className="patient-open" aria-label={`Open patient ${value(match.patient_id)}`}>
+          {value(match.patient_id)}<span aria-hidden="true"> →</span>
+        </button></td>
+        <td>{value(match.dataset_label)}</td><td>{value(match.diagnosis)}</td>
+        <td>{match.clarid
+          ? <span className="patient-browser-clarid" title={value(match.clarid)}>{value(match.clarid)}</span>
+          : <span className="patient-browser-missing">Not recorded</span>}</td>
+      </tr>) : <tr><td colSpan="4" className="patient-browser-empty">No patients to display.</td></tr>}
+    </tbody>
+  </table>;
+}
+
+function DiseaseChips({diseases, selected, showAll, onSelect, onToggle}) {
+  const items = showAll ? diseases : diseases.filter((item, index) => index < 8 || selected.has(item.disease));
+  return <>
+    <button type="button" className="query-chip query-chip-deterministic" data-disease=""
+      aria-pressed={!selected.size} onClick={() => onSelect('')}>All diseases</button>
+    {items.map(item => <button key={item.disease} type="button" className="query-chip query-chip-deterministic"
+      data-disease={item.disease} aria-pressed={selected.has(item.disease)} onClick={() => onSelect(item.disease)}>
+      {item.disease} <span className="query-chip badge">{Number(item.patient_count) || 0}</span>
+    </button>)}
+    {diseases.length > 8 && <button type="button" className="query-chip" data-more-diseases=""
+      aria-expanded={showAll} onClick={onToggle}>{showAll ? 'Show fewer' : 'More diseases…'}</button>}
+    {selected.size > 1 && <span className="section-note">Matching any selected disease</span>}
+  </>;
+}
+
+function ScopeBar({scopeUi}) {
+  const host = useRef(null);
+  useLayoutEffect(() => scopeUi.mount(host.current), [scopeUi]);
+  return <div ref={host}/>;
+}
+
+function ClinicalEditor({workspace, revision, mount}) {
+  const host = useRef(null);
+  useLayoutEffect(() => {
+    if (workspace) return mount(host.current, workspace);
+  }, [workspace, revision, mount]);
+  return <div ref={host} id="patientClinicalFilters" className="patient-clinical-filters" hidden={!workspace}/>;
+}
+
+function Patients({model, actions, scopeUi, mountClinical}) {
+  const {matches, sortBy, sortDirection, draft, diseases, origins, showAllDiseases,
+    clinicalWorkspace, clinicalRevision, matchCount, status, saveStatus, saveLabel,
+    loading, canSave, canNavigate, canNext, canPrevious, selectedPatient} = model;
+  return <>
+    <div className="patient-finder">
+      <div className="dashboard-view-heading">
+        <h2>Patients</h2><span id="patientMatchCount" className="dashboard-count" role="status">{matchCount}</span>
+        <details className="inline-view-help"><summary aria-label="About patient search">?</summary><p>Filter patients by disease, clinical characteristics or sample origin. Save the matching group or refine it by data availability in Multimodal. Click a patient to inspect their timeline.</p></details>
+      </div>
+      <ScopeBar scopeUi={scopeUi}/>
+      <div className="patient-lookup">
+        <label htmlFor="patientOverviewSearch">Patient ID or ClarID</label>
+        <div className="patient-search-field">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input id="patientOverviewSearch" type="search" autoComplete="off" aria-controls="patientOverviewMatches"
+            placeholder="Search by patient ID or ClarID…" value={draft.q} onChange={event => actions.search(event.target.value)}/>
+        </div>
+      </div>
+      <div id="patientDiseaseFilters" className="query-composer-disease-chips patient-disease-filters" role="group" aria-label="Filter patients by disease">
+        <DiseaseChips diseases={diseases} selected={new Set(draft.diseases)} showAll={showAllDiseases} onSelect={actions.disease} onToggle={actions.toggleDiseases}/>
+      </div>
+      <div id="patientSampleOriginFilter" className="patient-lookup" hidden={!origins.length}>
+        <label htmlFor="patientSampleOrigin">Sample origin</label>
+        <select id="patientSampleOrigin" value={draft.sample_origin} onChange={event => actions.origin(event.target.value)}>
+          <option value="">All sample origins</option>
+          {origins.map(row => <option key={row.id} value={row.id}>{row.label} · {row.id} ({Number(row.patient_count)})</option>)}
+        </select>
+      </div>
+      <ClinicalEditor workspace={clinicalWorkspace} revision={clinicalRevision} mount={mountClinical}/>
+      <div className="patient-cohort-actions">
+        <button id="patientSaveCohort" type="button" className="primary-btn coverage-save" disabled={!canSave} onClick={actions.save}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/></svg><span>{saveLabel}</span>
+        </button>
+        <button id="patientRefineMultimodal" type="button" className="secondary-btn" disabled={!canNavigate} onClick={actions.multimodal}>Multimodal filters</button>
+        <button id="patientClinicalSummary" type="button" className="secondary-btn" disabled={!canNavigate} onClick={actions.clinical}>View Clinical</button>
+        <span id="patientSaveStatus" className="section-note" role="status">{saveStatus}</span>
+      </div>
+      <div id="patientOverviewMatches" className="patient-browser-table" aria-busy={loading || undefined}>
+        <PatientTable matches={matches} sortBy={sortBy} sortDirection={sortDirection} onSort={actions.sort} onChoose={actions.choose}/>
+      </div>
+      <div className="patient-browser-footer">
+        <div id="patientOverviewStatus" className="section-note" role="status">{status}</div>
+        <div className="patient-browser-pages">
+          <button id="patientOverviewPrevious" type="button" className="query-chip" disabled={!canPrevious} onClick={actions.previous}>Previous</button>
+          <button id="patientOverviewMore" type="button" className="query-chip" disabled={!canNext} onClick={actions.next}>Next</button>
+        </div>
+      </div>
+    </div>
+    <nav className="patient-view-switch" aria-label="Patient views">
+      <button id="patientTimelineBtn" type="button" className="query-chip" disabled={!selectedPatient} hidden={!selectedPatient} onClick={actions.timeline}>View this patient's timeline</button>
+    </nav>
+  </>;
+}
+
+// Only the two shared widget hosts contain DOM managed outside React.
+export function createPatientsView({host, scopeUi, mountClinical, actions}) {
+  const root = createRoot(host);
+  return {render:model => root.render(<Patients model={model} actions={actions} scopeUi={scopeUi} mountClinical={mountClinical}/>)};
+}

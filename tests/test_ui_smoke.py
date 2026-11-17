@@ -77,13 +77,14 @@ def test_patient_picker_opens_timeline_with_full_clinical_record(page):
     expect(page.locator("#patientOverviewMore")).to_be_disabled()
     page.locator("#patientOverviewMatches [data-match]").click()
     expect(page.locator("#dashboardTimelinePanel")).to_be_visible()
-    help_toggle = page.locator("#dashboardTimelinePanel .inline-view-help > summary")
+    help_toggle = page.get_by_label("How to inspect a patient", exact=True)
+    help_text = help_toggle.locator('..').locator('p')
     expect(help_toggle).to_have_text("?")
     help_toggle.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#dashboardTimelinePanel .inline-view-help > p")).to_be_visible()
+    expect(help_text).to_be_visible()
     page.keyboard.press("Enter")
-    expect(page.locator("#dashboardTimelinePanel .inline-view-help > p")).not_to_be_visible()
+    expect(help_text).not_to_be_visible()
     expect(page.locator(".clinical-record")).to_have_count(1)
     expect(page.locator('[data-clinical-more]')).to_be_hidden()
     expect(page.locator('[data-clinical-more]')).to_be_disabled()
@@ -200,8 +201,15 @@ def test_patient_browser_pagination_and_search(page):
     page.locator('#dashboardPatientsBtn').click()
     expect(page.locator('#patientOverviewMatches tbody')).to_contain_text('P1')
     baseline_requests = len(requests)
+    page.evaluate('''() => {
+        window.patientTableBefore = document.querySelector('#patientOverviewMatches table');
+        window.patientSortBefore = document.querySelector('#patientOverviewMatches [data-sort="diagnosis"]');
+        window.patientDiseaseBefore = document.querySelector('#patientDiseaseFilters [data-disease="Crohn disease"]');
+    }''')
     page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]').click()
     expect(page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]')).to_have_attribute('aria-pressed', 'true')
+    assert page.evaluate('window.patientDiseaseBefore === document.querySelector(\'#patientDiseaseFilters [data-disease="Crohn disease"]\')')
+    expect(page.locator('#patientDiseaseFilters [data-disease="Crohn disease"]')).to_be_focused()
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 1')
     assert len(requests) == baseline_requests
     page.locator('#patientDiseaseFilters [data-disease="Colitis"]').click()
@@ -226,6 +234,9 @@ def test_patient_browser_pagination_and_search(page):
     expect(page.locator('#patientOverviewMatches th').nth(2)).to_have_attribute('aria-sort', 'ascending')
     page.get_by_role('button', name='Sort by Diagnosis', exact=True).click()
     expect(page.locator('#patientOverviewMatches th').nth(2)).to_have_attribute('aria-sort', 'descending')
+    assert page.evaluate('window.patientTableBefore === document.querySelector("#patientOverviewMatches table")')
+    assert page.evaluate('window.patientSortBefore === document.querySelector(\'#patientOverviewMatches [data-sort="diagnosis"]\')')
+    expect(page.get_by_role('button', name='Sort by Diagnosis', exact=True)).to_be_focused()
     page.locator('#patientOverviewMore').click()
     expect(page.locator('#patientOverviewStatus')).to_contain_text('Page 2')
     page.locator('#patientOverviewPrevious').click()

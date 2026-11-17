@@ -145,7 +145,10 @@ export function createCohortScopeUi({state, escapeHtml: esc, renderGlobalContext
   window.addEventListener('cohortome:workspace-committed', reset);
   window.addEventListener('cohortome:workspace-settled', () => notify('workspace-settled'));
   const api = {getDraft:() => copy(draft), getAppliedDraft:() => copy(applied), getError:() => error, patch, setValidation,
-    mount(host) {host.classList.add('cohort-scope-bar'); hosts.add(host); render();},
+    mount(host) {
+      host.classList.add('cohort-scope-bar'); hosts.add(host); render();
+      return () => { hosts.delete(host); host.replaceChildren(); };
+    },
     subscribe(listener) {listeners.add(listener); return () => listeners.delete(listener);},
     apply, applySelection, clearScope() {
       if (busy) return Promise.resolve(false);

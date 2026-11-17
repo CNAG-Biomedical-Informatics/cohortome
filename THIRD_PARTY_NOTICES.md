@@ -15,6 +15,8 @@ and reference data retain their own licences and copyright notices.
 
 ## Software components
 
+- The Patients UI uses React and React DOM under the MIT licence. Their bundled
+  notices, including Scheduler, are in `static/js/react/LICENSES.txt`.
 - The optional local MCP connector uses the [Python MCP SDK](https://github.com/modelcontextprotocol/python-sdk)
   under its MIT licence. Desktop includes it in an isolated runtime under
   `engine/mcp`, with dependency notices in `engine/mcp/licenses`.
