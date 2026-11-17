@@ -1,3 +1,5 @@
+import {activityState} from './shared.js';
+import {createProvenanceView,createPlanPreviewView, createPhenoResultView, createPhenoAlignmentView, createPhenoExplanationView, createPhenoPlanningView, createPhenoFollowupsView} from './react/ui.js';
 import { displayIdentity } from "./identities.js";
 import { createPhenoPatientPicker } from './pheno_patient_picker.js';
 
@@ -75,8 +77,17 @@ export function createPhenoUi(ctx) {
     analysisStatusEl,
   } = refs;
 
+  const filesView=createPhenoResultView(phenoFilesEl);
+  const metaView=createProvenanceView(phenoPlanMetaEl);
+  const planPreviewView=createPlanPreviewView(phenoPlanEl);
+  const planningView=createPhenoPlanningView(phenoPlanReasoningEl);
+  const planFollowupsView=createPhenoFollowupsView(phenoPlanFollowupsEl);
+  const explanationView=createPhenoExplanationView(phenoExplainDetailEl);
+  const alignmentView=createPhenoAlignmentView(phenoAlignmentDetailEl,getPhenoBucketStyle,normalizePhenoBucketName);
+  const outputView=createPhenoResultView(phenoOutputPreviewEl);
+  const previewsView=createPhenoResultView(phenoPreviewsEl);
   const { PHENO_BUCKET_STYLES, PHENO_COHORT_COLORS } = constants;
-  const { escapeHtml, renderActivityCard, fallbackCopyText, renderQueryReply, nextFrame } = helpers;
+  const { escapeHtml, fallbackCopyText, nextFrame } = helpers;
   const {
     setActiveTab,
     renderGlobalContext,
@@ -207,26 +218,7 @@ export function createPhenoUi(ctx) {
     ];
   }
 
-  function provenanceIconSvg(kind) {
-    const icons = {
-      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
-      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
-      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
-      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
-      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
-      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
-      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
-    };
-    return icons[kind] || icons.summary;
-  }
-
-  function renderProvenanceIcon(kind, cls = "provenance-inline-icon") {
-    return `<span class="${cls}" aria-hidden="true">${provenanceIconSvg(kind)}</span>`;
-  }
-
-  function renderProvenanceBadge(label, title = "", iconKind = "") {
-    return `<span class="query-chip badge provenance-badge"${title ? ` title="${escapeHtml(title)}"` : ""}>${iconKind ? `${renderProvenanceIcon(iconKind, "provenance-badge-icon")}` : ""}<span>${escapeHtml(label)}</span></span>`;
-  }
+  function renderProvenanceBadge(label,title='',iconKind='') { return {label,title,iconKind}; }
 
   function updatePhenoMode() {
     const patientMode = phenoModeEl.value === "patient";
@@ -300,88 +292,20 @@ export function createPhenoUi(ctx) {
     );
   }
 
-  function renderPhenoPlanReasoning(items, plan = null) {
-    const lines = Array.isArray(items) ? items.filter(Boolean) : [];
-    const normalized = plan && typeof plan === "object" ? plan : null;
-    const chips = [];
-    if (normalized) {
-      const action = String(normalized.action || "compare");
-      const mode = String(normalized.mode || "cohort");
-      const patientId = String(normalized.patient_id || "").trim();
-      const invalidPatientId = String(normalized.invalid_patient_id || "").trim();
-      const scopeIds = typeof normalized.selected_patient_ids === "string"
-        ? normalized.selected_patient_ids.split(",").map((item) => item.trim()).filter(Boolean)
-        : (Array.isArray(normalized.selected_patient_ids) ? normalized.selected_patient_ids.map((item) => String(item || "").trim()).filter(Boolean) : []);
-      chips.push(`<span class="pheno-plan-chip pheno-plan-chip-action">${escapeHtml(action === "extract" ? "Extract" : "Compare")}</span>`);
-      chips.push(`<span class="pheno-plan-chip ${mode === "patient" ? "pheno-plan-chip-patient" : "pheno-plan-chip-cohort"}">${escapeHtml(mode === "patient" ? "Patient mode" : "Cohort mode")}</span>`);
-      if (invalidPatientId) {
-        chips.push(`<span class="pheno-plan-chip pheno-plan-chip-invalid">Invalid target: ${escapeHtml(invalidPatientId)}</span>`);
-      } else if (patientId) {
-        chips.push(`<span class="pheno-plan-chip pheno-plan-chip-target">Target: ${escapeHtml(patientId)}</span>`);
-      }
-      if (scopeIds.length) {
-        chips.push(`<span class="pheno-plan-chip pheno-plan-chip-scope">Scope: ${escapeHtml(String(scopeIds.length))} ID${scopeIds.length === 1 ? "" : "s"}</span>`);
-      }
-    }
-    if (!lines.length && !chips.length) {
-      phenoPlanReasoningEl.innerHTML = '<div class="empty">No planner reasoning yet.</div>';
-      return;
-    }
-    phenoPlanReasoningEl.innerHTML = `
-      ${chips.length ? `<div class="pheno-plan-chip-row">${chips.join("")}</div>` : ""}
-      ${lines.length ? `<ul class="mini-list">${lines.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="empty">No planner reasoning yet.</div>'}
-    `;
+  function renderPhenoPlanReasoning(items,plan=null) {
+    planningView.render({lines:Array.isArray(items) ? items.filter(Boolean) : [],plan});
   }
 
-  function renderPhenoPlanFollowUps(source = null) {
-    if (!phenoPlanFollowupsEl) {
-      return;
-    }
-    const payload = source && typeof source === "object" ? source : {};
-    const suggestions = Array.isArray(payload.follow_up_suggestions)
-      ? Array.from(new Set(payload.follow_up_suggestions
-        .map((item) => String(item || "").trim())
-        .filter(Boolean))).slice(0, 4)
-      : [];
-    if (!suggestions.length) {
-      phenoPlanFollowupsEl.innerHTML = "";
-      phenoPlanFollowupsEl.classList.add("is-hidden");
-      return;
-    }
+  function renderPlanningProgress() {
+    planningView.render({activity:activityState("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.")});
+  }
 
-    const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-    const planner = data.planner && typeof data.planner === "object" ? data.planner : {};
-    const llmPlanned = (
-      ["llm", "lm_studio"].includes(String(payload.source || "").trim().toLowerCase())
-      || String(data.source || "").trim().toLowerCase() === "llm"
-      || String(planner.provider || "").trim().toLowerCase() === "lm_studio"
-    );
-    const chipClass = llmPlanned ? "query-chip-planner" : "query-chip-deterministic";
-    const mode = llmPlanned ? "llm_planned" : "deterministic";
-    const label = llmPlanned ? "LLM-planned" : "Deterministic";
-    const title = llmPlanned
-      ? "This follow-up was suggested by the LLM planner. Clicking prepares it for review and does not run it."
-      : "This follow-up is supported by deterministic Pheno-Ranker planning. Clicking prepares it for review and does not run it.";
-
-    phenoPlanFollowupsEl.innerHTML = `
-      <div class="query-followups-label">Suggested follow-up questions</div>
-      <div class="query-followups-list">
-        ${suggestions.map((prompt) => `
-          <button
-            type="button"
-            class="query-chip ${chipClass}"
-            data-pheno-followup-prompt="${escapeHtml(prompt)}"
-            data-followup-execution-mode="${mode}"
-            title="${escapeHtml(title)}"
-            aria-label="${escapeHtml(`${prompt}. ${label} planning; prepares the prompt without running it.`)}"
-          >
-            <span>${escapeHtml(prompt)}</span>
-            <span class="followup-mode-label">${label}</span>
-          </button>
-        `).join("")}
-      </div>
-    `;
-    phenoPlanFollowupsEl.classList.remove("is-hidden");
+  function renderPhenoPlanFollowUps(source=null) {
+    const payload=source && typeof source==='object' ? source : {};
+    const suggestions=Array.isArray(payload.follow_up_suggestions) ? [...new Set(payload.follow_up_suggestions.map(item=>String(item || '').trim()).filter(Boolean))].slice(0,4) : [];
+    const data=payload.data || {}, planner=data.planner || {};
+    const llmPlanned=['llm','lm_studio'].includes(String(payload.source || '').trim().toLowerCase()) || String(data.source || '').trim().toLowerCase()==='llm' || String(planner.provider || '').trim().toLowerCase()==='lm_studio';
+    planFollowupsView.render({suggestions,llmPlanned});
   }
 
   function handlePhenoPlanFollowUpsClick(event) {
@@ -458,18 +382,7 @@ export function createPhenoUi(ctx) {
     phenoPlanEl.classList.add("is-blocking");
     phenoPlanReasoningEl.classList.add("is-blocking");
 
-    const warningHtml = `
-      <div class="planner-warning">
-        <strong>Planner output is not runnable yet.</strong>
-        <ul class="mini-list">${issues.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-      </div>
-    `;
-
-    if (Array.isArray(reasoning) && reasoning.length) {
-      phenoPlanReasoningEl.innerHTML = `${warningHtml}${phenoPlanReasoningEl.innerHTML}`;
-    } else {
-      phenoPlanReasoningEl.innerHTML = warningHtml;
-    }
+    planningView.warn({title:"Planner output is not runnable yet.",issues},!(Array.isArray(reasoning) && reasoning.length));
   }
 
   function renderPhenoPlanMeta(source) {
@@ -482,7 +395,7 @@ export function createPhenoUi(ctx) {
       || rawSource === "lm_studio"
     );
     if (!rawSource && !planner) {
-      phenoPlanMetaEl.innerHTML = "";
+      metaView.render([]);
       return;
     }
     const chips = [];
@@ -514,7 +427,7 @@ export function createPhenoUi(ctx) {
         : "The app derived the Pheno-Ranker plan using deterministic prompt parsing.";
       chips.push(renderProvenanceBadge(label, title, isLm ? "planner" : "deterministic"));
     }
-    phenoPlanMetaEl.innerHTML = chips.join("");
+    metaView.render(chips);
   }
 
   function setPhenoResultWorkspaceVisible(visible) {
@@ -637,7 +550,7 @@ export function createPhenoUi(ctx) {
     syncPromptToCurrentPhenoPlan(plan);
     phenoPlanEl.classList.remove("is-blocking");
     phenoPlanReasoningEl.classList.remove("is-blocking");
-    phenoPlanEl.textContent = JSON.stringify(compactPhenoPlan(plan), null, 2);
+    planPreviewView.render({text:JSON.stringify(compactPhenoPlan(plan), null, 2)});
     renderPhenoPlanReasoning(
       ["These settings were edited after the last preview. Run Pheno-Ranker will use this current form state."],
       plan,
@@ -672,7 +585,7 @@ export function createPhenoUi(ctx) {
     state.plannedPrompt = '';
     if (phenoPlanEl) {
       phenoPlanEl.classList.remove("is-blocking");
-      phenoPlanEl.textContent = "Prompt changed. Preview plan to see the interpreted settings.";
+      planPreviewView.render({text:"Prompt changed. Preview plan to see the interpreted settings."});
     }
     if (phenoPlanReasoningEl) {
       phenoPlanReasoningEl.classList.remove("is-blocking");
@@ -850,12 +763,12 @@ export function createPhenoUi(ctx) {
     updatePhenoResultActions();
     setPhenoResultWorkspaceVisible(false);
     phenoCommandEl.textContent = "No run yet.";
-    phenoFilesEl.innerHTML = '<div class="empty">No output files yet.</div>';
-    phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview yet.</div>';
+    filesView.render({message:"No output files yet."});
+    outputView.render({message:"No output preview yet."});
     renderPhenoAlignmentPlaceholder("Run patient mode, then click one row in rank.txt to inspect matched variables for that pair.");
     renderPhenoExplainPlaceholder("Run patient mode, then click Explain results to summarize the top matches from rank.txt.");
     phenoLogsEl.textContent = "No logs yet.";
-    phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plots available yet.</div>';
+    previewsView.render({message:"No interactive plots available yet."});
     renderPhenoBackgroundJobBanner();
   }
 
@@ -886,9 +799,9 @@ export function createPhenoUi(ctx) {
       phenoPlanStatusEl.className = "pheno-status";
       phenoPlanStatusEl.textContent = "Load a workspace before planning a Pheno-Ranker run.";
     }
-    if (phenoPlanMetaEl) phenoPlanMetaEl.innerHTML = "";
-    if (phenoPlanEl) phenoPlanEl.innerHTML = '<div class="empty">No plan yet.</div>';
-    if (phenoPlanReasoningEl) phenoPlanReasoningEl.innerHTML = '<div class="empty">No planner reasoning yet.</div>';
+    if (phenoPlanMetaEl) metaView.render([]);
+    planPreviewView.render({text:'No plan yet.'});
+    renderPhenoPlanReasoning([]);
     renderPhenoPlanFollowUps();
     if (phenoStatusEl) {
       phenoStatusEl.className = "pheno-status";
@@ -904,15 +817,9 @@ export function createPhenoUi(ctx) {
     phenoPlanStatusEl.textContent = "Planner did not find a runnable Pheno-Ranker request yet.";
     phenoPlanEl.classList.add("is-blocking");
     phenoPlanReasoningEl.classList.add("is-blocking");
-    phenoPlanEl.textContent = "No actionable plan.";
+    planPreviewView.render({text:"No actionable plan."});
     renderPhenoPlanReasoning(reasoning || [], null);
-    phenoPlanReasoningEl.innerHTML = `
-      <div class="planner-warning">
-        <strong>No runnable plan yet.</strong>
-        <div>Describe a comparison or extraction request instead of a greeting or generic note.</div>
-      </div>
-      ${phenoPlanReasoningEl.innerHTML}
-    `;
+    planningView.warn({title:"No runnable plan yet.",detail:"Describe a comparison or extraction request instead of a greeting or generic note."});
   }
 
   function compactPhenoPlan(plan) {
@@ -1035,8 +942,8 @@ export function createPhenoUi(ctx) {
     phenoPlanStatusEl.textContent = "Interpreting request...";
     renderPhenoPlanMeta("");
     renderPhenoPlanFollowUps();
-    phenoPlanEl.innerHTML = renderActivityCard("Interpreting request", "Reading the natural-language request and extracting a runnable plan.");
-    phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
+    planPreviewView.render({activity:activityState("Interpreting request", "Reading the natural-language request and extracting a runnable plan.")});
+    renderPlanningProgress();
     startPhenoPlanProgressUpdates();
     await nextFrame();
     if (workspaceVersion !== state.workspaceVersion) return null;
@@ -1060,7 +967,7 @@ export function createPhenoUi(ctx) {
         phenoPlanStatusEl.textContent = "Planner failed.";
         document.getElementById('phenoTechnicalDetails').open = true;
         renderPhenoPlanMeta("");
-        phenoPlanEl.textContent = detail;
+        planPreviewView.render({text:detail});
         renderPhenoPlanReasoning([], null);
         renderPhenoPlanFollowUps();
         return null;
@@ -1077,7 +984,7 @@ export function createPhenoUi(ctx) {
       }
       applyPhenoPlan(payload.plan || {});
       state.plannedPrompt = text;
-      phenoPlanEl.textContent = JSON.stringify(compactPhenoPlan(payload.plan || {}), null, 2);
+      planPreviewView.render({text:JSON.stringify(compactPhenoPlan(payload.plan || {}), null, 2)});
       renderPhenoPlanReasoning(payload.reasoning || [], payload.plan || {});
       const blockingIssues = getPhenoPlanBlockingIssues(payload.plan || {});
       phenoPlanStatusEl.className = "pheno-status";
@@ -1097,7 +1004,7 @@ export function createPhenoUi(ctx) {
       phenoPlanStatusEl.textContent = "Planner request failed.";
       document.getElementById('phenoTechnicalDetails').open = true;
       renderPhenoPlanMeta("");
-      phenoPlanEl.textContent = error && error.message ? error.message : "Unexpected planner failure.";
+      planPreviewView.render({text:error && error.message ? error.message : "Unexpected planner failure."});
       renderPhenoPlanReasoning([], null);
       renderPhenoPlanFollowUps();
       return null;
@@ -1126,11 +1033,7 @@ export function createPhenoUi(ctx) {
   }
 
   function renderPhenoFiles(files) {
-    if (!Array.isArray(files) || !files.length) {
-      phenoFilesEl.innerHTML = '<div class="empty">No output files yet.</div>';
-      return;
-    }
-    phenoFilesEl.innerHTML = `<ul class="pheno-file-list">${files.map((file) => `<li><a href="${file.url}" target="_blank" rel="noreferrer">${escapeHtml(file.name)}</a> (${file.size} bytes)</li>`).join("")}</ul>`;
+    filesView.render({kind:'files',files:Array.isArray(files) ? files : []});
   }
 
   function parseTsvLines(text) {
@@ -1246,11 +1149,11 @@ export function createPhenoUi(ctx) {
   }
 
   function renderPhenoAlignmentPlaceholder(message) {
-    phenoAlignmentDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    alignmentView.render({message});
   }
 
   function renderPhenoExplainPlaceholder(message) {
-    phenoExplainDetailEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    explanationView.render({message});
   }
 
   function getEffectivePhenoCohortMetric() {
@@ -1265,87 +1168,19 @@ export function createPhenoUi(ctx) {
     return Array.isArray(files) && files.some((file) => file.name === "alignment.target.csv");
   }
 
-  function groupAlignmentItemsByBucket(items) {
-    const groups = {};
-    for (const item of Array.isArray(items) ? items : []) {
-      const bucket = item.bucket || "other";
-      if (!groups[bucket]) {
-        groups[bucket] = [];
-      }
-      groups[bucket].push(item);
-    }
-    return Object.entries(groups).sort((left, right) => left[0].localeCompare(right[0]));
-  }
-
-  function renderAlignmentRows(entries) {
-    return entries.map((entry) => {
-      const bucket = entry.bucket || "other";
-      const style = getPhenoBucketStyle(bucket);
-      return `<tr>
-        <td>
-          <span class="alignment-bucket-pill" style="--bucket-bg:${style.bg};--bucket-ink:${style.ink};">
-            <span class="alignment-swatch"></span>
-            ${escapeHtml(normalizePhenoBucketName(bucket))}
-          </span>
-        </td>
-        <td>
-          <div class="alignment-label-cell">${escapeHtml(entry.label || "")}</div>
-          <div class="alignment-path-cell">${escapeHtml(entry.json_path || "")}</div>
-        </td>
-      </tr>`;
-    }).join("");
-  }
-
-  function renderAlignmentGroup(items, title) {
-    const groups = groupAlignmentItemsByBucket(items);
-    if (!groups.length) {
-      return `<div class="empty">${escapeHtml(title)}: none.</div>`;
-    }
-    return `<div class="alignment-section">
-      <h4>${escapeHtml(title)}</h4>
-      <div class="alignment-group-table-wrap">
-        <table class="alignment-group-table">
-          <thead>
-            <tr>
-              <th>Term Type</th>
-              <th>Matched Variable</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${groups.map(([, entries]) => renderAlignmentRows(entries)).join("")}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-  }
-
   function renderPhenoAlignmentDetail(payload) {
-    const referenceId = payload.reference_id || "unknown";
-    const targetId = payload.target_id || "unknown";
-    const shared = Array.isArray(payload.shared) ? payload.shared : [];
-    const referenceOnly = Array.isArray(payload.reference_only) ? payload.reference_only : [];
-    const targetOnly = Array.isArray(payload.target_only) ? payload.target_only : [];
-    phenoAlignmentDetailEl.innerHTML =
-      `<div class="section-note">Reference <strong>${escapeHtml(referenceId)}</strong> compared to target <strong>${escapeHtml(targetId)}</strong>.</div>` +
-      `<div class="alignment-summary">
-        <span class="alignment-stat">Shared ${shared.length}</span>
-        <span class="alignment-stat">Reference-only ${referenceOnly.length}</span>
-        <span class="alignment-stat">Target-only ${targetOnly.length}</span>
-      </div>` +
-      renderAlignmentGroup(shared, "Matched Variables") +
-      renderAlignmentGroup(referenceOnly, "Reference-Only Variables") +
-      renderAlignmentGroup(targetOnly, "Target-Only Variables");
+    alignmentView.render({payload});
   }
 
   function renderPhenoExplainDetail(payload) {
     callbacks.onPhenoChatExplanation?.({...payload, chat_run_job_id:state.runState?.jobId});
-    phenoExplainDetailEl.innerHTML = phenoExplanationMarkup(payload);
+    explanationView.render(phenoExplanationModel(payload));
   }
 
-  function phenoExplanationMarkup(payload) {
+  function phenoExplanationModel(payload) {
     const matches = Array.isArray(payload.matches) ? payload.matches : [];
     if (!matches.length) {
-      return '<div class="empty">No explanation could be generated for this run.</div>';
+      return {message:'No explanation could be generated for this run.'};
     }
     const targetId = payload.target_id || "unknown";
     const topN = String(payload.top_n || matches.length);
@@ -1384,75 +1219,19 @@ export function createPhenoUi(ctx) {
     if (data.model) {
       badges.push(renderProvenanceBadge(String(data.model), "LM Studio model used for this Pheno-Ranker explanation.", "llm"));
     }
-    const source = badges.join("");
-    const llmReply = payload.llm_reply
-      ? `<div class="query-section" style="margin-bottom:12px;"><h4>LLM answer</h4>${renderQueryReply(payload.llm_reply)}</div>`
-      : "";
-    const supportingMatchesHeading = isLlm
-      ? `<div class="section-note" style="margin-bottom:12px;">Supporting evidence from the top ${escapeHtml(topN)} matches in <code>rank.txt</code>.</div>`
-      : "";
-    return `<div class="pheno-explain-header">
-        <div class="pheno-explain-title-row">
-          <div class="pheno-explain-title-block">
-            <strong>Target ${escapeHtml(targetId)}</strong>
-            <span>${isLlm ? "Patient-level explanation with supporting match evidence" : `Top ${escapeHtml(topN)} matches from <code>rank.txt</code>`}</span>
-          </div>
-          <div class="pheno-explain-meta">${source}</div>
-        </div>
-      </div>` +
-      llmReply +
-      (isLlm ? '<details class="query-section pheno-explain-evidence"><summary>Show details</summary>' : '') +
-      supportingMatchesHeading +
-      `<div class="pheno-explain-match-grid">` +
-      matches.map((match, index) => {
-        const metrics = Object.entries(match.metrics || {})
-          .filter(([, value]) => value !== "")
-          .map(([key, value]) => `<span class="alignment-stat">${escapeHtml(key)} ${escapeHtml(String(value))}</span>`)
-          .join("");
-        const highlights = Array.isArray(match.metric_highlights) ? match.metric_highlights : [];
-        const alignment = match.alignment || {};
-        const shared = Array.isArray(alignment.top_shared_items) ? alignment.top_shared_items : [];
-        const referenceOnly = Array.isArray(alignment.top_reference_only_items) ? alignment.top_reference_only_items : [];
-        const targetOnly = Array.isArray(alignment.top_target_only_items) ? alignment.top_target_only_items : [];
-        const renderLabelGroup = (title, items, toneClass) => {
-          if (!items.length) {
-            return "";
-          }
-          return `
-            <div class="pheno-explain-group ${toneClass}">
-              <div class="pheno-explain-group-title">${escapeHtml(title)}</div>
-              <div class="pheno-explain-chip-wrap">
-                ${items.map((item) => {
-                  const bucket = item.bucket || "other";
-                  const style = getPhenoBucketStyle(bucket);
-                  return `<span class="alignment-bucket-pill pheno-explain-chip" style="--bucket-bg:${style.bg};--bucket-ink:${style.ink};">
-                    <span class="alignment-swatch"></span>
-                    ${escapeHtml(item.label || "")}
-                  </span>`;
-                }).join("")}
-              </div>
-            </div>
-          `;
-        };
-        return `
-          <div class="pheno-explain-match-card">
-            <div class="pheno-explain-match-head">
-              <div>
-                <div class="pheno-explain-match-rank">Match ${index + 1}</div>
-                <h4>${escapeHtml(match.reference_id || "Unknown match")}</h4>
-              </div>
-            </div>
-            <div class="alignment-summary">${metrics || '<span class="alignment-stat">No numeric metrics detected</span>'}</div>
-            ${highlights.length ? `<ul class="pheno-explain-highlight-list">${highlights.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : ""}
-            <div class="pheno-explain-groups">
-              ${renderLabelGroup("Shared variables", shared, "is-shared")}
-              ${renderLabelGroup("Match-only variables", referenceOnly, "is-reference")}
-              ${renderLabelGroup("Target-only variables", targetOnly, "is-target")}
-            </div>
-          </div>
-        `;
-      }).join("") +
-      `</div>` + (isLlm ? '</details>' : '');
+    const prepareItems = items => (Array.isArray(items) ? items : []).map(item => ({
+      label:item.label || '', style:getPhenoBucketStyle(item.bucket || 'other'),
+    }));
+    return {targetId,topN,isLlm,provenance:badges,reply:payload.llm_reply || "",
+      matches:matches.map(match => ({
+        reference_id:match.reference_id,
+        metrics:Object.entries(match.metrics || {}).filter(([,value])=>value !== ""),
+        highlights:Array.isArray(match.metric_highlights) ? match.metric_highlights : [],
+        shared:prepareItems(match.alignment?.top_shared_items),
+        referenceOnly:prepareItems(match.alignment?.top_reference_only_items),
+        targetOnly:prepareItems(match.alignment?.top_target_only_items),
+      })),
+    };
   }
 
   async function explainPhenoResults() {
@@ -1468,10 +1247,10 @@ export function createPhenoUi(ctx) {
     state.explainInFlight = true;
     updatePhenoExplainActions();
     callbacks.onPhenoExplanationStatus?.({llm:false});
-    phenoExplainDetailEl.innerHTML = renderActivityCard(
+    explanationView.render({activity:activityState(
       "Explaining results",
       "Summarizing the top patient matches and alignment signals from rank.txt."
-    );
+    )});
     try {
       const response = await fetch(`/pheno-ranker/explain/${encodeURIComponent(state.runState.jobId)}?top_n=3`);
       if (!response.ok) {
@@ -1505,10 +1284,10 @@ export function createPhenoUi(ctx) {
     state.explainLlmInFlight = true;
     updatePhenoExplainActions();
     callbacks.onPhenoExplanationStatus?.({llm:true});
-    phenoExplainDetailEl.innerHTML = renderActivityCard(
+    explanationView.render({activity:activityState(
       "Explaining with LLM",
       "Reviewing the top matches and drafting a clinician-friendly interpretation."
-    );
+    )});
     try {
       const response = await fetch(`/pheno-ranker/explain-llm/${encodeURIComponent(state.runState.jobId)}?top_n=3`);
       if (!response.ok) {
@@ -1544,7 +1323,7 @@ export function createPhenoUi(ctx) {
     const workspaceVersion = state.workspaceVersion;
     state.selectedAlignmentKey = selectionKey;
     renderSortablePhenoTable();
-    phenoAlignmentDetailEl.innerHTML = "<div class=\"empty\">Loading alignment details...</div>";
+    renderPhenoAlignmentPlaceholder("Loading alignment details...");
     try {
       const response = await fetch(`/pheno-ranker/alignment/${encodeURIComponent(state.runState.jobId)}?reference_id=${encodeURIComponent(referenceId)}&target_id=${encodeURIComponent(targetId)}`);
       if (!response.ok) {
@@ -1583,7 +1362,7 @@ export function createPhenoUi(ctx) {
 
   function renderSortablePhenoTable() {
     if (!state.tableState || !Array.isArray(state.tableState.headers) || !Array.isArray(state.tableState.rows)) {
-      phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
+      outputView.render({message:"No output preview available."});
       return;
     }
     const { headers, rows, sortIndex, sortDirection, sourceName, interactive, referenceColumnIndex, targetColumnIndex } = state.tableState;
@@ -1592,27 +1371,14 @@ export function createPhenoUi(ctx) {
     const note = interactive
       ? `${sourceName} loaded as TSV. Click a column header to sort. Click one result row to inspect matched variables for that pair.`
       : `${sourceName} loaded as TSV. Click a column header to sort.`;
-    phenoOutputPreviewEl.innerHTML =
-      `<div class="section-note">${escapeHtml(note)}</div>` +
-      `<div class="pheno-output-table-wrap"><table class="pheno-output-table"><thead><tr>${
-        headers.map((cell, index) => {
-          const active = index === sortIndex;
-          const arrow = active ? (sortDirection === "asc" ? " ▲" : " ▼") : "";
-          return `<th><button type="button" class="pheno-sort-btn" data-pheno-sort-index="${index}" data-active="${active ? "true" : "false"}">${escapeHtml(cell)}${arrow}</button></th>`;
-        }).join("")
-      }</tr></thead><tbody>${
-        sortedRows.map((row) => {
-          const referenceId = interactive && referenceColumnIndex >= 0 ? row[referenceColumnIndex] : "";
-          const targetId = interactive && targetColumnIndex >= 0 ? row[targetColumnIndex] : "";
-          const selectionKey = `${referenceId}::${targetId}`;
-          const isSelected = interactive && state.selectedAlignmentKey === selectionKey;
-          const rowClass = interactive ? ` class="is-clickable${isSelected ? " is-selected" : ""}"` : "";
-          const attrs = interactive
-            ? ` data-pheno-reference-id="${escapeHtml(referenceId)}" data-pheno-target-id="${escapeHtml(targetId)}"`
-            : "";
-          return `<tr${rowClass}${attrs}>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
-        }).join("")
-      }</tbody></table></div>`;
+    const rowKeys=new Map(state.tableState.rows.map((row,index)=>[row,index]));
+    outputView.render({kind:'table',note,headers,sortIndex,sortDirection,interactive,
+      rows:sortedRows.map(row=>{
+        const referenceId=interactive && referenceColumnIndex>=0 ? row[referenceColumnIndex] : "";
+        const targetId=interactive && targetColumnIndex>=0 ? row[targetColumnIndex] : "";
+        return {row,key:rowKeys.get(row),referenceId,targetId,
+          selected:interactive && state.selectedAlignmentKey===`${referenceId}::${targetId}`};
+      })});
   }
 
   function setPhenoTable(rows, sourceName, options) {
@@ -1697,7 +1463,7 @@ export function createPhenoUi(ctx) {
     if (!preferred) {
       state.tableState = null;
       updatePhenoResultActions();
-      phenoOutputPreviewEl.innerHTML = '<div class="empty">No rank or matrix output file available for preview.</div>';
+      outputView.render({message:"No rank or matrix output file available for preview."});
       return;
     }
     try {
@@ -1705,7 +1471,7 @@ export function createPhenoUi(ctx) {
       if (!response.ok) {
         state.tableState = null;
         updatePhenoResultActions();
-        phenoOutputPreviewEl.innerHTML = '<div class="empty">Unable to load output preview.</div>';
+        outputView.render({message:"Unable to load output preview."});
         return;
       }
       const text = await response.text();
@@ -1727,16 +1493,14 @@ export function createPhenoUi(ctx) {
       updatePhenoResultActions();
       if (preferred.name === "matrix.txt") {
         const previewLines = text.split("\r\n").join("\n").split("\n").slice(0, 20).join("\n");
-        phenoOutputPreviewEl.innerHTML =
-          '<div class="section-note">Matrix preview is intentionally limited. Use the file link or the plot outputs for full cohort inspection.</div>' +
-          `<pre>${escapeHtml(previewLines)}</pre>`;
+        outputView.render({kind:'text',text:previewLines,note:'Matrix preview is intentionally limited. Use the file link or the plot outputs for full cohort inspection.'});
         return;
       }
-      phenoOutputPreviewEl.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+      outputView.render({kind:'text',text});
     } catch (error) {
       state.tableState = null;
       updatePhenoResultActions();
-      phenoOutputPreviewEl.innerHTML = `<div class="empty">${escapeHtml(error && error.message ? error.message : "Unable to load output preview.")}</div>`;
+      outputView.render({message:error?.message || "Unable to load output preview."});
     }
   }
 
@@ -1752,20 +1516,13 @@ export function createPhenoUi(ctx) {
     state.selectedHeatmapRecordIds = [];
     state.selectedGraphRecordIds = [];
     if (!mdsPointsFile && !umapPointsFile && !matrixFile && !graphFile) {
-      phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plot data were produced for this run. Expected matrix.txt, mds_points.tsv, and/or graph.json.</div>';
+      previewsView.render({message:"No interactive plot data were produced for this run. Expected matrix.txt, mds_points.tsv, and/or graph.json."});
       return;
     }
-    const interactiveCard = mdsPointsFile
-      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive MDS</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="mds">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="mds">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="mds">Copy selected IDs</button></div></div><div id="phenoMdsCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoMdsPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoMdsSelectionNote">Select points with box or lasso to reuse them in Analysis or save them as a cohort.</div></div></details>`
-      : "";
-    const heatmapCard = matrixFile
-      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Heatmap</strong></summary><div class="pheno-preview-body"><div id="phenoHeatmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoHeatmapSelectionNote">Use Plotly zoom, pan, and hover tools to inspect the cohort matrix.</div></div></details>`
-      : "";
-    const graphCard = graphFile
-      ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive Graph</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="graph">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="graph">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="graph">Copy selected IDs</button></div></div><div class="pheno-graph-controls"><label class="pheno-graph-threshold-label" for="phenoGraphThreshold"><span id="phenoGraphThresholdLabel">Displayed edges</span><input id="phenoGraphThreshold" type="range" min="0" max="0" step="1" value="0"></label><label class="pheno-graph-select-label" for="phenoGraphTopK"><span>Neighbors per node</span><select id="phenoGraphTopK"><option value="1">Top 1</option><option value="2">Top 2</option><option value="3">Top 3</option><option value="4">Top 4</option><option value="9999">All</option></select></label><label class="pheno-graph-select-label" for="phenoGraphEdgeLabels"><span>Edge values</span><select id="phenoGraphEdgeLabels"><option value="off">Off</option><option value="selected" selected>Selected</option><option value="visible">Visible</option></select></label><label class="pheno-graph-checkbox"><input id="phenoGraphLargestComponent" type="checkbox" checked> Largest component only</label><div id="phenoGraphThresholdMeta" class="section-note-inline">Loading graph filter…</div></div><div id="phenoGraphCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoGraphPlot" class="pheno-mds-plot pheno-graph-plot"></div><div class="section-note" id="phenoGraphSelectionNote">Line width and opacity encode edge value. Click an edge to inspect it or switch Edge values to Visible.</div></div></details>`
-      : "";
-    const umapCard = umapPointsFile ? `<details class="pheno-preview-card pheno-preview-card-full pheno-preview-details" open><summary class="pheno-preview-summary"><strong>Interactive UMAP</strong></summary><div class="pheno-preview-body"><div class="pheno-result-card-toolbar"><div class="pheno-actions pheno-actions-secondary"><button type="button" class="query-chip" data-pheno-plot-action="analysis" data-pheno-plot-kind="umap">Open selection in Analysis</button><button type="button" class="query-chip query-chip-deterministic" data-pheno-plot-action="save-cohort" data-pheno-plot-kind="umap">Save cohort</button><button type="button" class="query-chip" data-pheno-plot-action="copy" data-pheno-plot-kind="umap">Copy selected IDs</button></div></div><div id="phenoUmapCohortLegend" class="pheno-cohort-legend is-hidden"></div><div id="phenoUmapPlot" class="pheno-mds-plot"></div><div class="section-note" id="phenoUmapSelectionNote">Select points with box or lasso to reuse them in Analysis or save them as a cohort.</div><p class="section-note">UMAP emphasizes local neighbourhoods. Distances between clusters do not directly represent the original distances.</p></div></details>` : '';
-    phenoPreviewsEl.innerHTML = heatmapCard + interactiveCard + umapCard + graphCard;
+    previewsView.render({kind:'plots',kinds:[
+      ...(matrixFile ? ['heatmap'] : []),...(mdsPointsFile ? ['mds'] : []),
+      ...(umapPointsFile ? ['umap'] : []),...(graphFile ? ['graph'] : []),
+    ]});
     if (umapPointsFile) void renderInteractivePhenoMdsPlot(umapPointsFile, 'UMAP');
     if (mdsPointsFile) {
       void renderInteractivePhenoMdsPlot(mdsPointsFile);
@@ -2665,11 +2422,7 @@ export function createPhenoUi(ctx) {
     await renderPhenoPreviews(source.files, source);
     const projectionErrors = (source.plots || []).filter(item => String(item.returncode) !== '0');
     if (projectionErrors.length) {
-      const warning = document.createElement('p');
-      warning.className = 'section-note';
-      warning.setAttribute('role', 'status');
-      warning.textContent = projectionErrors.map(item => `${item.script}: ${item.stderr}`).join(' ');
-      phenoPreviewsEl.prepend(warning);
+      previewsView.warning(projectionErrors.map(item => `${item.script}: ${item.stderr}`).join(' '));
     }
     if (source.mode === "patient" && state.runState.alignmentAvailable) {
       renderPhenoAlignmentPlaceholder("Click one row in rank.txt to inspect matched variables for that pair.");
@@ -2692,11 +2445,11 @@ export function createPhenoUi(ctx) {
     phenoStatusEl.className = "pheno-status loading";
     phenoStatusEl.textContent = "Loading completed Pheno-Ranker run...";
     phenoCommandEl.textContent = "Loading stored command and artifacts...";
-    phenoFilesEl.innerHTML = '<div class="empty">Loading output files...</div>';
-    phenoOutputPreviewEl.innerHTML = renderActivityCard("Loading run", "Restoring the stored Pheno-Ranker result into this tab.");
+    filesView.render({message:"Loading output files..."});
+    outputView.render({kind:'activity',activity:activityState("Loading run", "Restoring the stored Pheno-Ranker result into this tab.")});
     renderPhenoAlignmentPlaceholder("Loading alignment details...");
     phenoLogsEl.textContent = "Loading stored logs...";
-    phenoPreviewsEl.innerHTML = renderActivityCard("Loading plots", "Restoring interactive plots and output files from the completed background run.");
+    previewsView.render({kind:'activity',activity:activityState("Loading plots", "Restoring interactive plots and output files from the completed background run.")});
     await applyPhenoRunPayload(result, { statusPrefix: "Loaded", restoringChat: true });
   }
 
@@ -2777,16 +2530,16 @@ export function createPhenoUi(ctx) {
     setPhenoResultWorkspaceVisible(false);
     scrollPhenoResultIntoView();
     phenoCommandEl.textContent = "Preparing command...";
-    phenoFilesEl.innerHTML = '<div class="empty">Waiting for Pheno-Ranker outputs.</div>';
+    filesView.render({message:"Waiting for Pheno-Ranker outputs."});
     state.runState = null;
     updatePhenoExplainActions();
     state.selectedAlignmentKey = "";
     state.tableState = null;
     phenoOutputDetailsEl.open = phenoModeEl.value === "patient";
-    phenoOutputPreviewEl.innerHTML = renderActivityCard("Preparing run", "Building the command and validating the selected scope.");
+    outputView.render({kind:'activity',activity:activityState("Preparing run", "Building the command and validating the selected scope.")});
     renderPhenoAlignmentPlaceholder("Waiting for alignment details.");
     phenoLogsEl.textContent = "Waiting for logs...";
-    phenoPreviewsEl.innerHTML = renderActivityCard("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.");
+    previewsView.render({kind:'activity',activity:activityState("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.")});
     startPhenoRunProgressUpdates();
     await nextFrame();
     if (workspaceVersion !== state.workspaceVersion) return;
@@ -2830,10 +2583,10 @@ export function createPhenoUi(ctx) {
         phenoStatusEl.textContent = "Pheno-Ranker failed. See Logs for details.";
         scrollPhenoResultIntoView();
         phenoCommandEl.textContent = detailObject && detailObject.command ? detailObject.command : "Command failed before completion.";
-        phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
+        outputView.render({message:"No output preview available."});
         phenoLogsEl.textContent = detail;
-        phenoFilesEl.innerHTML = '<div class="empty">No output files available.</div>';
-        phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plots available for this run.</div>';
+        filesView.render({message:"No output files available."});
+        previewsView.render({message:"No interactive plots available for this run."});
         await callbacks.onPhenoChatRunError?.({message:'Pheno-Ranker could not complete this run.', detail});
         return;
       }
@@ -2845,10 +2598,10 @@ export function createPhenoUi(ctx) {
         updatePhenoExplainActions();
         setPhenoResultWorkspaceVisible(false);
         phenoCommandEl.textContent = "Queued as a background Pheno-Ranker run.";
-        phenoOutputPreviewEl.innerHTML = '<div class="empty">Background run submitted. Open Queue to monitor progress and load the completed result.</div>';
+        outputView.render({message:"Background run submitted. Open Queue to monitor progress and load the completed result."});
         phenoLogsEl.textContent = "Waiting for background run logs...";
-        phenoFilesEl.innerHTML = '<div class="empty">No output files available until the background run completes.</div>';
-        phenoPreviewsEl.innerHTML = '<div class="empty">Interactive plots will appear after the background run completes.</div>';
+        filesView.render({message:"No output files available until the background run completes."});
+        previewsView.render({message:"Interactive plots will appear after the background run completes."});
         phenoStatusEl.className = "pheno-status";
         phenoStatusEl.textContent = payload.reply || "Background Pheno-Ranker run submitted.";
         updatePhenoRunAvailability();
@@ -2871,9 +2624,9 @@ export function createPhenoUi(ctx) {
       stopPhenoRunProgressUpdates();
       phenoStatusEl.className = "pheno-status";
       phenoStatusEl.textContent = "Network error while running Pheno-Ranker. See Logs for details.";
-      phenoOutputPreviewEl.innerHTML = '<div class="empty">No output preview available.</div>';
-      phenoFilesEl.innerHTML = '<div class="empty">No output files available.</div>';
-      phenoPreviewsEl.innerHTML = '<div class="empty">No interactive plots available for this run.</div>';
+      outputView.render({message:"No output preview available."});
+      filesView.render({message:"No output files available."});
+      previewsView.render({message:"No interactive plots available for this run."});
       phenoLogsEl.textContent = error && error.message ? error.message : "Unexpected request failure.";
       await callbacks.onPhenoChatRunError?.({message:'Pheno-Ranker could not complete this run.', detail:phenoLogsEl.textContent});
       scrollPhenoResultIntoView();
@@ -2984,10 +2737,16 @@ export function createPhenoUi(ctx) {
 
   return {
     getPatientTargetId: () => patientPicker.get(),
+    renderPlanningProgress,
+    showPlanProgress: (label,detail) => planPreviewView.render({activity:activityState(label,detail)}),
+    renderRunProgress(label,detail) {
+      outputView.render({kind:'activity',activity:activityState(label,detail)});
+      previewsView.render({kind:'activity',activity:activityState('Preparing plots','Waiting for interactive cohort plots and result files from the active run.')});
+    },
     chatBusy: () => state.chatPreparing || state.inFlight || state.planInFlight || state.explainInFlight || state.explainLlmInFlight,
     restoreChatSetup: restorePhenoRunMetadata,
     restoreChatResult: payload => applyPhenoRunPayload(payload, {restoringChat:true, statusPrefix:'Saved'}),
-    explanationMarkup: phenoExplanationMarkup,
+    explanationModel: phenoExplanationModel,
     restoreChatExplanation: renderPhenoExplainDetail,
     updatePhenoMode,
     updatePhenoGraphOptions,

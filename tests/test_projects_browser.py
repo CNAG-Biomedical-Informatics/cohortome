@@ -20,6 +20,8 @@ def test_native_project_titles_and_cancelled_save():
             '<div class="app-icon-rail"><button id="runHistoryDrawerBtn"></button></div>'))
         page.route('http://projects.test/projects.js', lambda r: r.fulfill(
             content_type='text/javascript', body=(root / 'static/js/projects.js').read_text()))
+        page.route('http://projects.test/react/ui.js', lambda r: r.fulfill(
+            content_type='text/javascript', body=(root / 'static/js/react/ui.js').read_text()))
         page.route('http://projects.test/projects/*', lambda r: r.fulfill(json={
             'name': 'Saved study', 'dataset_ids': ['demo'], 'warnings': []}))
         page.goto('http://projects.test/')
@@ -130,31 +132,12 @@ def test_project_download_and_reopen_restores_query_draft(tmp_path):
             expect(page.locator('.dashboard-page-tabs #dashboardTimelineBtn')).to_have_count(1)
             expect(page.locator('#patientTimelineBtn')).to_be_disabled()
             patient_search = page.locator('#patientOverviewSearch')
+            # Patients now uses a searchable table; detailed Timeline behavior is
+            # covered by the patient/inventory browser tests.
             patient_search.fill('SYN015')
-            expect(page.locator('#patientOverviewMatches [role=option]').first).to_be_visible()
-            patient_search.press('ArrowDown')
-            patient_search.press('Enter')
-            expect(page.locator('#patientOverviewDetail h2')).to_have_text('SYN015')
-            expect(page.locator('.patient-inventory')).to_contain_text('SYN015:week_0')
-            expect(page.locator('.patient-inventory')).to_contain_text('Metadata table')
-            expect(page.locator('.patient-inventory th[scope=rowgroup]').first).to_be_visible()
-            assert page.locator('.inventory-modality-icon svg').count() > 0
-            assert page.locator('.patient-inventory thead th').count() == 5
-            page.screenshot(path=str(tmp_path / 'patient-overview.png'))
-            page.locator('#patientTimelineBtn').click()
-            expect(page.locator('#dashboardTimelineBtn')).to_have_class('dashboard-subtab active')
-            expect(page.locator('#patientOverviewSearch')).to_have_value('SYN015')
-            expect(page.locator('#patientOverviewDetail')).to_be_hidden()
-            expect(page.locator('#dashboardTimelinePanel')).to_be_visible()
-            expect(page.locator('#dashboardTimeline')).to_contain_text('SYN015')
-            expect(page.locator('#dashboardTimeline')).not_to_contain_text('SYN001')
-            page.locator('#dashboardPatientsBtn').click()
-            expect(page.locator('#patientOverviewDetail h2')).to_have_text('SYN015')
-            expect(page.locator('#dashboardTimelinePanel')).to_be_hidden()
-            patient_search.fill('no-such-synthetic-patient')
-            expect(page.locator('#patientTimelineBtn')).to_be_disabled()
-            expect(page.locator('#patientOverviewStatus')).to_contain_text('No matching patients')
-            expect(page.locator('#patientOverviewDetail')).to_be_empty()
+            page.locator('#patientOverviewRoot [data-scope-apply]').click()
+            expect(page.locator('#patientOverviewMatches .patient-open')).to_have_count(1)
+            expect(page.locator('#patientOverviewMatches .patient-open')).to_contain_text('SYN015')
             page.locator('#queryTabBtn').click()
             page.locator('#question').fill('Review the synthetic lupus cohort')
             page.locator('#projectsMenuBtn').click()

@@ -1,3 +1,5 @@
+import {createAnalysisCatalogView, createAnalysisChecklistView} from './react/ui.js';
+
 import { formatAssayRequirementLabel } from "./assay_labels.js";
 import { createMeasurementSelector } from "./analysis_measurements.js";
 import { createScriptEditor } from "./analysis_script_editor.js";
@@ -276,18 +278,6 @@ export function createAnalysisCatalogUi(ctx) {
     return { css: "query-chip-planner", label: "LLM-planned" };
   }
 
-  function analysisCatalogIconSvg(kind) {
-    const icons = {
-      clinical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
-      compare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8"></path><path d="M8 17h8"></path><path d="m6 9 2-2 2 2"></path><path d="m18 15-2 2-2-2"></path></svg>',
-      trajectory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"></path><path d="m5 15 4-4 3 2 7-7"></path></svg>',
-      survival: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m6 7 4 5 3-3 5 6"></path></svg>',
-      assay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 4 3 4 3 8s-3 4-3 8"></path><path d="M17 3c0 4-3 4-3 8s3 4 3 8"></path><path d="M8 6h8"></path><path d="M8 18h8"></path></svg>',
-      external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 14v5H5V5h5"></path></svg>',
-      general: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg>',
-    };
-    return icons[kind] || icons.general;
-  }
 
   function analysisCatalogIconKind(item) {
     const runnerType = String(item && item.runner_type ? item.runner_type : "").toLowerCase();
@@ -648,33 +638,9 @@ export function createAnalysisCatalogUi(ctx) {
     return steps;
   }
 
+  const checklistView = analysisSetupChecklistEl ? createAnalysisChecklistView(analysisSetupChecklistEl) : null;
   function renderAnalysisSetupChecklist(setupState) {
-    if (!analysisSetupChecklistEl) return;
-    const steps = Array.isArray(setupState && setupState.steps) ? setupState.steps : [];
-    if (!steps.length) {
-      analysisSetupChecklistEl.innerHTML = "";
-      return;
-    }
-    const firstIncompleteIndex = steps.findIndex((step) => !step.complete);
-    analysisSetupChecklistEl.innerHTML = steps.map((step, index) => {
-      const current = index === firstIncompleteIndex;
-      const stateClass = step.complete ? "is-complete" : current ? "is-current" : "is-waiting";
-      const stateLabel = step.complete ? "Done" : current ? "Next" : "Waiting";
-      const action = current && step.action
-        ? `<button type="button" class="query-chip action" data-analysis-setup-action="${escapeHtml(step.action)}">${escapeHtml(step.actionLabel || "Continue")}</button>`
-        : "";
-      return `
-        <div class="analysis-setup-check ${stateClass}" data-analysis-setup-step="${escapeHtml(step.key)}">
-          <span class="analysis-setup-check-index" aria-hidden="true">${step.complete ? "✓" : index + 1}</span>
-          <span class="analysis-setup-check-copy">
-            <strong>${escapeHtml(step.label)}</strong>
-            <small>${escapeHtml(step.detail)}</small>
-          </span>
-          <span class="analysis-setup-check-state">${stateLabel}</span>
-          ${action}
-        </div>
-      `;
-    }).join("");
+    checklistView?.render(Array.isArray(setupState?.steps) ? setupState.steps : []);
   }
 
   function syncAnalysisCatalogControls() {
@@ -1072,78 +1038,23 @@ export function createAnalysisCatalogUi(ctx) {
     }
   }
 
-  function renderAnalysisCatalogCard(item, options = {}) {
-    const compact = Boolean(options.compact);
-    const drawer = Boolean(options.drawer);
-    const availability = analysisCatalogUiAvailability(item);
-    const setupState = selectedAnalysisSetupState(item, { assumeCatalogSelection: true });
-    const modeBadge = analysisCatalogModeBadge(item);
-    const iconKind = analysisCatalogIconKind(item);
-    const selected = String(item && item.id ? item.id : "") === String(state.analysisSelectedCatalogItemId || "");
-    const metaBadges = [
-      `<span class="query-chip badge ${modeBadge.css}">${escapeHtml(modeBadge.label)}</span>`,
-    ];
-    if (item.default_compare_mode) {
-      metaBadges.push('<span class="query-chip badge">Compare mode</span>');
-    }
-    if (item.requires_assays) {
-      metaBadges.push('<span class="query-chip badge">Assays</span>');
-    }
-    analysisCatalogCapabilityBadges(item).forEach((badge) => {
-      metaBadges.push(`<span class="query-chip badge">${badge.modality ? modalityIcon(badge.modality, 'analysis-badge-icon') : ''}${escapeHtml(badge.label)}</span>`);
-    });
-    if (item.requires_detailed_access) {
-      metaBadges.push('<span class="query-chip badge">Detailed required</span>');
-    }
-    if (item && item.debug_only) {
-      metaBadges.push('<span class="query-chip badge">Debug</span>');
-    }
-    if (item.runner_type && item.runner_type !== "builtin") {
-      metaBadges.push(`<span class="query-chip badge">${escapeHtml(analysisCatalogRunnerTypeLabel(item.runner_type))}</span>`);
-    }
-    if (String(item.execution_backend || "").toLowerCase() === "job") {
-      metaBadges.push(`<span class="query-chip badge">${analysisCatalogQueueIcon()}<span>Background</span></span>`);
-    }
-    const requirements = Array.isArray(item.workspace_requirements) ? item.workspace_requirements : [];
-    const requirementsHtml = !compact && requirements.length
-      ? `<div class="section-note">${escapeHtml(requirements.join(" "))}</div>`
-      : "";
-    const guidanceHtml = !compact && item.guidance
-      ? `<div class="section-note">${escapeHtml(item.guidance)}</div>`
-      : "";
-    const tagsHtml = !compact && Array.isArray(item.tags) && item.tags.length
-      ? `<div class="analysis-catalog-tags">${item.tags.map((tag) => `<span class="query-chip badge">${escapeHtml(tag)}</span>`).join("")}</div>`
-      : "";
-    const availabilityHtml = availability.available
-      ? ""
-      : `<div class="analysis-catalog-unavailable">${escapeHtml(availability.unavailableReason || "Unavailable in this workspace.")}</div>`;
-    const readinessLabel = availability.available
-      ? (setupState.ready ? "Ready now" : "Needs setup")
-      : "Unavailable";
-    const readinessHtml = `<div class="analysis-catalog-readiness ${setupState.ready ? "is-ready" : "is-blocked"}"><strong>${escapeHtml(readinessLabel)}</strong>${setupState.message ? ` <span>${escapeHtml(setupState.message)}</span>` : ""}</div>`;
-    const actionLabel = availability.available
-      ? (setupState.ready ? "Use analysis" : "Set up")
-      : "Unavailable";
-    return `
-      <article class="analysis-catalog-card${compact ? " is-compact" : ""}${drawer ? " is-drawer" : ""}${availability.available ? "" : " is-disabled"}${setupState.ready ? " is-ready" : " is-needs-setup"}${selected ? " is-selected" : ""}">
-        <div class="analysis-catalog-head">
-          <div class="analysis-catalog-icon" aria-hidden="true">${analysisCatalogIconSvg(iconKind)}</div>
-          <div>
-            <div class="analysis-catalog-title">${escapeHtml(item.name || "Curated analysis")}</div>
-            <div class="analysis-catalog-meta">${metaBadges.join("")}</div>
-          </div>
-        </div>
-        <div class="analysis-catalog-description">${escapeHtml(String(item.description || ""))}</div>
-        ${requirementsHtml}
-        ${guidanceHtml}
-        ${tagsHtml}
-        ${availabilityHtml}
-        ${readinessHtml}
-        <div class="analysis-catalog-actions">
-          <button type="button" class="query-chip action" data-analysis-catalog-id="${escapeHtml(String(item.id || ""))}" ${availability.available ? "" : "disabled"}>${escapeHtml(actionLabel)}</button>
-        </div>
-      </article>
-    `;
+  function analysisCatalogCardModel(item) {
+    const badges=[analysisCatalogModeBadge(item)];
+    if(item.default_compare_mode) badges.push({label:'Compare mode'});
+    if(item.requires_assays) badges.push({label:'Assays'});
+    badges.push(...analysisCatalogCapabilityBadges(item));
+    if(item.requires_detailed_access) badges.push({label:'Detailed required'});
+    if(item.debug_only) badges.push({label:'Debug'});
+    if(item.runner_type && item.runner_type!=='builtin') badges.push({label:analysisCatalogRunnerTypeLabel(item.runner_type)});
+    if(String(item.execution_backend || '').toLowerCase()==='job') badges.push({label:'Background',queue:true});
+    return {item,badges,availability:analysisCatalogUiAvailability(item),
+      setupState:selectedAnalysisSetupState(item,{assumeCatalogSelection:true}),
+      iconKind:analysisCatalogIconKind(item),selected:String(item.id || '')===String(state.analysisSelectedCatalogItemId || '')};
+  }
+  const catalogView = analysisCatalogListEl ? createAnalysisCatalogView(analysisCatalogListEl,{compact:true}) : null;
+  const catalogDrawerView = analysisCatalogDrawerListEl ? createAnalysisCatalogView(analysisCatalogDrawerListEl,{drawer:true}) : null;
+  function catalogMessage(message) {
+    catalogView?.render({message}); catalogDrawerView?.render({message});
   }
 
   function setAnalysisCatalogDrawerOpen(open) {
@@ -1172,10 +1083,7 @@ export function createAnalysisCatalogUi(ctx) {
     }
     syncAnalysisCatalogControls();
     if (!Array.isArray(state.analysisCatalogItems) || !state.analysisCatalogItems.length) {
-      analysisCatalogListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
-      if (analysisCatalogDrawerListEl) {
-        analysisCatalogDrawerListEl.innerHTML = '<div class="empty">No curated analyses available.</div>';
-      }
+      catalogMessage("No curated analyses available.");
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = "No curated analyses available.";
       }
@@ -1216,52 +1124,12 @@ export function createAnalysisCatalogUi(ctx) {
       const message = query || filter !== "all"
         ? "No analyses match the current search and filters."
         : "No curated analyses available.";
-      analysisCatalogListEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
-      if (analysisCatalogDrawerListEl) {
-        analysisCatalogDrawerListEl.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
-      }
+      catalogMessage(message);
       renderAnalysisCatalogAssayPanel();
       return;
     }
-    const renderReadinessSection = (label, items, renderOptions = {}) => {
-      const sectionClass = label === "Ready now" ? "is-ready" : "is-needs-setup";
-      const note = label === "Ready now"
-        ? "Can run with the current scope and inputs."
-        : "Needs one or more inputs before it can run.";
-      const headerHtml = `
-        <div class="analysis-catalog-group-header">
-          <div>
-            <div class="analysis-catalog-group-label">${escapeHtml(label)}</div>
-            <div class="analysis-catalog-group-note">${escapeHtml(note)}</div>
-          </div>
-          <span class="analysis-catalog-group-count">${items.length}</span>
-        </div>
-      `;
-      if (!items.length) {
-        const emptyMessage = label === "Ready now"
-          ? "No analyses are ready with the current selection."
-          : "No analyses need setup in this view.";
-        return `
-          <section class="analysis-catalog-group analysis-catalog-group-empty ${sectionClass}">
-            ${headerHtml}
-            <div class="empty">${escapeHtml(emptyMessage)}</div>
-          </section>
-        `;
-      }
-      const gridClass = renderOptions.compact ? "analysis-catalog-grid analysis-catalog-grid-compact" : "analysis-catalog-grid";
-      const cards = items.map((item) => renderAnalysisCatalogCard(item, renderOptions)).join("");
-      return `<section class="analysis-catalog-group ${sectionClass}">${headerHtml}<div class="${gridClass}">${cards}</div></section>`;
-    };
-    analysisCatalogListEl.innerHTML = [
-      renderReadinessSection("Ready now", readyItems, { compact: true }),
-      renderReadinessSection("Needs setup", setupItems, { compact: true }),
-    ].filter(Boolean).join("");
-    if (analysisCatalogDrawerListEl) {
-      analysisCatalogDrawerListEl.innerHTML = [
-        renderReadinessSection("Ready now", readyItems, { drawer: true }),
-        renderReadinessSection("Needs setup", setupItems, { drawer: true }),
-      ].filter(Boolean).join("");
-    }
+    const groups=[{label:'Ready now',items:readyItems.map(analysisCatalogCardModel)},{label:'Needs setup',items:setupItems.map(analysisCatalogCardModel)}];
+    catalogView.render({groups}); catalogDrawerView?.render({groups});
     renderAnalysisCatalogAssayPanel();
   }
 
@@ -1282,10 +1150,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (!isWorkspaceAccessible()) {
       state.analysisCatalogItems = [];
       state.analysisCatalogWorkspace = null;
-      analysisCatalogListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
-      if (analysisCatalogDrawerListEl) {
-        analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Sign in and load a workspace to browse curated analyses.</div>';
-      }
+      catalogMessage("Sign in and load a workspace to browse curated analyses.");
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = "Workspace unavailable.";
       }
@@ -1299,10 +1164,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (state.queryGranularityMode !== "detailed") {
       state.analysisCatalogItems = [];
       state.analysisCatalogWorkspace = null;
-      analysisCatalogListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
-      if (analysisCatalogDrawerListEl) {
-        analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Analysis Catalog requires Detailed workspace access.</div>';
-      }
+      catalogMessage("Analysis Catalog requires Detailed workspace access.");
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = "Analysis Catalog requires Detailed workspace access.";
       }
@@ -1315,10 +1177,7 @@ export function createAnalysisCatalogUi(ctx) {
       renderAnalysisCatalogAssayPanel();
       return;
     }
-    analysisCatalogListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
-    if (analysisCatalogDrawerListEl) {
-      analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Loading curated analyses...</div>';
-    }
+    catalogMessage("Loading curated analyses...");
     if (analysisCatalogStatusEl) {
       analysisCatalogStatusEl.textContent = "Loading curated analyses...";
     }
@@ -1334,10 +1193,7 @@ export function createAnalysisCatalogUi(ctx) {
     } catch (error) {
       state.analysisCatalogItems = [];
       state.analysisCatalogWorkspace = null;
-      analysisCatalogListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
-      if (analysisCatalogDrawerListEl) {
-        analysisCatalogDrawerListEl.innerHTML = '<div class="empty">Unable to load curated analyses.</div>';
-      }
+      catalogMessage("Unable to load curated analyses.");
       if (analysisCatalogStatusEl) {
         analysisCatalogStatusEl.textContent = error && error.message ? error.message : "Unable to load curated analyses.";
       }
@@ -1406,7 +1262,6 @@ export function createAnalysisCatalogUi(ctx) {
     renderAnalysisStarterPrompts,
     normalizeAnalysisCatalogExecutionMode,
     analysisCatalogModeBadge,
-    analysisCatalogIconSvg,
     analysisCatalogIconKind,
     analysisCatalogQueueIcon,
     analysisCatalogRunnerTypeLabel,
@@ -1415,7 +1270,6 @@ export function createAnalysisCatalogUi(ctx) {
     renderAnalysisCatalogAssayPanel,
     renderAnalysisFlowBar,
     analysisCatalogUiAvailability,
-    renderAnalysisCatalogCard,
     setAnalysisCatalogDrawerOpen,
     renderAnalysisCatalog,
     renderAnalysisCatalogDisclosureSummary,

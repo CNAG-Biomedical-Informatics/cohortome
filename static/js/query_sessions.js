@@ -2,7 +2,7 @@ import { addWorkspaceRestoreAction } from './workspace_restore.js';
 import { captureChatScope, compactPatientScope } from './chat_scope.js';
 import { selectionScopeLabel } from './app_helpers.js';
 // Query persistence uses the same user-owned server storage as Analysis, not browser storage.
-export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuery, closeDrawer, renderList, organizationActions, restoreWorkspace }) {
+export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuery, closeDrawer, renderList, restoreWorkspace }) {
   const list = document.getElementById('analysisSessionList');
   const search = document.getElementById('analysisChatSearch');
   const status = document.getElementById('queryChatSaveStatus');
@@ -56,12 +56,8 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
       restore: restoreWorkspace, reopen: () => open(chatId, true) });
     renderList();
   }
-  function renderCard(item) {
-    const active = current?.id === item.id && refs.queryTabEl.classList.contains('active');
-    return `<div class="analysis-session-card${active ? ' is-active' : ''}">
-      <button type="button" class="analysis-session-main" data-query-session-id="${escapeHtml(item.id)}" ${active ? 'aria-current="true"' : ''} aria-label="Query: ${escapeHtml(title(item))}" title="Query: ${escapeHtml(title(item))}"><div class="analysis-session-title"><span class="chat-type-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v12H9l-5 4Z"/></svg></span>${escapeHtml(title(item))}</div></button>
-      <details class="analysis-chat-menu"><summary aria-label="Actions for ${escapeHtml(title(item))}">⋯</summary><div>${organizationActions?.('query', item.id) || ''}<button type="button" data-query-rename="${escapeHtml(item.id)}">Rename</button><button type="button" data-query-delete="${escapeHtml(item.id)}">Delete</button></div></details>
-    </div>`;
+  function cardModel(item) {
+    return {title:title(item), active:current?.id === item.id && refs.queryTabEl.classList.contains('active')};
   }
   async function load() {
     const version = epoch;
@@ -223,7 +219,7 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
       await load();
     } catch (error) { message(error.message); }
   });
-  return { load, save, clear, detach, newChat, continuationIssue, renderCard,
+  return { load, save, clear, detach, newChat, continuationIssue, cardModel,
     forgetDeletedChats(ids) {
       if (ids.includes(current?.id)) { detach(); query.resetQueryWorkspace(); }
       items = items.filter(item => !ids.includes(item.id));

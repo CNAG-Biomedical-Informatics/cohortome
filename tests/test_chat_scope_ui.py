@@ -3,6 +3,8 @@ from test_ui_smoke import page, live_server, playwright, _open_query_tab
 
 
 def test_query_chat_keeps_scope_and_new_chat_captures_new_scope(page):
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
     expect = playwright.expect
     chats, queries = {}, []
     def instrument(route):
@@ -57,6 +59,8 @@ def test_query_chat_keeps_scope_and_new_chat_captures_new_scope(page):
     page.wait_for_function("window.__scopeTestState.queryScopeMetadata?.members?.[0]?.patient_id === 'P2'")
     ask()
     assert queries[-1]['scope_metadata']['members'][0]['patient_id'] == 'P2'
+    assert not errors
+    expect(page.locator('#queryChatMessageText')).not_to_contain_text('Chat not saved')
     page.locator(f'[data-query-session-id="{first_id}"]').click()
     page.wait_for_function("window.__scopeTestState.queryScopeMetadata?.members?.[0]?.patient_id === 'P1'")
     ask()

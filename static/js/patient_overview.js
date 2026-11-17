@@ -1,5 +1,4 @@
 import { sortDiseaseOptions } from './shared.js';
-import { createClinicalFilters } from './clinical_filters.js';
 import { createPatientsView } from './react/ui.js';
 
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort}) {
@@ -8,12 +7,12 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   let loadedScope = null, pages = [{}], pageIndex = 0;
   let sortBy = 'patient_id', sortDirection = 'asc';
   let diseases = [], origins = [], showAllDiseases = false, diseaseGeneration = 0, originGeneration = 0;
-  let workspaceTotal = null, clinicalFilters = null, clinicalSignature = '', clinicalWorkspace = '', clinicalRevision = 0;
+  let workspaceTotal = null, clinicalWorkspace = '';
   let saving = false, matchCount = '', saveStatus = '', saveLabel = 'Save filtered patients as cohort';
   let status = 'Select a workspace to browse patients.';
 
   const view = createPatientsView({host:document.getElementById('patientOverviewRoot'), scopeUi,
-    mountClinical:mountClinicalFilters, actions:{
+    isClinicalCurrent:selectedScope => selectedScope === scope() && !state.loadInFlight, actions:{
       search:q => scopeUi.patch({q}),
       origin:sample_origin => scopeUi.patch({sample_origin}),
       disease:label => {
@@ -44,34 +43,11 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
 
   function render() {
     view.render({matches, sortBy, sortDirection, draft:scopeUi.getDraft(), diseases, origins, showAllDiseases,
-      clinicalWorkspace, clinicalRevision, matchCount, status, saveStatus, saveLabel, loading,
+      clinicalWorkspace, matchCount, status, saveStatus, saveLabel, loading,
       canSave:!saving && !loading && !state.loadInFlight && !scopeUi.isDirty() && !scopeUi.isBusy() && matches.length > 0,
       canNavigate:Boolean(scope()) && !state.loadInFlight && !loading && !saving,
       canNext:!loading && Boolean(nextPage), canPrevious:!loading && pageIndex > 0,
       selectedPatient:state.patientOverviewSelection});
-  }
-  function mountClinicalFilters(host, selectedScope) {
-    const draft = scopeUi.getDraft();
-    clinicalSignature = JSON.stringify(draft.clinical_filters);
-    const editor = createClinicalFilters({host, workspace:selectedScope, escapeHtml:esc,
-      isCurrent:() => selectedScope === scope() && !state.loadInFlight,
-      initialFilters:draft.clinical_filters, initialFingerprint:draft.fingerprint, initialLabels:draft.clinical_labels,
-      onChange:result => {
-        clinicalSignature = JSON.stringify(result.filters);
-        scopeUi.patch({clinical_filters:result.filters, fingerprint:result.fingerprint, clinical_labels:result.rule_labels});
-        scopeUi.setValidation('clinical', result.status === 'ready' ? '' : result.message || 'Finish editing the clinical filter.');
-      },
-      onReload:() => {
-        scopeUi.setValidation('clinical', '');
-        scopeUi.patch({clinical_filters:[], fingerprint:'', clinical_labels:[]});
-        clinicalRevision++; render();
-      },
-    });
-    clinicalFilters = editor;
-    return () => {
-      editor.destroy(); host.replaceChildren();
-      if (clinicalFilters === editor) clinicalFilters = null;
-    };
   }
   async function loadOrigins() {
     const ticket = ++originGeneration, selectedScope = scope();
@@ -100,13 +76,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   scopeUi.subscribe((snapshot, reason) => {
-    const next = JSON.stringify(snapshot.draft.clinical_filters);
-    if (next !== clinicalSignature || ['discard', 'clear'].includes(reason)) {
-      clinicalSignature = next;
-      clinicalFilters?.setFilters(snapshot.draft.clinical_filters, snapshot.draft.fingerprint, snapshot.draft.clinical_labels);
-    }
     if (reason === 'applied') { clearSelection(false); searchPatients(); }
-    if (reason === 'settled' && snapshot.errorStatus === 409 && snapshot.draft.clinical_filters.length) clinicalFilters?.invalidate(snapshot.error);
     if (reason === 'workspace-settled') refresh();
     render();
   });

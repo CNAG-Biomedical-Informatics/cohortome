@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright, expect
 
@@ -11,7 +12,7 @@ def test_imaging_study_table_counts_and_viewer_actions():
         page.route('http://imaging.test/', lambda r: r.fulfill(content_type='text/html',
             body='<input id="data" value="demo"><div id="health"></div><div id="status"></div><div id="studies"></div>'))
         page.route('http://imaging.test/static/js/**', lambda r: r.fulfill(content_type='text/javascript',
-            body=(root / 'static/js' / r.request.url.rsplit('/', 1)[-1]).read_text()))
+            body=(root / urlsplit(r.request.url).path.lstrip('/')).read_text()))
         page.route('http://imaging.test/local-viewer/open/**', lambda r: r.fulfill(body='Test viewer'))
         page.goto('http://imaging.test/')
         page.evaluate('''async () => {
@@ -38,6 +39,14 @@ def test_imaging_study_table_counts_and_viewer_actions():
         expect(page.locator('dialog iframe')).to_have_attribute('src', 'http://imaging.test/local-viewer/open/demo')
         page.get_by_role('button', name='Close viewer').click()
         expect(page.locator('dialog')).to_have_count(0)
+        expect(page.get_by_role('button', name='View images', exact=True)).to_be_focused()
+        page.locator('tbody tr').first.get_by_text('Study details', exact=True).click()
+        page.get_by_label('Patient', exact=True).evaluate('(el) => {window.imagingSearchBefore = el;}')
+        page.get_by_label('Patient', exact=True).fill('P01')
+        expect(page.locator('tbody tr')).to_have_count(1)
+        expect(page.locator('tbody details')).to_have_attribute('open', '')
+        assert page.get_by_label('Patient', exact=True).evaluate('(el) => el === window.imagingSearchBefore')
+        page.get_by_role('button', name='All patients', exact=True).click()
         page.get_by_text('What do these counts mean?', exact=True).click()
         expect(page.get_by_text('A study is an imaging examination.', exact=False)).to_be_visible()
         page.evaluate("ui.renderDicomStudies({enabled:true,studies:[{label:'External',series:[{instance_count:12},{instance_count:20}],ohif_url:'https://viewer.example/viewer'}]})")
@@ -89,4 +98,19 @@ def test_imaging_study_table_counts_and_viewer_actions():
         expect(page.locator('dialog [role=status]')).to_contain_text('Linked 2 studies, 12 instances and 1 patients.')
         page.get_by_role('button', name='Done', exact=True).click()
         expect(page.locator('dialog')).to_have_count(0)
+        page.evaluate("ui.renderDicomStudies({enabled:true,studies:[{label:'<img src=x>',ohif_url:'javascript:alert(1)',local_viewer_url:'https://other.example/local-viewer/open/demo'}]})")
+        expect(page.locator('#studies img')).to_have_count(0)
+        page.get_by_role('button', name='View images', exact=True).click()
+        expect(page.locator('dialog')).to_have_count(0)
+        page.evaluate("ui.renderDicomStudies({enabled:true,studies:[{label:'Unsafe external URL',ohif_url:'javascript:alert(1)'}]})")
+        expect(page.get_by_role('button', name='Unavailable')).to_be_disabled()
+        expect(page.locator('#studies a')).to_have_count(0)
+        page.evaluate('''async () => {
+          const {createImagingHealthView} = await import('/static/js/react/ui.js');
+          createImagingHealthView(document.querySelector('#health')).render({source:{enabled:false},
+            studies:[{patient_id:'P1',local_viewer_url:'/local-viewer/open/demo'}]});
+        }''')
+        expect(page.locator('#health')).to_contain_text('Built-in viewer')
+        page.locator('#health summary').click()
+        expect(page.locator('#health')).to_contain_text('Images are not stored in DuckDB.')
         browser.close()

@@ -29,13 +29,18 @@ def test_clinical_dataset_view_is_shared_by_charts_and_tables(page):
     expect(selector).to_have_value('')
     expect(selector.locator('option').first).to_have_text('All active datasets')
     expect(page.locator('.clinical-distribution-grid .dashboard-plot-card')).to_have_count(2)
+    selector.evaluate('(el) => { window.clinicalSelectorBefore = el; }')
+    page.locator('[aria-label="About the clinical dashboard"]').click()
     selector.select_option('b')
     expect(page.locator('.dashboard-hero .dashboard-count').first).to_have_text('2 patients')
     expect(page.locator('.clinical-distribution-grid .dashboard-plot-card')).to_have_count(1)
+    assert selector.evaluate('(el) => el === window.clinicalSelectorBefore')
+    expect(page.locator('.dashboard-hero details')).to_have_attribute('open', '')
     expect(page.locator('.clinical-distribution-grid')).to_contain_text('2 measured · 0 missing')
     expect(page.locator('#contextScope')).to_contain_text('Full workspace')
     page.locator('[data-clinical-mode="table"]').click()
     expect(selector).to_have_value('b')
+    assert selector.evaluate('(el) => el === window.clinicalSelectorBefore')
     expect(page.locator('.clinical-characteristics-dataset')).to_have_count(1)
     expect(page.locator('.clinical-characteristics-dataset')).to_contain_text('Measurement b')
     selector.select_option('')
@@ -46,6 +51,55 @@ def test_clinical_dataset_view_is_shared_by_charts_and_tables(page):
     expect(page.locator('.clinical-distribution-grid .dashboard-plot-card')).to_have_count(2)
     expect(page.locator('#contextScope')).to_contain_text('Full workspace')
     page.screenshot(path='/tmp/cohortome-clinical-dataset-selector.png')
+
+
+def test_clinical_react_tables_escape_labels_and_preserve_missingness(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    payload = summary(4)
+    payload['characteristics'] = [dict(dataset_id='a', label='Example <dataset>', patients=4, rows=[
+        dict(field_id='age', label='Age', unit='years', kind='number', median=32.5,
+             q1=25, q3=40, recorded=2, missing=2),
+        dict(label='Category', kind='category', recorded=1, missing=3,
+             categories=[dict(label='<img src=x onerror=alert(1)>', count=1)])]),
+        dict(dataset_id='empty', label='Empty', patients=0, rows=[
+            dict(field_id='crp', label='CRP', unit='', kind='number', median=None,
+                 q1=None, q3=None, recorded=0, missing=0)])]
+    page.route('**/dashboard?*', lambda r: r.fulfill(json=payload))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardClinicalBtn').click()
+    page.locator('[data-clinical-mode="table"]').click()
+    tables = page.locator('.clinical-characteristics-dataset')
+    expect(tables).to_have_count(2)
+    expect(tables.first).to_contain_text('Example <dataset>')
+    expect(tables.first.locator('.clinical-numeric-summary')).to_have_text('32.5 [25–40]')
+    expect(tables.first.locator('.clinical-coverage')).to_contain_text('2 / 4')
+    assert tables.first.locator('.clinical-coverage-track > span').evaluate('el => el.style.width') == '50%'
+    expect(tables.first.locator('.clinical-category')).to_contain_text('(25%)')
+    expect(tables.locator('img')).to_have_count(0)
+    expect(tables.last).to_contain_text('Not reported')
+    expect(tables.last.locator('.clinical-numeric-summary')).to_have_text('— [—–—]')
+    expect(tables.last).not_to_contain_text('NaN')
+    assert tables.last.locator('.clinical-coverage-track > span').evaluate('el => el.style.width') == '0%'
+    page.locator('#clinicalTableDataset').select_option('empty')
+    expect(tables).to_have_count(1)
+    expect(tables.locator('[aria-label="Patient characteristics"]')).to_have_count(0)
+    page.locator('#clinicalTableDataset').select_option('')
+    page.locator('[data-clinical-mode="charts"]').click()
+    measurement = page.locator('#clinicalMeasurementSelect')
+    measurement.evaluate('(el) => { window.measurementSelectBefore = el; }')
+    options = measurement.locator('option').evaluate_all('(els) => els.map(el => el.value)')
+    assert len(options) == 2
+    measurement.select_option(options[1])
+    expect(page.locator('.clinical-distribution-grid')).to_contain_text('No measured patients in this scope.')
+    assert measurement.evaluate('(el) => el === window.measurementSelectBefore')
+    measurement.select_option(options[0])
+    expect(page.locator('.clinical-distribution-grid')).to_contain_text('Distribution unavailable for this numeric range.')
+    assert measurement.evaluate('(el) => el === window.measurementSelectBefore')
+    page.screenshot(path='/tmp/cohortome-react-clinical-empty.png')
 
 
 def test_clinical_charts_normalize_sex_and_keep_secondary_plots_collapsed(page):

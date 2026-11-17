@@ -226,6 +226,12 @@ def test_clinical_choices_remain_visible_and_edit_one_draft_rule(page):
     expect(panel.locator('[data-value-index="0"]')).to_have_attribute('aria-pressed', 'false')
     expect(panel.locator('[data-value-index="1"]')).to_have_attribute('aria-pressed', 'true')
     assert len(applications) == 1
+    panel.locator('[data-value-index="1"]').click()
+    expect(panel.locator('.clinical-filter-chip')).to_have_count(0)
+    expect(panel.locator('[data-value-index="0"]')).to_be_visible()
+    panel.locator('[data-value-index="0"]').click()
+    expect(panel.locator('.clinical-filter-chip')).to_contain_text('Category A')
+    assert len(applications) == 1
 
 
 def test_failed_workspace_switch_preserves_applied_scope_and_draft(page):

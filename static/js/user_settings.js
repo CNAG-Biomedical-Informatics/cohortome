@@ -1,3 +1,4 @@
+import {createAuthSummaryView,createSettingsPreferences,createSettingsNavigation,createExportSettingsView,createAboutSettingsView} from './react/ui.js';
 import { fallbackCopyText } from "./shared.js";
 import { createResourceStorage } from './resource_storage.js';
 import { createLocalAgentsUi } from './local_agents.js';
@@ -77,59 +78,57 @@ export function createUserSettingsUi(ctx) {
   const exportPanel = document.getElementById("exportLimitsSettings");
   const resourceStorage = createResourceStorage();
   const localAgents = createLocalAgentsUi({state});
-  const exportStatus = document.getElementById("exportLimitsStatus");
-  const exportInputs = {
-    source_mib: document.getElementById("exportSourceMib"),
-    total_source_mib: document.getElementById("exportTotalMib"),
-    output_mib: document.getElementById("exportOutputMib"),
-  };
-  function fillExportLimits(values) {
-    for (const [key, input] of Object.entries(exportInputs)) input.value = values[key];
+  const exportView=createExportSettingsView(exportPanel);
+  let exportValues={}, exportStatus='', exportBusy=false;
+  function renderExportLimits() {
+    exportView.render({values:exportValues,status:exportStatus,busy:exportBusy,
+      onChange:(key,value)=>{exportValues={...exportValues,[key]:value};renderExportLimits();},
+      onSave:saveExportLimits,onDefaults:()=>{
+        exportValues={source_mib:512,total_source_mib:1024,output_mib:256};
+        exportStatus='Defaults selected. Save export limits to apply.';renderExportLimits();
+      }});
   }
   async function loadExportLimits() {
     if (!exportPanel) return;
-    exportPanel.hidden = true;
+    exportPanel.hidden=true;
     try {
-      const response = await fetch("/export-settings");
-      if (response.status === 401 || response.status === 403) return;
-      exportPanel.hidden = false;
-      if (!response.ok) throw new Error("Export limits could not be loaded. Use defaults and save to recover.");
-      fillExportLimits(await response.json());
-      exportStatus.textContent = "";
-    } catch (error) { exportStatus.textContent = error.message; }
+      const response=await fetch('/export-settings');
+      if(response.status===401 || response.status===403)return;
+      exportPanel.hidden=false;
+      if(!response.ok)throw new Error('Export limits could not be loaded. Use defaults and save to recover.');
+      exportValues=await response.json();exportStatus='';
+    } catch(error){exportStatus=error.message;}
+    finally {renderExportLimits();}
   }
-  document.getElementById("exportLimitsDefaults")?.addEventListener("click", () => {
-    fillExportLimits({source_mib:512, total_source_mib:1024, output_mib:256});
-    exportStatus.textContent = "Defaults selected. Save export limits to apply.";
-  });
-  document.getElementById("exportLimitsSave")?.addEventListener("click", async event => {
-    const inputs = Object.values(exportInputs);
-    if (!inputs.every(input => input.reportValidity() && input.value !== "")) {
-      exportStatus.textContent = "Enter a whole number within each field’s limits.";
-      return;
+  async function saveExportLimits() {
+    if(exportBusy)return;
+    if(![...exportPanel.querySelectorAll('input')].every(input=>input.reportValidity() && input.value!=='')) {
+      exportStatus='Enter a whole number within each field’s limits.';renderExportLimits();return;
     }
-    event.target.disabled = true;
-    exportStatus.textContent = "Saving…";
+    exportBusy=true;exportStatus='Saving…';renderExportLimits();
     try {
-      const response = await fetch("/export-settings", {method:"PUT", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(Object.fromEntries(Object.entries(exportInputs).map(([key, input]) => [key, Number(input.value)])))});
-      const payload = await response.json();
-      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail
-        : "Check the limits. Combined source size must be at least the per-file size.");
-      fillExportLimits(payload);
-      exportStatus.textContent = "Export limits saved. New exports use these values; no restart needed.";
-    } catch (error) { exportStatus.textContent = error.message; }
-    finally { event.target.disabled = false; }
-  });
+      const response=await fetch('/export-settings',{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(Object.fromEntries(Object.entries(exportValues).map(([key,value])=>[key,Number(value)])))});
+      const payload=await response.json();
+      if(!response.ok)throw new Error(typeof payload.detail==='string' ? payload.detail : 'Check the limits. Combined source size must be at least the per-file size.');
+      exportValues=payload;exportStatus='Export limits saved. New exports use these values; no restart needed.';
+    } catch(error){exportStatus=error.message;}
+    finally {exportBusy=false;renderExportLimits();}
+  }
+  renderExportLimits();
   const about = document.getElementById("settingsAbout");
-  const report = document.getElementById("aboutVersionReport");
-  const copy = document.getElementById("aboutCopyReport");
+  const aboutView=createAboutSettingsView(about);
+  let report='Open to load versions.', copyStatus='';
   let aboutLoaded = false;
   let aboutLoading = false;
+  function renderAbout() {
+    aboutView.render({report,status:copyStatus,ready:aboutLoaded,onCopy:copyAbout});
+  }
+  renderAbout();
   about?.addEventListener("toggle", async () => {
     if (!about.open || aboutLoaded || aboutLoading) return;
     aboutLoading = true;
-    report.textContent = "Detecting installed versions…";
+    report = "Detecting installed versions…";renderAbout();
     try {
       const response = await fetch("/about");
       if (!response.ok) throw new Error();
@@ -138,24 +137,23 @@ export function createUserSettingsUi(ctx) {
       for (const [label, version] of [["Plotly (browser)", window.Plotly?.version], ["Cytoscape (browser)", window.cytoscape?.version]]) {
         if (version) rows.push([label, version]);
       }
-      report.textContent = rows.map(([name, version]) => `${name}: ${version}`).join("\n") + `\n\n${payload.note}`;
+      report = rows.map(([name, version]) => `${name}: ${version}`).join("\n") + `\n\n${payload.note}`;
       aboutLoaded = true;
-      copy.disabled = false;
     } catch (_) {
-      report.textContent = "Unable to load versions. Close and reopen About to retry.";
-    } finally { aboutLoading = false; }
+      report = "Unable to load versions. Close and reopen About to retry.";
+    } finally { aboutLoading = false;renderAbout(); }
   });
-  copy?.addEventListener("click", async () => {
-    const status = document.getElementById("aboutCopyStatus");
+  async function copyAbout() {
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(report.textContent);
+        await navigator.clipboard.writeText(report);
       } else {
-        if (!fallbackCopyText(report.textContent)) throw new Error();
+        if (!fallbackCopyText(report)) throw new Error();
       }
-      status.textContent = "Copied.";
-    } catch (_) { status.textContent = "Select the report text and copy it manually."; }
-  });
+      copyStatus = "Copied.";
+    } catch (_) { copyStatus = "Select the report text and copy it manually."; }
+    renderAbout();
+  }
   const {
     userSettingsBtnEl,
     userSettingsPanelEl,
@@ -163,23 +161,6 @@ export function createUserSettingsUi(ctx) {
     userSettingsStatusEl,
     userSettingsSaveBtnEl,
     userSettingsResetBtnEl,
-    settingsLandingTabModeEl,
-    settingsAppearanceEl,
-    settingsLandingTabEl,
-    settingsQueryDisclosureEl,
-    settingsQueryDefaultModeEl,
-    settingsRunRetentionEl,
-    settingsAnalysisAutoOpenJobsEl,
-    settingsLatestQueryDetailsEl,
-    settingsPhenoDefaultMetricEl,
-    settingsLlmProviderEl,
-    settingsPhenoAdvancedOpenEl,
-    settingsPhenoRenderHeatmapEl,
-    settingsPhenoRenderMdsEl,
-    settingsPhenoRenderUmapEl,
-    settingsPhenoRenderGraphEl,
-    settingsDashboardAssaysOpenEl,
-    settingsDatasetCompactViewEl,
     userDeleteChatsBtnEl,
     userDeleteJobsBtnEl,
     userDeleteCohortsBtnEl,
@@ -190,6 +171,11 @@ export function createUserSettingsUi(ctx) {
     phenoRenderGraphEl,
     queryLatestDetailsEl,
   } = refs;
+  const authSummaryView=createAuthSummaryView(userSettingsAuthSummaryEl);
+  const preferencesView=createSettingsPreferences(userSettingsPanelEl);
+  let preferenceDraft=normalizeUserSettings(state.userSettings);
+  const settingsNavigation=createSettingsNavigation(userSettingsPanelEl.querySelector('.user-settings-nav'));
+  let selectedSection='general';
   const {
     effectiveQueryGranularityCeiling,
     renderQueryExecutionMode,
@@ -206,20 +192,15 @@ export function createUserSettingsUi(ctx) {
     userSettingsStatusEl.textContent = message;
   }
 
-  userSettingsPanelEl.addEventListener("click", event => {
-    const button = event.target.closest("[data-settings-section]");
-    if (!button) return;
-    const section = button.dataset.settingsSection;
-    if (button.classList.contains("is-hidden")) return;
+  function selectSettingsSection(section) {
+    selectedSection=section;
     userSettingsPanelEl.querySelectorAll("[data-settings-page]").forEach(page => {
       page.hidden = page.dataset.settingsPage !== section;
     });
-    userSettingsPanelEl.querySelectorAll("[data-settings-section]").forEach(item => {
-      if (item === button) item.setAttribute("aria-current", "page");
-      else item.removeAttribute("aria-current");
-    });
+    settingsNavigation.render(selectedSection,selectSettingsSection);
     userSettingsPanelEl.querySelector(".user-settings-content").scrollTop = 0;
-  });
+  }
+  settingsNavigation.render(selectedSection,selectSettingsSection);
   function updateDirtyStatus() {
     const dirty = JSON.stringify(formSettings()) !== JSON.stringify(normalizeUserSettings(state.userSettings));
     document.getElementById("userSettingsDirty").textContent = dirty ? "Unsaved changes" : "";
@@ -278,90 +259,28 @@ export function createUserSettingsUi(ctx) {
       ["Role", user.role || "user"],
       ["Groups", groups],
     ];
-    userSettingsAuthSummaryEl.innerHTML = `
-      <strong>Authentication</strong>
-      <div class="user-settings-auth-grid">
-        ${rows.map(([label, value]) => `
-          <div class="user-settings-auth-label">${label}</div>
-          <div class="user-settings-auth-value">${String(value).replace(/</g, "&lt;")}</div>
-        `).join("")}
-      </div>
-      <div class="section-note">Dataset access is managed by COHORTome roles and groups.</div>
-    `;
+    authSummaryView.render(rows);
+  }
+
+  function renderPreferences() {
+    const available=Array.isArray(state.lmStatus?.providers) ? state.lmStatus.providers : [];
+    const providers=available.length ? available : [{id:'system-default',label:'System default',enabled:true}];
+    preferencesView.render(preferenceDraft,providers,(key,value)=>{
+      preferenceDraft={...preferenceDraft,[key]:value};
+      renderPreferences();
+      updateDirtyStatus();
+    });
   }
 
   function renderUserSettingsForm() {
-    const settings = normalizeUserSettings(state.userSettings);
-    renderLlmProviderOptions(settings.llm_provider_id);
-    if (settingsAppearanceEl) settingsAppearanceEl.value = settings.appearance;
-    for (const key of ["plot_palette", "heatmap_palette", "diverging_palette"]) {
-      document.getElementById(`settings_${key}`).value = settings[key];
-      window.CohortomeTheme.palettePreview(key, settings[key]);
-      document.getElementById(`settings_${key}`).onchange = event => window.CohortomeTheme.palettePreview(key, event.target.value);
-    }
-    if (settingsLandingTabModeEl) settingsLandingTabModeEl.value = settings.landing_tab_mode;
-    if (settingsLandingTabEl) settingsLandingTabEl.value = settings.landing_tab;
-    if (settingsQueryDisclosureEl) settingsQueryDisclosureEl.value = settings.query_disclosure_default;
-    if (settingsQueryDefaultModeEl) settingsQueryDefaultModeEl.value = settings.query_default_mode;
-    if (settingsRunRetentionEl) settingsRunRetentionEl.value = String(settings.run_history_retention_days);
-    if (settingsAnalysisAutoOpenJobsEl) settingsAnalysisAutoOpenJobsEl.checked = settings.analysis_auto_open_jobs;
-    document.getElementById("settingsJobNotifications").checked = settings.job_notifications;
-    if (settingsLatestQueryDetailsEl) settingsLatestQueryDetailsEl.checked = settings.latest_query_details;
-    if (settingsPhenoDefaultMetricEl) settingsPhenoDefaultMetricEl.value = settings.pheno_default_metric;
-    if (settingsLlmProviderEl) settingsLlmProviderEl.value = settings.llm_provider_id;
-    if (settingsPhenoAdvancedOpenEl) settingsPhenoAdvancedOpenEl.checked = settings.pheno_advanced_open;
-    if (settingsPhenoRenderHeatmapEl) settingsPhenoRenderHeatmapEl.checked = settings.pheno_render_heatmap;
-    if (settingsPhenoRenderMdsEl) settingsPhenoRenderMdsEl.checked = settings.pheno_render_mds;
-    if (settingsPhenoRenderUmapEl) settingsPhenoRenderUmapEl.checked = settings.pheno_render_umap;
-    if (settingsPhenoRenderGraphEl) settingsPhenoRenderGraphEl.checked = settings.pheno_render_graph;
-    if (settingsDashboardAssaysOpenEl) settingsDashboardAssaysOpenEl.checked = settings.dashboard_assays_open;
-    if (settingsDatasetCompactViewEl) settingsDatasetCompactViewEl.checked = settings.dataset_compact_view;
+    preferenceDraft=normalizeUserSettings(state.userSettings);
+    renderPreferences();
     renderAuthSummary();
     updateDirtyStatus();
   }
 
-  function renderLlmProviderOptions(selectedProviderId) {
-    if (!settingsLlmProviderEl) return;
-    const providers = Array.isArray(state.lmStatus && state.lmStatus.providers) ? state.lmStatus.providers : [];
-    const options = providers.length ? providers : [{ id: "system-default", label: "System default", model: "", enabled: true }];
-    settingsLlmProviderEl.innerHTML = options.map((provider) => {
-      const id = String(provider.id || "");
-      const label = String(provider.label || id || "Provider");
-      const model = String(provider.model || "").trim();
-      const enabled = provider.enabled !== false;
-      const dataBoundary = String(provider.data_boundary || "external").trim().toLowerCase() === "local" ? "local" : "external";
-      const text = `${label} (${dataBoundary})${model ? ` - ${model}` : ""}${enabled ? "" : " (disabled)"}`;
-      return `<option value="${id.replace(/"/g, "&quot;")}"${id === selectedProviderId ? " selected" : ""}>${text.replace(/</g, "&lt;")}</option>`;
-    }).join("");
-    if (selectedProviderId && !options.some((provider) => String(provider.id || "") === selectedProviderId)) {
-      settingsLlmProviderEl.insertAdjacentHTML("beforeend", `<option value="${selectedProviderId.replace(/"/g, "&quot;")}" selected>${selectedProviderId} (unavailable)</option>`);
-    }
-  }
-
   function formSettings() {
-    return normalizeUserSettings({
-      plot_palette: document.getElementById("settings_plot_palette").value,
-      heatmap_palette: document.getElementById("settings_heatmap_palette").value,
-      diverging_palette: document.getElementById("settings_diverging_palette").value,
-      landing_tab_mode: settingsLandingTabModeEl ? settingsLandingTabModeEl.value : DEFAULT_USER_SETTINGS.landing_tab_mode,
-      appearance: settingsAppearanceEl ? settingsAppearanceEl.value : "light",
-      landing_tab: settingsLandingTabEl ? settingsLandingTabEl.value : DEFAULT_USER_SETTINGS.landing_tab,
-      query_disclosure_default: settingsQueryDisclosureEl ? settingsQueryDisclosureEl.value : DEFAULT_USER_SETTINGS.query_disclosure_default,
-      query_default_mode: settingsQueryDefaultModeEl ? settingsQueryDefaultModeEl.value : DEFAULT_USER_SETTINGS.query_default_mode,
-      run_history_retention_days: settingsRunRetentionEl ? Number(settingsRunRetentionEl.value) : DEFAULT_USER_SETTINGS.run_history_retention_days,
-      analysis_auto_open_jobs: settingsAnalysisAutoOpenJobsEl ? settingsAnalysisAutoOpenJobsEl.checked : DEFAULT_USER_SETTINGS.analysis_auto_open_jobs,
-      job_notifications: document.getElementById("settingsJobNotifications").checked,
-      latest_query_details: settingsLatestQueryDetailsEl ? settingsLatestQueryDetailsEl.checked : DEFAULT_USER_SETTINGS.latest_query_details,
-      pheno_default_metric: settingsPhenoDefaultMetricEl ? settingsPhenoDefaultMetricEl.value : DEFAULT_USER_SETTINGS.pheno_default_metric,
-      llm_provider_id: settingsLlmProviderEl ? settingsLlmProviderEl.value : DEFAULT_USER_SETTINGS.llm_provider_id,
-      pheno_advanced_open: settingsPhenoAdvancedOpenEl ? settingsPhenoAdvancedOpenEl.checked : DEFAULT_USER_SETTINGS.pheno_advanced_open,
-      pheno_render_heatmap: settingsPhenoRenderHeatmapEl ? settingsPhenoRenderHeatmapEl.checked : DEFAULT_USER_SETTINGS.pheno_render_heatmap,
-      pheno_render_mds: settingsPhenoRenderMdsEl ? settingsPhenoRenderMdsEl.checked : DEFAULT_USER_SETTINGS.pheno_render_mds,
-      pheno_render_umap: Boolean(settingsPhenoRenderUmapEl?.checked),
-      pheno_render_graph: settingsPhenoRenderGraphEl ? settingsPhenoRenderGraphEl.checked : DEFAULT_USER_SETTINGS.pheno_render_graph,
-      dashboard_assays_open: settingsDashboardAssaysOpenEl ? settingsDashboardAssaysOpenEl.checked : DEFAULT_USER_SETTINGS.dashboard_assays_open,
-      dataset_compact_view: settingsDatasetCompactViewEl ? settingsDatasetCompactViewEl.checked : DEFAULT_USER_SETTINGS.dataset_compact_view,
-    });
+    return normalizeUserSettings(preferenceDraft);
   }
 
   function applyUserSettings(options = {}) {

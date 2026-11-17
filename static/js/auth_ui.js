@@ -164,6 +164,7 @@ export function createAuthUi(ctx) {
     const oidcMode = mode === "oidc";
     const localLoginEnabled = Boolean(state.authState && state.authState.localLoginEnabled);
     const showLocalLogin = !oidcMode || localLoginEnabled;
+    authUsernameEl?.closest('.auth-gate-form')?.classList.toggle('is-hidden', !showLocalLogin);
     authOidcFormEl && authOidcFormEl.classList.toggle("is-hidden", !oidcMode);
     if (authOidcLoginLabelEl) {
       authOidcLoginLabelEl.textContent = `Sign in with ${provider}`;

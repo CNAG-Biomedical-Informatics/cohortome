@@ -1,9 +1,24 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export function ScopeBar({scopeUi, className}) {
-  const host = useRef(null);
-  useLayoutEffect(() => scopeUi.mount(host.current), [scopeUi]);
-  return <div ref={host} className={className}/>;
+  const snapshot = useSyncExternalStore(scopeUi.subscribe, scopeUi.getSnapshot);
+  const {chips, scopeLabel, dirty, busy, hasValidation, canApply} = snapshot;
+  const issue = snapshot.error || snapshot.validation;
+  return <div className={['cohort-scope-bar', className].filter(Boolean).join(' ')}>
+    <div className="cohort-scope-filters" aria-label="Shared draft filters">
+      {chips.length ? chips.map(chip => <button key={`${chip.field}:${chip.index ?? ''}`} type="button" className="query-chip"
+        data-scope-field={chip.field} data-scope-index={chip.index} aria-label={`Remove filter: ${chip.label}`}
+        onClick={() => scopeUi.removeFilter(chip)}>{chip.label} <span aria-hidden="true">×</span></button>)
+        : <span className="section-note">No filters</span>}
+    </div>
+    <div className="cohort-scope-actions"><span className="cohort-scope-state">{scopeLabel}</span>
+      <span className="cohort-scope-pending" hidden={!dirty}>Unapplied changes</span>
+      <button type="button" className="primary-btn" data-scope-apply="" disabled={!canApply} onClick={() => void scopeUi.apply()}>{busy ? 'Applying…' : 'Apply to scope'}</button>
+      <button type="button" className="query-chip" data-scope-discard="" hidden={!dirty && !hasValidation} disabled={busy} onClick={scopeUi.discard}>Discard changes</button>
+      <button type="button" className="query-chip" data-scope-clear="" hidden={!chips.length} onClick={scopeUi.clearDraft}>Clear filters</button>
+    </div>
+    <p className="cohort-scope-message" role="status" hidden={!issue}>{issue}</p>
+  </div>;
 }
 
 export function SaveIcon() {

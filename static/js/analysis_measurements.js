@@ -1,15 +1,13 @@
+import {createMeasurementView} from './react/ui.js';
 // Clinical inputs share the runners' scope and date rules; no LLM is needed.
 export function createMeasurementSelector({ host, state, getContext, onChange, escapeHtml }) {
   const panel = document.createElement("div");
   panel.hidden = true;
-  panel.innerHTML = '<label for="analysisMeasurement">Clinical measurement</label><select id="analysisMeasurement"><option value="">Choose a measurement…</option></select><p class="section-note" aria-live="polite"></p>';
   host.appendChild(panel);
-  const select = panel.querySelector("select");
-  const note = panel.querySelector("p");
   let key = "", options = [], loading = false, error = "";
   let minimumDatedPatients = 1;
-  select.addEventListener("change", () => {
-    state.analysisMeasurement = select.value;
+  const view=createMeasurementView(panel,value=>{
+    state.analysisMeasurement = value;
     onChange();
   });
   function status() {
@@ -40,10 +38,7 @@ export function createMeasurementSelector({ host, state, getContext, onChange, e
         }).catch((exc) => { if (key === nextKey) error = exc.message || "Cannot check measurements."; })
         .finally(() => { if (key === nextKey) { loading = false; onChange(false); } });
     }
-    select.innerHTML = '<option value="">Choose a measurement…</option>' + options.map((entry) => `<option value="${escapeHtml(entry.measure)}">${escapeHtml(entry.measure)}${entry.units.filter(Boolean).length ? ` (${escapeHtml(entry.units.filter(Boolean).join(" / "))})` : ""}</option>`).join("");
-    select.value = state.analysisMeasurement || "";
-    select.disabled = loading;
-    note.textContent = status().detail;
+    view.render({options,value:state.analysisMeasurement || "",loading,detail:status().detail});
   }
   return { render, status };
 }

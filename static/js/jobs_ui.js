@@ -1,5 +1,7 @@
+import {createJobsView} from './react/ui.js';
+
 export function createJobsUi(ctx) {
-  const { refs, state, helpers, callbacks } = ctx;
+  const { refs, state, callbacks } = ctx;
   window.addEventListener('cohortome:mcp-run', () => {
     void loadRecentJobs({silent:true});
     void loadRunHistory({silent:true});
@@ -53,7 +55,8 @@ export function createJobsUi(ctx) {
     analysisStatusEl,
     dataDirEl,
   } = refs;
-  const { escapeHtml } = helpers;
+  const jobsView = jobsDrawerListEl ? createJobsView(jobsDrawerListEl) : null;
+  const historyView = runHistoryDrawerListEl ? createJobsView(runHistoryDrawerListEl) : null;
   const {
     currentAnalysisSessionId,
     currentDatasetScopeId,
@@ -153,13 +156,6 @@ export function createJobsUi(ctx) {
     runHistoryDrawerCountEl.classList.toggle("is-hidden", count === 0);
   }
 
-  function renderJobStatusChip(item) {
-    const status = String(item && item.status ? item.status : "queued").trim();
-    const css = ["queued", "running", "completed", "failed", "cancelled"].includes(status)
-      ? `is-${status}`
-      : "";
-    return `<span class="job-status-chip ${css}">${escapeHtml(status)}</span>`;
-  }
 
   function renderBackgroundWorkerStatus() {
     const targets = [jobsWorkerStatusEl, runHistoryWorkerStatusEl].filter(Boolean);
@@ -193,157 +189,6 @@ export function createJobsUi(ctx) {
     });
   }
 
-  function renderExecutionChip(item, surface) {
-    if (String(surface || "") !== "run-history") {
-      return "";
-    }
-    const backend = String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase();
-    const hasQueueId = Boolean(String(item && item.rq_job_id ? item.rq_job_id : "").trim());
-    const isBackground = backend === "job" || hasQueueId;
-    const label = isBackground ? "Background" : "Direct";
-    const css = isBackground ? "is-background" : "is-direct";
-    return `<span class="job-execution-chip ${css}">${label}</span>`;
-  }
-
-  function renderJobGroup(title, items, options = {}) {
-    if (!Array.isArray(items) || !items.length) return "";
-    return `<section class="job-group"><div class="job-group-title">${escapeHtml(title)}</div><div class="job-group-list">${items.map((item) => renderJobCard(item, options)).join("")}</div></section>`;
-  }
-
-  function actionIcon(name) {
-    if (name === "open") {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14 3h7v7"></path>
-          <path d="M10 14 21 3"></path>
-          <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path>
-        </svg>
-      `;
-    }
-    if (name === "pheno") {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M7 7h10v10H7z"></path>
-          <path d="M4 12h3"></path>
-          <path d="M17 12h3"></path>
-          <path d="M12 4v3"></path>
-          <path d="M12 17v3"></path>
-          <path d="M9 10h6"></path>
-          <path d="M9 14h6"></path>
-        </svg>
-      `;
-    }
-    return `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3 6h18"></path>
-        <path d="M8 6V4h8v2"></path>
-        <path d="M19 6l-1 14H6L5 6"></path>
-        <path d="M10 11v5"></path>
-        <path d="M14 11v5"></path>
-      </svg>
-    `;
-  }
-
-  function renderIconAction({ attribute, value, label, icon, tone = "" }) {
-    const classes = ["job-card-action-icon"];
-    if (tone) classes.push(tone);
-    return `<button type="button" class="${classes.join(" ")}" ${attribute}="${escapeHtml(value || "")}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${actionIcon(icon)}</button>`;
-  }
-
-  function formatJobDuration(item) {
-    const started = String(item && item.started_at ? item.started_at : "").trim();
-    const completed = String(item && item.completed_at ? item.completed_at : "").trim();
-    if (!started || !completed) {
-      return "";
-    }
-    const startMs = Date.parse(started);
-    const endMs = Date.parse(completed);
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      return "";
-    }
-    const totalSeconds = Math.max(1, Math.round((endMs - startMs) / 1000));
-    if (totalSeconds < 60) {
-      return `${totalSeconds}s`;
-    }
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-      return seconds > 0
-        ? `${hours}h ${minutes}m ${seconds}s`
-        : `${hours}h ${minutes}m`;
-    }
-    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-  }
-
-  function renderJobCard(item, options = {}) {
-    const surface = String(options.surface || "jobs").trim();
-    const submitted = String(item && item.submitted_at ? item.submitted_at : "").trim();
-    const duration = formatJobDuration(item);
-    const artifacts = Array.isArray(item && item.artifacts) ? item.artifacts : [];
-    const prompt = String(item && item.prompt ? item.prompt : "").trim();
-    const datasetId = String(item && item.dataset_id ? item.dataset_id : "").trim();
-    const assayDatasetName = String(item && item.assay_id ? item.assay_id : "").trim();
-    const sessionTitle = String(item && item.analysis_session_title ? item.analysis_session_title : "").trim();
-    const metaBits = [];
-    if (item && item.job_code) metaBits.push(String(item.job_code));
-    if (datasetId) metaBits.push(`dataset ${datasetId}`);
-    if (assayDatasetName) metaBits.push(`assay ${assayDatasetName}`);
-    if (sessionTitle) metaBits.push(sessionTitle);
-    const actions = [];
-    const feature = String(item && item.feature ? item.feature : "").trim();
-    const workspaceMatches = String(currentDatasetScopeId ? currentDatasetScopeId() : "").trim() === String(item && item.dataset_id ? item.dataset_id : "").trim();
-    if (item && item.result_available && feature === "analysis") {
-      actions.push(renderIconAction({ attribute: "data-job-open-result", value: item.job_id || "", label: "Open result", icon: "open", tone: "action" }));
-    } else if (item && item.result_available && feature === "pheno" && workspaceMatches) {
-      actions.push(renderIconAction({ attribute: "data-job-open-pheno", value: item.job_id || "", label: "Open in Pheno-Ranker", icon: "pheno", tone: "action" }));
-    }
-    if (item && ["completed", "failed", "cancelled"].includes(String(item.status || "").trim())) {
-      const attribute = surface === "run-history" ? "data-run-history-delete" : "data-job-delete";
-      actions.push(renderIconAction({ attribute, value: item.job_id || "", label: "Delete generated run", icon: "delete", tone: "danger" }));
-    }
-    const artifactLinks = artifacts.map((artifact) => {
-      const url = String(artifact && artifact.url ? artifact.url : "").trim();
-      const name = String(artifact && artifact.name ? artifact.name : "").trim();
-      if (!url || !name) return "";
-      return `<a class="query-chip" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`;
-    }).filter(Boolean);
-    const artifactsHtml = artifactLinks.length
-      ? `
-        <details class="job-card-artifacts">
-          <summary>Result files</summary>
-          <div class="job-card-artifact-links">${artifactLinks.join("")}</div>
-        </details>
-      `
-      : "";
-    return `
-      <article class="job-card">
-        <div class="job-card-topline">
-          <div class="job-card-badges">
-            ${renderJobStatusChip(item)}
-            ${renderExecutionChip(item, surface)}
-          </div>
-          <span class="job-card-time">${escapeHtml(submitted || "Submitted just now")}${duration ? ` · ${escapeHtml(duration)}` : ""}</span>
-        </div>
-        <div class="job-card-header">
-          <div class="job-card-title">
-            <strong>${escapeHtml(String(item && item.name ? item.name : "Generated run"))}</strong>
-            <div class="job-card-subtitle">${escapeHtml(metaBits.join(" · "))}</div>
-          </div>
-        </div>
-        ${prompt ? `<div class="job-card-prompt">${escapeHtml(prompt)}</div>` : ""}
-        ${item && item.reply_preview ? `<div class="job-card-preview">${escapeHtml(String(item.reply_preview))}</div>` : ""}
-        ${(item && item.result_available && feature === "pheno" && !workspaceMatches) ? `<div class="job-card-preview">Load the original workspace to reopen this Pheno-Ranker run.</div>` : ""}
-        ${item && item.error ? `<div class="job-card-error">${escapeHtml(String(item.error))}</div>` : ""}
-        ${(actions.length || artifactLinks.length) ? `
-          <div class="job-card-footer">
-            ${actions.length ? `<div class="job-card-actions">${actions.join("")}</div>` : ""}
-            ${artifactsHtml}
-          </div>
-        ` : ""}
-      </article>
-    `;
-  }
 
   function renderJobsDrawer() {
     renderJobsButton();
@@ -352,12 +197,12 @@ export function createJobsUi(ctx) {
       return;
     }
     if (!state.authState || !state.authState.authenticated) {
-      jobsDrawerListEl.innerHTML = '<div class="empty">Sign in to view the queue.</div>';
+      jobsView.render({message:'Sign in to view the queue.'});
       if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "Queue unavailable.";
       return;
     }
     if (!Array.isArray(state.recentJobs) || !state.recentJobs.length) {
-      jobsDrawerListEl.innerHTML = '<div class="empty">No queued or background runs.</div>';
+      jobsView.render({message:'No queued or background runs.'});
       if (jobsDrawerStatusEl) jobsDrawerStatusEl.textContent = "No queued or background runs.";
       return;
     }
@@ -369,10 +214,7 @@ export function createJobsUi(ctx) {
     }
     const activeItems = state.recentJobs.filter((item) => ["queued", "running"].includes(String(item && item.status ? item.status : "")));
     const doneItems = state.recentJobs.filter((item) => !["queued", "running"].includes(String(item && item.status ? item.status : "")));
-    jobsDrawerListEl.innerHTML = [
-      renderJobGroup("Active", activeItems, { surface: "jobs" }),
-      renderJobGroup("Recent", doneItems, { surface: "jobs" }),
-    ].filter(Boolean).join("");
+    jobsView.render({groups:[{title:'Active',items:activeItems},{title:'Recent',items:doneItems}],workspace:currentDatasetScopeId?.()});
   }
 
   function renderRunHistoryDrawer() {
@@ -382,7 +224,7 @@ export function createJobsUi(ctx) {
       return;
     }
     if (!state.authState || !state.authState.authenticated) {
-      runHistoryDrawerListEl.innerHTML = '<div class="empty">Sign in to view run history.</div>';
+      historyView.render({message:'Sign in to view run history.'});
       if (runHistoryDrawerStatusEl) runHistoryDrawerStatusEl.textContent = "Run history unavailable.";
       if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = true;
       return;
@@ -391,7 +233,7 @@ export function createJobsUi(ctx) {
     const terminal = terminalRunCount();
     if (runHistoryDeleteAllBtnEl) runHistoryDeleteAllBtnEl.disabled = terminal === 0;
     if (!items.length) {
-      runHistoryDrawerListEl.innerHTML = '<div class="empty">No generated runs yet.</div>';
+      historyView.render({message:'No generated runs yet.'});
       if (runHistoryDrawerStatusEl) runHistoryDrawerStatusEl.textContent = "No generated runs yet.";
       return;
     }
@@ -401,10 +243,7 @@ export function createJobsUi(ctx) {
       const activeCopy = activeItems.length ? ` ${activeItems.length} active run${activeItems.length === 1 ? "" : "s"} kept until finished.` : "";
       runHistoryDrawerStatusEl.textContent = `${items.length} generated run${items.length === 1 ? "" : "s"}.${activeCopy}`;
     }
-    runHistoryDrawerListEl.innerHTML = [
-      renderJobGroup("Active", activeItems, { surface: "run-history" }),
-      renderJobGroup("Completed", doneItems, { surface: "run-history" }),
-    ].filter(Boolean).join("");
+    historyView.render({groups:[{title:'Active',items:activeItems},{title:'Completed',items:doneItems}],surface:'run-history',workspace:currentDatasetScopeId?.()});
   }
 
   function scheduleJobsPolling() {
@@ -762,10 +601,7 @@ export function createJobsUi(ctx) {
     terminalRunCount,
     renderJobsButton,
     renderRunHistoryButton,
-    renderJobStatusChip,
     renderBackgroundWorkerStatus,
-    renderJobGroup,
-    renderJobCard,
     renderJobsDrawer,
     renderRunHistoryDrawer,
     scheduleJobsPolling,

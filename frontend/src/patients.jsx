@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { useLayoutEffect, useRef } from 'react';
+import { ClinicalFilters } from './clinical-filters.jsx';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
 
 const columns = [
@@ -36,17 +36,9 @@ function PatientTable({matches, sortBy, sortDirection, onSort, onChoose}) {
   </table>;
 }
 
-function ClinicalEditor({workspace, revision, mount}) {
-  const host = useRef(null);
-  useLayoutEffect(() => {
-    if (workspace) return mount(host.current, workspace);
-  }, [workspace, revision, mount]);
-  return <div ref={host} id="patientClinicalFilters" className="patient-clinical-filters" hidden={!workspace}/>;
-}
-
-function Patients({model, actions, scopeUi, mountClinical}) {
+function Patients({model, actions, scopeUi, isClinicalCurrent}) {
   const {matches, sortBy, sortDirection, draft, diseases, origins, showAllDiseases,
-    clinicalWorkspace, clinicalRevision, matchCount, status, saveStatus, saveLabel,
+    clinicalWorkspace, matchCount, status, saveStatus, saveLabel,
     loading, canSave, canNavigate, canNext, canPrevious, selectedPatient} = model;
   return <>
     <div className="patient-finder">
@@ -73,7 +65,9 @@ function Patients({model, actions, scopeUi, mountClinical}) {
           {origins.map(row => <option key={row.id} value={row.id}>{row.label} · {row.id} ({Number(row.patient_count)})</option>)}
         </select>
       </div>
-      <ClinicalEditor workspace={clinicalWorkspace} revision={clinicalRevision} mount={mountClinical}/>
+      <div id="patientClinicalFilters" className="patient-clinical-filters" hidden={!clinicalWorkspace}>
+        {clinicalWorkspace && <ClinicalFilters key={clinicalWorkspace} workspace={clinicalWorkspace} scopeUi={scopeUi} isCurrent={isClinicalCurrent}/>}
+      </div>
       <div className="patient-cohort-actions">
         <button id="patientSaveCohort" type="button" className="primary-btn coverage-save" disabled={!canSave} onClick={actions.save}>
           <SaveIcon/><span>{saveLabel}</span>
@@ -99,8 +93,7 @@ function Patients({model, actions, scopeUi, mountClinical}) {
   </>;
 }
 
-// Only the two shared widget hosts contain DOM managed outside React.
-export function createPatientsView({host, scopeUi, mountClinical, actions}) {
+export function createPatientsView({host, scopeUi, isClinicalCurrent, actions}) {
   const root = createRoot(host);
-  return {render:model => root.render(<Patients model={model} actions={actions} scopeUi={scopeUi} mountClinical={mountClinical}/>)};
+  return {render:model => root.render(<Patients model={model} actions={actions} scopeUi={scopeUi} isClinicalCurrent={isClinicalCurrent}/>)};
 }

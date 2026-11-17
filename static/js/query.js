@@ -1,5 +1,5 @@
-import { downloadFile, downloadStatus, chatCopyButton } from "./shared.js";
-import { decodeIdentity, displayIdentity } from "./identities.js";
+import { downloadFile, downloadStatus, activityState } from "./shared.js";
+import {createQueryThreadView, createQueryActionsView, createReplyView, createQueryShortcutsView} from './react/ui.js';
 import { openClinicalSummary } from './clinical_summary.js';
 
 export function createQueryUi(ctx) {
@@ -28,7 +28,7 @@ export function createQueryUi(ctx) {
     queryComposerTitleEl,
     queryThreadModeLabelEl,
   } = refs;
-  const { escapeHtml, renderActivityCard, fallbackCopyText } = helpers;
+  const { escapeHtml, fallbackCopyText } = helpers;
   const {
     renderQueryExecutionMode,
     startQueryProgressUpdates,
@@ -39,13 +39,17 @@ export function createQueryUi(ctx) {
     sendPatientIdsToAnalysis,
     sendPromptToAnalysis,
     currentPatientsProvider,
-    claridIdentityMarkup,
     phenoRankerPatientIdsProvider,
     isMultiDatasetWorkspace,
     setLatestQueryState,
     setLatestScopedContext,
   } = callbacks;
   const QUERY_RESULT_PAGE_SIZE = 50;
+  const threadView = queryThreadEl ? createQueryThreadView(queryThreadEl) : null;
+  const actionsView = queryActionsEl ? createQueryActionsView(queryActionsEl) : null;
+  const replyView=createReplyView(queryReplyEl);
+  const reasonView=createReplyView(queryReasonEl);
+  const diseaseShortcutsView=createQueryShortcutsView(queryDiseaseTopChipsEl);
   let diseaseOptions = [];
   let queryPromptLibraryOpen = true;
 
@@ -266,17 +270,7 @@ export function createQueryUi(ctx) {
   function renderTopDiseaseChips() {
     if (!queryDiseaseTopChipsEl) return;
     const currentPrompt = String(questionEl && questionEl.value ? questionEl.value : "").toLowerCase();
-    const topDiseases = diseaseOptions.slice(0, 8);
-    if (!topDiseases.length) {
-      queryDiseaseTopChipsEl.innerHTML = "";
-      return;
-    }
-    queryDiseaseTopChipsEl.innerHTML = topDiseases.map((item) => {
-      const disease = String(item.disease || "").trim();
-      const active = currentPrompt.includes(disease.toLowerCase()) ? " is-active-chip" : "";
-      const count = Number(item.patient_count || 0);
-      return `<button type="button" class="query-chip query-chip-deterministic${active}" data-query-disease-chip="${escapeHtml(disease)}">${escapeHtml(disease)} <span class="query-chip badge">${escapeHtml(String(count))}</span></button>`;
-    }).join("");
+    diseaseShortcutsView.render(diseaseOptions,currentPrompt);
   }
 
   async function loadDiseaseOptions() {
@@ -321,255 +315,10 @@ export function createQueryUi(ctx) {
     return state.userSettings && state.userSettings.query_default_mode === "planner_only" ? "planner_only" : "auto";
   }
 
-  function renderInlineCode(value) {
-    const parts = String(value).split("`");
-    return parts.map((part, index) => {
-      if (index % 2 === 1) {
-        return `<code>${escapeHtml(part)}</code>`;
-      }
-      return escapeHtml(part)
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    }).join("");
-  }
-
-  function renderQueryStructuredTable(payload, navigation = {}) {
-    const data = payload && payload.data ? payload.data : {};
-    if (!data || typeof data !== "object") {
-      return "";
-    }
-    const resultPage = queryResultPage(payload);
-    const actionContext = payload && payload.action_context && typeof payload.action_context === "object"
-      ? payload.action_context
-      : {};
-    const sampleLevel = String(actionContext.id_type || "patient") === "sample";
-    const resultRows = resultPage.rows.length
-      ? resultPage.rows
-      : sampleLevel
-        ? resultPage.sampleIds.map((sampleId) => ({ sample_id: sampleId }))
-        : resultPage.patientIds.map((patientId) => ({ patient_id: patientId }));
-    if (resultRows.length) {
-      const currentPatients = Array.isArray(currentPatientsProvider()) ? currentPatientsProvider() : [];
-      const provenanceByPatientId = new Map(currentPatients.map((item) => [
-        String(item.patient_id || ""),
-        Array.isArray(item.dataset_names) ? item.dataset_names : [],
-      ]));
-      const showDataset = resultRows.some((item) => decodeIdentity(item.patient_id || item.sample_id || item.record_id));
-      const patientsById = new Map(currentPatients.map((patient) => [String(patient.patient_id), patient]));
-      const patientsBySample = new Map();
-      currentPatients.forEach((patient) => (patient.original_record_ids || []).forEach((id) => {
-        const key = String(id);
-        // Ambiguous links must not attribute an identifier to the wrong subject.
-        patientsBySample.set(key, patientsBySample.has(key) ? null : patient);
-      }));
-      const claridCell = (item, index) => {
-        const patient = sampleLevel
-          ? patientsBySample.get(String(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))
-          : patientsById.get(String(item.patient_id || resultPage.patientIds[index] || ""));
-        return `<td>${(patient && claridIdentityMarkup?.(patient)) || '<span class="section-note">Not available</span>'}</td>`;
-      };
-      const rows = resultRows.slice(0, QUERY_RESULT_PAGE_SIZE).map((item, index) => sampleLevel ? `
-        <tr><td class="query-result-id-cell">${escapeHtml(displayIdentity(item.sample_id || item.record_id || resultPage.sampleIds[index] || ""))}</td>${claridCell(item, index)}</tr>
-      ` : `
-        <tr>
-          <td class="query-result-id-cell">${escapeHtml(displayIdentity(item.patient_id || resultPage.patientIds[index] || "", false))}</td>
-          ${claridCell(item, index)}
-          ${showDataset ? `<td>${escapeHtml(decodeIdentity(item.patient_id)?.datasetId || (provenanceByPatientId.get(String(item.patient_id || "")) || []).join(", ") || "n/a")}</td>` : ""}
-          <td>${escapeHtml(String(item.sex || ""))}</td>
-          <td>${escapeHtml(String(item.visit_count ?? ""))}</td>
-          <td>${escapeHtml(String(item.medication_count ?? ""))}</td>
-        </tr>
-      `).join("");
-      const startOffset = Math.max(0, Number(navigation.start || 0));
-      const pageCount = Math.max(resultRows.length, resultPage.returnedCount);
-      const start = pageCount ? startOffset + 1 : 0;
-      const end = Math.min(resultPage.totalCount || startOffset + pageCount, startOffset + pageCount);
-      const total = resultPage.totalCount || end;
-      const hasPrevious = Array.isArray(navigation.previous) && navigation.previous.length > 0;
-      const navigationError = String(navigation.error || "").trim();
-      const terminalResult = Boolean(navigation.terminal);
-      const loading = Boolean(navigation.loading);
-      const sortBy = String(navigation.sortBy || "");
-      const sortDirection = String(navigation.sortDirection || "asc");
-      const header = (key, label) => {
-        if (!resultPage.resultHandle || terminalResult) return `<th>${label}</th>`;
-        const selected = sortBy === key;
-        const indicator = selected ? (sortDirection === "asc" ? " ↑" : " ↓") : " ↕";
-        return `<th aria-sort="${selected ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" class="query-sort-button" data-query-sort="${key}" ${loading ? "disabled" : ""} title="Sort all results by ${label}">${label}${indicator}</button></th>`;
-      };
-      const paging = resultPage.resultHandle || terminalResult ? `
-        <div class="query-result-pagination" aria-live="polite">
-          <span class="query-result-range">Showing ${escapeHtml(String(start))}–${escapeHtml(String(end))} of ${escapeHtml(String(total))}</span>
-          <span class="query-result-boundary-note">${terminalResult ? "This bounded page remains visible, but the server-side result is no longer active." : "Only this page is kept in the browser."}</span>
-          <span class="query-result-page-actions">
-            ${resultPage.resultHandle && !terminalResult ? ["tsv", "csv", "json"].map((format) => `<button type="button" class="query-chip" data-query-export="${format}" data-query-export-handle="${escapeHtml(resultPage.resultHandle)}" data-query-export-sort="${escapeHtml(sortBy)}" data-query-export-direction="${escapeHtml(sortDirection)}" title="${format === "json" ? "Download metadata for this query result" : "Download all matching rows in the selected order, not just this page"}">${format === "json" ? "Metadata JSON" : `Export all · ${format.toUpperCase()}`}</button>`).join("") : ""}
-            ${resultPage.resultHandle && hasPrevious ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="previous" ${loading ? "disabled" : ""}>Previous</button>` : ""}
-            ${resultPage.resultHandle && resultPage.hasMore && resultPage.nextCursor ? `<button type="button" class="query-chip query-chip-deterministic" data-query-page-action="next" ${loading ? "disabled" : ""}>${loading ? "Loading…" : "Load more"}</button>` : ""}
-          </span>
-        </div>
-        ${navigationError ? `<div class="query-result-page-error" role="status">${escapeHtml(navigationError)}</div>` : ""}
-      ` : `<div class="section-note">Matching ${sampleLevel ? "samples" : "patients"} (${escapeHtml(String(total))}).</div>`;
-      return `
-        ${paging}
-        <div class="query-result-table-scroll">
-        <table class="query-result-table">
-          <thead>${sampleLevel
-            ? `<tr>${header("sample_id", "Sample")}${header("subject_clarid", "Subject ClarID")}</tr>`
-            : `<tr>${header("patient_id", "Patient")}${header("subject_clarid", "ClarID")}${showDataset ? header("dataset_names", "Dataset") : ""}${header("sex", "Sex")}${header("visit_count", "Visits")}${header("medication_count", "Medications")}</tr>`}</thead>
-          <tbody>${rows}</tbody>
-        </table>
-        </div>
-      `;
-    }
-    if (Array.isArray(data.medications) && data.medications.length) {
-      const rows = data.medications.slice(0, 100).map((item) => `
-        <tr>
-          <td>${escapeHtml(String(item.medication || ""))}</td>
-          <td>${escapeHtml(String(item.patient_count ?? ""))}</td>
-        </tr>
-      `).join("");
-      return `
-        <div class="section-note">Medication inventory (${data.medications.length}).</div>
-        <table>
-          <thead><tr><th>Medication</th><th>Patients</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
-    if (Array.isArray(data.diseases) && data.diseases.length) {
-      const rows = data.diseases.slice(0, 100).map((item) => `
-        <tr>
-          <td>${escapeHtml(String(item.disease || ""))}</td>
-          <td>${escapeHtml(String(item.patient_count ?? ""))}</td>
-        </tr>
-      `).join("");
-      return `
-        <div class="section-note">Disease inventory (${data.diseases.length}).</div>
-        <table>
-          <thead><tr><th>Disease</th><th>Patients</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
-    return "";
-  }
-
-  function renderQueryReply(payloadOrValue, navigation = {}) {
-    const value = typeof payloadOrValue === "object" && payloadOrValue ? queryDisplayReply(payloadOrValue) : payloadOrValue;
-    const lines = String(value || "").split("\r\n").join("\n").split("\n");
-    const blocks = [];
-    let paragraphLines = [];
-    let listItems = [];
-    let codeLines = [];
-    let tableLines = [];
-    let inCodeBlock = false;
-
-    function flushParagraph() {
-      if (!paragraphLines.length) return;
-      blocks.push(`<p>${paragraphLines.map((line) => renderInlineCode(line)).join("<br>")}</p>`);
-      paragraphLines = [];
-    }
-    function flushList() {
-      if (!listItems.length) return;
-      blocks.push(`<ul>${listItems.map((line) => `<li>${renderInlineCode(line)}</li>`).join("")}</ul>`);
-      listItems = [];
-    }
-    function flushCodeBlock() {
-      if (!codeLines.length) return;
-      blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
-      codeLines = [];
-    }
-    function isTableLine(line) {
-      return line.includes("|");
-    }
-    function isTableSeparatorLine(line) {
-      const cells = line.split("|").map((cell) => cell.trim()).filter(Boolean);
-      if (!cells.length) return false;
-      return cells.every((cell) => cell.length >= 3 && cell.split("-").join("").split(":").join("") === "");
-    }
-    function splitTableCells(line) {
-      let normalized = line.trim();
-      if (normalized.startsWith("|")) normalized = normalized.slice(1);
-      if (normalized.endsWith("|")) normalized = normalized.slice(0, -1);
-      return normalized.split("|").map((cell) => renderInlineCode(cell.trim()));
-    }
-    function flushTable() {
-      if (tableLines.length < 2) {
-        if (tableLines.length) paragraphLines = paragraphLines.concat(tableLines);
-        tableLines = [];
-        return;
-      }
-      const headerLine = tableLines[0];
-      const separatorLine = tableLines[1];
-      if (!isTableSeparatorLine(separatorLine)) {
-        paragraphLines = paragraphLines.concat(tableLines);
-        tableLines = [];
-        return;
-      }
-      const headers = splitTableCells(headerLine);
-      const rows = tableLines.slice(2).map(splitTableCells);
-      blocks.push(
-        `<table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead>` +
-        `<tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`
-      );
-      tableLines = [];
-    }
-
-    for (const rawLine of lines) {
-      const trimmed = rawLine.trim();
-      if (trimmed.startsWith("```")) {
-        flushParagraph(); flushList(); flushTable();
-        if (inCodeBlock) {
-          flushCodeBlock();
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-        }
-        continue;
-      }
-      if (inCodeBlock) {
-        codeLines.push(rawLine);
-        continue;
-      }
-      if (!trimmed) {
-        flushParagraph(); flushList(); flushTable();
-        continue;
-      }
-      if (isTableLine(trimmed)) {
-        flushParagraph(); flushList();
-        tableLines.push(trimmed);
-        continue;
-      }
-      flushTable();
-      if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        flushParagraph();
-        listItems.push(trimmed.slice(2));
-        continue;
-      }
-      if (trimmed.startsWith("### ")) {
-        flushParagraph(); flushList(); flushTable();
-        blocks.push(`<h4>${renderInlineCode(trimmed.slice(4))}</h4>`);
-        continue;
-      }
-      if (trimmed.startsWith("## ")) {
-        flushParagraph(); flushList(); flushTable();
-        blocks.push(`<h4>${renderInlineCode(trimmed.slice(3))}</h4>`);
-        continue;
-      }
-      if (trimmed.startsWith("# ")) {
-        flushParagraph(); flushList(); flushTable();
-        blocks.push(`<h4>${renderInlineCode(trimmed.slice(2))}</h4>`);
-        continue;
-      }
-      paragraphLines.push(trimmed);
-    }
-    flushParagraph();
-    flushList();
-    flushTable();
-    if (inCodeBlock) flushCodeBlock();
-    const textMarkup = blocks.join("") || "<p>No answer returned.</p>";
-    const structured = typeof payloadOrValue === "object" && payloadOrValue ? renderQueryStructuredTable(payloadOrValue, navigation) : "";
-    return structured ? `${textMarkup}${structured}` : textMarkup;
+  function queryReplyModel(payload,navigation={}) {
+    const structured=payload && typeof payload==='object';
+    return {text:structured ? queryDisplayReply(payload) : payload,
+      table:structured ? {payload,page:queryResultPage(payload),patients:currentPatientsProvider() || [],navigation} : null};
   }
 
   function queryIntentPresentation(intent) {
@@ -600,28 +349,8 @@ export function createQueryUi(ctx) {
     };
   }
 
-  function queryIconSvg(kind) {
-    const icons = {
-      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
-      response: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>',
-      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
-      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
-      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
-      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
-      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
-      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
-      no_context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3 1.1 0 2.1-.1 3-.3"></path><path d="m5 4 14 16"></path></svg>',
-    };
-    return icons[kind] || icons.summary;
-  }
-
-  function renderQueryIcon(kind, cls = "provenance-inline-icon") {
-    return `<span class="${cls}" aria-hidden="true">${queryIconSvg(kind)}</span>`;
-  }
-
-  function renderQueryBadge(label, title, iconKind = "") {
-    const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
-    return `<span class="query-chip badge provenance-badge"${safeTitle}>${iconKind ? `${renderQueryIcon(iconKind, "provenance-badge-icon")}` : ""}<span>${escapeHtml(label)}</span></span>`;
+  function queryBadge(label, title, iconKind = '') {
+    return {label, title, iconKind};
   }
 
   function formatAiProviderGranularity(value) {
@@ -635,14 +364,14 @@ export function createQueryUi(ctx) {
     const plannedByLmStudio = data.execution === "deterministic" && data.planner && data.planner.provider === "lm_studio";
     const answeredByLmStudio = data.provider === "lm_studio";
     const aiProviderConsulted = plannedByLmStudio || answeredByLmStudio;
-    const chips = [renderQueryBadge(intentInfo.label, intentInfo.title, "summary")];
+    const chips = [queryBadge(intentInfo.label, intentInfo.title, "summary")];
     if (payload && payload.intent === "general_llm") {
-      chips.push(renderQueryBadge(
+      chips.push(queryBadge(
         "No workspace context",
         "Only this prompt and recent General-question turns were sent to the selected model. No workspace or dataset context was supplied.",
         "no_context",
       ));
-      if (data.model) chips.push(renderQueryBadge(data.model, "Model used for this general answer.", "llm"));
+      if (data.model) chips.push(queryBadge(data.model, "Model used for this general answer.", "llm"));
       return chips;
     }
     const datasetNames = Array.isArray(data.dataset_names)
@@ -651,7 +380,7 @@ export function createQueryUi(ctx) {
         ? [String(data.dataset_name).trim()]
         : [];
     if (datasetNames.length) {
-      chips.push(renderQueryBadge(
+      chips.push(queryBadge(
         `Dataset: ${datasetNames.join(", ")}`,
         `This answer was computed from ${datasetNames.join(", ")}.`,
         "summary",
@@ -661,7 +390,7 @@ export function createQueryUi(ctx) {
       const requested = data.granularity_requested && data.granularity_requested !== data.granularity_applied
         ? ` Requested: ${data.granularity_requested}.`
         : "";
-      chips.push(renderQueryBadge(
+      chips.push(queryBadge(
         `Response detail: ${formatAiProviderGranularity(data.granularity_applied)}`,
         `Detail available in the COHORTome response: ${data.granularity_applied}. This is separate from the context sent to a model.${requested}`.trim(),
         "response",
@@ -676,16 +405,16 @@ export function createQueryUi(ctx) {
       } else {
         title = `AI providers may receive up to detailed context and currently receive ${formatAiProviderGranularity(data.ai_provider_context_granularity)} context.`;
       }
-      chips.push(renderQueryBadge(
+      chips.push(queryBadge(
         `Model context: ${formatAiProviderGranularity(data.ai_provider_context_granularity)}`,
         title,
         "provider",
       ));
     }
     if (plannedByLmStudio) {
-      chips.push(renderQueryBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal cohort plan.", "planner"));
-      chips.push(renderQueryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result.", "deterministic"));
-      if (data.planner.model) chips.push(renderQueryBadge(data.planner.model, "LM Studio model used for semantic query planning.", "llm"));
+      chips.push(queryBadge("LLM-planned", "LM Studio translated the prompt into a constrained internal cohort plan.", "planner"));
+      chips.push(queryBadge("Deterministic execution", "The app executed the planned query against local cohort data without using the model to produce the result.", "deterministic"));
+      if (data.planner.model) chips.push(queryBadge(data.planner.model, "LM Studio model used for semantic query planning.", "llm"));
       return chips;
     }
     let resultLabel = "Deterministic";
@@ -707,8 +436,8 @@ export function createQueryUi(ctx) {
         : data.source === "provider_unavailable"
           ? "unavailable"
           : "deterministic";
-    chips.push(renderQueryBadge(resultLabel, resultTitle, resultIcon));
-    if (answeredByLmStudio && data.model) chips.push(renderQueryBadge(data.model, "LM Studio model used for this answer.", "llm"));
+    chips.push(queryBadge(resultLabel, resultTitle, resultIcon));
+    if (answeredByLmStudio && data.model) chips.push(queryBadge(data.model, "LM Studio model used for this answer.", "llm"));
     return chips;
   }
 
@@ -747,9 +476,9 @@ export function createQueryUi(ctx) {
     if (queryDiseaseStatusEl) queryDiseaseStatusEl.textContent = "Click a disease to preload a deterministic workspace query.";
     setLatestQueryState({ ids: [], recordIds: [], resultHandle: "", totalCount: 0, prompt: "", analysisPrompt: "", idType: "patient" });
     setLatestScopedContext({ patientIds: [], recordIds: [], resultHandle: "", totalCount: 0, idType: "patient", sourceTab: "", prompt: "" });
-    queryReplyEl.innerHTML = '<div class="empty">Ask about medications, diseases, or a patient timeline.</div>';
-    queryReasonEl.innerHTML = '<div class="empty">Run a query to see how the answer was produced.</div>';
-    if (queryActionsEl) queryActionsEl.innerHTML = "";
+    replyView.render({empty:'Ask about medications, diseases, or a patient timeline.'});
+    reasonView.render({empty:'Run a query to see how the answer was produced.'});
+    actionsView?.render(null);
     queryFollowupsEl.innerHTML = "";
     queryDataEl.textContent = "";
     queryDetailsEl.open = false;
@@ -768,43 +497,26 @@ export function createQueryUi(ctx) {
     if (queryComposerTitleEl) queryComposerTitleEl.textContent = hasQueryTurns() ? "Ask a follow-up" : isGeneralQuestionMode() ? "Ask Model" : "Ask a question";
     if (!queryThreadEl) return;
     if (queryTabEl) queryTabEl.classList.toggle("query-tab-empty", !state.queryTurns.length);
-    if (!state.queryTurns.length) {
-      queryThreadEl.innerHTML = isGeneralQuestionMode()
-        ? '<div class="empty">Ask a general question. The model will not receive workspace context.</div>'
-        : '<div class="empty">Ask a query to start a conversational thread. Follow-up questions will reuse recent query history.</div>';
-      return;
+    let latestAssistantIndex = -1;
+    for (let i=state.queryTurns.length-1;i>=0;i--) {
+      if (state.queryTurns[i]?.role==="assistant" && !state.queryTurns[i].pending) {latestAssistantIndex=i;break;}
     }
-    const latestAssistantIndex = (() => {
-      for (let index = state.queryTurns.length - 1; index >= 0; index -= 1) {
-        if (state.queryTurns[index] && state.queryTurns[index].role === "assistant" && !state.queryTurns[index].pending) {
-          return index;
-        }
-      }
-      return -1;
-    })();
-    queryThreadEl.innerHTML = state.queryTurns.map((turn, index) => {
-      if (turn.role === "user") {
-        return `<article class="analysis-turn query-thread-turn query-thread-turn-user" data-query-turn-index="${index}"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${escapeHtml(turn.prompt || "")}</p></div></article>`;
-      }
-      const payload = turn.payload || {};
-      const data = payload.data || {};
-      const toneClass = turn.pending ? "query-thread-turn-pending" : data.source === "error" ? "query-thread-turn-error" : "query-thread-turn-assistant";
-      const sourcePrompt = index > 0 && state.queryTurns[index - 1].role === "user"
-        ? state.queryTurns[index - 1].prompt || ""
-        : "";
-      return `
-        <article class="analysis-turn query-thread-turn ${toneClass}${index === latestAssistantIndex ? " query-thread-turn-latest" : ""}" data-query-turn-index="${index}">
-          <div class="analysis-turn-label">${turn.pending ? "Running" : data.source === "error" ? "Query not completed" : turn.contextMode === "general" ? "Answer" : "Result"}</div>
-          <div class="analysis-turn-body">
-            <div data-chat-copy-content>${turn.pending ? renderActivityCard(turn.pendingLabel || "Running query", turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : renderQueryReply(payload, turn.resultNavigation || {})}</div>
-            ${!turn.pending && !turn.restored && index === latestAssistantIndex ? queryActionsMarkup(payload, sourcePrompt) : ""}
-            ${!turn.pending && index === latestAssistantIndex ? renderFollowupButtonsMarkup(data.follow_up_suggestions, data.follow_up_suggestion_metadata) : ""}
-          </div>
-          ${turn.pending ? "" : `<details class="query-response-details"><summary>Response details</summary><div class="query-thread-turn-meta">${getQueryProvenanceChips(payload).join("")}</div></details>`}
-          ${turn.pending ? "" : chatCopyButton()}
-        </article>
-      `;
-    }).join("");
+    const turns = state.queryTurns.map((turn,index)=>{
+      if (turn.role==="user") return {role:turn.role,prompt:turn.prompt};
+      const payload=turn.payload || {}, data=payload.data || {};
+      const latest=index===latestAssistantIndex;
+      const sourcePrompt=index>0 && state.queryTurns[index-1].role==="user" ? state.queryTurns[index-1].prompt || "" : "";
+      return {
+        role:turn.role, pending:turn.pending, latest,
+        tone:turn.pending ? "query-thread-turn-pending" : data.source==="error" ? "query-thread-turn-error" : "query-thread-turn-assistant",
+        label:turn.pending ? "Running" : data.source==="error" ? "Query not completed" : turn.contextMode==="general" ? "Answer" : "Result",
+        reply:turn.pending ? activityState(turn.pendingLabel || "Running query",turn.pendingDetail || "Working through the query and preparing cohort-aware results.") : queryReplyModel(payload,turn.resultNavigation || {}),
+        actions:!turn.pending && !turn.restored && latest ? queryActionsModel(payload,sourcePrompt) : "",
+        provenance:!turn.pending ? getQueryProvenanceChips(payload) : [],
+        followups:data.follow_up_suggestions, followupMetadata:data.follow_up_suggestion_metadata,
+      };
+    });
+    threadView.render(turns,isGeneralQuestionMode());
   }
 
   function scrollQueryTurnIntoView(turnIndex) {
@@ -836,35 +548,14 @@ export function createQueryUi(ctx) {
     }
     if (payload.intent === "needs_clarification") reasons.push("The prompt was too vague, so the UI is suggesting more specific follow-up questions.");
     if (payload.intent === "unsupported") reasons.push("The deterministic router did not recognize the query pattern, and no fallback answer was produced.");
-    queryReasonEl.innerHTML = `<p>${reasons.map(escapeHtml).join("<br>")}</p>`;
+    reasonView.render({text:reasons.join('\n')});
   }
 
   function renderFollowupButtons(items) {
     queryFollowupsEl.innerHTML = "";
   }
 
-  function renderFollowupButtonsMarkup(items, metadataItems) {
-    const followups = Array.isArray(items) ? items.slice(0, 4) : [];
-    if (!followups.length) return "";
-    const metadataByPrompt = new Map(
-      (Array.isArray(metadataItems) ? metadataItems : [])
-        .filter((item) => item && typeof item === "object" && String(item.prompt || "").trim())
-        .map((item) => [String(item.prompt).trim(), item]),
-    );
-    const buttons = followups.map((item) => {
-      const prompt = String(item || "").trim();
-      const metadata = metadataByPrompt.get(prompt) || {};
-      const deterministic = metadata.execution_kind === "deterministic" || metadata.execution_mode === "deterministic_only";
-      const executionMode = deterministic ? "deterministic_only" : "planner_only";
-      const cssClass = deterministic ? "query-chip-deterministic" : "query-chip-planner";
-      const label = deterministic ? "Deterministic" : "LLM-planned";
-      const title = deterministic
-        ? "Runs with deterministic dataset logic; no LLM planning is requested."
-        : "Uses the LLM semantic planner, then executes the resulting dataset query deterministically.";
-      return `<button type="button" class="query-chip ${cssClass}" data-prompt="${escapeHtml(prompt)}" data-query-followup-mode="${executionMode}" title="${escapeHtml(title)}"><span>${escapeHtml(prompt)}</span><span class="followup-mode-label">${label}</span></button>`;
-    }).join("");
-    return `<div class="query-followups" style="margin-top:12px;"><div class="query-followups-label">Suggested follow-up queries</div><div class="query-followups-list">${buttons}</div></div>`;
-  }
+
 
   function queryActionContext(payload) {
     const context = payload && payload.action_context && typeof payload.action_context === "object"
@@ -884,7 +575,7 @@ export function createQueryUi(ctx) {
     };
   }
 
-  function queryActionsMarkup(payload, sourcePrompt = "") {
+  function queryActionsModel(payload, sourcePrompt = "") {
     if (payload && payload.intent === "general_llm") return "";
     if (payload && payload.data && payload.data.result_handle_unavailable === true) return "";
     const submittedPrompt = String(sourcePrompt || "").trim();
@@ -925,25 +616,13 @@ export function createQueryUi(ctx) {
     const incompatiblePheno = !resultHandle && availableActions.use_in_pheno_ranker && !recordIds.length && phenoRankerPatientIds.length && !allCompatible;
     const canSummarize = Boolean(resultHandle || patientIds.length);
     const moreActions = canSummarize || canCopyIds || canUsePheno || incompatiblePheno;
-    return `
-      <div class="query-actions query-actions-inline" style="margin-top:12px;">
-        ${availableActions.open_in_analysis ? `<button type="button" class="query-chip action query-workflow-primary" data-query-action="use-analysis"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Analysis</span></button>` : ""}
-        ${availableActions.save_cohort ? `<button type="button" class="query-chip query-chip-deterministic query-workflow-secondary" data-query-action="save-cohort"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"></path><path d="M8 5v6h8V5"></path><path d="M9 19v-5h6v5"></path></svg></span><span class="query-action-label">Save cohort</span></button>` : ""}
-        ${moreActions ? `<details class="query-inline-actions">
-          <summary><span>More options</span></summary>
-          <div class="query-actions">
-            ${canSummarize ? '<button type="button" class="query-chip" data-query-action="clinical-summary">Apply to scope</button>' : ''}
-            ${canCopyIds ? `<button type="button" class="query-chip query-chip-planner" data-query-action="copy-ids"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg></span><span class="query-action-label">Copy patient IDs</span></button>` : ""}
-            ${canUsePheno ? `<button type="button" class="query-chip action" data-query-action="use-pheno"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17 18 7"></path><path d="M9 7h9v9"></path><path d="M5 5h6"></path><path d="M5 11v8h8"></path></svg></span><span class="query-action-label">Open in Pheno-Ranker</span></button>` : ""}
-            ${incompatiblePheno ? '<span class="query-chip badge">This result is grouped at patient level. Pheno-Ranker needs the original record IDs or timepoints.</span>' : ""}
-          </div>
-        </details>` : (resultHandle && availableActions.save_cohort ? '<span class="section-note-inline">Save this result as a cohort before using it in Pheno-Ranker.</span>' : "")}
-      </div>
-    `;
+    return {openAnalysis:!!availableActions.open_in_analysis, saveCohort:!!availableActions.save_cohort,
+      canSummarize:!!canSummarize, canCopyIds:!!canCopyIds, canUsePheno:!!canUsePheno,
+      incompatiblePheno:!!incompatiblePheno, moreActions:!!moreActions, resultHandle};
   }
 
   function renderQueryActions(payload, sourcePrompt = "") {
-    if (queryActionsEl) queryActionsEl.innerHTML = queryActionsMarkup(payload, sourcePrompt);
+    actionsView?.render(queryActionsModel(payload,sourcePrompt));
   }
 
   function flashQueryActionFeedback(button, label) {
@@ -1041,11 +720,9 @@ export function createQueryUi(ctx) {
     }
     queryStatusEl.className = "query-status loading";
     queryStatusEl.textContent = generalQuestion ? "Waiting for the model..." : "Running query. Waiting for response...";
-    queryReplyEl.innerHTML = generalQuestion
-      ? "<p><strong>Asking the model...</strong><br>Please wait.</p>"
-      : "<p><strong>Running query...</strong><br>Please wait.</p>";
-    queryReasonEl.innerHTML = "<p>Waiting for the response and its supporting context.</p>";
-    if (queryActionsEl) queryActionsEl.innerHTML = "";
+    replyView.render({text:generalQuestion ? '**Asking the model...**\nPlease wait.' : '**Running query...**\nPlease wait.'});
+    reasonView.render({text:'Waiting for the response and its supporting context.'});
+    actionsView?.render(null);
     queryFollowupsEl.innerHTML = "";
     queryPromptLibraryOpen = false;
     state.queryTurns.push({ role: "user", prompt: question, contextMode: generalQuestion ? "general" : "workspace" });
@@ -1100,11 +777,11 @@ export function createQueryUi(ctx) {
           invalidateQueryResultHandle(submittedScope.resultHandle, message);
           error.detail = message;
         }
-        queryReplyEl.innerHTML = `<p>${escapeHtml(error.detail)}</p>`;
-        queryReasonEl.innerHTML = "<p>The request reached the API but returned an error response.</p>";
+        replyView.render({text:error.detail});
+        reasonView.render({text:'The request reached the API but returned an error response.'});
         queryDataEl.textContent = "";
         queryDetailsEl.open = false;
-        if (queryActionsEl) queryActionsEl.innerHTML = "";
+        actionsView?.render(null);
         state.queryTurns[state.queryTurns.length - 1] = {
           role: "assistant",
           contextMode: generalQuestion ? "general" : "workspace",
@@ -1127,7 +804,7 @@ export function createQueryUi(ctx) {
       };
       renderQueryThread();
       scrollQueryTurnIntoView(state.queryTurns.length - 1);
-      queryReplyEl.innerHTML = renderQueryReply(payload);
+      replyView.render(queryReplyModel(payload));
       renderQueryReason(payload);
       renderQueryActions(payload, question);
       renderFollowupButtons(payload.data && payload.data.follow_up_suggestions);
@@ -1144,11 +821,11 @@ export function createQueryUi(ctx) {
     } catch (error) {
       if (requestIsStale()) return;
       stopQueryProgressUpdates();
-      queryReplyEl.innerHTML = `<p>${escapeHtml(error && error.message ? error.message : "Request failed.")}</p>`;
-      queryReasonEl.innerHTML = "<p>The request failed before a valid response payload reached the UI.</p>";
+      replyView.render({text:error?.message || 'Request failed.'});
+      reasonView.render({text:'The request failed before a valid response payload reached the UI.'});
       queryDataEl.textContent = "";
       queryDetailsEl.open = false;
-      if (queryActionsEl) queryActionsEl.innerHTML = "";
+      actionsView?.render(null);
       setLatestQueryState({ ids: [] });
       state.queryTurns[state.queryTurns.length - 1] = {
         role: "assistant",
@@ -1367,7 +1044,7 @@ export function createQueryUi(ctx) {
           invalidateQueryResultHandle(currentPage.resultHandle, message);
           renderQueryThread();
           if (index === state.queryTurns.length - 1) {
-            queryReplyEl.innerHTML = renderQueryReply(turn.payload, turn.resultNavigation || {});
+            replyView.render(queryReplyModel(turn.payload, turn.resultNavigation || {}));
             queryDataEl.textContent = JSON.stringify(queryDetailsData(turn.payload.data), null, 2);
           }
           return;
@@ -1389,7 +1066,7 @@ export function createQueryUi(ctx) {
       };
       renderQueryThread();
       if (index === state.queryTurns.length - 1) {
-        queryReplyEl.innerHTML = renderQueryReply(turn.payload, turn.resultNavigation);
+        replyView.render(queryReplyModel(turn.payload, turn.resultNavigation));
         queryDataEl.textContent = JSON.stringify(queryDetailsData(turn.payload.data), null, 2);
       }
       const renderedTurn = queryThreadEl && queryThreadEl.querySelector(`[data-query-turn-index="${index}"]`);
@@ -1495,7 +1172,7 @@ export function createQueryUi(ctx) {
       }
       renderQueryThread();
     },
-    renderQueryReply,
+    queryReplyModel,
     renderQueryReason,
     renderQueryActions,
     renderQueryExecutionMode,

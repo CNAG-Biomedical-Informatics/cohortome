@@ -1,4 +1,5 @@
 import { modalityIcon } from './modalities.js';
+import {createDatasetPickerView, createDatasetsAdminView, openDatasetConfirmation} from './react/ui.js';
 import { createResourceInstaller } from './resource_install.js';
 import { createDatasetBulkAi } from './dataset_bulk_ai.js';
 import { openDicomFolderDialog } from './dicom_folder.js';
@@ -21,6 +22,11 @@ export function createDatasetsUi(ctx) {
     datasetAdminListEl,
   } = refs;
   const { escapeHtml } = helpers;
+  const pickerView = datasetPickerEl ? createDatasetPickerView(datasetPickerEl, datasetPickerLegendEl, (id, checked) => {
+    const selected = new Set(pendingDatasetSelectionIds());
+    if (checked) selected.add(id); else selected.delete(id);
+    syncDatasetSelectionFromPicker([...selected]);
+  }) : null;
   for (const container of [datasetPickerEl, datasetAdminListEl]) {
     container?.addEventListener('click', event => {
       const button = event.target.closest('[data-dataset-about]');
@@ -127,34 +133,6 @@ export function createDatasetsUi(ctx) {
     return keys;
   }
 
-  function renderDatasetTraitIcon(key, decorative = false) {
-    const definition = datasetTraitDefinitions[key];
-    if (!definition) {
-      return "";
-    }
-    const accessibility = decorative
-      ? 'aria-hidden="true"'
-      : `role="img" aria-label="${escapeHtml(definition.label)}" title="${escapeHtml(definition.label)}"`;
-    return `<span class="dataset-trait-icon dataset-trait-icon-${escapeHtml(key)}" data-dataset-trait="${escapeHtml(key)}" ${accessibility}>${definition.svg}</span>`;
-  }
-
-  function renderDatasetTraitLegend(datasets) {
-    if (!datasetPickerLegendEl) {
-      return;
-    }
-    const present = new Set();
-    (Array.isArray(datasets) ? datasets : []).forEach((dataset) => {
-      datasetTraitKeys(dataset).forEach((key) => present.add(key));
-    });
-    const keys = datasetTraitOrder.filter((key) => present.has(key));
-    datasetPickerLegendEl.classList.toggle("is-hidden", !keys.length);
-    datasetPickerLegendEl.innerHTML = keys.length
-      ? `<span class="dataset-trait-legend-title">Legend</span>${keys.map((key) => {
-          const definition = datasetTraitDefinitions[key];
-          return `<span class="dataset-trait-legend-item" data-dataset-trait-legend="${escapeHtml(key)}">${renderDatasetTraitIcon(key, true)}<span>${escapeHtml(definition.legendLabel)}</span></span>`;
-        }).join("")}`
-      : "";
-  }
 
   function pendingWorkspaceStoreBlocker() {
     const pendingRecords = pendingDatasetRecords();
@@ -570,83 +548,44 @@ export function createDatasetsUi(ctx) {
   }
 
   function renderDatasetPicker() {
-    if (!datasetPickerEl) {
-      return;
-    }
+    if (!pickerView) return;
     const selectedIds = new Set(pendingDatasetSelectionIds());
     const activeIds = new Set(state.currentDatasetIds);
-    renderDatasetTraitLegend(state.availableDatasets);
-    if (!state.availableDatasets.length) {
-      datasetPickerEl.innerHTML = '<div class="empty">No dataset available.</div>';
-      return;
-    }
-    datasetPickerEl.innerHTML = state.availableDatasets.map((dataset) => {
-      const datasetId = String(dataset.dataset_id || "");
-      const checked = selectedIds.has(datasetId);
-      const active = activeIds.has(datasetId);
-      const visibility = String(dataset.visibility || "all_authenticated");
-      const description = String(dataset.description || "").trim();
-      const contentTags = Array.isArray(dataset.content_tags) ? dataset.content_tags.map((item) => String(item || "").trim()).filter(Boolean) : [];
-      const allowedGroups = Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [];
-      const allowedUsers = Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [];
-      const traitKeys = datasetTraitKeys(dataset);
-      const storeStatus = normalizedDatasetStoreStatus(dataset);
-      const stateBadges = [];
-      if (active) {
-        stateBadges.push('<span class="dataset-picker-state dataset-picker-state-active">Active</span>');
-      }
-      if (checked && !active) {
-        stateBadges.push('<span class="dataset-picker-state dataset-picker-state-pending">Pending add</span>');
-      }
-      if (active && !checked) {
-        stateBadges.push('<span class="dataset-picker-state dataset-picker-state-removal">Pending removal</span>');
-      }
-      if (checked && !storeStatus.ready) {
-        stateBadges.push(`<span class="dataset-picker-state dataset-picker-state-removal">${escapeHtml(storeStatus.status.replaceAll("_", " "))}</span>`);
-      }
-      return `
-        <label class="dataset-picker-card${checked ? " is-selected" : ""}${active ? " is-active" : ""}${checked && !active ? " is-pending-add" : ""}${active && !checked ? " is-pending-removal" : ""}" data-dataset-card="${escapeHtml(datasetId)}">
-          <input type="checkbox" data-dataset-checkbox="${escapeHtml(datasetId)}" ${checked ? "checked" : ""}>
-          <div>
-            <div class="dataset-picker-title">
-              <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
-              ${stateBadges.join("")}
-              <button type="button" class="query-chip secondary-btn dataset-about-button" data-dataset-about="${escapeHtml(datasetId)}" aria-label="About ${escapeHtml(dataset.name || datasetId)}"><span aria-hidden="true">ⓘ</span> About</button>
-            </div>
-            ${traitKeys.length ? `<div class="dataset-trait-icons">${traitKeys.map((key) => renderDatasetTraitIcon(key)).join("")}</div>` : ""}
-            <div class="dataset-picker-meta">
-              <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-              <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
-              ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
-              ${!desktop && allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-              ${!desktop && allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
-            </div>
-            ${description ? `<div class="dataset-picker-description" title="${escapeHtml(description)}">${escapeHtml(description)}</div>` : ""}
-          </div>
-        </label>
-      `;
-    }).join("");
+    const present = new Set();
+    const trait = key => ({key, ...datasetTraitDefinitions[key]});
+    const datasets = state.availableDatasets.map(dataset => {
+      const id = String(dataset.dataset_id || "");
+      const keys = datasetTraitKeys(dataset);
+      keys.forEach(key => present.add(key));
+      return {
+        id, name: dataset.name || id || "Unnamed dataset",
+        checked: selectedIds.has(id), active: activeIds.has(id),
+        description: String(dataset.description || "").trim(),
+        tags: Array.isArray(dataset.content_tags) ? dataset.content_tags.map(item => String(item || "").trim()).filter(Boolean) : [],
+        groups: Array.isArray(dataset.allowed_groups) ? dataset.allowed_groups : [],
+        users: Array.isArray(dataset.allowed_users) ? dataset.allowed_users : [],
+        traits: keys.map(trait), store: normalizedDatasetStoreStatus(dataset),
+        access: accessLabel(String(dataset.visibility || "all_authenticated")),
+      };
+    });
+    pickerView.render({datasets, desktop, legend: datasetTraitOrder.filter(key => present.has(key)).map(trait)});
   }
 
-  let bulkAiUi;
+  const adminView = datasetAdminListEl ? createDatasetsAdminView(datasetAdminListEl, id => {
+    const dataset = state.availableDatasets.find(item => item.dataset_id === id);
+    if (dataset && canManageDataset()) openDicomFolderDialog([{id, name: dataset.name || id}], escapeHtml);
+  }) : null;
+  const bulkAiUi = createDatasetBulkAi({reload: loadDatasets,
+    canManage: canManageDataset, onChange: renderDatasetAdminList});
   function renderDatasetAdminList() {
-    if (!datasetAdminListEl) {
+    if (!adminView) return;
+    if (!canManageDataset() || !state.availableDatasets.length) {
+      adminView.render({message: !canManageDataset()
+        ? "Dataset administration is only visible to administrators."
+        : "No dataset administration entries available."});
       return;
     }
-    if (!canManageDataset()) {
-      datasetAdminListEl.innerHTML = '<div class="empty">Dataset administration is only visible to administrators.</div>';
-      return;
-    }
-    if (!state.availableDatasets.length) {
-      datasetAdminListEl.innerHTML = '<div class="empty">No dataset administration entries available.</div>';
-      return;
-    }
-    const expandedDatasetIds = new Set(
-      Array.from(datasetAdminListEl.querySelectorAll("[data-dataset-admin-card][open]"))
-        .map((item) => String(item.getAttribute("data-dataset-admin-card") || "").trim())
-        .filter(Boolean),
-    );
-    datasetAdminListEl.innerHTML = state.availableDatasets.map((dataset) => {
+    const datasets = state.availableDatasets.map(dataset => {
       const datasetId = String(dataset.dataset_id || "");
       const visibility = String(dataset.visibility || "all_authenticated");
       const dataClassification = normalizeDataClassification(dataset.data_classification);
@@ -679,144 +618,24 @@ export function createDatasetsUi(ctx) {
             : "Build query store";
       const storeDetail = String(storeStatus.last_error || "").trim()
         || (storeStatus.last_built_at ? `Last built: ${storeStatus.last_built_at}` : "The query store has not been built yet.");
-      return `
-        <details class="dataset-admin-card" data-dataset-admin-card="${escapeHtml(datasetId)}" ${expandedDatasetIds.has(datasetId) ? "open" : ""}>
-          <summary class="dataset-admin-summary">
-            <span class="dataset-admin-summary-main">
-              <span class="dataset-picker-title">${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
-              <span class="dataset-picker-meta">
-                <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
-                <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
-              </span>
-            </span>
-            <span class="dataset-picker-tag ${storeReady ? "dataset-picker-tag-ready" : storeState === "failed" ? "dataset-picker-tag-danger" : "dataset-picker-tag-warning"}">${escapeHtml(storeLabel)}</span>
-          </summary>
-          <div class="dataset-admin-body">
-            <button type="button" class="query-chip secondary-btn dataset-about-button" data-dataset-about="${escapeHtml(datasetId)}">ⓘ About this dataset</button>
-            <div class="dataset-picker-title">
-              <span>${escapeHtml(dataset.name || datasetId || "Unnamed dataset")}</span>
-            </div>
-            <div class="dataset-picker-meta">
-                <span class="dataset-picker-tag">${escapeHtml(datasetId)}</span>
-                <span class="dataset-picker-tag">${escapeHtml(accessLabel(visibility))}</span>
-                <span class="dataset-picker-tag">${escapeHtml(dataClassification)} data</span>
-              ${contentTags.map((tag) => `<span class="dataset-picker-tag dataset-picker-tag-content">${escapeHtml(tag)}</span>`).join("")}
-              ${!desktop && allowedGroups.length ? `<span class="dataset-picker-tag">groups: ${escapeHtml(allowedGroups.join(", "))}</span>` : ""}
-              ${!desktop && allowedUsers.length ? `<span class="dataset-picker-tag">users: ${escapeHtml(allowedUsers.join(", "))}</span>` : ""}
-            </div>
-            ${description ? `<div class="dataset-picker-description">${escapeHtml(description)}</div>` : ""}
-            <div class="dataset-picker-access">
-              <div class="dataset-policy-section">
-                <div class="dataset-policy-heading">${desktop ? "Data classification and detail" : "Access and classification"}</div>
-                <div class="section-note">${desktop ? "This desktop workspace has one local owner. Classification and model policies still control how data may be shared." : "Visibility controls who can use the dataset inside COHORTome. Classification controls whether its data may be sent outside this deployment."}</div>
-                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
-                  <label for="dataset-visibility-${escapeHtml(datasetId)}">Visibility</label>
-                  <select id="dataset-visibility-${escapeHtml(datasetId)}" data-dataset-visibility="${escapeHtml(datasetId)}">
-                    <option value="all_authenticated" ${visibility === "all_authenticated" ? "selected" : ""}>All authenticated users</option>
-                    <option value="restricted" ${visibility === "restricted" ? "selected" : ""}>Restricted</option>
-                    <option value="admin_only" ${visibility === "admin_only" ? "selected" : ""}>Admin only</option>
-                  </select>
-                </div>
-                <div class="dataset-picker-access-row">
-                  <label for="dataset-classification-${escapeHtml(datasetId)}">Data classification</label>
-                  <select id="dataset-classification-${escapeHtml(datasetId)}" data-dataset-classification="${escapeHtml(datasetId)}">
-                    <option value="private" ${dataClassification === "private" ? "selected" : ""}>Private data</option>
-                    <option value="public" ${dataClassification === "public" ? "selected" : ""}>Public data</option>
-                  </select>
-                </div>
-                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
-                  <label for="dataset-groups-${escapeHtml(datasetId)}">Allowed groups</label>
-                  <input id="dataset-groups-${escapeHtml(datasetId)}" data-dataset-groups="${escapeHtml(datasetId)}" value="${escapeHtml(allowedGroups.join(", "))}" placeholder="e.g. cnag, ibd-team">
-                </div>
-                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
-                  <label for="dataset-users-${escapeHtml(datasetId)}">Allowed users</label>
-                  <input id="dataset-users-${escapeHtml(datasetId)}" data-dataset-users="${escapeHtml(datasetId)}" value="${escapeHtml(allowedUsers.join(", "))}" placeholder="e.g. mrueda, alice">
-                </div>
-                <div class="dataset-picker-access-row">
-                  <label for="dataset-query-granularity-${escapeHtml(datasetId)}">In-app detail ceiling</label>
-                  <select id="dataset-query-granularity-${escapeHtml(datasetId)}" data-dataset-query-granularity="${escapeHtml(datasetId)}">
-                    <option value="summary" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "summary" ? "selected" : ""}>Summary only</option>
-                    <option value="detailed" ${normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling) === "detailed" ? "selected" : ""}>Detailed allowed</option>
-                  </select>
-                </div>
-                <div class="dataset-picker-access-row${desktop ? " is-hidden" : ""}">
-                  <label>Users with access</label>
-                  <div class="identity-tags">
-                    ${effectiveUsers.length
-                      ? effectiveUsers.map((label) => `<span class="identity-tag">${escapeHtml(label)}</span>`).join("")
-                      : '<span class="identity-tag">No currently configured local users match this policy</span>'}
-                  </div>
-                </div>
-              </div>
-              <div class="dataset-policy-section dataset-policy-section-muted">
-                <div class="dataset-policy-heading">AI Providers</div>
-                <div class="section-note">Sets the maximum context an eligible provider may receive. Private data is never sent to a provider marked external.</div>
-                <div class="dataset-picker-access-row">
-                  <label for="dataset-ai-provider-access-${escapeHtml(datasetId)}">Provider context ceiling</label>
-                  <select id="dataset-ai-provider-access-${escapeHtml(datasetId)}" data-dataset-ai-provider-access="${escapeHtml(datasetId)}">
-                    <option value="detailed_allowed" ${["detailed_allowed", "use_thread_mode"].includes(String(dataset.ai_provider_access || "detailed_allowed")) ? "selected" : ""}>Detailed allowed</option>
-                    <option value="safe_summary" ${["safe_summary", "restricted", "summary_only"].includes(String(dataset.ai_provider_access || "")) ? "selected" : ""}>Safe summary</option>
-                    <option value="blocked" ${String(dataset.ai_provider_access || "") === "blocked" ? "selected" : ""}>Blocked</option>
-                  </select>
-                </div>
-                <div class="dataset-picker-access-row">
-                  <label>Current behavior</label>
-                  <div class="dataset-policy-placeholder">${
-                    normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "blocked"
-                      ? "No AI provider receives dataset context."
-                      : dataClassification === "private"
-                        ? normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
-                          ? "Local providers may receive a safe structural summary. External providers are blocked."
-                          : "Local providers may receive detailed context. External providers are blocked."
-                        : normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed")) === "safe_summary"
-                          ? "Approved providers may receive only a safe structural summary."
-                          : "Approved providers may receive detailed context when the in-app result allows it."
-                  }</div>
-                </div>
-              </div>
-              <div class="dataset-policy-section dataset-policy-section-muted">
-                <div class="dataset-policy-heading">Query store</div>
-                <div class="section-note">COHORTome builds this local DuckDB index automatically when a dataset is added or first used. Rebuild it only after source files or mappings change.</div>
-                <div class="dataset-picker-access-row">
-                  <label>Current status</label>
-                  <div class="identity-tags">
-                    <span class="identity-tag">${escapeHtml(storeLabel)}</span>
-                  </div>
-                </div>
-                <div class="dataset-picker-access-row">
-                  <label>Details</label>
-                  <div class="dataset-policy-placeholder">${escapeHtml(storeDetail)}</div>
-                </div>
-              </div>
-              <section class="dataset-imaging-setup" aria-label="Imaging">
-                <div class="dataset-imaging-copy">
-                  <div class="dataset-policy-heading">${modalityIcon('imaging')} Imaging</div>
-                  <div class="section-note">Connect existing DICOM files; files stay in place.</div>
-                </div>
-                <button type="button" class="query-chip" data-dataset-dicom="${escapeHtml(datasetId)}">Link folder…</button>
-              </section>
-              <div class="dataset-picker-access-actions">
-                <button type="button" class="secondary-btn" data-dataset-save="${escapeHtml(datasetId)}">Save settings</button>
-                <button type="button" class="secondary-btn" data-dataset-prepare="${escapeHtml(datasetId)}" ${storeBuilding ? "disabled" : ""}>${escapeHtml(storeButtonLabel)}</button>
-                <button type="button" class="query-chip danger-btn" data-dataset-remove="${escapeHtml(datasetId)}" ${bundledDesktopDatasetIds.has(datasetId) ? 'disabled title="Bundled datasets cannot be removed."' : ""}>Remove dataset…</button>
-              </div>
-              ${feedback && feedback.text ? `<div class="dataset-admin-feedback${feedback.tone === "error" ? " is-error" : ""}">${escapeHtml(feedback.text)}</div>` : ""}
-            </div>
-          </div>
-        </details>
-      `;
-    }).join("");
-    bulkAiUi ||= createDatasetBulkAi({container: datasetAdminListEl, escapeHtml,
-      reload: loadDatasets, canManage: canManageDataset});
-    bulkAiUi.mount(state.availableDatasets);
-    datasetAdminListEl.querySelectorAll('[data-dataset-dicom]').forEach(button => {
-      button.onclick = () => {
-        const dataset = state.availableDatasets.find(item => item.dataset_id === button.dataset.datasetDicom);
-        if (!dataset || !canManageDataset()) return;
-        openDicomFolderDialog([{id: dataset.dataset_id, name: dataset.name || dataset.dataset_id}], escapeHtml);
-      };
+
+      const aiAccess = normalizeAiProviderAccess(String(dataset.ai_provider_access || "detailed_allowed"));
+      const behavior = aiAccess === "blocked" ? "No AI provider receives dataset context."
+        : dataClassification === "private"
+          ? aiAccess === "safe_summary"
+            ? "Local providers may receive a safe structural summary. External providers are blocked."
+            : "Local providers may receive detailed context. External providers are blocked."
+          : aiAccess === "safe_summary"
+            ? "Approved providers may receive only a safe structural summary."
+            : "Approved providers may receive detailed context when the in-app result allows it.";
+      return {dataset, datasetId, visibility, dataClassification, description, contentTags,
+        allowedGroups, allowedUsers, effectiveUsers, feedback, storeState, storeReady,
+        storeLabel, storeBuilding, storeButtonLabel, storeDetail, aiAccess, behavior,
+        name: dataset.name || datasetId || "Unnamed dataset", access: accessLabel(visibility),
+        granularity: normalizeDatasetQueryGranularityCeiling(dataset.query_granularity_ceiling),
+        bundled: bundledDesktopDatasetIds.has(datasetId)};
     });
+    adminView.render({datasets, desktop, bulk: bulkAiUi.snapshot(state.availableDatasets)});
   }
 
   function setDatasetAdminFeedback(datasetId, text, tone = "success", autoClearMs = 2600) {
@@ -902,72 +721,17 @@ export function createDatasetsUi(ctx) {
     if (bundledDesktopDatasetIds.has(datasetId)) return;
     const dataset = state.availableDatasets.find(item => item.dataset_id === datasetId);
     if (!dataset) return;
-    const dialog = document.createElement("dialog");
-    dialog.className = "dataset-remove-dialog";
-    dialog.setAttribute("aria-labelledby", "datasetRemoveTitle");
-    dialog.innerHTML = `
-      <h3 id="datasetRemoveTitle">Remove ${escapeHtml(dataset.name || datasetId)}?</h3>
-      <p>This removes the dataset from COHORTome and clears its prepared store.
-      Saved chats, cohorts and results are kept, but references to this dataset will no longer load.
-      Reimporting does not repair those references.</p>
-      <label><input type="checkbox" data-remove-files> Also move installer-managed files to the storage folder’s removed directory (recoverable).</label>
-      <p>Other source folders are never removed. Active jobs must finish first.</p>
-      <label>Type <strong>${escapeHtml(datasetId)}</strong> to confirm
-        <input data-remove-confirm autocomplete="off">
-      </label>
-      <p data-remove-status role="status"></p>
-      <div class="dataset-picker-actions">
-        <button type="button" class="query-chip secondary-btn" data-remove-cancel>Cancel</button>
-        <button type="button" class="query-chip danger-btn danger-confirm" data-remove-submit>Remove dataset</button>
-      </div>`;
-    document.body.append(dialog);
-    dialog.addEventListener("close", () => dialog.remove());
-    const input = dialog.querySelector("[data-remove-confirm]");
-    const submit = dialog.querySelector("[data-remove-submit]");
-    const cancel = dialog.querySelector("[data-remove-cancel]");
-    const status = dialog.querySelector("[data-remove-status]");
-    dialog.addEventListener("cancel", event => {
-      if (cancel.disabled) event.preventDefault();
-    });
-    input.addEventListener("input", () => {
-      input.removeAttribute("aria-invalid");
-      status.textContent = "";
-    });
-    cancel.onclick = () => dialog.close();
-    submit.onclick = async () => {
-      const confirmation = input.value.trim();
-      if (confirmation !== datasetId) {
-        status.textContent = `Enter the dataset ID exactly as shown: ${datasetId}`;
-        input.setAttribute("aria-invalid", "true");
-        input.focus();
-        return;
-      }
-      submit.disabled = true;
-      input.disabled = true;
-      cancel.disabled = true;
-      status.textContent = "Removing dataset…";
-      try {
-        const response = await fetch(`/resources/datasets/${encodeURIComponent(datasetId)}/remove`, {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({confirmation, remove_files: dialog.querySelector("[data-remove-files]").checked}),
+    openDatasetConfirmation({kind:'remove', datasets:[dataset], onReload:()=>window.location.reload(),
+      onApply:async ({confirmation,remove_files})=>{
+        if (!canManageDataset() || bundledDesktopDatasetIds.has(datasetId)) throw new Error("This dataset cannot be removed.");
+        const response=await fetch(`/resources/datasets/${encodeURIComponent(datasetId)}/remove`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({confirmation,remove_files}),
         });
-        const payload = await response.json();
+        const payload=await response.json();
         if (!response.ok) throw new Error(payload.detail || "Unable to remove dataset.");
-        status.textContent = payload.message;
-        submit.hidden = true;
-        cancel.textContent = "Reload workspace";
-        cancel.onclick = () => window.location.reload();
-        dialog.addEventListener("cancel", event => event.preventDefault());
-      } catch (error) {
-        status.textContent = error.message;
-        submit.disabled = false;
-        input.disabled = false;
-      } finally {
-        cancel.disabled = false;
-      }
-    };
-    dialog.showModal();
-    input.focus();
+        return {status:payload.message,complete:true};
+      }});
   }
 
   async function prepareDatasetStore(datasetId) {
@@ -1001,11 +765,11 @@ export function createDatasetsUi(ctx) {
     }
   }
 
-  function syncDatasetSelectionFromPicker() {
+  function syncDatasetSelectionFromPicker(selection) {
     if (!dataDirEl || !datasetPickerEl) {
       return;
     }
-    const selected = Array.from(datasetPickerEl.querySelectorAll("[data-dataset-checkbox]:checked"))
+    const selected = selection || Array.from(datasetPickerEl.querySelectorAll("[data-dataset-checkbox]:checked"))
       .map((input) => String(input.getAttribute("data-dataset-checkbox") || "").trim())
       .filter(Boolean);
     Array.from(dataDirEl.options).forEach((option) => {

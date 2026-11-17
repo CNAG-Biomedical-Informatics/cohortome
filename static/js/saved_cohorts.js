@@ -1,45 +1,9 @@
-import { downloadFile, downloadIcon, downloadStatus } from "./shared.js";
+import { downloadFile, downloadStatus } from "./shared.js";
+import {createSavedCohortsView, createCohortReferencesView, requestCohortName} from './react/ui.js';
 import { openMolecularExport } from './cohort_export.js';
 import { createCohortLibrary } from './cohort_library.js';
 import { openClinicalSummary } from './clinical_summary.js';
 
-function requestCohortName(defaultName, rename = false) {
-  return new Promise(resolve => {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'chat-move-dialog';
-    dialog.id = 'cohortNameDialog';
-    dialog.setAttribute('aria-labelledby', 'cohortNameTitle');
-    dialog.innerHTML = `<form>
-      <h3 id="cohortNameTitle">${rename ? 'Rename cohort' : 'Save cohort'}</h3>
-      <label for="cohortNameInput">Cohort name</label>
-      <input id="cohortNameInput" type="text" required autocomplete="off">
-      <div class="chat-move-actions">
-        <button type="button" class="secondary-btn" data-cohort-name-cancel>Cancel</button>
-        <button type="submit" class="primary-btn">${rename ? 'Rename' : 'Save cohort'}</button>
-      </div>
-    </form>`;
-    const input = dialog.querySelector('input');
-    input.value = defaultName;
-    let result = null;
-    dialog.querySelector('[data-cohort-name-cancel]').onclick = () => dialog.close();
-    input.oninput = () => input.setCustomValidity('');
-    dialog.querySelector('form').onsubmit = event => {
-      event.preventDefault();
-      if (!input.value.trim()) {
-        input.setCustomValidity('Enter a cohort name.');
-        input.reportValidity();
-        return;
-      }
-      result = input.value.trim();
-      dialog.close();
-    };
-    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); }, { once: true });
-    document.body.append(dialog);
-    dialog.showModal();
-    input.focus();
-    input.select();
-  });
-}
 
 export function createSavedCohortsUi(ctx) {
   const { refs, helpers, callbacks, state } = ctx;
@@ -107,52 +71,20 @@ export function createSavedCohortsUi(ctx) {
       || state.phenoSelectedSavedCohortIds.includes(cohortId);
   }
 
+  const cohortViews = new Map([savedCohortsEl,phenoSavedCohortsEl].filter(Boolean).map(host=>[host,createSavedCohortsView(host)]));
+  const referencesView = phenoSavedCohortsSelectionEl ? createCohortReferencesView(phenoSavedCohortsSelectionEl) : null;
   function renderSavedCohortsInto(container, mode) {
     if (!container) return;
-    const inlineNotice = noticeForMode(mode);
-    if (!state.savedCohorts.length) {
-      container.innerHTML = `${inlineNotice ? `<div class="saved-cohort-inline-status">${escapeHtml(inlineNotice)}</div>` : ""}<div class="empty">No saved cohorts yet.</div>`;
-      return;
-    }
-    const primaryActionLabel = mode === "pheno" ? "Use in Pheno-Ranker" : "Use as Cohort A";
-    const primaryAction = mode === "pheno" ? "load-pheno" : "load-analysis";
-    container.innerHTML = `${inlineNotice ? `<div class="saved-cohort-inline-status">${escapeHtml(inlineNotice)}</div>` : ""}<div class="saved-cohort-list">${
-      state.savedCohorts.map((item) => {
-        const sampleIds = Array.isArray(item.sample_ids) && item.sample_ids.length
-          ? item.sample_ids
-          : (Array.isArray(item.patient_ids) ? item.patient_ids : []);
-        const patientIds = Array.isArray(item.patient_ids) ? item.patient_ids : [];
-        const datasetIds = Array.isArray(item.dataset_ids) && item.dataset_ids.length
-          ? item.dataset_ids
-          : (item.dataset_id ? [item.dataset_id] : []);
-        const datasetLabels = datasetLabelsForIds(datasetIds);
-        const memberLabels = item.members?.length ? item.members.map(m => `${m.sample_id || m.patient_id} · ${datasetLabelsForIds([m.dataset_id])[0] || m.dataset_id}`) : sampleIds;
-        const preview = memberLabels.slice(0, 4).join(", ");
-        const suffix = memberLabels.length > 4 ? ` ... (+${memberLabels.length - 4} more)` : "";
-        const source = item.source && item.source.kind ? item.source.kind : "manual";
-        const isActiveHere = cohortIsActiveInCurrentUi(item.id);
-        return `
-          <div class="saved-cohort-card">
-            <strong>${escapeHtml(item.name || "Unnamed cohort")}</strong>
-            <small>${escapeHtml(String(item.patient_count ?? patientIds.length))} patients • ${escapeHtml(String(item.sample_count ?? sampleIds.length))} samples • source: ${escapeHtml(source)}</small>
-            ${datasetLabels.length ? `<small>${escapeHtml(datasetLabels.join(", "))}</small>` : ""}
-            <small>${escapeHtml(preview)}${escapeHtml(suffix)}</small>
-            <div class="saved-cohort-actions">
-              <button type="button" class="query-chip" data-saved-cohort-action="clinical-summary" data-saved-cohort-id="${escapeHtml(item.id)}">Apply to scope</button>
-              <button type="button" class="query-chip action" data-saved-cohort-action="${primaryAction}" data-saved-cohort-id="${escapeHtml(item.id)}">${primaryActionLabel}</button>
-              ${mode === "analysis" ? `<button type="button" class="query-chip action" data-saved-cohort-action="load-analysis-b" data-saved-cohort-id="${escapeHtml(item.id)}">Use as Cohort B</button>` : ""}
-              <button type="button" class="query-chip" data-saved-cohort-action="copy" data-saved-cohort-id="${escapeHtml(item.id)}">Copy IDs</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="rename" data-saved-cohort-id="${escapeHtml(item.id)}">Rename</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="export-clinical" data-saved-cohort-id="${escapeHtml(item.id)}">${downloadIcon()}Export clinical data</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="export-molecular" data-saved-cohort-id="${escapeHtml(item.id)}">${downloadIcon()}Export molecular data</button>
-              <button type="button" class="query-chip" data-saved-cohort-action="export" data-saved-cohort-id="${escapeHtml(item.id)}" title="Membership TSV and metadata JSON only; no clinical records or assay matrices">${downloadIcon()}Export membership</button>
-              ${isActiveHere ? `<span class="query-chip badge" title="Detach this cohort from the current Analysis or Pheno state before deleting it here.">In use here</span>` : ""}
-              <button type="button" class="query-chip danger-btn" data-saved-cohort-action="delete" data-saved-cohort-id="${escapeHtml(item.id)}"${isActiveHere ? ' disabled title="Detach this cohort from the current Analysis or Pheno state before deleting it here."' : ""}>Delete</button>
-            </div>
-          </div>
-        `;
-      }).join("")
-    }</div>`;
+    const items = state.savedCohorts.map(item => {
+      const samples = item.sample_ids?.length ? item.sample_ids : (item.patient_ids || []);
+      const datasets = item.dataset_ids?.length ? item.dataset_ids : (item.dataset_id ? [item.dataset_id] : []);
+      const members = item.members?.length ? item.members.map(m=>`${m.sample_id || m.patient_id} · ${datasetLabelsForIds([m.dataset_id])[0] || m.dataset_id}`) : samples;
+      return {...item, patientCount:item.patient_count ?? (item.patient_ids || []).length,
+        sampleCount:item.sample_count ?? samples.length, datasetLabels:datasetLabelsForIds(datasets),
+        preview:members.slice(0,4).join(', ') + (members.length>4 ? ` ... (+${members.length-4} more)` : ''),
+        active:cohortIsActiveInCurrentUi(item.id)};
+    });
+    cohortViews.get(container).render({items,mode,notice:noticeForMode(mode)});
   }
 
   function renderPhenoSavedCohortsSelection() {
@@ -161,18 +93,13 @@ export function createSavedCohortsUi(ctx) {
       .map((cohortId) => state.savedCohorts.find((entry) => entry.id === cohortId))
       .filter(Boolean);
     if (!selectedItems.length) {
-      phenoSavedCohortsSelectionEl.textContent = "No saved cohorts attached as separate references.";
+      referencesView.render([]);
       phenoSelectedPatientIdsEl.disabled = false;
       renderSelectedPatientIdsSummary();
       renderGlobalContext();
       return;
     }
-    phenoSavedCohortsSelectionEl.innerHTML = `
-      <div class="saved-cohort-actions">
-        <span class="query-chip badge">Separate references</span>
-        ${selectedItems.map((item) => `<button type="button" class="query-chip query-chip-deterministic" data-pheno-selected-cohort-id="${escapeHtml(item.id)}">${escapeHtml(item.name || "Unnamed cohort")} ×</button>`).join("")}
-      </div>
-    `;
+    referencesView.render(selectedItems);
     phenoSelectedPatientIdsEl.disabled = true;
     phenoSelectedPatientIdsSummaryEl.textContent = "Scope is disabled while saved cohorts are attached as separate references.";
     renderGlobalContext();

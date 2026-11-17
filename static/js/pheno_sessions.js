@@ -1,9 +1,11 @@
+import {createPhenoThreadView} from './react/ui.js';
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
 import { captureChatScope, chatExecutionIds } from './chat_scope.js';
 // Persist structured runs, not HTML. Existing renderers restore plots and tables.
-export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, actions, restoreWorkspace}) {
+export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, renderList, openTab, restoreWorkspace}) {
   let items = [], current = null, chain = Promise.resolve(), epoch = 0, restoring = false, timer, runSetup;
   const panel = document.getElementById('phenoChatHistory');
+  const threadView=createPhenoThreadView(panel);
   const resultWorkspace = document.getElementById('phenoResultWorkspace');
   const resultHome = resultWorkspace.parentElement;
   let activeResult = -1;
@@ -56,26 +58,12 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     document.getElementById('phenoChatTitle').textContent = current?.title || 'New chat';
     // Move, do not clone, the live renderer: plots and their event handlers stay intact.
     resultHome.append(resultWorkspace);
-    panel.innerHTML = (current?.turns || []).map((turn,index) => {
-      const explanation = turn.kind === 'explanation';
-      const prompt = explanation ? (turn.payload.llm_reply ? 'Explain these results with LLM' : 'Explain these results')
-        : (turn.setup?.prompt || turn.label || 'Run Pheno-Ranker');
-      const content = turn.kind === 'error' ? `<p role="alert">${esc(turn.payload.message)}</p><details><summary>Details</summary><pre>${esc(turn.payload.detail || '')}</pre></details>`
-        : explanation ? pheno.explanationMarkup(turn.payload)
-        : `<p>${esc(turn.kind === 'queued' ? 'Background job submitted.' : 'Completed run')}</p>
-          <button type="button" class="query-chip" data-pheno-turn="${index}">${turn.kind === 'queued' ? 'Check result' : 'Show results'}</button>
-          <div data-pheno-result-host="${index}"></div>`;
-      return `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(prompt)}</p></div></article>
-        <article class="analysis-turn analysis-turn-assistant" data-pheno-reply="${index}"><div class="analysis-turn-label">${explanation ? 'Explanation' : 'Pheno-Ranker'}</div>${content}</article>`;
-    }).join('');
-    if (runProgress) {
-      panel.insertAdjacentHTML('beforeend', `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(runProgress.prompt || 'Run Pheno-Ranker')}</p></div></article>
-        <article class="analysis-turn analysis-turn-pending pheno-run-progress" role="status" aria-live="polite" aria-busy="true"><div class="analysis-turn-label">Pheno-Ranker</div><div class="analysis-turn-body"><div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div><span>Running Pheno-Ranker…</span></div></article>`);
-    }
-    if (explanationProgress) {
-      panel.insertAdjacentHTML('beforeend', `<article class="analysis-turn analysis-turn-user"><div class="analysis-turn-label">You</div><div class="analysis-turn-body"><p>${esc(explanationProgress.request)}</p></div></article>
-        <article class="analysis-turn ${explanationProgress.error ? 'analysis-turn-error' : 'analysis-turn-pending'} pheno-explanation-progress" role="status" aria-live="polite" aria-busy="${!explanationProgress.error}"><div class="analysis-turn-label">Pheno-Ranker</div><div class="analysis-turn-body">${explanationProgress.error ? '' : '<div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>'}${esc(explanationProgress.message)}</div></article>`);
-    }
+    threadView.render({
+      turns:(current?.turns || []).map(turn=>({...turn,
+        prompt:turn.kind==='explanation' ? turn.payload.llm_reply ? 'Explain these results with LLM' : 'Explain these results' : turn.setup?.prompt || turn.label || 'Run Pheno-Ranker',
+        explanation:turn.kind==='explanation' ? pheno.explanationModel(turn.payload) : null})),
+      activeResult,runProgress,explanationProgress,
+    });
     const host = panel.querySelector(`[data-pheno-result-host="${activeResult}"]`);
     if (host) {
       host.append(resultWorkspace);
@@ -241,8 +229,7 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     },
     clear() {items=[]; detach();},
     entries:() => items.map(item => ({...item, chatKind:'pheno', updatedAt:item.updated_at})),
-    renderCard(item) {
-      const active=current?.id===item.id && document.getElementById('phenoTab').classList.contains('active');
-      return `<div class="analysis-session-card${active?' is-active':''}"><button type="button" class="analysis-session-main" data-pheno-session-id="${esc(item.id)}" aria-label="Pheno-Ranker: ${esc(item.title)}"><div class="analysis-session-title"><span class="chat-type-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="m8 8 3 7m5-7-3 7M9 6h6"/></svg></span>${esc(item.title)}</div></button><details class="analysis-chat-menu"><summary aria-label="Chat actions">⋯</summary><div>${actions('pheno',item.id)}<button data-pheno-rename="${esc(item.id)}">Rename</button><button data-pheno-delete="${esc(item.id)}">Delete</button></div></details></div>`;
+    cardModel(item) {
+      return {title:item.title, active:current?.id===item.id && document.getElementById('phenoTab').classList.contains('active')};
     }};
 }

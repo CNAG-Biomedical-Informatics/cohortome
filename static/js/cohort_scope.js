@@ -9,17 +9,24 @@ export function cohortDraftKey(draft) {
   return JSON.stringify(conditions);
 }
 
-export function createCohortScopeUi({state, escapeHtml: esc, renderGlobalContext = () => {}}) {
+export function createCohortScopeUi({state, renderGlobalContext = () => {}}) {
   let draft = emptyCohortDraft(), applied = emptyCohortDraft(), busy = false;
   let revision = 0, generation = 0, controller, error = '', errorStatus = 0;
-  const validation = new Map(), hosts = new Set(), listeners = new Set();
+  const validation = new Map(), listeners = new Set();
+  let snapshot;
   const workspace = () => String(state.currentDatasetScopeId || '');
   const isDirty = () => cohortDraftKey(draft) !== cohortDraftKey(applied);
-  const view = () => ({draft:copy(draft), applied:copy(applied), dirty:isDirty(), busy,
-    error, errorStatus, validation:[...validation.values()].find(Boolean) || ''});
+  const view = () => {
+    const current = state.activePatientScope?.workspace === workspace() ? state.activePatientScope : null;
+    const count = current?.selection?.patient_count ?? current?.selection?.members?.length;
+    return {draft:copy(draft), applied:copy(applied), dirty:isDirty(), busy, error, errorStatus,
+      validation:[...validation.values()].find(Boolean) || '', hasValidation:validation.size > 0,
+      chips:chips(), scopeLabel:current ? `${Number(count || 0).toLocaleString()} patients in scope` : 'Full workspace',
+      canApply:!busy && !state.loadInFlight && isDirty() && !validation.size && Boolean(workspace())};
+  };
   function notify(reason) {
-    render();
-    for (const listener of listeners) listener(view(), reason);
+    snapshot = view();
+    for (const listener of listeners) listener(snapshot, reason);
   }
   function patch(changes) {
     draft = {...draft, ...copy(changes)}; revision++; error = ''; errorStatus = 0; notify('draft');
@@ -42,37 +49,17 @@ export function createCohortScopeUi({state, escapeHtml: esc, renderGlobalContext
     if (draft.cohort_id) entries.push({label:(state.savedCohorts || []).find(c => c.id === draft.cohort_id)?.name || 'Saved cohort', field:'cohort_id'});
     return entries;
   }
-  function render() {
-    const current = state.activePatientScope?.workspace === workspace() ? state.activePatientScope : null;
-    const count = current?.selection?.patient_count ?? current?.selection?.members?.length;
-    const scopeLabel = current ? `${Number(count || 0).toLocaleString()} patients in scope` : 'Full workspace';
-    const issue = error || [...validation.values()].find(Boolean) || '';
-    for (const host of hosts) {
-      if (!host.isConnected) { hosts.delete(host); continue; }
-      host.innerHTML = `<div class="cohort-scope-filters" aria-label="Shared draft filters">${chips().map(chip =>
-        `<button type="button" class="query-chip" data-scope-field="${esc(chip.field)}" ${chip.index === undefined ? '' : `data-scope-index="${chip.index}"`} aria-label="Remove filter: ${esc(chip.label)}">${esc(chip.label)} <span aria-hidden="true">×</span></button>`).join('') || '<span class="section-note">No filters</span>'}</div>
-        <div class="cohort-scope-actions"><span class="cohort-scope-state">${esc(scopeLabel)}</span>
-        <span class="cohort-scope-pending" ${isDirty() ? '' : 'hidden'}>Unapplied changes</span>
-        <button type="button" class="primary-btn" data-scope-apply ${busy || state.loadInFlight || !isDirty() || validation.size || !workspace() ? 'disabled' : ''}>${busy ? 'Applying…' : 'Apply to scope'}</button>
-        <button type="button" class="query-chip" data-scope-discard ${!isDirty() && !validation.size ? 'hidden' : ''} ${busy ? 'disabled' : ''}>Discard changes</button>
-        <button type="button" class="query-chip" data-scope-clear ${!chips().length ? 'hidden' : ''}>Clear filters</button></div>
-        <p class="cohort-scope-message" role="status" ${issue ? '' : 'hidden'}>${esc(issue)}</p>`;
-      host.querySelector('[data-scope-apply]').onclick = () => void apply();
-      host.querySelector('[data-scope-discard]').onclick = discard;
-      host.querySelector('[data-scope-clear]').onclick = () => {
-        validation.clear(); draft = emptyCohortDraft(); revision++; error = ''; notify('clear');
-      };
-      host.querySelectorAll('[data-scope-field]').forEach(button => button.onclick = () => {
-        const field = button.dataset.scopeField;
-        if (button.dataset.scopeIndex !== undefined) {
-          const index = Number(button.dataset.scopeIndex), next = draft[field].filter((_, i) => i !== index);
-          if (field === 'clinical_filters') {
-            validation.delete('clinical');
-            patch({clinical_filters:next, clinical_labels:draft.clinical_labels.filter((_, i) => i !== index)});
-          } else patch({[field]:next});
-        } else patch({[field]:field === 'exact' ? false : field === 'base_members' ? null : ''});
-      });
-    }
+  function clearDraft() {
+    validation.clear(); draft = emptyCohortDraft(); revision++; error = ''; notify('clear');
+  }
+  function removeFilter({field, index}) {
+    if (index !== undefined) {
+      const next = draft[field].filter((_, i) => i !== index);
+      if (field === 'clinical_filters') {
+        validation.delete('clinical');
+        patch({clinical_filters:next, clinical_labels:draft.clinical_labels.filter((_, i) => i !== index)});
+      } else patch({[field]:next});
+    } else patch({[field]:field === 'exact' ? false : field === 'base_members' ? null : ''});
   }
   async function apply() {
     if (busy || state.loadInFlight || !isDirty() || validation.size || !workspace()) return false;
@@ -145,14 +132,11 @@ export function createCohortScopeUi({state, escapeHtml: esc, renderGlobalContext
   window.addEventListener('cohortome:workspace-committed', reset);
   window.addEventListener('cohortome:workspace-settled', () => notify('workspace-settled'));
   const api = {getDraft:() => copy(draft), getAppliedDraft:() => copy(applied), getError:() => error, patch, setValidation,
-    mount(host) {
-      host.classList.add('cohort-scope-bar'); hosts.add(host); render();
-      return () => { hosts.delete(host); host.replaceChildren(); };
-    },
+    getSnapshot:() => snapshot ||= view(), clearDraft, removeFilter,
     subscribe(listener) {listeners.add(listener); return () => listeners.delete(listener);},
     apply, applySelection, clearScope() {
       if (busy) return Promise.resolve(false);
-      draft = emptyCohortDraft(); validation.clear(); revision++; error = ''; notify('clear');
+      clearDraft();
       return isDirty() ? apply() : Promise.resolve(true);
     }, discard, reset, isDirty, isBusy:() => busy};
   state.cohortScope = api;

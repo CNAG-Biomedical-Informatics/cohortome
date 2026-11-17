@@ -1,3 +1,4 @@
+import {showDatasetAbout} from './react/ui.js';
 // Deliberately limited Markdown: no HTML, images, embeds or local-file links.
 export function documentMarkup(text, escapeHtml) {
   const inline = value => {
@@ -44,54 +45,6 @@ export function documentMarkup(text, escapeHtml) {
   return output.join('');
 }
 
-export async function openDatasetAbout(datasetId, escapeHtml) {
-  const previousFocus = document.activeElement;
-  const controller = new AbortController();
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dataset-about-dialog';
-  dialog.setAttribute('aria-labelledby', 'dataset-about-title');
-  dialog.innerHTML = `<header><div><small>About this dataset</small><h2 id="dataset-about-title">Loading…</h2></div><button type="button" class="query-chip secondary-btn" data-close aria-label="Close about this dataset">Close</button></header><p data-description></p><nav aria-label="Dataset documentation"></nav><div class="dataset-about-content" role="region" aria-label="Dataset documentation content" tabindex="0"></div><p role="status" aria-live="polite"></p>`;
-  document.body.append(dialog);
-  dialog.querySelector('[data-close]').onclick = () => dialog.close();
-  dialog.addEventListener('close', () => { controller.abort(); dialog.remove(); previousFocus?.focus(); });
-  dialog.showModal();
-  const status = dialog.querySelector('[role=status]');
-  status.textContent = 'Loading dataset documentation…';
-  try {
-    const response = await fetch(`/datasets/${encodeURIComponent(datasetId)}/about`, {signal: controller.signal});
-    if (!response.ok) throw new Error('Unable to load dataset documentation. Close this panel and try again.');
-    const data = await response.json();
-    dialog.querySelector('h2').textContent = data.name;
-    dialog.querySelector('[data-description]').textContent = data.description;
-    const nav = dialog.querySelector('nav');
-    const content = dialog.querySelector('.dataset-about-content');
-    const summary = () => {
-      dialog.querySelector('[data-description]').hidden = false;
-      nav.innerHTML = data.documents.map(d => `<a class="dataset-about-link" href="/datasets/${encodeURIComponent(datasetId)}/about/${encodeURIComponent(d.filename)}" data-document="${escapeHtml(d.filename)}">${d.filename === 'README.md' ? 'Read full documentation →' : 'Terms and attribution →'}</a>`).join('');
-      content.innerHTML = '';
-      content.hidden = true;
-    };
-    const select = filename => {
-      const doc = data.documents.find(d => d.filename === filename);
-      if (!doc) return;
-      dialog.querySelector('[data-description]').hidden = true;
-      nav.innerHTML = '<button type="button" class="dataset-about-link" data-summary>← Summary</button>';
-      content.hidden = false;
-      content.innerHTML = documentMarkup(doc.text, escapeHtml);
-      content.scrollTop = 0;
-    };
-    dialog.addEventListener('click', event => {
-      const button = event.target.closest('[data-document]');
-      // Read inside the app, retaining desktop authentication and formatting.
-      if (button) { event.preventDefault(); select(button.dataset.document); }
-      if (event.target.closest('[data-summary]')) summary();
-    });
-    summary();
-    status.textContent = data.unavailable.length ? 'Some package documentation could not be read.'
-      : data.documents.length ? '' : 'No additional documentation is included in this dataset.';
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-    dialog.querySelector('h2').textContent = 'Dataset documentation';
-    status.textContent = error.message;
-  }
+export function openDatasetAbout(datasetId, escapeHtml) {
+  showDatasetAbout(datasetId,text=>documentMarkup(text,escapeHtml));
 }

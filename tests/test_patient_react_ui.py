@@ -11,7 +11,8 @@ def test_react_patient_rows_keep_dataset_identity_and_escape_labels(page):
         const tableHost = document.createElement('div'); tableHost.id = 'reactPatientTest';
         document.body.append(tableHost);
         window.patientTestCalls = [];
-        const view = createPatientsView({host:tableHost, scopeUi:{mount:() => {}}, mountClinical:() => {}, actions:{
+        const snapshot = {chips:[], scopeLabel:'Full workspace'};
+        const view = createPatientsView({host:tableHost, scopeUi:{subscribe:() => () => {}, getSnapshot:() => snapshot}, isClinicalCurrent:() => true, actions:{
             sort: key => window.patientTestCalls.push(key),
             choose: match => window.patientTestCalls.push([match.dataset_id, match.patient_id])}});
         window.patientTestView = {renderTable:table => view.render({
@@ -56,6 +57,11 @@ def test_react_patient_inputs_keep_focus_and_clinical_editor_until_discard(page)
     panel.locator('[data-field-id="marker"]').click()
     field = panel.get_by_label('Value', exact=True)
     expect(field).to_be_visible()
+    page.evaluate('window.scopeApplyBefore = document.querySelector("#patientOverviewRoot [data-scope-apply]")')
+    field.press_sequentially('12', delay=30)
+    expect(panel.locator('.clinical-filter-chip')).to_contain_text('Marker is 12')
+    expect(field).to_be_focused()
+    assert page.evaluate('window.scopeApplyBefore === document.querySelector("#patientOverviewRoot [data-scope-apply]")')
     page.evaluate('window.patientEditorBefore = document.querySelector("#patientClinicalFilters .clinical-filter-form")')
     search = panel.locator('#patientOverviewSearch')
     search.press_sequentially('HG00096', delay=20)

@@ -1,5 +1,4 @@
 import { modalityLabel, modalityKey } from './modalities.js';
-import { patientInventoryMarkup } from './patient_inventory.js';
 import { sortDiseaseOptions } from './shared.js';
 import { createMultimodalView } from './react/ui.js';
 
@@ -135,7 +134,7 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
         const payload = await response.json();
         if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : 'Inventory unavailable.');
         if (!current()) return;
-        inspector = {html:`<h4>${esc(patient.patient_id)} · ${esc(patient.dataset_label)}</h4>${patientInventoryMarkup(payload.samples || [], esc)}${(payload.warnings || []).map(warning => `<p>${esc(warning)}</p>`).join('')}`};
+        inspector = {patient, samples:payload.samples || [], warnings:payload.warnings || []};
         render();
       } catch (error) {
         if (current() && error.name !== 'AbortError') {inspector = {message:error.message}; render();}

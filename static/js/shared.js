@@ -51,20 +51,10 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-export function renderActivityCard(label, detail) {
-  return `
-    <div class="analysis-pending-card">
-      <div class="analysis-turn-meta">
-        <span class="query-chip badge">pending</span>
-        <span class="query-chip badge">${escapeHtml(label || "Working")}</span>
-      </div>
-      <div class="analysis-pending-row">
-        <div class="analysis-thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-        <span>${escapeHtml(detail || "Working on your request.")}</span>
-      </div>
-    </div>
-  `;
+export function activityState(label, detail) {
+  return {label, detail};
 }
+
 
 export async function downloadFile(url, filename, options = {}) {
   const response = await fetch(url, { ...options, cache: "no-store" });

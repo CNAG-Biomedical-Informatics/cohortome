@@ -385,6 +385,13 @@ def test_resource_import_catalogue_and_workspace_selection(page_auth, tmp_path):
     expect(page.locator("[data-resource]").first).to_have_attribute("data-included", "false")
     expect(page.locator("#resourceAccess")).not_to_have_attribute("open", "")
     expect(page.locator(".resource-modalities svg")).not_to_have_count(0)
+    page.locator('#resourceFilters [data-category="included"]').click()
+    expect(page.locator('.resource-card:visible')).to_have_count(2)
+    expect(page.locator('#resourceFilterEmpty')).to_be_hidden()
+    page.locator('#resourceFilters [data-category="archive"]').click()
+    expect(page.locator('.resource-card:visible')).to_have_count(0)
+    expect(page.locator('#resourceFilterEmpty')).to_be_visible()
+    page.locator('#resourceFilters [data-category="all"]').click()
     page.screenshot(path=str(tmp_path / "resource-catalogue.png"))
     page.evaluate("document.documentElement.dataset.theme = 'dark'")
     page.set_viewport_size({"width": 390, "height": 844})
@@ -468,6 +475,48 @@ def test_export_limits_admin_save_reload_and_nonadmin_hidden(page_auth):
     page.locator('[data-settings-section="jobs"]').click()
     expect(page.locator('#exportLimitsSettings')).to_be_hidden()
     assert page.request.put(base + '/export-settings', data={}).status == 403
+
+
+def test_storage_settings_react_failure_retry_and_access(page):
+    saved = {'directory': '/example/imports', 'free_bytes': 2 * 1024 ** 3}
+    writes = []
+    fail, forbidden = [True], [False]
+
+    def handle(route):
+        if forbidden[0]:
+            route.fulfill(status=403, json={'detail': 'Not allowed'})
+            return
+        if route.request.method == 'PUT':
+            writes.append(route.request.post_data_json)
+            if fail[0]:
+                route.fulfill(status=400, json={'detail': 'Choose an existing folder.'})
+                return
+            saved.update(route.request.post_data_json)
+        route.fulfill(json=saved)
+
+    page.route('**/resource-storage', handle)
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="jobs"]').click()
+    expect = playwright.expect
+    field = page.locator('#resourceStorageDirectory')
+    expect(field).to_have_value('/example/imports')
+    expect(page.locator('#resourceStorageBrowse')).to_be_hidden()
+    field.fill('/example/new-imports')
+    page.locator('#resourceStorageSave').click()
+    expect(page.locator('#resourceStorageStatus')).to_contain_text('Choose an existing folder')
+    expect(field).to_have_value('/example/new-imports')
+    expect(page.locator('#resourceStorageSave')).to_be_enabled()
+    fail[0] = False
+    page.locator('#resourceStorageSave').click()
+    expect(page.locator('#resourceStorageStatus')).to_contain_text('Storage folder saved')
+    assert writes == [{'directory': '/example/new-imports'}] * 2
+    page.locator('#userSettingsCloseBtn').click()
+    forbidden[0] = True
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    expect(page.locator('#resourceStorageSettings')).to_be_hidden()
+    expect(field).to_have_value('')
 
 
 def test_deployment_branding_admin_preview_persistence_and_researcher_access(page_auth):
@@ -573,6 +622,56 @@ def test_plot_palette_settings_save_reload_and_reset(page):
         page.locator('#userSettingsSaveBtn').click()
 
 
+def test_settings_react_draft_survives_navigation_and_failed_save(page):
+    settings = {'landing_tab_mode': 'last'}
+    writes = []
+    fail = [True]
+
+    def handle(route):
+        if route.request.method == 'PATCH':
+            writes.append(route.request.post_data_json)
+            if fail[0]:
+                route.fulfill(status=500, json={'detail': 'Try saving again.'})
+                return
+            settings.update(route.request.post_data_json)
+        route.fulfill(json=settings)
+
+    page.route('**/user-settings', handle)
+    page.reload(wait_until='networkidle')
+    expect = playwright.expect
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('#settingsLandingTab').select_option('query')
+    page.locator('#settingsDatasetCompactView').check()
+    page.locator('[data-settings-section="query"]').click()
+    page.locator('#settingsQueryDisclosure').select_option('summary')
+    page.locator('#settingsQueryDefaultMode').select_option('planner_only')
+    page.locator('[data-settings-section="analysis"]').click()
+    page.locator('#settingsPhenoDefaultMetric').select_option('jaccard')
+    page.locator('#settingsPhenoRenderUmap').check()
+    page.locator('[data-settings-section="jobs"]').click()
+    page.locator('#settingsRunRetention').select_option('90')
+    page.locator('#userSettingsSaveBtn').click()
+    expect(page.locator('#userSettingsStatus')).to_contain_text('Try saving again')
+    expect(page.locator('#userSettingsDirty')).to_have_text('Unsaved changes')
+    page.locator('[data-settings-section="analysis"]').click()
+    expect(page.locator('#settingsPhenoDefaultMetric')).to_have_value('jaccard')
+    expect(page.locator('#settingsPhenoRenderUmap')).to_be_checked()
+    fail[0] = False
+    page.locator('#userSettingsSaveBtn').click()
+    expect(page.locator('#userSettingsStatus')).to_contain_text('Preferences saved')
+    expect(page.locator('#userSettingsDirty')).to_have_text('')
+    assert writes[0] == writes[1]
+    for key, value in {'landing_tab': 'query', 'dataset_compact_view': True,
+                       'query_disclosure_default': 'summary', 'query_default_mode': 'planner_only',
+                       'pheno_default_metric': 'jaccard', 'pheno_render_umap': True,
+                       'run_history_retention_days': 90}.items():
+        assert settings[key] == value
+    page.locator('#userSettingsResetBtn').click()
+    expect(page.locator('#settingsPhenoDefaultMetric')).to_have_value('')
+    expect(page.locator('#settingsPhenoRenderUmap')).not_to_be_checked()
+
+
 def test_settings_about_and_background_notifications(page):
     settings = {"job_notifications": True}
     jobs = [{"job_id": "notice-test", "status": "running", "execution_backend": "job"}]
@@ -612,6 +711,41 @@ def test_settings_about_and_background_notifications(page):
     assert settings["job_notifications"] is False
     page.reload(wait_until="networkidle")
     expect(page.locator(".job-completion-notice")).to_have_count(0)
+
+
+def test_about_react_retry_and_copy_report(page):
+    calls = []
+
+    def handle(route):
+        calls.append(True)
+        if len(calls) == 1:
+            route.fulfill(status=503, json={'detail': 'Unavailable'})
+        else:
+            route.fulfill(json={'components': {'Example <b>tool</b>': '1.0'}, 'note': 'Test report.'})
+
+    page.route('**/about', handle)
+    page.evaluate("""() => {
+      Object.defineProperty(navigator, 'clipboard', {configurable: true,
+        value: {writeText: async text => {window.copiedReport = text;}}});
+    }""")
+    page.locator('#accountMenuButton').click()
+    page.locator('#userSettingsBtn').click()
+    page.locator('[data-settings-section="about"]').click()
+    summary = page.locator('#settingsAbout summary')
+    summary.click()
+    expect = playwright.expect
+    expect(page.locator('#aboutVersionReport')).to_contain_text('Unable to load versions')
+    expect(page.locator('#aboutCopyReport')).to_be_disabled()
+    summary.click()
+    summary.click()
+    expect(page.locator('#aboutVersionReport')).to_contain_text('Example <b>tool</b>: 1.0')
+    expect(page.locator('#aboutVersionReport b')).to_have_count(0)
+    page.locator('#aboutCopyReport').click()
+    expect(page.locator('#aboutCopyStatus')).to_have_text('Copied.')
+    assert 'Example <b>tool</b>: 1.0' in page.evaluate('window.copiedReport')
+    summary.click()
+    summary.click()
+    assert len(calls) == 2
 
 
 def test_shared_clipboard_fallback_preserves_focus_and_cleans_up(page):
@@ -793,6 +927,9 @@ def test_query_column_sort_resets_page_and_orders_download(page):
     page.locator("#askBtn").click()
     table = page.locator("#queryThread .query-result-table").last
     visits = table.locator('[data-query-sort="visit_count"]')
+    details = page.locator('#queryThread .query-response-details').last
+    details.locator('summary').click()
+    details.evaluate('(element) => { window.queryDetailsNode = element; }')
     assert visits.evaluate("el => getComputedStyle(el).backgroundImage") == "none"
     assert visits.evaluate("el => getComputedStyle(el).backgroundColor") == "rgba(0, 0, 0, 0)"
     assert visits.evaluate("el => getComputedStyle(el).color === getComputedStyle(el.parentElement).color")
@@ -801,6 +938,8 @@ def test_query_column_sort_resets_page_and_orders_download(page):
     visits.click()
     playwright.expect(visits.locator("..")).to_have_attribute("aria-sort", "descending")
     playwright.expect(table.locator("tbody tr").first).to_contain_text("P0606")
+    playwright.expect(details).to_have_attribute('open', '')
+    assert details.evaluate('(element) => element === window.queryDetailsNode')
     with page.expect_request(f"**/query-results/{handle}/export?*") as exported:
         with page.expect_download():
             page.locator('#queryThread [data-query-export="tsv"]').last.click()
@@ -1273,7 +1412,10 @@ def test_pheno_closest_prompt_guides_patient_selection(page):
     page.locator('#phenoRunBtn').click()
     playwright.expect(page.locator('#phenoPlanStatus')).to_contain_text('Choose a patient or visit')
     playwright.expect(page.locator('#phenoPatientId')).to_be_visible()
-    playwright.expect(page.locator('#phenoPatientChoices option')).to_have_count(3)
+    playwright.expect(page.locator('#phenoPatientChoices option')).to_have_count(6)
+    assert set(page.locator('#phenoPatientChoices option').evaluate_all('els => els.map(el => el.value)')) == {
+        'SYN001', 'SYN002', 'SYN003', 'SYN001:week_0', 'SYN002:week_0', 'SYN003:week_0',
+    }
     page.locator('#phenoPatientId').fill('SYN001:week_0')
     playwright.expect(page.locator('#phenoPatientId')).to_have_value('SYN001:week_0')
 
@@ -1404,7 +1546,7 @@ def _mock_cohort_run(page, metric: str = "", prefixed_ids: bool = False, request
 
 def _mock_patient_run(page) -> None:
     rank_text = (
-        "reference\ttarget\thamming\n"
+        "REFERENCE(ID)\tTARGET(ID)\thamming\n"
         "SYN002:week_0\tSYN001:week_0\t0.12\n"
         "SYN003:week_0\tSYN001:week_0\t0.19\n"
     )
@@ -2351,7 +2493,7 @@ def test_pheno_plan_followups_disclose_planning_path_before_click(
 
     page.route("**/pheno-ranker/plan", plan_handler)
     page.locator("#phenoPrompt").fill("Compare the current cohort")
-    page.locator("#phenoSetupDetails > summary").click()
+    page.locator("#phenoTechnicalDetails > summary").click()
     page.locator("#phenoPlanBtn").click()
 
     chip = page.locator("#phenoPlanFollowups [data-pheno-followup-prompt]")
@@ -2448,9 +2590,11 @@ def test_pheno_umap_opt_in_setting_and_plot(page):
     actions.filter(has_text='Copy selected IDs').click()
     playwright.expect(actions.filter(has_text='Copied')).to_be_visible()
     assert page.evaluate('window.copiedIds') == 'SYN001:week_0'
-    page.once('dialog', lambda dialog: dialog.accept('UMAP test selection'))
+    actions.filter(has_text='Save cohort').click()
+    name_dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
+    name_dialog.get_by_label('Cohort name').fill('UMAP test selection')
     with page.expect_response(lambda response: response.url.endswith('/saved-cohorts') and response.request.method == 'POST') as saved_response:
-        actions.filter(has_text='Save cohort').click()
+        name_dialog.get_by_role('button', name='Save cohort', exact=True).click()
     assert saved_response.value.ok
     saved = saved_response.value.json()
     assert saved['members'][0]['patient_id'] == 'SYN001'
@@ -2535,6 +2679,15 @@ def test_pheno_patient_run_shows_patient_only_cards(page) -> None:
     expect(page.locator("#phenoExplainCard")).to_be_visible()
     expect(page.locator("#phenoAlignmentCard")).to_be_visible()
     expect(page.locator("#phenoOutputPreview")).to_contain_text("rank.txt loaded as TSV")
+    page.route('**/pheno-ranker/alignment/job-patient?*', lambda route: route.fulfill(json={
+        'reference_id': 'SYN002:week_0', 'target_id': 'SYN001:week_0',
+        'shared': [{'bucket': 'diseases', 'label': '<b>Shared disease</b>', 'json_path': 'diseases[0]'}],
+        'reference_only': [], 'target_only': [],
+    }))
+    page.locator('#phenoOutputPreview tbody tr').first.click()
+    expect(page.locator('#phenoAlignmentDetail')).to_contain_text('Shared 1')
+    expect(page.locator('#phenoAlignmentDetail .alignment-label-cell')).to_have_text('<b>Shared disease</b>')
+    expect(page.locator('#phenoAlignmentDetail .alignment-label-cell b')).to_have_count(0)
     pending = []
     page.route('**/pheno-ranker/explain-llm/**', lambda route: pending.append(route))
     page.locator('#phenoExplainLlmBtn').click()
@@ -2639,8 +2792,9 @@ def test_dashboard_load_renders_clinical_overview(page) -> None:
     page.locator("#dashboardTabBtn").click()
 
     expect(page.locator("#loadStatus")).to_contain_text("Loaded 2 patients.")
-    expect(page.locator("#dashboard")).to_contain_text("Patients2")
+    expect(page.locator("#dashboard .dashboard-count").first).to_have_text("2 patients")
     expect(page.locator("#dashboard-plot-diseases")).to_have_attribute("data-plotly-ready", "true")
+    page.locator('#dashboardClinicalToggleBtn').click()
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
 
 
@@ -2728,6 +2882,16 @@ def test_dataset_picker_uses_accessible_structured_trait_icons_and_legend(page) 
     )
     assert description.evaluate("(element) => getComputedStyle(element).webkitLineClamp") == "2"
     assert description.evaluate("(element) => getComputedStyle(element).overflow") == "hidden"
+
+    checkbox = secondary_card.locator('[data-dataset-checkbox]')
+    original = checkbox.is_checked()
+    checkbox.evaluate('(element) => { window.datasetCheckbox = element; }')
+    checkbox.set_checked(not original)
+    expect(checkbox).to_be_checked(checked=not original)
+    expect(checkbox).to_be_focused()
+    assert checkbox.evaluate('(element) => element === window.datasetCheckbox')
+    checkbox.set_checked(original)
+    assert checkbox.evaluate('(element) => element === window.datasetCheckbox')
 
 
 def test_dataset_picker_does_not_overflow_at_narrow_viewport(page) -> None:
@@ -2879,6 +3043,97 @@ def test_dataset_bulk_actions_selection_menu_and_ai_review(page_auth, tmp_path):
     toolbar.locator('[data-clear]').click()
     expect(toolbar.locator('[data-selection]')).to_be_hidden()
     expect(card.locator('summary > input')).not_to_be_checked()
+
+
+def test_dataset_permission_dialog_failure_retry_and_cleanup(page_auth):
+    expect = playwright.expect
+    attempts = []
+    errors = []
+    page_auth.on('pageerror', lambda error: errors.append(str(error)))
+
+    def update(route):
+        attempts.append(route.request.post_data_json)
+        if len(attempts) == 1:
+            route.fulfill(status=503, json={'detail': 'Please retry this request.'})
+        else:
+            route.fulfill(json={'updated': 1})
+
+    page_auth.route('**/datasets/bulk-ai-access', update)
+    page_auth.locator('#authUsername').fill('admin')
+    page_auth.locator('#authPassword').fill('secret')
+    page_auth.locator('#authLoginBtn').click()
+    expect(page_auth.locator('#appShell')).to_be_visible()
+    page_auth.locator('#accountMenuButton').click()
+    page_auth.locator('#adminTabBtn').click()
+    page_auth.locator('#dataTabBtn').click()
+    page_auth.locator('[data-dataset-admin-card="secondary"] summary > input').check()
+    toolbar = page_auth.locator('.dataset-bulk-toolbar')
+    toolbar.locator('summary').click()
+    toolbar.locator('[data-edit]').click()
+    dialog = page_auth.get_by_role('dialog', name='Change AI permissions')
+    expect(dialog.locator('select')).to_have_value('blocked')
+    dialog.locator('select').select_option('safe_summary')
+    dialog.locator('[data-apply]').click()
+    expect(dialog.get_by_role('status')).to_have_text('Please retry this request.')
+    expect(dialog.locator('[data-apply]')).to_be_enabled()
+    expect(dialog.locator('select')).to_have_value('safe_summary')
+    expect(toolbar.locator('[data-count]')).to_have_text('1 selected')
+    dialog.locator('[data-apply]').click()
+    expect(dialog).to_have_count(0)
+    expect(toolbar.locator('[data-status]')).to_have_text('AI permissions updated for 1 datasets.')
+    assert attempts == [{'dataset_ids': ['secondary'], 'ai_provider_access': 'safe_summary'}] * 2
+    toolbar.locator('[data-select-all]').check()
+    toolbar.locator('summary').click()
+    toolbar.locator('[data-edit]').click()
+    page_auth.keyboard.press('Escape')
+    expect(dialog).to_have_count(0)
+    assert len(attempts) == 2
+    assert not errors
+
+
+def test_dataset_admin_react_preserves_drafts_and_saves(page_auth):
+    expect = playwright.expect
+    errors = []
+    page_auth.on('pageerror', lambda error: errors.append(str(error)))
+    saved = []
+
+    def save(route):
+        assert route.request.method == 'PATCH'
+        payload = route.request.post_data_json
+        saved.append(payload)
+        dataset = page_auth._cohortome_dataset_state['datasets'][1]
+        dataset.update(payload)
+        route.fulfill(json=dataset)
+
+    page_auth.route('**/datasets/secondary', save)
+    page_auth.locator('#authUsername').fill('admin')
+    page_auth.locator('#authPassword').fill('secret')
+    page_auth.locator('#authLoginBtn').click()
+    expect(page_auth.locator('#appShell')).to_be_visible()
+    page_auth.locator('#accountMenuButton').click()
+    page_auth.locator('#adminTabBtn').click()
+    page_auth.locator('#dataTabBtn').click()
+    card = page_auth.locator('[data-dataset-admin-card="secondary"]')
+    card.locator('summary').click()
+    groups = card.locator('[data-dataset-groups]')
+    groups.evaluate('(element) => { window.datasetGroups = element; }')
+    groups.fill('team-one, team-two')
+    card.locator('[data-dataset-classification]').select_option('public')
+    card.locator('[data-dataset-ai-provider-access]').select_option('safe_summary')
+    card.locator('summary > input').check()
+    expect(groups).to_have_value('team-one, team-two')
+    assert groups.evaluate('(element) => element === window.datasetGroups')
+    card.locator('[data-dataset-save]').click()
+    expect(card.locator('.dataset-admin-feedback')).to_have_text('Settings saved.')
+    expect(groups).to_have_value('team-one, team-two')
+    assert groups.evaluate('(element) => element === window.datasetGroups')
+    assert saved[0]['allowed_groups'] == ['team-one', 'team-two']
+    assert saved[0]['data_classification'] == 'public'
+    assert saved[0]['ai_provider_access'] == 'safe_summary'
+    expect(card.locator('.dataset-policy-placeholder').first).to_have_text(
+        'Approved providers may receive only a safe structural summary.')
+    expect(page_auth.locator('[data-dataset-remove="default"]')).to_be_disabled()
+    assert not errors
 
 
 def test_applying_first_dataset_uses_pending_selection_key(page) -> None:
@@ -3622,8 +3877,10 @@ def test_timeline_filters_by_available_modalities_including_undated(page):
     expect = playwright.expect
     expect(page.locator('#timelineAvailability tbody tr')).to_have_count(3)
     expect(page.locator('#timelineHasData')).not_to_contain_text('Disease')
+    page.evaluate('window.timelineProteinBefore = document.querySelector("#timelineHasData input[value=proteomics]")')
     page.locator('#timelineHasData input[value="proteomics"]').check()
     expect(page.locator('#timelineAvailability tbody tr')).to_have_count(2)
+    assert page.evaluate('window.timelineProteinBefore === document.querySelector("#timelineHasData input[value=proteomics]")')
     expect(page.locator('#timelineAvailability')).not_to_contain_text('P1 · beta')
     expect(page.locator('#timelineAvailability tbody tr').first.locator('td').nth(2)).to_contain_text('Proteomics')
     # Required data filters retain clinical markers.
@@ -3640,6 +3897,11 @@ def test_timeline_filters_by_available_modalities_including_undated(page):
     page.locator('#timelineDatasetFilter').select_option('beta')
     expect(page.locator('#timelineAvailability tbody tr')).to_have_count(1)
     expect(page.locator('#timelineAvailability')).to_contain_text('P1 · beta')
+    page.locator('#timelineTimeMode').select_option('relative')
+    expect(page.locator('#dashboard-plot-timeline')).to_contain_text('No observations with recorded study days')
+    expect(page.locator('#timelineAvailability')).to_contain_text('Study day not recorded')
+    page.locator('#timelineTimeMode').select_option('calendar')
+    page.locator('#dashboardTimeline').screenshot(path='/tmp/cohortome-react-timeline.png')
 
 
 def test_timeline_availability_error_is_visible_and_retryable(page):
@@ -3651,8 +3913,12 @@ def test_timeline_availability_error_is_visible_and_retryable(page):
     playwright.expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
     page.locator('#dashboardTabBtn').click()
     page.locator('#dashboardTimelineBtn').click()
-    playwright.expect(page.locator('#dashboard-plot-timeline')).to_contain_text('Detailed access required.')
+    playwright.expect(page.locator('#dashboardTimeline [role="status"]')).to_contain_text('Detailed access required.')
     playwright.expect(page.locator('#timelineRetry')).to_be_visible()
+    page.route('**/patient-overview/timeline?*', lambda route: route.fulfill(json={'timelines':[], 'warnings':[]}))
+    page.locator('#timelineRetry').click()
+    playwright.expect(page.locator('#timelineScopeLabel')).to_contain_text('0 patients match')
+    playwright.expect(page.locator('#timelineRetry')).to_have_count(0)
 
 
 def test_chat_dataset_load_failure_keeps_chat_and_allows_retry(page):
@@ -4112,7 +4378,8 @@ def test_query_large_patient_result_is_bounded_and_pages_by_handle(page) -> None
     latest_turn.locator("[data-query-action='use-pheno']").click()
     expect(page.locator('#phenoSelectedPatientIds')).to_have_value('')
     expect(page.locator('#phenoSelectedPatientIdsSummary')).to_contain_text('605')
-    expect(page.locator('#contextScope')).to_have_text('605 patients')
+    # Handoffs bind the new chat, not the global Dashboard/new-chat scope.
+    expect(page.locator('#contextScope')).to_have_text('Full workspace')
     captured_pheno = {}
     _mock_cohort_run(page, request_capture=captured_pheno)
     page.locator('#phenoRunBtn').click()
@@ -4125,7 +4392,7 @@ def test_query_large_patient_result_is_bounded_and_pages_by_handle(page) -> None
     expect(page.locator("#analysisTab")).to_have_class(re.compile(r".*active.*"))
     expect(page.locator("#analysisSelectedPatientIds")).to_have_value("")
     expect(page.locator("#analysisSelectedPatientIdsSummary")).to_contain_text("identifiers remain server-side")
-    expect(page.locator("#contextScope")).to_have_text("605 patients")
+    expect(page.locator("#contextScope")).to_have_text("Full workspace")
     with page.expect_request("**/analysis") as analysis_request:
         page.locator("#analysisRunBtn").click()
     analysis_body = analysis_request.value.post_data_json
@@ -5035,6 +5302,12 @@ def test_chat_sidebar_resize_drag_keyboard_and_reload(page):
 
 
 def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
+    # This case must not rely on chats or pins left by preceding tests.
+    assert page.request.post(page.url.rstrip('/') + '/analysis-sessions', data={
+        'id': 'sidebar-analysis', 'title': 'Sidebar chat', 'dataset_id': 'default',
+    }).ok
+    page.route('**/chat-folders', lambda route: route.fulfill(json={'folders': [], 'assignments': {}, 'pinned': []}))
+    page.reload(wait_until='networkidle')
     page.set_viewport_size({'width': 1600, 'height': 1000})
     _open_analysis_tab(page)
     expect = playwright.expect
@@ -5435,6 +5708,16 @@ def test_analysis_compare_mode_requires_saved_cohorts(page) -> None:
 def test_analysis_differential_expression_enables_after_saved_cohorts_selected(page) -> None:
     _mock_saved_cohorts(page)
     _mock_assay_datasets(page)
+    # Check setup behavior without requiring DESeq2/apeglm on the test host.
+    # This test does not execute an R analysis.
+    def catalogue(route):
+        response = route.fetch()
+        payload = response.json()
+        for item in payload['items']:
+            if item['id'] == 'transcriptomics-deseq2-differential-expression':
+                item.update(available=True, unavailable_reason='')
+        route.fulfill(response=response, json=payload)
+    page.route('**/analysis/catalog?*', catalogue)
     page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
     expect = playwright.expect
@@ -6196,10 +6479,15 @@ def test_admin_can_manage_model_providers_in_app(page_auth) -> None:
     if not managed_body.is_visible():
         managed_card.locator("summary").click()
     expect(managed_body).to_be_visible()
+    managed_card.evaluate('(el) => window.providerCardBeforeSave = el')
     managed_card.locator('[data-lm-provider-field="label"]').fill("Updated UI model")
+    expect(managed_card.locator('[data-lm-provider-save-status]')).to_have_text('Unsaved changes')
+    expect(managed_card.locator('[data-lm-provider-field="label"]')).to_have_value('Updated UI model')
     managed_card.locator('[data-lm-provider-action="save"]').click()
     updated_card = page_auth.locator("[data-lm-provider-card='ui-local']")
     expect(updated_card).to_contain_text("Updated UI model")
+    assert updated_card.evaluate('(el) => el === window.providerCardBeforeSave')
+    expect(updated_card.locator('[data-lm-provider-field="api_key"]')).to_have_value('')
 
     page_auth.on("dialog", lambda dialog: dialog.accept())
     if not page_auth.locator("#modelsTab").is_visible():

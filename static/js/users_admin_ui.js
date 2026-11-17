@@ -1,3 +1,5 @@
+import {createUsersAdminView} from './react/ui.js';
+
 export function createUsersAdminUi(ctx) {
   const { refs, state, callbacks } = ctx;
   const {
@@ -35,84 +37,15 @@ export function createUsersAdminUi(ctx) {
     if (userCreateEnabledEl) userCreateEnabledEl.checked = true;
   }
 
-  function renderAuthUsersList(users) {
-    if (!usersListEl) {
-      return;
-    }
-    if (!users.length) {
-      usersListEl.innerHTML = '<div class="empty">No users configured.</div>';
-      return;
-    }
-    const expandedUsernames = new Set(
-      Array.from(usersListEl.querySelectorAll("[data-auth-user-card][open]"))
-        .map((item) => String(item.getAttribute("data-auth-user-card") || "").trim())
-        .filter(Boolean),
-    );
-    usersListEl.innerHTML = users.map((user) => {
-      const username = String(user.username || "");
-      const displayName = String(user.display_name || user.username || "");
-      const email = String(user.email || "");
-      const role = String(user.role || "user");
-      const enabled = user.enabled !== false;
-      const authSource = String(user.auth_source || "local");
-      const groups = Array.isArray(user.groups) ? user.groups : [];
-      return `
-        <details class="dataset-admin-card" data-auth-user-card="${username.replace(/"/g, "&quot;")}"${expandedUsernames.has(username) ? " open" : ""}>
-          <summary class="dataset-admin-summary">
-            <span class="dataset-admin-summary-main">
-              <span class="dataset-picker-title">${displayName || username || "Unknown user"}</span>
-              <span class="dataset-picker-meta">
-                <span class="dataset-picker-tag">${username}</span>
-                <span class="dataset-picker-tag">${role}</span>
-                <span class="dataset-picker-tag">auth: ${authSource}</span>
-              </span>
-            </span>
-            <span class="dataset-picker-tag ${enabled ? "dataset-picker-tag-ready" : "dataset-picker-tag-danger"}">${enabled ? "Enabled" : "Disabled"}</span>
-          </summary>
-          <div class="dataset-admin-body">
-            <div class="query-grid query-grid-compact" style="margin-top:12px;">
-              <div>
-                <label>Display name</label>
-                <input type="text" data-auth-user-field="display_name" data-auth-user="${username.replace(/"/g, "&quot;")}" value="${displayName.replace(/"/g, "&quot;")}">
-              </div>
-              <div>
-                <label>Role</label>
-                <select data-auth-user-field="role" data-auth-user="${username.replace(/"/g, "&quot;")}">
-                  <option value="user"${role === "user" ? " selected" : ""}>User</option>
-                  <option value="admin"${role === "admin" ? " selected" : ""}>Admin</option>
-                </select>
-              </div>
-              <div class="query-grid-span-2">
-                <label>Email</label>
-                <input type="email" data-auth-user-field="email" data-auth-user="${username.replace(/"/g, "&quot;")}" value="${email.replace(/"/g, "&quot;")}" placeholder="Optional password-reset email">
-              </div>
-              <div class="query-grid-span-2">
-                <label>Groups</label>
-                <input type="text" data-auth-user-field="groups" data-auth-user="${username.replace(/"/g, "&quot;")}" value="${formatUserGroupsInput(groups).replace(/"/g, "&quot;")}" placeholder="Comma-separated groups">
-              </div>
-            </div>
-            <div class="query-row" style="margin-top:12px;">
-              <label class="dataset-picker-check">
-                <input type="checkbox" data-auth-user-field="enabled" data-auth-user="${username.replace(/"/g, "&quot;")}"${enabled ? " checked" : ""}>
-                <span>Enabled</span>
-              </label>
-              <button type="button" class="query-chip query-chip-deterministic" data-auth-user-action="save" data-auth-user="${username.replace(/"/g, "&quot;")}">Save</button>
-              <input type="password" data-auth-user-field="password" data-auth-user="${username.replace(/"/g, "&quot;")}" placeholder="New password">
-              <button type="button" class="query-chip" data-auth-user-action="reset-password" data-auth-user="${username.replace(/"/g, "&quot;")}">Reset password</button>
-              <button type="button" class="query-chip danger-btn" data-auth-user-action="delete" data-auth-user="${username.replace(/"/g, "&quot;")}">Delete</button>
-            </div>
-          </div>
-        </details>
-      `;
-    }).join("");
-  }
+  const usersView = usersListEl ? createUsersAdminView(usersListEl) : null;
+  function renderAuthUsersList(users) { usersView?.render(users); }
 
   async function loadAuthUsers() {
     if (!usersListEl || !usersStatusEl) return;
     if (!canManageDataset()) {
       usersStatusEl.className = "query-status";
       usersStatusEl.textContent = "Admin access required.";
-      usersListEl.innerHTML = '<div class="empty">User administration is only visible to administrators.</div>';
+      usersView.render([], 'User administration is only visible to administrators.');
       if (usersCreateCardEl) {
         usersCreateCardEl.classList.add("is-hidden");
       }
@@ -141,7 +74,7 @@ export function createUsersAdminUi(ctx) {
       renderDatasetAdminList();
       usersStatusEl.className = "query-status";
       usersStatusEl.textContent = error && error.message ? error.message : "Unable to load users.";
-      usersListEl.innerHTML = '<div class="empty">User list unavailable.</div>';
+      usersView.render([], 'User list unavailable.');
     }
   }
 

@@ -48,6 +48,8 @@ export function createWorkspaceUi(ctx) {
     renderPatientList,
     renderDetail,
     renderDashboard,
+    resetDashboardViews,
+    resetPatientInspectorView,
     isWorkspaceAccessible,
     updateLoadButtonAvailability,
     applyUserSettings,
@@ -62,6 +64,7 @@ export function createWorkspaceUi(ctx) {
     if (!dashboardEl || state.currentDatasetIds.length || state.loadInFlight || openingDemo || !isWorkspaceAccessible()) return;
     const demo = state.availableDatasets.find(item => item.dataset_id === 'synthetic-cross-sectional-demo');
     const canOpenDemo = demo && (demo.query_store_status?.ready || canManageDataset());
+    resetDashboardViews();
     dashboardEl.innerHTML = `<section class="workspace-welcome">
       <h2>Explore a cohort</h2><p>${canOpenDemo ? 'Open the synthetic demo to explore patients, assays and analyses, or choose your own datasets.' : 'Choose datasets to start exploring patients, assays and analyses.'}</p>
       <div class="saved-cohort-actions">${canOpenDemo ? '<button type="button" class="primary-btn" data-open-demo>Open demo</button>' : ''}<button type="button" class="secondary-btn" data-choose-datasets>Choose datasets</button></div>
@@ -336,6 +339,7 @@ export function createWorkspaceUi(ctx) {
   }
 
   function showDashboardNotice(kind, detail, retry = null) {
+    resetDashboardViews();
     for (const [panel, label] of [[dashboardEl, "Dashboard"], [dashboardTimelineEl, "Timeline"]]) {
       if (!panel) continue;
       const card = document.createElement("div");
@@ -514,11 +518,12 @@ export function createWorkspaceUi(ctx) {
       if (state.currentPatients.length) {
         renderPatientList(filterPatients(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : ""));
         if (detailEl) {
+          resetPatientInspectorView();
           detailEl.innerHTML = '<div class="empty">Select a patient to inspect the patient workspace.</div>';
         }
       } else {
         if (patientsEl) patientsEl.innerHTML = '<div class="empty">No patient records found in the selected workspace.</div>';
-        if (detailEl) detailEl.innerHTML = '<div class="empty">No patient workspace to display.</div>';
+        if (detailEl) {resetPatientInspectorView(); detailEl.innerHTML = '<div class="empty">No patient workspace to display.</div>';}
       }
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
@@ -565,6 +570,7 @@ export function createWorkspaceUi(ctx) {
           patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
         }
         if (detailEl) {
+          resetPatientInspectorView();
           detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
         }
         showDashboardNotice("unavailable", "The workspace could not be loaded. Check the message in Datasets and apply the selection again when it is ready.");
@@ -597,6 +603,7 @@ export function createWorkspaceUi(ctx) {
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       if (detailEl) {
+        resetPatientInspectorView();
         detailEl.innerHTML = `<div class="empty">${error.detail || "Unable to load patient."}</div>`;
       }
       return;

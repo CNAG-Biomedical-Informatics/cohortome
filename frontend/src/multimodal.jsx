@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { PatientInventory } from './patient-inventory.jsx';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
 import { modalityPresentation, modalityColor } from '../../static/js/modalities.js';
 
@@ -95,9 +96,8 @@ function Multimodal({model, actions, scopeUi}) {
       <details className="coverage-patients"><summary>Matching patients</summary>
         <div className="coverage-patient-list"><MatchingPatients patients={patients} page={page} onPage={actions.page} onInspect={actions.inspect}/></div>
       </details>
-      <div className="coverage-inspector">{inspector && (inspector.html
-        // The existing inventory renderer escapes all source values before returning HTML.
-        ? <section dangerouslySetInnerHTML={{__html:inspector.html}}/>
+      <div className="coverage-inspector">{inspector && (inspector.patient
+        ? <section><h4>{inspector.patient.patient_id} · {inspector.patient.dataset_label}</h4><PatientInventory rows={inspector.samples}/>{inspector.warnings.map((warning,index) => <p key={index}>{warning}</p>)}</section>
         : <section>{inspector.message}</section>)}</div>
     </section>
     <details><summary>How matching works</summary>

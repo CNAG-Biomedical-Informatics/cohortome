@@ -1,10 +1,12 @@
-import { patientInventoryMarkup } from '/static/js/patient_inventory.js';
-import { modalityIcon, modalityLabel, modalityColor } from './modalities.js';
+import { modalityLabel, modalityColor } from './modalities.js';
+import { createTimelineView, createPatientInspectorView } from './react/ui.js';
 
 // Availability is dataset-scoped. Clinical properties are inspector details.
 export function createTimelineUi({state, refs, helpers, callbacks}) {
   const {escapeHtml: esc, mountPlot, dashboardPlotLayout} = helpers;
   const {detailEl} = refs;
+  const view = createTimelineView(refs.dashboardTimelineEl);
+  const inspectorView = createPatientInspectorView(detailEl);
   let data = null, scopeKey = '', pending = null, generation = 0;
   let required = [], active = '';
   let timeMode = '';
@@ -25,13 +27,15 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
   ];
   function reset() {
     inspection++;
+    inspectorView.reset();
     detailEl.replaceChildren();
     generation++; pending?.abort(); pending = null; data = null; scopeKey = '';
     required = []; active = ''; timeMode = '';
+    view.reset();
   }
   window.addEventListener('cohortome:workspace-changing', reset);
   window.addEventListener('cohortome:scope-applied', () => {
-    inspection++; active = ''; detailEl.replaceChildren();
+    inspection++; active = ''; inspectorView.reset(); detailEl.replaceChildren();
     state.timelinePatientFilter = ''; state.timelinePage = 0;
   });
   async function load(summary) {
@@ -50,9 +54,7 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
       renderDashboardTimeline(summary);
     } catch (error) {
       if (ticket === generation && error.name !== 'AbortError') {
-        const plot = document.getElementById('dashboard-plot-timeline');
-        if (plot) plot.innerHTML = '<p>' + esc(error.message) + '</p><button type="button" id="timelineRetry">Retry</button>';
-        document.getElementById('timelineRetry')?.addEventListener('click', () => load(summary));
+        view.render({error:error.message, actions:{retry:() => renderDashboardTimeline(summary)}});
       }
     } finally { if (pending === controller) pending = null; }
   }
@@ -60,85 +62,41 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     const ticket = ++inspection, selectedScope = scope();
     active = p.patient_id;
     detailEl.classList.remove('empty');
-    detailEl.innerHTML = '<div class="workspace-card"><h3>' + esc(patientLabel(p)) + '</h3>'
-      + '<p>' + (p.events || []).length + ' clinical records · ' + (p.samples || []).length + ' linked assay entries</p>'
-      + (event ? '<h4>' + esc(event.title) + '</h4><p>' + esc(timeLabel(event)) + '</p>' : '')
-      + (event?.diagnosis ? '<p>' + esc(event.diagnosis) + '</p>' : '')
-      + (event?.domains || []).map(d => '<p><strong>' + esc(d.label || d.key) + ':</strong> ' + (d.examples || []).map(esc).join(', ') + '</p>').join('')
-      + '<h4>Clinical data, samples & assays</h4>'
-      + '<div data-patient-inventory>' + patientInventoryMarkup(p.samples || [], esc, []) + '</div>'
-      + '<p data-clinical-status class="section-note" role="status">Loading clinical records…</p>'
-      + (event?.modality === 'clinical' ? '<button type="button" class="query-chip" data-clinical-all>All clinical timepoints</button>' : '')
-      + '<button type="button" class="query-chip" data-clinical-more hidden>Load more records</button>'
-      + '</div>';
-    const inventoryEl = detailEl.querySelector('[data-patient-inventory]');
-    const statusEl = detailEl.querySelector('[data-clinical-status]');
-    let clinicalRecords = [];
-    const more = detailEl.querySelector('[data-clinical-more]');
-    const all = detailEl.querySelector('[data-clinical-all]');
-    if (all) all.onclick = () => inspect(p, null, summary);
-    let offset = 0, loadingRecords = false;
+    let clinicalRecords = [], offset = 0, loading = false, failed = false, clarid;
+    let status = 'Loading clinical records…';
+    const current = () => ticket === inspection && selectedScope === scope();
+    const render = () => inspectorView.render({ticket, patient:p, event, label:patientLabel(p),
+      timeLabel:event ? timeLabel(event) : '', records:clinicalRecords, clarid, status, loading,
+      failed, hasMore:failed || offset !== null, more:loadRecords, all:() => inspect(p,null,summary)});
     async function loadRecords() {
-      if (loadingRecords || offset === null) return;
-      loadingRecords = true;
-      more.disabled = true;
+      if (!current() || loading || offset === null) return;
+      loading = true; failed = false; render();
       try {
         const response = await fetch('/patient-overview/clinical?' + new URLSearchParams({
           workspace:selectedScope, dataset_id:p.dataset_id, patient_id:p.source_patient_id, offset,
           visit_id:event?.modality === 'clinical' ? (event.visit_id || '') : ''}));
         const payload = await response.json();
-        if (ticket !== inspection || selectedScope !== scope()) return;
+        if (!current()) return;
         if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : 'Unable to load clinical records.');
-        const expanded = [...inventoryEl.querySelectorAll('[data-clinical-index][open]')].map(el => el.dataset.clinicalIndex);
-        const scrollTop = inventoryEl.querySelector('.patient-inventory-scroll')?.scrollTop || 0;
         clinicalRecords = offset ? clinicalRecords.concat(payload.records) : payload.records;
-        inventoryEl.innerHTML = patientInventoryMarkup(p.samples || [], esc, clinicalRecords, payload.clarid);
-        expanded.forEach(index => inventoryEl.querySelector(`[data-clinical-index="${index}"]`)?.setAttribute('open', ''));
-        if (!offset && event?.modality === 'clinical') inventoryEl.querySelector('.clinical-record')?.setAttribute('open', '');
-        inventoryEl.querySelector('.patient-inventory-scroll').scrollTop = scrollTop;
-        statusEl.textContent = payload.total ? `${clinicalRecords.length} of ${payload.total} clinical records shown.` : 'No clinical records available.';
-        more.textContent = 'Load more records';
-        more.hidden = payload.next_offset === null;
-        offset = payload.next_offset;
-      } catch (error) {
-        if (ticket !== inspection || selectedScope !== scope()) return;
-        statusEl.textContent = error.message;
-        more.hidden = false; more.textContent = 'Retry clinical records';
-      } finally { loadingRecords = false; more.disabled = offset === null; }
+        clarid = payload.clarid; offset = payload.next_offset;
+        status = payload.total ? clinicalRecords.length + ' of ' + payload.total + ' clinical records shown.' : 'No clinical records available.';
+      } catch (error) {if (current()) {status = error.message; failed = true;}}
+      finally {if (current()) {loading = false; render();}}
     }
-    more.onclick = loadRecords;
-    void loadRecords();
+    render(); void loadRecords();
     renderDashboardTimeline(summary);
-    detailEl.scrollIntoView({block:'nearest'});
   }
   function renderDashboardTimeline(summary) {
-    const plot = document.getElementById('dashboard-plot-timeline');
-    if (!plot) return;
-    if (scopeKey !== scope()) reset();
-    if (!data) { plot.textContent = 'Loading data availability…'; void load(summary); return; }
+    if (scopeKey !== scope()) {reset(); scopeKey = scope();}
+    if (!data) { view.render({loading:true, actions:{}}); void load(summary); return; }
     const applied = state.activePatientScope?.workspace === state.currentDatasetScopeId ? state.activePatientScope : null;
     const memberKeys = applied ? new Set((applied.selection.members || []).map(m => JSON.stringify([m.dataset_id, m.patient_id]))) : null;
     const all = (data.timelines || []).filter(patient => !memberKeys || memberKeys.has(JSON.stringify([patient.dataset_id, patient.source_patient_id])));
     if (state.timelinePatientFilter && active !== state.timelinePatientFilter) required = [];
     if (!timeMode) timeMode = all.some(p => events(p).some(e => time(e.date) !== null)) ? 'calendar' : 'relative';
-    const axis = document.getElementById('timelineTimeMode');
-    axis.value = timeMode;
-    axis.onchange = () => {timeMode = axis.value; renderDashboardTimeline(summary);};
-    document.getElementById('timelineTimeNote').textContent = timeMode === 'relative'
-      ? 'Days from each participant’s recorded study baseline. Baseline definitions may differ between datasets; this is not calendar time.'
-      : 'Recorded calendar dates. Observations with only relative study time are available in the Study days view.';
     const datasets = new Map(all.map(p => [p.dataset_id, p.dataset_label]));
-    const ds = document.getElementById('timelineDatasetFilter');
-    ds.innerHTML = '<option value="">All workspace datasets</option>' + [...datasets].map(([id,name]) => '<option value="' + esc(id) + '">' + esc(name) + '</option>').join('');
-    ds.value = state.timelineDatasetFilter || '';
-    ds.onchange = () => {state.timelineDatasetFilter = ds.value; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);};
     const modalities = [...new Set(all.flatMap(p => events(p).map(e => e.modality)))].sort();
-    function controls(id, values, change) {
-      const el = document.getElementById(id);
-      el.innerHTML = modalities.map(m => '<label class="dashboard-timeline-domain" style="--timeline-domain-color:' + colour(m) + '"><input type="checkbox" value="' + esc(m) + '"' + (values.includes(m) ? ' checked' : '') + '>' + modalityIcon(m) + '<span>' + esc(label(m)) + '</span></label>').join('');
-      el.onchange = () => change([...el.querySelectorAll('input:checked')].map(i => i.value));
-    }
-    controls('timelineHasData', required, values => {required = values; state.timelinePage = 0; renderDashboardTimeline(summary);});
     const filtered = all.filter(p => (!state.timelineDatasetFilter || p.dataset_id === state.timelineDatasetFilter)
       && (!state.timelinePatientFilter || p.patient_id === state.timelinePatientFilter)
       && required.every(m => events(p).some(e => e.modality === m)));
@@ -149,27 +107,27 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
     const pages = Math.max(1, Math.ceil(filtered.length / 40));
     state.timelinePage = Math.min(state.timelinePage || 0, pages - 1);
     const visible = filtered.slice(state.timelinePage * 40, (state.timelinePage + 1) * 40);
-    document.getElementById('timelineScopeLabel').textContent = filtered.length + ' patients match · ' + all.length + (applied ? ' in applied scope' : ' in workspace');
-    document.getElementById('timelinePageLabel').textContent = 'Page ' + (state.timelinePage + 1) + ' of ' + pages;
-    for (const [id, delta] of [['timelinePrevious', -1], ['timelineNext', 1]]) {
-      const button = document.getElementById(id);
-      button.disabled = delta < 0 ? !state.timelinePage : state.timelinePage >= pages - 1;
-      button.onclick = () => {state.timelinePage += delta; renderDashboardTimeline(summary);};
-    }
-    document.getElementById('timelineShowAll').onclick = () => {
-      required = []; state.timelineDatasetFilter = ''; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);
-    };
-    document.getElementById('timelineWarnings').innerHTML = (data.warnings || []).length
-      ? '<details><summary>Linkage limitations (' + data.warnings.length + ')</summary>' + data.warnings.map(w => '<p>' + esc(w) + '</p>').join('') + '</details>' : '';
-    // This column remains visible for patients who have no dated observations.
-    const table = document.getElementById('timelineAvailability');
-    table.innerHTML = '<table class="dashboard-timeline-table"><thead><tr><th>Patient / dataset</th><th>Available data</th><th>' + (timeMode === 'relative' ? 'Study day not recorded' : 'Calendar date not recorded') + '</th></tr></thead><tbody>'
-      + visible.map((p,i) => {
-        const es = events(p);
-        const badges = list => [...new Set(list.map(e => e.modality))].map(m => '<span class="pill" style="border-color:' + colour(m) + '">' + modalityIcon(m) + esc(label(m)) + '</span>').join(' ') || '—';
-        return '<tr' + (active === p.patient_id ? ' class="is-inspected"' : '') + '><td><button type="button" class="query-chip" data-timeline-inspect="' + i + '">' + esc(patientLabel(p)) + '</button></td><td>' + badges(es) + '</td><td>' + badges(es.filter(e => coordinate(e) === null)) + '</td></tr>';
-      }).join('') + '</tbody></table>';
-    table.querySelectorAll('[data-timeline-inspect]').forEach(b => {b.onclick = () => inspect(visible[Number(b.dataset.timelineInspect)], null, summary);});
+    view.render({
+      datasets:[...datasets], dataset:state.timelineDatasetFilter || '', modalities, required, timeMode,
+      page:state.timelinePage, pages, active, warnings:data.warnings || [],
+      scopeLabel:filtered.length + ' patients match · ' + all.length + (applied ? ' in applied scope' : ' in workspace'),
+      rows:visible.map(patient => ({patient, label:patientLabel(patient),
+        modalities:[...new Set(events(patient).map(e => e.modality))],
+        undated:[...new Set(events(patient).filter(e => coordinate(e) === null).map(e => e.modality))]})),
+      actions:{
+        dataset:value => {state.timelineDatasetFilter = value; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);},
+        time:value => {timeMode = value; renderDashboardTimeline(summary);},
+        required:values => {required = values; state.timelinePage = 0; renderDashboardTimeline(summary);},
+        page:delta => {state.timelinePage += delta; renderDashboardTimeline(summary);},
+        clear:() => {required = []; state.timelineDatasetFilter = ''; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);},
+        inspect:patient => inspect(patient, null, summary),
+      },
+      draw:() => drawTimeline(visible, modalities, datasets, summary),
+    });
+  }
+  function drawTimeline(visible, modalities, datasets, summary) {
+    const plot = document.getElementById('dashboard-plot-timeline');
+    if (!plot) return;
     const points = visible.flatMap(p => events(p).filter(e => coordinate(e) !== null).map(e => ({p,e})));
     if (!points.length) {
       window.Plotly?.purge?.(plot);
@@ -207,16 +165,6 @@ export function createTimelineUi({state, refs, helpers, callbacks}) {
       else { const patient = visible.find(p => p.patient_id === id); if (patient) inspect(patient, null, summary); }
     });}, {displayModeBar:true, modeBarButtonsToRemove:['select2d','lasso2d']});
   }
-  function timelinePanelMarkup() {
-    return '<section class="section-card dashboard-timeline-card"><div class="dashboard-view-heading"><h2>Timeline</h2><span id="timelineScopeLabel" class="dashboard-count"></span><details class="inline-view-help"><summary aria-label="About timeline">?</summary><p>Data availability over time. Find patients with particular data, then inspect when it was collected.</p></details></div>'
-      + '<div class="timeline-scope-controls"><label>Dataset <select id="timelineDatasetFilter"></select></label><button id="timelineShowAll" class="query-chip" type="button">Show all patients</button></div>'
-      + '<label>Time axis <select id="timelineTimeMode"><option value="calendar">Calendar dates</option><option value="relative">Study days</option></select></label><p id="timelineTimeNote" class="section-note"></p>'
-      + '<h4>Has data</h4><p class="section-note">Patients must have every checked data type. Leave unchecked to include everyone.</p><div id="timelineHasData" class="dashboard-timeline-controls"></div>'
-      + '<p class="section-note">Click a plot legend item to hide or show its markers. Grey bars span the earliest to latest recorded observations; they do not imply continuous monitoring.</p>'
-      + '<div class="timeline-pagination"><button id="timelinePrevious" class="query-chip">Previous</button><span id="timelinePageLabel"></span><button id="timelineNext" class="query-chip">Next</button></div>'
-      + '<div id="timelineWarnings"></div><div id="dashboard-plot-timeline" class="dashboard-plot-frame"></div>'
-      + '<div id="timelineAvailability" class="dashboard-timeline-table-wrap"></div>'
-      + '<p class="section-note">Click a marker or patient to inspect. Availability is based on declared links; missing entries do not prove an assay was never performed. No dates are inferred.</p></section>';
-  }
-  return {renderDashboardTimeline, timelinePanelMarkup};
+  return {renderDashboardTimeline, resetTimelineView:() => view.reset(),
+    resetInspectorView:() => {inspection++; inspectorView.reset();}};
 }

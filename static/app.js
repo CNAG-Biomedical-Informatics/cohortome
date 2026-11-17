@@ -1,4 +1,4 @@
-import { escapeHtml, fallbackCopyText, renderActivityCard } from "/static/js/shared.js";
+import { escapeHtml, fallbackCopyText } from "/static/js/shared.js";
 import { createAppRefs } from "/static/js/app_refs.js";
 import { createAppState } from "/static/js/app_state.js";
 import { nowIso, shortTimestamp, currentStorageNamespace, createAnalysisSession, createSelectionMetadata, formatNumber } from "/static/js/app_helpers.js";
@@ -28,6 +28,12 @@ import { createPatientOverview } from "/static/js/patient_overview.js";
 import { createClinicalSummaryUi } from '/static/js/clinical_summary.js';
 import { createCohortScopeUi } from '/static/js/cohort_scope.js';
 
+import {mountConversationComposers,mountNavigationShell,mountAdminCreationForms,mountApplicationPanels} from '/static/js/react/ui.js';
+
+mountApplicationPanels();
+mountConversationComposers();
+mountNavigationShell();
+mountAdminCreationForms();
 const refs = createAppRefs(document);
 const state = createAppState();
 const deploymentBrandingUi = createDeploymentBrandingUi();
@@ -204,6 +210,7 @@ function clearDatasetScopedContent(options = {}) {
   const detailMessage = signedOut ? "Patient workspace hidden until you sign in." : (nextScopeId ? "Loading patient workspace..." : "Select a workspace to inspect the patient workspace.");
   const dashboardMessage = signedOut ? "Clinical dashboard hidden until you sign in." : (nextScopeId ? "Loading dashboard..." : "Select a workspace to inspect the dashboard.");
   const timelineMessage = signedOut ? "Timeline hidden until you sign in." : (nextScopeId ? "Loading timeline..." : "Select a workspace to inspect the timeline.");
+  dashboardUi?.resetDashboardViews();
   if (refs.patientsEl) refs.patientsEl.innerHTML = `<div class="empty">${patientMessage}</div>`;
   if (refs.detailEl) refs.detailEl.innerHTML = `<div class="empty">${detailMessage}</div>`;
   if (refs.dashboardEl) refs.dashboardEl.innerHTML = `<div class="empty">${dashboardMessage}</div>`;
@@ -283,10 +290,6 @@ function clearAnalysisScopeMetadata(side = "a") {
   } else {
     state.analysisScopeMetadata = {};
   }
-}
-
-function renderQueryReply(payloadOrValue) {
-  return queryUi.renderQueryReply(payloadOrValue);
 }
 
 function sendPatientIdsToPhenoRanker() {
@@ -568,8 +571,8 @@ function startPhenoPlanProgressUpdates() {
     const stage = stages[Math.min(index, stages.length - 1)];
     refs.phenoPlanStatusEl.className = "pheno-status loading";
     refs.phenoPlanStatusEl.textContent = stage.label;
-    refs.phenoPlanEl.innerHTML = renderActivityCard(stage.label, stage.detail);
-    refs.phenoPlanReasoningEl.innerHTML = renderActivityCard("Planner reasoning", "Waiting for the interpreted plan and supporting rationale.");
+    phenoUi.showPlanProgress(stage.label, stage.detail);
+    phenoUi.renderPlanningProgress();
     if (index < stages.length - 1) {
       index += 1;
     }
@@ -604,8 +607,7 @@ function startPhenoRunProgressUpdates() {
     const stage = stages[Math.min(index, stages.length - 1)];
     refs.phenoStatusEl.className = "pheno-status loading";
     refs.phenoStatusEl.textContent = stage.label;
-    refs.phenoOutputPreviewEl.innerHTML = renderActivityCard(stage.label, stage.detail);
-    refs.phenoPreviewsEl.innerHTML = renderActivityCard("Preparing plots", "Waiting for interactive cohort plots and result files from the active run.");
+    phenoUi.renderRunProgress(stage.label, stage.detail);
     if (index < stages.length - 1) {
       index += 1;
     }
@@ -732,7 +734,6 @@ queryUi = createQueryUi({
   refs,
   helpers: {
     escapeHtml,
-    renderActivityCard,
     fallbackCopyText,
   },
   callbacks: {
@@ -762,7 +763,7 @@ analysisUi = createAnalysisUi({
   refs,
   helpers: {
     escapeHtml,
-    renderQueryReply,
+    queryReplyModel: (...args)=>queryUi.queryReplyModel(...args),
   },
   callbacks: {
     prepareScriptForRun: () => analysisCatalogUi.prepareScriptForRun(),
@@ -807,13 +808,9 @@ analysisSessionsUi = createAnalysisSessionsUi({
   callbacks: {
     restoreWorkspace: restoreChatWorkspace,
     queryChatEntries: () => [...(querySessionsUi?.entries() || []), ...(phenoSessionsUi?.entries() || [])],
-    renderPhenoChatCard: item => phenoSessionsUi.renderCard(item),
-    chatOrganizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
-    organizeChats: (items, row, search) => {
-      const renderRow = (item, dates) => chatDeletionUi ? chatDeletionUi.row(item, row(item, dates)) : row(item, dates);
-      return (chatDeletionUi?.toolbar() || '') + (chatFoldersUi ? chatFoldersUi.organize(items, renderRow, search) : items.map(item => renderRow(item)).join(''));
-    },
-    renderQueryChatCard: (item) => querySessionsUi.renderCard(item),
+    chatCardModel: item => item.chatKind === 'pheno' ? phenoSessionsUi.cardModel(item) : querySessionsUi.cardModel(item),
+    chatOrganization: () => chatFoldersUi?.snapshot(),
+    chatSelection: () => chatDeletionUi?.snapshot(),
     createAnalysisSession: makeAnalysisSession,
     currentAnalysisSession,
     currentDatasetSelectionKey: () => datasetsUi.currentDatasetSelectionKey(),
@@ -835,7 +832,6 @@ analysisSessionsUi = createAnalysisSessionsUi({
 
 querySessionsUi = createQuerySessionsUi({ state, refs, query: queryUi, escapeHtml,
   restoreWorkspace: restoreChatWorkspace,
-  organizationActions: (kind, id) => chatFoldersUi?.actions(kind, id) || '',
   openQuery: () => navigationUi.setActiveTab('query'),
   closeDrawer: () => {
     if (!document.getElementById('analysisChatDock').contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
@@ -869,9 +865,7 @@ phenoUi = createPhenoUi({
   },
   helpers: {
     escapeHtml,
-    renderActivityCard,
     fallbackCopyText,
-    renderQueryReply,
     nextFrame: () => workspaceUi.nextFrame(),
   },
   callbacks: {
@@ -930,7 +924,6 @@ phenoSessionsUi = createPhenoSessionsUi({state, refs, pheno:phenoUi, escapeHtml,
     navigationUi.setActiveTab('pheno', {savedChat});
     if (!document.getElementById('analysisChatDock').contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
   },
-  actions:(kind,id) => chatFoldersUi?.actions(kind,id) || '',
 });
 
 jobsUi = createJobsUi({
@@ -995,6 +988,8 @@ workspaceUi = createWorkspaceUi({
     renderPatientList: (items) => dashboardUi.renderPatientList(items),
     renderDetail: (patient) => dashboardUi.renderDetail(patient),
     renderDashboard: (summary) => dashboardUi.renderDashboard(summary),
+    resetDashboardViews: () => dashboardUi.resetDashboardViews(),
+    resetPatientInspectorView: () => dashboardUi.resetPatientInspectorView(),
     isWorkspaceAccessible: () => authUi.isWorkspaceAccessible(),
     updateLoadButtonAvailability: () => authUi.updateLoadButtonAvailability(),
     applyUserSettings: (options) => userSettingsUi.applyUserSettings(options),
@@ -1102,14 +1097,6 @@ function bindEvents() {
     datasetsUi.renderDatasetScopeSummary();
     datasetsUi.renderLoadButtonState();
     authUi.updateLoadButtonAvailability();
-  });
-
-  refs.datasetPickerEl && refs.datasetPickerEl.addEventListener("change", (event) => {
-    const checkbox = event.target.closest("[data-dataset-checkbox]");
-    if (!checkbox || !refs.datasetPickerEl.contains(checkbox)) {
-      return;
-    }
-    datasetsUi.syncDatasetSelectionFromPicker();
   });
 
   refs.datasetAdminListEl && refs.datasetAdminListEl.addEventListener("click", (event) => {

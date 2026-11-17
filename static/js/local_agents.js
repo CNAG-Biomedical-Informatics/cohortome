@@ -1,3 +1,4 @@
+import {createLocalAgentsView} from './react/ui.js';
 import { fallbackCopyText } from './shared.js';
 import { createAgentRunApprovals } from './local_agent_runs.js';
 
@@ -7,27 +8,17 @@ export function createLocalAgentsUi({state}) {
   if (!panel || document.documentElement.dataset.deployment !== 'desktop') {
     return {load:async () => {}, hide:() => {}};
   }
-  const status = document.getElementById('localAgentsStatus');
-  createAgentRunApprovals();
-  const badge = document.getElementById('localAgentsBadge');
-  const scope = document.getElementById('localAgentsScope');
-  const message = document.getElementById('localAgentsMessage');
-  const consent = document.getElementById('localAgentsConsent');
-  const share = document.getElementById('localAgentsShare');
-  const revoke = document.getElementById('localAgentsRevoke');
-  const secret = document.getElementById('localAgentsSecret');
-  const configuration = document.getElementById('localAgentsConfiguration');
-  const copy = document.getElementById('localAgentsCopy');
-  const format = document.getElementById('localAgentsFormat');
+  const view=createLocalAgentsView(panel);
+  let status='', scope='', message='', consent=false, configuration='', format='toml';
+  let help="Choose STDIO in your client's MCP settings and copy this configuration. Updating the shared selection keeps the token; restart, expiry, or turning access off requires new settings. Lost the token? Turn off access and enable it again.";
   let clientConfig = null;
   let selectionKey = '', selectionSignature = '';
   let connection = {enabled:false}, loaded = false, busy = false, revision = 0, secretRevision = 0, scopeRevision = 0;
 
   function clearSecret() {
     secretRevision++;
-    configuration.value = '';
+    configuration = '';
     clientConfig = null;
-    secret.hidden = true;
   }
   function blockedReason() {
     if (state.loadInFlight || state.cohortScope?.isBusy()) return 'Wait for the workspace to finish loading.';
@@ -69,29 +60,26 @@ export function createLocalAgentsUi({state}) {
     }
     const reason = blockedReason();
     const active = state.activePatientScope;
-    scope.textContent = reason || (active
+    scope = reason || (active
       ? `Ready to share: ${active.selection.members.length.toLocaleString()} selected ${active.selection.members.length === 1 ? 'patient' : 'patients'}.`
       : 'Ready to share: all patients in the current workspace.');
-    share.textContent = connection?.enabled ? 'Update shared selection' : 'Enable and share scope';
-    share.disabled = !loaded || busy || !consent.checked || Boolean(reason);
-    consent.disabled = busy;
-    revoke.hidden = connection !== null && !connection.enabled;
-    revoke.disabled = busy;
-    status.textContent = connection === null
+    status = connection === null
       ? 'Agent access could not be checked. Reopen Settings to check or revoke access.'
       : connection.enabled
       ? `MCP on · ${Number(connection.patient_count || 0).toLocaleString()} ${connection.patient_count === 1 ? 'patient' : 'patients'} shared · ${(connection.datasets || []).map(item => item.name).join(', ')}. Expires ${new Date(connection.expires_at).toLocaleString()}. Access enabled; this does not indicate a connected client.`
       : 'MCP off · No agent access.';
     if (connection?.enabled && selectionSignature && connection.selection_signature &&
         selectionSignature !== connection.selection_signature) {
-      scope.textContent = 'Selection changed—not shared yet. ' + scope.textContent;
+      scope = 'Selection changed—not shared yet. ' + scope;
     }
-    if (badge) {
-      badge.textContent = connection === null ? 'Status unknown' : connection.enabled
-        ? `On · ${Number(connection.patient_count || 0).toLocaleString()} shared` : 'Off';
-      badge.dataset.active = String(Boolean(connection?.enabled));
-    }
+    view.render({active:!!connection?.enabled,scope,status,message,consent,busy,configuration,format,help,
+      badge:connection===null ? 'Status unknown' : connection.enabled ? `On · ${Number(connection.patient_count || 0).toLocaleString()} shared` : 'Off',
+      shareDisabled:!loaded || busy || !consent || Boolean(reason),
+      hideRevoke:connection!==null && !connection.enabled,formatDisabled:!clientConfig?.connector,
+      onConsent:value=>{consent=value;render();},onFormat:value=>{format=value;renderConfiguration();render();},
+      onShare:shareScope,onRevoke:revokeAccess,onCopy:copyConfiguration});
   }
+
   async function payload(response, fallback) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : fallback);
@@ -111,7 +99,7 @@ export function createLocalAgentsUi({state}) {
   async function load() {
     if (busy) return;
     clearSecret();
-    consent.checked = false;
+    consent = false;
     loaded = false;
     const ticket = ++revision;
     render();
@@ -123,18 +111,17 @@ export function createLocalAgentsUi({state}) {
       if (ticket !== revision) return;
       loaded = true;
       panel.hidden = false;
-      message.textContent = '';
+      message = '';
     } catch (error) {
       if (ticket !== revision) return;
       connection = null;
       panel.hidden = false;
-      message.textContent = error.message;
+      message = error.message;
     }
     render();
   }
-  consent.addEventListener('change', render);
-  share.addEventListener('click', async () => {
-    if (share.disabled || blockedReason()) return;
+  async function shareScope() {
+    if (!loaded || busy || !consent || blockedReason()) return;
     const active = state.activePatientScope;
     const body = {workspace:state.currentDatasetScopeId, acknowledge:true,
       members:active ? active.selection.members.map(({dataset_id, patient_id}) => ({dataset_id, patient_id})) : null};
@@ -144,7 +131,7 @@ export function createLocalAgentsUi({state}) {
     const scopeTicket = scopeRevision;
     ++revision;
     busy = true;
-    message.textContent = 'Preparing shared access…';
+    message = 'Preparing shared access…';
     render();
     try {
       const response = await fetch('/local-agent/share', {method:updating ? 'PUT' : 'POST',
@@ -157,70 +144,70 @@ export function createLocalAgentsUi({state}) {
       if (!updating && revealTicket === secretRevision && !changed) {
         clientConfig = {connector, env:{COHORTOME_MCP_URL:url, COHORTOME_MCP_TOKEN:token}};
         renderConfiguration();
-        secret.hidden = false;
       }
-      consent.checked = false;
-      message.textContent = changed
+      consent = false;
+      message = changed
         ? 'Your selection changed while preparing access. The earlier snapshot is shared; update the shared selection when ready.'
         : updating ? 'Shared selection updated. Your token is unchanged; no client restart is needed.'
         : 'Scope shared. MCP access is on. Copy the connection settings into your client; no Save changes step is needed.';
     } catch (error) {
       clearSecret();
       await refreshAfterFailure();
-      message.textContent = error.message;
+      message = error.message;
     } finally { busy = false; render(); }
-  });
+  }
   function renderConfiguration() {
     if (!clientConfig) return;
     const {connector, env} = clientConfig;
-    format.disabled = !connector;
     if (!connector) {
-      configuration.value = JSON.stringify(env, null, 2);
-      document.getElementById('localAgentsSecretHelp').textContent = 'Source checkout: use the development connector setup linked above. Installed Desktop builds include the executable. Updating the shared selection keeps your token. Restart, expiry, or turning access off requires new settings.';
-    } else if (format.value === 'toml') {
+      configuration = JSON.stringify(env, null, 2);
+      help = 'Source checkout: use the development connector setup linked above. Installed Desktop builds include the executable. Updating the shared selection keeps your token. Restart, expiry, or turning access off requires new settings.';
+    } else if (format === 'toml') {
       // JSON basic string escaping is also valid for these TOML path/env strings.
-      configuration.value = '[mcp_servers.cohortome]\ncommand = ' + JSON.stringify(connector.command)
+      configuration = '[mcp_servers.cohortome]\ncommand = ' + JSON.stringify(connector.command)
         + '\nargs = []\n\n[mcp_servers.cohortome.env]\n'
         + Object.entries(env).map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n');
     } else {
-      configuration.value = JSON.stringify({mcpServers:{cohortome:{...connector, env}}}, null, 2);
+      configuration = JSON.stringify({mcpServers:{cohortome:{...connector, env}}}, null, 2);
     }
   }
-  format.addEventListener('change', renderConfiguration);
-  revoke.addEventListener('click', async () => {
+  async function revokeAccess() {
     if (busy) return;
     ++revision;
     clearSecret();
     busy = true;
-    message.textContent = 'Revoking access…';
+    message = 'Revoking access…';
     render();
     try {
       const response = await fetch('/local-agent/share', {method:'DELETE'});
       if (!response.ok) await payload(response, 'Unable to revoke access. Try again or close the app.');
       connection = {enabled:false};
-      consent.checked = false;
-      message.textContent = 'Agent access revoked.';
+      consent = false;
+      message = 'Agent access revoked.';
     } catch (error) {
       await refreshAfterFailure();
-      message.textContent = error.message;
+      message = error.message;
     }
     finally { busy = false; render(); }
-  });
-  copy.addEventListener('click', async () => {
-    if (!configuration.value) return;
+  }
+  async function copyConfiguration() {
+    if (!configuration) return;
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(configuration.value);
-      else if (!fallbackCopyText(configuration.value)) throw new Error();
-      message.textContent = 'Connection settings copied. Keep the token private.';
-    } catch (_) { message.textContent = 'Select the connection settings and copy them manually.'; }
-  });
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(configuration);
+      else if (!fallbackCopyText(configuration)) throw new Error();
+      message = 'Connection settings copied. Keep the token private.';
+    } catch (_) { message = 'Select the connection settings and copy them manually.'; }
+    render();
+  }
+  render();
+  createAgentRunApprovals({onMessage:text=>{message=text;render();}});
   state.cohortScope?.subscribe(render);
   for (const event of ['cohortome:scope-applied', 'cohortome:workspace-changing', 'cohortome:workspace-committed', 'cohortome:workspace-settled']) {
     window.addEventListener(event, () => {scopeRevision++; render();});
   }
   function hide() {
     clearSecret();
-    consent.checked = false;
+    consent = false;
     render();
   }
   window.addEventListener('pagehide', hide);
