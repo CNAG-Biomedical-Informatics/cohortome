@@ -86,7 +86,9 @@ export function createPhenoOrdinationChart({
         cohortGroups.get(item.cohort.key).points.push(item);
       });
       const traces = Array.from(cohortGroups.values()).map((group) => ({
-        type: 'scattergl',
+        // Normal cohort runs do not need a GPU canvas. SVG also avoids
+        // first-frame WebGL failures in desktop VM graphics environments.
+        type: points.length <= 2500 ? 'scatter' : 'scattergl',
         mode: 'markers+text',
         name: group.label,
         x: group.points.map((item) => item.x),

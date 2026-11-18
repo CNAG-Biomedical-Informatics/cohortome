@@ -45,9 +45,14 @@ details.inline-view-help { position: relative; margin-left: auto; align-self: ce
 .patient-browser-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .patient-browser-pages { display: flex; gap: 8px; }
 .patient-cohort-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
-.cohort-scope-bar { margin: 12px 0 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-solid, var(--bg)); }
+.cohort-scope-bar { margin: 12px 0 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--theme-surface, var(--bg)); }
 .cohort-scope-filters, .cohort-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.cohort-scope-actions { margin-top: 10px; }
+.cohort-scope-bar { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.cohort-filter-basket { flex: 0 1 auto; margin: 0; padding: 7px 0; border: 0; border-radius: 0; background: transparent; }
+.cohort-filter-basket > summary { cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--ink); }
+.cohort-filter-basket .cohort-scope-filters { margin-top: 10px; max-width: 420px; }
+.cohort-scope-actions { margin-top: 0; flex: 1 1 auto; }
+.cohort-scope-bar [hidden] { display: none !important; }
 .cohort-scope-actions > button { width: auto; margin: 0; }
 .cohort-scope-state { font-size: .8rem; font-weight: 600; }
 .cohort-scope-pending { font-size: .76rem; color: var(--muted); }
@@ -136,3 +141,10 @@ details.inline-view-help { position: relative; margin-left: auto; align-self: ce
 .patient-inventory-warning summary { cursor: pointer; }
 .patient-overview-card > button { justify-self: start; width: auto; }
 @media (max-width: 640px) { .patient-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.app-content .modality-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; margin: 8px 0 16px; }
+.app-content .modality-selector > label { display: grid; grid-template-columns: 16px 20px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 38px; margin: 0; padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--modality-color) 36%, var(--theme-surface, white)); border-radius: 8px; cursor: pointer; background: color-mix(in srgb, var(--modality-color) 10%, var(--theme-surface, white)); color: var(--modality-color); font-size: .85rem; line-height: 1.35; }
+.app-content .modality-selector > label:has(input:checked) { border-color: var(--modality-color); background: color-mix(in srgb, var(--modality-color) 20%, var(--theme-surface, white)); }
+.app-content .modality-selector input { width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--modality-color); }
+.app-content .modality-selector > label > span { min-width: 0; overflow-wrap: anywhere; }
+.app-content .modality-selector > label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-content .modality-selector > label { border-radius: 999px; font-size: .82rem; font-weight: 700; }

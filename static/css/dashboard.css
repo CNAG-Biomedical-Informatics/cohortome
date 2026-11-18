@@ -1039,8 +1039,11 @@
       }
       .timeline-clinical-label { display: block; margin-bottom: 6px; color: var(--ink); }
       .timeline-scope-controls, .timeline-pagination { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .timeline-scope-controls > strong { flex-basis: 100%; }
-      .timeline-scope-controls label { font-size: 12px; }
+      .timeline-scope-controls { align-items: flex-end; gap: 12px; margin: 12px 0; }
+      .timeline-scope-controls label { display: grid; gap: 5px; margin: 0; min-width: 0; font-size: .8rem; color: var(--muted); }
+      .timeline-scope-controls label:first-child { flex: 0 1 320px; }
+      .timeline-scope-controls select { width: 100%; min-width: 0; height: auto; min-height: 38px; margin: 0; text-overflow: ellipsis; }
+      .timeline-scope-controls > button { min-height: 36px; margin: 0; }
       .timeline-scope-controls button, .timeline-pagination button { width: auto; }
       button[data-clinical-more][hidden] { display: none; }
       .timeline-patient-picker { border: 1px solid var(--line); padding: 12px; border-radius: 8px; display: grid; gap: 8px; }

@@ -43,7 +43,8 @@ def test_catalogue_type_badges_filters_and_refresh():
           window.ui = createResourceInstaller({escapeHtml:s=>String(s), refresh:async()=>{}, select:()=>{}});
           ui.setAllowed(true);
         }''')
-        page.locator('#resourceAdd').click()
+        with page.expect_request(lambda request: request.url.endswith('/resources/refresh') and request.method == 'POST'):
+            page.locator('#resourceAdd').click()
         expect(page.locator('.resource-card:visible')).to_have_count(3)
         expect(page.locator('.resource-install-kind svg')).to_have_count(3)
         page.locator('[data-category="included"]').click()

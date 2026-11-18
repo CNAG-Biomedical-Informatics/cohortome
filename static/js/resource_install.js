@@ -156,7 +156,7 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
   }
   function openResources() {
     if (!panel.open) panel.showModal();
-    void browse(); void poll();
+    void browse(true); void poll();
   }
   function closeResources() { return panel.close(); }
   function closedResources() {

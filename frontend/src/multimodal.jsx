@@ -1,9 +1,9 @@
+import { ModalitySelector } from './shared/modality-selector.jsx';
 import { createRoot } from 'react-dom/client';
 import { PatientInventory } from './patient-inventory.jsx';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
 import { ModalityIcon } from './shared/modality-icon.jsx';
 import { modalityColor } from '../../static/js/modalities.js';
-
 
 function Combinations({ groups, modalities, labels, onSelect }) {
   const maximum = Math.max(1, ...groups.map((group) => group.patients.length));
@@ -144,7 +144,16 @@ function Multimodal({ model, actions, scopeUi }) {
   } = model;
   return (
     <>
-      <ScopeBar scopeUi={scopeUi} className="coverage-scope-bar" />
+      <ScopeBar
+        scopeUi={scopeUi}
+        previewLabel={
+          model.dirty
+            ? model.preview == null
+              ? 'Apply filters to count matches'
+              : `${model.preview} patients match selected data types`
+            : `${patients.length} patients match selected data types`
+        }
+      />
       <section className="coverage-filter-section">
         <h3>Filter patients</h3>
         <div className="coverage-filter-row">
@@ -211,27 +220,21 @@ function Multimodal({ model, actions, scopeUi }) {
         </div>
         <div className="coverage-modality-section">
           <h4>Required data</h4>
-          <div className="coverage-selectors" role="group" aria-label="Required data types">
-            {modalities.map((modality) => (
-              <label key={modality}>
-                <input
-                  type="checkbox"
-                  value={modality}
-                  checked={draft.modalities.includes(modality)}
-                  onChange={(event) => actions.modality(modality, event.target.checked)}
-                />
-                <ModalityIcon modality={modality} />
-                <span>{labels[modality]}</span>
-              </label>
-            ))}
-          </div>
+          <ModalitySelector
+            className="coverage-selectors"
+            modalities={modalities}
+            selected={draft.modalities}
+            label={(modality) => labels[modality]}
+            onChange={actions.modality}
+          />
         </div>
       </section>
       <div className="coverage-result" aria-live="polite">
-        <strong>{patients.length} patients in scope</strong>
         <button
           type="button"
           className="coverage-save"
+          hidden={model.dirty}
+          style={model.dirty ? { display: 'none' } : undefined}
           title="Save the applied patient scope for later use"
           disabled={!canSave}
           onClick={actions.save}
@@ -260,7 +263,7 @@ function Multimodal({ model, actions, scopeUi }) {
           />
         </div>
         <details className="coverage-patients">
-          <summary>Matching patients</summary>
+          <summary>{model.dirty ? 'Patients in applied scope' : 'Matching patients'}</summary>
           <div className="coverage-patient-list">
             <MatchingPatients
               patients={patients}

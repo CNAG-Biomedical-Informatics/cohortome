@@ -3866,7 +3866,7 @@ def test_dashboard_load_mounts_plotly_overview_cards(page) -> None:
     expect(page.locator("#dashboard-plot-medications")).to_have_attribute("data-plotly-ready", "true")
 
 
-def test_timeline_filters_by_available_modalities_including_undated(page):
+def test_timeline_displays_modalities_including_undated_without_selection_controls(page):
     _mock_dashboard_load(page)
     patients = []
     for ds, pid, samples in [
@@ -3887,21 +3887,23 @@ def test_timeline_filters_by_available_modalities_including_undated(page):
     page.locator('#dashboardTimelineBtn').click()
     expect = playwright.expect
     expect(page.locator('#timelineAvailability tbody tr')).to_have_count(3)
-    expect(page.locator('#timelineHasData')).not_to_contain_text('Disease')
-    page.evaluate('window.timelineProteinBefore = document.querySelector("#timelineHasData input[value=proteomics]")')
-    page.locator('#timelineHasData input[value="proteomics"]').check()
-    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(2)
-    assert page.evaluate('window.timelineProteinBefore === document.querySelector("#timelineHasData input[value=proteomics]")')
-    expect(page.locator('#timelineAvailability')).not_to_contain_text('P1 · beta')
+    for selector in ['#timelineDatasetFilter', '#timelineTimeMode']:
+        assert page.locator(selector).evaluate('''el => {
+            const css = getComputedStyle(el);
+            const textHeight = parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.4;
+            const padding = parseFloat(css.paddingTop) + parseFloat(css.paddingBottom);
+            return el.clientHeight >= textHeight + padding - 1;
+        }''')
+    expect(page.locator('#timelineHasData')).to_have_count(0)
+    expect(page.locator('#dashboardTimeline input[type="checkbox"]')).to_have_count(0)
+    expect(page.locator('#timelineAvailability')).to_contain_text('P1 · beta')
     expect(page.locator('#timelineAvailability tbody tr').first.locator('td').nth(2)).to_contain_text('Proteomics')
-    # Required data filters retain clinical markers.
+    # Legend controls affect plotted markers, not patient selection.
     expect(page.locator('#dashboard-timeline-controls')).to_have_count(0)
     expect(page.locator('#dashboardTimeline')).not_to_contain_text('Show markers')
     expect(page.locator('#dashboardTimeline')).to_contain_text('Click a plot legend item')
-    page.locator('#timelineHasData input[value="transcriptomics"]').check()
-    expect(page.locator('#timelineAvailability tbody tr')).to_have_count(1)
     expect(page.locator('#timelineAvailability')).to_contain_text('P2 · alpha')
-    page.locator('#timelineAvailability button').click()
+    page.locator('#timelineAvailability button').filter(has_text='P2 · alpha').click()
     expect(page.locator('#detail')).to_contain_text('Proteins')
     expect(page.locator('#detail')).to_contain_text('RNA')
     page.locator('#timelineShowAll').click()

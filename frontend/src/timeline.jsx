@@ -37,8 +37,6 @@ function Timeline({ model }) {
     loading,
     error,
     datasets = [],
-    modalities = [],
-    required = [],
     rows = [],
     page = 0,
     pages = 1,
@@ -54,14 +52,14 @@ function Timeline({ model }) {
         <details className="inline-view-help">
           <summary aria-label="About timeline">?</summary>
           <p>
-            Data availability over time. Find patients with particular data, then inspect when it
-            was collected.
+            Data availability over time for the current scope. Use Patients or Multimodal to
+            build a selection and apply it to scope.
           </p>
         </details>
       </div>
       <div className="timeline-scope-controls">
         <label>
-          Dataset{' '}
+          <span>Dataset</span>
           <select
             id="timelineDatasetFilter"
             disabled={loading || !!error}
@@ -76,6 +74,18 @@ function Timeline({ model }) {
             ))}
           </select>
         </label>
+        <label>
+          <span>Time axis</span>
+          <select
+            id="timelineTimeMode"
+            disabled={loading || !!error}
+            value={model.timeMode || 'calendar'}
+            onChange={(event) => actions.time(event.target.value)}
+          >
+            <option value="calendar">Calendar dates</option>
+            <option value="relative">Study days</option>
+          </select>
+        </label>
         <button
           id="timelineShowAll"
           className="query-chip"
@@ -83,54 +93,14 @@ function Timeline({ model }) {
           disabled={loading || !!error}
           onClick={actions.clear}
         >
-          Show all patients
+          Show all patients in scope
         </button>
       </div>
-      <label>
-        Time axis{' '}
-        <select
-          id="timelineTimeMode"
-          disabled={loading || !!error}
-          value={model.timeMode || 'calendar'}
-          onChange={(event) => actions.time(event.target.value)}
-        >
-          <option value="calendar">Calendar dates</option>
-          <option value="relative">Study days</option>
-        </select>
-      </label>
       <p id="timelineTimeNote" className="section-note">
         {model.timeMode === 'relative'
           ? 'Days from each participant’s recorded study baseline. Baseline definitions may differ between datasets; this is not calendar time.'
           : 'Recorded calendar dates. Observations with only relative study time are available in the Study days view.'}
       </p>
-      <h4>Has data</h4>
-      <p className="section-note">
-        Patients must have every checked data type. Leave unchecked to include everyone.
-      </p>
-      <div id="timelineHasData" className="dashboard-timeline-controls">
-        {modalities.map((modality) => (
-          <label
-            key={modality}
-            className="dashboard-timeline-domain"
-            style={{ '--timeline-domain-color': modalityColor(modality, true) }}
-          >
-            <input
-              type="checkbox"
-              value={modality}
-              checked={required.includes(modality)}
-              onChange={(event) =>
-                actions.required(
-                  event.target.checked
-                    ? [...required, modality]
-                    : required.filter((value) => value !== modality),
-                )
-              }
-            />
-            <ModalityIcon modality={modality} />
-            <span>{label(modality)}</span>
-          </label>
-        ))}
-      </div>
       <p className="section-note">
         Click a plot legend item to hide or show its markers. Grey bars span the earliest to latest
         recorded observations; they do not imply continuous monitoring.

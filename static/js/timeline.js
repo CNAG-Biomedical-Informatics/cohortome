@@ -8,7 +8,7 @@ export function createTimelineUi({state, refs, helpers}) {
   const view = createTimelineView(refs.dashboardTimelineEl);
   const inspectorView = createPatientInspectorView(detailEl);
   let data = null, scopeKey = '', pending = null, generation = 0;
-  let required = [], active = '';
+  let active = '';
   let timeMode = '';
   let inspection = 0;
   const modality = value => String(value || 'assay').toLowerCase() === 'olink' ? 'proteomics' : String(value || 'assay').toLowerCase();
@@ -30,7 +30,7 @@ export function createTimelineUi({state, refs, helpers}) {
     inspectorView.reset();
     detailEl.replaceChildren();
     generation++; pending?.abort(); pending = null; data = null; scopeKey = '';
-    required = []; active = ''; timeMode = '';
+    active = ''; timeMode = '';
     view.reset();
   }
   window.addEventListener('cohortome:workspace-changing', reset);
@@ -93,13 +93,11 @@ export function createTimelineUi({state, refs, helpers}) {
     const applied = state.activePatientScope?.workspace === state.currentDatasetScopeId ? state.activePatientScope : null;
     const memberKeys = applied ? new Set((applied.selection.members || []).map(m => JSON.stringify([m.dataset_id, m.patient_id]))) : null;
     const all = (data.timelines || []).filter(patient => !memberKeys || memberKeys.has(JSON.stringify([patient.dataset_id, patient.source_patient_id])));
-    if (state.timelinePatientFilter && active !== state.timelinePatientFilter) required = [];
     if (!timeMode) timeMode = all.some(p => events(p).some(e => time(e.date) !== null)) ? 'calendar' : 'relative';
     const datasets = new Map(all.map(p => [p.dataset_id, p.dataset_label]));
     const modalities = [...new Set(all.flatMap(p => events(p).map(e => e.modality)))].sort();
     const filtered = all.filter(p => (!state.timelineDatasetFilter || p.dataset_id === state.timelineDatasetFilter)
-      && (!state.timelinePatientFilter || p.patient_id === state.timelinePatientFilter)
-      && required.every(m => events(p).some(e => e.modality === m)));
+      && (!state.timelinePatientFilter || p.patient_id === state.timelinePatientFilter));
     if (state.timelinePatientFilter && filtered.length === 1 && active !== filtered[0].patient_id) {
       inspect(filtered[0], null, summary);
       return;
@@ -108,7 +106,7 @@ export function createTimelineUi({state, refs, helpers}) {
     state.timelinePage = Math.min(state.timelinePage || 0, pages - 1);
     const visible = filtered.slice(state.timelinePage * 40, (state.timelinePage + 1) * 40);
     view.render({
-      datasets:[...datasets], dataset:state.timelineDatasetFilter || '', modalities, required, timeMode,
+      datasets:[...datasets], dataset:state.timelineDatasetFilter || '', timeMode,
       page:state.timelinePage, pages, active, warnings:data.warnings || [],
       scopeLabel:filtered.length + ' patients match · ' + all.length + (applied ? ' in applied scope' : ' in workspace'),
       rows:visible.map(patient => ({patient, label:patientLabel(patient),
@@ -117,9 +115,8 @@ export function createTimelineUi({state, refs, helpers}) {
       actions:{
         dataset:value => {state.timelineDatasetFilter = value; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);},
         time:value => {timeMode = value; renderDashboardTimeline(summary);},
-        required:values => {required = values; state.timelinePage = 0; renderDashboardTimeline(summary);},
         page:delta => {state.timelinePage += delta; renderDashboardTimeline(summary);},
-        clear:() => {required = []; state.timelineDatasetFilter = ''; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);},
+        clear:() => {state.timelineDatasetFilter = ''; state.timelinePatientFilter = ''; state.timelinePage = 0; renderDashboardTimeline(summary);},
         inspect:patient => inspect(patient, null, summary),
       },
       draw:() => drawTimeline(visible, modalities, datasets, summary),

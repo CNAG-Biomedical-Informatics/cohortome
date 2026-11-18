@@ -93,9 +93,36 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
     };
     function render() {
       if (!live()) return;
+      const {draft, applied, dirty, hasValidation} = scopeUi.getSnapshot();
+      let preview = null;
+      if (dirty && !hasValidation && !data.warnings?.length) {
+        let candidates = allPatients;
+        if (draft.q || draft.sample_origin || draft.clinical_filters.length) {
+          // Coverage does not contain clinical values or biosample origins. An
+          // applied base is safe to reuse only when the new draft narrows it.
+          const unchanged = ['q','sample_origin','clinical_filters','base_members','cohort_id','diseases']
+            .every(name => JSON.stringify(draft[name]) === JSON.stringify(applied[name]));
+          const narrows = applied.modalities.every(m => draft.modalities.includes(m))
+            && (!applied.exact || (draft.exact && draft.modalities.every(m => applied.modalities.includes(m))));
+          candidates = unchanged && narrows ? patients : null;
+        }
+        const members = draft.cohort_id ? cohorts.find(c => c.id === draft.cohort_id)?.members : draft.base_members;
+        if (draft.cohort_id && !members) candidates = null;
+        const allowed = members && new Set(members.map(patientKey));
+        const diseases = new Set(draft.diseases.map(d => d.toLowerCase()));
+        if (candidates) preview = candidates.filter(p => {
+          if (allowed && !allowed.has(patientKey(p))) return false;
+          if (diseases.size && !p.diseases?.some(d => diseases.has(d.toLowerCase()))) return false;
+          const found = p.modalities.map(key);
+          return draft.modalities.every(m => found.includes(m))
+            && (!draft.exact || found.every(m => m === 'clinical' || draft.modalities.includes(m)));
+        }).length;
+      }
       const badge = document.getElementById('multimodalHeadingCount');
-      if (badge) badge.textContent = `${patients.length} patients in scope`;
-      view.render({phase:'ready', draft:scopeUi.getDraft(), cohorts, modalities, labels, diseases, showAllDiseases,
+      if (badge) badge.textContent = dirty
+        ? (preview === null ? 'Unapplied filters' : `${preview} matching patients (preview)`)
+        : `${patients.length} patients in scope`;
+      view.render({phase:'ready', draft, preview, dirty, cohorts, modalities, labels, diseases, showAllDiseases,
         groups, patients, page, saveStatus, inspector, warnings:data.warnings || [],
         canSave:patients.length > 0 && !saving && !scopeUi.isDirty() && !scopeUi.isBusy() && !state.loadInFlight}, actions);
     }

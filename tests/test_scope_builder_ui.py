@@ -52,15 +52,15 @@ def test_shared_draft_applies_once_across_patients_and_multimodal(page):
     panel.screenshot(path='/tmp/cohortome-scope-patients.png')
     panel.locator('#patientRefineMultimodal').click()
     coverage = page.locator('.multimodal-coverage')
-    expect(coverage.locator('.coverage-result')).to_contain_text('3 patients in scope')
+    expect(coverage.locator('.cohort-scope-state')).to_contain_text('Apply filters to count matches')
     expect(coverage.locator('.cohort-scope-filters')).to_contain_text('Marker greater than 5')
     coverage.locator('.coverage-selectors input[value="transcriptomics"]').check()
-    expect(coverage.locator('.cohort-scope-pending')).to_be_visible()
-    expect(coverage.locator('.coverage-result')).to_contain_text('3 patients in scope')
+    expect(coverage.locator('[data-scope-apply]')).to_be_enabled()
+    expect(coverage.locator('.cohort-scope-state')).to_contain_text('Apply filters to count matches')
     assert not applications
     coverage.screenshot(path='/tmp/cohortome-scope-multimodal.png')
     coverage.locator('[data-scope-apply]').click()
-    expect(coverage.locator('.coverage-result')).to_contain_text('1 patients in scope')
+    expect(coverage.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
     expect(coverage.locator('.cohort-scope-pending')).to_be_hidden()
     assert len(applications) == 1
     assert applications[0]['clinical_filters'] == [{'field_id':'marker', 'operator':'gt', 'values':[5]}]
@@ -272,5 +272,5 @@ def test_empty_applied_scope_is_not_the_full_workspace(page):
     expect(panel.locator('.cohort-scope-state')).to_have_text('0 patients in scope')
     assert searches[-1] == []
     panel.locator('#patientRefineMultimodal').click()
-    expect(page.locator('.multimodal-coverage .coverage-result')).to_contain_text('0 patients in scope')
+    expect(page.locator('.multimodal-coverage .cohort-scope-state')).to_contain_text('0 patients match selected data types')
     expect(page.locator('.multimodal-coverage .coverage-save')).to_be_disabled()

@@ -1,32 +1,39 @@
 import { useSyncExternalStore } from 'react';
 
-export function ScopeBar({ scopeUi, className }) {
+export function ScopeBar({ scopeUi, className, previewLabel }) {
   const snapshot = useSyncExternalStore(scopeUi.subscribe, scopeUi.getSnapshot);
   const { chips, scopeLabel, dirty, busy, hasValidation, canApply } = snapshot;
   const issue = snapshot.error || snapshot.validation;
   return (
     <div className={['cohort-scope-bar', className].filter(Boolean).join(' ')}>
-      <div className="cohort-scope-filters" aria-label="Shared draft filters">
-        {chips.length ? (
-          chips.map((chip) => (
-            <button
-              key={`${chip.field}:${chip.index ?? ''}`}
-              type="button"
-              className="query-chip"
-              data-scope-field={chip.field}
-              data-scope-index={chip.index}
-              aria-label={`Remove filter: ${chip.label}`}
-              onClick={() => scopeUi.removeFilter(chip)}
-            >
-              {chip.label} <span aria-hidden="true">×</span>
-            </button>
-          ))
-        ) : (
-          <span className="section-note">No filters</span>
-        )}
-      </div>
+      <details className="cohort-filter-basket">
+        <summary>
+          {chips.length} {chips.length === 1 ? 'filter' : 'filters'}
+        </summary>
+        <div className="cohort-scope-filters" aria-label="Shared draft filters">
+          {chips.length ? (
+            chips.map((chip) => (
+              <button
+                key={`${chip.field}:${chip.index ?? ''}`}
+                type="button"
+                className="query-chip"
+                data-scope-field={chip.field}
+                data-scope-index={chip.index}
+                aria-label={`Remove filter: ${chip.label}`}
+                onClick={() => scopeUi.removeFilter(chip)}
+              >
+                {chip.label} <span aria-hidden="true">×</span>
+              </button>
+            ))
+          ) : (
+            <span className="section-note">No filters</span>
+          )}
+        </div>
+      </details>
       <div className="cohort-scope-actions">
-        <span className="cohort-scope-state">{scopeLabel}</span>
+        <strong className="cohort-scope-state" aria-live="polite">
+          {previewLabel || scopeLabel}
+        </strong>
         <span className="cohort-scope-pending" hidden={!dirty}>
           Unapplied changes
         </span>
