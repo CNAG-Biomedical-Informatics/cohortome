@@ -3,7 +3,7 @@ import { ClinicalFilters } from './clinical-filters.jsx';
 import { SelectField } from './shared/select-field';
 import { ViewStatus } from './shared/view-status';
 import { FilterPanel } from './shared/filter-panel';
-import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
+import { ScopeBar, DiseaseChips } from './cohort-controls.jsx';
 
 const columns = [
   {
@@ -171,7 +171,17 @@ function Patients({ model, actions, scopeUi, isClinicalCurrent }) {
             </p>
           </details>
         </div>
-        <ScopeBar scopeUi={scopeUi} />
+        <ScopeBar
+          scopeUi={scopeUi}
+          previewLabel={model.previewLabel}
+          save={{
+            id: 'patientSaveCohort',
+            enabled: canSave,
+            label: saveLabel,
+            onClick: actions.save,
+            status: saveStatus,
+          }}
+        />
         <FilterPanel>
           <div className="patient-lookup">
             <label htmlFor="patientOverviewSearch">Patient ID or ClarID</label>
@@ -243,16 +253,6 @@ function Patients({ model, actions, scopeUi, isClinicalCurrent }) {
         </FilterPanel>
         <div className="patient-cohort-actions">
           <button
-            id="patientSaveCohort"
-            type="button"
-            className="primary-btn coverage-save"
-            disabled={!canSave}
-            onClick={actions.save}
-          >
-            <SaveIcon />
-            <span>{saveLabel}</span>
-          </button>
-          <button
             id="patientRefineMultimodal"
             type="button"
             className="secondary-btn"
@@ -261,18 +261,6 @@ function Patients({ model, actions, scopeUi, isClinicalCurrent }) {
           >
             Multimodal filters
           </button>
-          <button
-            id="patientClinicalSummary"
-            type="button"
-            className="secondary-btn"
-            disabled={!canNavigate}
-            onClick={actions.clinical}
-          >
-            View Clinical
-          </button>
-          <span id="patientSaveStatus" className="section-note" role="status">
-            {saveStatus}
-          </span>
         </div>
         <div
           id="patientOverviewMatches"

@@ -69,7 +69,6 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
     cancelDetails = clearInspector;
     const actions = {
       editPatients:() => document.getElementById('dashboardPatientsBtn')?.click(),
-      clinical:() => document.getElementById('dashboardClinicalBtn')?.click(),
       mode:value => patch({exact:value === 'exact'}),
       cohort:value => {if (value !== '__selection__') patch({cohort_id:value, base_members:null, source_label:''});},
       modality:(value, checked) => {

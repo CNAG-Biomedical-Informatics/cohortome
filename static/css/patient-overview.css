@@ -1,6 +1,10 @@
 .patient-lookup { position: relative; max-width: 680px; display: grid; gap: 8px; }
 .patient-lookup[hidden] { display: none; }
 .patient-finder { padding: 0; }
+/* Both builders share the same heading-to-toolbar spacing despite nested roots. */
+#dashboardMultimodalPanel > .dashboard-panel-frame { row-gap: 0; }
+#dashboardMultimodalPanel .multimodal-readiness-panel { padding-top: 0; }
+:is(#dashboardPatientsPanel, #dashboardMultimodalPanel) .dashboard-view-heading { margin-bottom: 0; }
 .patient-finder-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .patient-finder-heading h2 { margin: 0; }
 .patient-search-field { position: relative; }
@@ -57,7 +61,13 @@ details.inline-view-help { position: relative; margin-left: auto; align-self: ce
 .cohort-scope-state { font-size: .8rem; font-weight: 600; line-height: 1.4; }
 .cohort-scope-preview { font-size: .8rem; line-height: 1.4; color: var(--muted); }
 .cohort-scope-pending { font-size: .76rem; color: var(--muted); }
-.cohort-scope-actions [data-scope-apply] { margin-left: auto; }
+.cohort-scope-summary { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
+.cohort-scope-summary .cohort-scope-preview { color: var(--ink); font-weight: 600; }
+.cohort-scope-commit, .cohort-scope-secondary { display: flex; align-items: center; gap: 8px; }
+.app-content .cohort-scope-commit > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; margin: 0; min-height: 34px; padding: 6px 12px; font-size: .8rem; white-space: nowrap; }
+.cohort-scope-commit .coverage-save svg { width: 15px; height: 15px; }
+.app-content .cohort-scope-secondary > button { width: auto; margin: 0; padding: 5px 7px; border-color: transparent; background: transparent; color: var(--muted); font-size: .76rem; }
+.app-content .cohort-scope-secondary > button:hover { color: var(--ink); background: var(--theme-surface-alt, #f3f4f6); }
 .cohort-scope-message { margin: 10px 0 0; font-size: .8rem; color: var(--danger, #b42318); }
 .cohort-scope-filters button { max-width: 100%; white-space: normal; text-align: left; }
 .app-content .patient-cohort-actions > button { width: auto; margin: 0; }

@@ -4,7 +4,7 @@ import { ViewStatus } from './shared/view-status';
 import { FilterPanel } from './shared/filter-panel';
 import { createRoot } from 'react-dom/client';
 import { PatientInventory } from './patient-inventory.jsx';
-import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
+import { ScopeBar, DiseaseChips } from './cohort-controls.jsx';
 import { ModalityIcon } from './shared/modality-icon.jsx';
 import { modalityColor } from '../../static/js/modalities.js';
 
@@ -147,6 +147,12 @@ function Multimodal({ model, actions, scopeUi }) {
     <>
       <ScopeBar
         scopeUi={scopeUi}
+        save={{
+          enabled: canSave,
+          label: `Save ${patients.length} ${patients.length === 1 ? 'patient' : 'patients'} as a cohort`,
+          onClick: actions.save,
+          status: saveStatus,
+        }}
         previewLabel={
           model.dirty
             ? model.preview == null
@@ -227,26 +233,6 @@ function Multimodal({ model, actions, scopeUi }) {
           />
         </div>
       </FilterPanel>
-      <div className="coverage-result" aria-live="polite">
-        <button
-          type="button"
-          className="coverage-save"
-          hidden={model.dirty}
-          style={model.dirty ? { display: 'none' } : undefined}
-          title="Save the applied patient scope for later use"
-          disabled={!canSave}
-          onClick={actions.save}
-        >
-          <SaveIcon />
-          {`Save ${patients.length} ${patients.length === 1 ? 'patient' : 'patients'} as a cohort`}
-        </button>
-        <span className="coverage-save-status" role="status">
-          {saveStatus}
-        </span>
-        <button type="button" className="query-chip" onClick={actions.clinical}>
-          View Clinical
-        </button>
-      </div>
       <section className="coverage-data-section">
         <h4>Available combinations</h4>
         <p className="section-note">

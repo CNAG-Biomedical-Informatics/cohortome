@@ -104,6 +104,21 @@ def _response(request, workspace, available, members, label, fingerprint):
 
 @router.post('/cohort-builder/apply')
 def apply_draft(body: Draft, request: Request):
+    available, members, description, before = _draft_members(body, request)
+    return _response(request, body.workspace, available, members, description, before)
+
+
+@router.post('/cohort-builder/preview')
+def preview_draft(body: Draft, request: Request, sort_by: Literal['patient_id', 'dataset_label', 'diagnosis', 'clarid'] = 'patient_id',
+                  direction: Literal['asc', 'desc'] = 'asc', offset: int = Query(0, ge=0)):
+    _, members, _, _ = _draft_members(body, request)
+    allowed = None if members is None else {}
+    for member in members or []:
+        allowed.setdefault(member['dataset_id'], []).append(member['patient_id'])
+    return patient_overview._search(request, body.workspace, '', 0, '', sort_by, direction, offset, [], '', allowed)
+
+
+def _draft_members(body, request):
     available = patient_overview.sources(request, body.workspace)
     roots = {key: root for key, root, _ in available}
     if not roots:
@@ -113,7 +128,7 @@ def apply_draft(body: Draft, request: Request):
         active = bool(body.q.strip() or body.diseases or body.sample_origin or body.clinical_filters
                       or body.modalities or body.exact or body.cohort_id or body.base_members is not None)
         if not active:
-            return _response(request, body.workspace, available, None, 'Full workspace', before)
+            return available, None, 'Full workspace', before
         candidates = None
         descriptions = []
         if body.clinical_filters:
@@ -164,7 +179,7 @@ def apply_draft(body: Draft, request: Request):
             raise HTTPException(422, 'Select at most 100,000 patients. Narrow the filters.')
         # Membership came from authorized source inventories, so do not scan them again.
         members = [qualified_member(dict(dataset_id=p['dataset_id'], patient_id=p['patient_id'])) for p in patients]
-        return _response(request, body.workspace, available, members, '; '.join(descriptions), before)
+        return available, members, '; '.join(descriptions), before
     except (ValueError, OSError, QueryStoreNotReadyError):
         raise HTTPException(409, 'Unable to apply filters. Check that the dataset stores and source data are available.') from None
 

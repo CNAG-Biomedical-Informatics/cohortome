@@ -45,15 +45,17 @@ share the same draft. Expand **Filters** in either view to inspect or remove its
 
 | Action | Effect |
 | --- | --- |
-| Edit filters | Marks **Unapplied changes**; the current scope stays unchanged. |
+| Edit filters | Previews matching patients; the current scope stays unchanged. |
 | **Apply to scope** | Evaluates all conditions together and updates the patient scope. |
-| **Discard changes** | Restores the filters used by the current scope. |
+| **Discard** | Restores the filters used by the current scope. |
+| **Save cohort** | Keeps the applied selection for later use. Disabled while filters are unapplied. |
 | **Clear filters**, then **Apply to scope** | Returns to the full workspace. |
 
-![A disease filter awaiting Apply to scope; the patient table still shows the applied group](/img/screenshots/cohort-scope-draft.png)
+![A disease filter preview with Apply to scope and Save cohort together in the toolbar](/img/screenshots/cohort-scope-draft.png)
 
-The table and **Save patients as cohort** count describe the applied group,
-including **all matches**, not just the page. Click a clinical filter to edit
+The patient table previews your draft. Switching between Patients and Multimodal
+keeps the same filters. **Apply to scope** updates the other views and enables
+saving the group, including **all matches**, not just the page. Click a clinical filter to edit
 it. For **is any of**, click recorded values to select
 or deselect them; selected values are highlighted.
 
@@ -260,7 +262,8 @@ Derived imaging measurements are separate matrices produced outside COHORTome.
 
 Patients and Multimodal edit **one shared filter draft**. Switch between them
 freely; no transfer step is needed. **Apply to scope** is available in either
-view. Until applied, the displayed counts and results describe the previous scope.
+view. The preview count updates as you select data types; the combination table
+and other dashboard views keep the applied scope until you click **Apply to scope**.
 
 Start from all workspace patients or an existing saved patient cohort. Select
 one or more diseases if needed (patients may match any selected disease), then
@@ -279,7 +282,7 @@ The combination plot shows observed data-type combinations and their patient
 counts. Filled dots indicate available types. Click a count to inspect a
 combination in the draft, apply it, then open **Matching patients**.
 
-Choose **Save cohort** to keep the matching patients. Membership includes the
+Click **Apply to scope**, then **Save cohort** beside it to keep the matching patients. Membership includes the
 source dataset, so repeated IDs across datasets do not merge into one patient.
 See [saved cohorts](saved-cohorts-and-handoffs.md) to export or analyse the group.
 

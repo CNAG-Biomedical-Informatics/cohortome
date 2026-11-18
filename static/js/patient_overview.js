@@ -8,7 +8,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
   let loadedScope = null, pages = [{}], pageIndex = 0;
   let sortBy = 'patient_id', sortDirection = 'asc';
   let diseases = [], origins = [], showAllDiseases = false, diseaseGeneration = 0, originGeneration = 0;
-  let workspaceTotal = null, clinicalWorkspace = '';
+  let workspaceTotal = null, clinicalWorkspace = '', previewLabel = '';
   let saving = false, matchCount = '', saveStatus = '', saveLabel = 'Save filtered patients as cohort';
   let status = 'Select a workspace to browse patients.';
 
@@ -32,7 +32,6 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         if (!loading) void choose(matches.find(item => item.dataset_id === match.dataset_id && item.patient_id === match.patient_id));
       },
       save:useFilteredPatients,
-      clinical:() => navigation.setDashboardSubtab('clinical'),
       multimodal:() => navigation.setDashboardSubtab('multimodal'),
       next:() => { if (!loading && nextPage) { pages[++pageIndex] = nextPage; searchPatients(true); } },
       previous:() => { if (!loading && pageIndex > 0) { pageIndex--; searchPatients(true); } },
@@ -44,7 +43,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
 
   function render() {
     view.render({matches, sortBy, sortDirection, draft:scopeUi.getDraft(), diseases, origins, showAllDiseases,
-      clinicalWorkspace, matchCount, status, saveStatus, saveLabel, loading,
+      clinicalWorkspace, matchCount, status, saveStatus, saveLabel, loading, previewLabel,
       canSave:!saving && !loading && !state.loadInFlight && !scopeUi.isDirty() && !scopeUi.isBusy() && matches.length > 0,
       canNavigate:Boolean(scope()) && !state.loadInFlight && !loading && !saving,
       canNext:!loading && Boolean(nextPage), canPrevious:!loading && pageIndex > 0,
@@ -77,6 +76,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   scopeUi.subscribe((snapshot, reason) => {
+    if (['draft','clear','discard','validation'].includes(reason)) {
+      if (state.currentDashboardSubtab === 'patients' && navigation.currentTabName() === 'dashboard') searchPatients();
+      else loadedScope = null;
+    }
     if (reason === 'applied') { clearSelection(false); searchPatients(); }
     if (reason === 'workspace-settled') refresh();
     render();
@@ -86,7 +89,7 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     if (navigate && state.currentDashboardSubtab === 'timeline') navigation.setDashboardSubtab('patients');
   }
   function reset() {
-    workspaceTotal = null; matchCount = ''; loadedScope = null; clinicalWorkspace = '';
+    workspaceTotal = null; matchCount = ''; loadedScope = null; clinicalWorkspace = ''; previewLabel = '';
     origins = []; originGeneration++; saveStatus = ''; saveLabel = 'Save filtered patients as cohort';
     diseases = []; showAllDiseases = false; diseaseGeneration++;
     clearSelection(); clearTimeout(timer); controller?.abort(); generation++;
@@ -133,27 +136,40 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     }
   }
   function searchPatients(changePage = false) {
-    matchCount = ''; saveStatus = '';
+    previewLabel = '';
+    if (!scopeUi.isDirty()) matchCount = '';
+    saveStatus = '';
     clearTimeout(timer); controller?.abort(); generation++; loading = false;
     if (!changePage) { pages = [{}]; pageIndex = 0; }
     nextPage = null;
     if (state.loadInFlight) { status = 'Applying workspace selection…'; render(); return; }
     if (!scope()) { matches = []; status = 'Select and apply a dataset first.'; render(); return; }
-    status = 'Loading patients in scope…'; loading = true; render();
+    const preview = scopeUi.isDirty();
+    if (preview && scopeUi.getSnapshot().hasValidation) { matches = []; status = 'Complete the filter to preview patients.'; render(); return; }
+    status = preview ? 'Finding matching patients…' : 'Loading patients in scope…'; loading = true; render();
     const ticket = generation, selectedScope = scope();
     timer = setTimeout(async () => {
       controller = new AbortController();
       try {
-        const data = await request('search', {workspace:selectedScope, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
+        let data;
+        if (preview) {
+          const {clinical_labels, ...filters} = scopeUi.getDraft();
+          const query = new URLSearchParams({sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]});
+          const response = await fetch('/cohort-builder/preview?' + query, {method:'POST', signal:controller.signal,
+            headers:{'Content-Type':'application/json'}, body:JSON.stringify({workspace:selectedScope, ...filters})});
+          data = await response.json();
+          if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Patient preview unavailable.');
+        } else data = await request('search', {workspace:selectedScope, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
         if (ticket !== generation || selectedScope !== scope()) return;
         matches = data.matches;
         const activeScope = state.activePatientScope?.workspace === selectedScope ? state.activePatientScope : null;
         if (Number.isInteger(activeScope?.summary?.workspace_patient_count)) workspaceTotal = activeScope.summary.workspace_patient_count;
-        if (!state.activePatientScope && Number.isInteger(data.total)) workspaceTotal = data.total;
-        if (Number.isInteger(data.total)) matchCount = patientScopeLabel(data.total, workspaceTotal);
+        if (!preview && !state.activePatientScope && Number.isInteger(data.total)) workspaceTotal = data.total;
+        if (!preview && Number.isInteger(data.total)) matchCount = patientScopeLabel(data.total, workspaceTotal);
         saveLabel = Number.isInteger(data.total) ? `Save ${data.total.toLocaleString()} ${data.total === 1 ? 'patient' : 'patients'} as cohort` : 'Save filtered patients as cohort';
         nextPage = data.next || null;
         status = matches.length ? `Page ${pageIndex + 1} · ${matches.length} ${matches.length === 1 ? 'patient' : 'patients'}` : 'No matching patients in the active datasets.';
+        if (preview) previewLabel = `Preview: ${data.total} matching ${data.total === 1 ? 'patient' : 'patients'}`;
       } catch (error) {
         if (ticket === generation && error.name !== 'AbortError') { loadedScope = null; matches = []; status = error.message; }
       } finally { if (ticket === generation) { loading = false; render(); } }

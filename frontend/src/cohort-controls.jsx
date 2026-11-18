@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export function ScopeBar({ scopeUi, className, previewLabel }) {
+export function ScopeBar({ scopeUi, className, previewLabel, save }) {
   const snapshot = useSyncExternalStore(scopeUi.subscribe, scopeUi.getSnapshot);
   const { chips, scopeLabel, dirty, busy, hasValidation, canApply } = snapshot;
   const issue = snapshot.error || snapshot.validation;
@@ -31,46 +31,80 @@ export function ScopeBar({ scopeUi, className, previewLabel }) {
         </div>
       </details>
       <div className="cohort-scope-actions">
-        <strong className="cohort-scope-state" aria-live="polite">
-          {scopeLabel}
-        </strong>
-        {previewLabel && (
-          <span className="cohort-scope-preview" aria-live="polite">
-            {previewLabel}
-          </span>
-        )}
-        <span className="cohort-scope-pending" hidden={!dirty}>
-          Unapplied changes
-        </span>
-        <button
-          type="button"
-          className="primary-btn"
-          data-scope-apply=""
-          disabled={!canApply}
-          onClick={() => void scopeUi.apply()}
-        >
-          {busy ? 'Applying…' : 'Apply to scope'}
-        </button>
-        <button
-          type="button"
-          className="query-chip"
-          data-scope-discard=""
-          hidden={!dirty && !hasValidation}
-          disabled={busy}
-          onClick={scopeUi.discard}
-        >
-          Discard changes
-        </button>
-        <button
-          type="button"
-          className="query-chip"
-          data-scope-clear=""
-          hidden={!chips.length}
-          onClick={scopeUi.clearDraft}
-        >
-          Clear filters
-        </button>
+        <div className="cohort-scope-summary">
+          <strong
+            className="cohort-scope-state"
+            aria-live="polite"
+            hidden={dirty && !!previewLabel}
+          >
+            {scopeLabel}
+          </strong>
+          {previewLabel && (
+            <span className="cohort-scope-preview" aria-live="polite">
+              {previewLabel}
+            </span>
+          )}
+          {dirty && (
+            <span className="cohort-scope-pending">
+              Apply to scope to use and save this selection.
+            </span>
+          )}
+        </div>
+        <div className="cohort-scope-commit">
+          <button
+            type="button"
+            className="primary-btn"
+            data-scope-apply=""
+            disabled={!canApply}
+            onClick={() => void scopeUi.apply()}
+          >
+            {busy ? 'Applying…' : dirty || hasValidation ? 'Apply to scope' : 'Applied'}
+          </button>
+          {save && (
+            <button
+              id={save.id}
+              type="button"
+              className="query-chip query-chip-deterministic query-workflow-secondary coverage-save"
+              disabled={dirty || busy || hasValidation || !save.enabled}
+              title={
+                dirty
+                  ? 'Apply to scope before saving a cohort'
+                  : 'Save this patient scope for later use'
+              }
+              onClick={save.onClick}
+            >
+              <SaveIcon />
+              Save cohort
+            </button>
+          )}
+        </div>
+        <div className="cohort-scope-secondary">
+          <button
+            type="button"
+            className="query-chip"
+            data-scope-discard=""
+            hidden={!dirty && !hasValidation}
+            disabled={busy}
+            onClick={scopeUi.discard}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="query-chip"
+            data-scope-clear=""
+            hidden={!chips.length}
+            onClick={scopeUi.clearDraft}
+          >
+            Clear filters
+          </button>
+        </div>
       </div>
+      {save?.status && (
+        <span role="status" className="section-note coverage-save-status">
+          {save.status}
+        </span>
+      )}
       <p className="cohort-scope-message" role="status" hidden={!issue}>
         {issue}
       </p>

@@ -19,6 +19,45 @@ def open_coverage(page, patients, responder=None):
     return page.locator('.multimodal-coverage')
 
 
+def test_two_disease_draft_previews_in_patients_without_applying(page):
+    labels = ['Disease A', 'Disease B', 'Disease C']
+    rows = [dict(patient_id=f'D{i}', dataset_id='default', dataset_label='Demo',
+                 diagnosis=d, diseases=[d], modalities=['clinical']) for i, d in enumerate(labels)]
+    page.route('**/cohorts/diseases?*', lambda r: r.fulfill(json=[dict(disease=d, patient_count=1) for d in labels]))
+    def preview(route):
+        matches = [p for p in rows if p['diagnosis'] in route.request.post_data_json['diseases']]
+        route.fulfill(json=dict(matches=matches, total=len(matches), next=None))
+    page.route('**/cohort-builder/preview?*', preview)
+    applications = []
+    page.route('**/cohort-builder/apply', lambda r: (applications.append(True), r.abort()))
+    coverage = open_coverage(page, rows)
+    def top_spacing(panel):
+        return panel.evaluate('''el => {
+            const title = el.querySelector('.dashboard-view-heading').getBoundingClientRect();
+            const toolbar = el.querySelector('.cohort-scope-bar').getBoundingClientRect();
+            const filters = el.querySelector('.ui-filter-panel').getBoundingClientRect();
+            return [toolbar.top - title.bottom, filters.top - toolbar.bottom];
+        }''')
+    multimodal_spacing = top_spacing(page.locator('#dashboardMultimodalPanel'))
+    for label in labels[:2]:
+        coverage.locator(f'[data-disease="{label}"]').click()
+    page.locator('#dashboardPatientsBtn').click()
+    assert top_spacing(page.locator('#dashboardPatientsPanel')) == multimodal_spacing
+    for label in labels[:2]:
+        expect(page.locator(f'#patientDiseaseFilters [data-disease="{label}"]')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('#patientOverviewMatches .patient-open')).to_have_count(2)
+    expect(page.locator('#dashboardPatientsPanel .cohort-scope-preview')).to_have_text('Preview: 2 matching patients')
+    expect(page.locator('#dashboardPatientsPanel [data-scope-apply] + .coverage-save')).to_be_visible()
+    expect(page.locator('#patientSaveCohort')).to_be_disabled()
+    page.locator('#patientDiseaseFilters [data-disease="Disease A"]').click()
+    expect(page.locator('#patientOverviewMatches .patient-open')).to_have_count(1)
+    expect(page.locator('#patientOverviewMatches .patient-open')).to_have_attribute('aria-label', 'Open patient D1')
+    page.locator('#dashboardMultimodalBtn').click()
+    expect(coverage.locator('[data-disease="Disease B"]')).to_have_attribute('aria-pressed', 'true')
+    expect(coverage.locator('[data-disease="Disease A"]')).to_have_attribute('aria-pressed', 'false')
+    assert not applications
+
+
 def test_multimodal_react_keeps_drafts_stable_and_saves_applied_combination(page):
     patients = [dict(patient_id=f'P{index}', dataset_id='default', dataset_label='Example', has_clinical=True,
                      diseases=['Example disease'], modalities=modalities) for index, modalities in enumerate([
@@ -64,10 +103,12 @@ def test_multimodal_react_keeps_drafts_stable_and_saves_applied_combination(page
     expect(panel.locator('.coverage-save')).to_be_disabled()
     expect(panel.locator('.cohort-scope-preview')).to_have_text('Preview: 3 matching patients')
     expect(page.locator('#multimodalHeadingCount')).to_have_text('4 of 4 patients in scope')
-    expect(panel.locator('.coverage-save')).to_be_hidden()
+    expect(panel.locator('[data-scope-apply] + .coverage-save')).to_be_visible()
     assert not applications
     panel.locator('[data-scope-apply]').click()
     expect(panel.locator('.cohort-scope-state')).to_have_text('3 patients in scope')
+    expect(panel.locator('[data-scope-apply]')).to_have_text('Applied')
+    expect(panel.locator('.coverage-save')).to_be_enabled()
     expect(panel.locator('[data-combination]')).to_have_count(3)
     expect(page.locator('#multimodalHeadingCount')).to_have_text('3 of 4 patients in scope')
     assert page.evaluate('window.coverageTableBefore === document.querySelector(".coverage-intersections table")')
