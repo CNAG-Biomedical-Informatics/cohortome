@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 
 function Icon({ kind }) {
   const paths = {

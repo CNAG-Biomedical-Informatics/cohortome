@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { useRef, useState } from 'react';
 import { displayIdentity } from '../../static/js/identities.js';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 
 function StudyRow({ study, label, enabled, openViewer }) {
   const series = Array.isArray(study.series) ? study.series : [];

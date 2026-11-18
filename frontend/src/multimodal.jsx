@@ -1,28 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { PatientInventory } from './patient-inventory.jsx';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
-import { modalityPresentation, modalityColor } from '../../static/js/modalities.js';
+import { ModalityIcon } from './shared/modality-icon.jsx';
+import { modalityColor } from '../../static/js/modalities.js';
 
-function ModalityIcon({ value }) {
-  const presentation = modalityPresentation(value);
-  // SVG paths come only from the application's fixed modality icon definitions.
-  return (
-    <svg
-      className="assay-overview-icon"
-      data-modality-icon={presentation.key}
-      style={{ color: modalityColor(presentation.key) }}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      dangerouslySetInnerHTML={{ __html: presentation.icon }}
-    />
-  );
-}
 
 function Combinations({ groups, modalities, labels, onSelect }) {
   const maximum = Math.max(1, ...groups.map((group) => group.patients.length));
@@ -35,7 +16,7 @@ function Combinations({ groups, modalities, labels, onSelect }) {
           <th>Patients</th>
           {modalities.map((modality) => (
             <th key={modality}>
-              <ModalityIcon value={modality} /> {labels[modality]}
+              <ModalityIcon modality={modality} /> {labels[modality]}
             </th>
           ))}
         </tr>
@@ -239,7 +220,7 @@ function Multimodal({ model, actions, scopeUi }) {
                   checked={draft.modalities.includes(modality)}
                   onChange={(event) => actions.modality(modality, event.target.checked)}
                 />
-                <ModalityIcon value={modality} />
+                <ModalityIcon modality={modality} />
                 <span>{labels[modality]}</span>
               </label>
             ))}

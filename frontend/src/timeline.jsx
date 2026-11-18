@@ -1,28 +1,9 @@
 import { renderSupplemental, resetSupplementalView } from './shared/view-root.js';
 import { useLayoutEffect, useRef } from 'react';
-import { modalityPresentation, modalityLabel, modalityColor } from '../../static/js/modalities.js';
+import { ModalityIcon } from './shared/modality-icon.jsx';
+import { modalityLabel, modalityColor } from '../../static/js/modalities.js';
 
 const label = (value) => (value === 'imaging' ? 'Imaging-derived' : modalityLabel(value));
-function Icon({ modality }) {
-  // SVG comes only from the application's fixed modality icon catalogue.
-  const item = modalityPresentation(modality);
-  return (
-    <svg
-      className="assay-overview-icon"
-      data-modality-icon={item.key}
-      style={{ color: modalityColor(item.key) }}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      dangerouslySetInnerHTML={{ __html: item.icon }}
-    />
-  );
-}
 function Badges({ modalities }) {
   return modalities.length
     ? modalities.map((modality) => (
@@ -31,7 +12,7 @@ function Badges({ modalities }) {
           className="pill"
           style={{ borderColor: modalityColor(modality, true) }}
         >
-          <Icon modality={modality} />
+          <ModalityIcon modality={modality} />
           {label(modality)}
         </span>
       ))
@@ -145,7 +126,7 @@ function Timeline({ model }) {
                 )
               }
             />
-            <Icon modality={modality} />
+            <ModalityIcon modality={modality} />
             <span>{label(modality)}</span>
           </label>
         ))}

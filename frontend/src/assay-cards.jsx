@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 
 function Linkage({ item, number }) {
   const total = Number(item.patient_count),

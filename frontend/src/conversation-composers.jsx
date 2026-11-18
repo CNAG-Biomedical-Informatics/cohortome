@@ -1,4 +1,5 @@
 import React from 'react';
+import { QuestionContext } from './shared/question-context.jsx';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { PhenoComposer } from './pheno-composer.jsx';
@@ -20,56 +21,11 @@ function QueryComposer({ actions }) {
       <div className="query-composer-header">
         <div className="composer-heading-group">
           <strong id="queryComposerTitle">Ask a question</strong>
-          <div className="context-mode-switch" role="group" aria-label="Question context">
-            <button
-              id="queryContextWorkspaceBtn"
-              onClick={actions.workspace}
-              type="button"
-              className="context-mode-option is-active"
-              aria-pressed="true"
-              title="Use the active workspace and its governed dataset context."
-            >
-              <span className="button-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <ellipse cx="12" cy="6" rx="7" ry="3"></ellipse>
-                  <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path>
-                  <path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path>
-                </svg>
-              </span>
-              <span>Workspace</span>
-            </button>
-            <button
-              id="queryContextGeneralBtn"
-              onClick={actions.general}
-              type="button"
-              className="context-mode-option"
-              aria-pressed="false"
-              title="Ask the model without workspace or dataset context."
-            >
-              <span className="button-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M8 9h8"></path>
-                  <path d="M8 13h5"></path>
-                  <path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path>
-                </svg>
-              </span>
-              <span>General question</span>
-            </button>
-          </div>
+          <QuestionContext
+            surface="query"
+            onWorkspace={actions.workspace}
+            onGeneral={actions.general}
+          />
         </div>
         <div className="query-composer-actions">
           <button

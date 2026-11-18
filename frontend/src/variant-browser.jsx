@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useLayoutEffect, useRef } from 'react';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 import { modalityLabel } from '../../static/js/modalities.js';
 
 const columns = [

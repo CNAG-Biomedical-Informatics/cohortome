@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 
 function BulkToolbar({ bulk }) {
   const all = useRef(null),

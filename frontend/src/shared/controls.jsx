@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderSupplemental as render } from './view-root.js';
-import { ModalityIcon } from '../assay-overview.jsx';
+import { ModalityIcon } from './modality-icon.jsx';
 
 export function renderNotice(host, message) {
   render(host, message ? <div className="empty">{message}</div> : null);

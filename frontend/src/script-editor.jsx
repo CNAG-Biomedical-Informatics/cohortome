@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 import { formatAssayRequirementLabel } from '../../static/js/assay_labels.js';
 
 function Summary({ summary: s }) {

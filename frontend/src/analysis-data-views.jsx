@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderSupplemental } from './shared/view-root.js';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 import { modalityColor } from '../../static/js/modalities.js';
 import { formatAssayModality } from '../../static/js/assay_labels.js';
 

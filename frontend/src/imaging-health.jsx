@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 
 function ImagingHealth({ model }) {
   if (model.message) return <div className="empty">{model.message}</div>;

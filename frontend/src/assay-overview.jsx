@@ -1,25 +1,7 @@
 import { createRoot } from 'react-dom/client';
-import { modalityPresentation, modalityColor } from '../../static/js/modalities.js';
+import { ModalityIcon } from './shared/modality-icon.jsx';
+import { modalityColor } from '../../static/js/modalities.js';
 
-export function ModalityIcon({ modality }) {
-  const item = modalityPresentation(modality);
-  return (
-    <svg
-      className="assay-overview-icon"
-      data-modality-icon={item.key}
-      style={{ color: modalityColor(item.key) }}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      dangerouslySetInnerHTML={{ __html: item.icon }}
-    />
-  );
-}
 function Overview({ model }) {
   const {
     empty,

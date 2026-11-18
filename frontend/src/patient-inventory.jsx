@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { ClinicalRecord } from './clinical-records.jsx';
 import { ClarID } from './clarid.jsx';
-import { ModalityIcon } from './assay-overview.jsx';
+import { ModalityIcon } from './shared/modality-icon.jsx';
 import { modalityKey, modalityLabel } from '../../static/js/modalities.js';
 const natural = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 const byVisit = (a, b) =>
