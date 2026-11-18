@@ -60,8 +60,6 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
   }
   document.getElementById('selectChatsBtn').addEventListener('click', () => {
     selecting = true; selected.clear();
-    document.getElementById('newChatChoices').hidden = true;
-    document.getElementById('analysisNewSessionBtn').setAttribute('aria-expanded', 'false');
     render();
   });
   function toggle(chatKey, checked) {

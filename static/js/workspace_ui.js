@@ -1,3 +1,5 @@
+import {renderDatasetNames,renderWorkspaceNotice} from './react/ui.js';
+import {renderWelcomeView,renderNotice} from './react/ui.js';
 import { selectionScopeLabel, createSelectionMetadata } from './app_helpers.js';
 
 export function createWorkspaceUi(ctx) {
@@ -65,10 +67,7 @@ export function createWorkspaceUi(ctx) {
     const demo = state.availableDatasets.find(item => item.dataset_id === 'synthetic-cross-sectional-demo');
     const canOpenDemo = demo && (demo.query_store_status?.ready || canManageDataset());
     resetDashboardViews();
-    dashboardEl.innerHTML = `<section class="workspace-welcome">
-      <h2>Explore a cohort</h2><p>${canOpenDemo ? 'Open the synthetic demo to explore patients, assays and analyses, or choose your own datasets.' : 'Choose datasets to start exploring patients, assays and analyses.'}</p>
-      <div class="saved-cohort-actions">${canOpenDemo ? '<button type="button" class="primary-btn" data-open-demo>Open demo</button>' : ''}<button type="button" class="secondary-btn" data-choose-datasets>Choose datasets</button></div>
-      <p role="status"></p></section>`;
+    renderWelcomeView(dashboardEl,canOpenDemo);
     dashboardEl.querySelector('[data-choose-datasets]').onclick = openDatasets;
     const button = dashboardEl.querySelector('[data-open-demo]');
     if (!button) return;
@@ -207,17 +206,7 @@ export function createWorkspaceUi(ctx) {
     const datasetCount = document.getElementById('contextDatasetCount');
     if (datasetCount) datasetCount.textContent = String(state.currentDatasetIds.length);
     datasetDisclosure?.querySelector('summary').setAttribute('aria-label', `Show ${state.currentDatasetIds.length} active datasets`);
-    if (datasetList) {
-      datasetList.replaceChildren(...state.currentDatasetIds.map(id => {
-        const item = document.createElement('li');
-        const record = state.availableDatasets.find(entry => entry.dataset_id === id);
-        item.textContent = record?.name || id;
-        return item;
-      }));
-      if (!state.currentDatasetIds.length) {
-        const item = document.createElement('li'); item.textContent = 'No active datasets'; datasetList.append(item);
-      }
-    }
+    renderDatasetNames(datasetList,state.currentDatasetIds.map(id=>state.availableDatasets.find(entry=>entry.dataset_id===id)?.name || id));
 
     const activeRepresentations = (Array.isArray(state.availableDatasets) ? state.availableDatasets : [])
       .filter((item) => (Array.isArray(state.currentDatasetIds) ? state.currentDatasetIds : []).includes(String(item && item.dataset_id ? item.dataset_id : "")))
@@ -342,28 +331,7 @@ export function createWorkspaceUi(ctx) {
     resetDashboardViews();
     for (const [panel, label] of [[dashboardEl, "Dashboard"], [dashboardTimelineEl, "Timeline"]]) {
       if (!panel) continue;
-      const card = document.createElement("div");
-      card.className = `workspace-notice workspace-notice-${kind}`;
-      card.dataset.workspaceState = kind;
-      card.setAttribute("role", "status");
-      card.setAttribute("aria-live", "polite");
-      card.setAttribute("aria-busy", String(kind === "loading"));
-      const title = document.createElement("strong");
-      title.textContent = kind === "loading" ? `Loading ${label.toLowerCase()}`
-        : kind === "empty" ? "No patient records" : `${label} unavailable`;
-      const message = document.createElement("p");
-      message.textContent = detail;
-      card.append(title, message);
-      if (retry) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "query-chip";
-        button.dataset.dashboardRetry = "true";
-        button.textContent = "Retry dashboard";
-        button.addEventListener("click", retry);
-        card.append(button);
-      }
-      panel.replaceChildren(card);
+      renderWorkspaceNotice(panel,{kind,label,detail,retry});
     }
   }
 
@@ -519,11 +487,11 @@ export function createWorkspaceUi(ctx) {
         renderPatientList(filterPatients(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : ""));
         if (detailEl) {
           resetPatientInspectorView();
-          detailEl.innerHTML = '<div class="empty">Select a patient to inspect the patient workspace.</div>';
+          renderNotice(detailEl,"Select a patient to inspect the patient workspace.");
         }
       } else {
-        if (patientsEl) patientsEl.innerHTML = '<div class="empty">No patient records found in the selected workspace.</div>';
-        if (detailEl) {resetPatientInspectorView(); detailEl.innerHTML = '<div class="empty">No patient workspace to display.</div>';}
+        if (patientsEl) renderNotice(patientsEl,"No patient records found in the selected workspace.");
+        if (detailEl) {resetPatientInspectorView(); renderNotice(detailEl,"No patient workspace to display.");}
       }
       if (loadStatusEl) {
         loadStatusEl.className = "load-status loading";
@@ -567,11 +535,11 @@ export function createWorkspaceUi(ctx) {
     } catch (error) {
       if (!state.currentDatasetIds.length) {
         if (patientsEl) {
-          patientsEl.innerHTML = '<div class="empty">Unable to load patients.</div>';
+          renderNotice(patientsEl,"Unable to load patients.");
         }
         if (detailEl) {
           resetPatientInspectorView();
-          detailEl.innerHTML = '<div class="empty">Patient workspace unavailable.</div>';
+          renderNotice(detailEl,"Patient workspace unavailable.");
         }
         showDashboardNotice("unavailable", "The workspace could not be loaded. Check the message in Datasets and apply the selection again when it is ready.");
         state.dashboardSummaryState = null;
@@ -604,7 +572,7 @@ export function createWorkspaceUi(ctx) {
       const error = await response.json().catch(() => ({}));
       if (detailEl) {
         resetPatientInspectorView();
-        detailEl.innerHTML = `<div class="empty">${error.detail || "Unable to load patient."}</div>`;
+        renderNotice(detailEl,error.detail || "Unable to load patient.");
       }
       return;
     }

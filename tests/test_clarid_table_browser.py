@@ -13,7 +13,7 @@ def test_query_clarid_opens_once_without_resizing_table(table_class):
         page.route("http://clarid.test/", lambda r: r.fulfill(
             content_type="text/html", body=f'<div class="query-result-table-scroll"><table class="{table_class}"><tbody><tr><td>Patient 1</td><td id="identity"></td><td>Female</td></tr></tbody></table></div>'))
         page.route("http://clarid.test/static/js/**", lambda r: r.fulfill(
-            content_type="text/javascript", body=(root / "static/js" / r.request.url.rsplit("/", 1)[-1]).read_text()))
+            content_type="text/javascript", body=(root / "static/js" / r.request.url.split("/static/js/", 1)[-1]).read_text()))
         page.goto("http://clarid.test/")
         for css in ("dashboard.css", "query-core.css"):
             page.add_style_tag(content=(root / "static/css" / css).read_text())
@@ -21,13 +21,13 @@ def test_query_clarid_opens_once_without_resizing_table(table_class):
           const {createDashboardUi} = await import('/static/js/dashboard.js');
           window.ui = createDashboardUi({refs:{}, helpers:{escapeHtml:s=>String(s)},
             callbacks:{}, state:{}, constants:{}});
-          const {claridMarkup} = await import('/static/js/clarid.js');
+          const {renderPatientRoster} = await import('/static/js/react/ui.js');
           const clarid = {
             human_id:'COH-SYN-example', stub_id:'example', subject_id:1,
             condition:'R69', condition_name:'Unspecified illness'};
-          document.querySelector('#identity').innerHTML = biosample
-            ? claridMarkup({...clarid, entity:'biosample', tissue:'Blood'}, String, true)
-            : ui.claridIdentityMarkup({clarid}, true);
+          renderPatientRoster(document.querySelector('#identity'), {total:1,limit:1,compact:true,
+            items:[{patient_id:'Patient 1',recordText:'1 record',clarid:biosample
+              ? {...clarid, entity:'biosample', tissue:'Blood'} : clarid}]});
           document.addEventListener('click', e=>ui.handleClaridAction(e));
         }''', table_class == 'patient-inventory')
         cell = page.locator('#identity')

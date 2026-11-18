@@ -10,6 +10,35 @@ def summary(count):
         visit_distribution={'1':count} if count else {}, patients=[], timelines=[], characteristics=[])
 
 
+def test_timeline_navigation_does_not_redraw_clinical_charts(page):
+    _mock_dashboard_load(page)
+    _mock_assay_datasets(page)
+    page.route('**/dashboard?*', lambda route: route.fulfill(json=summary(2)))
+    page.route('**/patient-overview/timeline?*', lambda route: route.fulfill(
+        json={'timelines': [], 'warnings': []}))
+    page.locator('#datasetsTabBtn').click()
+    page.locator('#loadBtn').click()
+    expect(page.locator('#loadStatus')).to_contain_text('Loaded 2 patients.')
+    page.locator('#dashboardTabBtn').click()
+    page.locator('#dashboardClinicalBtn').click()
+    page.evaluate('''() => {
+      window.clinicalPlotCalls = 0;
+      window.clinicalChartBefore = document.getElementById('dashboard-plot-sex');
+      const original = Plotly.newPlot;
+      Plotly.newPlot = function(el, ...args) {
+        if (el.closest('.clinical-charts')) window.clinicalPlotCalls++;
+        return original.call(this, el, ...args);
+      };
+    }''')
+    for _ in range(2):
+        page.locator('#dashboardTimelineBtn').click()
+        expect(page.locator('#timelineScopeLabel')).to_contain_text('0 patients match')
+        page.locator('#dashboardClinicalBtn').click()
+        expect(page.locator('.dashboard-hero .dashboard-count').first).to_have_text('2 patients')
+    assert page.evaluate('window.clinicalPlotCalls') == 0
+    assert page.evaluate("document.getElementById('dashboard-plot-sex') === window.clinicalChartBefore")
+
+
 def test_clinical_dataset_view_is_shared_by_charts_and_tables(page):
     _mock_dashboard_load(page)
     _mock_assay_datasets(page)

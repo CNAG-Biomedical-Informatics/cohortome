@@ -1,3 +1,4 @@
+import {createAnalysisCharts} from './charts/analysis.js';
 import {createAnalysisThreadView,createProvenanceView} from './react/ui.js';
 import { parseAnalysisTsv } from "./analysis_tsv.js";
 import { decodeIdentity, displayIdentity } from './identities.js';
@@ -42,6 +43,7 @@ export function createAnalysisUi(ctx) {
   const ANALYSIS_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#dc2626", "#d97706"];
 
   // Reuse the same editor and run button: no duplicated draft or event handlers.
+  const {mountDifferentialExpressionInteractivePlot, mountDifferentialExpressionInteractiveHeatmap, mountHallmarkInteractivePlot, mountAnalysisPlots} = createAnalysisCharts({ANALYSIS_PLOT_COLORS, escapeHtml, parseAnalysisTsv, rankedQuantitativeAssayResults, finiteAnalysisNumber, state, isQuantitativeAssayWilcoxonContextMode, isDifferentialExpressionContextMode, isPathwayEnrichmentContextMode});
   function placeAnalysisRequest(afterThread) {
     const composer = document.getElementById("analysisRequestComposer");
     const host = document.getElementById(afterThread ? "analysisContinueHost" : "analysisRequestHome");
@@ -59,11 +61,11 @@ export function createAnalysisUi(ctx) {
     if (setup) setup.open = true;
   }
 
-  document.getElementById("analysisEditSetupBtn")?.addEventListener("click", () => {
+  function editSetup() {
     openAnalysisSetup();
     document.getElementById("analysisSetupDisclosure").scrollIntoView({ behavior: "smooth", block: "start" });
     document.getElementById("analysisMethodSelect").focus({ preventScroll: true });
-  });
+  }
   document.getElementById("analysisSetupDisclosure")?.addEventListener("toggle", (event) => {
     if (event.currentTarget.open) placeAnalysisRequest(false);
     else if (state.analysisTurns.length) placeAnalysisRequest(true);
@@ -183,59 +185,7 @@ export function createAnalysisUi(ctx) {
       .join(" ");
   }
 
-  function plotPlaceholder(id, height = 320) {
-    return `<div class="analysis-plot-frame" id="${id}" style="height:${height}px;"></div>`;
-  }
 
-  function basePlotLayout(overrides) {
-    return {
-      margin: { t: 28, r: 24, b: 84, l: 56 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "#f8fbff",
-      font: { family: "inherit", color: "#132238", size: 12 },
-      xaxis: {
-        automargin: true,
-        gridcolor: "rgba(148,163,184,0.2)",
-        zeroline: false,
-        linecolor: "#cbd5e1",
-        tickfont: { color: "#61758c" },
-        title: { font: { color: "#61758c", size: 12 } },
-      },
-      yaxis: {
-        automargin: true,
-        gridcolor: "rgba(148,163,184,0.2)",
-        zeroline: false,
-        linecolor: "#cbd5e1",
-        tickfont: { color: "#61758c" },
-        title: { font: { color: "#61758c", size: 12 } },
-      },
-      legend: {
-        orientation: "h",
-        yanchor: "bottom",
-        y: 1.02,
-        xanchor: "left",
-        x: 0,
-      },
-      hoverlabel: { bgcolor: "#132238", font: { color: "#f8fafc" } },
-      ...overrides,
-    };
-  }
-
-  function basePlotConfig() {
-    return {
-      displayModeBar: true,
-      displaylogo: false,
-      responsive: true,
-      modeBarButtonsToRemove: [
-        "toImage",
-        "select2d",
-        "lasso2d",
-        "hoverCompareCartesian",
-        "hoverClosestCartesian",
-        "toggleSpikelines",
-      ],
-    };
-  }
 
   function formatTimeToEventLabel(context) {
     const eventName = String(context && context.event_name ? context.event_name : "").trim();
@@ -248,12 +198,6 @@ export function createAnalysisUi(ctx) {
     if (measure && operator && threshold) return `${measure} ${operator} ${threshold}`;
     if (measure) return measure;
     return "defined event";
-  }
-
-  function renderBarChartCard(id, title, items, labelKey, valueKey) {
-    if (!items.length) return `<div class="viz-card"><h3>${escapeHtml(title)}</h3><div class="empty">No data.</div></div>`;
-    const rows = items.map(item => `<tr><th scope="row">${escapeHtml(String(item[labelKey]))}</th><td>${escapeHtml(String(item[valueKey]))}</td></tr>`).join('');
-    return `<section class="viz-card analysis-evidence-card"><h3>${escapeHtml(title)}</h3><div class="analysis-evidence-layout"><div>${plotPlaceholder(id, Math.max(240, items.length * 28 + 90))}</div><div class="assay-table-wrap"><table class="assay-table"><caption class="section-note">Values shown in the plot</caption><thead><tr><th scope="col">Category</th><th scope="col">Value</th></tr></thead><tbody>${rows}</tbody></table></div></div></section>`;
   }
 
   function formatAnalysisCount(value) {
@@ -316,44 +260,7 @@ export function createAnalysisUi(ctx) {
       });
   }
 
-  function renderQuantitativeAssayResultsTable(results) {
-    const rows = rankedQuantitativeAssayResults(results).slice(0, 12);
-    if (!rows.length) return '<div class="empty">No tested quantitative features were returned.</div>';
-    return `
-      <div class="query-result-table-scroll" data-quantitative-assay-results="true">
-        <table class="query-result-table">
-          <thead><tr><th>Feature</th><th>Status</th><th>N A</th><th>N B</th><th>Missing A</th><th>Missing B</th><th>Median A</th><th>Median B</th><th>Median A - B</th><th>Rank-biserial effect</th><th>BH q</th></tr></thead>
-          <tbody>${rows.map((item) => `
-            <tr>
-              <td class="query-result-id-cell">${escapeHtml(String(item.feature_id || ""))}</td>
-              <td>${escapeHtml(String(item.status || "n/a").replaceAll("_", " "))}</td>
-              <td>${escapeHtml(formatAnalysisCount(item.cohort_a_n))}</td>
-              <td>${escapeHtml(formatAnalysisCount(item.cohort_b_n))}</td>
-              <td>${escapeHtml(formatAnalysisCount(item.cohort_a_missing))}</td>
-              <td>${escapeHtml(formatAnalysisCount(item.cohort_b_missing))}</td>
-              <td>${escapeHtml(formatAnalysisNumber(item.cohort_a_median))}</td>
-              <td>${escapeHtml(formatAnalysisNumber(item.cohort_b_median))}</td>
-              <td>${escapeHtml(formatAnalysisNumber(item.median_difference))}</td>
-              <td>${escapeHtml(formatAnalysisNumber(item.rank_biserial_effect))}</td>
-              <td>${escapeHtml(formatAnalysisPValue(item.adj_p_value))}</td>
-            </tr>
-          `).join("")}</tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  function renderAnalysisMetricCards(kind, items) {
-    const cards = (Array.isArray(items) ? items : []).map((item) => `
-      <div class="metric-card">
-        <span>${escapeHtml(String(item && item.label ? item.label : "Metric"))}</span>
-        <strong>${escapeHtml(String(item && item.value !== undefined ? item.value : "n/a"))}</strong>
-      </div>
-    `).join("");
-    return `<div class="metrics-grid" data-analysis-summary="${escapeHtml(kind)}" data-methylation-summary="${escapeHtml(kind)}" style="grid-column: 1 / -1; margin-bottom: 0;">${cards}</div>`;
-  }
-
-  function renderMethylationPanelSummary(context) {
+  function methylationPanelModel(context) {
     const panel = context && context.feature_panel && typeof context.feature_panel === "object"
       ? context.feature_panel
       : null;
@@ -365,54 +272,33 @@ export function createAnalysisUi(ctx) {
       : "";
     const source = String(panel.source_publication_doi || "").trim();
     const note = `${label}${version ? ` v${version}` : ""}.${source ? ` Source DOI: ${source}.` : ""}${independent}`;
-    return `
-      <div data-methylation-panel-summary="true" style="grid-column: 1 / -1;">
-        ${renderAnalysisMetricCards("panel", [
-          { label: "Panel requested", value: formatAnalysisCount(panel.requested_feature_count) },
-          { label: "Absent from source", value: formatAnalysisCount(panel.missing_feature_count) },
-          { label: "Non-finite excluded", value: formatAnalysisCount(panel.excluded_nonfinite_feature_count) },
-          { label: "Panel retained", value: formatAnalysisCount(panel.matched_feature_count) },
-        ])}
-        <p class="section-note">${escapeHtml(note)}</p>
-      </div>
-    `;
+    return {note, metrics:[
+      {label:"Panel requested",value:formatAnalysisCount(panel.requested_feature_count)},
+      {label:"Absent from source",value:formatAnalysisCount(panel.missing_feature_count)},
+      {label:"Non-finite excluded",value:formatAnalysisCount(panel.excluded_nonfinite_feature_count)},
+      {label:"Panel retained",value:formatAnalysisCount(panel.matched_feature_count)}]};
   }
 
-  function renderArtifactDownloads(title, artifacts) {
-    const links = (Array.isArray(artifacts) ? artifacts : [])
-      .filter(Boolean)
-      .map((item) => {
-        const name = String(item && item.name ? item.name : "").trim();
-        const url = String(item && item.url ? item.url : "").trim();
-        if (!name || !url) return "";
-        const extension = name.split(".").pop().toUpperCase();
-        const format = /^[A-Z0-9]{1,8}$/.test(extension) && name.includes(".") ? extension : "FILE";
-        return `<li><a class="analysis-result-file" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(name)} — open in a new tab"><span class="analysis-file-format" aria-hidden="true">${escapeHtml(format)}</span><span class="analysis-file-name">${escapeHtml(name)}</span><span class="analysis-file-action" aria-hidden="true">Open</span></a></li>`;
-      })
-      .filter(Boolean);
-    if (!links.length) return "";
-    return `<details class="query-section analysis-artifact-downloads"><summary><span class="analysis-section-label">${renderAnalysisIcon("data")}<span>${escapeHtml(title || "Result files")}</span></span><span class="analysis-file-count">${links.length} file${links.length === 1 ? "" : "s"}</span></summary><ul class="analysis-result-files">${links.join("")}</ul></details>`;
+  function resultFiles(_title, artifacts) {
+    return artifacts.filter(item => item && String(item.name || "").trim() && String(item.url || "").trim());
   }
 
-  function renderAnalysisPlotsMarkup(payload, turnIndex) {
+  function analysisVisuals(payload, turnIndex) {
+    const context = payload?.data?.context;
+    const modes = ["custom_script", "cross_modal_association", "trajectory_compare",
+      "trajectory_compare_response", "trajectory", "trajectory_response", "survival",
+      "survival_compare", "transcriptomics_medication_compare"];
+    if (!context || modes.includes(context.mode)) return {
+      context, turnIndex, artifacts: payload?.data?.artifacts || [],
+      eventLabel: context ? formatTimeToEventLabel(context) : "",
+    };
+    return {context, turnIndex, scientific: analysisScientificModel(payload)};
+  }
+
+  function analysisScientificModel(payload) {
     const data = payload && payload.data ? payload.data : null;
     const context = data && data.context ? data.context : null;
     const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
-    if (!context) return '<div class="empty">No analysis plots available.</div>';
-    if (context.mode === "custom_script") {
-      return `<div class="viz-card" style="grid-column:1 / -1">${renderArtifactDownloads("Script, audit and result files", artifacts)}
-        ${artifacts.filter(item => /^outputs\/[A-Za-z0-9_.-]+\.png$/.test(item.name || "")).map(item => `<img class="analysis-artifact-image" src="${escapeHtml(item.url)}" alt="Custom script output">`).join("")}
-        <details class="query-section"><summary>Execution logs and audit</summary><pre>${escapeHtml(JSON.stringify({stdout: context.stdout, stderr: context.stderr, audit: context.audit}, null, 2))}</pre></details></div>`;
-    }
-    if (context.mode === "cross_modal_association") {
-      const counts = context.counts || {};
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><div class="section-note">${escapeHtml(context.matching)}</div>
-        <div class="assay-kpi-grid">${Object.entries(counts).map(([key, value]) => `<div class="assay-kpi"><span class="assay-kpi-label">${escapeHtml(key.replace(/_/g, " "))}</span><strong class="assay-kpi-value">${escapeHtml(String(value))}</strong></div>`).join("")}</div>
-        ${plotPlaceholder(`analysis-plot-${turnIndex}-association`, 420)}
-        <div class="query-result-table-scroll"><table><thead><tr><th>Clinical group</th><th>Patients</th><th>Spearman rho</th></tr></thead><tbody>${(context.groups || []).map(group => `<tr><td>${escapeHtml(group.label)}</td><td>${group.n}</td><td>${group.spearman_rho === null ? "Undefined" : Number(group.spearman_rho).toFixed(3)}</td></tr>`).join("")}</tbody></table></div>
-        <p class="section-note">${escapeHtml(context.limitations)}</p>
-        <details class="query-section"><summary>Parameters and provenance</summary><pre>${escapeHtml(JSON.stringify({parameters: context.parameters, provenance: context.provenance}, null, 2))}</pre></details></div>`;
-    }
     if (context.mode === "workflow_transcriptomics_signature") {
       const findArtifact = (suffix) => artifacts.find((item) => String(item && item.name ? item.name : "").endsWith(suffix));
       const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
@@ -429,7 +315,7 @@ export function createAnalysisUi(ctx) {
       const rankingsArtifact = findArtifact("workflow/02-hallmark/gene_rankings.tsv");
       const pathwaySummaryArtifact = findArtifact("workflow/02-hallmark/summary.json");
       const workflowManifestArtifact = findArtifact("workflow/manifest.json");
-      const downloads = renderArtifactDownloads("Result files", [
+      const downloads = resultFiles("Result files", [
         workflowManifestArtifact,
         dePlotArtifact,
         deHeatmapArtifact,
@@ -460,44 +346,9 @@ export function createAnalysisUi(ctx) {
       const negativeText = Array.isArray(hallmarkContext.top_negative_pathway_labels) && hallmarkContext.top_negative_pathway_labels.length
         ? hallmarkContext.top_negative_pathway_labels.map((item) => prettyHallmarkLabel(item)).join(", ")
         : "none at BH < 0.05";
-      return `
-        <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Transcriptomics Signature Workflow</h3>
-          <p class="section-note">Curated DESeq2 differential expression followed by Hallmark pathway enrichment for ${escapeHtml(String(context.dataset_name || "the selected assay"))}.</p>
-          ${downloads}
-        </div>
-        <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Step 1: DESeq2 Differential Expression</h3>
-          <div class="analysis-view-tabs" role="tablist" aria-label="Workflow DESeq2 volcano plot views">
-            <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
-            <button type="button" class="analysis-view-tab${deVolcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(deVolcanoArtifact && deVolcanoArtifact.url ? deVolcanoArtifact.url : ""))}" role="tab" aria-selected="false"${deVolcanoArtifact ? "" : " disabled"}>Interactive plot</button>
-          </div>
-          <div class="analysis-view-panel is-active" data-de-view-panel="png" data-turn-index="${turnIndex}">
-            ${dePlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(dePlotArtifact.url || ""))}" alt="Workflow DESeq2 volcano plot"></div>` : '<div class="empty">DESeq2 volcano plot preview unavailable.</div>'}
-          </div>
-          <div class="analysis-view-panel" data-de-view-panel="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(deVolcanoArtifact && deVolcanoArtifact.url ? deVolcanoArtifact.url : ""))}">
-            ${deVolcanoArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-de-volcano`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/01-deseq2/volcano_points.tsv</code>. The canonical artifact remains <code>workflow/01-deseq2/volcano_plot.png</code>.</p>` : '<div class="empty">Interactive volcano plot unavailable.</div>'}
-          </div>
-          ${deHeatmapArtifact ? `<div style="margin-top:12px;"><div class="analysis-view-tabs" role="tablist" aria-label="Workflow DESeq2 heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${deHeatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(deHeatmapTableArtifact && deHeatmapTableArtifact.url ? deHeatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(deHeatmapClusteringArtifact && deHeatmapClusteringArtifact.url ? deHeatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${deHeatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(deHeatmapArtifact.url || ""))}" alt="Workflow DESeq2 heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(deHeatmapTableArtifact && deHeatmapTableArtifact.url ? deHeatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(deHeatmapClusteringArtifact && deHeatmapClusteringArtifact.url ? deHeatmapClusteringArtifact.url : ""))}">${deHeatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/01-deseq2/top_genes_heatmap.tsv</code>. The canonical artifact remains <code>workflow/01-deseq2/top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div></div>` : ""}
-        </div>
-        ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-de-summary`, "DESeq2 Summary", deSummaryItems, "label", "value")}
-        <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Step 2: Hallmark Pathway Enrichment</h3>
-          <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
-          <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
-          <div class="analysis-view-tabs" role="tablist" aria-label="Workflow Hallmark pathway views">
-            <button type="button" class="analysis-view-tab is-active" data-pathway-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
-            <button type="button" class="analysis-view-tab${pathwayResultsArtifact ? "" : " is-disabled"}" data-pathway-view-btn="interactive" data-turn-index="${turnIndex}" data-pathway-url="${escapeHtml(String(pathwayResultsArtifact && pathwayResultsArtifact.url ? pathwayResultsArtifact.url : ""))}" role="tab" aria-selected="false"${pathwayResultsArtifact ? "" : " disabled"}>Interactive plot</button>
-          </div>
-          <div class="analysis-view-panel is-active" data-pathway-view-panel="png" data-turn-index="${turnIndex}">
-            ${pathwayPlotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(pathwayPlotArtifact.url || ""))}" alt="Workflow Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
-          </div>
-          <div class="analysis-view-panel" data-pathway-view-panel="interactive" data-turn-index="${turnIndex}" data-pathway-url="${escapeHtml(String(pathwayResultsArtifact && pathwayResultsArtifact.url ? pathwayResultsArtifact.url : ""))}">
-            ${pathwayResultsArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-workflow-pathway`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>workflow/02-hallmark/pathway_results.tsv</code>. The canonical artifact remains <code>workflow/02-hallmark/pathway_plot.png</code>.</p>` : '<div class="empty">Interactive pathway plot unavailable.</div>'}
-          </div>
-        </div>
-        ${renderBarChartCard(`analysis-plot-${turnIndex}-workflow-pathway-summary`, "Hallmark Summary", pathwaySummaryItems, "label", "value")}
-      `;
+      return {kind:"workflow", context, downloads, deSummaryItems, pathwaySummaryItems,
+        positiveText, negativeText, dePlotArtifact, deHeatmapArtifact, deHeatmapTableArtifact,
+        deHeatmapClusteringArtifact, deVolcanoArtifact, pathwayPlotArtifact, pathwayResultsArtifact};
     }
     if (isMethylationQcContextMode(context.mode)) {
       const findArtifact = (name) => artifacts.find((item) => {
@@ -512,7 +363,7 @@ export function createAnalysisUi(ctx) {
       const summaryArtifact = findArtifact("summary.json");
       const manifestArtifact = findArtifact("manifest.yaml");
       const paramsArtifact = findArtifact("params.yaml");
-      const downloads = renderArtifactDownloads("Result files", [
+      const downloads = resultFiles("Result files", [
         plotArtifact,
         sampleQcArtifact,
         scoresArtifact,
@@ -537,9 +388,7 @@ export function createAnalysisUi(ctx) {
       const externalMatrixNote = context.source_matrix_materialized_in_duckdb === false
         ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
         : "";
-      return `
-        ${renderMethylationPanelSummary(context)}
-        ${renderAnalysisMetricCards("qc", [
+      return {kind:"qc", context, downloads, panel:methylationPanelModel(context), metrics:[
           { label: "Samples", value: formatAnalysisCount(context.sample_count) },
           { label: "Patients", value: formatAnalysisCount(context.patient_count) },
           { label: "CpGs scanned", value: formatAnalysisCount(context.observed_feature_count) },
@@ -547,16 +396,10 @@ export function createAnalysisUi(ctx) {
           { label: "PC1 variance", value: formatAnalysisPercent(context.pc1_variance_fraction) },
           { label: "PC2 variance", value: formatAnalysisPercent(context.pc2_variance_fraction) },
           { label: "Missingness", value: formatAnalysisPercent(context.missing_fraction) },
-        ])}
-        <div class="viz-card" data-methylation-result="qc-pca" style="grid-column: 1 / -1;">
-          <h3>Methylation QC and PCA</h3>
-          <p class="section-note">Processed-matrix QC for ${escapeHtml(String(context.dataset_name || "the selected M-value assay"))}. ${escapeHtml(pcaDetails)}</p>
-          <p class="section-note">${escapeHtml(covariateText + strongestAssociation)}</p>
-          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
-          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Methylation PCA plot"></div>` : '<div class="empty">Methylation PCA preview unavailable.</div>'}
-          ${downloads}
-        </div>
-      `;
+        ],
+        notes:[`Processed-matrix QC for ${String(context.dataset_name || "the selected M-value assay")}. ${pcaDetails}`,
+          covariateText + strongestAssociation, externalMatrixNote],
+        plotArtifact};
     }
     if (isDifferentialMethylationContextMode(context.mode)) {
       const findArtifact = (name) => artifacts.find((item) => {
@@ -569,7 +412,7 @@ export function createAnalysisUi(ctx) {
       const summaryArtifact = findArtifact("summary.json");
       const manifestArtifact = findArtifact("manifest.yaml");
       const paramsArtifact = findArtifact("params.yaml");
-      const downloads = renderArtifactDownloads("Result files", [
+      const downloads = resultFiles("Result files", [
         plotArtifact,
         resultsArtifact,
         volcanoArtifact,
@@ -594,26 +437,16 @@ export function createAnalysisUi(ctx) {
       const externalMatrixNote = context.source_matrix_materialized_in_duckdb === false
         ? "The complete M-value matrix remained external to DuckDB; this view contains compact analysis outputs only."
         : "";
-      return `
-        ${renderMethylationPanelSummary(context)}
-        ${renderAnalysisMetricCards("differential", [
+      return {kind:"methylation", context, downloads, panel:methylationPanelModel(context), metrics:[
           { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
           { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
           { label: "CpGs analyzed", value: formatAnalysisCount(context.analyzed_feature_count) },
           { label: "BH < 0.05", value: formatAnalysisCount(context.significant_cpg_count) },
           { label: "Higher M in A", value: formatAnalysisCount(context.hypermethylated_cpg_count) },
           { label: "Lower M in A", value: formatAnalysisCount(context.hypomethylated_cpg_count) },
-        ])}
-        <div class="viz-card" data-methylation-result="differential" style="grid-column: 1 / -1;">
-          <h3>Differential Methylation Volcano Plot</h3>
-          <p class="section-note">limma analysis of supplied processed M-values for ${escapeHtml(String(context.dataset_name || "the selected assay"))}. Positive M-value differences indicate higher methylation in Cohort A.</p>
-          <p class="section-note">${escapeHtml(covariateText)} ${escapeHtml(designText)}</p>
-          <p class="section-note">${escapeHtml(topHitText)}</p>
-          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
-          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Differential methylation volcano plot"></div>` : '<div class="empty">Differential methylation volcano plot preview unavailable.</div>'}
-          ${downloads}
-        </div>
-      `;
+        ],
+        notes:[`limma analysis of supplied processed M-values for ${String(context.dataset_name || "the selected assay")}. Positive M-value differences indicate higher methylation in Cohort A.`,
+          covariateText + " " + designText, topHitText, externalMatrixNote], plotArtifact};
     }
     if (isQuantitativeAssayWilcoxonContextMode(context.mode)) {
       const assayLabel = String(context.assay_label || context.dataset_name || "Quantitative assay").trim();
@@ -637,31 +470,24 @@ export function createAnalysisUi(ctx) {
         "manifest.yaml",
         "params.yaml",
       ]);
-      const downloads = renderArtifactDownloads(
+      const downloads = resultFiles(
         "Result files",
         artifacts.filter((item) => downloadableNames.has(String(item && item.name ? item.name : ""))),
       );
-      return `
-        ${renderAnalysisMetricCards("quantitative-assay-wilcoxon", [
+      return {kind:"quantitative", context, downloads, assayLabel, topHitText, modalityCaveat, externalMatrixNote,
+        metrics:[
           { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
           { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
           { label: "Features tested", value: formatAnalysisCount(context.tested_feature_count) },
           { label: "Features skipped", value: formatAnalysisCount(context.skipped_feature_count) },
           { label: "BH < 0.05", value: formatAnalysisCount(context.significant_feature_count) },
-        ])}
-        <div class="viz-card" data-analysis-result="quantitative-assay-wilcoxon" style="grid-column: 1 / -1;">
-          <h3>${escapeHtml(assayLabel)}: Wilcoxon Cohort Comparison</h3>
-          <p class="section-note"><strong>Exploratory and unadjusted.</strong> Wilcoxon rank-sum tests and BH correction were applied to each feature on its supplied measurement scale. No covariate adjustment, assay normalization, or causal interpretation is included.</p>
-          <p class="section-note">Positive rank-biserial effects indicate higher ranks in Cohort A; negative effects indicate higher ranks in Cohort B. ${escapeHtml(topHitText)}</p>
-          ${modalityCaveat ? `<p class="section-note">${escapeHtml(modalityCaveat)}</p>` : ""}
-          ${externalMatrixNote ? `<p class="section-note">${escapeHtml(externalMatrixNote)}</p>` : ""}
-          ${plotPlaceholder(`analysis-plot-${turnIndex}-quantitative-assay-wilcoxon`, 460)}
-          <h4 style="margin:18px 0 10px;">Top tested features</h4>
-          <p class="section-note">Up to 12 features are shown, ordered by BH-adjusted p-value. Sample sizes are non-missing observations for each feature.</p>
-          ${renderQuantitativeAssayResultsTable(context.results)}
-          ${downloads}
-        </div>
-      `;
+        ], rows:rankedQuantitativeAssayResults(context.results).slice(0,12).map(item=>[
+          String(item.feature_id || ""), String(item.status || "n/a").replaceAll("_"," "),
+          formatAnalysisCount(item.cohort_a_n),formatAnalysisCount(item.cohort_b_n),
+          formatAnalysisCount(item.cohort_a_missing),formatAnalysisCount(item.cohort_b_missing),
+          formatAnalysisNumber(item.cohort_a_median),formatAnalysisNumber(item.cohort_b_median),
+          formatAnalysisNumber(item.median_difference),formatAnalysisNumber(item.rank_biserial_effect),
+          formatAnalysisPValue(item.adj_p_value)])};
     }
     if (isDifferentialExpressionContextMode(context.mode)) {
       const isLimmaVoom = String(context.mode || "") === "external_rscript_transcriptomics_limma_voom_differential_expression";
@@ -674,7 +500,7 @@ export function createAnalysisUi(ctx) {
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
       const modelArtifactNames = new Set(["model.json", "design_matrix.tsv", "contrast.tsv", "gene_filter.tsv", "normalization_factors.tsv", "analysis_covariates.tsv", "session_info.txt"]);
       const modelArtifacts = artifacts.filter((item) => modelArtifactNames.has(String(item && item.name ? item.name : "")));
-      const downloads = renderArtifactDownloads("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact, ...modelArtifacts]);
+      const downloads = resultFiles("Result files", [plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, resultsArtifact, volcanoArtifact, summaryArtifact, ...modelArtifacts]);
       const summaryItems = [
         { label: "Cohort A samples", value: formatAnalysisCount(context.cohort_a_sample_count) },
         { label: "Cohort B samples", value: formatAnalysisCount(context.cohort_b_sample_count) },
@@ -694,33 +520,15 @@ export function createAnalysisUi(ctx) {
       const methodText = isLimmaVoom
         ? `RSEM expected counts are filtered with edgeR filterByExpr, TMM-normalized, transformed to log2-CPM with voom precision weights, then tested with limma empirical Bayes and BH correction. ${adjustmentText}`
         : "Raw counts are analyzed with DESeq2. Positive log2 fold change means higher expression in Cohort A; negative means higher in Cohort B.";
-      return `
-        ${renderAnalysisMetricCards("differential-expression", summaryItems)}
-        <div class="viz-card" data-analysis-result="differential-expression" style="grid-column: 1 / -1;">
-          <h3>${isLimmaVoom ? "limma-voom" : "DESeq2"} Differential Expression</h3>
-          <p class="section-note">Transcriptomic differential expression for ${escapeHtml(String(context.dataset_name || "the selected assay"))}. ${escapeHtml(methodText)}</p>
-          <p class="section-note">${escapeHtml(topHitText)}</p>
-          <div class="analysis-view-tabs" role="tablist" aria-label="Differential expression plot views">
-            <button type="button" class="analysis-view-tab is-active" data-de-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button>
-            <button type="button" class="analysis-view-tab${volcanoArtifact ? "" : " is-disabled"}" data-de-view-btn="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}" role="tab" aria-selected="false"${volcanoArtifact ? "" : " disabled"}>Interactive plot</button>
-          </div>
-          <div class="analysis-view-panel is-active" data-de-view-panel="png" data-turn-index="${turnIndex}">
-            ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Differential expression volcano plot"></div>` : '<div class="empty">Volcano plot preview unavailable.</div>'}
-          </div>
-          <div class="analysis-view-panel" data-de-view-panel="interactive" data-turn-index="${turnIndex}" data-volcano-url="${escapeHtml(String(volcanoArtifact && volcanoArtifact.url ? volcanoArtifact.url : ""))}">
-            ${volcanoArtifact ? `${plotPlaceholder(`analysis-plot-${turnIndex}-de-volcano`, 440)}<p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>volcano_points.tsv</code>. The canonical artifact remains <code>volcano_plot.png</code>.</p>` : '<div class="empty">Interactive volcano plot unavailable.</div>'}
-          </div>
-          ${downloads}
-        </div>
-        ${heatmapArtifact ? `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Top Differentially Expressed Genes Heatmap</h3><p class="section-note">Standardized expression heatmap for the top DESeq2-ranked genes across both cohorts.</p><div class="analysis-heatmap-legend" aria-label="Heatmap legend"><span class="analysis-heatmap-legend-label">Lower expression</span><span class="analysis-heatmap-legend-scale" aria-hidden="true"></span><span class="analysis-heatmap-legend-label">Higher expression</span></div><p class="section-note">Blue means lower relative expression for that gene, white is near the gene-level average, and red means higher relative expression.</p><div class="analysis-view-tabs" role="tablist" aria-label="Differential expression heatmap views"><button type="button" class="analysis-view-tab is-active" data-de-heatmap-view-btn="png" data-turn-index="${turnIndex}" role="tab" aria-selected="true">Original PNG</button><button type="button" class="analysis-view-tab${heatmapTableArtifact ? "" : " is-disabled"}" data-de-heatmap-view-btn="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}" role="tab" aria-selected="false"${heatmapTableArtifact ? "" : " disabled"}>Interactive heatmap</button></div><div class="analysis-view-panel is-active" data-de-heatmap-view-panel="png" data-turn-index="${turnIndex}"><div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(heatmapArtifact.url || ""))}" alt="Top differentially expressed genes heatmap"></div></div><div class="analysis-view-panel" data-de-heatmap-view-panel="interactive" data-turn-index="${turnIndex}" data-heatmap-url="${escapeHtml(String(heatmapTableArtifact && heatmapTableArtifact.url ? heatmapTableArtifact.url : ""))}" data-heatmap-clustering-url="${escapeHtml(String(heatmapClusteringArtifact && heatmapClusteringArtifact.url ? heatmapClusteringArtifact.url : ""))}">${heatmapTableArtifact ? `<div class="analysis-heatmap-interactive"><div class="analysis-heatmap-dendrogram" id="analysis-plot-${turnIndex}-de-heatmap-dendrogram"></div>${plotPlaceholder(`analysis-plot-${turnIndex}-de-heatmap`, 520)}</div><p class="section-note" style="margin-top:10px;">Interactive view rendered from <code>top_genes_heatmap.tsv</code>. The canonical artifact remains <code>top_genes_heatmap.png</code>.</p>` : '<div class="empty">Interactive heatmap unavailable.</div>'}</div></div>` : ""}
-      `;
+      return {kind:"expression", context, downloads, metrics:summaryItems, isLimmaVoom, methodText, topHitText,
+        plotArtifact, heatmapArtifact, heatmapTableArtifact, heatmapClusteringArtifact, volcanoArtifact};
     }
     if (isPathwayEnrichmentContextMode(context.mode)) {
       const plotArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "pathway_plot.png");
       const resultsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "pathway_results.tsv");
       const rankingsArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "gene_rankings.tsv");
       const summaryArtifact = artifacts.find((item) => String(item && item.name ? item.name : "") === "summary.json");
-      const downloads = renderArtifactDownloads("Result files", [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]);
+      const downloads = resultFiles("Result files", [plotArtifact, resultsArtifact, rankingsArtifact, summaryArtifact]);
       const summaryItems = [
         { label: "Assay", value: String(context.dataset_name || "n/a") },
         { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
@@ -739,48 +547,7 @@ export function createAnalysisUi(ctx) {
         : Array.isArray(context.top_negative_pathways) && context.top_negative_pathways.length
           ? context.top_negative_pathways.map((item) => prettyHallmarkLabel(item)).join(", ")
           : "none at BH < 0.05";
-      return `
-        <div class="viz-card" style="grid-column: 1 / -1;">
-          <h3>Hallmark Pathway Enrichment</h3>
-          <p class="section-note">MSigDB Hallmark enrichment for ${escapeHtml(String(context.dataset_name || "the selected assay"))} using a DESeq2-ranked comparison.</p>
-          <p class="section-note">Higher in Cohort A: ${escapeHtml(positiveText)}</p>
-          <p class="section-note">Higher in Cohort B: ${escapeHtml(negativeText)}</p>
-          ${plotArtifact ? `<div class="analysis-artifact-image-frame"><img class="analysis-artifact-image" src="${escapeHtml(String(plotArtifact.url || ""))}" alt="Hallmark pathway enrichment plot"></div>` : '<div class="empty">Pathway enrichment plot preview unavailable.</div>'}
-          ${downloads}
-        </div>
-        ${renderBarChartCard(`analysis-plot-${turnIndex}-pathway-summary`, "Pathway Enrichment Summary", summaryItems, "label", "value")}
-      `;
-    }
-    if (context.mode === "transcriptomics_medication_compare") {
-      const comparisons = Array.isArray(context.comparisons) ? context.comparisons : [];
-      const cards = comparisons.map((item, index) => {
-        const title = `${item.medication_a || "Group A"} vs ${item.medication_b || "Group B"}`;
-        const note = context.exploratory_note || "Exploratory transcriptomics comparison.";
-        const thresholdNote = `Coloring is exploratory: red = log2FC >= 1 and p <= 0.05, blue = log2FC <= -1 and p <= 0.05, gray = everything else. Positive log2FC means higher in ${item.medication_a || "Group A"}; negative log2FC means higher in ${item.medication_b || "Group B"}.`;
-        return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Exploratory Volcano Plot: ${escapeHtml(title)}</h3><p class="section-note">${escapeHtml(note)}</p><p class="section-note">${escapeHtml(thresholdNote)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-assay-volcano-${index}`, 420)}</div>`;
-      });
-      return cards.join("") || '<div class="empty">No exploratory transcriptomics comparison plot available.</div>';
-    }
-    if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
-      const unit = context.unit ? ` (${context.unit})` : "";
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Trajectory Comparison${unit}</h3>${plotPlaceholder(`analysis-plot-${turnIndex}-trajectory-compare`, 400)}</div>`;
-    }
-    if (context.mode === "trajectory" || context.mode === "trajectory_response") {
-      const unit = context.unit ? ` (${context.unit})` : "";
-      const heading = context.treatment ? `Response to ${context.treatment}${unit}` : `Trajectory of ${context.measure || "measure"}${unit}`;
-      const coverageItems = [
-        { label: "Patients", value: Number(context.patient_count || 0) },
-        { label: "Summary points", value: Number((context.summary_points || []).length) },
-      ];
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>${escapeHtml(heading)}</h3>${plotPlaceholder(`analysis-plot-${turnIndex}-trajectory`, 400)}</div>${renderBarChartCard(`analysis-plot-${turnIndex}-trajectory-coverage`, "Trajectory Coverage", coverageItems, "label", "value")}`;
-    }
-    if (context.mode === "survival_compare") {
-      const eventLabel = formatTimeToEventLabel(context);
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Comparison</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival-compare`, 360)}</div>`;
-    }
-    if (context.mode === "survival") {
-      const eventLabel = formatTimeToEventLabel(context);
-      return `<div class="viz-card" style="grid-column: 1 / -1;"><h3>Kaplan-Meier Time-to-Event Analysis</h3><p class="section-note">Event: ${escapeHtml(eventLabel)}</p>${plotPlaceholder(`analysis-plot-${turnIndex}-survival`, 360)}</div>`;
+      return {kind:"pathway", context, downloads, positiveText, negativeText, plotArtifact, summaryItems};
     }
     if (context.mode === "compare") {
       const cohortA = context.cohort_a || {};
@@ -793,923 +560,46 @@ export function createAnalysisUi(ctx) {
       ];
       const diseaseDeltaItems = (context.disease_deltas || []).slice(0, 8).map((item) => ({ label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`, value: Math.abs(Number(item.delta || 0)) }));
       const medicationDeltaItems = (context.medication_deltas || []).slice(0, 8).map((item) => ({ label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`, value: Math.abs(Number(item.delta || 0)) }));
-      return `${renderBarChartCard(`analysis-plot-${turnIndex}-compare-a`, "Cohort A Profile", overviewItems.slice(0, 2), "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-compare-b`, "Cohort B Profile", overviewItems.slice(2), "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-compare-disease`, "Disease Differences", diseaseDeltaItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-compare-medication`, "Medication Differences", medicationDeltaItems, "label", "value")}`;
+      return {kind:"evidence", cards:[
+        {suffix:"compare-a",title:"Cohort A Profile",items:overviewItems.slice(0,2)},
+        {suffix:"compare-b",title:"Cohort B Profile",items:overviewItems.slice(2)},
+        {suffix:"compare-disease",title:"Disease Differences",items:diseaseDeltaItems},
+        {suffix:"compare-medication",title:"Medication Differences",items:medicationDeltaItems}]};
     }
     const diseaseItems = (context.top_diseases || []).slice(0, 8).map((item) => ({ label: item.disease, value: item.patient_count }));
     const medicationItems = (context.top_medications || []).slice(0, 8).map((item) => ({ label: item.medication, value: item.patient_count }));
     const periodItems = (context.timepoints_by_period || []).slice(0, 12).map((item) => ({ label: item.period, value: item.timepoint_count }));
     const visitItems = (context.visit_distribution || []).slice(0, 12).map((item) => ({ label: item.label, value: item.value }));
-    return `${renderBarChartCard(`analysis-plot-${turnIndex}-summary-disease`, "Top Diseases", diseaseItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-summary-medication`, "Top Medications", medicationItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-summary-period`, "Timepoints Over Time", periodItems, "label", "value")}${renderBarChartCard(`analysis-plot-${turnIndex}-summary-visits`, "Visits Per Patient", visitItems, "label", "value")}`;
+    return {kind:"evidence", cards:[
+      {suffix:"summary-disease",title:"Top Diseases",items:diseaseItems},
+      {suffix:"summary-medication",title:"Top Medications",items:medicationItems},
+      {suffix:"summary-period",title:"Timepoints Over Time",items:periodItems},
+      {suffix:"summary-visits",title:"Visits Per Patient",items:visitItems}]};
   }
 
-  function plotlyAvailable() {
-    return typeof window !== "undefined" && window.Plotly && typeof window.Plotly.newPlot === "function";
-  }
 
-  function mountPlot(targetId, traces, layout) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
-    if (!plotlyAvailable()) {
-      el.innerHTML = '<div class="empty">Plot rendering unavailable.</div>';
-      return;
-    }
-    window.CohortomeTheme.newPlot(el, traces, layout, basePlotConfig());
-  }
 
-  function buildHorizontalBar(items, labelKey, valueKey, color) {
-    return {
-      traces: [{
-        type: "bar",
-        orientation: "h",
-        y: items.map((item) => item[labelKey]),
-        x: items.map((item) => Number(item[valueKey] || 0)),
-        marker: { color, line: { color, width: 1 } },
-        hovertemplate: "%{y}: %{x}<extra></extra>",
-      }],
-      layout: basePlotLayout({
-        margin: { t: 18, r: 24, b: 36, l: 140 },
-      }),
-    };
-  }
 
-  function buildKaplanMeierPlot(seriesList) {
-    const series = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
-    const traces = series.map((item, index) => ({
-      type: "scatter",
-      mode: "lines",
-      name: item.label || `Series ${index + 1}`,
-      meta: { cohortome_group: index },
-      line: {
-        color: ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
-        width: 3,
-        shape: "hv",
-      },
-      x: item.points.map((point) => Number(point.time_days || 0)),
-      y: item.points.map((point) => Number(point.survival_probability || 0)),
-      hovertemplate: `${escapeHtml(item.label || `Series ${index + 1}`)}<br>Days: %{x}<br>Survival: %{y:.2%}<extra></extra>`,
-    }));
-    return {
-      traces,
-      layout: basePlotLayout({
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          title: { text: "Days since first dated observation of the selected measure", font: { color: "#61758c", size: 12 } },
-        },
-        yaxis: {
-          ...basePlotLayout().yaxis,
-          title: { text: "Event-free probability", font: { color: "#61758c", size: 12 } },
-          tickformat: ".0%",
-          range: [0, 1],
-        },
-      }),
-    };
-  }
 
-  function buildTrajectoryPlot(seriesList, summarySeries, xAxisTitle) {
-    const patientSeries = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
-    const summary = summarySeries && Array.isArray(summarySeries.points) ? summarySeries.points : [];
-    const labels = Array.from(new Set(patientSeries.flatMap((item) => item.points.map((point) => String(point.x_label || point.x || ""))).concat(summary.map((point) => String(point.x_label || point.x || "")))));
-    const traces = patientSeries.slice(0, 12).map((item, index) => ({
-      type: "scatter",
-      mode: "lines+markers",
-      name: item.label || `Patient ${index + 1}`,
-      meta: { cohortome_group: index },
-      showlegend: false,
-      opacity: 0.35,
-      line: {
-        color: ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
-        width: 1.5,
-      },
-      marker: { size: 5 },
-      x: item.points.map((point) => String(point.x_label || point.x || "")),
-      y: item.points.map((point) => Number(point.value || 0)),
-      hovertemplate: "%{x}<br>%{y}<extra></extra>",
-    }));
-    traces.push({
-      type: "scatter",
-      mode: "lines+markers",
-      name: summarySeries.label || "Cohort median",
-      line: { color: "#1d4ed8", width: 3 },
-      marker: { size: 7, color: "#1d4ed8" },
-      x: summary.map((point) => String(point.x_label || point.x || "")),
-      y: summary.map((point) => Number(point.value || 0)),
-      hovertemplate: `${escapeHtml(summarySeries.label || "Cohort median")}<br>%{x}<br>%{y}<extra></extra>`,
-    });
-    return {
-      traces,
-      layout: basePlotLayout({
-        margin: { t: 28, r: 24, b: 112, l: 56 },
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          type: "category",
-          categoryorder: "array",
-          categoryarray: labels,
-          tickangle: -35,
-          title: { text: xAxisTitle || "Days since first dated observation", font: { color: "#61758c", size: 12 } },
-        },
-      }),
-    };
-  }
 
-  function buildTrajectoryComparisonPlot(seriesList, xAxisTitle) {
-    const series = (Array.isArray(seriesList) ? seriesList : []).filter((item) => Array.isArray(item.points) && item.points.length);
-    const labels = Array.from(new Set(series.flatMap((item) => item.points.map((point) => String(point.x_label || point.x || "")))));
-    const traces = series.map((item, index) => ({
-      type: "scatter",
-      mode: "lines+markers",
-      name: item.label || `Series ${index + 1}`,
-      showlegend: item.showLegend !== false,
-      meta: { cohortome_group: index },
-      opacity: item.opacity !== undefined ? item.opacity : 1,
-      line: {
-        color: item.lineColor || ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
-        width: item.lineWidth || 3,
-      },
-      marker: {
-        size: item.markerSize || 7,
-        color: item.lineColor || ANALYSIS_PLOT_COLORS[index % ANALYSIS_PLOT_COLORS.length],
-      },
-      x: item.points.map((point) => String(point.x_label || point.x || "")),
-      y: item.points.map((point) => Number(point.value || 0)),
-      hovertemplate: `${escapeHtml(item.label || `Series ${index + 1}`)}<br>%{x}<br>%{y}<extra></extra>`,
-    }));
-    return {
-      traces,
-      layout: basePlotLayout({
-        margin: { t: 28, r: 24, b: 112, l: 56 },
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          type: "category",
-          categoryorder: "array",
-          categoryarray: labels,
-          tickangle: -35,
-          title: { text: xAxisTitle || "Days since first dated observation", font: { color: "#61758c", size: 12 } },
-        },
-      }),
-    };
-  }
 
-  function buildTrajectoryComparisonSeries(context) {
-    const cohortA = context.cohort_a || {};
-    const cohortB = context.cohort_b || {};
-    const patientSeriesA = Array.isArray(cohortA.patient_series) ? cohortA.patient_series : [];
-    const patientSeriesB = Array.isArray(cohortB.patient_series) ? cohortB.patient_series : [];
-    const totalPatientSeries = patientSeriesA.length + patientSeriesB.length;
-    const includePatientLines = totalPatientSeries > 0 && totalPatientSeries <= 50;
-    const output = [];
 
-    if (includePatientLines) {
-      patientSeriesA.forEach((item, index) => {
-        output.push({
-          label: `Cohort A · ${item.patient_id || `Patient ${index + 1}`}`,
-          points: item.points || [],
-          lineColor: "#2563eb",
-          opacity: 0.28,
-          lineWidth: 1.4,
-          markerSize: 4,
-          showLegend: false,
-        });
-      });
-      patientSeriesB.forEach((item, index) => {
-        output.push({
-          label: `Cohort B · ${item.patient_id || `Patient ${index + 1}`}`,
-          points: item.points || [],
-          lineColor: "#dc2626",
-          opacity: 0.28,
-          lineWidth: 1.4,
-          markerSize: 4,
-          showLegend: false,
-        });
-      });
-    }
 
-    output.push({
-      label: "Cohort A median",
-      points: cohortA.summary_points || [],
-      lineColor: "#1d4ed8",
-      opacity: 1,
-      lineWidth: 3,
-      markerSize: 7,
-      showLegend: true,
-    });
-    output.push({
-      label: "Cohort B median",
-      points: cohortB.summary_points || [],
-      lineColor: "#b91c1c",
-      opacity: 1,
-      lineWidth: 3,
-      markerSize: 7,
-      showLegend: true,
-    });
-    return output;
-  }
 
-  function buildExploratoryVolcanoPlot(points, comparisonLabel) {
-    const rows = (Array.isArray(points) ? points : []).filter((item) => item && item.gene_id !== undefined);
-    const colors = rows.map((item) => {
-      const log2fc = Number(item.log2_fold_change || 0);
-      const negLog10P = Number(item.neg_log10_p || 0);
-      const significant = negLog10P >= 1.3;
-      const largeEffect = Math.abs(log2fc) >= 1;
-      if (!(significant && largeEffect)) return "#94a3b8";
-      return log2fc > 0 ? "#dc2626" : "#2563eb";
-    });
-    return {
-      traces: [{
-        type: "scatter",
-        mode: "markers",
-        name: comparisonLabel || "Exploratory comparison",
-        x: rows.map((item) => Number(item.log2_fold_change || 0)),
-        y: rows.map((item) => Number(item.neg_log10_p || 0)),
-        text: rows.map((item) => String(item.gene_id || "")),
-        customdata: rows.map((item) => [String(item.gene_id || ""), Number(item.mean_log2_cpm_a || 0), Number(item.mean_log2_cpm_b || 0), Number(item.p_value || 1)]),
-        marker: {
-          size: 8,
-          color: colors,
-          opacity: 0.8,
-        },
-        hovertemplate: "Gene: %{customdata[0]}<br>log2FC: %{x:.2f}<br>-log10(p): %{y:.2f}<br>Mean A: %{customdata[1]:.2f}<br>Mean B: %{customdata[2]:.2f}<br>p: %{customdata[3]:.3g}<extra></extra>",
-      }],
-      layout: basePlotLayout({
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          title: { text: "Exploratory log2 fold change", font: { color: "#61758c", size: 12 } },
-          zeroline: true,
-          zerolinecolor: "rgba(148,163,184,0.35)",
-        },
-        yaxis: {
-          ...basePlotLayout().yaxis,
-          title: { text: "Exploratory -log10(p)", font: { color: "#61758c", size: 12 } },
-        },
-      }),
-    };
-  }
 
-  async function loadTabularArtifactRows(url) {
-    const response = await fetch(String(url || ""));
-    if (!response.ok) {
-      throw new Error("Unable to load interactive plot data.");
-    }
-    const text = await response.text();
-    return parseAnalysisTsv(text);
-  }
 
-  async function loadJsonArtifact(url) {
-    const response = await fetch(String(url || ""));
-    if (!response.ok) {
-      throw new Error("Unable to load interactive plot metadata.");
-    }
-    return response.json();
-  }
 
-  function buildDifferentialExpressionVolcanoPlot(points, datasetName) {
-    const rows = (Array.isArray(points) ? points : []).filter((item) => item && item.gene_id !== undefined);
-    const colors = rows.map((item) => {
-      const adjP = Number(item.adj_p_value || 1);
-      return adjP < 0.05 ? "#d9485f" : "#94a3b8";
-    });
-    const topHits = rows
-      .slice()
-      .sort((left, right) => {
-        const leftAdj = Number(left.adj_p_value || 1);
-        const rightAdj = Number(right.adj_p_value || 1);
-        if (leftAdj !== rightAdj) return leftAdj - rightAdj;
-        return Math.abs(Number(right.log2_fold_change || 0)) - Math.abs(Number(left.log2_fold_change || 0));
-      })
-      .slice(0, 5);
-    return {
-      traces: [{
-        type: "scatter",
-        mode: "markers",
-        name: datasetName || "Differential expression",
-        x: rows.map((item) => Number(item.log2_fold_change || 0)),
-        y: rows.map((item) => Number(item.neg_log10_p || 0)),
-        text: rows.map((item) => String(item.gene_id || "")),
-        customdata: rows.map((item) => [
-          String(item.gene_id || ""),
-          Number(item.p_value || 1),
-          Number(item.adj_p_value || 1),
-        ]),
-        marker: {
-          size: 8,
-          color: colors,
-          opacity: 0.82,
-        },
-        hovertemplate: "Gene: %{customdata[0]}<br>log2FC: %{x:.3f}<br>-log10(p): %{y:.3f}<br>p: %{customdata[1]:.3g}<br>adj p: %{customdata[2]:.3g}<extra></extra>",
-      }, {
-        type: "scatter",
-        mode: "text",
-        name: "Top hits",
-        x: topHits.map((item) => Number(item.log2_fold_change || 0)),
-        y: topHits.map((item) => Number(item.neg_log10_p || 0)),
-        text: topHits.map((item) => String(item.gene_id || "")),
-        textposition: "top center",
-        textfont: { color: "#111827", size: 11 },
-        hoverinfo: "skip",
-        showlegend: false,
-      }],
-      layout: basePlotLayout({
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          title: { text: "log2 fold change", font: { color: "#61758c", size: 12 } },
-          zeroline: true,
-          zerolinecolor: "#475569",
-          zerolinewidth: 1,
-        },
-        yaxis: {
-          ...basePlotLayout().yaxis,
-          title: { text: "-log10(p-value)", font: { color: "#61758c", size: 12 } },
-        },
-        shapes: [{
-          type: "line",
-          x0: 0,
-          x1: 0,
-          y0: 0,
-          y1: 1,
-          xref: "x",
-          yref: "paper",
-          line: { color: "#475569", width: 1, dash: "dot" },
-        }],
-      }),
-    };
-  }
 
-  function buildDifferentialExpressionHeatmap(rows, datasetName) {
-    const matrixRows = Array.isArray(rows) ? rows.filter((item) => item && Object.keys(item).length) : [];
-    const sampleNames = matrixRows.length
-      ? Object.keys(matrixRows[0]).filter((key) => key !== "gene_id")
-      : [];
-    const topMargin = 32;
-    const bottomMargin = 120;
-    return {
-      traces: [{
-        type: "heatmap",
-        x: sampleNames,
-        y: matrixRows.map((item) => String(item.gene_id || "")),
-        z: matrixRows.map((item) => sampleNames.map((sample) => {
-          const value = Number(item[sample]);
-          return Number.isFinite(value) ? value : null;
-        })),
-        colorscale: [
-          [0, "#2563eb"],
-          [0.5, "#f8fafc"],
-          [1, "#dc2626"],
-        ],
-        zmid: 0,
-        showscale: false,
-        hovertemplate: "Gene: %{y}<br>Sample: %{x}<br>Scaled expression: %{z:.2f}<extra></extra>",
-      }],
-      layout: basePlotLayout({
-        margin: { t: topMargin, r: 120, b: bottomMargin, l: 24 },
-        title: datasetName ? { text: datasetName, font: { color: "#61758c", size: 12 } } : undefined,
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          tickangle: -35,
-          side: "bottom",
-        },
-        yaxis: {
-          ...basePlotLayout().yaxis,
-          automargin: true,
-          side: "right",
-        },
-      }),
-    };
-  }
 
-  function buildHallmarkPathwayPlot(rows, datasetName) {
-    const rankedRows = (Array.isArray(rows) ? rows : [])
-      .filter((item) => item && item.pathway !== undefined)
-      .map((item) => ({
-        pathway: String(item.display_label || item.pathway || ""),
-        nes: Number(item.NES || 0),
-        padj: Number(item.padj || 1),
-      }))
-      .filter((item) => item.pathway);
-    const plotRows = rankedRows.slice(0, 20).reverse();
-    const colors = plotRows.map((item) => (item.nes >= 0 ? "#2563eb" : "#d9485f"));
-    return {
-      traces: [{
-        type: "bar",
-        orientation: "h",
-        y: plotRows.map((item) => item.pathway),
-        x: plotRows.map((item) => item.nes),
-        marker: { color: colors },
-        customdata: plotRows.map((item) => [item.padj]),
-        hovertemplate: "Pathway: %{y}<br>NES: %{x:.3f}<br>adj p: %{customdata[0]:.3g}<extra></extra>",
-      }],
-      layout: basePlotLayout({
-        margin: { t: 28, r: 24, b: 56, l: 220 },
-        title: datasetName ? { text: datasetName, font: { color: "#61758c", size: 12 } } : undefined,
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          title: { text: "Normalized enrichment score (NES)", font: { color: "#61758c", size: 12 } },
-          zeroline: true,
-          zerolinecolor: "#475569",
-          zerolinewidth: 1,
-        },
-      }),
-    };
-  }
 
-  function buildQuantitativeAssayWilcoxonPlot(results, assayLabel) {
-    const plotRows = rankedQuantitativeAssayResults(results)
-      .map((item) => ({
-        feature: String(item.feature_id || "").trim(),
-        effect: finiteAnalysisNumber(item.rank_biserial_effect),
-        adjustedP: finiteAnalysisNumber(item.adj_p_value),
-        cohortAN: finiteAnalysisNumber(item.cohort_a_n),
-        cohortBN: finiteAnalysisNumber(item.cohort_b_n),
-      }))
-      .filter((item) => item.feature && Number.isFinite(item.effect) && Number.isFinite(item.adjustedP));
-    const plottedRows = plotRows.map((item) => ({
-      ...item,
-      negativeLogAdjustedP: -Math.log10(Math.max(item.adjustedP, 1e-300)),
-    }));
-    const labeledFeatures = new Set(plottedRows.slice(0, 12).map((item) => item.feature));
-    return {
-      traces: [{
-        type: "scatter",
-        mode: "markers+text",
-        x: plottedRows.map((item) => item.effect),
-        y: plottedRows.map((item) => item.negativeLogAdjustedP),
-        text: plottedRows.map((item) => labeledFeatures.has(item.feature) ? item.feature : ""),
-        textposition: "top center",
-        textfont: { color: "#334155", size: 10 },
-        cliponaxis: false,
-        marker: {
-          color: plottedRows.map((item) => item.adjustedP < 0.05 ? "#dc2626" : "#2563eb"),
-          size: plottedRows.map((item) => item.adjustedP < 0.05 ? 11 : 9),
-          opacity: 0.82,
-          line: { color: "#ffffff", width: 1 },
-        },
-        customdata: plottedRows.map((item) => [item.feature, item.adjustedP, item.cohortAN, item.cohortBN]),
-        hovertemplate: "Feature: %{customdata[0]}<br>Rank-biserial effect: %{x:.3f}<br>BH q: %{customdata[1]:.3g}<br>N A: %{customdata[2]}<br>N B: %{customdata[3]}<extra></extra>",
-        showlegend: false,
-      }],
-      layout: basePlotLayout({
-        margin: { t: 54, r: 36, b: 70, l: 72 },
-        title: assayLabel ? { text: assayLabel, font: { color: "#61758c", size: 12 } } : undefined,
-        xaxis: {
-          ...basePlotLayout().xaxis,
-          title: { text: "Rank-biserial effect (Cohort A - Cohort B)", font: { color: "#61758c", size: 12 } },
-          range: [-1.1, 1.1],
-          zeroline: true,
-          zerolinecolor: "#475569",
-          zerolinewidth: 1,
-        },
-        yaxis: {
-          ...basePlotLayout().yaxis,
-          title: { text: "-log10(BH q)", font: { color: "#61758c", size: 12 } },
-          rangemode: "tozero",
-        },
-        shapes: [{
-          type: "line",
-          x0: -1.1,
-          x1: 1.1,
-          y0: -Math.log10(0.05),
-          y1: -Math.log10(0.05),
-          line: { color: "#d97706", width: 1, dash: "dot" },
-        }],
-        annotations: [{
-          x: 1.08,
-          y: -Math.log10(0.05),
-          text: "BH q = 0.05",
-          showarrow: false,
-          xanchor: "right",
-          yanchor: "bottom",
-          font: { color: "#92400e", size: 10 },
-        }],
-      }),
-    };
-  }
 
-  function euclideanDistance(valuesA, valuesB) {
-    let total = 0;
-    for (let index = 0; index < valuesA.length; index += 1) {
-      const delta = Number(valuesA[index] || 0) - Number(valuesB[index] || 0);
-      total += delta * delta;
-    }
-    return Math.sqrt(total);
-  }
 
-  function clusterDistance(leftCluster, rightCluster, pairwiseDistances) {
-    let maxDistance = 0;
-    leftCluster.members.forEach((leftMember) => {
-      rightCluster.members.forEach((rightMember) => {
-        const key = leftMember < rightMember ? `${leftMember}:${rightMember}` : `${rightMember}:${leftMember}`;
-        maxDistance = Math.max(maxDistance, Number(pairwiseDistances.get(key) || 0));
-      });
-    });
-    return maxDistance;
-  }
 
-  function buildHeatmapRowCluster(matrixRows, sampleNames) {
-    if (!Array.isArray(matrixRows) || matrixRows.length < 2 || !Array.isArray(sampleNames) || !sampleNames.length) {
-      return null;
-    }
-    const pairwiseDistances = new Map();
-    matrixRows.forEach((row, index) => {
-      const leftValues = sampleNames.map((sample) => Number(row[sample] || 0));
-      for (let rightIndex = index + 1; rightIndex < matrixRows.length; rightIndex += 1) {
-        const rightValues = sampleNames.map((sample) => Number(matrixRows[rightIndex][sample] || 0));
-        pairwiseDistances.set(`${index}:${rightIndex}`, euclideanDistance(leftValues, rightValues));
-      }
-    });
-    let nextClusterId = matrixRows.length;
-    let clusters = matrixRows.map((row, index) => ({
-      id: index,
-      members: [index],
-      height: 0,
-      left: null,
-      right: null,
-      label: String(row.gene_id || `Gene ${index + 1}`),
-    }));
-    while (clusters.length > 1) {
-      let bestPair = null;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (let leftIndex = 0; leftIndex < clusters.length; leftIndex += 1) {
-        for (let rightIndex = leftIndex + 1; rightIndex < clusters.length; rightIndex += 1) {
-          const distance = clusterDistance(clusters[leftIndex], clusters[rightIndex], pairwiseDistances);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestPair = [leftIndex, rightIndex];
-          }
-        }
-      }
-      if (!bestPair) break;
-      const [leftIndex, rightIndex] = bestPair;
-      const leftCluster = clusters[leftIndex];
-      const rightCluster = clusters[rightIndex];
-      const mergedCluster = {
-        id: nextClusterId,
-        members: leftCluster.members.concat(rightCluster.members),
-        height: bestDistance,
-        left: leftCluster,
-        right: rightCluster,
-        label: "",
-      };
-      nextClusterId += 1;
-      clusters = clusters.filter((_, index) => index !== leftIndex && index !== rightIndex);
-      clusters.push(mergedCluster);
-    }
-    return clusters[0] || null;
-  }
 
-  function flattenHeatmapClusterOrder(node) {
-    if (!node) return [];
-    if (!node.left && !node.right) return [node.members[0]];
-    return flattenHeatmapClusterOrder(node.left).concat(flattenHeatmapClusterOrder(node.right));
-  }
 
-  function buildHeatmapClusterTreeFromR(payload) {
-    const labels = Array.isArray(payload && payload.labels) ? payload.labels.map((item) => String(item || "")) : [];
-    const merge = Array.isArray(payload && payload.merge) ? payload.merge : [];
-    const heights = Array.isArray(payload && payload.height) ? payload.height : [];
-    if (!labels.length || !merge.length || merge.length !== heights.length) return null;
-    const leafNodes = new Map();
-    labels.forEach((label, index) => {
-      leafNodes.set(index + 1, {
-        id: -(index + 1),
-        members: [index],
-        height: 0,
-        left: null,
-        right: null,
-        label,
-      });
-    });
-    const clusterNodes = new Map();
-    for (let index = 0; index < merge.length; index += 1) {
-      const pair = Array.isArray(merge[index]) ? merge[index] : [];
-      if (pair.length !== 2) return null;
-      const resolveNode = (value) => {
-        if (value < 0) return leafNodes.get(Math.abs(value)) || null;
-        return clusterNodes.get(value) || null;
-      };
-      const left = resolveNode(Number(pair[0]));
-      const right = resolveNode(Number(pair[1]));
-      if (!left || !right) return null;
-      clusterNodes.set(index + 1, {
-        id: index + 1,
-        members: left.members.concat(right.members),
-        height: Number(heights[index] || 0),
-        left,
-        right,
-        label: "",
-      });
-    }
-    return clusterNodes.get(merge.length) || null;
-  }
 
-  function buildHeatmapDendrogramSvg(clusterRoot, orderedRows) {
-    if (!clusterRoot || !Array.isArray(orderedRows) || orderedRows.length < 2) return "";
-    const width = 140;
-    const height = 520;
-    const paddingTop = 32;
-    const paddingBottom = 120;
-    const usableHeight = Math.max(height - paddingTop - paddingBottom, 80);
-    const rowHeight = usableHeight / orderedRows.length;
-    const leafY = new Map();
-    orderedRows.forEach((row, index) => {
-      leafY.set(String(row.gene_id || ""), paddingTop + index * rowHeight + rowHeight / 2);
-    });
-    const maxHeight = Math.max(Number(clusterRoot.height || 0), 1);
-    const lines = [];
 
-    function renderNode(node) {
-      if (!node.left && !node.right) {
-        return {
-          x: width,
-          y: leafY.get(String(node.label || "")) || paddingTop,
-        };
-      }
-      const left = renderNode(node.left);
-      const right = renderNode(node.right);
-      const x = width - (Number(node.height || 0) / maxHeight) * (width - 12);
-      lines.push(`<line x1="${x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${left.x.toFixed(2)}" y2="${left.y.toFixed(2)}"></line>`);
-      lines.push(`<line x1="${x.toFixed(2)}" y1="${right.y.toFixed(2)}" x2="${right.x.toFixed(2)}" y2="${right.y.toFixed(2)}"></line>`);
-      lines.push(`<line x1="${x.toFixed(2)}" y1="${left.y.toFixed(2)}" x2="${x.toFixed(2)}" y2="${right.y.toFixed(2)}"></line>`);
-      return { x, y: (left.y + right.y) / 2 };
-    }
 
-    renderNode(clusterRoot);
-    return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Heatmap row dendrogram"><g class="analysis-heatmap-dendrogram-lines">${lines.join("")}</g></svg>`;
-  }
-
-  async function mountDifferentialExpressionInteractivePlot(turnIndex, payload) {
-    const panelEl = document.querySelector(`[data-de-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
-    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
-      return;
-    }
-    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-de-volcano`);
-    if (!plotEl) return;
-    const artifactUrl = String(panelEl.dataset.volcanoUrl || "").trim();
-    if (!artifactUrl) {
-      plotEl.innerHTML = '<div class="empty">Interactive volcano plot unavailable.</div>';
-      panelEl.dataset.loaded = "true";
-      return;
-    }
-    panelEl.dataset.loading = "true";
-    plotEl.innerHTML = '<div class="empty">Loading interactive plot...</div>';
-    try {
-      const rows = await loadTabularArtifactRows(artifactUrl);
-      const context = payload && payload.data ? payload.data.context : null;
-      const volcano = buildDifferentialExpressionVolcanoPlot(rows, context && context.dataset_name ? context.dataset_name : "");
-      mountPlot(`analysis-plot-${turnIndex}-de-volcano`, volcano.traces, volcano.layout);
-      panelEl.dataset.loaded = "true";
-    } catch (_error) {
-      plotEl.innerHTML = '<div class="empty">Unable to render the interactive volcano plot.</div>';
-    } finally {
-      panelEl.dataset.loading = "false";
-    }
-  }
-
-  async function mountDifferentialExpressionInteractiveHeatmap(turnIndex, payload) {
-    const panelEl = document.querySelector(`[data-de-heatmap-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
-    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
-      return;
-    }
-    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-de-heatmap`);
-    if (!plotEl) return;
-    const artifactUrl = String(panelEl.dataset.heatmapUrl || "").trim();
-    if (!artifactUrl) {
-      plotEl.innerHTML = '<div class="empty">Interactive heatmap unavailable.</div>';
-      panelEl.dataset.loaded = "true";
-      return;
-    }
-    panelEl.dataset.loading = "true";
-    plotEl.innerHTML = '<div class="empty">Loading interactive heatmap...</div>';
-    try {
-      const clusteringUrl = String(panelEl.dataset.heatmapClusteringUrl || "").trim();
-      const [rows, clusteringPayload] = await Promise.all([
-        loadTabularArtifactRows(artifactUrl),
-        clusteringUrl ? loadJsonArtifact(clusteringUrl).catch(() => null) : Promise.resolve(null),
-      ]);
-      const context = payload && payload.data ? payload.data.context : null;
-      const sampleNames = rows.length ? Object.keys(rows[0]).filter((key) => key !== "gene_id") : [];
-      const exactClusterRoot = buildHeatmapClusterTreeFromR(clusteringPayload);
-      const exportedOrder = Array.isArray(clusteringPayload && clusteringPayload.order)
-        ? clusteringPayload.order.map((value) => Number(value) - 1).filter((value) => Number.isInteger(value) && value >= 0)
-        : [];
-      const fallbackClusterRoot = !exactClusterRoot ? buildHeatmapRowCluster(rows, sampleNames) : null;
-      const clusterRoot = exactClusterRoot || fallbackClusterRoot;
-      const rowOrder = exportedOrder.length
-        ? exportedOrder
-        : clusterRoot
-          ? flattenHeatmapClusterOrder(clusterRoot)
-          : rows.map((_, index) => index);
-      const orderedRows = rowOrder.map((index) => rows[index]).filter(Boolean);
-      const dendrogramEl = document.getElementById(`analysis-plot-${turnIndex}-de-heatmap-dendrogram`);
-      if (dendrogramEl) {
-        dendrogramEl.innerHTML = clusterRoot ? buildHeatmapDendrogramSvg(clusterRoot, orderedRows) : '<div class="empty">Dendrogram unavailable.</div>';
-      }
-      const heatmap = buildDifferentialExpressionHeatmap(orderedRows, context && context.dataset_name ? context.dataset_name : "");
-      mountPlot(`analysis-plot-${turnIndex}-de-heatmap`, heatmap.traces, heatmap.layout);
-      panelEl.dataset.loaded = "true";
-    } catch (_error) {
-      plotEl.innerHTML = '<div class="empty">Unable to render the interactive heatmap.</div>';
-    } finally {
-      panelEl.dataset.loading = "false";
-    }
-  }
-
-  async function mountHallmarkInteractivePlot(turnIndex, payload) {
-    const panelEl = document.querySelector(`[data-pathway-view-panel="interactive"][data-turn-index="${turnIndex}"]`);
-    if (!panelEl || panelEl.dataset.loaded === "true" || panelEl.dataset.loading === "true") {
-      return;
-    }
-    const plotEl = document.getElementById(`analysis-plot-${turnIndex}-workflow-pathway`);
-    if (!plotEl) return;
-    const artifactUrl = String(panelEl.dataset.pathwayUrl || "").trim();
-    if (!artifactUrl) {
-      plotEl.innerHTML = '<div class="empty">Interactive pathway plot unavailable.</div>';
-      panelEl.dataset.loaded = "true";
-      return;
-    }
-    panelEl.dataset.loading = "true";
-    plotEl.innerHTML = '<div class="empty">Loading interactive pathway plot...</div>';
-    try {
-      const rows = await loadTabularArtifactRows(artifactUrl);
-      const context = payload && payload.data ? payload.data.context : null;
-      const hallmarkContext = context && context.hallmark && typeof context.hallmark === "object" ? context.hallmark : null;
-      const pathway = buildHallmarkPathwayPlot(rows, hallmarkContext && hallmarkContext.dataset_name ? hallmarkContext.dataset_name : "");
-      mountPlot(`analysis-plot-${turnIndex}-workflow-pathway`, pathway.traces, pathway.layout);
-      panelEl.dataset.loaded = "true";
-    } catch (_error) {
-      plotEl.innerHTML = '<div class="empty">Unable to render the interactive pathway plot.</div>';
-    } finally {
-      panelEl.dataset.loading = "false";
-    }
-  }
-
-  function mountAnalysisPlots() {
-    state.analysisTurns.forEach((turn, turnIndex) => {
-      if (!turn || !turn.showPlots || !turn.payload || !turn.payload.data) return;
-      const context = turn.payload.data.context;
-      if (!context) return;
-      if (context.mode === "cross_modal_association") {
-        const points = context.points || [];
-        const traces = (context.groups || []).map(group => {
-          const subset = points.filter(point => point.group === group.label);
-          return {type: "scatter", mode: "markers", name: group.label,
-            x: subset.map(point => point.x), y: subset.map(point => point.y),
-            marker: {size: 9, opacity: 0.8}};
-        });
-        mountPlot(`analysis-plot-${turnIndex}-association`, traces, {height: 420,
-          xaxis: {title: context.parameters.feature_x}, yaxis: {title: context.parameters.feature_y},
-          margin: {l: 70, r: 25, b: 80, t: 30}, legend: {orientation: "h", y: -0.25}});
-        return;
-      }
-      if (context.mode === "transcriptomics_medication_compare") {
-        (context.comparisons || []).forEach((item, comparisonIndex) => {
-          const points = Array.isArray(item.exploratory_volcano_points) ? item.exploratory_volcano_points : [];
-          if (!points.length) return;
-          const volcano = buildExploratoryVolcanoPlot(points, `${item.medication_a || "A"} vs ${item.medication_b || "B"}`);
-          mountPlot(`analysis-plot-${turnIndex}-assay-volcano-${comparisonIndex}`, volcano.traces, volcano.layout);
-        });
-        return;
-      }
-      if (isQuantitativeAssayWilcoxonContextMode(context.mode)) {
-        const effectPlot = buildQuantitativeAssayWilcoxonPlot(
-          context.results,
-          String(context.assay_label || context.dataset_name || "Quantitative assay"),
-        );
-        mountPlot(`analysis-plot-${turnIndex}-quantitative-assay-wilcoxon`, effectPlot.traces, effectPlot.layout);
-        return;
-      }
-      if (isDifferentialExpressionContextMode(context.mode)) {
-        const summary = buildHorizontalBar([
-          { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
-          { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
-          { label: "Genes tested", value: Number(context.gene_count || 0) },
-          { label: "Significant genes", value: Number(context.significant_gene_count || 0) },
-        ], "label", "value", "#2563eb");
-        mountPlot(`analysis-plot-${turnIndex}-de-summary`, summary.traces, summary.layout);
-        return;
-      }
-      if (isPathwayEnrichmentContextMode(context.mode)) {
-        const summary = buildHorizontalBar([
-          { label: "Cohort A samples", value: Number(context.cohort_a_sample_count || 0) },
-          { label: "Cohort B samples", value: Number(context.cohort_b_sample_count || 0) },
-          { label: "Ranked genes", value: Number(context.ranked_gene_count || 0) },
-          { label: "Pathways tested", value: Number(context.pathway_count || 0) },
-          { label: "Significant pathways", value: Number(context.significant_pathway_count || 0) },
-        ], "label", "value", "#2563eb");
-        mountPlot(`analysis-plot-${turnIndex}-pathway-summary`, summary.traces, summary.layout);
-        return;
-      }
-      if (context.mode === "workflow_transcriptomics_signature") {
-        const deContext = context.deseq2 && typeof context.deseq2 === "object" ? context.deseq2 : {};
-        const hallmarkContext = context.hallmark && typeof context.hallmark === "object" ? context.hallmark : {};
-        const deSummary = buildHorizontalBar([
-          { label: "Cohort A samples", value: Number(deContext.cohort_a_sample_count || 0) },
-          { label: "Cohort B samples", value: Number(deContext.cohort_b_sample_count || 0) },
-          { label: "Genes tested", value: Number(deContext.gene_count || 0) },
-          { label: "Significant genes", value: Number(deContext.significant_gene_count || 0) },
-        ], "label", "value", "#2563eb");
-        mountPlot(`analysis-plot-${turnIndex}-workflow-de-summary`, deSummary.traces, deSummary.layout);
-        const pathwaySummary = buildHorizontalBar([
-          { label: "Ranked genes", value: Number(hallmarkContext.ranked_gene_count || 0) },
-          { label: "Pathways tested", value: Number(hallmarkContext.pathway_count || 0) },
-          { label: "Significant pathways", value: Number(hallmarkContext.significant_pathway_count || 0) },
-        ], "label", "value", "#059669");
-        mountPlot(`analysis-plot-${turnIndex}-workflow-pathway-summary`, pathwaySummary.traces, pathwaySummary.layout);
-        return;
-      }
-      if (context.mode === "trajectory_compare" || context.mode === "trajectory_compare_response") {
-        const comparison = buildTrajectoryComparisonPlot(buildTrajectoryComparisonSeries(context), context.time_axis_label);
-        mountPlot(`analysis-plot-${turnIndex}-trajectory-compare`, comparison.traces, comparison.layout);
-        return;
-      }
-      if (context.mode === "trajectory" || context.mode === "trajectory_response") {
-        const trajectory = buildTrajectoryPlot(
-          context.patient_series || [],
-          { label: context.treatment ? "Median response" : "Cohort median", points: context.summary_points || [] },
-          context.time_axis_label,
-        );
-        mountPlot(`analysis-plot-${turnIndex}-trajectory`, trajectory.traces, trajectory.layout);
-        const coverage = buildHorizontalBar([
-          { label: "Patients", value: Number(context.patient_count || 0) },
-          { label: "Summary points", value: Number((context.summary_points || []).length) },
-        ], "label", "value", "#2563eb");
-        mountPlot(`analysis-plot-${turnIndex}-trajectory-coverage`, coverage.traces, coverage.layout);
-        return;
-      }
-      if (context.mode === "survival_compare") {
-        const cohortA = context.cohort_a || {};
-        const cohortB = context.cohort_b || {};
-        const survival = buildKaplanMeierPlot([
-          { label: `Cohort A (${cohortA.patient_count || 0} patients)`, points: cohortA.curve_points || [] },
-          { label: `Cohort B (${cohortB.patient_count || 0} patients)`, points: cohortB.curve_points || [] },
-        ]);
-        mountPlot(`analysis-plot-${turnIndex}-survival-compare`, survival.traces, survival.layout);
-        const aSummary = buildHorizontalBar([
-          { label: "Patients", value: Number(cohortA.patient_count || 0) },
-          { label: "Events", value: Number(cohortA.event_count || 0) },
-          { label: "Censored", value: Number(cohortA.censored_count || 0) },
-        ], "label", "value", "#2563eb");
-        const bSummary = buildHorizontalBar([
-          { label: "Patients", value: Number(cohortB.patient_count || 0) },
-          { label: "Events", value: Number(cohortB.event_count || 0) },
-          { label: "Censored", value: Number(cohortB.censored_count || 0) },
-        ], "label", "value", "#0ea5e9");
-        mountPlot(`analysis-plot-${turnIndex}-survival-a`, aSummary.traces, aSummary.layout);
-        mountPlot(`analysis-plot-${turnIndex}-survival-b`, bSummary.traces, bSummary.layout);
-        return;
-      }
-      if (context.mode === "survival") {
-        const survival = buildKaplanMeierPlot([
-          { label: `${context.measure || "Measure"} ${context.operator || ""} ${context.threshold || ""}`.trim(), points: context.curve_points || [] },
-        ]);
-        mountPlot(`analysis-plot-${turnIndex}-survival`, survival.traces, survival.layout);
-        const summary = buildHorizontalBar([
-          { label: "Patients", value: Number(context.patient_count || 0) },
-          { label: "Events", value: Number(context.event_count || 0) },
-          { label: "Censored", value: Number(context.censored_count || 0) },
-        ], "label", "value", "#2563eb");
-        const median = buildHorizontalBar([
-          { label: "Median days", value: Number(context.median_survival_days || 0) },
-        ], "label", "value", "#0ea5e9");
-        mountPlot(`analysis-plot-${turnIndex}-survival-summary`, summary.traces, summary.layout);
-        mountPlot(`analysis-plot-${turnIndex}-survival-median`, median.traces, median.layout);
-        return;
-      }
-      if (context.mode === "compare") {
-        const cohortA = context.cohort_a || {};
-        const cohortB = context.cohort_b || {};
-        const overviewA = buildHorizontalBar([
-          { label: "Patients", value: Number((cohortA.overview && cohortA.overview.patient_count) || 0) },
-          { label: "Timepoints", value: Number((cohortA.overview && cohortA.overview.timepoint_count) || 0) },
-        ], "label", "value", "#2563eb");
-        const overviewB = buildHorizontalBar([
-          { label: "Patients", value: Number((cohortB.overview && cohortB.overview.patient_count) || 0) },
-          { label: "Timepoints", value: Number((cohortB.overview && cohortB.overview.timepoint_count) || 0) },
-        ], "label", "value", "#0ea5e9");
-        const disease = buildHorizontalBar((context.disease_deltas || []).slice(0, 8).map((item) => ({
-          label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`,
-          value: Math.abs(Number(item.delta || 0)),
-        })), "label", "value", "#0ea5e9");
-        const medication = buildHorizontalBar((context.medication_deltas || []).slice(0, 8).map((item) => ({
-          label: item.delta > 0 ? `${item.label} (A)` : item.delta < 0 ? `${item.label} (B)` : `${item.label} (=)`,
-          value: Math.abs(Number(item.delta || 0)),
-        })), "label", "value", "#7c3aed");
-        overviewA.traces[0].meta = {cohortome_group:0};
-        overviewB.traces[0].meta = {cohortome_group:1};
-        mountPlot(`analysis-plot-${turnIndex}-compare-a`, overviewA.traces, overviewA.layout);
-        mountPlot(`analysis-plot-${turnIndex}-compare-b`, overviewB.traces, overviewB.layout);
-        mountPlot(`analysis-plot-${turnIndex}-compare-disease`, disease.traces, disease.layout);
-        mountPlot(`analysis-plot-${turnIndex}-compare-medication`, medication.traces, medication.layout);
-        return;
-      }
-      const disease = buildHorizontalBar((context.top_diseases || []).slice(0, 8).map((item) => ({ label: item.disease, value: item.patient_count })), "label", "value", "#0ea5e9");
-      const medication = buildHorizontalBar((context.top_medications || []).slice(0, 8).map((item) => ({ label: item.medication, value: item.patient_count })), "label", "value", "#2563eb");
-      const period = buildHorizontalBar((context.timepoints_by_period || []).slice(0, 12).map((item) => ({ label: item.period, value: item.timepoint_count })), "label", "value", "#7c3aed");
-      const visits = buildHorizontalBar((context.visit_distribution || []).slice(0, 12).map((item) => ({ label: item.label, value: item.value })), "label", "value", "#059669");
-      mountPlot(`analysis-plot-${turnIndex}-summary-disease`, disease.traces, disease.layout);
-      mountPlot(`analysis-plot-${turnIndex}-summary-medication`, medication.traces, medication.layout);
-      mountPlot(`analysis-plot-${turnIndex}-summary-period`, period.traces, period.layout);
-      mountPlot(`analysis-plot-${turnIndex}-summary-visits`, visits.traces, visits.layout);
-    });
-  }
 
   function analysisIntentPresentation(intent) {
     const value = String(intent || "analysis");
@@ -1732,30 +622,6 @@ export function createAnalysisUi(ctx) {
       label: value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
       title: `Internal analysis intent: ${value}`,
     };
-  }
-
-  function analysisIconSvg(kind) {
-    const icons = {
-      summary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8"></path><path d="M8 12h8"></path><path d="M8 18h5"></path><rect x="4" y="3" width="16" height="18" rx="2"></rect></svg>',
-      response: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>',
-      provider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V7a4 4 0 1 1 8 0v3"></path><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M12 14v2"></path></svg>',
-      planner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"></path><path d="M9 6h6"></path><path d="M5 13a7 7 0 1 0 14 0"></path><path d="m9 13 2 2 4-4"></path></svg>',
-      deterministic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg>',
-      llm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h5"></path><path d="M6 4h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-4 4v-4H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path></svg>',
-      job: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="8"></circle></svg>',
-      blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path><path d="m15.5 8.5-7 7"></path></svg>',
-      unavailable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
-      context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7h.01"></path></svg>',
-      plot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m7 16 4-5 3 3 5-7"></path></svg>',
-      followup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="m5 12 7 7 7-7"></path></svg>',
-      data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path></svg>',
-      no_context: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v6c0 1.7 3.1 3 7 3 1.1 0 2.1-.1 3-.3"></path><path d="m5 4 14 16"></path></svg>',
-    };
-    return icons[kind] || icons.summary;
-  }
-
-  function renderAnalysisIcon(kind, cls = "analysis-inline-icon") {
-    return `<span class="${cls}" aria-hidden="true">${analysisIconSvg(kind)}</span>`;
   }
 
   function renderAnalysisBadge(label,title,iconKind='') { return {label,title,iconKind}; }
@@ -1840,7 +706,7 @@ export function createAnalysisUi(ctx) {
 
   function renderAnalysisMeta(payload) {
     if (!analysisMetaEl) return;
-    metaView.render(getAnalysisProvenanceChips(payload));
+    metaView.render(payload ? getAnalysisProvenanceChips(payload) : []);
   }
 
   function formatAnalysisScopeLabel(scopeValue) {
@@ -2028,7 +894,7 @@ export function createAnalysisUi(ctx) {
     renderAnalysisStarterPrompts();
     if (!state.analysisTurns.length) {
       openAnalysisSetup();
-      threadView.render([]);
+      threadView.render([],state.currentAnalysisSessionId);
       return;
     }
     placeAnalysisRequest(true);
@@ -2081,14 +947,12 @@ export function createAnalysisUi(ctx) {
       const audit=turn.payload?.data?.implementation_audit;
       return {general,error,latest:turnIndex===latest,contextParts,badges,framing:turn.framing,audit,
         heading:!general && !error && turn.showPlots ? titles[context?.mode] || context?.method || (overview ? 'Clinical cohort summary' : 'Analysis results') : '',
-        visuals:turn.showPlots ? renderAnalysisPlotsMarkup(turn.payload,turnIndex) : '',
+        visuals:turn.showPlots ? analysisVisuals(turn.payload,turnIndex) : '',
         reply:queryReplyModel(turn.payload), data:turn.payload.data,
         provenance:getAnalysisProvenanceChips(turn.payload),
-        auditDownloads:audit ? renderArtifactDownloads("Source snapshot",[{name:audit.filename,url:audit.url}]) : '',
-        followups:turnIndex===latest && turn.payload?.data?.execution!=="queued" ? uniquePrompts(getAnalysisFollowUpPrompts(turn.payload,turn.showPlots)).slice(0,4) : [],
-        dataIcon:renderAnalysisIcon("data"),followupIcon:renderAnalysisIcon("followup")};
+        followups:turnIndex===latest && turn.payload?.data?.execution!=="queued" ? uniquePrompts(getAnalysisFollowUpPrompts(turn.payload,turn.showPlots)).slice(0,4) : []};
     });
-    threadView.render(turns);
+    threadView.render(turns,state.currentAnalysisSessionId);
     mountAnalysisPlots();
   }
 
@@ -2309,6 +1173,7 @@ export function createAnalysisUi(ctx) {
   }
 
   return {
+    editSetup,
     renderAnalysisMeta,
     renderAnalysisCompareMode,
     analysisPromptRequestsPlots,

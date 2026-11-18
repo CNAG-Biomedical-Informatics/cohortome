@@ -1,3 +1,7 @@
+import {createPhenoOrdinationChart} from './charts/pheno-ordination.js';
+import {createPhenoHeatmapChart} from './charts/pheno-heatmap.js';
+import {createPhenoNetworkChart} from './charts/pheno-network.js';
+import {renderOptions,renderNotice,renderPhenoReadinessView,renderPhenoFiles,renderPhenoLegend,renderPhenoRunning} from './react/ui.js';
 import {activityState} from './shared.js';
 import {createProvenanceView,createPlanPreviewView, createPhenoResultView, createPhenoAlignmentView, createPhenoExplanationView, createPhenoPlanningView, createPhenoFollowupsView} from './react/ui.js';
 import { displayIdentity } from "./identities.js";
@@ -132,6 +136,9 @@ export function createPhenoUi(ctx) {
 
   const patientPicker = createPhenoPatientPicker(phenoPatientIdEl, document.getElementById('phenoPatientChoices'));
 
+  const {renderInteractivePhenoMdsPlot} = createPhenoOrdinationChart({parseTsvLines, getPhenoMdsCohortInfo, renderPhenoCohortLegend, state, normalizePhenoSelectedRecordId, displayIdentity, normalizePhenoSelectedRecordIds, escapeHtml});
+  const {renderInteractivePhenoHeatmap} = createPhenoHeatmapChart({phenoHeatmapRecordCount, PHENO_HEATMAP_MAX_RECORDS, parseTsvLines, getEffectivePhenoCohortMetric, escapeHtml, displayIdentity});
+  const {renderInteractivePhenoGraph} = createPhenoNetworkChart({renderPhenoCohortLegend, getEffectivePhenoCohortMetric, getPhenoMdsCohortInfo, displayIdentity, state, normalizePhenoSelectedRecordIds, escapeHtml});
   function currentActivePhenoBackgroundJob() {
     return Array.isArray(state.recentJobs)
       ? state.recentJobs.find((item) => item && item.feature === "pheno" && ["queued", "running"].includes(String(item.status || "").trim()))
@@ -160,10 +167,7 @@ export function createPhenoUi(ctx) {
       const label = String(active?.job_code || active?.job_id || "").trim();
       phenoBackgroundJobBannerEl.classList.remove("is-hidden");
       phenoBackgroundJobBannerEl.dataset.stage = queued ? "queued" : "running";
-      phenoBackgroundJobBannerEl.innerHTML = `<span class="button-spinner" aria-hidden="true"></span>
-        <div><strong>${queued ? "Pheno-Ranker queued" : "Pheno-Ranker is running"}</strong>
-        <span>${queued ? "Waiting for a worker. This run has not started yet." : "Your request is being processed. Results will appear when it finishes."}${label ? ` · ${escapeHtml(label)}` : ""}</span></div>
-        ${active ? '<button type="button" class="query-chip" data-pheno-view-job>View job</button>' : ""}`;
+      renderPhenoRunning(phenoBackgroundJobBannerEl,{queued,label,active:Boolean(active)});
       return;
     }
     const completed = currentCompletedPhenoJobForWorkspace();
@@ -171,13 +175,13 @@ export function createPhenoUi(ctx) {
       const label = String(completed.job_code || completed.job_id || "").trim();
       phenoBackgroundJobBannerEl.classList.remove("is-hidden");
       phenoBackgroundJobBannerEl.dataset.stage = "completed";
-      phenoBackgroundJobBannerEl.textContent = label
+      renderNotice(phenoBackgroundJobBannerEl, label
         ? `Background Pheno-Ranker run completed: ${label}.`
-        : "A background Pheno-Ranker run completed.";
+        : "A background Pheno-Ranker run completed.");
       return;
     }
     phenoBackgroundJobBannerEl.classList.add("is-hidden");
-    phenoBackgroundJobBannerEl.textContent = "";
+    renderNotice(phenoBackgroundJobBannerEl, "");
   }
   phenoBackgroundJobBannerEl?.addEventListener("click", event => {
     if (event.target.closest("[data-pheno-view-job]")) callbacks.openPhenoJobs?.();
@@ -719,7 +723,7 @@ export function createPhenoUi(ctx) {
     parts.push(`Terms: ${plan.include_terms.length ? plan.include_terms.join(', ') : 'all supported terms'}`);
     if (plan.exclude_terms.length) parts.push(`Excluded: ${plan.exclude_terms.join(', ')}`);
     el.classList.toggle('is-ready', Boolean(workspace && hasReferences && !needsPlan && !issues.length && !activeJob && !state.inFlight && !state.planInFlight));
-    el.innerHTML = `<strong>${escapeHtml(title)}</strong><div>${escapeHtml(parts.join(' · '))}</div>`;
+    renderPhenoReadinessView(el,title,parts);
   }
 
   function getPhenoPlotSelection(kind) {
@@ -790,10 +794,10 @@ export function createPhenoUi(ctx) {
     onReferenceFilesLoaded([]);
     patientPicker.reset();
     const choices = document.getElementById('phenoPatientChoices');
-    if (choices) choices.innerHTML = '';
+    renderOptions(choices);
     if (phenoSelectedPatientIdsEl) phenoSelectedPatientIdsEl.value = "";
     if (phenoReferenceFilesSummaryEl) {
-      phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">None</span>';
+      renderPhenoFiles(phenoReferenceFilesSummaryEl, [], "None");
     }
     if (phenoPlanStatusEl) {
       phenoPlanStatusEl.className = "pheno-status";
@@ -1032,7 +1036,7 @@ export function createPhenoUi(ctx) {
     await runPhenoRanker(false);
   }
 
-  function renderPhenoFiles(files) {
+  function renderPhenoResultFiles(files) {
     filesView.render({kind:'files',files:Array.isArray(files) ? files : []});
   }
 
@@ -1135,17 +1139,12 @@ export function createPhenoUi(ctx) {
       }
     }
     if (!cohortItems.length) {
-      container.innerHTML = "";
+      renderPhenoLegend(container, []);
       container.classList.add("is-hidden");
       return;
     }
     container.classList.remove("is-hidden");
-    container.innerHTML = cohortItems.map((cohort) => `
-      <span class="pheno-cohort-chip" style="--cohort-color:${cohort.color};">
-        <span class="pheno-cohort-chip-swatch" aria-hidden="true"></span>
-        ${escapeHtml(cohort.label)}
-      </span>
-    `).join("");
+    renderPhenoLegend(container,cohortItems);
   }
 
   function renderPhenoAlignmentPlaceholder(message) {
@@ -1535,722 +1534,8 @@ export function createPhenoUi(ctx) {
     }
   }
 
-  async function renderInteractivePhenoMdsPlot(file, method = 'MDS') {
-    const prefix = method === 'UMAP' ? 'phenoUmap' : 'phenoMds';
-    const selectionKey = method === 'UMAP' ? 'selectedUmapRecordIds' : 'selectedMdsRecordIds';
-    const plotEl = document.getElementById(prefix + "Plot");
-    const noteEl = document.getElementById(prefix + "SelectionNote");
-    if (!plotEl) {
-      return;
-    }
-    if (typeof window.Plotly === "undefined") {
-      plotEl.innerHTML = '<div class="empty">Interactive Plotly view is unavailable in this browser.</div>';
-      return;
-    }
-    try {
-      const response = await fetch(file.url);
-      if (!response.ok) {
-        plotEl.innerHTML = '<div class="empty">Unable to load MDS coordinates.</div>';
-        return;
-      }
-      const text = await response.text();
-      const rows = parseTsvLines(text);
-      if (!rows || rows.length < 2) {
-        plotEl.innerHTML = '<div class="empty">No MDS coordinates were available for this run.</div>';
-        return;
-      }
-      const header = rows[0];
-      const recordIndex = header.indexOf("record_id");
-      const patientIndex = header.indexOf("patient_id");
-      const xIndex = header.indexOf("x");
-      const yIndex = header.indexOf("y");
-      if ([recordIndex, patientIndex, xIndex, yIndex].some((index) => index < 0)) {
-        plotEl.innerHTML = '<div class="empty">MDS coordinate file is missing required columns.</div>';
-        return;
-      }
-      const points = rows.slice(1).map((row) => ({
-        record_id: String(row[recordIndex] || "").trim(),
-        patient_id: String(row[patientIndex] || "").trim(),
-        x: Number(row[xIndex]),
-        y: Number(row[yIndex]),
-      })).filter((item) => item.record_id && Number.isFinite(item.x) && Number.isFinite(item.y)).map((item) => ({
-        ...item,
-        cohort: getPhenoMdsCohortInfo(item.record_id),
-      }));
-      if (!points.length) {
-        plotEl.innerHTML = '<div class="empty">No valid MDS coordinates were available for this run.</div>';
-        return;
-      }
-      renderPhenoCohortLegend(prefix + "CohortLegend", points.map((item) => item.record_id));
-      points.forEach(item => {
-        if (item.patient_id) state.projectionPatientIds.set(normalizePhenoSelectedRecordId(item.record_id), item.patient_id);
-      });
-      const cohortGroups = new Map();
-      points.forEach((item) => {
-        if (!cohortGroups.has(item.cohort.key)) {
-          cohortGroups.set(item.cohort.key, {
-            label: item.cohort.label,
-            color: item.cohort.color,
-            points: [],
-          });
-        }
-        cohortGroups.get(item.cohort.key).points.push(item);
-      });
-      const traces = Array.from(cohortGroups.values()).map((group) => ({
-        type: "scattergl",
-        mode: "markers+text",
-        name: group.label,
-        x: group.points.map((item) => item.x),
-        y: group.points.map((item) => item.y),
-        text: group.points.map((item) => displayIdentity(item.record_id)),
-        customdata: group.points.map((item) => [item.record_id, item.patient_id, group.label, displayIdentity(item.record_id), displayIdentity(item.patient_id)]),
-        textposition: "top center",
-        textfont: {
-          size: 12,
-          color: window.CohortomeTheme.colors().ink,
-        },
-        hovertemplate: "<b>%{customdata[3]}</b><br>Patient %{customdata[4]}<br>%{customdata[2]}<br>x=%{x:.3f}<br>y=%{y:.3f}<extra></extra>",
-        marker: {
-          size: 10,
-          color: group.color,
-          opacity: 0.88,
-        },
-        selected: {
-          textfont: {
-            color: "#991b1b",
-            size: 13,
-          },
-          marker: {
-            opacity: 1,
-          },
-        },
-        unselected: {
-          textfont: {
-            color: "rgba(15, 23, 42, 0.28)",
-          },
-          marker: {
-            opacity: 0.22,
-          },
-        },
-      }));
-      await window.CohortomeTheme.newPlot(plotEl, traces, {
-        margin: { l: 40, r: 20, t: 10, b: 40 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(255,255,255,0.86)",
-        dragmode: 'lasso',
-        showlegend: false,
-        xaxis: { title: `${method} Coordinate 1`, zeroline: false },
-        yaxis: { title: `${method} Coordinate 2`, zeroline: false },
-      }, {
-        responsive: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ["autoScale2d"],
-      });
-      const applySelectedPlotPoints = (selected) => {
-        state[selectionKey] = normalizePhenoSelectedRecordIds((Array.isArray(selected) ? selected : [])
-          .map((point) => {
-            if (Array.isArray(point.customdata) && point.customdata[0]) {
-              return String(point.customdata[0]).trim();
-            }
-            if (typeof point.text === "string" && point.text.trim()) {
-              return point.text.trim();
-            }
-            return "";
-          }));
-        if (noteEl) {
-          noteEl.textContent = state[selectionKey].length
-            ? `Selected ${state[selectionKey].length} ${method} points.`
-            : "Select points with box or lasso to reuse them in Analysis.";
-        }
-      };
-      plotEl.on("plotly_selected", (event) => {
-        applySelectedPlotPoints(Array.isArray(event && event.points) ? event.points : []);
-      });
-      plotEl.on("plotly_click", (event) => {
-        applySelectedPlotPoints(Array.isArray(event && event.points) ? event.points : []);
-      });
-      plotEl.on("plotly_deselect", () => {
-        state[selectionKey] = [];
-        if (noteEl) {
-          noteEl.textContent = "Select points with box or lasso to reuse them in Analysis.";
-        }
-      });
-    } catch (error) {
-      plotEl.innerHTML = `<div class="empty">${escapeHtml(error && error.message ? error.message : "Unable to render the MDS plot.")}</div>`;
-    }
-  }
 
-  async function renderInteractivePhenoHeatmap(file) {
-    const plotEl = document.getElementById("phenoHeatmapPlot");
-    if (!plotEl) {
-      return;
-    }
-    if (typeof window.Plotly === "undefined") {
-      plotEl.innerHTML = '<div class="empty">Interactive Plotly heatmap is unavailable in this browser.</div>';
-      return;
-    }
-    try {
-      const response = await fetch(file.url);
-      if (!response.ok) {
-        plotEl.innerHTML = '<div class="empty">Unable to load the cohort matrix for the heatmap.</div>';
-        return;
-      }
-      const text = await response.text();
-      const recordCount = phenoHeatmapRecordCount(text);
-      if (recordCount > PHENO_HEATMAP_MAX_RECORDS) {
-        plotEl.classList.remove('pheno-mds-plot');
-        plotEl.innerHTML = `<div class="empty" role="status">Heatmap disabled: this matrix contains ${recordCount.toLocaleString('en-US')} records. The limit is 1,000 records because larger heatmaps are difficult to interpret. Select a smaller cohort to view a heatmap; the full matrix remains available to download.</div>`;
-        const noteEl = document.getElementById('phenoHeatmapSelectionNote');
-        if (noteEl) noteEl.textContent = '';
-        return;
-      }
-      const rows = parseTsvLines(text);
-      if (!rows || rows.length < 2) {
-        plotEl.innerHTML = '<div class="empty">No matrix data were available for this heatmap.</div>';
-        return;
-      }
-      const metric = getEffectivePhenoCohortMetric();
-      const metricLabel = metric === "jaccard" ? "Jaccard similarity" : "Hamming dissimilarity";
-      const header = rows[0];
-      const xLabels = header.slice(1);
-      const body = rows.slice(1);
-      const yLabels = body.map((row) => row[0]);
-      const noteEl = document.getElementById("phenoHeatmapSelectionNote");
-      if (noteEl) {
-        noteEl.textContent = `Rendering ${yLabels.length} x ${xLabels.length} sample matrix. Plotly thins axis labels at this density; zoom or hover to inspect individual timepoints.`;
-      }
-      const zValues = body.map((row) => row.slice(1).map((value) => {
-        const numeric = Number(value);
-        return Number.isFinite(numeric) ? numeric : null;
-      }));
-      await window.CohortomeTheme.newPlot(plotEl, [{
-        type: "heatmap",
-        x: xLabels,
-        y: yLabels,
-        z: zValues,
-        text: yLabels.map((y) => xLabels.map((x) => `${escapeHtml(displayIdentity(y))} vs ${escapeHtml(displayIdentity(x))}`)),
-        colorscale: [
-          [0.0, "#4575b4"],
-          [0.5, "#ffffbf"],
-          [1.0, "#d73027"],
-        ],
-        hoverongaps: false,
-        hovertemplate: `<b>%{text}</b><br>${metricLabel} %{z:.4f}<extra></extra>`,
-        colorbar: {
-          title: metricLabel,
-        },
-      }], {
-        margin: { l: 100, r: 20, t: 10, b: 90 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(255,255,255,0.86)",
-        dragmode: "zoom",
-        xaxis: {
-          title: "Reference / comparison IDs",
-          tickangle: -40,
-          tickvals: xLabels,
-          ticktext: xLabels.map((id) => displayIdentity(id)),
-          automargin: true,
-        },
-        yaxis: {
-          title: "Reference / comparison IDs",
-          autorange: "reversed",
-          tickvals: yLabels,
-          ticktext: yLabels.map((id) => displayIdentity(id)),
-          automargin: true,
-        },
-      }, {
-        responsive: true,
-        displaylogo: false,
-      });
-    } catch (error) {
-      plotEl.innerHTML = `<div class="empty">${escapeHtml(error && error.message ? error.message : "Unable to render the heatmap.")}</div>`;
-    }
-  }
 
-  async function renderInteractivePhenoGraph(file, runOptions = {}) {
-    const plotEl = document.getElementById("phenoGraphPlot");
-    const noteEl = document.getElementById("phenoGraphSelectionNote");
-    const thresholdEl = document.getElementById("phenoGraphThreshold");
-    const thresholdLabelEl = document.getElementById("phenoGraphThresholdLabel");
-    const thresholdMetaEl = document.getElementById("phenoGraphThresholdMeta");
-    const topKEl = document.getElementById("phenoGraphTopK");
-    const edgeLabelsEl = document.getElementById("phenoGraphEdgeLabels");
-    const largestComponentEl = document.getElementById("phenoGraphLargestComponent");
-    if (!plotEl) {
-      return;
-    }
-    if (typeof window.cytoscape === "undefined") {
-      plotEl.innerHTML = '<div class="empty">Interactive Cytoscape view is unavailable in this browser.</div>';
-      return;
-    }
-    if (plotEl._cy && typeof plotEl._cy.destroy === "function") {
-      plotEl._cy.destroy();
-      plotEl._cy = null;
-    }
-    try {
-      const response = await fetch(file.url);
-      if (!response.ok) {
-        plotEl.innerHTML = '<div class="empty">Unable to load the cohort graph.</div>';
-        return;
-      }
-      const payload = await response.json();
-      const elements = payload && typeof payload === "object" && payload.elements && typeof payload.elements === "object"
-        ? payload.elements
-        : {};
-      const rawNodes = Array.isArray(elements.nodes) ? elements.nodes : [];
-      const rawEdges = Array.isArray(elements.edges) ? elements.edges : [];
-      if (!rawNodes.length) {
-        plotEl.innerHTML = '<div class="empty">No graph nodes were produced for this run.</div>';
-        return;
-      }
-      const nodeIds = rawNodes
-        .map((node) => String(node && node.data && node.data.id ? node.data.id : "").trim())
-        .filter(Boolean);
-      renderPhenoCohortLegend("phenoGraphCohortLegend", nodeIds);
-      const similarityMetric = getEffectivePhenoCohortMetric();
-      const strongerIsHigher = similarityMetric !== "hamming";
-      const metricLabel = strongerIsHigher ? "Jaccard similarity" : "Hamming dissimilarity";
-      const defaultTopKNeighbors = nodeIds.length > 80 ? 1 : (nodeIds.length > 36 ? 2 : 3);
-      const normalizedNodes = rawNodes.map((node) => {
-        const id = String(node && node.data && node.data.id ? node.data.id : "").trim();
-        const cohort = getPhenoMdsCohortInfo(id);
-        return {
-          data: {
-            ...(node && node.data ? node.data : {}),
-            id,
-            label: displayIdentity(id),
-            cohort_label: cohort.label,
-            cohort_color: cohort.color,
-          },
-        };
-      });
-      const graphMinWeight = Number(runOptions && runOptions.graph_min_weight !== undefined && runOptions.graph_min_weight !== null ? runOptions.graph_min_weight : NaN);
-      const graphMaxWeight = Number(runOptions && runOptions.graph_max_weight !== undefined && runOptions.graph_max_weight !== null ? runOptions.graph_max_weight : NaN);
-      const hasGraphMinWeight = Number.isFinite(graphMinWeight);
-      const hasGraphMaxWeight = Number.isFinite(graphMaxWeight);
-      const normalizedEdges = rawEdges.map((edge) => {
-        const source = String(edge && edge.data && edge.data.source ? edge.data.source : "").trim();
-        const target = String(edge && edge.data && edge.data.target ? edge.data.target : "").trim();
-        const weightValue = Number(edge && edge.data && edge.data.weight ? edge.data.weight : NaN);
-        const weight = Number.isFinite(weightValue) ? weightValue : 0;
-        return {
-          data: {
-            ...(edge && edge.data ? edge.data : {}),
-            source,
-            target,
-            weight,
-          },
-        };
-      }).filter((edge) => {
-        const weight = Number(edge && edge.data ? edge.data.weight : NaN);
-        if (!Number.isFinite(weight)) {
-          return false;
-        }
-        if (hasGraphMinWeight && weight < graphMinWeight) {
-          return false;
-        }
-        if (hasGraphMaxWeight && weight > graphMaxWeight) {
-          return false;
-        }
-        return true;
-      });
-      const edgeLookup = new Map();
-      normalizedEdges.forEach((edge) => {
-        const source = String(edge.data.source || "").trim();
-        const target = String(edge.data.target || "").trim();
-        if (!source || !target) {
-          return;
-        }
-        const key = [source, target].sort().join("\u0000");
-        edgeLookup.set(key, Number(edge.data.weight));
-      });
-      const uniqueSortedWeights = Array.from(new Set(normalizedEdges
-        .map((edge) => Number(edge.data.weight))
-        .filter((weight) => Number.isFinite(weight))))
-        .sort((a, b) => strongerIsHigher ? b - a : a - b);
-      const preferredEdgeBudget = Math.max(36, Math.min(140, Math.round(nodeIds.length * 1.5)));
-      let defaultStrengthIndex = 0;
-      if (uniqueSortedWeights.length) {
-        if (strongerIsHigher) {
-          defaultStrengthIndex = Math.max(0, Math.min(uniqueSortedWeights.length - 1, preferredEdgeBudget - 1));
-        } else {
-          const firstWeightAtOrAboveTwoIndex = uniqueSortedWeights.findIndex((weight) => weight >= 2);
-          defaultStrengthIndex = firstWeightAtOrAboveTwoIndex <= 0
-            ? 0
-            : firstWeightAtOrAboveTwoIndex - 1;
-          if (firstWeightAtOrAboveTwoIndex === -1) {
-            defaultStrengthIndex = uniqueSortedWeights.length - 1;
-          }
-        }
-      }
-      const thresholdState = {
-        cy: null,
-        thresholdValue: uniqueSortedWeights[defaultStrengthIndex] ?? null,
-      };
-
-      const computeLargestComponentNodeIds = (nodes, edges) => {
-        const adjacency = new Map();
-        nodes.forEach((node) => {
-          const id = String(node && node.data && node.data.id ? node.data.id : "").trim();
-          if (id && !adjacency.has(id)) {
-            adjacency.set(id, new Set());
-          }
-        });
-        edges.forEach((edge) => {
-          const source = String(edge && edge.data && edge.data.source ? edge.data.source : "").trim();
-          const target = String(edge && edge.data && edge.data.target ? edge.data.target : "").trim();
-          if (!source || !target) {
-            return;
-          }
-          if (!adjacency.has(source)) {
-            adjacency.set(source, new Set());
-          }
-          if (!adjacency.has(target)) {
-            adjacency.set(target, new Set());
-          }
-          adjacency.get(source).add(target);
-          adjacency.get(target).add(source);
-        });
-        const visited = new Set();
-        let largest = [];
-        adjacency.forEach((_neighbors, nodeId) => {
-          if (visited.has(nodeId)) {
-            return;
-          }
-          const queue = [nodeId];
-          const component = [];
-          visited.add(nodeId);
-          while (queue.length) {
-            const current = queue.shift();
-            component.push(current);
-            const neighbors = adjacency.get(current) || new Set();
-            neighbors.forEach((neighbor) => {
-              if (!visited.has(neighbor)) {
-                visited.add(neighbor);
-                queue.push(neighbor);
-              }
-            });
-          }
-          if (component.length > largest.length) {
-            largest = component;
-          }
-        });
-        return new Set(largest);
-      };
-
-      const qualifiesEdge = (edge, thresholdValue) => {
-        const weight = Number(edge && edge.data ? edge.data.weight : NaN);
-        if (!Number.isFinite(weight)) {
-          return false;
-        }
-        if (thresholdValue === null || thresholdValue === undefined) {
-          return true;
-        }
-        return strongerIsHigher ? weight >= thresholdValue : weight <= thresholdValue;
-      };
-
-      const buildEdgeVisual = (weight) => {
-        const numericWeight = Number(weight);
-        const finiteWeights = uniqueSortedWeights.filter((value) => Number.isFinite(Number(value))).map((value) => Number(value));
-        const minWeight = finiteWeights.length ? Math.min(...finiteWeights) : numericWeight;
-        const maxWeight = finiteWeights.length ? Math.max(...finiteWeights) : numericWeight;
-        let normalizedStrength = 0.7;
-        if (Number.isFinite(numericWeight) && Number.isFinite(minWeight) && Number.isFinite(maxWeight) && maxWeight !== minWeight) {
-          normalizedStrength = strongerIsHigher
-            ? (numericWeight - minWeight) / (maxWeight - minWeight)
-            : (maxWeight - numericWeight) / (maxWeight - minWeight);
-        }
-        normalizedStrength = Math.max(0, Math.min(1, normalizedStrength));
-        const perfectMatch = strongerIsHigher
-          ? Math.abs(numericWeight - 1) < 0.000001
-          : Math.abs(numericWeight) < 0.000001;
-        return {
-          width: 1 + (normalizedStrength * 8),
-          opacity: 0.22 + (normalizedStrength * 0.72),
-          color: perfectMatch ? "#020617" : "#94a3b8",
-        };
-      };
-      const formatGraphWeight = (weight) => {
-        const numericWeight = Number(weight);
-        if (!Number.isFinite(numericWeight)) {
-          return "n/a";
-        }
-        return strongerIsHigher ? numericWeight.toFixed(3) : String(Math.round(numericWeight));
-      };
-      const describeGraphEdge = (edge) => {
-        const source = String(edge && edge.data ? edge.data("source") || "" : "").trim();
-        const target = String(edge && edge.data ? edge.data("target") || "" : "").trim();
-        const weight = Number(edge && edge.data ? edge.data("weight") : NaN);
-        if (!source || !target || !Number.isFinite(weight)) {
-          return "Selected edge has no available weight.";
-        }
-        return `Selected edge ${source} to ${target}. ${metricLabel} = ${formatGraphWeight(weight)}.`;
-      };
-      const currentEdgeLabelMode = () => {
-        const mode = String(edgeLabelsEl && edgeLabelsEl.value ? edgeLabelsEl.value : "selected").trim().toLowerCase();
-        return ["off", "selected", "visible"].includes(mode) ? mode : "selected";
-      };
-      const syncEdgeLabels = (cy) => {
-        const mode = currentEdgeLabelMode();
-        cy.edges().forEach((edge) => {
-          const shouldShow = mode === "visible" || (mode === "selected" && edge.selected());
-          edge.data("value_label", shouldShow ? formatGraphWeight(edge.data("weight")) : "");
-        });
-      };
-
-      const syncSelectedNodes = (cy) => {
-        const selectedNodes = cy.$("node:selected").toArray();
-        const rawSelectedNodeIds = selectedNodes.map((node) => String(node.id() || "").trim()).filter(Boolean);
-        state.selectedGraphRecordIds = normalizePhenoSelectedRecordIds(rawSelectedNodeIds);
-        if (noteEl) {
-          if (rawSelectedNodeIds.length === 2) {
-            const [leftId, rightId] = rawSelectedNodeIds;
-            const visibleEdge = selectedNodes[0].edgesWith(selectedNodes[1]).toArray()[0] || null;
-            const visibleWeight = visibleEdge ? Number(visibleEdge.data("weight")) : NaN;
-            const edgeKey = [leftId, rightId].sort().join("\u0000");
-            const value = Number.isFinite(visibleWeight) ? visibleWeight : edgeLookup.get(edgeKey);
-            if (Number.isFinite(value)) {
-              noteEl.textContent = `Selected ${leftId} and ${rightId}. ${metricLabel} = ${Number(value).toFixed(3)}.`;
-            } else {
-              noteEl.textContent = `Selected ${leftId} and ${rightId}. No direct edge is currently available for this pair.`;
-            }
-          } else if (rawSelectedNodeIds.length) {
-            noteEl.textContent = `Selected ${rawSelectedNodeIds.length} graph nodes.`;
-          } else {
-            noteEl.textContent = "Click an edge to inspect its value. Click or box-select graph nodes to reuse them in Analysis or save them as a cohort.";
-          }
-        }
-      };
-
-      const renderThresholdMeta = (edgeCount, thresholdValue) => {
-        if (!thresholdLabelEl || !thresholdMetaEl) {
-          return;
-        }
-        if (!Number.isFinite(thresholdValue)) {
-          thresholdLabelEl.textContent = "Displayed edges";
-          thresholdMetaEl.textContent = `${edgeCount} strongest edges shown.`;
-          return;
-        }
-        const formatted = Number(thresholdValue).toFixed(3);
-        if (strongerIsHigher) {
-          thresholdLabelEl.textContent = "Minimum similarity";
-          thresholdMetaEl.textContent = `${edgeCount} of ${normalizedEdges.length} edges shown at similarity >= ${formatted}.`;
-        } else {
-          thresholdLabelEl.textContent = "Maximum dissimilarity";
-          thresholdMetaEl.textContent = `${edgeCount} of ${normalizedEdges.length} edges shown at dissimilarity <= ${formatted}.`;
-        }
-        const bounds = [];
-        if (hasGraphMinWeight) {
-          bounds.push(`min ${graphMinWeight.toFixed(3)}`);
-        }
-        if (hasGraphMaxWeight) {
-          bounds.push(`max ${graphMaxWeight.toFixed(3)}`);
-        }
-        if (bounds.length) {
-          thresholdMetaEl.textContent += ` Export cutoff: ${bounds.join(", ")}.`;
-        }
-      };
-
-      const drawGraph = (thresholdValue) => {
-        if (thresholdState.cy && typeof thresholdState.cy.destroy === "function") {
-          thresholdState.cy.destroy();
-        }
-        const thresholdFilteredEdges = normalizedEdges.filter((edge) => qualifiesEdge(edge, thresholdValue));
-        const incidentByNode = new Map();
-        thresholdFilteredEdges.forEach((edge, index) => {
-          const source = String(edge.data.source || "").trim();
-          const target = String(edge.data.target || "").trim();
-          if (!source || !target) {
-            return;
-          }
-          if (!incidentByNode.has(source)) {
-            incidentByNode.set(source, []);
-          }
-          if (!incidentByNode.has(target)) {
-            incidentByNode.set(target, []);
-          }
-          incidentByNode.get(source).push({ edge, index });
-          incidentByNode.get(target).push({ edge, index });
-        });
-        const currentTopK = Math.max(1, Number(topKEl && topKEl.value ? topKEl.value : defaultTopKNeighbors));
-        const retainedEdgeIndexes = new Set();
-        incidentByNode.forEach((items) => {
-          items
-            .slice()
-            .sort((left, right) => {
-              const leftWeight = Number(left.edge.data.weight);
-              const rightWeight = Number(right.edge.data.weight);
-              return strongerIsHigher ? rightWeight - leftWeight : leftWeight - rightWeight;
-            })
-            .slice(0, currentTopK)
-            .forEach((item) => retainedEdgeIndexes.add(item.index));
-        });
-        let filteredEdges = thresholdFilteredEdges
-          .filter((_edge, index) => retainedEdgeIndexes.has(index))
-          .map((edge) => {
-            const visual = buildEdgeVisual(edge.data.weight);
-            return {
-              data: {
-                ...edge.data,
-                width: visual.width,
-                opacity: visual.opacity,
-                color: visual.color,
-                value_label: "",
-              },
-            };
-          });
-        const currentLargestComponentOnly = Boolean(largestComponentEl && largestComponentEl.checked);
-        if (currentLargestComponentOnly && filteredEdges.length) {
-          const largestNodeIds = computeLargestComponentNodeIds(normalizedNodes, filteredEdges);
-          filteredEdges = filteredEdges.filter((edge) => {
-            const source = String(edge.data.source || "").trim();
-            const target = String(edge.data.target || "").trim();
-            return largestNodeIds.has(source) && largestNodeIds.has(target);
-          });
-        }
-        const visibleNodeIds = new Set();
-        filteredEdges.forEach((edge) => {
-          visibleNodeIds.add(String(edge.data.source || "").trim());
-          visibleNodeIds.add(String(edge.data.target || "").trim());
-        });
-        const filteredNodes = visibleNodeIds.size
-          ? normalizedNodes.filter((node) => visibleNodeIds.has(String(node.data.id || "").trim()))
-          : normalizedNodes;
-        const cy = window.cytoscape({
-          container: plotEl,
-          elements: [...filteredNodes, ...filteredEdges],
-          layout: {
-            name: "cose",
-            animate: false,
-            fit: true,
-            padding: 28,
-            nodeRepulsion: 5000,
-            idealEdgeLength: 70,
-            edgeElasticity: 80,
-          },
-          boxSelectionEnabled: true,
-          selectionType: "additive",
-          style: [
-            {
-              selector: "node",
-              style: {
-                "background-color": "data(cohort_color)",
-                label: "data(label)",
-                color: window.CohortomeTheme.colors().ink,
-                "font-size": 10,
-                "text-wrap": "wrap",
-                "text-max-width": 96,
-                "text-valign": "bottom",
-                "text-halign": "center",
-                "text-margin-y": 8,
-                "border-width": 1.5,
-                "border-color": "#ffffff",
-                width: 18,
-                height: 18,
-              },
-            },
-            {
-              selector: "edge",
-              style: {
-                width: "data(width)",
-                "line-color": "data(color)",
-                opacity: "data(opacity)",
-                "curve-style": "bezier",
-                label: "data(value_label)",
-                color: window.CohortomeTheme.colors().ink,
-                "font-size": 9,
-                "text-background-color": window.CohortomeTheme.colors().panel,
-                "text-background-opacity": 0.86,
-                "text-background-padding": 2,
-                "text-rotation": "autorotate",
-                "text-margin-y": -4,
-              },
-            },
-            {
-              selector: "edge:selected",
-              style: {
-                "line-color": "#0f766e",
-                opacity: 0.92,
-                "overlay-color": "#99f6e4",
-                "overlay-opacity": 0.18,
-              },
-            },
-            {
-              selector: ":selected",
-              style: {
-                "border-color": "#991b1b",
-                "border-width": 3,
-                "overlay-color": "#fca5a5",
-                "overlay-opacity": 0.12,
-              },
-            },
-          ],
-        });
-        thresholdState.cy = cy;
-        plotEl._cy = cy;
-        cy.on("select unselect", "node", () => syncSelectedNodes(cy));
-        cy.on("tap", "edge", (event) => {
-          const edge = event && event.target ? event.target : null;
-          if (edge && typeof edge.select === "function") {
-            cy.$("edge:selected").unselect();
-            edge.select();
-            syncEdgeLabels(cy);
-          }
-          if (noteEl) {
-            noteEl.textContent = describeGraphEdge(edge);
-          }
-        });
-        syncSelectedNodes(cy);
-        syncEdgeLabels(cy);
-        renderThresholdMeta(filteredEdges.length, thresholdValue);
-        if (thresholdMetaEl) {
-          const parts = [thresholdMetaEl.textContent];
-          parts.push(currentTopK >= 9999 ? "Showing all neighbors per node." : `Top ${currentTopK} neighbors per node.`);
-          if (currentLargestComponentOnly) {
-            parts.push("Largest component only.");
-          }
-          thresholdMetaEl.textContent = parts.filter(Boolean).join(" ");
-        }
-      };
-
-      if (thresholdEl && uniqueSortedWeights.length) {
-        thresholdEl.min = "0";
-        thresholdEl.max = String(uniqueSortedWeights.length - 1);
-        thresholdEl.step = "1";
-        thresholdEl.value = String(defaultStrengthIndex);
-        thresholdEl.addEventListener("input", () => {
-          const index = Math.max(0, Math.min(uniqueSortedWeights.length - 1, Number(thresholdEl.value || 0)));
-          thresholdState.thresholdValue = uniqueSortedWeights[index];
-          drawGraph(thresholdState.thresholdValue);
-        });
-      } else if (thresholdEl) {
-        thresholdEl.disabled = true;
-      }
-      if (topKEl) {
-        topKEl.value = String(defaultTopKNeighbors);
-        topKEl.addEventListener("change", () => {
-          drawGraph(thresholdState.thresholdValue);
-        });
-      }
-      if (edgeLabelsEl) {
-        edgeLabelsEl.value = "selected";
-        edgeLabelsEl.addEventListener("change", () => {
-          if (thresholdState.cy) {
-            syncEdgeLabels(thresholdState.cy);
-          }
-        });
-      }
-      if (largestComponentEl) {
-        largestComponentEl.checked = true;
-        largestComponentEl.addEventListener("change", () => {
-          drawGraph(thresholdState.thresholdValue);
-        });
-      }
-      drawGraph(thresholdState.thresholdValue);
-    } catch (error) {
-      plotEl.innerHTML = `<div class="empty">${escapeHtml(error && error.message ? error.message : "Unable to render the graph.")}</div>`;
-    }
-  }
 
   function flashPhenoActionFeedback(button, label) {
     if (!button) {
@@ -2398,7 +1683,7 @@ export function createPhenoUi(ctx) {
   async function applyPhenoRunPayload(payload, options = {}) {
     const source = payload && typeof payload === "object" ? payload : {};
     const statusPrefix = String(options.statusPrefix || "").trim();
-    renderPhenoFiles(source.files);
+    renderPhenoResultFiles(source.files);
     state.runState = {
       jobId: source.job_id,
       mode: source.mode,
@@ -2641,7 +1926,7 @@ export function createPhenoUi(ctx) {
   async function loadPhenoRankerPatientIds() {
     const workspaceVersion = state.workspaceVersion;
     const choices = document.getElementById('phenoPatientChoices');
-    if (choices) choices.innerHTML = '';
+    renderOptions(choices);
     try {
       const dataDir = encodeURIComponent((dataDirEl.dataset && dataDirEl.dataset.scopeId) ? dataDirEl.dataset.scopeId : dataDirEl.value.trim());
       const response = await fetch(`/pheno-ranker/patient-ids?data_dir=${dataDir}`);
@@ -2650,7 +1935,7 @@ export function createPhenoUi(ctx) {
         state.rankerPatientIds = [];
         state.rankerRecordIds = [];
         state.referenceFiles = [];
-        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
+        renderPhenoFiles(phenoReferenceFilesSummaryEl, [], "Unavailable");
         onPatientIdsLoaded([]);
         onReferenceFilesLoaded([]);
         return;
@@ -2668,22 +1953,17 @@ export function createPhenoUi(ctx) {
       onPatientIdsLoaded(state.rankerPatientIds);
       onReferenceFilesLoaded(state.referenceFiles);
       if (!state.referenceFiles.length) {
-        phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">None</span>';
+        renderPhenoFiles(phenoReferenceFilesSummaryEl, [], "None");
       } else {
         const labels = state.referenceFiles.map((item) => item.split("/").pop());
-        phenoReferenceFilesSummaryEl.innerHTML = `
-          <div class="file-label-row">
-            <span class="query-chip badge">Active workspace files (${labels.length})</span>
-            ${labels.map((label) => `<span class="query-chip query-chip-deterministic badge">${escapeHtml(label)}</span>`).join("")}
-          </div>
-        `;
+        renderPhenoFiles(phenoReferenceFilesSummaryEl,labels);
       }
     } catch (_error) {
       if (workspaceVersion !== state.workspaceVersion) return;
       state.rankerPatientIds = [];
       state.rankerRecordIds = [];
       state.referenceFiles = [];
-      phenoReferenceFilesSummaryEl.innerHTML = '<span class="query-chip badge">Active workspace files</span> <span class="section-note-inline">Unavailable</span>';
+      renderPhenoFiles(phenoReferenceFilesSummaryEl, [], "Unavailable");
       onPatientIdsLoaded([]);
       onReferenceFilesLoaded([]);
     } finally {

@@ -177,7 +177,6 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
     } finally { saving = false; render(); }
   }
   window.addEventListener('cohortome:workspace-changing', reset);
-  document.getElementById('dashboardPatientsBtn').addEventListener('click', () => navigation.setDashboardSubtab('patients'));
   render();
   return {refresh};
 }

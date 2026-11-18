@@ -1,12 +1,15 @@
+import {createClinicalCharts} from './charts/clinical.js';
+import {openImagingDialog} from './react/ui.js';
+import {renderPatientRoster,renderPatientDetail} from './react/ui.js';
+import {renderReadinessView,renderMatrixView} from './react/ui.js';
+import {renderNotice, renderOptions, renderScopeSource, renderAssayChoices, renderAssociationExamples, renderExpressionPreview} from './react/ui.js';
 import { formatAssayModality, formatAssayDataType } from "./assay_labels.js";
 import { fallbackCopyText } from "./shared.js";
-import { claridMarkup } from './clarid.js';
 import { createTimelineUi } from "./timeline.js";
-import { modalityIcon, modalityColor } from './modalities.js';
 import { createMultimodalCoverage } from './multimodal_coverage.js';
 import { createVariantBrowser } from './variant_browser.js';
 import { displayIdentity, decodeIdentity, identityKey } from './identities.js';
-import { clinicalSexCounts, clinicalMeasurements } from './clinical_chart_data.js';
+import { clinicalSexColor, clinicalSexCounts, clinicalMeasurements } from './clinical_chart_data.js';
 import { createClinicalDashboardView, createAssayOverviewView, createAssayTabsView, createImagingStudiesView, createImagingHealthView, createAssayCardsView } from './react/ui.js';
 
 export function createDashboardUi(ctx) {
@@ -64,7 +67,6 @@ export function createDashboardUi(ctx) {
     sendPromptToAnalysis,
     renderAnalysisCatalog,
     renderAnalysisCatalogAssayPanel,
-    setDashboardSubtab,
   } = callbacks;
   const { MAX_VISIBLE_PATIENTS } = constants;
   const appliedScope = () => state.activePatientScope?.workspace === state.currentDatasetScopeId
@@ -91,15 +93,10 @@ export function createDashboardUi(ctx) {
       feature_count: panel.variants, sample_count: panel.samples}));
     renderAssayDashboardCards(state.assayDatasetsState || []);
   }});
-  const DASHBOARD_PLOT_COLORS = ["#2563eb", "#0ea5e9", "#059669", "#7c3aed", "#ea580c", "#dc2626"];
+  const {dashboardPlotLayout, mountPlot, renderMeasurementDistributions, renderDashboardCharts} = createClinicalCharts({clinicalSexCounts, clinicalSexColor, formatNumber, clinicalRepresentation});
   const { renderDashboardTimeline, resetTimelineView, resetInspectorView } = createTimelineUi({
     state, refs,
-    helpers: { escapeHtml, clinicalRepresentation, normalizedClarid,
-      claridIdentityMarkup, dashboardPlotLayout, mountPlot },
-    callbacks: {
-      refreshPatientList: () => renderPatientList(currentRosterPatients()),
-      saveIdsAsCohort, sendPatientIdsToAnalysis, handleClaridAction,
-    },
+    helpers: { escapeHtml, dashboardPlotLayout, mountPlot },
   });
   window.addEventListener('cohortome:scope-applied', () => {
     // Keep the workspace inventories used by captured Analysis chats intact.
@@ -134,67 +131,9 @@ export function createDashboardUi(ctx) {
     return capitalize ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : label;
   }
 
-  function plotlyAvailable() {
-    return typeof window !== "undefined" && window.Plotly && typeof window.Plotly.newPlot === "function";
-  }
 
-  function dashboardPlotConfig() {
-    return {
-      displayModeBar: false,
-      displaylogo: false,
-      responsive: true,
-    };
-  }
 
-  function dashboardPlotLayout(overrides) {
-    return {
-      margin: { t: 24, r: 18, b: 56, l: 56 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "#f8fbff",
-      font: { family: "inherit", color: "#132238", size: 12 },
-      xaxis: {
-        automargin: true,
-        gridcolor: "rgba(148,163,184,0.2)",
-        zeroline: false,
-        linecolor: "#cbd5e1",
-        tickfont: { color: "#61758c" },
-      },
-      yaxis: {
-        automargin: true,
-        gridcolor: "rgba(148,163,184,0.2)",
-        zeroline: false,
-        linecolor: "#cbd5e1",
-        tickfont: { color: "#61758c" },
-      },
-      legend: {
-        orientation: "h",
-        yanchor: "bottom",
-        y: 1.02,
-        xanchor: "left",
-        x: 0,
-      },
-      hoverlabel: { bgcolor: "#132238", font: { color: "#f8fafc" } },
-      ...overrides,
-    };
-  }
 
-  function mountPlot(targetId, traces, layout, afterPlot, configOverrides = {}) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
-    if (!plotlyAvailable()) {
-      el.innerHTML = '<div class="empty">Plot rendering unavailable.</div>';
-      return;
-    }
-    const plotResult = window.CohortomeTheme.newPlot(el, traces, layout, { ...dashboardPlotConfig(), ...configOverrides });
-    if (typeof afterPlot === "function") {
-      Promise.resolve(plotResult).then(() => afterPlot(el)).catch(() => {});
-    }
-    window.requestAnimationFrame(() => {
-      if (window.Plotly && window.Plotly.Plots && typeof window.Plotly.Plots.resize === "function") {
-        window.Plotly.Plots.resize(el);
-      }
-    });
-  }
 
   function currentRosterPatients() {
     const query = String(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : "").trim().toLowerCase();
@@ -230,10 +169,6 @@ export function createDashboardUi(ctx) {
       .join(" · ");
   }
 
-  function claridIdentityMarkup(patient, compact = false) {
-    return claridMarkup(normalizedClarid(patient), escapeHtml, compact);
-  }
-
   function claridSearchFeedback(items) {
     const query = String(patientSearchEl && patientSearchEl.value ? patientSearchEl.value : "").trim().toLowerCase();
     if (!query) return "";
@@ -243,268 +178,21 @@ export function createDashboardUi(ctx) {
     });
     if (!match) return "";
     const clarid = normalizedClarid(match);
-    return `<div class="clarid-search-feedback" role="status"><strong>ClarID recognized</strong><span>${escapeHtml(claridDecodedSummary(clarid))}</span><span>Patient ${escapeHtml(match.patient_id)}</span></div>`;
+    return {summary:claridDecodedSummary(clarid),patientId:match.patient_id};
   }
 
-  function normalizeRankedItems(items, labelKey) {
-    return (Array.isArray(items) ? items : []).map((item) => {
-      if (Array.isArray(item)) {
-        return { label: String(item[0] || "Unknown"), value: Number(item[1] || 0) };
-      }
-      return {
-        label: String(item[labelKey] || item.label || "Unknown"),
-        value: Number(item.patient_count || item.value || 0),
-      };
-    }).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
-  }
 
-  function renderMeasurementDistributions(datasets, selected) {
-    const bounds = selected.sources.flatMap(({row}) => (row.distribution || []).flatMap(bin => [bin.low, bin.high]));
-    const low = bounds.length ? Math.min(...bounds) : 0;
-    const high = bounds.length ? Math.max(...bounds) : 0;
-    datasets.forEach((dataset, index) => {
-      const row = selected.sources.find(source => source.dataset === dataset)?.row;
-      if (!row) return;
-      const bins = row.distribution || [];
-      const target = `clinical-distribution-${index}`;
-      if (!bins.length) return;
-      const constant = bins.length === 1 && bins[0].low === bins[0].high;
-      const numeric = value => Number(value).toLocaleString(undefined, {maximumSignificantDigits:6});
-      mountPlot(target, [{type:'bar', x:bins.map(bin => bin.low / 2 + bin.high / 2),
-        y:bins.map(bin => bin.count), ...(constant ? {} : {width:bins.map(bin => bin.high - bin.low)}),
-        customdata:bins.map((bin, i) => constant ? numeric(bin.low)
-          : `[${numeric(bin.low)}, ${numeric(bin.high)}${i === bins.length - 1 ? ']' : ')'}`),
-        marker:{color:'#3b82f6', line:{color:'rgba(255,255,255,.5)', width:1}}, meta:{cohortome_group:0},
-        hovertemplate:'%{customdata}<br>%{y} patients<extra></extra>'}], dashboardPlotLayout({
-          margin:{t:12, r:16, b:48, l:48}, bargap:0.02,
-          xaxis:{...dashboardPlotLayout().xaxis, title:{text:selected.unit || 'Recorded value'},
-            ...(low < high ? {range:[low, high]} : {tickvals:[low], ticktext:[numeric(low)]})},
-          yaxis:{...dashboardPlotLayout().yaxis, title:{text:'Patients'}, rangemode:'tozero', tickformat:',d'},
-          ...(constant ? {annotations:[{text:'All measured patients have the same value',
-            x:.5,y:1.08,xref:'paper',yref:'paper',showarrow:false,font:{size:10}}]} : {}),
-        }));
-    });
-  }
 
-  function renderDashboardCharts(summary) {
-    const sexCounts = summary && summary.sex_counts ? summary.sex_counts : {};
-    const visitDistribution = summary && summary.visit_distribution ? summary.visit_distribution : {};
-    const topDiseases = normalizeRankedItems(summary && summary.top_diseases, "disease").slice(0, 8);
-    const topMedications = normalizeRankedItems(summary && summary.top_medications ? summary.top_medications : summary && summary.top_treatments, "medication").slice(0, 8);
-    const diseaseMedicationMatrix = summary && summary.disease_medication_matrix ? summary.disease_medication_matrix : {};
-
-    const sexEntries = clinicalSexCounts(sexCounts);
-    const sexTotal = sexEntries.reduce((total, [, count]) => total + count, 0);
-    const sexColors = sexEntries.map(([label], index) =>
-      ({Female:'#0d9488', Male:'#3b82f6', Unknown:'#94a3b8'})[label] || ['#8b5cf6', '#d97706'][index % 2]);
-    const sexLegend = document.getElementById('clinicalSexLegend');
-    if (sexLegend) sexLegend.innerHTML = sexEntries.map(([label, count], index) =>
-      `<li><span class="clinical-sex-label"><span class="clinical-sex-swatch" style="background:${sexColors[index]}" aria-hidden="true"></span>${escapeHtml(label)}</span><strong>${formatNumber(count)}</strong><span>${(100 * count / sexTotal).toFixed(1)}%</span></li>`).join('');
-    // Empty plots should explain absence, rather than resemble a rendering failure.
-    for (const [id, present, label] of [
-      ['sex', sexEntries.length, 'sex values'],
-      ['visits', Object.keys(visitDistribution).length, 'clinical records'],
-      ['diseases', topDiseases.length, 'diagnoses'],
-      ['medications', topMedications.length, 'treatments'],
-      ['disease-medication', diseaseMedicationMatrix.values?.length, 'linked diagnoses and treatments'],
-    ]) {
-      const frame = document.getElementById(`dashboard-plot-${id}`);
-      if (frame && !present) frame.innerHTML = `<div class="clinical-chart-empty">No ${label} recorded in this view.</div>`;
-    }
-    if (sexEntries.length) {
-      mountPlot(
-        "dashboard-plot-sex",
-        [{
-          type: 'pie', hole: .74, sort:false, direction:'clockwise', rotation:90,
-          labels: sexEntries.map(([label]) => label),
-          values: sexEntries.map(([, count]) => count),
-          marker: {colors:sexColors},
-          textinfo:'none',
-          hovertemplate: '%{label}<br>%{value} patients · %{percent}<extra></extra>',
-        }],
-        dashboardPlotLayout({
-          margin: { t: 8, r: 8, b: 8, l: 8 },
-          annotations:[{x:.5, y:.5, xref:'paper', yref:'paper', showarrow:false,
-            text:`<b>${formatNumber(sexTotal)}</b><br><span style="font-size:11px">patients</span>`, font:{size:26}}],
-          showlegend: false,
-        })
-      );
-    }
-
-    const visitEntries = Object.entries(visitDistribution);
-    const snapshotRepresentation = clinicalRepresentation(summary) === "snapshot";
-    if (visitEntries.length) {
-      mountPlot(
-        "dashboard-plot-visits",
-        [{
-          type: "bar",
-          x: visitEntries.map(([label]) => label),
-          y: visitEntries.map(([, value]) => Number(value || 0)),
-          marker: { color: '#3b82f6' },
-          text: visitEntries.map(([, count]) => formatNumber(count)), textposition:'outside', cliponaxis:false,
-          hovertemplate: snapshotRepresentation ? "%{x} visits: %{y}<extra></extra>" : "%{x} records: %{y}<extra></extra>",
-        }],
-        dashboardPlotLayout({
-          xaxis: { ...dashboardPlotLayout().xaxis, title: { text: snapshotRepresentation ? "Visits per patient bucket" : "Clinical records per patient", font: { color: "#61758c", size: 12 } } },
-          yaxis: { ...dashboardPlotLayout().yaxis, title: { text: "Patients", font: { color: "#61758c", size: 12 } } },
-        })
-      );
-    }
-
-    if (topDiseases.length) {
-      mountPlot(
-        "dashboard-plot-diseases",
-        [{
-          type: "bar",
-          orientation: "h",
-          y: topDiseases.map((item) => item.label),
-          x: topDiseases.map((item) => item.value),
-          meta: { cohortome_group: 0 },
-          marker: { color: '#2563eb' },
-          text: topDiseases.map(item => formatNumber(item.value)), textposition:'outside', cliponaxis:false,
-          hovertemplate: '%{y}<br>%{x} patients<extra></extra>',
-        }],
-        dashboardPlotLayout({ margin: { t: 12, r: 45, b: 40, l: 155 },
-          xaxis:{...dashboardPlotLayout().xaxis, title:{text:'Patients'}, rangemode:'tozero'},
-          yaxis:{...dashboardPlotLayout().yaxis, autorange:'reversed', showgrid:false}, bargap:.35 })
-      );
-    }
-
-    if (topMedications.length) {
-      mountPlot(
-        "dashboard-plot-medications",
-        [{
-          type: "bar",
-          orientation: "h",
-          y: topMedications.map((item) => item.label),
-          x: topMedications.map((item) => item.value),
-          meta: { cohortome_group: 1 },
-          marker: { color: '#0d9488' },
-          text: topMedications.map(item => formatNumber(item.value)), textposition:'outside', cliponaxis:false,
-          hovertemplate: '%{y}<br>%{x} patients<extra></extra>',
-        }],
-        dashboardPlotLayout({ margin: { t: 12, r: 45, b: 40, l: 155 },
-          xaxis:{...dashboardPlotLayout().xaxis, title:{text:'Patients'}, rangemode:'tozero'},
-          yaxis:{...dashboardPlotLayout().yaxis, autorange:'reversed', showgrid:false}, bargap:.35 })
-      );
-    }
-
-    const matrixDiseases = Array.isArray(diseaseMedicationMatrix.diseases) ? diseaseMedicationMatrix.diseases : [];
-    const matrixMedications = Array.isArray(diseaseMedicationMatrix.medications) ? diseaseMedicationMatrix.medications : [];
-    const matrixValues = Array.isArray(diseaseMedicationMatrix.values) ? diseaseMedicationMatrix.values : [];
-    if (matrixDiseases.length && matrixMedications.length && matrixValues.length) {
-      mountPlot(
-        "dashboard-plot-disease-medication",
-        [{
-          type: "heatmap",
-          x: matrixMedications,
-          y: matrixDiseases,
-          z: matrixValues,
-          colorscale: [
-            [0, "#eff6ff"],
-            [0.35, "#bfdbfe"],
-            [0.65, "#60a5fa"],
-            [1, "#1d4ed8"],
-          ],
-          hovertemplate: "Disease: %{y}<br>Medication: %{x}<br>Patients: %{z}<extra></extra>",
-          colorbar: { title: "Patients" },
-        }],
-        dashboardPlotLayout({
-          margin: { t: 16, r: 20, b: 90, l: 160 },
-          xaxis: {
-            ...dashboardPlotLayout().xaxis,
-            tickangle: -25,
-            title: { text: "Medication", font: { color: "#61758c", size: 12 } },
-          },
-          yaxis: {
-            ...dashboardPlotLayout().yaxis,
-            title: { text: "Disease", font: { color: "#61758c", size: 12 } },
-            autorange: "reversed",
-          },
-        })
-      );
-    }
-
-  }
-
-  function renderEvidence(evidence) {
-    const labels = [
-      ["diseases", "Diseases"],
-      ["phenotypic_features", "Phenotypes"],
-      ["measures", "Measures"],
-      ["treatments", "Treatments"],
-      ["procedures", "Procedures"],
-      ["exposures", "Exposures"],
-    ];
-
-    return `
-      <div class="evidence-grid">
-        ${labels.map(([key, label]) => {
-          const bucket = evidence[key];
-          const examples = (bucket.examples || []).slice(0, 2).join(" | ") || "No examples";
-          return `
-            <div class="evidence-card">
-              <strong>${label}</strong>
-              <div>${bucket.count} items</div>
-              <small>${examples}</small>
-            </div>
-          `;
-        }).join("")}
-      </div>
-    `;
-  }
-
-  function summaryCard(patient) {
-    const activeClass = state.selectedPatientId === patient.patient_id ? "active" : "";
-    const datasetNames = Array.isArray(patient.dataset_names) ? patient.dataset_names : [];
-    const datasetBadge = isMultiDatasetWorkspace() && datasetNames.length
-      ? `<span class="pill">${escapeHtml(datasetNames.join(", "))}</span>`
-      : "";
-    const selectionBadge = '';
-    const compactTimeline = state.currentDashboardSubtab === "timeline";
-    const recordCount = Number(patient.clinical_record_count ?? patient.visit_count ?? 0);
-    const recordText = `${recordCount} ${clinicalRecordLabel(patient, recordCount)}`;
-    if (compactTimeline) {
-      return `
-        <div class="patient-card patient-card-compact ${activeClass}" data-patient-id="${patient.patient_id}">
-          <div class="patient-card-compact-main">
-            <strong>${patient.patient_id}</strong>
-            <span>${selectionBadge}${claridIdentityMarkup(patient, true)}</span>
-          </div>
-          <div class="patient-card-compact-meta">
-            <span>${escapeHtml(recordText)}</span>
-            <span>${escapeHtml(patient.sex || "sex n/a")}</span>
-            <span>${escapeHtml(String(patient.evidence.diseases.count || 0))} dx</span>
-          </div>
-        </div>
-      `;
-    }
-    return `
-      <div class="patient-card ${activeClass}" data-patient-id="${patient.patient_id}">
-        <div class="patient-card-identity"><strong>${patient.patient_id}</strong>${claridIdentityMarkup(patient)}</div>
-        <div>
-          ${selectionBadge}
-          ${datasetBadge}
-          <span class="pill">${escapeHtml(recordText)}</span>
-          <span class="pill">${patient.sex || "sex: n/a"}</span>
-          <span class="pill">${patient.evidence.diseases.count} diseases</span>
-        </div>
-        <small>${patient.first_event_date || "?"} to ${patient.last_event_date || "?"}</small>
-      </div>
-    `;
-  }
 
   function renderPatientList(items) {
-    if (!patientsEl) return;
-    if (!items.length) {
-      patientsEl.innerHTML = '<div class="empty">No patients match the current filter.</div>';
-      return;
-    }
-    const visibleItems = items.slice(0, MAX_VISIBLE_PATIENTS);
-    const summary = items.length > MAX_VISIBLE_PATIENTS
-      ? `<div class="section-note">Showing first ${MAX_VISIBLE_PATIENTS} of ${items.length} matching patients. Use search to narrow the list.</div>`
-      : "";
-    patientsEl.innerHTML = claridSearchFeedback(items) + summary + visibleItems.map(summaryCard).join("");
+    renderPatientRoster(patientsEl,{total:items.length,limit:MAX_VISIBLE_PATIENTS,
+      compact:state.currentDashboardSubtab==="timeline", feedback:claridSearchFeedback(items),
+      items:items.slice(0,MAX_VISIBLE_PATIENTS).map(patient=>{
+        const count=Number(patient.clinical_record_count ?? patient.visit_count ?? 0);
+        return {...patient,clarid:normalizedClarid(patient),active:state.selectedPatientId===patient.patient_id,
+          recordText:`${count} ${clinicalRecordLabel(patient,count)}`,
+          datasetLabel:isMultiDatasetWorkspace() ? (patient.dataset_names || []).join(", ") : ""};
+      })});
   }
 
   function renderDetail(patient) {
@@ -512,9 +200,6 @@ export function createDashboardUi(ctx) {
     const datasetNames = Array.isArray(patient.patient_context && patient.patient_context.dataset_names)
       ? patient.patient_context.dataset_names
       : (Array.isArray(patient.dataset_names) ? patient.dataset_names : []);
-    const datasetLine = isMultiDatasetWorkspace() && datasetNames.length
-      ? `<p>Datasets: ${escapeHtml(datasetNames.join(", "))}</p>`
-      : "";
     const previewPayload = {
       patient_id: patient.patient_id,
       summary: patient.summary,
@@ -543,49 +228,8 @@ export function createDashboardUi(ctx) {
         })),
       })),
     };
-    const fragments = (patient.key_fragments || []).map((fragment) => `
-      <div class="fragment-card">
-        <strong>${fragment.label}</strong>
-        <div><span class="pill">${fragment.category}</span><span class="pill">${fragment.visit_id}</span></div>
-        <small>${fragment.source_file}#${fragment.record_index} · ${fragment.path}</small>
-      </div>
-    `).join("");
-
-    const personRepresentation = clinicalRepresentation(patient) === "person";
-    const visits = (patient.visits || []).slice(0, 8).map((visit) => `
-      <li>
-        <div>
-          <strong>${visit.visit_id}</strong>
-          <small>${visit.event_date || "undated"} · ${visit.diagnosis || visit.event_type || "event"}</small>
-        </div>
-        <span>${visit.key_fragments.length} fragments</span>
-      </li>
-    `).join("");
-
-    detailEl.innerHTML = `
-      <div class="workspace-grid">
-        <div class="workspace-card">
-          <div class="patient-detail-identity"><p><strong>${patient.patient_id}</strong></p>${claridIdentityMarkup(patient)}</div>
-          ${datasetLine}
-          <p>Sex: ${patient.patient_context.sex || "n/a"} | DOB: ${patient.patient_context.date_of_birth || "n/a"} | Vital status: ${patient.patient_context.vital_status || "n/a"}</p>
-          <p>Sources: ${(patient.patient_context.source_files || []).join(", ") || "n/a"}</p>
-          <h3>Available evidence</h3>
-          ${renderEvidence(patient.evidence)}
-        </div>
-        <div class="workspace-card">
-          <h3>${personRepresentation ? "Clinical record overview" : "Visit overview"}</h3>
-          <ul class="mini-list">${visits || `<li><small>No ${personRepresentation ? "clinical records" : "visits"} found.</small></li>`}</ul>
-        </div>
-      </div>
-      <div class="workspace-card" style="margin-top:16px;">
-        <h3>Key Fragments</h3>
-        <div class="fragment-grid">${fragments || '<div class="empty">No key fragments available.</div>'}</div>
-        <details>
-          <summary>Show structured patient preview</summary>
-          <pre>${JSON.stringify(previewPayload, null, 2)}</pre>
-        </details>
-      </div>
-    `;
+    renderPatientDetail(detailEl,{patient,preview:previewPayload,clarid:normalizedClarid(patient),
+      person:clinicalRepresentation(patient)==="person",datasetLabel:isMultiDatasetWorkspace() ? datasetNames.join(", ") : ""});
   }
 
   function renderDashboard(summary = {}) {
@@ -617,7 +261,7 @@ export function createDashboardUi(ctx) {
       totals, patients:totals.patients ?? summary.patients ?? 0, records:recordCount,
       representation, scoped:selection?.status === 'ready', workspacePatients:summary.workspace_patient_count,
       datasets, datasetId:state.dashboardClinicalDataset, tableMode, expanded, formatNumber,
-      viewedDatasets, measurementFields, measurement,
+      viewedDatasets, measurementFields, measurement, sexEntries:clinicalSexCounts(summary.sex_counts || {}),
       drawMeasurements:() => renderMeasurementDistributions(viewedDatasets, measurement),
       actions:{
         expand:() => { state.dashboardClinicalExpanded = !state.dashboardClinicalExpanded; renderDashboard(workspaceSummary); },
@@ -683,10 +327,10 @@ export function createDashboardUi(ctx) {
     if (analysisSelectedSavedCohortSelectionEl) {
       if (selectedCohort) {
         analysisSelectedSavedCohortSelectionEl.classList.remove("is-hidden");
-        analysisSelectedSavedCohortSelectionEl.innerHTML = `<span class="query-chip badge">Cohort A source</span> <button type="button" class="query-chip query-chip-deterministic" data-analysis-clear-saved-cohort="a">${escapeHtml(selectedCohort.name || "Saved cohort")} ×</button>`;
+        renderScopeSource(analysisSelectedSavedCohortSelectionEl, "a", selectedCohort);
       } else {
         analysisSelectedSavedCohortSelectionEl.classList.add("is-hidden");
-        analysisSelectedSavedCohortSelectionEl.innerHTML = "";
+        renderScopeSource(analysisSelectedSavedCohortSelectionEl, "a", null);
       }
     }
     renderAssayDatasetSelector();
@@ -705,7 +349,7 @@ export function createDashboardUi(ctx) {
     if (analysisCompareSavedCohortSelectionEl) {
       analysisCompareSavedCohortSelectionEl.classList.toggle("is-hidden", !compareMode);
       if (!compareMode) {
-        analysisCompareSavedCohortSelectionEl.innerHTML = "";
+        renderScopeSource(analysisCompareSavedCohortSelectionEl, "b", null);
       }
     }
     if (!compareMode) {
@@ -755,9 +399,9 @@ export function createDashboardUi(ctx) {
       : "Cohort B: select a saved cohort from Saved Cohorts to compare.";
     if (analysisCompareSavedCohortSelectionEl) {
       if (selectedCohort) {
-        analysisCompareSavedCohortSelectionEl.innerHTML = `<span class="query-chip badge">Cohort B source</span> <button type="button" class="query-chip query-chip-deterministic" data-analysis-clear-saved-cohort="b">${escapeHtml(selectedCohort.name || "Saved cohort")} ×</button>`;
+        renderScopeSource(analysisCompareSavedCohortSelectionEl, "b", selectedCohort);
       } else {
-        analysisCompareSavedCohortSelectionEl.innerHTML = "";
+        renderScopeSource(analysisCompareSavedCohortSelectionEl, "b", null);
       }
     }
     renderAssayDatasetSelector();
@@ -769,77 +413,11 @@ export function createDashboardUi(ctx) {
     syncCurrentAnalysisSessionFromUi({ render: true });
   }
 
-  function renderAssayScopeCard(scope) {
-    const mean = typeof scope.mean === "number" ? scope.mean.toFixed(1) : "n/a";
-    const median = typeof scope.median === "number" ? scope.median.toFixed(1) : "n/a";
-    const min = scope.min === null || scope.min === undefined ? "n/a" : String(scope.min);
-    const max = scope.max === null || scope.max === undefined ? "n/a" : String(scope.max);
-    const values = Array.isArray(scope.values) ? scope.values : [];
-    const preview = values.slice(0, 8).map((item) => (
-      `<tr><td>${escapeHtml(item.patient_id)}</td><td>${escapeHtml(item.sample_id)}</td><td>${escapeHtml(String(item.raw_count))}</td></tr>`
-    )).join("");
-    const more = values.length > 8
-      ? `<div class="section-note">Showing 8 of ${values.length} measurements.</div>`
-      : "";
-    return `
-      <div class="assay-scope-card">
-        <h4>${escapeHtml(scope.label || "Scope")}</h4>
-        <div class="assay-stats">
-          <span class="query-chip badge">Samples: ${escapeHtml(String(scope.sample_count || 0))}</span>
-          <span class="query-chip badge">Patients: ${escapeHtml(String(scope.patient_count || 0))}</span>
-          <span class="query-chip badge">Mean: ${escapeHtml(mean)}</span>
-          <span class="query-chip badge">Median: ${escapeHtml(median)}</span>
-          <span class="query-chip badge">Range: ${escapeHtml(min)} to ${escapeHtml(max)}</span>
-        </div>
-        ${values.length ? `
-          <div class="assay-table-wrap">
-            <table class="assay-table">
-              <thead><tr><th>Patient</th><th>Sample</th><th>Raw count</th></tr></thead>
-              <tbody>${preview}</tbody>
-            </table>
-          </div>
-          ${more}
-        ` : '<div class="empty">No assay samples matched this scope for the selected gene.</div>'}
-      </div>
-    `;
-  }
-
   function renderAssayExpressionResult(payload) {
     if (!analysisAssayResultEl) return;
-    if (!payload) {
-      analysisAssayResultEl.className = "assay-result empty";
-      analysisAssayResultEl.textContent = "No transcriptomics expression summary yet.";
-      return;
-    }
-    const payloads = Array.isArray(payload) ? payload : [payload];
-    if (!payloads.length) {
-      analysisAssayResultEl.className = "assay-result empty";
-      analysisAssayResultEl.textContent = "No transcriptomics expression summary yet.";
-      return;
-    }
-    analysisAssayResultEl.className = "assay-result";
-    analysisAssayResultEl.innerHTML = payloads.map((item) => {
-      const sections = [renderAssayScopeCard(item.scope_a)];
-      if (item.scope_b) sections.push(renderAssayScopeCard(item.scope_b));
-      const geneTooltip = [
-        String(item.gene_id || "").trim(),
-        String(item.gene_symbol || "").trim(),
-        String(item.gene_name || "").trim(),
-      ].filter(Boolean).join(" • ");
-      const geneMarkup = item.ensembl_url
-        ? `<a class="assay-result-gene-link" href="${escapeHtml(item.ensembl_url)}" target="_blank" rel="noopener" title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</a>`
-        : `<span title="${escapeHtml(geneTooltip || String(item.gene_id || ""))}">${escapeHtml(item.gene_id)}</span>`;
-      return `
-        <div class="transcriptomics-expression-card">
-          <div class="assay-result-header">
-            <strong>${geneMarkup}</strong>
-            ${item.gene_symbol && item.gene_symbol !== item.gene_id ? `<span class="query-chip badge">${escapeHtml(item.gene_symbol)}</span>` : ""}
-            <span class="query-chip badge">${escapeHtml(item.dataset_name)}</span>
-          </div>
-          <div class="assay-result-grid">${sections.join("")}</div>
-        </div>
-      `;
-    }).join("");
+    const payloads = payload ? (Array.isArray(payload) ? payload : [payload]) : [];
+    analysisAssayResultEl.className = payloads.length ? "assay-result" : "assay-result empty";
+    renderExpressionPreview(analysisAssayResultEl, payloads);
   }
 
   function selectedAssayDatasetNames() {
@@ -856,10 +434,6 @@ export function createDashboardUi(ctx) {
         .map((dataset) => dataset.dataset_name)
     );
     return selectedAssayDatasetNames().filter((datasetName) => transcriptomicsNames.has(datasetName));
-  }
-
-  function assayDatasetListElements() {
-    return [analysisAssayDatasetListEl, analysisCatalogAssayDatasetListEl].filter(Boolean);
   }
 
   function currentAnalysisCatalogItem() {
@@ -974,63 +548,23 @@ export function createDashboardUi(ctx) {
     const contextualListEl = analysisCatalogAssayDatasetListEl;
     if (!mainListEl && !contextualListEl) return;
     if (!state.assayDatasetsState.length) {
-      if (mainListEl) mainListEl.innerHTML = '<div class="empty">No assay loaded</div>';
-      if (contextualListEl) contextualListEl.innerHTML = '<div class="empty">No assay loaded</div>';
+      renderNotice(mainListEl, "No assay loaded");
+      renderNotice(contextualListEl, "No assay loaded");
       return;
     }
     const selected = new Set(state.selectedAssayDatasets);
-    const renderOption = (dataset, options = {}) => {
-      const overlap = currentAssayScopeOverlap(dataset.patient_ids);
-      const featureLabel = String(dataset.feature_label || "features").trim() || "features";
-      const featureCount = Number(dataset.feature_count || dataset.gene_count || 0);
-      const panel = dataset && dataset.feature_panel && typeof dataset.feature_panel === "object"
-        ? dataset.feature_panel
-        : null;
-      const panelMeta = panel
-        ? ` • Panel v${escapeHtml(String(panel.panel_version || ""))}${panel.independent_of_target_cohort ? " • independently selected" : ""}`
-        : "";
-      const baseMeta = `${escapeHtml(String(dataset.sample_count || 0))} samples, ${escapeHtml(String(featureCount))} ${escapeHtml(featureLabel)} • ${escapeHtml(formatAssayDataType(normalizedAssayDataType(dataset) || dataset.data_type))}${panelMeta}`;
-      const small = options.includeOverlap
-        ? `${baseMeta} • A overlap ${escapeHtml(String(overlap.overlapA))}${analysisCompareModeEl && analysisCompareModeEl.checked ? ` • B overlap ${escapeHtml(String(overlap.overlapB))}` : ""}`
-        : baseMeta;
-      return `
-      <label class="assay-dataset-option">
-        <input type="checkbox" value="${escapeHtml(dataset.dataset_name)}"${selected.has(dataset.dataset_name) ? " checked" : ""}>
-        <span>
-          <strong>${escapeHtml(String(dataset.label || dataset.dataset_name))}</strong>
-          <small>${small}</small>
-        </span>
-      </label>
-    `;
-    };
-    if (mainListEl) {
-      const transcriptomicsDatasets = state.assayDatasetsState.filter((dataset) => isQuickExpressionDataset(dataset));
-      mainListEl.innerHTML = transcriptomicsDatasets.length
-        ? groupAssaysByModality(transcriptomicsDatasets).map(([modality, datasets]) => `
-        <div class="assay-modality-group">
-          <div class="assay-modality-group-title">${escapeHtml(formatAssayModality(modality))}</div>
-          ${datasets.map((dataset) => renderOption(dataset)).join("")}
-        </div>
-      `).join("")
-        : '<div class="empty">No raw-count transcriptomics assays available</div>';
-    }
-    if (contextualListEl) {
-      if (!contextRequiresAssay) {
-        contextualListEl.innerHTML = '<div class="empty">Choose an assay analysis to select a compatible assay.</div>';
-        return;
-      }
-      const availableDatasets = contextualAssayDatasets();
-      if (!availableDatasets.length) {
-      contextualListEl.innerHTML = '<div class="empty">No compatible assays are available in this workspace.</div>';
-        return;
-      }
-      contextualListEl.innerHTML = groupAssaysByModality(availableDatasets).map(([modality, datasets]) => `
-        <div class="assay-modality-group">
-          <div class="assay-modality-group-title">${escapeHtml(formatAssayModality(modality))}</div>
-          ${datasets.map((dataset) => renderOption(dataset, { includeOverlap: true })).join("")}
-        </div>
-      `).join("");
-    }
+    const groupsFor = (datasets, includeOverlap=false) => groupAssaysByModality(datasets).map(([modality, items]) => ({
+      label:formatAssayModality(modality), items:items.map(dataset => {
+        const overlap=currentAssayScopeOverlap(dataset.patient_ids), panel=dataset.feature_panel;
+        const panelMeta=panel ? ` • Panel v${panel.panel_version || ""}${panel.independent_of_target_cohort ? " • independently selected" : ""}` : "";
+        const base=`${dataset.sample_count || 0} samples, ${Number(dataset.feature_count || dataset.gene_count || 0)} ${dataset.feature_label || "features"} • ${formatAssayDataType(normalizedAssayDataType(dataset) || dataset.data_type)}${panelMeta}`;
+        return {value:dataset.dataset_name,label:dataset.label || dataset.dataset_name,checked:selected.has(dataset.dataset_name),
+          description:base+(includeOverlap ? ` • A overlap ${overlap.overlapA}${analysisCompareModeEl?.checked ? ` • B overlap ${overlap.overlapB}` : ""}` : "")};
+      })
+    }));
+    renderAssayChoices(mainListEl,groupsFor(state.assayDatasetsState.filter(isQuickExpressionDataset)),"No raw-count transcriptomics assays available");
+    renderAssayChoices(contextualListEl,contextRequiresAssay ? groupsFor(contextualAssayDatasets(),true) : [],
+      contextRequiresAssay ? "No compatible assays are available in this workspace." : "Choose an assay analysis to select a compatible assay.");
   }
 
   function syncSelectedAssayDatasets() {
@@ -1059,7 +593,7 @@ export function createDashboardUi(ctx) {
     state.dicomStatus = null;
     state.dashboardSummary = null;
     clearAssayWorkspaceSelection();
-    if (analysisAssayGenesEl) analysisAssayGenesEl.innerHTML = "";
+    if (analysisAssayGenesEl) renderOptions(analysisAssayGenesEl);
     renderAssayDatasetSelector();
     renderAssayDashboardCards([]);
     if (analysisAssayStatusEl) {
@@ -1091,14 +625,14 @@ export function createDashboardUi(ctx) {
     }
     if (multimodalReadinessContentEl) {
       multimodalCoverage.reset();
-      multimodalReadinessContentEl.innerHTML = '<div class="empty">Load a workspace to review multimodal readiness.</div>';
+      renderNotice(multimodalReadinessContentEl,"Load a workspace to review multimodal readiness.");
     }
     if (multimodalMatrixStatusEl) {
       multimodalMatrixStatusEl.className = "query-status";
       multimodalMatrixStatusEl.textContent = workspaceMessage;
     }
     if (multimodalMatrixContentEl) {
-      multimodalMatrixContentEl.innerHTML = '<div class="empty">Load a workspace to build a multimodal feature matrix.</div>';
+      renderNotice(multimodalMatrixContentEl,"Load a workspace to build a multimodal feature matrix.");
     }
     if (typeof renderAnalysisCatalogAssayPanel === "function") renderAnalysisCatalogAssayPanel();
     if (typeof renderAnalysisCatalog === "function") renderAnalysisCatalog();
@@ -1189,16 +723,7 @@ export function createDashboardUi(ctx) {
     let url;
     try { url = new URL(value, window.location.origin); } catch (_) { return; }
     if (url.origin !== window.location.origin || !url.pathname.startsWith('/local-viewer/open/')) return;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'local-imaging-viewer';
-    const close = document.createElement('button');
-    close.type = 'button'; close.textContent = 'Close viewer';
-    const frame = document.createElement('iframe');
-    frame.title = 'OHIF imaging viewer'; frame.src = url.href;
-    dialog.append(close, frame);
-    close.addEventListener('click', () => dialog.close());
-    dialog.addEventListener('close', () => { dialog.remove(); if (button.isConnected) button.focus(); });
-    document.body.append(dialog); dialog.showModal(); close.focus();
+    openImagingDialog(url.href,button);
   }
 
   async function loadDicomStudies(options = {}) {
@@ -1337,61 +862,6 @@ export function createDashboardUi(ctx) {
     multimodalMatrixPanelEl.setAttribute('aria-hidden', String(hidden));
   }
 
-  function renderCoverageBars(title, rows, unit) {
-    const validCount = value => value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0;
-    const max = Math.max(1, ...rows.filter(row => validCount(row.count)).map(row => Number(row.count)));
-    return `<div class="assay-coverage-chart"><strong>${escapeHtml(title)}</strong>
-      ${rows.map(row => `<div class="assay-coverage-row">
-        <span>${assayOverviewIcon(row.modality)}${escapeHtml(String(row.label))}</span>
-        <div class="assay-coverage-track" aria-hidden="true"><i style="width:${validCount(row.count) ? Number(row.count) / max * 100 : 0}%;background:${modalityColor(row.modality)}"></i></div>
-        <strong>${validCount(row.count) ? escapeHtml(formatNumber(Number(row.count))) + ' ' + escapeHtml(Number(row.count) === 1 ? (unit === 'studies' ? 'study' : 'patient') : unit) : 'Not reported'}</strong>
-      </div>`).join('') || '<p class="empty">No coverage reported.</p>'}</div>`;
-  }
-
-  function renderReadinessCoverageTable(modalities) {
-    const rows = (Array.isArray(modalities) ? modalities : []).map((item) => `
-      <tr>
-        <td><strong>${escapeHtml(String(item.label || item.key || "Modality"))}</strong></td>
-        <td>${escapeHtml(String(Number(item.dataset_count || 0) + Number(item.study_count || 0)))}</td>
-        <td>${escapeHtml(String(item.patient_count || 0))}</td>
-        <td>${escapeHtml(String(item.sample_count || 0))}</td>
-        <td>${escapeHtml(String(item.feature_count || 0))}</td>
-        <td>${escapeHtml(String(item.clinical_overlap_count || 0))}</td>
-      </tr>
-    `).join("");
-    return `
-      <div class="assay-card-section">
-        ${renderCoverageBars('Patients by data type · whole workspace', (Array.isArray(modalities) ? modalities : []).map(item => ({label:item.label || item.key || 'Modality', modality:item.key, count:item.patient_count})), 'patients')}
-        <p class="section-note">Patients may appear in several types.</p>
-        <details><summary>Detailed coverage counts</summary>
-        <div class="assay-table-wrap">
-          <table class="assay-table multimodal-readiness-table">
-            <thead><tr><th>Modality</th><th>Resources</th><th>Patients</th><th>Samples</th><th>Features</th><th>Clinical overlap</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6">No modalities found.</td></tr>'}</tbody>
-          </table>
-        </div>
-        </details>
-      </div>
-    `;
-  }
-
-
-  function renderReadinessIssues(issues) {
-    const items = Array.isArray(issues) ? issues : [];
-    if (!items.length) {
-      return '';
-    }
-    return `
-      <div class="assay-card-section">
-        <strong>Linkage checks</strong>
-        <div class="multimodal-issue-list">
-          ${items.slice(0, 5).map((item) => `<div class="query-status ${String(item.severity || "") === "error" ? "error" : ""}">${escapeHtml(String(item.message || "Readiness issue detected."))}</div>`).join("")}
-        </div>
-      </div>
-    `;
-  }
-
-
   function renderMultimodalReadiness(payload) {
     if (!multimodalReadinessStatusEl || !multimodalReadinessContentEl) return;
     multimodalCoverage.reset();
@@ -1404,11 +874,7 @@ export function createDashboardUi(ctx) {
     multimodalReadinessStatusEl.textContent = modalities.length ? '' : 'No multimodal readiness data available.';
     document.getElementById('multimodalReadinessSummary').textContent = modalities.length
       ? `${modalities.length} data types checked across the workspace.` : '';
-    multimodalReadinessContentEl.innerHTML = `
-      <section class="multimodal-coverage"></section>
-      ${renderReadinessCoverageTable(modalities)}
-      ${renderReadinessIssues(issues)}
-    `;
+    renderReadinessView(multimodalReadinessContentEl,{modalities,issues});
     void multimodalCoverage.load(multimodalReadinessContentEl.querySelector('.multimodal-coverage'), state.currentDatasetScopeId);
     renderMultimodalReadinessVisibility();
   }
@@ -1421,63 +887,8 @@ export function createDashboardUi(ctx) {
     multimodalReadinessStatusEl.hidden = false;
     document.getElementById('multimodalReadinessSummary').textContent = '';
     multimodalReadinessStatusEl.textContent = message || "Unable to load multimodal readiness.";
-    multimodalReadinessContentEl.innerHTML = '<div class="empty">Multimodal readiness is unavailable for this workspace.</div>';
+    renderNotice(multimodalReadinessContentEl,"Multimodal readiness is unavailable for this workspace.");
     renderMultimodalReadinessVisibility();
-  }
-
-  function renderMatrixKpis(metadata) {
-    const source = metadata && typeof metadata === "object" ? metadata : {};
-    return `
-      <p class="section-note">Automatic preview: up to three features per assay, plus clinical fields. Independent of the patient selection above.</p>
-      <details class="view-help matrix-preview-help"><summary aria-label="How feature availability is calculated" title="How feature availability is calculated">?</summary>
-        <p>Counts refer to ${escapeHtml(String(source.row_count || 0))} matrix rows: clinical sample/visit records, or patients when no samples are listed. One patient can contribute several rows.</p>
-        <p>Assay values require an exact sample ID match. “No linked value” can mean an absent measurement or an unmatched identifier—not that the patient lacks the assay. Empty clinical fields also count as unlinked values; a recorded zero counts as available.</p>
-        <p>This preview is not a dataset-wide missingness estimate or a quality-control assessment. Use Coverage above to find patients with particular data types.</p>
-      </details>
-    `;
-  }
-
-  function renderMatrixFeatureGroups(groups) {
-    const items = Array.isArray(groups) ? groups : [];
-    const content = items.length
-      ? items.map((item) => `
-        <div class="multimodal-feature-group">
-          <strong>${escapeHtml(String(item.label || item.dataset_name || "Feature group"))}</strong>
-          <span class="query-chip badge">${escapeHtml(formatAssayModality(item.modality || "assay"))}</span>
-          <small>${escapeHtml(String(item.feature_count_selected || 0))} columns · ${escapeHtml(String(item.exact_sample_match_count || 0))} exact sample matches</small>
-        </div>
-      `).join("")
-      : '<div class="empty">No feature groups selected.</div>';
-    return `<div class="assay-card-section"><strong>Provenance</strong><div class="multimodal-feature-group-list">${content}</div></div>`;
-  }
-
-  function renderMatrixMissingness(missingness, rowCount, columns = []) {
-    if (!rowCount) return '<p class="empty">No records available for this preview.</p>';
-    const rows = (Array.isArray(missingness) ? missingness : [])
-      .slice().sort((left, right) => Number(right.missing_count || 0) - Number(left.missing_count || 0));
-    if (!rows.length) {
-      return '<p class="empty">No fields available for this preview.</p>';
-    }
-    const table = items => `<div class="assay-table-wrap"><table class="assay-table"><thead><tr><th>Field / feature</th><th>Available</th><th>No linked value</th></tr></thead><tbody>${items.map(item => {
-      const column = columns.find(c => c.key === item.key) || {};
-      const missing = Number(item.missing_count || 0);
-      return `<tr><td>${modalityIcon(column.modality || column.source || 'clinical')} ${escapeHtml(String(item.label || item.key || 'Field'))}<small class="matrix-field-source">${escapeHtml(column.dataset_name || column.source || '')}</small></td><td>${rowCount - missing} / ${rowCount}</td><td>${missing} <span class="section-note">(${(missing / rowCount * 100).toFixed(1)}%)</span></td></tr>`;
-    }).join('')}</tbody></table></div>`;
-    return `<div class="assay-card-section"><p class="section-note">${rows.length} fields checked · ${rows.filter(r => !Number(r.missing_count || 0)).length} complete. Largest gaps first.</p>
-      ${table(rows.slice(0, 6))}${rows.length > 6 ? `<details><summary>Show ${rows.length - 6} more fields</summary>${table(rows.slice(6))}</details>` : ''}</div>`;
-  }
-
-  function renderMatrixWarnings(warnings) {
-    const items = Array.isArray(warnings) ? warnings : [];
-    if (!items.length) return "";
-    return `
-      <div class="assay-card-section">
-        <strong>Matrix checks</strong>
-        <div class="multimodal-issue-list">
-          ${items.slice(0, 4).map((item) => `<div class="query-status">${escapeHtml(String(item.message || "Matrix warning."))}</div>`).join("")}
-        </div>
-      </div>
-    `;
   }
 
   function renderMultimodalMatrix(payload) {
@@ -1489,12 +900,7 @@ export function createDashboardUi(ctx) {
     multimodalMatrixStatusEl.textContent = Number(metadata.row_count || 0)
       ? `${metadata.row_count || 0} records checked · ${(source.missingness || []).length} preview fields`
       : "No matrix rows available.";
-    multimodalMatrixContentEl.innerHTML = `
-      ${renderMatrixKpis(metadata)}
-      ${renderMatrixMissingness(source.missingness || [], Number(metadata.row_count || 0), source.columns || [])}
-      <details class="assay-card-section"><summary>Feature groups and provenance</summary>${renderMatrixFeatureGroups(source.feature_groups || [])}</details>
-      ${renderMatrixWarnings(source.warnings || [])}
-    `;
+    renderMatrixView(multimodalMatrixContentEl,source);
     renderMultimodalMatrixVisibility();
   }
 
@@ -1503,11 +909,10 @@ export function createDashboardUi(ctx) {
     state.multimodalMatrixState = null;
     multimodalMatrixStatusEl.className = "query-status";
     multimodalMatrixStatusEl.textContent = message || "Unable to build multimodal feature matrix.";
-    multimodalMatrixContentEl.innerHTML = '<div class="empty">Multimodal feature matrix is unavailable for this workspace.</div>';
+    renderNotice(multimodalMatrixContentEl,"Multimodal feature matrix is unavailable for this workspace.");
     renderMultimodalMatrixVisibility();
   }
 
-  function assayOverviewIcon(modality) { return modalityIcon(modality); }
 
   function assayCardsModel(items, extra = {}) {
     return {...extra, entries:items.map(item => ({item, modality:normalizedAssayModality(item.modality),
@@ -1532,22 +937,12 @@ export function createDashboardUi(ctx) {
       const select = document.getElementById(`associationAssay${axis}`);
       if (!select) continue;
       const previous = select.value;
-      select.innerHTML = '<option value="">Choose a matrix</option>' + allItems.map(item => `<option value="${escapeHtml(item.dataset_name)}">${escapeHtml(formatAssayModality(item.modality))} · ${escapeHtml(item.label || item.dataset_name)}</option>`).join("");
+      renderOptions(select,[{value:"",label:"Choose a matrix"},...allItems.map(item=>({value:item.dataset_name,label:`${formatAssayModality(item.modality)} · ${item.label || item.dataset_name}`}))]);
       if (allItems.some(item => item.dataset_name === previous)) select.value = previous;
       const feature = document.getElementById(`associationFeature${axis}`);
       const search = document.getElementById(`associationSearch${axis}`);
       const status = document.getElementById(`associationFeatureStatus${axis}`);
-      document.querySelector(`label[for="associationSearch${axis}"]`).textContent = `Search ${axis} features`;
-      search.placeholder = "Name, description or ID";
-      let description = document.getElementById(`associationDescription${axis}`);
-      if (!description) {
-        description = document.createElement("p");
-        description.id = `associationDescription${axis}`;
-        description.className = "section-note";
-        description.setAttribute("role", "status");
-        feature.after(description);
-        feature.setAttribute("aria-describedby", `${status.id} ${description.id}`);
-      }
+      const description = document.getElementById(`associationDescription${axis}`);
       let annotations = {};
       feature.onchange = () => {
         const annotation = annotations[feature.value] || {};
@@ -1559,7 +954,7 @@ export function createDashboardUi(ctx) {
       // Invalidates responses from previous renders as well as rapid searches.
       const resetFeatures = (label) => {
         feature._request = {};
-        feature.innerHTML = `<option value="">${escapeHtml(label)}</option>`;
+        renderOptions(feature,[{value:"",label}]);
         feature.disabled = true;
         status.textContent = "";
         description.textContent = "";
@@ -1580,11 +975,10 @@ export function createDashboardUi(ctx) {
           if (!isCurrent()) return;
           const ids = payload.genes || [];
           annotations = payload.annotations || {};
-          feature.innerHTML = `<option value="">${ids.length ? "Choose a feature" : "No matching features"}</option>` + ids.map(id => {
-            const annotation = annotations[id] || {};
-            const label = annotation.label || annotation.gene_symbol || annotation.gene_name;
-            return `<option value="${escapeHtml(id)}">${escapeHtml(label ? `${label} · ${id}` : `${id} · Name not supplied`)}</option>`;
-          }).join("");
+          renderOptions(feature,[{value:"",label:ids.length ? "Choose a feature" : "No matching features"},...ids.map(id=>{
+            const annotation=annotations[id] || {}, label=annotation.label || annotation.gene_symbol || annotation.gene_name;
+            return {value:id,label:label ? `${label} · ${id}` : `${id} · Name not supplied`};
+          })]);
           feature.disabled = !ids.length;
           status.textContent = ids.length >= 50 ? "Showing up to 50 matches. Search to narrow the list." : `${ids.length} available feature${ids.length === 1 ? "" : "s"}${search.value.trim() ? " matching your search" : ""}.`;
           return true;
@@ -1616,12 +1010,7 @@ export function createDashboardUi(ctx) {
       const flow = "synthetic_autoimmune_flow_cytometry";
       const serology = "synthetic_autoimmune_serology";
       examples.hidden = ![flow, serology].every(id => allItems.some(item => item.dataset_name === id));
-      examples.innerHTML = examples.hidden ? "" : `<strong>Try a synthetic comparison</strong>
-        <p>These examples explore how two simulated measurements vary together. They are not biological findings.</p>
-        <button type="button" class="query-chip" data-example-x="CD4_T_cells_fraction" data-example-y="CRP_mg_L">CD4 T cells × C-reactive protein</button>
-        <p>Compare a cell fraction with a soluble protein measurement.</p>
-        <button type="button" class="query-chip" data-example-x="B_cells_fraction" data-example-y="Anti_dsDNA_IU_mL">B cells × anti-double-stranded DNA antibodies</button>
-        <p>Compare a cell fraction with an antibody measurement. Neither example runs until you review it in Analysis.</p>`;
+      renderAssociationExamples(examples,!examples.hidden);
       examples.querySelectorAll("button").forEach(button => {
         button.onclick = async () => {
           await Promise.all([['X', flow, button.dataset.exampleX], ['Y', serology, button.dataset.exampleY]].map(async ([axis, assay, id]) => {
@@ -1692,7 +1081,7 @@ export function createDashboardUi(ctx) {
     document.getElementById('multimodalReadinessSummary').textContent = '';
     multimodalReadinessStatusEl.textContent = "Checking multimodal readiness...";
     multimodalCoverage.reset();
-    multimodalReadinessContentEl.innerHTML = '<div class="empty">Checking modality overlap and linkage...</div>';
+    renderNotice(multimodalReadinessContentEl,"Checking modality overlap and linkage...");
     try {
       const response = await fetch(`/assays/readiness?data_dir=${dataDir}`);
       if (!response.ok) throw new Error("Unable to load multimodal readiness.");
@@ -1711,7 +1100,7 @@ export function createDashboardUi(ctx) {
     const dataDir = encodeURIComponent(scopeId);
     multimodalMatrixStatusEl.className = "query-status loading";
     multimodalMatrixStatusEl.textContent = "Building multimodal feature matrix...";
-    multimodalMatrixContentEl.innerHTML = '<div class="empty">Joining clinical, assay, and imaging metadata...</div>';
+    renderNotice(multimodalMatrixContentEl,"Joining clinical, assay, and imaging metadata...");
     try {
       const response = await fetch(`/assays/matrix?data_dir=${dataDir}&max_features_per_dataset=3&max_rows=12`);
       if (!response.ok) throw new Error("Unable to build multimodal feature matrix.");
@@ -1728,7 +1117,7 @@ export function createDashboardUi(ctx) {
     if (!analysisAssayGenesEl) return;
     const datasetNames = selectedTranscriptomicsAssayDatasetNames();
     if (!datasetNames.length) {
-      analysisAssayGenesEl.innerHTML = "";
+      renderOptions(analysisAssayGenesEl);
       return;
     }
     const query = encodeURIComponent(String(analysisAssayGeneEl && analysisAssayGeneEl.value ? analysisAssayGeneEl.value.trim() : ""));
@@ -1747,17 +1136,14 @@ export function createDashboardUi(ctx) {
         return { ...acc, ...current };
       }, {});
       if (!isCurrentWorkspaceScope(scopeId)) return;
-      analysisAssayGenesEl.innerHTML = genes.map((geneId) => {
-        const annotation = annotations[geneId] && typeof annotations[geneId] === "object" ? annotations[geneId] : {};
-        const geneSymbol = String(annotation.gene_symbol || "").trim();
-        const geneName = String(annotation.gene_name || "").trim();
-        const title = [geneId, geneSymbol, geneName].filter(Boolean).join(" • ");
-        const label = geneSymbol ? `${geneSymbol} · ${geneId}` : geneId;
-        return `<option value="${escapeHtml(geneId)}" label="${escapeHtml(label)}" title="${escapeHtml(title || geneId)}"></option>`;
-      }).join("");
+      renderOptions(analysisAssayGenesEl, genes.map(geneId => {
+        const annotation=annotations[geneId] || {}, symbol=String(annotation.gene_symbol || "").trim();
+        return {value:geneId,labelAttribute:symbol ? `${symbol} · ${geneId}` : geneId,
+          title:[geneId,symbol,String(annotation.gene_name || "").trim()].filter(Boolean).join(" • ")};
+      }));
     } catch (_error) {
       if (!isCurrentWorkspaceScope(scopeId)) return;
-      analysisAssayGenesEl.innerHTML = "";
+      renderOptions(analysisAssayGenesEl);
     }
   }
 
@@ -1984,10 +1370,10 @@ export function createDashboardUi(ctx) {
   }
 
   return {
-    claridIdentityMarkup,
     renderPatientList,
     renderDetail,
     renderDashboard,
+    renderDashboardTimeline,
     resetDashboardViews:() => { clinicalView.reset(); resetTimelineView(); resetInspectorView(); },
     resetPatientInspectorView:resetInspectorView,
     renderAnalysisScopeSummary,

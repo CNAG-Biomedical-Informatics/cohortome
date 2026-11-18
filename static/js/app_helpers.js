@@ -176,15 +176,3 @@ export function analysisSessionScopeSummary(session) {
 export function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
-
-export function renderInlineCode(value, escapeHtml) {
-  const parts = String(value).split("`");
-  return parts.map((part, index) => {
-    if (index % 2 === 1) {
-      return `<code>${escapeHtml(part)}</code>`;
-    }
-    return escapeHtml(part)
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  }).join("");
-}

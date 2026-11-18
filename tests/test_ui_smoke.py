@@ -830,7 +830,12 @@ def test_custom_script_editor_prepares_and_submits_bound_inputs(page, generate_t
     def run(route):
         submitted.append(route.request.post_data_json)
         route.fulfill(json={"intent": "analysis_custom_script", "reply": "Script completed.",
-                            "data": {"source": "deterministic", "context": {"mode": "custom_script", "audit": {}}}})
+                            "data": {"source": "deterministic",
+                                     "artifacts": [{"name": "outputs/result.tsv", "url": "/test-result.tsv"}],
+                                     "implementation_audit": {"filename": "analysis.py", "url": "/test-source.py",
+                                                              "note": "Recorded source", "sha256": "a" * 64},
+                                     "context": {"mode": "custom_script", "audit": {},
+                                                 "stdout": "<script>window.analysisInjected=true</script>"}}})
     page.route("**/analysis", run)
     page.reload(wait_until="networkidle")
     _open_analysis_tab(page)
@@ -852,6 +857,11 @@ def test_custom_script_editor_prepares_and_submits_bound_inputs(page, generate_t
     playwright.expect(page.locator("#analysisRunBtn")).to_be_enabled()
     page.locator("#analysisRunBtn").click()
     playwright.expect(page.locator("#analysisThread")).to_contain_text("Script completed.")
+    playwright.expect(page.locator('#analysisThread a[href="/test-result.tsv"]')).to_have_count(1)
+    playwright.expect(page.locator('#analysisThread a[href="/test-source.py"]')).to_have_count(1)
+    playwright.expect(page.locator('#analysisThread .analysis-result-visuals pre')).to_contain_text(
+        "<script>window.analysisInjected=true</script>")
+    assert page.evaluate("window.analysisInjected === undefined")
     assert submitted[0]["custom_script"] == "print('completed by external AI')"
     assert submitted[0]["input_contract_id"] == "a" * 64
     page.locator('[data-analysis-flow-target="scope"]').click()
@@ -2609,6 +2619,7 @@ def test_pheno_cohort_run_shows_interactive_plots_and_hides_patient_only_cards(p
     _mock_pheno_reference_ids(page)
     _open_pheno_tab(page)
     expect = playwright.expect
+    expect(page.locator('#phenoReferenceFilesSummary')).to_contain_text('synthetic_longitudinal.json')
     expect(page.locator("#phenoRenderGraph")).to_be_checked()
     _mock_pheno_plan(page, expected_mode="cohort", selected_ids="SYN001:week_0,SYN002:week_0,SYN003:week_0")
     _mock_cohort_run(page)
@@ -3632,8 +3643,8 @@ def test_bundled_imaging_status_does_not_require_external_services(page):
     page.locator('#dashboardTabBtn').click()
     page.locator('#dashboardImagingBtn').click()
     health = page.locator('#dicomDashboardHealth')
-    playwright.expect(health).to_contain_text('Bundled OHIF')
-    playwright.expect(health).to_contain_text('Not required')
+    playwright.expect(health).to_contain_text('Built-in viewer')
+    playwright.expect(health).to_contain_text('OHIF · opens inside COHORTome')
     playwright.expect(health).not_to_contain_text('Disabled')
     playwright.expect(health).not_to_contain_text('Unreachable')
     page.get_by_role('button',name='View images',exact=True).click()
@@ -3988,7 +3999,14 @@ def test_new_chats_share_header_and_appear_immediately(page, kind, title_selecto
     _open_query_tab(page)
     page.set_viewport_size({'width': 1400, 'height': 900})
     page.locator('#analysisNewSessionBtn').click()
+    playwright.expect(page.locator('#newQueryChatBtn')).to_be_focused()
+    page.keyboard.press('Escape')
+    playwright.expect(page.locator('#newChatChoices')).to_be_hidden()
+    playwright.expect(page.locator('#analysisNewSessionBtn')).to_be_focused()
+    page.locator('#analysisNewSessionBtn').click()
     page.locator(f'#new{kind}ChatBtn').click()
+    playwright.expect(page.locator('#newChatChoices')).to_be_hidden()
+    playwright.expect(page.locator('#analysisNewSessionBtn')).to_have_attribute('aria-expanded', 'false')
     playwright.expect(page.locator(title_selector)).to_have_text('New chat')
     playwright.expect(page.locator(row_selector).filter(has_text='New chat').first).to_be_visible()
     playwright.expect(page.locator('.tab-panel.active .analysis-chat-bar')).to_have_count(1)
@@ -4898,7 +4916,10 @@ def test_analysis_followup_editor_stays_below_conversation(page) -> None:
     expect = playwright.expect
     prompt = page.locator("#analysisPrompt")
     prompt.fill("Summarize the main clinical patterns in this workspace.")
-    page.locator("#analysisRunBtn").click()
+    prompt.press("End")
+    prompt.press("Shift+Enter")
+    expect(prompt).to_have_value("Summarize the main clinical patterns in this workspace.\n")
+    prompt.press("Enter")
     expect(page.locator("#analysisThread")).to_contain_text("Crohn Disease and recurrent Infliximab exposure")
     composer = page.locator("#analysisContinueHost #analysisRequestComposer")
     expect(composer).to_be_visible()
@@ -5088,7 +5109,7 @@ def test_analysis_delete_confirmation_takes_precedence_over_open_chats_drawer(pa
 def test_dashboard_flat_navigation_groups(page):
     expect = playwright.expect
     page.locator('#dashboardTabBtn').click()
-    nav = page.locator('#dashboardTab > .dashboard-page-tabs')
+    nav = page.locator('#dashboardTab .dashboard-page-tabs')
     explore = nav.get_by_role('group', name='Explore data', exact=True)
     build = nav.get_by_role('group', name='Build a cohort', exact=True)
     expect(explore.get_by_role('button')).to_have_text(['Clinical', 'Timeline', 'Assays', 'Imaging'])
@@ -5131,8 +5152,20 @@ def test_navigation_rail_account_and_runs(page):
     page.keyboard.press('Escape')
     expect(page.locator('#accountMenu')).to_be_hidden()
     expect(page.locator('#accountMenuButton')).to_be_focused()
+    for _ in range(2):
+        page.locator('#accountMenuButton').click()
+        expect(page.locator('#accountMenu')).to_be_visible()
+        expect(page.locator('#accountMenuButton')).to_have_attribute('aria-expanded', 'true')
+        page.locator('#accountMenuButton').click()
+        expect(page.locator('#accountMenu')).to_be_hidden()
     page.locator('#accountMenuButton').click()
-    if not page.locator("#userSettingsBtn").is_visible(): page.locator("#accountMenuButton").click()
+    page.locator('#dashboardTabBtn').click()
+    expect(page.locator('#accountMenu')).to_be_hidden()
+    page.locator('#accountMenuButton').click()
+    page.set_viewport_size({'width': 1390, 'height': 900})
+    expect(page.locator('#accountMenu')).to_be_hidden()
+    expect(page.locator('.app-icon-rail #runHistoryDrawerBtn')).to_have_count(1)
+    page.locator('#accountMenuButton').click()
     page.locator('#userSettingsBtn').click()
     expect(page.locator('#userSettingsPanel')).to_be_visible()
     expect(page.locator('#accountMenu')).to_be_hidden()
@@ -5328,7 +5361,13 @@ def test_analysis_chat_sidebar_search_and_responsive_drawer(page):
     page.locator('#chatSearchToggle').click()
     page.locator('#analysisChatSearch').fill('no-such-conversation-9876')
     expect(page.locator('#analysisSessionList')).to_contain_text('No matching chats')
-    page.locator('#analysisChatSearch').fill('')
+    page.locator('#analysisChatSearch').press('Escape')
+    expect(page.locator('#analysisChatSearch')).to_be_hidden()
+    expect(page.locator('#analysisChatSearch')).to_have_value('')
+    expect(page.locator('#chatSearchToggle')).to_be_focused()
+    expect(page.locator('#chatSearchToggle')).to_have_attribute('aria-expanded', 'false')
+    expect(page.locator('#analysisSessionList')).to_contain_text('Sidebar chat')
+    page.locator('#chatSearchToggle').click()
     page.locator('#analysisSessionList .analysis-chat-menu summary').first.click()
     page.once('dialog', lambda dialog: dialog.accept('My renamed analysis'))
     page.locator('[data-analysis-session-rename]').first.click()
@@ -5777,6 +5816,15 @@ def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
 
 
 def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> None:
+    # This exercises selection, not the machine's installed R/Bioconductor stack.
+    def catalogue(route):
+        response = route.fetch()
+        payload = response.json()
+        for item in payload['items']:
+            if item['id'] == 'transcriptomics-signature-workflow':
+                item.update(available=True, unavailable_reason='')
+        route.fulfill(response=response, json=payload)
+    page.route('**/analysis/catalog?*', catalogue)
     _mock_saved_cohorts(page)
     _mock_assay_datasets_with_two_matching_datasets(page)
     page.reload(wait_until="networkidle")

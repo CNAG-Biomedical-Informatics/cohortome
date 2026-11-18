@@ -1,6 +1,6 @@
 import {createMeasurementView} from './react/ui.js';
 // Clinical inputs share the runners' scope and date rules; no LLM is needed.
-export function createMeasurementSelector({ host, state, getContext, onChange, escapeHtml }) {
+export function createMeasurementSelector({ host, state, getContext, onChange }) {
   const panel = document.createElement("div");
   panel.hidden = true;
   host.appendChild(panel);

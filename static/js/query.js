@@ -28,7 +28,7 @@ export function createQueryUi(ctx) {
     queryComposerTitleEl,
     queryThreadModeLabelEl,
   } = refs;
-  const { escapeHtml, fallbackCopyText } = helpers;
+  const { fallbackCopyText } = helpers;
   const {
     renderQueryExecutionMode,
     startQueryProgressUpdates,
@@ -40,7 +40,6 @@ export function createQueryUi(ctx) {
     sendPromptToAnalysis,
     currentPatientsProvider,
     phenoRankerPatientIdsProvider,
-    isMultiDatasetWorkspace,
     setLatestQueryState,
     setLatestScopedContext,
   } = callbacks;
@@ -479,7 +478,7 @@ export function createQueryUi(ctx) {
     replyView.render({empty:'Ask about medications, diseases, or a patient timeline.'});
     reasonView.render({empty:'Run a query to see how the answer was produced.'});
     actionsView?.render(null);
-    queryFollowupsEl.innerHTML = "";
+    queryFollowupsEl.replaceChildren();
     queryDataEl.textContent = "";
     queryDetailsEl.open = false;
     if (queryStatusEl) {
@@ -552,7 +551,7 @@ export function createQueryUi(ctx) {
   }
 
   function renderFollowupButtons(items) {
-    queryFollowupsEl.innerHTML = "";
+    queryFollowupsEl.replaceChildren();
   }
 
 
@@ -723,7 +722,7 @@ export function createQueryUi(ctx) {
     replyView.render({text:generalQuestion ? '**Asking the model...**\nPlease wait.' : '**Running query...**\nPlease wait.'});
     reasonView.render({text:'Waiting for the response and its supporting context.'});
     actionsView?.render(null);
-    queryFollowupsEl.innerHTML = "";
+    queryFollowupsEl.replaceChildren();
     queryPromptLibraryOpen = false;
     state.queryTurns.push({ role: "user", prompt: question, contextMode: generalQuestion ? "general" : "workspace" });
     state.queryTurns.push({

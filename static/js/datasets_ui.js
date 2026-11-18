@@ -1,3 +1,4 @@
+import {renderOptions,renderLoadIcon} from './react/ui.js';
 import { modalityIcon } from './modalities.js';
 import {createDatasetPickerView, createDatasetsAdminView, openDatasetConfirmation} from './react/ui.js';
 import { createResourceInstaller } from './resource_install.js';
@@ -33,7 +34,7 @@ export function createDatasetsUi(ctx) {
       if (!button) return;
       event.preventDefault();
       event.stopPropagation();
-      openDatasetAbout(button.dataset.datasetAbout, escapeHtml);
+      openDatasetAbout(button.dataset.datasetAbout);
     });
   }
   const {
@@ -221,13 +222,7 @@ export function createDatasetsUi(ctx) {
           : "Reload workspace";
     }
     if (refs.loadBtnIconEl) {
-      refs.loadBtnIconEl.innerHTML = state.loadInFlight
-        ? '<span class="button-spinner" aria-hidden="true"></span>'
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-             <path d="M12 3v12"></path>
-             <path d="m7 10 5 5 5-5"></path>
-             <path d="M5 21h14"></path>
-           </svg>`;
+      renderLoadIcon(refs.loadBtnIconEl,state.loadInFlight);
     }
   }
 
@@ -524,23 +519,11 @@ export function createDatasetsUi(ctx) {
       return;
     }
     const selectedIds = new Set(pendingDatasetSelectionIds());
-    dataDirEl.innerHTML = "";
-    if (!state.availableDatasets.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No dataset available";
-      dataDirEl.appendChild(option);
-      return;
-    }
-    state.availableDatasets.forEach((dataset) => {
-      const option = document.createElement("option");
-      option.value = String(dataset.dataset_id || "");
-      option.textContent = String(dataset.name || dataset.dataset_id || "Unnamed dataset");
-      if (selectedIds.has(option.value)) {
-        option.selected = true;
-      }
-      dataDirEl.appendChild(option);
-    });
+    renderOptions(dataDirEl,state.availableDatasets.length ? state.availableDatasets.map(dataset=>({
+      value:String(dataset.dataset_id || ""),label:String(dataset.name || dataset.dataset_id || "Unnamed dataset")
+    })) : [{value:"",label:"No dataset available"}]);
+    for(const option of dataDirEl.options) option.selected=selectedIds.has(option.value);
+    if(!state.availableDatasets.length) return;
     dataDirEl.dataset.scopeId = currentDatasetSelectionKey();
     renderDatasetPicker();
     renderDatasetAdminList();

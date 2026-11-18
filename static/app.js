@@ -1,3 +1,4 @@
+import {renderNotice} from '/static/js/react/ui.js';
 import { escapeHtml, fallbackCopyText } from "/static/js/shared.js";
 import { createAppRefs } from "/static/js/app_refs.js";
 import { createAppState } from "/static/js/app_state.js";
@@ -28,11 +29,91 @@ import { createPatientOverview } from "/static/js/patient_overview.js";
 import { createClinicalSummaryUi } from '/static/js/clinical_summary.js';
 import { createCohortScopeUi } from '/static/js/cohort_scope.js';
 
-import {mountConversationComposers,mountNavigationShell,mountAdminCreationForms,mountApplicationPanels} from '/static/js/react/ui.js';
+import {mountPageShell,mountConversationComposers,mountNavigationShell,mountAdminCreationForms,mountApplicationPanels} from '/static/js/react/ui.js';
 
+mountPageShell({
+  onChatSearch() { analysisSessionsUi.renderAnalysisSessionList(); },
+  onNewChat(kind) {
+    if (kind === 'query') { void querySessionsUi.newChat(); return; }
+    if (kind === 'pheno') { void phenoSessionsUi.newChat(); return; }
+    document.getElementById('analysisChatSearch').value = '';
+    analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
+    navigationUi.setActiveTab('analysis');
+    if (!document.getElementById('analysisChatDock').contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
+  },
+});
 mountApplicationPanels();
-mountConversationComposers();
-mountNavigationShell();
+mountConversationComposers({
+  analysisActions: {
+    run: () => analysisUi.runAnalysis(),
+    editSetup: () => analysisUi.editSetup(),
+    edited() {
+      analysisCatalogUi.renderAnalysisCatalogAssayPanel();
+      analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
+    },
+  },
+  phenoActions: {
+    edited: () => phenoUi.handlePhenoPromptEdited(),
+    run: () => phenoUi.runPhenoRanker(),
+    planRun: () => phenoUi.planAndRunPhenoRanker(),
+  },
+  queryActions: {
+    edited: () => analysisCatalogUi.renderQueryExecutionMode(),
+    ask() {
+      void queryUi.askQuery();
+    },
+    workspace() {
+      queryUi.setContextMode("workspace");
+    },
+    general() {
+      queryUi.setContextMode("general");
+    },
+    prompts() {
+      queryUi.togglePromptLibrary();
+    },
+    planner() {
+      queryUi.setExecutionMode(state.queryExecutionMode === "planner_only" ? "auto" : "planner_only");
+      analysisCatalogUi.renderQueryExecutionMode();
+    },
+    memory() {
+      if (state.queryGranularityMode !== "detailed") {
+        analysisCatalogUi.renderQueryExecutionMode();
+        return;
+      }
+      state.queryFollowMemoryEnabled = !state.queryFollowMemoryEnabled;
+      analysisCatalogUi.renderQueryExecutionMode();
+    },
+    disease() {
+      const willOpen = !refs.queryDiseasePanelEl || refs.queryDiseasePanelEl.classList.contains("is-hidden");
+      if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
+      refs.queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
+    },
+    clear() {
+      void querySessionsUi.newChat();
+    },
+  },
+});
+mountNavigationShell({
+  onNavigate(tab) {
+    if (tab === 'admin' && refs.adminTabBtnEl.classList.contains('active')) {
+      refs.adminTabBtnEl.setAttribute('aria-expanded', String(refs.adminTabBtnEl.getAttribute('aria-expanded') !== 'true'));
+      return;
+    }
+    navigationUi.setActiveTab(tab);
+    if (tab === 'users') void usersAdminUi.loadAuthUsers();
+    if (tab === 'models' || (tab === 'admin' && navigationUi.currentTabName() === 'models')) {
+      void modelsAdminUi.loadModels();
+    }
+  },
+  onDashboardNavigate(tab) {
+    if (tab === 'timeline') {
+      state.timelinePatientFilter = ''; state.timelinePatientSearch = '';
+      state.timelineDatasetFilter = ''; state.timelinePage = 0;
+    }
+    navigationUi.setDashboardSubtab(tab);
+    if (tab === 'timeline') dashboardUi.renderDashboardTimeline(state.dashboardSummaryState || state.dashboardSummary || {});
+  },
+});
 mountAdminCreationForms();
 const refs = createAppRefs(document);
 const state = createAppState();
@@ -211,10 +292,10 @@ function clearDatasetScopedContent(options = {}) {
   const dashboardMessage = signedOut ? "Clinical dashboard hidden until you sign in." : (nextScopeId ? "Loading dashboard..." : "Select a workspace to inspect the dashboard.");
   const timelineMessage = signedOut ? "Timeline hidden until you sign in." : (nextScopeId ? "Loading timeline..." : "Select a workspace to inspect the timeline.");
   dashboardUi?.resetDashboardViews();
-  if (refs.patientsEl) refs.patientsEl.innerHTML = `<div class="empty">${patientMessage}</div>`;
-  if (refs.detailEl) refs.detailEl.innerHTML = `<div class="empty">${detailMessage}</div>`;
-  if (refs.dashboardEl) refs.dashboardEl.innerHTML = `<div class="empty">${dashboardMessage}</div>`;
-  if (refs.dashboardTimelineEl) refs.dashboardTimelineEl.innerHTML = `<div class="empty">${timelineMessage}</div>`;
+  renderNotice(refs.patientsEl,patientMessage);
+  renderNotice(refs.detailEl,detailMessage);
+  renderNotice(refs.dashboardEl,dashboardMessage);
+  renderNotice(refs.dashboardTimelineEl,timelineMessage);
 }
 
 function setLatestQueryState(patch) {
@@ -750,7 +831,6 @@ queryUi = createQueryUi({
     sendPatientIdsToAnalysis,
     sendPromptToAnalysis,
     currentPatientsProvider: () => state.currentPatients,
-    claridIdentityMarkup: (patient) => dashboardUi.claridIdentityMarkup(patient, true),
     phenoRankerPatientIdsProvider: () => state.phenoRankerPatientIds,
     isMultiDatasetWorkspace,
     setLatestQueryState,
@@ -1219,42 +1299,7 @@ function bindEvents() {
     }
   });
 
-  refs.askBtnEl && refs.askBtnEl.addEventListener("click", () => {
-    void queryUi.askQuery();
-  });
-  refs.queryContextWorkspaceBtnEl && refs.queryContextWorkspaceBtnEl.addEventListener("click", () => {
-    queryUi.setContextMode("workspace");
-  });
-  refs.queryContextGeneralBtnEl && refs.queryContextGeneralBtnEl.addEventListener("click", () => {
-    queryUi.setContextMode("general");
-  });
-  refs.queryComposerExamplesBtnEl && refs.queryComposerExamplesBtnEl.addEventListener("click", () => {
-    queryUi.togglePromptLibrary();
-  });
-  refs.queryPlannerBtnEl && refs.queryPlannerBtnEl.addEventListener("click", () => {
-    queryUi.setExecutionMode(state.queryExecutionMode === "planner_only" ? "auto" : "planner_only");
-    analysisCatalogUi.renderQueryExecutionMode();
-  });
-  refs.queryMemoryBtnEl && refs.queryMemoryBtnEl.addEventListener("click", () => {
-    if (state.queryGranularityMode !== "detailed") {
-      analysisCatalogUi.renderQueryExecutionMode();
-      return;
-    }
-    state.queryFollowMemoryEnabled = !state.queryFollowMemoryEnabled;
-    analysisCatalogUi.renderQueryExecutionMode();
-  });
-  refs.queryDiseaseBuilderBtnEl && refs.queryDiseaseBuilderBtnEl.addEventListener("click", () => {
-    const willOpen = !refs.queryDiseasePanelEl || refs.queryDiseasePanelEl.classList.contains("is-hidden");
-    if (refs.queryDiseasePanelEl) refs.queryDiseasePanelEl.classList.toggle("is-hidden", !willOpen);
-    refs.queryDiseaseBuilderBtnEl.classList.toggle("is-active", willOpen);
-  });
-  refs.queryClearBtnEl && refs.queryClearBtnEl.addEventListener("click", () => {
-    void querySessionsUi.newChat();
-  });
 
-  refs.analysisRunBtnEl && refs.analysisRunBtnEl.addEventListener("click", () => {
-    void analysisUi.runAnalysis();
-  });
   refs.analysisFlowBarEl && refs.analysisFlowBarEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-analysis-flow-target]");
     if (!button || !refs.analysisFlowBarEl.contains(button)) {
@@ -1301,62 +1346,7 @@ function bindEvents() {
       refs.analysisStarterPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   });
-  refs.analysisNewSessionBtnEl && refs.analysisNewSessionBtnEl.addEventListener("click", () => {
-    const choices = document.getElementById('newChatChoices');
-    choices.hidden = !choices.hidden;
-    refs.analysisNewSessionBtnEl.setAttribute('aria-expanded', String(!choices.hidden));
-    if (!choices.hidden) document.getElementById('newQueryChatBtn').focus();
-  });
-  const closeNewChatChoices = () => {
-    document.getElementById('newChatChoices').hidden = true;
-    refs.analysisNewSessionBtnEl.setAttribute('aria-expanded', 'false');
-  };
-  document.getElementById('newQueryChatBtn').addEventListener('click', () => {
-    closeNewChatChoices();
-    void querySessionsUi.newChat();
-  });
-  document.getElementById('newPhenoChatBtn').addEventListener('click', () => {
-    closeNewChatChoices();
-    void phenoSessionsUi.newChat();
-  });
-  document.getElementById('newAnalysisChatBtn').addEventListener('click', () => {
-    closeNewChatChoices();
-    document.getElementById("analysisChatSearch").value = "";
-    analysisSessionsUi.createAndSelectAnalysisSession({ dataDir: refs.dataDirEl.value.trim() });
-    navigationUi.setActiveTab("analysis");
-    if (!document.getElementById("analysisChatDock").contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !document.getElementById('newChatChoices').hidden) {
-      closeNewChatChoices(); refs.analysisNewSessionBtnEl.focus();
-    }
-  });
-  document.addEventListener('click', (event) => {
-    if (!event.target.closest('#newChatChoices, #analysisNewSessionBtn')) closeNewChatChoices();
-  });
 
-  refs.dashboardTabBtnEl && refs.dashboardTabBtnEl.addEventListener("click", () => {
-    navigationUi.setActiveTab("dashboard");
-  });
-  refs.datasetsTabBtnEl && refs.datasetsTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("datasets"));
-  refs.cohortsTabBtnEl?.addEventListener('click', () => navigationUi.setActiveTab('cohorts'));
-  refs.adminTabBtnEl && refs.adminTabBtnEl.addEventListener("click", () => {
-    if (refs.adminTabBtnEl.classList.contains("active")) {
-      refs.adminTabBtnEl.setAttribute("aria-expanded", String(refs.adminTabBtnEl.getAttribute("aria-expanded") !== "true"));
-    } else {
-      navigationUi.setActiveTab("admin");
-      if (navigationUi.currentTabName() === "models") void modelsAdminUi.loadModels();
-    }
-  });
-  refs.usersTabBtnEl && refs.usersTabBtnEl.addEventListener("click", () => {
-    navigationUi.setActiveTab("users");
-    void usersAdminUi.loadAuthUsers();
-  });
-  refs.dataTabBtnEl?.addEventListener("click", () => navigationUi.setActiveTab("data"));
-  refs.modelsTabBtnEl && refs.modelsTabBtnEl.addEventListener("click", () => {
-    navigationUi.setActiveTab("models");
-    void modelsAdminUi.loadModels();
-  });
   refs.modelCreateBtnEl && refs.modelCreateBtnEl.addEventListener("click", () => {
     void modelsAdminUi.createModel();
   });
@@ -1370,18 +1360,6 @@ function bindEvents() {
     else if (action === "test") void modelsAdminUi.testModel(id);
     else if (action === "delete") void modelsAdminUi.deleteModel(id);
   });
-  refs.queryTabBtnEl && refs.queryTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("query"));
-  refs.analysisTabBtnEl && refs.analysisTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("analysis"));
-  refs.phenoTabBtnEl && refs.phenoTabBtnEl.addEventListener("click", () => navigationUi.setActiveTab("pheno"));
-  refs.dashboardClinicalBtnEl && refs.dashboardClinicalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("clinical"));
-  refs.dashboardTimelineBtnEl?.addEventListener('click', () => {
-    state.timelinePatientFilter = ''; state.timelinePatientSearch = ''; state.timelineDatasetFilter = ''; state.timelinePage = 0;
-    navigationUi.setDashboardSubtab('timeline');
-    dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
-  });
-  refs.dashboardAssaysBtnEl && refs.dashboardAssaysBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("assays"));
-  refs.dashboardImagingBtnEl && refs.dashboardImagingBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("imaging"));
-  refs.dashboardMultimodalBtnEl && refs.dashboardMultimodalBtnEl.addEventListener("click", () => navigationUi.setDashboardSubtab("multimodal"));
 
   refs.userCreateBtnEl && refs.userCreateBtnEl.addEventListener("click", () => {
     void usersAdminUi.createAuthUser();
@@ -1407,12 +1385,6 @@ function bindEvents() {
 
   refs.phenoPlanBtnEl && refs.phenoPlanBtnEl.addEventListener("click", () => {
     void phenoUi.planPhenoRanker();
-  });
-  refs.phenoPlanRunBtnEl && refs.phenoPlanRunBtnEl.addEventListener("click", () => {
-    void phenoUi.planAndRunPhenoRanker();
-  });
-  refs.phenoRunBtnEl && refs.phenoRunBtnEl.addEventListener("click", () => {
-    void phenoUi.runPhenoRanker();
   });
   refs.phenoAnalysisBtnEl && refs.phenoAnalysisBtnEl.addEventListener("click", () => {
     phenoUi.sendPhenoMatchesToAnalysis();
@@ -1502,12 +1474,6 @@ function bindEvents() {
     });
     dashboardUi.renderAnalysisCompareScopeSummary();
     analysisCatalogUi.renderAnalysisCatalog();
-  });
-  refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("input", () => {
-    // Editing an example or follow-up must preserve its selected execution mode.
-    // Method selection and completed runs handle mode resets explicitly.
-    analysisCatalogUi.renderAnalysisCatalogAssayPanel();
-    analysisSessionsUi.syncCurrentAnalysisSessionFromUi({ render: true });
   });
   refs.analysisContextWorkspaceBtnEl && refs.analysisContextWorkspaceBtnEl.addEventListener("click", () => {
     analysisUi.setContextMode("workspace");
@@ -1771,20 +1737,8 @@ function bindEvents() {
     if (!document.getElementById("analysisChatDock").contains(refs.analysisSessionListEl)) setAnalysisChatsDrawerOpen(false);
   });
 
-  refs.phenoExamplesEl && refs.phenoExamplesEl.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-pheno-prompt]");
-    if (!button || !refs.phenoExamplesEl.contains(button)) {
-      return;
-    }
-    refs.phenoPromptEl.value = button.dataset.phenoPrompt || "";
-    phenoUi.handlePhenoPromptEdited();
-    refs.phenoPromptEl.focus();
-  });
   refs.phenoPlanFollowupsEl && refs.phenoPlanFollowupsEl.addEventListener("click", (event) => {
     phenoUi.handlePhenoPlanFollowUpsClick(event);
-  });
-  refs.phenoPromptEl && refs.phenoPromptEl.addEventListener("input", () => {
-    phenoUi.handlePhenoPromptEdited();
   });
   refs.phenoPreviewsEl && refs.phenoPreviewsEl.addEventListener("click", (event) => {
     phenoUi.handlePreviewsClick(event);
@@ -1831,21 +1785,6 @@ function bindEvents() {
     savedCohortsUi.removeSavedCohortFromPheno(button.dataset.phenoSelectedCohortId || "");
   });
 
-  refs.questionEl && refs.questionEl.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void queryUi.askQuery();
-    }
-  });
-  refs.questionEl && refs.questionEl.addEventListener("input", () => {
-    analysisCatalogUi.renderQueryExecutionMode();
-  });
-  refs.analysisPromptEl && refs.analysisPromptEl.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void analysisUi.runAnalysis();
-    }
-  });
 }
 
 function applyStoredTabPreferences() {
@@ -1921,7 +1860,7 @@ async function bootstrap() {
       state.timelinePatientFilter = JSON.stringify([datasetId, patientId]);
       state.timelineDatasetFilter = ''; state.timelinePatientSearch = ''; state.timelinePage = 0;
       navigationUi.setDashboardSubtab('timeline');
-      dashboardUi.renderDashboard(state.dashboardSummaryState || state.dashboardSummary || {});
+      dashboardUi.renderDashboardTimeline(state.dashboardSummaryState || state.dashboardSummary || {});
     }});
   initializeUiShell();
   window.__cohortomeLoadPatients = (options) => workspaceUi.loadPatients(options);

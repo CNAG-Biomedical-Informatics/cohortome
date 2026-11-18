@@ -14,7 +14,10 @@ def test_catalogue_type_badges_filters_and_refresh():
         browser = p.chromium.launch()
         page = browser.new_page()
         page.route('http://resources.test/', lambda r: r.fulfill(content_type='text/html', body=
-            '<link rel="stylesheet" href="/static/app.css">' + (root / 'templates/partials/data_management.html').read_text()))
+            '<link rel="stylesheet" href="/static/app.css"><div id="applicationRoot"></div>'
+            '<script id="applicationConfig" type="application/json">'
+            '{"branding":{"name":"COHORTome"},"auth_enabled":false,"datasets":[],"current_dataset_id":"","default_data_dir":""}'
+            '</script>'))
         page.route('http://resources.test/static/**', lambda r: r.fulfill(
             content_type='text/javascript' if r.request.url.endswith('.js') else 'text/css',
             body=(root / urlparse(r.request.url).path.lstrip('/')).read_text()))
@@ -24,6 +27,9 @@ def test_catalogue_type_badges_filters_and_refresh():
         page.route('http://resources.test/resources**', api)
         page.goto('http://resources.test/')
         page.evaluate('''async () => {
+          const {mountPageShell} = await import('/static/js/react/ui.js');
+          mountPageShell();
+          document.querySelector('#dataTab').classList.add('active');
           const {createResourceInstaller} = await import('/static/js/resource_install.js');
           window.ui = createResourceInstaller({escapeHtml:s=>String(s), refresh:async()=>{}, select:()=>{}});
           ui.setAllowed(true);

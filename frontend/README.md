@@ -1,69 +1,67 @@
-# React views
+# Frontend
 
-React renders the Patients view: search, sample origin, disease chips, actions,
-table, messages and pagination. Existing CSS and layout are unchanged.
-Multimodal uses the same scope-bar and disease-chip components, with its current
-modality selectors, combinations, patient list and inventory inspector.
-React also renders the Clinical dashboard tables, chart cards and measurement
-selector. Existing Plotly routines own only the graph interiors and sex legend;
-plots are cleaned up when replaced or unmounted.
-Timeline controls, availability rows and loading/retry states use React too.
-Its controller retains time coordinates and plot traces. The patient inspector
-and Multimodal share React sample, assay and clinical-record tables.
-Workspace loading/reset explicitly unmounts both dashboard roots before showing
-its notices.
-Assay coverage and modality tabs, Imaging viewer status and the study table
-also use React, along with detailed assay cards and the variant browser.
-The shared chat list (folders, pins and selection), user/model administration
-cards, dataset administration and bulk controls/confirmation dialogs, Jobs/Run history, saved cohorts,
-the dataset picker/catalogue and analysis
-catalogue/checklist use React too.
-Query and Analysis conversations use React, including shared safe reply
-formatting, result tables, actions, follow-ups and copy controls. Pheno-Ranker
-uses React for conversation history, output tables, plot cards, alignment
-details, explanations, planning reasoning and follow-ups. The custom-script
-editor and analysis measurement selector also use React.
-Dataset About dialogs and authentication/provider summaries use React.
-Main preference fields and section navigation, chat move/clear-history forms,
-and the keyboard-accessible chat-width divider also use React. Preference drafts
-are separate from saved settings; the existing controllers handle persistence.
-Storage paths, export limits, the About version report and deployment branding
-also render with React. File validation and administrator checks stay in their
-existing controllers and backend endpoints.
-MCP sharing and approval panels, DICOM folder linking, molecular-export selection
-and the project menu also use React. Tokens stay in controller memory only;
-approval and export restrictions are still enforced by the backend.
-Query, Analysis and Pheno-Ranker prompt panels, Analysis/Pheno-Ranker setup,
-user/provider creation forms, the navigation rail, dashboard
-tabs and account-menu contents mount through React before controllers capture
-their controls. Prompt values remain native uncontrolled inputs so restored
-drafts and existing execution handlers do not compete with React state.
-Authentication and settings panel structures also mount through React before
-their controllers bind. Progress cards and Query provenance badges use typed
-React props, not generated HTML.
-Analysis and Pheno-Ranker provenance also use typed badges. Analysis plot-card
-markup remains behind an explicit escaped-HTML boundary, alongside sanitized
-dataset Markdown and the existing trusted SVG icon catalogue. Outer page
-scaffolding still uses templates. Navigation events and
-permission updates retain their controllers.
-Existing controllers retain
-requests, persistence, permissions and execution logic.
+React renders the application shell, dashboard views, conversations, analysis
+results, administration, settings and dialogs. Existing CSS and layout are
+preserved. Dataset Markdown uses a limited React renderer: raw HTML, embeds
+and local-file links are not supported.
 
-The controller in `static/js/patient_overview.js` owns requests and Timeline
-navigation. React renders the shared scope bar and clinical-filter editor;
-the existing scope controller retains validation and request handling. Patients
-and Multimodal use the same draft filters and explicit Apply action.
+## Ownership
+
+- React owns UI markup and stable chart hosts.
+- React also owns navigation click handlers and account-menu state, positioning
+  and dismissal. The navigation controller still applies workspace transitions
+  and permission-aware active views; do not bind duplicate native click handlers.
+- The chat sidebar owns New chat menu and search visibility/focus in React.
+  Chat creation and search rendering delegate to the existing session controllers;
+  the search input remains uncontrolled so chat creation can clear its draft.
+- Plotly and Cytoscape own chart interiors, including their loading/error
+  messages. The heatmap dendrogram remains a chart renderer.
+- Controllers retain requests, permissions, persistence, execution and scope
+  transitions. This is a view migration, not a rewrite of application state.
+- Controller-driven forms use uncontrolled inputs where native handlers restore
+  values or read changes. Do not add competing React state.
+- Fixed SVG icons are the only React HTML-injection boundary. They come from the
+  application catalogue, never dataset or model text.
+- Shared workspace hosts use one root registry so notices, dashboard views and
+  patient inspectors cannot leave competing roots behind. Other views retain
+  their own dedicated hosts.
+
+The server template only supplies the document envelope and escaped bootstrap
+configuration. Dataset choices contain IDs and names, not registry paths.
+
+## Source layout
+
+- `page-shell.jsx` composes the screens in `shell/`; keep their DOM IDs stable.
+- `analysis-setup/` holds scope, catalogue, composer and starter prompts.
+- `analysis-results/` holds result types and shared artifact presentations.
+- `clinical-filters/` owns filter state, requests and cleanup; its view stays in
+  `clinical-filters.jsx`.
+- `cohorts/` separates actions, the library and dialogs.
+- `shared/` contains small controls and the shared root lifecycle. Feature-specific
+  renderers stay with their feature, not in a general-purpose helper collection.
+- `../static/js/charts/` contains clinical, Analysis and Pheno-Ranker plot
+  rendering. Controllers pass the existing state and selection callbacks;
+  chart modules do not submit analyses or persist chats. Timeline retains its
+  small, dedicated renderer in `timeline.js`.
+
+`index.js` exports controller adapters. Split by responsibility, not by an
+arbitrary line limit. Do not introduce a second owner for form or chart state.
+
+## Build
 
 ```bash
 cd frontend
 npm ci
+npm run format:check
 npm run build
 ```
 
-Edit `src/`, not `static/js/react/ui.js`. These views use one generated bundle.
-The generated bundle
-and licence files are committed so native, Desktop and Docker launches need no
-additional Node runtime or frontend build. No CDN or browser-side dependencies.
+Edit `src/`, not `static/js/react/ui.js`. Commit the generated bundle and licence
+files with source changes. Desktop, native and Docker launches need no Node
+runtime or frontend build.
 
-The rest of the frontend is being migrated incrementally, preserving its layout
-and backend APIs.
+Run `npm run format` after editing components. Prettier is development-only and
+is not included in installers or the browser bundle.
+
+Run focused browser tests for the affected views. The rendering-boundary tests
+guard against bringing HTML-string UI rendering back into controllers.

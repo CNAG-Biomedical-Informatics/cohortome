@@ -1,9 +1,10 @@
+import {renderExampleToggle} from './react/ui.js';
+import {renderBadges,renderOptions} from './react/ui.js';
 import {createAnalysisCatalogView, createAnalysisChecklistView} from './react/ui.js';
 
 import { formatAssayRequirementLabel } from "./assay_labels.js";
 import { createMeasurementSelector } from "./analysis_measurements.js";
 import { createScriptEditor } from "./analysis_script_editor.js";
-import { modalityIcon } from './modalities.js';
 
 export function createAnalysisCatalogUi(ctx) {
   const { refs, state, helpers, callbacks, constants } = ctx;
@@ -44,7 +45,7 @@ export function createAnalysisCatalogUi(ctx) {
     analysisStatusEl,
     analysisRunBtnEl,
   } = refs;
-  const { escapeHtml, currentStorageNamespace } = helpers;
+  const { currentStorageNamespace } = helpers;
   const { MAX_VISIBLE_EXAMPLES } = constants;
   const {
     queryWorkspacePolicyExplanation,
@@ -58,7 +59,7 @@ export function createAnalysisCatalogUi(ctx) {
     refreshBackgroundWorkerStatus,
   } = callbacks;
   const measurementSelector = analysisCatalogAssayPanelEl ? createMeasurementSelector({
-    host: analysisCatalogAssayPanelEl, state, escapeHtml,
+    host: analysisCatalogAssayPanelEl, state,
     getContext: () => ({
       prompt: "Measurement setup",
       scope_metadata: state.analysisScopeMetadata || {},
@@ -106,16 +107,7 @@ export function createAnalysisCatalogUi(ctx) {
     const toggleWrap = document.createElement("div");
     toggleWrap.className = "query-examples-toggle";
 
-    const toggleBtn = document.createElement("button");
-    toggleBtn.type = "button";
-    toggleBtn.className = "query-chip query-chip-toggle";
-    toggleBtn.textContent = `See more (${chips.length - maxVisible})`;
-    toggleBtn.addEventListener("click", () => {
-      const expanded = container.classList.toggle("is-collapsed");
-      toggleBtn.textContent = expanded ? `See more (${chips.length - maxVisible})` : "Show fewer";
-    });
-
-    toggleWrap.appendChild(toggleBtn);
+    renderExampleToggle(toggleWrap,container,chips.length-maxVisible);
     container.insertAdjacentElement("afterend", toggleWrap);
   }
 
@@ -454,42 +446,7 @@ export function createAnalysisCatalogUi(ctx) {
     });
   }
 
-  function analysisCatalogSuggestionScore(item, usage) {
-    const itemId = String(item && item.id ? item.id : "").trim();
-    const current = usage[itemId] && typeof usage[itemId] === "object" ? usage[itemId] : {};
-    const count = Number(current.count || 0);
-    const lastUsedAt = Number(current.lastUsedAt || 0);
-    const compareRequired = Boolean(item && item.default_compare_mode);
-    const assayRequired = Boolean(item && item.requires_assays);
-    const external = String(item && item.runner_type ? item.runner_type : "").trim().toLowerCase() !== "builtin";
-    const background = String(item && item.execution_backend ? item.execution_backend : "").trim().toLowerCase() === "job";
-    const selected = itemId === String(state.analysisSelectedCatalogItemId || "").trim();
-    let score = 0;
-    if (selected) score += 10000;
-    if (item && item.available) score += 200;
-    if (count > 0) score += Math.min(count, 8) * 120;
-    if (lastUsedAt > 0) {
-      const ageHours = Math.max(0, (Date.now() - lastUsedAt) / 3600000);
-      score += Math.max(0, 96 - ageHours);
-    }
-    if (compareRequired && analysisCompareModeEl && analysisCompareModeEl.checked) score += 40;
-    if (!compareRequired && !(analysisCompareModeEl && analysisCompareModeEl.checked)) score += 18;
-    if (assayRequired && state.analysisCatalogWorkspace && state.analysisCatalogWorkspace.has_assay_datasets) score += 24;
-    if (background) score += 12;
-    if (external) score += 8;
-    return score;
-  }
 
-  function suggestedAnalysisCatalogItems(items) {
-    const visibleItems = Array.isArray(items) ? items : [];
-    if (!visibleItems.length) {
-      return [];
-    }
-    const usage = readAnalysisCatalogUsage();
-    return [...visibleItems]
-      .sort((left, right) => analysisCatalogSuggestionScore(right, usage) - analysisCatalogSuggestionScore(left, usage))
-      .slice(0, 4);
-  }
 
   function analysisSetupSteps(item, options = {}) {
     if (!item) return [];
@@ -677,7 +634,7 @@ export function createAnalysisCatalogUi(ctx) {
     if (!hasSelectedItem) {
       renderAnalysisSetupChecklist({ steps: [] });
       if (analysisCatalogSetupBadgesEl) {
-        analysisCatalogSetupBadgesEl.innerHTML = "";
+        renderBadges(analysisCatalogSetupBadgesEl);
       }
       if (analysisComposerSetupTitleEl) {
         analysisComposerSetupTitleEl.textContent = "Analysis setup";
@@ -725,25 +682,25 @@ export function createAnalysisCatalogUi(ctx) {
     }
     if (analysisCatalogSetupBadgesEl) {
       const badges = [];
-      badges.push(`<span class="query-chip badge">${requiresAssay ? "Needs assay" : "No assay required"}</span>`);
+      badges.push({label:requiresAssay ? "Needs assay" : "No assay required"});
       analysisCatalogCapabilityBadges(item).forEach((badge) => {
-        badges.push(`<span class="query-chip badge">${badge.modality ? modalityIcon(badge.modality, 'analysis-badge-icon') : ''}${escapeHtml(badge.label)}</span>`);
+        badges.push(badge);
       });
-      badges.push(`<span class="query-chip badge">${compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"}</span>`);
+      badges.push({label:compareRequired ? "Needs Cohort A + B" : "Single-scope analysis"});
       if (compareRequired) {
-        badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Cohort A ready" : "Choose Cohort A"}</span>`);
-        badges.push(`<span class="query-chip badge">${state.analysisCompareSavedCohortId ? "Cohort B ready" : "Choose Cohort B"}</span>`);
+        badges.push({label:state.analysisSelectedSavedCohortId ? "Cohort A ready" : "Choose Cohort A"});
+        badges.push({label:state.analysisCompareSavedCohortId ? "Cohort B ready" : "Choose Cohort B"});
       } else {
-        badges.push(`<span class="query-chip badge">${state.analysisSelectedSavedCohortId ? "Saved scope selected" : "Workspace or manual scope"}</span>`);
+        badges.push({label:state.analysisSelectedSavedCohortId ? "Saved scope selected" : "Workspace or manual scope"});
       }
       if (requiresAssay) {
         const selectedCount = selectedDatasetNames.length;
         const datasetBadge = requiresSingleSelectedAssayDataset(item)
           ? (selectedCount === 1 ? `Assay ready: ${selectedDatasetNames[0]}` : selectedCount > 1 ? `${selectedCount} assays selected` : "Choose 1 assay")
           : (selectedCount ? `${selectedCount} assay${selectedCount === 1 ? "" : "s"} selected` : "Choose assay");
-        badges.push(`<span class="query-chip badge">${escapeHtml(datasetBadge)}</span>`);
+        badges.push({label:datasetBadge});
       }
-      analysisCatalogSetupBadgesEl.innerHTML = badges.join("");
+      renderBadges(analysisCatalogSetupBadgesEl,badges);
     }
     if (analysisRunBtnEl && !state.analysisInFlight) {
       analysisRunBtnEl.disabled = state.analysisContextMode === "general" ? false : !setupState.ready;
@@ -844,12 +801,13 @@ export function createAnalysisCatalogUi(ctx) {
     const method = item ? `catalog:${item.id}` : prompt.startsWith("Compare measurements:") ? "association"
       : /^Summarize the main clinical patterns in this (workspace|cohort) and tell me what stands out\.$/.test(prompt) ? "summary" : "custom";
     const items = Array.isArray(state.analysisCatalogItems) ? state.analysisCatalogItems : [];
-    select.innerHTML = '<option value="summary">Describe my cohort · No LLM needed</option><option value="association">Associate two measurements · No LLM needed</option>'
-      + '<optgroup label="Supported analyses">' + items.map(entry => {
-        const availability = analysisCatalogUiAvailability(entry);
-        const modeLabel = entry.execution_mode === "deterministic" ? "No LLM needed" : ["llm_only", "planner_only"].includes(entry.execution_mode) ? "Requires LLM" : "May use LLM";
-        return `<option value="catalog:${escapeHtml(entry.id)}" ${availability.available ? "" : "disabled"}>${escapeHtml(entry.name)} · ${availability.available ? modeLabel : "Unavailable"}</option>`;
-      }).join("") + '</optgroup><option value="custom">Write a request / follow-up</option>';
+    renderOptions(select,[{value:"summary",label:"Describe my cohort · No LLM needed"},
+      {value:"association",label:"Associate two measurements · No LLM needed"},
+      {label:"Supported analyses",options:items.map(entry=>{
+        const availability=analysisCatalogUiAvailability(entry);
+        const modeLabel=entry.execution_mode==="deterministic" ? "No LLM needed" : ["llm_only","planner_only"].includes(entry.execution_mode) ? "Requires LLM" : "May use LLM";
+        return {value:`catalog:${entry.id}`,disabled:!availability.available,label:`${entry.name} · ${availability.available ? modeLabel : "Unavailable"}`};
+      })},{value:"custom",label:"Write a request / follow-up"}]);
     select.value = method;
     document.getElementById("analysisMethodPicker").hidden = general;
     const comparison = document.getElementById("analysisMeasurementComparison");

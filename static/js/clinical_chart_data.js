@@ -1,4 +1,5 @@
 // Presentation-only normalization: do not infer sex from codes or change source data.
+export const clinicalSexColor=(label,index)=>({Female:'#0d9488',Male:'#3b82f6',Unknown:'#94a3b8'})[label] || ['#8b5cf6','#d97706'][index % 2];
 export function clinicalSexCounts(counts = {}) {
   const result = new Map();
   for (const [raw, value] of Object.entries(counts)) {

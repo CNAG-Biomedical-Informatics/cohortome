@@ -2,7 +2,7 @@ import { modalityLabel, modalityColor } from './modalities.js';
 import { createTimelineView, createPatientInspectorView } from './react/ui.js';
 
 // Availability is dataset-scoped. Clinical properties are inspector details.
-export function createTimelineUi({state, refs, helpers, callbacks}) {
+export function createTimelineUi({state, refs, helpers}) {
   const {escapeHtml: esc, mountPlot, dashboardPlotLayout} = helpers;
   const {detailEl} = refs;
   const view = createTimelineView(refs.dashboardTimelineEl);

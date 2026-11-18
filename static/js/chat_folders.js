@@ -7,8 +7,6 @@ export function createChatFoldersUi({ escapeHtml: esc, renderList }) {
   const dialog = document.getElementById('chatMoveDialog');
   const moveView=createMoveChatView(dialog);
   let destination='', moveError='', moving=false;
-  const search = document.getElementById('analysisChatSearch');
-  const searchToggle = document.getElementById('chatSearchToggle');
   let data = { folders: [], assignments: {}, pinned: [] };
   let epoch = 0;
   let pendingMove = null;
@@ -34,22 +32,9 @@ export function createChatFoldersUi({ escapeHtml: esc, renderList }) {
     return {folders:data.folders || [],assignments:data.assignments || {},pinned:data.pinned || [],collapsed:[...collapsed]};
   }
   document.getElementById('newChatFolderBtn').addEventListener('click', async () => {
-    document.getElementById('newChatChoices').hidden = true;
-    document.getElementById('analysisNewSessionBtn').setAttribute('aria-expanded', 'false');
     const name = window.prompt('New folder name');
     if (name === null) return;
     try { await request('', 'POST', { name: name.trim() }); } catch (error) { message(error.message); }
-  });
-  searchToggle.addEventListener('click', () => {
-    search.hidden = !search.hidden;
-    searchToggle.setAttribute('aria-expanded', String(!search.hidden));
-    if (!search.hidden) search.focus();
-    else { search.value = ''; renderList(); }
-  });
-  search.addEventListener('keydown', event => {
-    if (event.key !== 'Escape') return;
-    event.stopPropagation(); search.value = ''; search.hidden = true;
-    searchToggle.setAttribute('aria-expanded', 'false'); searchToggle.focus(); renderList();
   });
   list.addEventListener('click', async event => {
     const button = event.target.closest('button');

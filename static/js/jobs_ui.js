@@ -1,3 +1,4 @@
+import {mountJobNotice} from './react/ui.js';
 import {createJobsView} from './react/ui.js';
 
 export function createJobsUi(ctx) {
@@ -12,31 +13,16 @@ export function createJobsUi(ctx) {
   function notifyTransitions(jobs, user) {
     if (observedUser !== user) {
       observedStatuses.clear();
-      notice?.remove();
+      notice?.();
       observedUser = user;
     }
     const finished = jobs.filter((job) => ["queued", "running"].includes(observedStatuses.get(job.job_id))
       && ["completed", "failed"].includes(job.status));
     observedStatuses = new Map(jobs.map((job) => [job.job_id, job.status]));
     if (!finished.length || state.userSettings?.job_notifications === false) return;
-    notice?.remove();
-    notice = document.createElement("div");
-    notice.className = "job-completion-notice";
-    const message = document.createElement("span");
-    message.setAttribute("role", "status");
-    notice.append(message);
-    const view = document.createElement("button");
-    view.type = "button";
-    view.textContent = "View runs";
-    view.onclick = () => { setRunHistoryDrawerOpen(true); notice.remove(); };
-    const dismiss = document.createElement("button");
-    dismiss.type = "button";
-    dismiss.textContent = "Dismiss";
-    dismiss.onclick = () => notice.remove();
-    notice.append(view, dismiss);
-    document.body.append(notice);
-    const failed = finished.filter((job) => job.status === "failed").length;
-    message.textContent = `Background runs: ${finished.length - failed} completed, ${failed} failed.`;
+    notice?.();
+    const failed=finished.filter(job=>job.status==="failed").length;
+    notice=mountJobNotice(`Background runs: ${finished.length-failed} completed, ${failed} failed.`,()=>setRunHistoryDrawerOpen(true));
   }
   const {
     jobsDrawerBtnEl,
@@ -95,7 +81,7 @@ export function createJobsUi(ctx) {
 
   function closeJobSurfaces() {
     if (!state.authState?.authenticated) {
-      notice?.remove();
+      notice?.();
       observedStatuses.clear();
       observedUser = "";
     }
@@ -351,7 +337,7 @@ export function createJobsUi(ctx) {
     if (!state.authState || !state.authState.authenticated) {
       observedStatuses.clear();
       observedUser = "";
-      notice?.remove();
+      notice?.();
       state.recentJobs = [];
       renderJobsDrawer();
       renderRunHistoryDrawer();

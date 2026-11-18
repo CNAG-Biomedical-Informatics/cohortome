@@ -1,3 +1,4 @@
+import {renderNewChatGuidance} from './react/ui.js';
 import { createChatListView } from './react/ui.js';
 import { addWorkspaceRestoreAction } from './workspace_restore.js';
 import { analysisSessionScopeSummary } from './app_helpers.js';
@@ -11,8 +12,6 @@ export function createAnalysisSessionsUi(ctx) {
     analysisSelectedPatientIdsEl,
     analysisCompareModeEl,
     analysisCompareSelectedPatientIdsEl,
-    analysisSelectedSavedCohortSelectionEl,
-    analysisCompareSavedCohortSelectionEl,
     analysisStatusEl,
     analysisMetaEl,
     analysisSessionDeleteDialogEl,
@@ -25,7 +24,7 @@ export function createAnalysisSessionsUi(ctx) {
     analysisCurrentChatMetaEl,
     dataDirEl,
   } = refs;
-  const { escapeHtml, shortTimestamp, nowIso } = helpers;
+  const { shortTimestamp, nowIso } = helpers;
   const {
     createAnalysisSession,
     currentAnalysisSession,
@@ -70,7 +69,6 @@ export function createAnalysisSessionsUi(ctx) {
   });
   const chatSearch = document.getElementById("analysisChatSearch");
   const chatListView = analysisSessionListEl ? createChatListView(analysisSessionListEl) : null;
-  chatSearch?.addEventListener("input", renderAnalysisSessionList);
 
   function analysisSessionsStorageKey() {
     const namespace = typeof getStorageNamespace === "function" ? String(getStorageNamespace() || "").trim() : "";
@@ -431,7 +429,7 @@ export function createAnalysisSessionsUi(ctx) {
     if (latestAssistantTurn && latestAssistantTurn.payload) {
       renderAnalysisMeta(latestAssistantTurn.payload);
     } else if (analysisMetaEl) {
-      analysisMetaEl.innerHTML = "";
+      renderAnalysisMeta(null);
     }
     renderAnalysisSessionList();
   }
@@ -452,15 +450,9 @@ export function createAnalysisSessionsUi(ctx) {
       currentScope: currentDatasetSelectionKey(), restore: callbacks.restoreWorkspace,
       reopen: () => selectAnalysisSession(sessionId) });
     if (['stale', 'unavailable'].includes(workspaceStatus.state)) {
-      const guidance = document.createElement('div');
-      guidance.textContent = 'To work with the current data, start a new chat and select your cohorts and assay again. Your previous chat and results are kept.';
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'query-chip';
-      button.textContent = 'New chat with current data';
-      button.addEventListener('click', () => createAndSelectAnalysisSession());
-      if (!analysisStatusEl.textContent.includes('select your cohorts and assay again')) analysisStatusEl.append(guidance);
-      analysisStatusEl.append(document.createTextNode(' '), button);
+      const guidance=document.createElement('div');
+      analysisStatusEl.append(guidance);
+      renderNewChatGuidance(guidance,()=>createAndSelectAnalysisSession());
     }
   }
 

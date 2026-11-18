@@ -1,3 +1,4 @@
+import {renderOptions} from './react/ui.js';
 import { displayIdentity } from './identities.js';
 
 // Visible labels are not execution keys; retain the key when restoring a chat.
@@ -22,17 +23,13 @@ export function createPhenoPatientPicker(input, choices) {
     const labels = ids.map(id => displayIdentity(id));
     options = ids.map((key, i) => ({key, label: labels[i] + (labels.indexOf(labels[i]) !== labels.lastIndexOf(labels[i])
       ? (recordIds.includes(key) ? ' (visit)' : ' (patient)') : '')}));
-    if (choices) choices.replaceChildren(...options.map(({label}) => {
-      const option = document.createElement('option');
-      option.value = label;
-      return option;
-    }));
+    renderOptions(choices,options.map(({label})=>({value:label})));
     set(current);
   }
   function reset() {
     options = []; savedKey = ''; savedLabel = '';
     if (input) input.value = '';
-    choices?.replaceChildren();
+    renderOptions(choices);
   }
   return {get, set, load, reset};
 }

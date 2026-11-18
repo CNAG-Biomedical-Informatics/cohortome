@@ -2,6 +2,15 @@
 from test_ui_smoke import live_server, page, playwright
 
 
+def test_shell_bootstrap_contains_only_public_dataset_choices(page):
+    config = page.locator('#applicationConfig').text_content()
+    import json
+    payload = json.loads(config)
+    assert payload['datasets']
+    assert all(set(item) == {'dataset_id', 'name'} for item in payload['datasets'])
+    playwright.expect(page.locator('#applicationRoot main')).to_have_count(1)
+
+
 def identity(**changes):
     return dict(enabled=True, authenticated=False, mode='local',
                 local_login_enabled=True, password_reset_enabled=True, **changes)

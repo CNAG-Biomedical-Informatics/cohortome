@@ -308,7 +308,7 @@ def index(request: Request) -> HTMLResponse:
         "index.html",
         {
             "default_data_dir": selected_name,
-            "datasets": visible_datasets,
+            "datasets": [{"dataset_id": item.get("dataset_id"), "name": item.get("name")} for item in visible_datasets],
             "current_dataset_id": str(selected.get("dataset_id") or ""),
             "branding": branding_settings(),
             "appearance": load_user_settings(request_user_id(request)).get("appearance", "light") if user else "light",
