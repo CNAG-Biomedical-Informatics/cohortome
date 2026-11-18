@@ -39,7 +39,7 @@ Identical IDs from different datasets remain separate.
 
 Choose **Add clinical filter**, browse the available fields and set a condition.
 Combine rules with disease, sample-origin and ID filters. Patients and Multimodal
-share the same draft, shown as removable labels in both views.
+share the same draft. Expand **Filters** in either view to inspect or remove its rules.
 
 ![Available clinical filter fields in the synthetic longitudinal demo](/img/screenshots/clinical-filter-fields.png)
 
@@ -153,18 +153,22 @@ necessarily represent distinct biological specimens.
 
 ## Timeline
 
-1. Choose one dataset or all active datasets.
-2. Use **Has data** to require a data type, such as Proteomics.
-3. Select several types to require all of them.
-4. Click a marker, patient name, or grey span for details.
+Timeline displays the **applied patient scope**. To select patients by data
+availability, use **Multimodal**, then **Apply to scope**.
+
+1. View all datasets in scope or choose one dataset.
+2. Choose **Calendar dates** or **Study days**.
+3. Click a marker, patient name, or grey span for details.
+
+![Timeline showing data availability for a selected synthetic cohort](/img/screenshots/dashboard-timeline.png)
 
 The plot shows 40 patients per page. Legend controls change visible markers,
-not which patients match the filter.
+not the patient scope.
 
 Grey spans run from the earliest to the latest recorded observation; they do
 not imply continuous monitoring. Undated assays appear under **Date not
-recorded**, rather than being assigned an estimated visit. Dates are calendar
-dates, not aligned study visits.
+recorded**, rather than being assigned an estimated visit. **Study days** uses
+recorded offsets from each participant's baseline; it does not infer dates.
 
 OLINK appears under Proteomics. Imaging markers represent derived measurements;
 DICOM studies are listed in Imaging.

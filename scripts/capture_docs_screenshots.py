@@ -8,6 +8,7 @@ General-question reply. Only the example prompt is sent, not dataset records.
 Use --walkthrough-video to refresh the small silent multimodal clip and poster.
 Use --updated-views for the dataset, patient, assay, variant and multimodal screenshots.
 Use --cohort-scope for shared filters, clinical statistics and local-agent settings.
+Use --selection-views for patient filters, multimodal selection and Timeline.
 Use --biosamples-demo PATH with the public CINECA + GEUVADIS package for two biosample views.
 """
 from __future__ import annotations
@@ -65,11 +66,12 @@ def main() -> int:
     parser.add_argument('--updated-views', action='store_true', help='Capture only dataset, patient, assay, variant and multimodal views')
     parser.add_argument('--cohort-scope', action='store_true', help='Capture shared filters, clinical statistics and local-agent settings using bundled demos')
     parser.add_argument('--clinical-views', action='store_true', help='Capture only Clinical charts, measurement distributions and tables using bundled demos')
+    parser.add_argument('--selection-views', action='store_true', help='Capture patient filters, multimodal selection and Timeline using bundled demos')
     parser.add_argument('--walkthrough-video', action='store_true', help='Record only the silent multimodal docs walkthrough')
     parser.add_argument('--biosamples-demo', type=Path, help='Public CINECA + GEUVADIS package root; capture only biosample views')
     args = parser.parse_args()
     if sum(bool(value) for value in (args.updated_views, args.walkthrough_video,
-                                    args.biosamples_demo, args.cohort_scope, args.clinical_views)) > 1:
+                                    args.biosamples_demo, args.cohort_scope, args.clinical_views, args.selection_views)) > 1:
         parser.error('Choose only one capture mode')
     if args.biosamples_demo:
         args.biosamples_demo = args.biosamples_demo.resolve()
@@ -266,11 +268,12 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     print('Captured patient origins and biosample inventory from the public CINECA demo.')
                     return 0
 
-                if args.cohort_scope:
+                if args.cohort_scope or args.selection_views:
                     page.locator('#dashboardTabBtn').click()
                     expect(page.locator('#contextCohort')).not_to_contain_text('Loading')
                     expect(page.locator('[data-clinical-mode="table"]')).to_be_visible()
-                    capture('workspace-shell.png')
+                    if not args.selection_views:
+                        capture('workspace-shell.png')
                     page.locator('#dashboardPatientsBtn').click()
                     panel = page.locator('#dashboardPatientsPanel')
                     expect(panel.locator('[data-match]').first).to_be_visible()
@@ -286,7 +289,13 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     page.locator('#dashboardClinicalBtn').click()
                     page.locator('[data-clinical-mode="table"]').click()
                     expect(page.locator('.clinical-stats-table').first).to_be_visible()
-                    capture('clinical-characteristics.png', '#dashboardClinicalPanel')
+                    if not args.selection_views:
+                        capture('clinical-characteristics.png', '#dashboardClinicalPanel')
+                    if args.selection_views:
+                        page.locator('#dashboardTimelineBtn').click()
+                        expect(page.locator('#timelineAvailability tbody tr').first).to_be_visible()
+                        expect(page.locator('#dashboard-plot-timeline .main-svg').first).to_be_visible()
+                        capture('dashboard-timeline.png', '#dashboardTimeline')
                     response = page.request.post(url + '/datasets/select', data={
                         'dataset_ids': ['synthetic-cross-sectional-demo']})
                     assert response.ok
@@ -294,13 +303,18 @@ if os.environ.get('LM_STUDIO_ENABLED') == 'true':
                     page.locator('#dashboardTabBtn').click()
                     page.locator('#dashboardMultimodalBtn').click()
                     coverage = page.locator('.multimodal-coverage')
-                    expect(coverage.locator('.coverage-result')).to_contain_text('90 patients in scope')
+                    expect(coverage.locator('.cohort-scope-state')).to_contain_text('90 patients match selected data types')
                     coverage.locator('[data-disease="Systemic Lupus Erythematosus"]').click()
                     coverage.locator('input[value=transcriptomics]').check()
                     coverage.locator('input[value=methylation]').check()
                     coverage.locator('[data-scope-apply]').click()
-                    expect(coverage.locator('.coverage-result')).to_contain_text('28 patients in scope', timeout=30000)
+                    expect(coverage.locator('.cohort-scope-state')).to_contain_text('28 patients match selected data types', timeout=30000)
+                    expect(coverage.locator('.cohort-scope-pending')).to_be_hidden()
                     capture('multimodal-selection.png', '.multimodal-coverage')
+                    if args.selection_views:
+                        browser.close()
+                        print(f'Captured {len(captured)} selection views from bundled synthetic data.')
+                        return 0
                     page.locator('#accountMenuButton').click()
                     page.locator('#userSettingsBtn').click()
                     page.locator('[data-settings-section="query"]').click()
