@@ -47,7 +47,6 @@ export { createDeploymentLogoView, createDeploymentFormView } from './deployment
 export { createLocalAgentsView, createAgentPlansView } from './local-agents.jsx';
 export { createDicomFolderView } from './dicom-folder.jsx';
 export { createMolecularExportView } from './cohort-export.jsx';
-export { createProjectsView } from './projects.jsx';
 export { createResourceTermsView, createResourceNoticeView } from './resource-feedback.jsx';
 export { mountConversationComposers } from './conversation-composers.jsx';
 export { mountNavigationShell } from './navigation-shell.jsx';

@@ -17,7 +17,7 @@ def test_native_project_titles_and_cancelled_save():
         browser = p.chromium.launch()
         page = browser.new_page()
         page.route('http://projects.test/', lambda r: r.fulfill(content_type='text/html', body=
-            '<div class="app-icon-rail"><button id="runHistoryDrawerBtn"></button></div>'))
+            '<aside class="app-sidebar"></aside><main class="app-workbench"><section id="dashboardTab"></section></main>'))
         page.route('http://projects.test/projects.js', lambda r: r.fulfill(
             content_type='text/javascript', body=(root / 'static/js/projects.js').read_text()))
         page.route('http://projects.test/react/ui.js', lambda r: r.fulfill(
@@ -35,7 +35,10 @@ def test_native_project_titles_and_cancelled_save():
             })}
           };
           const {createProjectsUi} = await import('/projects.js');
-          createProjectsUi({state: {currentDatasetIds:['demo'], queryTurns:[]}, refs:{questionEl:{value:''}},
+          const {mountNavigationShell} = await import('/react/ui.js');
+          const projectViewRef = {current:null};
+          mountNavigationShell({actions:{projectViewRef}});
+          createProjectsUi({view:projectViewRef.current, state: {currentDatasetIds:['demo'], queryTurns:[]}, refs:{questionEl:{value:''}},
             sessions:{flushCurrentForProject:async()=>null, loadAnalysisSessionsFromBackend:async()=>{}},
             datasets:{currentDatasetSelectionKey:()=> 'demo', loadDatasets:async()=>{}},
             workspace:{loadPatients:async()=>{}}, navigation:{setActiveTab:()=>{}},

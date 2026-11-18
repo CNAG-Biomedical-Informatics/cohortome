@@ -125,7 +125,7 @@ export function createUserSettingsUi(ctx) {
     aboutView.render({report,status:copyStatus,ready:aboutLoaded,onCopy:copyAbout});
   }
   renderAbout();
-  about?.addEventListener("toggle", async () => {
+  async function loadAboutWhenOpen() {
     if (!about.open || aboutLoaded || aboutLoading) return;
     aboutLoading = true;
     report = "Detecting installed versions…";renderAbout();
@@ -142,7 +142,7 @@ export function createUserSettingsUi(ctx) {
     } catch (_) {
       report = "Unable to load versions. Close and reopen About to retry.";
     } finally { aboutLoading = false;renderAbout(); }
-  });
+  }
   async function copyAbout() {
     try {
       if (navigator.clipboard?.writeText) {
@@ -205,8 +205,6 @@ export function createUserSettingsUi(ctx) {
     const dirty = JSON.stringify(formSettings()) !== JSON.stringify(normalizeUserSettings(state.userSettings));
     document.getElementById("userSettingsDirty").textContent = dirty ? "Unsaved changes" : "";
   }
-  userSettingsPanelEl.addEventListener("input", updateDirtyStatus);
-  userSettingsPanelEl.addEventListener("change", updateDirtyStatus);
 
   function setPanelOpen(open) {
     if (!userSettingsPanelEl) return;
@@ -433,6 +431,8 @@ export function createUserSettingsUi(ctx) {
   }
 
   return {
+    loadAboutWhenOpen,
+    updateDirtyStatus,
     setPanelOpen,
     renderUserSettingsForm,
     renderAuthSummary,

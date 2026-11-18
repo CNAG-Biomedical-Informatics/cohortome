@@ -1,6 +1,5 @@
-import React, { useRef } from 'react';
-import { createRoot } from 'react-dom/client';
-import { flushSync } from 'react-dom';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const paths = {
   save: 'M5 3h12l4 4v14H3V3h2Zm2 0v7h10V3M7 21v-7h10v7',
@@ -66,9 +65,76 @@ function Menu({ busy, status, onSave, onOpen, onFile }) {
     </>
   );
 }
-export function createProjectsView(toggle, menu) {
-  const iconRoot = createRoot(toggle),
-    menuRoot = createRoot(menu);
-  flushSync(() => iconRoot.render(<Icon kind="save" />));
-  return { render: (m) => flushSync(() => menuRoot.render(<Menu {...m} />)) };
+export function ProjectControls({ viewRef }) {
+  const [model, setModel] = useState(null);
+  const [visible, setVisible] = useState(false);
+  const button = useRef(null),
+    menu = useRef(null);
+  useLayoutEffect(() => {
+    viewRef.current = { render: setModel, open: () => setVisible(true) };
+    return () => {
+      viewRef.current = null;
+    };
+  }, [viewRef]);
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const panel = menu.current,
+      bounds = button.current.getBoundingClientRect();
+    panel.style.left =
+      Math.max(8, Math.min(bounds.right + 8, innerWidth - panel.offsetWidth - 8)) + 'px';
+    panel.style.bottom =
+      Math.max(8, Math.min(innerHeight - bounds.bottom, innerHeight - panel.offsetHeight - 8)) +
+      'px';
+    panel.querySelector('#saveProjectBtn').focus();
+    const outside = (e) => {
+      if (!panel.contains(e.target) && !button.current.contains(e.target)) setVisible(false);
+    };
+    const escape = (e) => {
+      if (e.key === 'Escape') {
+        setVisible(false);
+        button.current.focus();
+      }
+    };
+    const resize = () => setVisible(false);
+    document.addEventListener('click', outside);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', resize);
+    return () => {
+      document.removeEventListener('click', outside);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('resize', resize);
+    };
+  }, [visible]);
+  if (!model) return null;
+  return (
+    <>
+      <button
+        type="button"
+        id="projectsMenuBtn"
+        className="rail-projects"
+        ref={button}
+        aria-expanded={visible}
+        aria-controls="projectsMenu"
+        aria-haspopup="dialog"
+        title="Projects — save or open"
+        aria-label="Projects — save or open"
+        onClick={() => setVisible(!visible)}
+      >
+        <Icon kind="save" />
+      </button>
+      {createPortal(
+        <div
+          id="projectsMenu"
+          className="account-menu app-project-menu"
+          role="dialog"
+          aria-label="Projects"
+          ref={menu}
+          hidden={!visible}
+        >
+          <Menu {...model} />
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }

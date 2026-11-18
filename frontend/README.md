@@ -11,6 +11,8 @@ and local-file links are not supported.
 - React also owns navigation click handlers and account-menu state, positioning
   and dismissal. The navigation controller still applies workspace transitions
   and permission-aware active views; do not bind duplicate native click handlers.
+- The rail owns the Projects menu and its keyboard/focus behaviour. The project
+  controller handles file dialogs, downloads and workspace restoration.
 - The chat sidebar owns New chat menu and search visibility/focus in React.
   Chat creation and search rendering delegate to the existing session controllers;
   the search input remains uncontrolled so chat creation can clear its draft.
@@ -33,6 +35,9 @@ configuration. Dataset choices contain IDs and names, not registry paths.
 
 - `page-shell.jsx` composes the screens in `shell/`; keep their DOM IDs stable.
 - `analysis-setup/` holds scope, catalogue, composer and starter prompts.
+- `../static/js/actions/` connects shell events to controllers by feature.
+  Bind controls in JSX, not again in the startup script. Document-wide events
+  such as dismissing an open ClarID popover remain native.
 - `analysis-results/` holds result types and shared artifact presentations.
 - `clinical-filters/` owns filter state, requests and cleanup; its view stays in
   `clinical-filters.jsx`.

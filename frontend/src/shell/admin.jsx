@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function UsersShell() {
+export function UsersShell({ actions }) {
   return (
     <section id="usersTab" className="tab-panel">
       <div className="controls">
@@ -14,7 +14,7 @@ export function UsersShell() {
         <div id="usersStatus" className="query-status">
           Loading users...
         </div>
-        <div id="usersList" className="analysis-session-list">
+        <div id="usersList" onClick={actions.usersListClick} className="analysis-session-list">
           <div className="empty">No users available.</div>
         </div>
       </div>
@@ -22,7 +22,7 @@ export function UsersShell() {
   );
 }
 
-export function ModelsShell() {
+export function ModelsShell({ actions }) {
   return (
     <section id="modelsTab" className="tab-panel">
       <div className="controls">
@@ -35,7 +35,7 @@ export function ModelsShell() {
         <div id="modelsStatus" className="query-status">
           Loading model providers...
         </div>
-        <div id="modelsList" className="dataset-picker-list">
+        <div id="modelsList" onClick={actions.modelsListClick} className="dataset-picker-list">
           <div className="empty">No model providers configured.</div>
         </div>
       </div>

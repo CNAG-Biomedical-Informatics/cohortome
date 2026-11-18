@@ -1,23 +1,5 @@
-import {createProjectsView} from './react/ui.js';
 // One resume format for browser download/upload and native file dialogs.
-export function createProjectsUi({state, refs, sessions, query, workspace, datasets, navigation}) {
-  const rail = document.querySelector('.app-icon-rail');
-  const toggle = document.createElement('button');
-  toggle.type = 'button'; toggle.id = 'projectsMenuBtn'; toggle.className = 'rail-projects';
-  toggle.title = 'Projects — save or open';
-  toggle.setAttribute('aria-label', toggle.title);
-  toggle.setAttribute('aria-haspopup', 'dialog');
-  toggle.setAttribute('aria-controls', 'projectsMenu');
-  toggle.setAttribute('aria-expanded', 'false');
-  rail.insertBefore(toggle, document.getElementById('runHistoryDrawerBtn'));
-  const brand = document.getElementById('deploymentBrand');
-  if (brand) rail.insertBefore(brand, toggle);
-  const section = document.createElement('div');
-  section.id = 'projectsMenu'; section.className = 'account-menu app-project-menu';
-  section.hidden = true; section.setAttribute('role', 'dialog');
-  section.setAttribute('aria-label', 'Projects');
-  document.body.append(section);
-  const view = createProjectsView(toggle,section);
+export function createProjectsUi({view, state, refs, sessions, query, workspace, datasets, navigation}) {
   let busy = false, projectName = 'Untitled', status = '';
   function render() {
     view.render({busy,status,onSave:()=>run(saveProject),onOpen:openProject,onFile:file=>run(async()=>{
@@ -25,24 +7,6 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
       await restore(await file.text());
     })});
   }
-  function showMenu(visible, focus = false) {
-    section.hidden = !visible;
-    toggle.setAttribute('aria-expanded', String(visible));
-    if (visible) {
-      const bounds = toggle.getBoundingClientRect();
-      section.style.left = `${Math.max(8, Math.min(bounds.right + 8, window.innerWidth - section.offsetWidth - 8))}px`;
-      section.style.bottom = `${Math.max(8, Math.min(window.innerHeight - bounds.bottom, window.innerHeight - section.offsetHeight - 8))}px`;
-      if (focus) section.querySelector('#saveProjectBtn').focus();
-    }
-  }
-  toggle.addEventListener('click', () => showMenu(section.hidden, true));
-  document.addEventListener('click', event => {
-    if (!section.contains(event.target) && !toggle.contains(event.target)) showMenu(false);
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !section.hidden) { showMenu(false); toggle.focus(); }
-  });
-  window.addEventListener('resize', () => showMenu(false));
   const native = () => window.__COHORTOME_DESKTOP__ && window.__TAURI__?.core;
   function updateProjectTitle(name) {
     projectName = name.trim();
@@ -71,12 +35,12 @@ export function createProjectsUi({state, refs, sessions, query, workspace, datas
     return payload;
   }
   async function run(action) {
-    showMenu(true);
+    view.open();
     try {
       idle(); busy = true; render();
       await action();
     } catch (error) { status = error?.message || String(error || 'Unable to complete the project operation.'); }
-    finally { busy = false; render(); showMenu(true); }
+    finally { busy = false; render(); view.open(); }
   }
   async function saveProject() {
     if (!state.currentDatasetIds.length) throw new Error('Select and apply a dataset before saving a project.');

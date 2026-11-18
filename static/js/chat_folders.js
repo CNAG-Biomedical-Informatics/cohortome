@@ -31,12 +31,12 @@ export function createChatFoldersUi({ escapeHtml: esc, renderList }) {
   function snapshot() {
     return {folders:data.folders || [],assignments:data.assignments || {},pinned:data.pinned || [],collapsed:[...collapsed]};
   }
-  document.getElementById('newChatFolderBtn').addEventListener('click', async () => {
+  async function newFolder() {
     const name = window.prompt('New folder name');
     if (name === null) return;
     try { await request('', 'POST', { name: name.trim() }); } catch (error) { message(error.message); }
-  });
-  list.addEventListener('click', async event => {
+  }
+  async function folderAction(event) {
     const button = event.target.closest('button');
     if (!button) return;
     const d = button.dataset;
@@ -63,7 +63,7 @@ export function createChatFoldersUi({ escapeHtml: esc, renderList }) {
         moveError=''; renderMove(); dialog.showModal(); dialog.querySelector('select').focus();
       }
     } catch (error) { message(error.message); }
-  });
+  }
   async function confirmMove() {
     if (!pendingMove || moving) return;
     moving=true; renderMove();
@@ -72,5 +72,5 @@ export function createChatFoldersUi({ escapeHtml: esc, renderList }) {
     } catch (error) { moveError=error.message; }
     finally { moving=false; renderMove(); }
   }
-  return { load, clear, snapshot, pins: () => data.pinned || [] };
+  return { newFolder, folderAction, load, clear, snapshot, pins: () => data.pinned || [] };
 }

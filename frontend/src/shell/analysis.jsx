@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function AnalysisShell() {
+export function AnalysisShell({ actions }) {
   return (
     <section id="analysisTab" className="tab-panel">
       <div id="analysisShell" className="analysis-shell">
@@ -24,7 +24,12 @@ export function AnalysisShell() {
               LM Studio model: checking...
             </div>
           </div>
-          <div id="analysisFlowBar" className="analysis-flow-bar" aria-label="Analysis workflow">
+          <div
+            id="analysisFlowBar"
+            onClick={actions.analysisFlowBarClick}
+            className="analysis-flow-bar"
+            aria-label="Analysis workflow"
+          >
             <button
               type="button"
               className="analysis-flow-step"
@@ -98,7 +103,11 @@ export function AnalysisShell() {
             </span>
             <small>Generated responses, plots, and follow-up prompts appear here.</small>
           </div>
-          <div id="analysisThread" className="analysis-thread">
+          <div
+            id="analysisThread"
+            onClick={actions.analysisThreadClick}
+            className="analysis-thread"
+          >
             <div className="empty">
               Run an analysis prompt to start a threaded analysis workspace.
             </div>

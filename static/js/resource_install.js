@@ -20,12 +20,12 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
     catalogueView.render({resources,repository:repositoryName,busy,category});
     if(el('resourceFilterEmpty')) el('resourceFilterEmpty').hidden = resources.some(r=>category==='all' || (r.install_mode || 'archive')===category);
   }
-  el('resourceFilters')?.addEventListener('click', event => {
+  function filterResources(event) {
     const button = event.target.closest('[data-category]');
     if (!button) return;
     category = button.dataset.category;
     filterCatalogue();
-  });
+  }
   const terms = el("resourceTerms");
   const termsView = terms ? createResourceTermsView(terms) : null;
   function reviewSource(resource) {
@@ -154,18 +154,18 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
     } catch (error) { status.textContent = error.message; }
     finally { browseButton.disabled = false; }
   }
-  add?.addEventListener("click", () => {
+  function openResources() {
     if (!panel.open) panel.showModal();
     void browse(); void poll();
-  });
-  el("resourceClose")?.addEventListener("click", () => panel.close());
-  panel?.addEventListener("close", () => {
+  }
+  function closeResources() { return panel.close(); }
+  function closedResources() {
     el("resourceToken").value = "";
     add.focus();
-  });
-  el("resourceImport")?.addEventListener("click", () => file.click());
-  el("resourceBrowse")?.addEventListener("click", () => browse(true));
-  list?.addEventListener("click", async (event) => {
+  }
+  function pickArchive() { return file.click(); }
+  function refreshResources() { return browse(true); }
+  async function downloadResource(event) {
     const button = event.target.closest("[data-resource]");
     if (!button || button.disabled || busy) return;
     const fromSource = button.dataset.source === "true";
@@ -182,8 +182,8 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
       }));
       void poll();
     } catch (error) { show({ stage: "failed", message: error.message }); }
-  });
-  file?.addEventListener("change", async () => {
+  }
+  async function importArchive() {
     const archive = file.files[0];
     if (!archive || busy) return;
     if (archive.size > 1024 ** 3) {
@@ -197,23 +197,23 @@ export function createResourceInstaller({ escapeHtml, refresh, select }) {
       void poll();
     } catch (error) { show({ stage: "failed", message: error.message }); }
     finally { file.value = ""; }
-  });
-  cancel?.addEventListener("click", async () => {
+  }
+  async function cancelInstall() {
     if (!current?.id) return;
     try {
       await api(`/resources/jobs/${current.id}/cancel`, { method: "POST" });
       status.textContent = "Cancelling…";
     } catch (error) { status.textContent = error.message; }
-  });
-  use?.addEventListener("click", () => {
+  }
+  function useDataset() {
     if (current?.dataset_id) {
       acknowledge();
       panel.close();
       select(current.dataset_id);
       status.textContent = "Added to selection. Click Apply workspace when ready.";
     }
-  });
-  return { setAllowed(allowed) {
+  }
+  return { filterResources, openResources, closeResources, closedResources, pickArchive, refreshResources, downloadResource, importArchive, cancelInstall, useDataset, setAllowed(allowed) {
     add?.classList.toggle("is-hidden", !allowed);
     if (allowed && !monitoring) {
       monitoring = true;

@@ -817,6 +817,7 @@ export function createDatasetsUi(ctx) {
   }
 
   return {
+    resourceInstaller,
     renderLoadButtonState,
     selectedDatasetIdsFromUi,
     currentDatasetId,

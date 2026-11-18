@@ -4,7 +4,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 
-export function mountNavigationShell({ onNavigate, onDashboardNavigate } = {}) {
+export function mountNavigationShell({ onNavigate, onDashboardNavigate, actions } = {}) {
   const sidebar = document.querySelector('.app-sidebar');
   const workbench = document.querySelector('.app-workbench');
   const rail = document.createElement('nav');
@@ -17,6 +17,7 @@ export function mountNavigationShell({ onNavigate, onDashboardNavigate } = {}) {
   flushSync(() => {
     createRoot(rail).render(
       <AccountNavigation
+        actions={actions}
         helpUrl={sidebar.dataset.helpUrl}
         name={sidebar.dataset.brandName}
         onNavigate={onNavigate}
@@ -37,14 +38,5 @@ export function mountNavigationShell({ onNavigate, onDashboardNavigate } = {}) {
     button.title = label;
     button.setAttribute('aria-label', label);
   }
-  const runs = document.getElementById('runHistoryDrawerBtn');
-  runs.setAttribute('aria-label', 'Runs');
-  runs.title = 'Runs — history and active jobs';
-  runs.classList.add('rail-runs');
-  rail.insertBefore(runs, document.getElementById('accountMenuButton'));
-  document
-    .querySelector('#runHistoryDrawer .jobs-drawer-header')
-    .append(document.getElementById('jobsDrawerBtn'));
-  runs.append(document.getElementById('jobsDrawerCount'));
   workbench.classList.add('has-icon-rail');
 }

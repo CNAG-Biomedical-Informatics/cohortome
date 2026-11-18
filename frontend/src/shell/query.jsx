@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function QueryShell() {
+export function QueryShell({ actions }) {
   return (
     <section id="queryTab" className="tab-panel">
       <div className="controls">
@@ -30,7 +30,7 @@ export function QueryShell() {
               <span className="query-chip query-chip-planner badge">LLM-planned</span>{' '}
               <span className="query-chip query-chip-llm badge">LLM interpretation</span>
             </div>
-            <div className="query-examples" id="queryExamples">
+            <div className="query-examples" id="queryExamples" onClick={actions.queryExamplesClick}>
               <button
                 type="button"
                 className="query-chip query-chip-deterministic"
@@ -245,11 +245,17 @@ export function QueryShell() {
         <div id="queryChatContextNotice" className="query-chat-notice" hidden></div>
         <div id="queryChatMessage" className="query-chat-notice" hidden>
           <span id="queryChatMessageText"></span>
-          <button id="queryChatSaveRetry" type="button" className="query-chip" hidden>
+          <button
+            id="queryChatSaveRetry"
+            onClick={actions.retrySave}
+            type="button"
+            className="query-chip"
+            hidden
+          >
             Retry save
           </button>
         </div>
-        <div id="queryThread" className="analysis-thread">
+        <div id="queryThread" onClick={actions.queryThreadClick} className="analysis-thread">
           <div className="empty">
             Ask a query to start a conversational thread. Recent text history is kept, but
             previous-result memory is opt-in.
@@ -264,7 +270,11 @@ export function QueryShell() {
           <div id="queryReason" className="empty">
             Run a query to see how the answer was produced.
           </div>
-          <div id="queryFollowups" className="query-followups"></div>
+          <div
+            id="queryFollowups"
+            onClick={actions.queryFollowupsClick}
+            className="query-followups"
+          ></div>
           <details id="queryDetails" className="query-section" style={{ marginTop: '12px' }}>
             <summary>Show structured data</summary>
             <pre id="queryData"></pre>

@@ -174,16 +174,17 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
     render(); await save();
     panel.lastElementChild?.scrollIntoView({block:'start', behavior:'smooth'});
   }
-  panel.addEventListener('click', event => {const b=event.target.closest('[data-pheno-turn]'); if(b) void showTurn(Number(b.dataset.phenoTurn));});
-  document.getElementById('phenoChatSave').addEventListener('click', () => void save());
-  document.getElementById('phenoChatReload').addEventListener('click', () => {
+  function selectTurn(event) {const b=event.target.closest('[data-pheno-turn]'); if(b) void showTurn(Number(b.dataset.phenoTurn));}
+  function saveChat() { return void save(); }
+  function reloadChat() {
     if (current && window.confirm('Reload the saved chat and discard unsaved changes in this window?')) void open(current.id, true);
-  });
-  document.getElementById('phenoTab').addEventListener('input', event => {
-    if (!Object.values(fields).includes(event.target.id) && !Object.values(checks).includes(event.target.id)) return;
+  }
+  function draftEdited(event) {
+    if (!Object.values(fields).includes(event.target.id) && !Object.values(checks).includes(event.target.id)
+        && !['phenoIncludeTerms','phenoExcludeTerms'].includes(event.target.id)) return;
     clearTimeout(timer); if (!restoring && !pheno.chatBusy()) timer = setTimeout(() => void save(), 700);
-  });
-  document.getElementById('analysisSessionList').addEventListener('click', async event => {
+  }
+  async function chatAction(event) {
     const button = event.target.closest('button'); if (!button) return;
     if (button.dataset.phenoSessionId) return void open(button.dataset.phenoSessionId);
     const id = button.dataset.phenoRename || button.dataset.phenoDelete; if (!id || pheno.chatBusy() || restoring) return;
@@ -202,13 +203,13 @@ export function createPhenoSessionsUi({state, refs, pheno, escapeHtml: esc, rend
       }
       await load();
     } catch(error) {status.textContent = error.message;}
-  });
+  }
   function forget(ids) {
     if (ids.includes(current?.id)) {detach(); pheno.resetPhenoRunWorkspace(); pheno.restoreChatSetup({});}
     items=items.filter(i => !ids.includes(i.id)); render();
   }
   window.addEventListener('cohortome:workspace-changing', detach);
-  return {save, load, newChat, issue, record, forgetDeletedChats:forget,
+  return { selectTurn, draftEdited, saveChat, reloadChat, chatAction,save, load, newChat, issue, record, forgetDeletedChats:forget,
     explanationStatus(update) {
       explanationProgress = update.error
         ? {request: explanationProgress?.request || 'Explain results', message: update.error, error: true}

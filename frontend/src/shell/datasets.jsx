@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function DatasetsShell({ datasets, current_dataset_id }) {
+export function DatasetsShell({ actions, datasets, current_dataset_id }) {
   return (
     <section id="datasetsTab" className="tab-panel">
       <div className="controls dashboard-loader">
@@ -15,6 +15,7 @@ export function DatasetsShell({ datasets, current_dataset_id }) {
             <select
               defaultValue={[current_dataset_id]}
               id="dataDir"
+              onChange={actions.dataDirChange}
               multiple
               size="4"
               className="dataset-picker-native"
@@ -34,7 +35,7 @@ export function DatasetsShell({ datasets, current_dataset_id }) {
               <div className="empty">No dataset available.</div>
             </div>
           </div>
-          <button id="loadBtn" type="button">
+          <button id="loadBtn" onClick={actions.loadBtnClick} type="button">
             <span id="loadBtnIcon" className="button-icon" aria-hidden="true">
               <svg
                 viewBox="0 0 24 24"
@@ -67,13 +68,14 @@ export function DatasetsShell({ datasets, current_dataset_id }) {
   );
 }
 
-export function DataManagementShell() {
+export function DataManagementShell({ actions }) {
   return (
     <section id="dataTab" className="tab-panel">
       <div className="controls dashboard-loader">
         <h3>Data management</h3>
         <button
           id="resourceAdd"
+          onClick={actions.openResources}
           type="button"
           className="query-chip is-hidden"
           aria-haspopup="dialog"
@@ -81,7 +83,12 @@ export function DataManagementShell() {
         >
           ＋ Add dataset
         </button>
-        <dialog id="resourcePanel" className="resource-dialog" aria-labelledby="resourceTitle">
+        <dialog
+          id="resourcePanel"
+          onClose={actions.closedResources}
+          className="resource-dialog"
+          aria-labelledby="resourceTitle"
+        >
           <header className="resource-dialog-header">
             <div>
               <h2 id="resourceTitle">Add dataset</h2>
@@ -89,6 +96,7 @@ export function DataManagementShell() {
             </div>
             <button
               id="resourceClose"
+              onClick={actions.closeResources}
               type="button"
               className="icon-button"
               aria-label="Close add dataset"
@@ -101,17 +109,24 @@ export function DataManagementShell() {
               <h3>Available datasets</h3>
               <button
                 id="resourceBrowse"
+                onClick={actions.refreshResources}
                 type="button"
                 className="query-chip"
                 aria-label="Refresh available datasets"
               >
                 Refresh
               </button>
-              <button id="resourceImport" type="button" className="query-chip">
+              <button
+                id="resourceImport"
+                onClick={actions.pickArchive}
+                type="button"
+                className="query-chip"
+              >
                 Import ZIP…
               </button>
               <input
                 id="resourceFile"
+                onChange={actions.importArchive}
                 type="file"
                 accept=".zip,application/zip"
                 className="is-hidden"
@@ -120,6 +135,7 @@ export function DataManagementShell() {
             <p id="resourceCatalogueStatus" className="section-note" role="status"></p>
             <div
               id="resourceFilters"
+              onClick={actions.filterResources}
               className="resource-filters"
               role="group"
               aria-label="Dataset installation type"
@@ -127,7 +143,11 @@ export function DataManagementShell() {
             <p id="resourceFilterEmpty" className="section-note" hidden>
               No datasets in this category.
             </p>
-            <div id="resourceList" className="resource-catalogue"></div>
+            <div
+              id="resourceList"
+              onClick={actions.downloadResource}
+              className="resource-catalogue"
+            ></div>
             <details id="resourceAccess" className="view-help resource-access">
               <summary>Private repository access</summary>
               <label htmlFor="resourceToken">Repository read token</label>
@@ -160,10 +180,20 @@ export function DataManagementShell() {
               aria-label="Dataset download progress"
             ></progress>
             <div className="saved-cohort-actions">
-              <button id="resourceCancel" type="button" className="query-chip is-hidden">
+              <button
+                id="resourceCancel"
+                onClick={actions.cancelInstall}
+                type="button"
+                className="query-chip is-hidden"
+              >
                 Cancel
               </button>
-              <button id="resourceSelect" type="button" className="query-chip is-hidden">
+              <button
+                id="resourceSelect"
+                onClick={actions.useDataset}
+                type="button"
+                className="query-chip is-hidden"
+              >
                 Add to workspace selection
               </button>
             </div>
@@ -178,7 +208,11 @@ export function DataManagementShell() {
         <div id="datasetAdminControls">
           <h4>Installed datasets</h4>
           <p className="section-note">Open a dataset to manage its preparation and policies.</p>
-          <div id="datasetAdminList" className="dataset-picker-list">
+          <div
+            id="datasetAdminList"
+            onClick={actions.datasetAdminListClick}
+            className="dataset-picker-list"
+          >
             <div className="empty">No installed datasets available.</div>
           </div>
         </div>
@@ -187,7 +221,7 @@ export function DataManagementShell() {
   );
 }
 
-export function CohortsShell() {
+export function CohortsShell({ actions }) {
   return (
     <section id="cohortsTab" className="tab-panel">
       <div className="controls">
@@ -211,6 +245,7 @@ export function CohortsShell() {
             </span>
             <input
               id="cohortLibrarySearch"
+              onInput={actions.searchLibrary}
               type="text"
               list="cohortLibrarySuggestions"
               autoComplete="off"
@@ -221,6 +256,7 @@ export function CohortsShell() {
           <datalist id="cohortLibrarySuggestions"></datalist>
           <button
             id="cohortLibraryRefresh"
+            onClick={actions.refreshLibrary}
             type="button"
             className="query-chip"
             aria-label="Refresh cohorts"
@@ -248,8 +284,16 @@ export function CohortsShell() {
           </p>
         </details>
         <p id="cohortLibraryStatus" className="section-note" role="status"></p>
-        <div id="cohortLibraryList"></div>
-        <div id="cohortLibraryPages" className="saved-cohort-actions"></div>
+        <div
+          id="cohortLibraryList"
+          onClick={actions.chooseLibraryAction}
+          onKeyDown={actions.keyLibrary}
+        ></div>
+        <div
+          id="cohortLibraryPages"
+          onClick={actions.pageLibrary}
+          className="saved-cohort-actions"
+        ></div>
       </div>
     </section>
   );

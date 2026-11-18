@@ -562,9 +562,9 @@ export function createDashboardUi(ctx) {
           description:base+(includeOverlap ? ` • A overlap ${overlap.overlapA}${analysisCompareModeEl?.checked ? ` • B overlap ${overlap.overlapB}` : ""}` : "")};
       })
     }));
-    renderAssayChoices(mainListEl,groupsFor(state.assayDatasetsState.filter(isQuickExpressionDataset)),"No raw-count transcriptomics assays available");
+    renderAssayChoices(mainListEl,groupsFor(state.assayDatasetsState.filter(isQuickExpressionDataset)),"No raw-count transcriptomics assays available", changeAssaySelection);
     renderAssayChoices(contextualListEl,contextRequiresAssay ? groupsFor(contextualAssayDatasets(),true) : [],
-      contextRequiresAssay ? "No compatible assays are available in this workspace." : "Choose an assay analysis to select a compatible assay.");
+      contextRequiresAssay ? "No compatible assays are available in this workspace." : "Choose an assay analysis to select a compatible assay.", changeAssaySelection);
   }
 
   function syncSelectedAssayDatasets() {
@@ -1289,21 +1289,15 @@ export function createDashboardUi(ctx) {
     }
   }
 
-  function handleAssayDatasetSelectionChange(sourceEl = null, changedInput = null) {
-    const listEl = sourceEl || analysisAssayDatasetListEl || analysisCatalogAssayDatasetListEl;
-    if (!listEl) return;
-    let selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked'))
-      .map((item) => item.value)
-      .filter(Boolean);
-    const item = currentAnalysisCatalogItem();
-    if (requiresSingleSelectedAssayDataset(item) && selected.length > 1) {
-      const changedValue = changedInput && changedInput.checked ? String(changedInput.value || "").trim() : "";
-      selected = changedValue ? [changedValue] : selected.slice(-1);
-    }
-    state.selectedAssayDatasets = selected;
+  function changeAssaySelection(value, checked) {
+    const other = state.selectedAssayDatasets.filter(id => id !== value);
+    state.selectedAssayDatasets = !checked ? other
+      : requiresSingleSelectedAssayDataset(currentAnalysisCatalogItem()) ? [value] : [...other, value];
     renderAssayDatasetSelector();
     syncCurrentAnalysisSessionFromUi({render: false});
     void loadAssayFeatureSuggestions();
+    renderAnalysisCatalogAssayPanel();
+    renderAnalysisCatalog();
   }
 
   function handleAssayFeatureInput() {
@@ -1387,7 +1381,6 @@ export function createDashboardUi(ctx) {
     loadDicomStudies,
     loadAssayDatasets,
     runAssayExpressionAnalysis,
-    handleAssayDatasetSelectionChange,
     handleAssayFeatureInput,
     assayDatasetOverlap,
     handleClaridAction,

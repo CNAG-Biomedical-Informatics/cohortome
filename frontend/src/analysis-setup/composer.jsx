@@ -1,5 +1,5 @@
 import React from 'react';
-export function AnalysisComposer() {
+export function AnalysisComposer({ actions }) {
   return (
     <div id="analysisComposer" className="analysis-composer">
       <div className="analysis-composer-header">
@@ -8,6 +8,7 @@ export function AnalysisComposer() {
           <div className="context-mode-switch" role="group" aria-label="Analysis question context">
             <button
               id="analysisContextWorkspaceBtn"
+              onClick={actions.analysisContextWorkspaceBtnClick}
               type="button"
               className="context-mode-option is-active"
               aria-pressed="true"
@@ -31,6 +32,7 @@ export function AnalysisComposer() {
             </button>
             <button
               id="analysisContextGeneralBtn"
+              onClick={actions.analysisContextGeneralBtnClick}
               type="button"
               className="context-mode-option"
               aria-pressed="false"
@@ -59,7 +61,11 @@ export function AnalysisComposer() {
       <div className="analysis-picker">
         <div id="analysisMethodPicker" className="analysis-picker-copy">
           <label htmlFor="analysisMethodSelect">What analysis would you like to run?</label>
-          <select id="analysisMethodSelect" aria-describedby="analysisMethodDescription">
+          <select
+            id="analysisMethodSelect"
+            onChange={actions.chooseMethod}
+            aria-describedby="analysisMethodDescription"
+          >
             <option value="summary">Describe my cohort · No LLM needed</option>
           </select>
           <p id="analysisMethodDescription" className="section-note">
@@ -77,22 +83,37 @@ export function AnalysisComposer() {
           </div>
         </div>
         <div className="analysis-picker-actions">
-          <button id="analysisCatalogBrowseBtn" type="button" className="query-chip">
+          <button
+            id="analysisCatalogBrowseBtn"
+            onClick={actions.analysisCatalogBrowseBtnClick}
+            type="button"
+            className="query-chip"
+          >
             Browse method details
           </button>
-          <button id="analysisComposerExamplesBtn" type="button" className="query-chip">
+          <button
+            id="analysisComposerExamplesBtn"
+            onClick={actions.analysisComposerExamplesBtnClick}
+            type="button"
+            className="query-chip"
+          >
             Prompt examples
           </button>
         </div>
         <div
           id="analysisCatalogList"
+          onClick={actions.analysisCatalogListClick}
           className="analysis-catalog-featured is-hidden"
           aria-hidden="true"
         >
           <div className="empty">Loading curated analyses...</div>
         </div>
         <div id="analysisCatalogAssayParking">
-          <div id="analysisCatalogAssayPanel" className="analysis-assay-panel is-hidden">
+          <div
+            id="analysisCatalogAssayPanel"
+            onClick={actions.analysisCatalogAssayPanelClick}
+            className="analysis-assay-panel is-hidden"
+          >
             <div className="analysis-assay-panel-header">
               <div className="analysis-assay-panel-heading">Requirements</div>
               <strong id="analysisCatalogAssayTitle">Analysis setup</strong>
@@ -115,7 +136,11 @@ export function AnalysisComposer() {
           </div>
         </div>
       </div>
-      <details id="analysisMeasurementComparison" className="section-card">
+      <details
+        id="analysisMeasurementComparison"
+        onChange={actions.measurementChanged}
+        className="section-card"
+      >
         <summary>Compare two measurements · Exploratory association</summary>
         <div id="associationExamples" className="section-note" hidden></div>
         <p className="section-note">

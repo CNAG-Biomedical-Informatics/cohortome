@@ -182,21 +182,20 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
     if (['stale', 'unavailable', 'unknown'].includes(current.workspace_status?.state)) return 'The original workspace has changed. Start a new Query chat.';
     return '';
   }
-  search.addEventListener('input', render);
   window.addEventListener('cohortome:scope-applied', render);
-  refs.questionEl.addEventListener('input', () => {
+  function draftEdited() {
     clearTimeout(timer);
     editVersion += 1;
     saveState = 'Unsaved changes';
     render();
     if (!state.queryInFlight && !continuationIssue()) timer = setTimeout(() => void save(), 600);
-  });
-  retry.addEventListener('click', () => {
+  }
+  function retrySave() {
     if (conflict && current) {
       if (window.confirm('Reload the saved chat and discard your unsaved changes in this window?')) void open(current.id, true);
     } else void save();
-  });
-  list.addEventListener('click', async event => {
+  }
+  async function chatAction(event) {
     const button = event.target.closest('button');
     if (!button) return;
     if (button.dataset.querySessionId) return void open(button.dataset.querySessionId);
@@ -218,8 +217,8 @@ export function createQuerySessionsUi({ state, refs, query, escapeHtml, openQuer
       }
       await load();
     } catch (error) { message(error.message); }
-  });
-  return { load, save, clear, detach, newChat, continuationIssue, cardModel,
+  }
+  return { draftEdited, retrySave, chatAction, load, save, clear, detach, newChat, continuationIssue, cardModel,
     forgetDeletedChats(ids) {
       if (ids.includes(current?.id)) { detach(); query.resetQueryWorkspace(); }
       items = items.filter(item => !ids.includes(item.id));

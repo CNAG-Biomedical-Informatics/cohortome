@@ -58,10 +58,10 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
       message(`Deleted ${deleted.length} of ${items.length} chats. ${error.message} Remaining chats were kept.`);
     } finally { busy = false; updateCount(); render(); }
   }
-  document.getElementById('selectChatsBtn').addEventListener('click', () => {
+  function selectChats() {
     selecting = true; selected.clear();
     render();
-  });
+  }
   function toggle(chatKey, checked) {
     if (busy) return;
     const item = entries().find(item => key(item) === chatKey);
@@ -69,11 +69,11 @@ export function createChatDeletionUi({ state, escapeHtml: esc, render, prepare, 
     if (checked) selected.set(key(item), item); else selected.delete(key(item));
     render();
   }
-  list.addEventListener('click', event => {
+  function selectionAction(event) {
     if (event.target.closest('[data-delete-selected]')) void remove([...selected.values()]);
     if (event.target.closest('[data-cancel-selection]') && !busy) { selecting = false; selected.clear(); render(); }
-  });
-  return {
+  }
+  return { selectChats, selectionAction,
     clear() { epoch++; selecting = false; selected.clear(); dialog.close(); },
     open() { status=''; includePins=false; updateCount(); dialog.showModal(); },
     snapshot() { return {selecting, busy, selected:[...selected.keys()], toggle}; },

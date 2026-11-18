@@ -1,12 +1,13 @@
 import React from 'react';
 
-export function SettingsPanel() {
+export function SettingsPanel({ actions }) {
   return (
     <>
       <div className="user-settings-header">
         <strong>Settings</strong>
         <button
           id="userSettingsCloseBtn"
+          onClick={actions.userSettingsCloseBtnClick}
           type="button"
           className="icon-button"
           aria-label="Close settings"
@@ -55,13 +56,28 @@ export function SettingsPanel() {
                 remove their results and files; active runs are kept.
               </p>
               <div className="user-settings-danger-actions">
-                <button id="userDeleteChatsBtn" type="button" className="danger-btn">
+                <button
+                  id="userDeleteChatsBtn"
+                  onClick={actions.userDeleteChatsBtnClick}
+                  type="button"
+                  className="danger-btn"
+                >
                   Clear chat history…
                 </button>
-                <button id="userDeleteJobsBtn" type="button" className="danger-btn">
+                <button
+                  id="userDeleteJobsBtn"
+                  onClick={actions.userDeleteJobsBtnClick}
+                  type="button"
+                  className="danger-btn"
+                >
                   Delete generated runs
                 </button>
-                <button id="userDeleteCohortsBtn" type="button" className="danger-btn">
+                <button
+                  id="userDeleteCohortsBtn"
+                  onClick={actions.userDeleteCohortsBtnClick}
+                  type="button"
+                  className="danger-btn"
+                >
                   Delete saved cohorts
                 </button>
               </div>
@@ -77,7 +93,7 @@ export function SettingsPanel() {
               <strong>Authentication</strong>
               <div className="section-note">Loading authentication details...</div>
             </div>
-            <details id="settingsAbout"></details>
+            <details id="settingsAbout" onToggle={actions.aboutToggled}></details>
           </section>
         </div>
       </div>
@@ -87,10 +103,15 @@ export function SettingsPanel() {
         </div>
         <span id="userSettingsDirty" role="status" aria-live="polite"></span>
         <div className="user-settings-actions">
-          <button id="userSettingsResetBtn" type="button" className="secondary-btn">
+          <button
+            id="userSettingsResetBtn"
+            onClick={actions.userSettingsResetBtnClick}
+            type="button"
+            className="secondary-btn"
+          >
             Restore defaults
           </button>
-          <button id="userSettingsSaveBtn" type="button">
+          <button id="userSettingsSaveBtn" onClick={actions.userSettingsSaveBtnClick} type="button">
             Save changes
           </button>
         </div>

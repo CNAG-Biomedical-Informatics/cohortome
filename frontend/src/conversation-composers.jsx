@@ -269,13 +269,18 @@ function AnalysisComposer({ actions }) {
     </>
   );
 }
-export function mountConversationComposers({ queryActions, analysisActions, phenoActions }) {
+export function mountConversationComposers({
+  shellActions,
+  queryActions,
+  analysisActions,
+  phenoActions,
+}) {
   for (const [id, Component, props] of [
-    ['analysisSetupDisclosure', AnalysisSetup],
+    ['analysisSetupDisclosure', AnalysisSetup, { shellActions }],
     ['queryComposer', QueryComposer, { actions: queryActions }],
     ['analysisRequestComposer', AnalysisComposer, { actions: analysisActions }],
     ['phenoRunPanel', PhenoComposer, { actions: phenoActions }],
-    ['phenoSetupDetails', PhenoSetup],
+    ['phenoSetupDetails', PhenoSetup, { actions: shellActions.PhenoSetup }],
   ]) {
     const host = document.getElementById(id);
     if (host) flushSync(() => createRoot(host).render(<Component {...props} />));

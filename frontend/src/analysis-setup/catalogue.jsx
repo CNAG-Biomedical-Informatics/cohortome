@@ -1,8 +1,9 @@
 import React from 'react';
-export function CatalogueDrawer() {
+export function CatalogueDrawer({ actions }) {
   return (
     <div
       id="analysisCatalogDrawer"
+      onClick={actions.analysisCatalogDrawerClick}
       className="analysis-catalog-drawer is-hidden"
       aria-hidden="true"
     >
@@ -20,7 +21,12 @@ export function CatalogueDrawer() {
               Curated, structured analyses that preconfigure the current Analysis thread.
             </div>
           </div>
-          <button id="analysisCatalogDrawerCloseBtn" type="button" className="query-chip">
+          <button
+            id="analysisCatalogDrawerCloseBtn"
+            onClick={actions.analysisCatalogDrawerCloseBtnClick}
+            type="button"
+            className="query-chip"
+          >
             Close
           </button>
         </div>
@@ -29,12 +35,14 @@ export function CatalogueDrawer() {
             <span className="analysis-catalog-search-label">Search</span>
             <input
               id="analysisCatalogDrawerSearch"
+              onInput={actions.analysisCatalogDrawerSearchInput}
               type="search"
               placeholder="Find tools by name, tag, runner, or description"
             />
           </label>
           <div
             id="analysisCatalogDrawerFilters"
+            onClick={actions.analysisCatalogDrawerFiltersClick}
             className="analysis-catalog-filters"
             role="tablist"
             aria-label="Analysis Catalog filters"
@@ -99,7 +107,11 @@ export function CatalogueDrawer() {
             </button>
           </div>
         </div>
-        <div id="analysisCatalogDrawerList" className="analysis-catalog-list">
+        <div
+          id="analysisCatalogDrawerList"
+          onClick={actions.analysisCatalogDrawerListClick}
+          className="analysis-catalog-list"
+        >
           <div className="empty">Loading curated analyses...</div>
         </div>
       </div>

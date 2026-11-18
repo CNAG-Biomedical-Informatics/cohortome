@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Rail } from './navigation-rail.jsx';
 import { AccountMenu } from './account-menu.jsx';
 
-export function AccountNavigation({ onNavigate, helpUrl, name }) {
+export function AccountNavigation({ actions, onNavigate, helpUrl, name }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({});
   const avatar = useRef(null);
@@ -50,6 +50,7 @@ export function AccountNavigation({ onNavigate, helpUrl, name }) {
   return (
     <>
       <Rail
+        actions={actions}
         onNavigate={onNavigate}
         accountOpen={open}
         onAccountToggle={toggle}
@@ -69,7 +70,7 @@ export function AccountNavigation({ onNavigate, helpUrl, name }) {
             if (action && action.id !== 'adminTabBtn') setOpen(false);
           }}
         >
-          <AccountMenu onNavigate={onNavigate} helpUrl={helpUrl} name={name} />
+          <AccountMenu actions={actions} onNavigate={onNavigate} helpUrl={helpUrl} name={name} />
         </div>,
         document.body,
       )}

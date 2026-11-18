@@ -71,10 +71,6 @@ export function createAnalysisUi(ctx) {
     else if (state.analysisTurns.length) placeAnalysisRequest(true);
   });
 
-  document.getElementById("analysisFlowBar")?.addEventListener("click", (event) => {
-    const step = event.target.closest("[data-analysis-flow-target]");
-    if (step && step.dataset.analysisFlowTarget !== "results") openAnalysisSetup();
-  }, true);
 
   function isGeneralQuestionMode() {
     return state.analysisContextMode === "general";
@@ -1174,6 +1170,7 @@ export function createAnalysisUi(ctx) {
 
   return {
     editSetup,
+    openAnalysisSetup,
     renderAnalysisMeta,
     renderAnalysisCompareMode,
     analysisPromptRequestsPlots,

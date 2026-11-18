@@ -1,5 +1,6 @@
 import React from 'react';
-export function Rail({ onNavigate, accountOpen, onAccountToggle, avatarRef }) {
+import { ProjectControls } from '../projects.jsx';
+export function Rail({ actions, onNavigate, accountOpen, onAccountToggle, avatarRef }) {
   return (
     <>
       <button
@@ -138,6 +139,7 @@ export function Rail({ onNavigate, accountOpen, onAccountToggle, avatarRef }) {
       </button>
       <button
         id="analysisChatsDrawerBtn"
+        onClick={actions.openChats}
         type="button"
         className="app-sidebar-settings"
         aria-label="Show chats"
@@ -151,6 +153,37 @@ export function Rail({ onNavigate, accountOpen, onAccountToggle, avatarRef }) {
         </span>
       </button>
       <div id="deploymentBrand" className="deployment-brand" hidden />
+      {actions.projectViewRef && <ProjectControls viewRef={actions.projectViewRef} />}
+      <button
+        id="runHistoryDrawerBtn"
+        onClick={actions.openHistory}
+        aria-label="Runs"
+        type="button"
+        className="query-chip is-hidden rail-runs"
+        title="Runs — history and active jobs"
+      >
+        <span className="button-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 8v5l3 2"></path>
+            <path d="M3.05 11a9 9 0 1 1 2.64 6.36"></path>
+            <path d="M3 17v-6h6"></path>
+          </svg>
+        </span>
+        <span>Run History</span>
+        <span id="runHistoryDrawerCount" className="jobs-drawer-count is-hidden">
+          0
+        </span>
+        <span id="jobsDrawerCount" className="jobs-drawer-count is-hidden">
+          0
+        </span>
+      </button>
       <button
         id="accountMenuButton"
         ref={avatarRef}

@@ -41,23 +41,23 @@ export function createCohortLibrary({datasetLabels, activeIds, addRequiredDatase
 
   function inspect(item) { inspectCohortMembers(item,datasetLabels); }
 
-  search?.addEventListener('input', () => { page = 0; render(); });
-  pages?.addEventListener('click', event => {
+  function searchLibrary() { page = 0; render(); }
+  function pageLibrary(event) {
     const button = event.target.closest('[data-page]');
     if (button && !button.disabled) { page += Number(button.dataset.page); render(); }
-  });
-  document.getElementById('cohortLibraryRefresh')?.addEventListener('click', load);
+  }
+
   document.addEventListener('click', event => {
     list?.querySelectorAll('.cohort-card-menu[open]').forEach(menu => {
       if (!menu.contains(event.target)) menu.open = false;
     });
   });
-  list?.addEventListener('keydown', event => {
+  function keyLibrary(event) {
     if (event.key !== 'Escape') return;
     const menu = event.target.closest('.cohort-card-menu[open]');
     if (menu) { menu.open = false; menu.querySelector('summary').focus(); }
-  });
-  list?.addEventListener('click', async event => {
+  }
+  async function chooseLibraryAction(event) {
     const button = event.target.closest('[data-saved-cohort-action]');
     if (!button || button.disabled) return;
     const menu = button.closest('.cohort-card-menu');
@@ -87,6 +87,6 @@ export function createCohortLibrary({datasetLabels, activeIds, addRequiredDatase
     }
     if (key === 'delete' && !window.confirm(`Delete cohort "${item.name}"? Source data and existing run files are kept.`)) return;
     onAction(button);
-  });
-  return {load, render, find, say, clear() { ++revision; items = []; page = 0; if (search) search.value = ''; render(); say(''); document.getElementById('cohortMembersDialog')?.close(); }};
+  }
+  return { searchLibrary, pageLibrary, refreshLibrary: load, keyLibrary, chooseLibraryAction,load, render, find, say, clear() { ++revision; items = []; page = 0; if (search) search.value = ''; render(); say(''); document.getElementById('cohortMembersDialog')?.close(); }};
 }

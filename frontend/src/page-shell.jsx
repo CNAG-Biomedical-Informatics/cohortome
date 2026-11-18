@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom';
 
 // Mounted once before view roots and controllers capture their stable hosts.
 function PageShell({
+  shellActions,
   branding,
   auth_enabled,
   datasets,
@@ -109,71 +110,23 @@ function PageShell({
                 <strong id="contextScope">Full workspace</strong>
               </div>
             </div>
-            <div id="heroAuthUtility" className="hero-utility is-hidden">
-              <button
-                id="jobsDrawerBtn"
-                type="button"
-                className="query-chip is-hidden"
-                title="Open the background execution queue."
-              >
-                <span className="button-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M8 6h13"></path>
-                    <path d="M8 12h13"></path>
-                    <path d="M8 18h13"></path>
-                    <path d="M3 6h.01"></path>
-                    <path d="M3 12h.01"></path>
-                    <path d="M3 18h.01"></path>
-                  </svg>
-                </span>
-                <span>Queue</span>
-                <span id="jobsDrawerCount" className="jobs-drawer-count is-hidden">
-                  0
-                </span>
-              </button>
-              <button
-                id="runHistoryDrawerBtn"
-                type="button"
-                className="query-chip is-hidden"
-                title="Open generated run history."
-              >
-                <span className="button-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 8v5l3 2"></path>
-                    <path d="M3.05 11a9 9 0 1 1 2.64 6.36"></path>
-                    <path d="M3 17v-6h6"></path>
-                  </svg>
-                </span>
-                <span>Run History</span>
-                <span id="runHistoryDrawerCount" className="jobs-drawer-count is-hidden">
-                  0
-                </span>
-              </button>
-            </div>
+            <div id="heroAuthUtility" className="hero-utility is-hidden"></div>
           </div>
 
           <div
             id="userSettingsPanel"
+            onInput={shellActions.SettingsPanel?.edited}
+            onChange={shellActions.SettingsPanel?.edited}
             className="user-settings-panel is-hidden"
             role="dialog"
             aria-label="User settings"
           ></div>
 
-          <ChatsDrawer onNewChat={onNewChat} onChatSearch={onChatSearch} />
+          <ChatsDrawer
+            actions={shellActions.ChatsDrawer}
+            onNewChat={onNewChat}
+            onChatSearch={onChatSearch}
+          />
 
           <MoveChatDialog />
           <DeleteChatDialog />
@@ -189,12 +142,16 @@ function PageShell({
             </aside>
 
             <div className="app-content">
-              <DashboardShell />
+              <DashboardShell actions={shellActions.DashboardShell} />
 
-              <CohortsShell />
-              <DatasetsShell datasets={datasets} current_dataset_id={current_dataset_id} />
+              <CohortsShell actions={shellActions.CohortsShell} />
+              <DatasetsShell
+                actions={shellActions.DatasetsShell}
+                datasets={datasets}
+                current_dataset_id={current_dataset_id}
+              />
 
-              <DataManagementShell />
+              <DataManagementShell actions={shellActions.DataManagementShell} />
 
               <dialog
                 id="deploymentAppearanceDialog"
@@ -202,29 +159,34 @@ function PageShell({
                 aria-labelledby="deploymentAppearanceTitle"
               ></dialog>
 
-              <UsersShell />
+              <UsersShell actions={shellActions.UsersShell} />
 
-              <ModelsShell />
+              <ModelsShell actions={shellActions.ModelsShell} />
 
-              <QueryShell />
+              <QueryShell actions={shellActions.QueryShell} />
 
-              <PhenoShell />
+              <PhenoShell actions={shellActions.PhenoShell} />
 
-              <AnalysisShell />
+              <AnalysisShell actions={shellActions.AnalysisShell} />
             </div>
           </div>
         </div>
       </main>
-      <JobsDrawer />
-      <RunHistoryDrawer />
+      <JobsDrawer actions={shellActions.JobsDrawer} />
+      <RunHistoryDrawer actions={shellActions.RunHistoryDrawer} />
     </>
   );
 }
-export function mountPageShell({ onNewChat, onChatSearch } = {}) {
+export function mountPageShell({ shellActions, onNewChat, onChatSearch } = {}) {
   const config = JSON.parse(document.getElementById('applicationConfig').textContent);
   flushSync(() =>
     createRoot(document.getElementById('applicationRoot')).render(
-      <PageShell {...config} onNewChat={onNewChat} onChatSearch={onChatSearch} />,
+      <PageShell
+        {...config}
+        shellActions={shellActions}
+        onNewChat={onNewChat}
+        onChatSearch={onChatSearch}
+      />,
     ),
   );
 }

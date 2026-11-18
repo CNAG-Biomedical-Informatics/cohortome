@@ -28,7 +28,16 @@ def test_catalogue_type_badges_filters_and_refresh():
         page.goto('http://resources.test/')
         page.evaluate('''async () => {
           const {mountPageShell} = await import('/static/js/react/ui.js');
-          mountPageShell();
+          const shellActions = Object.fromEntries(
+            ['ChatsDrawer','DashboardShell','CohortsShell','DatasetsShell','DataManagementShell',
+             'UsersShell','ModelsShell','QueryShell','PhenoShell','AnalysisShell','JobsDrawer',
+             'RunHistoryDrawer'].map(key => [key, {}]));
+          Object.assign(shellActions.DataManagementShell, {
+            openResources: () => ui.openResources(),
+            filterResources: event => ui.filterResources(event),
+            refreshResources: () => ui.refreshResources(),
+          });
+          mountPageShell({shellActions});
           document.querySelector('#dataTab').classList.add('active');
           const {createResourceInstaller} = await import('/static/js/resource_install.js');
           window.ui = createResourceInstaller({escapeHtml:s=>String(s), refresh:async()=>{}, select:()=>{}});

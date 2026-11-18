@@ -5790,7 +5790,20 @@ def test_analysis_differential_expression_enables_after_saved_cohorts_selected(p
     expect(page.locator("#analysisFlowBar [data-analysis-flow-target='requirements']")).to_contain_text("Ready")
 
 
+def _enable_signature_workflow_fixture(page):
+    # This exercises selection, not the machine's installed R/Bioconductor stack.
+    def catalogue(route):
+        response = route.fetch()
+        payload = response.json()
+        for item in payload['items']:
+            if item['id'] == 'transcriptomics-signature-workflow':
+                item.update(available=True, unavailable_reason='')
+        route.fulfill(response=response, json=payload)
+    page.route('**/analysis/catalog?*', catalogue)
+
+
 def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
+    _enable_signature_workflow_fixture(page)
     _mock_saved_cohorts(page)
     _mock_assay_datasets_with_nonmatching_dataset(page)
     page.reload(wait_until="networkidle")
@@ -5816,15 +5829,7 @@ def test_analysis_workflow_filter_shows_assay_dataset_selector(page) -> None:
 
 
 def test_analysis_workflow_assay_selector_keeps_one_dataset_selected(page) -> None:
-    # This exercises selection, not the machine's installed R/Bioconductor stack.
-    def catalogue(route):
-        response = route.fetch()
-        payload = response.json()
-        for item in payload['items']:
-            if item['id'] == 'transcriptomics-signature-workflow':
-                item.update(available=True, unavailable_reason='')
-        route.fulfill(response=response, json=payload)
-    page.route('**/analysis/catalog?*', catalogue)
+    _enable_signature_workflow_fixture(page)
     _mock_saved_cohorts(page)
     _mock_assay_datasets_with_two_matching_datasets(page)
     page.reload(wait_until="networkidle")

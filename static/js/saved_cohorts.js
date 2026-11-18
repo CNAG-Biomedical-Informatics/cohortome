@@ -438,6 +438,7 @@ export function createSavedCohortsUi(ctx) {
   }
 
   return {
+    library,
     loadLibrary: library.load,
     clearLibrary: library.clear,
     renderPhenoSavedCohortsSelection,

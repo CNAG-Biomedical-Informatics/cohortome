@@ -1,5 +1,5 @@
 import React from 'react';
-export function AccountMenu({ helpUrl, name, onNavigate }) {
+export function AccountMenu({ actions, helpUrl, name, onNavigate }) {
   return (
     <>
       <div className="app-sidebar-account">
@@ -9,6 +9,7 @@ export function AccountMenu({ helpUrl, name, onNavigate }) {
       </div>
       <button
         id="userSettingsBtn"
+        onClick={actions.settings}
         type="button"
         className="app-sidebar-settings"
         title="Open user settings."
@@ -162,7 +163,12 @@ export function AccountMenu({ helpUrl, name, onNavigate }) {
         </span>
         <span>Help</span>
       </a>
-      <button id="heroLogoutBtn" type="button" className="account-signout is-hidden">
+      <button
+        id="heroLogoutBtn"
+        onClick={actions.logout}
+        type="button"
+        className="account-signout is-hidden"
+      >
         Sign out
       </button>
     </>

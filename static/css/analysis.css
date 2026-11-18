@@ -2083,8 +2083,7 @@
           position: static;
           grid-template-columns: 1fr;
         }
-        .analysis-shell,
-        .analysis-shell.analysis-sidebar-collapsed {
+        .analysis-shell {
           grid-template-columns: 1fr;
         }
         .analysis-flow-bar {

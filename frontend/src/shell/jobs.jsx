@@ -1,8 +1,13 @@
 import React from 'react';
 
-export function JobsDrawer() {
+export function JobsDrawer({ actions }) {
   return (
-    <div id="jobsDrawer" className="jobs-drawer is-hidden" aria-hidden="true">
+    <div
+      id="jobsDrawer"
+      onClick={actions.jobsDrawerClick}
+      className="jobs-drawer is-hidden"
+      aria-hidden="true"
+    >
       <div className="jobs-drawer-backdrop" data-jobs-drawer-close="true"></div>
       <div
         className="jobs-drawer-panel"
@@ -19,6 +24,7 @@ export function JobsDrawer() {
           </div>
           <button
             id="jobsDrawerCloseBtn"
+            onClick={actions.jobsDrawerCloseBtnClick}
             type="button"
             className="job-card-action-icon"
             title="Close queue"
@@ -57,9 +63,14 @@ export function JobsDrawer() {
   );
 }
 
-export function RunHistoryDrawer() {
+export function RunHistoryDrawer({ actions }) {
   return (
-    <div id="runHistoryDrawer" className="jobs-drawer is-hidden" aria-hidden="true">
+    <div
+      id="runHistoryDrawer"
+      onClick={actions.runHistoryDrawerClick}
+      className="jobs-drawer is-hidden"
+      aria-hidden="true"
+    >
       <div className="jobs-drawer-backdrop" data-run-history-drawer-close="true"></div>
       <div
         className="jobs-drawer-panel"
@@ -77,6 +88,7 @@ export function RunHistoryDrawer() {
           <div className="job-card-actions">
             <button
               id="runHistoryDeleteAllBtn"
+              onClick={actions.runHistoryDeleteAllBtnClick}
               type="button"
               className="job-card-action-icon danger"
               title="Delete completed runs"
@@ -100,6 +112,7 @@ export function RunHistoryDrawer() {
             </button>
             <button
               id="runHistoryDrawerCloseBtn"
+              onClick={actions.runHistoryDrawerCloseBtnClick}
               type="button"
               className="job-card-action-icon"
               title="Close run history"
@@ -118,7 +131,33 @@ export function RunHistoryDrawer() {
                 <path d="m6 6 12 12"></path>
               </svg>
             </button>
-          </div>
+          </div>{' '}
+          <button
+            id="jobsDrawerBtn"
+            onClick={actions.openQueue}
+            type="button"
+            className="query-chip is-hidden"
+            title="Open the background execution queue."
+          >
+            <span className="button-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M8 6h13"></path>
+                <path d="M8 12h13"></path>
+                <path d="M8 18h13"></path>
+                <path d="M3 6h.01"></path>
+                <path d="M3 12h.01"></path>
+                <path d="M3 18h.01"></path>
+              </svg>
+            </span>
+            <span>Queue</span>
+          </button>
         </div>
         <div
           id="runHistoryWorkerStatus"

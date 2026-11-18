@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function PhenoSetup() {
+export function PhenoSetup({ actions }) {
   return (
     <>
       <div className="pheno-setup-body">
@@ -8,6 +8,7 @@ export function PhenoSetup() {
           <label htmlFor="phenoPatientId">Patient or visit to match</label>
           <input
             id="phenoPatientId"
+            onInput={actions.manualEdit}
             list="phenoPatientChoices"
             placeholder="Search available patient or visit IDs"
             autoComplete="off"
@@ -34,10 +35,14 @@ export function PhenoSetup() {
               <span>Saved Cohorts</span>
             </span>
           </summary>
-          <div id="phenoSavedCohortsSelection" className="section-note">
+          <div
+            id="phenoSavedCohortsSelection"
+            onClick={actions.phenoSavedCohortsSelectionClick}
+            className="section-note"
+          >
             No saved cohorts attached as separate references.
           </div>
-          <div id="phenoSavedCohorts" className="empty">
+          <div id="phenoSavedCohorts" onClick={actions.phenoSavedCohortsClick} className="empty">
             No saved cohorts yet.
           </div>
         </details>
@@ -73,6 +78,7 @@ export function PhenoSetup() {
                 <label htmlFor="phenoIncludeTerms">Compare using</label>
                 <input
                   id="phenoIncludeTerms"
+                  onInput={actions.manualEdit}
                   placeholder="All supported terms, or diseases,phenotypicFeatures,treatments"
                 />
               </div>
@@ -80,30 +86,39 @@ export function PhenoSetup() {
                 <label htmlFor="phenoSelectedPatientIds">Manual selection (optional)</label>
                 <input
                   id="phenoSelectedPatientIds"
+                  onInput={actions.phenoSelectedPatientIdsInput}
                   placeholder="Comma-separated IDs; empty uses the full workspace"
                 />
               </div>
               <div>
                 <label htmlFor="phenoAction">Action</label>
-                <select id="phenoAction">
+                <select id="phenoAction" onChange={actions.phenoActionChange}>
                   <option value="compare">Compare</option>
                   <option value="extract">Extract patients of interest</option>
                 </select>
               </div>
               <div className="is-hidden">
                 <label htmlFor="phenoMode">Mode</label>
-                <select id="phenoMode">
+                <select id="phenoMode" onChange={actions.phenoModeChange}>
                   <option value="cohort">Cohort mode (-r)</option>
                   <option value="patient">Patient mode (-r -t)</option>
                 </select>
               </div>
               <div>
                 <label htmlFor="phenoExcludeTerms">Exclude terms</label>
-                <input id="phenoExcludeTerms" placeholder="sex,ethnicity,exposures,id" />
+                <input
+                  id="phenoExcludeTerms"
+                  onInput={actions.manualEdit}
+                  placeholder="sex,ethnicity,exposures,id"
+                />
               </div>
               <div>
                 <label htmlFor="phenoSimilarityMetric">Cohort metric</label>
-                <select id="phenoSimilarityMetric">
+                <select
+                  id="phenoSimilarityMetric"
+                  onChange={actions.phenoSimilarityMetricChange}
+                  onInput={actions.phenoSimilarityMetricInput}
+                >
                   <option value="">Default</option>
                   <option value="hamming">Hamming</option>
                   <option value="jaccard">Jaccard</option>
@@ -111,7 +126,7 @@ export function PhenoSetup() {
               </div>
               <div>
                 <label htmlFor="phenoSortBy">Sort by</label>
-                <select id="phenoSortBy">
+                <select id="phenoSortBy" onInput={actions.manualEdit}>
                   <option value="">Default</option>
                   <option value="hamming">Hamming</option>
                   <option value="jaccard">Jaccard</option>
@@ -119,34 +134,75 @@ export function PhenoSetup() {
               </div>
               <div id="phenoMaxOutField">
                 <label htmlFor="phenoMaxOut">Max output rows</label>
-                <input id="phenoMaxOut" type="number" min="1" defaultValue="10" />
+                <input
+                  id="phenoMaxOut"
+                  onInput={actions.manualEdit}
+                  type="number"
+                  min="1"
+                  defaultValue="10"
+                />
               </div>
             </div>
             <div className="pheno-checks is-hidden" id="phenoAlignChecks">
               <label>
-                <input id="phenoAlign" type="checkbox" defaultChecked /> Generate alignment files
-                (--align)
+                <input
+                  id="phenoAlign"
+                  onChange={actions.graphOptionChanged}
+                  type="checkbox"
+                  defaultChecked
+                />{' '}
+                Generate alignment files (--align)
               </label>
             </div>
             <div className="pheno-checks" id="phenoPlotChecks">
               <label>
-                <input id="phenoRenderHeatmap" type="checkbox" defaultChecked /> Render heatmap
+                <input
+                  id="phenoRenderHeatmap"
+                  onChange={actions.graphOptionChanged}
+                  type="checkbox"
+                  defaultChecked
+                />{' '}
+                Render heatmap
               </label>
               <label>
-                <input id="phenoRenderMds" type="checkbox" defaultChecked /> Render MDS
+                <input
+                  id="phenoRenderMds"
+                  onChange={actions.graphOptionChanged}
+                  type="checkbox"
+                  defaultChecked
+                />{' '}
+                Render MDS
               </label>
               <label>
-                <input id="phenoRenderGraph" type="checkbox" defaultChecked /> Render graph
+                <input
+                  id="phenoRenderGraph"
+                  onChange={actions.graphOptionChanged}
+                  type="checkbox"
+                  defaultChecked
+                />{' '}
+                Render graph
               </label>
             </div>
             <div className="pheno-advanced-grid is-hidden" id="phenoGraphOptions">
               <div>
                 <label htmlFor="phenoGraphMinWeight">Graph min edge weight</label>
-                <input id="phenoGraphMinWeight" type="number" step="0.001" placeholder="optional" />
+                <input
+                  id="phenoGraphMinWeight"
+                  onInput={actions.manualEdit}
+                  type="number"
+                  step="0.001"
+                  placeholder="optional"
+                />
               </div>
               <div>
                 <label htmlFor="phenoGraphMaxWeight">Graph max edge weight</label>
-                <input id="phenoGraphMaxWeight" type="number" step="0.001" placeholder="optional" />
+                <input
+                  id="phenoGraphMaxWeight"
+                  onInput={actions.manualEdit}
+                  type="number"
+                  step="0.001"
+                  placeholder="optional"
+                />
               </div>
             </div>
           </div>
@@ -160,7 +216,12 @@ export function PhenoSetup() {
             Active workspace files: loading...
           </div>
           <div className="pheno-actions pheno-actions-primary pheno-setup-actions">
-            <button id="phenoPlanBtn" type="button" className="query-chip">
+            <button
+              id="phenoPlanBtn"
+              onClick={actions.phenoPlanBtnClick}
+              type="button"
+              className="query-chip"
+            >
               <span className="button-icon" aria-hidden="true">
                 <svg
                   viewBox="0 0 24 24"
@@ -221,6 +282,7 @@ export function PhenoSetup() {
               </div>
               <div
                 id="phenoPlanFollowups"
+                onClick={actions.phenoPlanFollowupsClick}
                 className="query-followups is-hidden"
                 aria-live="polite"
               ></div>

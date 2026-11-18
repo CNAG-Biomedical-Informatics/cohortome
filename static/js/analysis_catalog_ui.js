@@ -18,8 +18,6 @@ export function createAnalysisCatalogUi(ctx) {
     analysisStarterHostEl,
     analysisComposerExamplesBtnEl,
     analysisCatalogStatusEl,
-    analysisCatalogSearchEl,
-    analysisCatalogFiltersEl,
     analysisCatalogListEl,
     analysisCatalogDisclosureEl,
     analysisCatalogDisclosureTitleEl,
@@ -603,19 +601,13 @@ export function createAnalysisCatalogUi(ctx) {
   function syncAnalysisCatalogControls() {
     const query = String(state.analysisCatalogQuery || "");
     const filter = normalizeAnalysisCatalogFilter(state.analysisCatalogFilter);
-    if (analysisCatalogSearchEl && analysisCatalogSearchEl.value !== query) {
-      analysisCatalogSearchEl.value = query;
-    }
     if (analysisCatalogDrawerSearchEl && analysisCatalogDrawerSearchEl.value !== query) {
       analysisCatalogDrawerSearchEl.value = query;
     }
-    [analysisCatalogFiltersEl, analysisCatalogDrawerFiltersEl].forEach((container) => {
-      if (!container) return;
-      Array.from(container.querySelectorAll("[data-analysis-catalog-filter]")).forEach((button) => {
+    analysisCatalogDrawerFiltersEl?.querySelectorAll("[data-analysis-catalog-filter]").forEach((button) => {
         const active = normalizeAnalysisCatalogFilter(button.dataset.analysisCatalogFilter || "") === filter;
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-pressed", active ? "true" : "false");
-      });
     });
   }
 
@@ -829,8 +821,9 @@ export function createAnalysisCatalogUi(ctx) {
     if (requestDetails.closest("#analysisContinueHost")) requestDetails.open = true;
     document.getElementById("analysisRunReview").textContent = general ? "Ask the selected model without workspace data."
       : `Patient scope: ${analysisFlowScopeLabel()}. ${item && item.execution_backend === "job" ? "Runs in the background; requires an available worker." : method === "custom" ? "Execution depends on the requested analysis." : "Runs directly."} Review the inputs and research question before running.`;
-    select.onchange = () => {
-      const chosen = select.value;
+  }
+
+  function chooseMethod(chosen) {
       if (chosen.startsWith("catalog:")) {
         applyAnalysisCatalogItemById(chosen.slice(8));
         return;
@@ -840,7 +833,6 @@ export function createAnalysisCatalogUi(ctx) {
       analysisPromptEl.value = chosen === "summary" ? cohortSummaryPrompt : chosen === "association" ? "Compare measurements: " : "";
       renderAnalysisCatalogAssayPanel();
       syncCurrentAnalysisSessionFromUi({ render: true });
-    };
   }
 
   function renderAnalysisFlowBar() {
@@ -1212,6 +1204,7 @@ export function createAnalysisCatalogUi(ctx) {
   }
 
   return {
+    chooseMethod,
     prepareScriptForRun: () => scriptEditor.prepareForRun(),
     initializeExampleToggle,
     renderStarterPanelVisibility,

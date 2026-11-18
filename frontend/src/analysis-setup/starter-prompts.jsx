@@ -1,5 +1,5 @@
 import React from 'react';
-export function StarterPrompts() {
+export function StarterPrompts({ onExample }) {
   return (
     <div id="analysisStarterPanel" className="analysis-starter-panel">
       <div className="analysis-starter-header">
@@ -25,7 +25,7 @@ export function StarterPrompts() {
             <span className="query-chip query-chip-planner badge">LLM-planned</span>{' '}
             <span className="query-chip query-chip-llm badge">LLM interpretation</span>
           </div>
-          <div className="query-examples" id="analysisExamples">
+          <div className="query-examples" id="analysisExamples" onClick={onExample}>
             <button
               type="button"
               className="query-chip query-chip-deterministic"

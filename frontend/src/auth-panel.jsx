@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function AuthPanel({ logoUrl, logoAlt }) {
+export function AuthPanel({ actions, logoUrl, logoAlt }) {
   return (
     <>
       <div className="auth-gate-card">
@@ -17,7 +17,7 @@ export function AuthPanel({ logoUrl, logoAlt }) {
           Enter your credentials to open your private workspace.
         </div>
         <div id="authOidcForm" className="auth-oidc-form is-hidden">
-          <button id="authOidcLoginBtn" type="button">
+          <button id="authOidcLoginBtn" onClick={actions.authOidcLoginBtnClick} type="button">
             <span className="button-icon" aria-hidden="true">
               <svg
                 viewBox="0 0 24 24"
@@ -39,11 +39,12 @@ export function AuthPanel({ logoUrl, logoAlt }) {
           <input id="authUsername" placeholder="Username" autoComplete="username" />
           <input
             id="authPassword"
+            onKeyDown={actions.authPasswordKeyDown}
             type="password"
             placeholder="Password"
             autoComplete="current-password"
           />
-          <button id="authLoginBtn" type="button">
+          <button id="authLoginBtn" onClick={actions.authLoginBtnClick} type="button">
             <span className="button-icon" aria-hidden="true">
               <svg
                 viewBox="0 0 24 24"
@@ -62,7 +63,12 @@ export function AuthPanel({ logoUrl, logoAlt }) {
           </button>
         </div>
         <div id="authPasswordResetPrompt" className="auth-reset-prompt is-hidden">
-          <button id="authForgotPasswordBtn" type="button" className="secondary-btn">
+          <button
+            id="authForgotPasswordBtn"
+            onClick={actions.authForgotPasswordBtnClick}
+            type="button"
+            className="secondary-btn"
+          >
             Forgot password?
           </button>
         </div>
@@ -75,14 +81,24 @@ export function AuthPanel({ logoUrl, logoAlt }) {
             <div className="auth-gate-form">
               <input
                 id="authPasswordResetIdentifier"
+                onKeyDown={actions.authPasswordResetIdentifierKeyDown}
                 type="text"
                 placeholder="Username or email"
                 autoComplete="username"
               />
-              <button id="authPasswordResetRequestBtn" type="button">
+              <button
+                id="authPasswordResetRequestBtn"
+                onClick={actions.authPasswordResetRequestBtnClick}
+                type="button"
+              >
                 Send reset link
               </button>
-              <button id="authPasswordResetCancelBtn" type="button" className="secondary-btn">
+              <button
+                id="authPasswordResetCancelBtn"
+                onClick={actions.authPasswordResetCancelBtnClick}
+                type="button"
+                className="secondary-btn"
+              >
                 Cancel
               </button>
             </div>
@@ -98,15 +114,25 @@ export function AuthPanel({ logoUrl, logoAlt }) {
               />
               <input
                 id="authPasswordResetConfirmPassword"
+                onKeyDown={actions.authPasswordResetConfirmPasswordKeyDown}
                 type="password"
                 placeholder="Confirm password"
                 autoComplete="new-password"
               />
-              <button id="authPasswordResetConfirmBtn" type="button">
+              <button
+                id="authPasswordResetConfirmBtn"
+                onClick={actions.authPasswordResetConfirmBtnClick}
+                type="button"
+              >
                 Reset password
               </button>
             </div>
-            <button id="authPasswordResetConfirmCancelBtn" type="button" className="secondary-btn">
+            <button
+              id="authPasswordResetConfirmCancelBtn"
+              onClick={actions.authPasswordResetConfirmCancelBtnClick}
+              type="button"
+              className="secondary-btn"
+            >
               Back to sign in
             </button>
           </div>

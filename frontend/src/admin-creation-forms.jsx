@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 
-function CreateUser() {
+function CreateUser({ actions }) {
   return (
     <>
       <div>
@@ -47,7 +47,7 @@ function CreateUser() {
             <input id="userCreateEnabled" type="checkbox" defaultChecked />
             <span>Enabled</span>
           </label>
-          <button id="userCreateBtn" type="button">
+          <button id="userCreateBtn" onClick={actions.userCreateBtnClick} type="button">
             Create user
           </button>
         </div>
@@ -56,7 +56,7 @@ function CreateUser() {
   );
 }
 
-function CreateProvider() {
+function CreateProvider({ actions }) {
   return (
     <>
       <div>
@@ -126,7 +126,7 @@ function CreateProvider() {
             <input id="modelCreateEnabled" type="checkbox" defaultChecked />
             <span>Enabled</span>
           </label>
-          <button id="modelCreateBtn" type="button">
+          <button id="modelCreateBtn" onClick={actions.modelCreateBtnClick} type="button">
             Add provider
           </button>
         </div>
@@ -135,12 +135,12 @@ function CreateProvider() {
   );
 }
 
-export function mountAdminCreationForms() {
-  for (const [id, Component] of [
-    ['usersCreateCard', CreateUser],
-    ['modelsCreateCard', CreateProvider],
+export function mountAdminCreationForms(shellActions) {
+  for (const [id, Component, actions] of [
+    ['usersCreateCard', CreateUser, shellActions.CreateUser],
+    ['modelsCreateCard', CreateProvider, shellActions.CreateProvider],
   ]) {
     const host = document.getElementById(id);
-    if (host) flushSync(() => createRoot(host).render(<Component />));
+    if (host) flushSync(() => createRoot(host).render(<Component actions={actions} />));
   }
 }

@@ -1,18 +1,28 @@
 import React from 'react';
 
-export function PhenoShell() {
+export function PhenoShell({ actions }) {
   return (
-    <section id="phenoTab" className="tab-panel">
+    <section id="phenoTab" className="tab-panel" onInput={actions.draftEdited}>
       <div className="controls">
         <div className="analysis-chat-bar">
           <div className="analysis-chat-current">
             <strong id="phenoChatTitle">New chat</strong>
             <small id="phenoChatStatus" role="status"></small>
           </div>
-          <button id="phenoChatSave" className="query-chip is-hidden" type="button">
+          <button
+            id="phenoChatSave"
+            onClick={actions.saveChat}
+            className="query-chip is-hidden"
+            type="button"
+          >
             Retry save
           </button>
-          <button id="phenoChatReload" className="query-chip is-hidden" type="button">
+          <button
+            id="phenoChatReload"
+            onClick={actions.reloadChat}
+            className="query-chip is-hidden"
+            type="button"
+          >
             Reload saved chat
           </button>
         </div>
@@ -61,6 +71,7 @@ export function PhenoShell() {
         </div>
         <div
           id="phenoChatHistory"
+          onClick={actions.selectTurn}
           className="analysis-thread"
           aria-label="Pheno-Ranker conversation"
         ></div>
@@ -85,7 +96,11 @@ export function PhenoShell() {
                 </span>
                 <span>Plots</span>
               </h3>
-              <div id="phenoPreviews" className="pheno-preview-grid"></div>
+              <div
+                id="phenoPreviews"
+                onClick={actions.phenoPreviewsClick}
+                className="pheno-preview-grid"
+              ></div>
             </div>
           </div>
           <div className="pheno-result-grid">
@@ -113,7 +128,12 @@ export function PhenoShell() {
                   <span>Explain Results</span>
                 </h3>
                 <div className="pheno-actions pheno-actions-secondary">
-                  <button id="phenoAnalysisBtn" type="button" className="query-chip">
+                  <button
+                    id="phenoAnalysisBtn"
+                    onClick={actions.phenoAnalysisBtnClick}
+                    type="button"
+                    className="query-chip"
+                  >
                     <span className="button-icon" aria-hidden="true">
                       <svg
                         viewBox="0 0 24 24"
@@ -131,7 +151,12 @@ export function PhenoShell() {
                     </span>
                     <span>Open matches in Analysis</span>
                   </button>
-                  <button id="phenoCopyIdsBtn" type="button" className="query-chip">
+                  <button
+                    id="phenoCopyIdsBtn"
+                    onClick={actions.phenoCopyIdsBtnClick}
+                    type="button"
+                    className="query-chip"
+                  >
                     <span className="button-icon" aria-hidden="true">
                       <svg
                         viewBox="0 0 24 24"
@@ -147,7 +172,12 @@ export function PhenoShell() {
                     </span>
                     <span>Copy match IDs</span>
                   </button>
-                  <button id="phenoExplainBtn" type="button" className="query-chip">
+                  <button
+                    id="phenoExplainBtn"
+                    onClick={actions.phenoExplainBtnClick}
+                    type="button"
+                    className="query-chip"
+                  >
                     <span className="button-icon" aria-hidden="true">
                       <svg
                         viewBox="0 0 24 24"
@@ -163,7 +193,12 @@ export function PhenoShell() {
                     </span>
                     <span>Explain results</span>
                   </button>
-                  <button id="phenoExplainLlmBtn" type="button" className="query-chip">
+                  <button
+                    id="phenoExplainLlmBtn"
+                    onClick={actions.phenoExplainLlmBtnClick}
+                    type="button"
+                    className="query-chip"
+                  >
                     <span className="button-icon" aria-hidden="true">
                       <svg
                         viewBox="0 0 24 24"
@@ -210,7 +245,11 @@ export function PhenoShell() {
                     <span>Output Preview</span>
                   </h3>
                 </summary>
-                <div id="phenoOutputPreview" className="empty">
+                <div
+                  id="phenoOutputPreview"
+                  onClick={actions.phenoOutputPreviewClick}
+                  className="empty"
+                >
                   No output preview yet.
                 </div>
               </details>

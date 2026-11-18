@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function DashboardShell() {
+export function DashboardShell({ actions }) {
   return (
     <section id="dashboardTab" className="tab-panel active">
       <section id="dashboardPatientsPanel" className="dashboard-subpanel patient-overview">
@@ -30,7 +30,7 @@ export function DashboardShell() {
                     </p>
                   </details>
                 </div>
-                <div id="detail" className="empty">
+                <div id="detail" onClick={actions.detailClick} className="empty">
                   Select a patient in the plot to see their information.
                 </div>
               </div>
@@ -64,6 +64,7 @@ export function DashboardShell() {
               </div>
               <div
                 id="assayModalityTabs"
+                onClick={actions.assayModalityTabsClick}
                 className="assay-modality-tabs"
                 role="group"
                 aria-label="Filter assays by modality"
@@ -100,6 +101,7 @@ export function DashboardShell() {
                   <label htmlFor="analysisAssayGene">Gene ID</label>
                   <input
                     id="analysisAssayGene"
+                    onInput={actions.analysisAssayGeneInput}
                     list="analysisAssayGenes"
                     placeholder="e.g. ENSG00000169429"
                   />
@@ -107,7 +109,11 @@ export function DashboardShell() {
                 </div>
               </div>
               <div className="query-row" style={{ marginTop: '12px' }}>
-                <button id="analysisAssayRunBtn" type="button">
+                <button
+                  id="analysisAssayRunBtn"
+                  onClick={actions.analysisAssayRunBtnClick}
+                  type="button"
+                >
                   <span className="button-icon" aria-hidden="true">
                     <svg
                       viewBox="0 0 24 24"
@@ -195,6 +201,7 @@ export function DashboardShell() {
               <div className="query-actions">
                 <button
                   id="multimodalCompareShortcut"
+                  onClick={actions.compareMeasurements}
                   type="button"
                   className="query-chip query-chip-deterministic"
                 >

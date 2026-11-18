@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
-export function ChatsDrawer({ onNewChat, onChatSearch }) {
+export function ChatsDrawer({ actions, onNewChat, onChatSearch }) {
   const [choicesOpen, setChoicesOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const search = useRef(null);
@@ -36,7 +36,12 @@ export function ChatsDrawer({ onNewChat, onChatSearch }) {
     };
   }, [choicesOpen]);
   return (
-    <div id="analysisChatsDrawer" className="analysis-chats-drawer is-hidden" aria-hidden="true">
+    <div
+      id="analysisChatsDrawer"
+      onClick={actions.analysisChatsDrawerClick}
+      className="analysis-chats-drawer is-hidden"
+      aria-hidden="true"
+    >
       <div className="analysis-chats-drawer-backdrop" data-analysis-chats-close="true"></div>
       <aside
         className="analysis-sidebar analysis-chats-drawer-panel"
@@ -77,6 +82,7 @@ export function ChatsDrawer({ onNewChat, onChatSearch }) {
           </button>
           <button
             id="analysisChatsDrawerCloseBtn"
+            onClick={actions.analysisChatsDrawerCloseBtnClick}
             type="button"
             className="query-chip chat-header-action"
             aria-label="Close chats"
@@ -143,10 +149,10 @@ export function ChatsDrawer({ onNewChat, onChatSearch }) {
           <button id="newPhenoChatBtn" type="button" onClick={() => onNewChat?.('pheno')}>
             Pheno-Ranker chat
           </button>
-          <button id="newChatFolderBtn" type="button">
+          <button id="newChatFolderBtn" onClick={actions.newFolder} type="button">
             New folder
           </button>
-          <button id="selectChatsBtn" type="button">
+          <button id="selectChatsBtn" onClick={actions.selectChats} type="button">
             Select chats…
           </button>
         </div>
@@ -165,7 +171,11 @@ export function ChatsDrawer({ onNewChat, onChatSearch }) {
           placeholder="Search chats"
           hidden={!searchOpen}
         />
-        <div id="analysisSessionList" className="analysis-session-list chat-session-list">
+        <div
+          id="analysisSessionList"
+          onClick={actions.analysisSessionListClick}
+          className="analysis-session-list chat-session-list"
+        >
           <div className="empty">No chats yet.</div>
         </div>
         <div id="queryChatSaveStatus" role="status" className="chat-save-status" hidden></div>

@@ -1,6 +1,5 @@
 import React from 'react';
 import { renderSupplemental as render } from './shared/view-root.js';
-import { useLayoutEffect, useRef } from 'react';
 
 export function renderScopeSource(host, side, cohort) {
   render(
@@ -20,16 +19,15 @@ export function renderScopeSource(host, side, cohort) {
   );
 }
 
-function AssayChoice({ item }) {
-  const input = useRef(null);
-  // Native change delegation owns this form. Do not reset the user's click
-  // before that handler has read it; reconcile restored selections on render.
-  useLayoutEffect(() => {
-    input.current.checked = item.checked;
-  }, [item]);
+function AssayChoice({ item, onChange }) {
   return (
     <label className="assay-dataset-option">
-      <input ref={input} type="checkbox" value={item.value} defaultChecked={item.checked} />
+      <input
+        type="checkbox"
+        value={item.value}
+        checked={item.checked}
+        onChange={(event) => onChange(item.value, event.target.checked)}
+      />
       <span>
         <strong>{item.label}</strong>
         <small>{item.description}</small>
@@ -38,7 +36,7 @@ function AssayChoice({ item }) {
   );
 }
 
-export function renderAssayChoices(host, groups, empty) {
+export function renderAssayChoices(host, groups, empty, onChange) {
   render(
     host,
     groups.length ? (
@@ -46,7 +44,7 @@ export function renderAssayChoices(host, groups, empty) {
         <div key={group.label} className="assay-modality-group">
           <div className="assay-modality-group-title">{group.label}</div>
           {group.items.map((item) => (
-            <AssayChoice key={item.value} item={item} />
+            <AssayChoice key={item.value} item={item} onChange={onChange} />
           ))}
         </div>
       ))
