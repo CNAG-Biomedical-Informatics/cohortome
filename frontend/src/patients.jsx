@@ -1,5 +1,8 @@
 import { createRoot } from 'react-dom/client';
 import { ClinicalFilters } from './clinical-filters.jsx';
+import { SelectField } from './shared/select-field';
+import { ViewStatus } from './shared/view-status';
+import { FilterPanel } from './shared/filter-panel';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
 
 const columns = [
@@ -46,7 +49,7 @@ const columns = [
 ];
 const value = (text) => String(text || 'Not recorded');
 
-function PatientTable({ matches, sortBy, sortDirection, onSort, onChoose }) {
+function PatientTable({ matches, sortBy, sortDirection, onSort, onChoose, loading }) {
   return (
     <table>
       <thead>
@@ -119,7 +122,9 @@ function PatientTable({ matches, sortBy, sortDirection, onSort, onChoose }) {
         ) : (
           <tr>
             <td colSpan="4" className="patient-browser-empty">
-              No patients to display.
+              <ViewStatus kind={loading ? 'loading' : 'empty'}>
+                {loading ? 'Loading patients in scope…' : 'No patients to display.'}
+              </ViewStatus>
             </td>
           </tr>
         )}
@@ -167,73 +172,75 @@ function Patients({ model, actions, scopeUi, isClinicalCurrent }) {
           </details>
         </div>
         <ScopeBar scopeUi={scopeUi} />
-        <div className="patient-lookup">
-          <label htmlFor="patientOverviewSearch">Patient ID or ClarID</label>
-          <div className="patient-search-field">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              aria-hidden="true"
-            >
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m16 16 4 4" />
-            </svg>
-            <input
-              id="patientOverviewSearch"
-              type="search"
-              autoComplete="off"
-              aria-controls="patientOverviewMatches"
-              placeholder="Search by patient ID or ClarID…"
-              value={draft.q}
-              onChange={(event) => actions.search(event.target.value)}
+        <FilterPanel>
+          <div className="patient-lookup">
+            <label htmlFor="patientOverviewSearch">Patient ID or ClarID</label>
+            <div className="patient-search-field">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                aria-hidden="true"
+              >
+                <circle cx="10.5" cy="10.5" r="6.5" />
+                <path d="m16 16 4 4" />
+              </svg>
+              <input
+                id="patientOverviewSearch"
+                type="search"
+                autoComplete="off"
+                aria-controls="patientOverviewMatches"
+                placeholder="Search by patient ID or ClarID…"
+                value={draft.q}
+                onChange={(event) => actions.search(event.target.value)}
+              />
+            </div>
+          </div>
+          <div
+            id="patientDiseaseFilters"
+            className="query-composer-disease-chips patient-disease-filters"
+            role="group"
+            aria-label="Filter patients by disease"
+          >
+            <DiseaseChips
+              diseases={diseases}
+              selected={new Set(draft.diseases)}
+              showAll={showAllDiseases}
+              onSelect={actions.disease}
+              onToggle={actions.toggleDiseases}
             />
           </div>
-        </div>
-        <div
-          id="patientDiseaseFilters"
-          className="query-composer-disease-chips patient-disease-filters"
-          role="group"
-          aria-label="Filter patients by disease"
-        >
-          <DiseaseChips
-            diseases={diseases}
-            selected={new Set(draft.diseases)}
-            showAll={showAllDiseases}
-            onSelect={actions.disease}
-            onToggle={actions.toggleDiseases}
-          />
-        </div>
-        <div id="patientSampleOriginFilter" className="patient-lookup" hidden={!origins.length}>
-          <label htmlFor="patientSampleOrigin">Sample origin</label>
-          <select
-            id="patientSampleOrigin"
-            value={draft.sample_origin}
-            onChange={(event) => actions.origin(event.target.value)}
+          <div id="patientSampleOriginFilter" className="patient-lookup" hidden={!origins.length}>
+            <SelectField
+              label="Sample origin"
+              id="patientSampleOrigin"
+              value={draft.sample_origin}
+              onChange={(event) => actions.origin(event.target.value)}
+            >
+              <option value="">All sample origins</option>
+              {origins.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.label} · {row.id} ({Number(row.patient_count)})
+                </option>
+              ))}
+            </SelectField>
+          </div>
+          <div
+            id="patientClinicalFilters"
+            className="patient-clinical-filters"
+            hidden={!clinicalWorkspace}
           >
-            <option value="">All sample origins</option>
-            {origins.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.label} · {row.id} ({Number(row.patient_count)})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div
-          id="patientClinicalFilters"
-          className="patient-clinical-filters"
-          hidden={!clinicalWorkspace}
-        >
-          {clinicalWorkspace && (
-            <ClinicalFilters
-              key={clinicalWorkspace}
-              workspace={clinicalWorkspace}
-              scopeUi={scopeUi}
-              isCurrent={isClinicalCurrent}
-            />
-          )}
-        </div>
+            {clinicalWorkspace && (
+              <ClinicalFilters
+                key={clinicalWorkspace}
+                workspace={clinicalWorkspace}
+                scopeUi={scopeUi}
+                isCurrent={isClinicalCurrent}
+              />
+            )}
+          </div>
+        </FilterPanel>
         <div className="patient-cohort-actions">
           <button
             id="patientSaveCohort"
@@ -273,6 +280,7 @@ function Patients({ model, actions, scopeUi, isClinicalCurrent }) {
           aria-busy={loading || undefined}
         >
           <PatientTable
+            loading={loading}
             matches={matches}
             sortBy={sortBy}
             sortDirection={sortDirection}

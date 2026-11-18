@@ -4,8 +4,10 @@ export function DashboardShell({ actions }) {
   return (
     <section id="dashboardTab" className="tab-panel active">
       <section id="dashboardPatientsPanel" className="dashboard-subpanel patient-overview">
-        <div id="patientOverviewRoot"></div>
-        <div id="patientOverviewDetail"></div>
+        <div className="controls dashboard-panel-frame">
+          <div id="patientOverviewRoot"></div>
+          <div id="patientOverviewDetail"></div>
+        </div>
       </section>
       <section id="dashboardTimelinePanel" className="dashboard-subpanel">
         <div className="controls dashboard-panel-frame dashboard-timeline-panel-frame">
@@ -196,19 +198,6 @@ export function DashboardShell({ actions }) {
                 <span id="multimodalReadinessSummary"></span>
               </p>
             </details>
-            <details id="multimodalMoreOptions" className="query-inline-actions">
-              <summary>More options</summary>
-              <div className="query-actions">
-                <button
-                  id="multimodalCompareShortcut"
-                  onClick={actions.compareMeasurements}
-                  type="button"
-                  className="query-chip query-chip-deterministic"
-                >
-                  Compare measurements in Analysis
-                </button>
-              </div>
-            </details>
           </div>
           <section id="multimodalReadinessPanel" className="multimodal-readiness-panel">
             <div id="multimodalReadinessStatus" className="query-status assay-status-strip">
@@ -218,6 +207,19 @@ export function DashboardShell({ actions }) {
               <div className="empty">Load a workspace to review multimodal readiness.</div>
             </div>
           </section>
+          <details id="multimodalMoreOptions" className="query-inline-actions">
+            <summary>More options</summary>
+            <div className="query-actions">
+              <button
+                id="multimodalCompareShortcut"
+                onClick={actions.compareMeasurements}
+                type="button"
+                className="query-chip query-chip-deterministic"
+              >
+                Compare measurements in Analysis
+              </button>
+            </div>
+          </details>
           <section id="multimodalMatrixPanel" className="multimodal-matrix-panel">
             <div className="assay-modality-section-header">
               <strong>Feature availability preview</strong>

@@ -32,8 +32,13 @@ export function ScopeBar({ scopeUi, className, previewLabel }) {
       </details>
       <div className="cohort-scope-actions">
         <strong className="cohort-scope-state" aria-live="polite">
-          {previewLabel || scopeLabel}
+          {scopeLabel}
         </strong>
+        {previewLabel && (
+          <span className="cohort-scope-preview" aria-live="polite">
+            {previewLabel}
+          </span>
+        )}
         <span className="cohort-scope-pending" hidden={!dirty}>
           Unapplied changes
         </span>

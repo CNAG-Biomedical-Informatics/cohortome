@@ -1,5 +1,6 @@
 import { modalityLabel, modalityKey } from './modalities.js';
 import { sortDiseaseOptions } from './shared.js';
+import { patientScopeLabel } from './scope-label.js';
 import { createMultimodalView } from './react/ui.js';
 
 // DICOM study records and quantitative imaging measurements are different inputs.
@@ -119,9 +120,7 @@ export function createMultimodalCoverage({state, escapeHtml: esc, saveIdsAsCohor
         }).length;
       }
       const badge = document.getElementById('multimodalHeadingCount');
-      if (badge) badge.textContent = dirty
-        ? (preview === null ? 'Unapplied filters' : `${preview} matching patients (preview)`)
-        : `${patients.length} patients in scope`;
+      if (badge) badge.textContent = patientScopeLabel(patients.length, allPatients.length);
       view.render({phase:'ready', draft, preview, dirty, cohorts, modalities, labels, diseases, showAllDiseases,
         groups, patients, page, saveStatus, inspector, warnings:data.warnings || [],
         canSave:patients.length > 0 && !saving && !scopeUi.isDirty() && !scopeUi.isBusy() && !state.loadInFlight}, actions);

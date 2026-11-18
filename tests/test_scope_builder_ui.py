@@ -50,17 +50,33 @@ def test_shared_draft_applies_once_across_patients_and_multimodal(page):
     assert not evaluations and not applications
     assert len(page._clinical_patient_requests) == initial_searches
     panel.screenshot(path='/tmp/cohortome-scope-patients.png')
+    heading_geometry = '''panel => {
+      const heading = panel.querySelector('.dashboard-view-heading');
+      const title = heading.querySelector('h2');
+      const badge = heading.querySelector('.dashboard-count');
+      const box = panel.querySelector('.dashboard-panel-frame').getBoundingClientRect();
+      const h = heading.getBoundingClientRect(), t = title.getBoundingClientRect(), b = badge.getBoundingClientRect();
+      return {top:h.top-box.top, left:h.left-box.left, badgeTop:b.top-h.top,
+        helpLeft:heading.querySelector('summary').getBoundingClientRect().left,
+        children:[...heading.children].map(el => el.tagName).join(','),
+        badgeLeft:b.left, badgeGap:b.left-t.right, titleWidth:t.width, titleStyle:getComputedStyle(title).fontSize,
+        badgeStyle:getComputedStyle(badge).fontSize, text:badge.textContent};
+    }'''
+    patient_heading = panel.evaluate(heading_geometry)
     panel.locator('#patientRefineMultimodal').click()
     coverage = page.locator('.multimodal-coverage')
-    expect(coverage.locator('.cohort-scope-state')).to_contain_text('Apply filters to count matches')
+    expect(coverage.locator('.cohort-scope-preview')).to_contain_text('Apply filters to count matches')
+    multimodal_heading = page.locator('#dashboardMultimodalPanel').evaluate(heading_geometry)
+    for key in ['top', 'left', 'helpLeft', 'children', 'badgeTop', 'badgeLeft', 'badgeGap', 'titleStyle', 'badgeStyle', 'text']:
+        assert patient_heading[key] == multimodal_heading[key], (key, patient_heading, multimodal_heading)
     expect(coverage.locator('.cohort-scope-filters')).to_contain_text('Marker greater than 5')
     coverage.locator('.coverage-selectors input[value="transcriptomics"]').check()
     expect(coverage.locator('[data-scope-apply]')).to_be_enabled()
-    expect(coverage.locator('.cohort-scope-state')).to_contain_text('Apply filters to count matches')
+    expect(coverage.locator('.cohort-scope-preview')).to_contain_text('Apply filters to count matches')
     assert not applications
     coverage.screenshot(path='/tmp/cohortome-scope-multimodal.png')
     coverage.locator('[data-scope-apply]').click()
-    expect(coverage.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
+    expect(coverage.locator('.cohort-scope-state')).to_have_text('1 patients in scope')
     expect(coverage.locator('.cohort-scope-pending')).to_be_hidden()
     assert len(applications) == 1
     assert applications[0]['clinical_filters'] == [{'field_id':'marker', 'operator':'gt', 'values':[5]}]
@@ -272,5 +288,5 @@ def test_empty_applied_scope_is_not_the_full_workspace(page):
     expect(panel.locator('.cohort-scope-state')).to_have_text('0 patients in scope')
     assert searches[-1] == []
     panel.locator('#patientRefineMultimodal').click()
-    expect(page.locator('.multimodal-coverage .cohort-scope-state')).to_contain_text('0 patients match selected data types')
+    expect(page.locator('.multimodal-coverage .cohort-scope-state')).to_have_text('0 patients in scope')
     expect(page.locator('.multimodal-coverage .coverage-save')).to_be_disabled()

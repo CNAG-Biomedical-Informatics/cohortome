@@ -41,13 +41,13 @@ def test_multimodal_react_keeps_drafts_stable_and_saves_applied_combination(page
     styles = page.evaluate("""() => {
       const properties = ['fontSize','fontWeight','color','backgroundColor','padding','borderRadius','marginTop'];
       return ['#dashboardPatientsPanel', '#dashboardMultimodalPanel'].map(panel =>
-        ['.cohort-scope-bar','.cohort-filter-basket','.cohort-filter-basket > summary','[data-scope-apply]'].map(selector => {
+        ['.ui-filter-panel','.ui-filter-panel > h3','.cohort-scope-bar','.cohort-filter-basket','.cohort-filter-basket > summary','[data-scope-apply]'].map(selector => {
           const style = getComputedStyle(document.querySelector(panel + ' ' + selector));
           return Object.fromEntries(properties.map(key => [key,style[key]]));
         }));
     }""")
     assert styles[0] == styles[1]
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('4 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('Full workspace')
     page.evaluate('''() => {
         window.coverageTableBefore = document.querySelector('.coverage-intersections table');
         window.coverageInputBefore = document.querySelector('.coverage-selectors input[value="proteomics"]');
@@ -62,21 +62,22 @@ def test_multimodal_react_keeps_drafts_stable_and_saves_applied_combination(page
     panel.locator('.cohort-filter-basket summary').click()
     assert page.evaluate('window.coverageInputBefore === document.querySelector(\'.coverage-selectors input[value="proteomics"]\')')
     expect(panel.locator('.coverage-save')).to_be_disabled()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('3 patients match selected data types')
-    expect(page.locator('#multimodalHeadingCount')).to_have_text('3 matching patients (preview)')
+    expect(panel.locator('.cohort-scope-preview')).to_have_text('Preview: 3 matching patients')
+    expect(page.locator('#multimodalHeadingCount')).to_have_text('4 of 4 patients in scope')
     expect(panel.locator('.coverage-save')).to_be_hidden()
     assert not applications
     panel.locator('[data-scope-apply]').click()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('3 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('3 patients in scope')
     expect(panel.locator('[data-combination]')).to_have_count(3)
+    expect(page.locator('#multimodalHeadingCount')).to_have_text('3 of 4 patients in scope')
     assert page.evaluate('window.coverageTableBefore === document.querySelector(".coverage-intersections table")')
     panel.locator('.coverage-mode').select_option('exact')
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('2 patients match selected data types')
+    expect(panel.locator('.cohort-scope-preview')).to_have_text('Preview: 2 matching patients')
     panel.locator('[data-scope-apply]').click()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('2 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('2 patients in scope')
     panel.locator('input[value="clinical"]').check()
     panel.locator('[data-scope-apply]').click()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('1 patients in scope')
     panel.locator('.coverage-save').click()
     dialog = page.get_by_role('dialog', name='Save cohort', exact=True)
     dialog.get_by_label('Cohort name').fill('React test cohort')
@@ -88,14 +89,14 @@ def test_multimodal_react_keeps_drafts_stable_and_saves_applied_combination(page
     panel.locator('[data-scope-clear]').click()
     panel.locator('[data-scope-apply]').click()
     expect(panel.locator('.cohort-scope-pending')).to_be_hidden()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('4 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('4 patients in scope')
     panel.locator('[data-combination="0"]').click()
     expect(panel.locator('input[value="serology"]')).to_be_checked()
     expect(panel.locator('.coverage-mode')).to_have_value('exact')
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
+    expect(panel.locator('.cohort-scope-preview')).to_have_text('Preview: 1 matching patients')
     assert len(applications) == 4
     panel.locator('[data-scope-apply]').click()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('1 patients in scope')
     panel.screenshot(path='/tmp/cohortome-react-multimodal.png')
 
 
@@ -106,7 +107,7 @@ def test_multimodal_react_pagination_inventory_identity_and_stale_reply(page):
     pending = []
     page.route('**/patient-overview/detail?*', lambda route: pending.append(route))
     panel = open_coverage(page, patients)
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('26 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('Full workspace')
     panel.locator('.coverage-patients summary').click()
     rows = panel.locator('.coverage-patient-list tbody tr')
     expect(rows).to_have_count(25)
@@ -147,7 +148,7 @@ def test_multimodal_react_retry_and_escape_untrusted_labels(page):
     panel = open_coverage(page, patients, coverage)
     expect(panel).to_contain_text('Coverage temporarily unavailable.')
     panel.get_by_role('button', name='Retry coverage').click()
-    expect(panel.locator('.cohort-scope-state')).to_contain_text('1 patients match selected data types')
+    expect(panel.locator('.cohort-scope-state')).to_have_text('Full workspace')
     expect(panel.locator('.coverage-diseases')).to_contain_text('<img src=x onerror=alert(1)>')
     expect(panel.locator('img, script')).to_have_count(0)
     panel.locator('.coverage-patients summary').click()

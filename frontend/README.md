@@ -61,6 +61,12 @@ npm run format:check
 npm run build
 ```
 
+Shared dropdowns and view-status messages live in `src/shared/` as typed React
+components. `npm run build` runs their TypeScript checks before bundling;
+`npm run typecheck` runs just the checks. Existing JSX remains supported and is
+not yet type-checked. Add typed components incrementally; keep data fetching and
+selection behavior in their existing owners. Type packages are development-only.
+
 Edit `src/`, not `static/js/react/ui.js`. Commit the generated bundle and licence
 files with source changes. Desktop, native and Docker launches need no Node
 runtime or frontend build.

@@ -1,4 +1,5 @@
 import { sortDiseaseOptions } from './shared.js';
+import { patientScopeLabel } from './scope-label.js';
 import { createPatientsView } from './react/ui.js';
 
 export function createPatientOverview({state, navigation, escapeHtml: esc, scope, openTimeline, saveIdsAsCohort}) {
@@ -146,8 +147,10 @@ export function createPatientOverview({state, navigation, escapeHtml: esc, scope
         const data = await request('search', {workspace:selectedScope, sort_by:sortBy, direction:sortDirection, ...pages[pageIndex]}, controller.signal);
         if (ticket !== generation || selectedScope !== scope()) return;
         matches = data.matches;
+        const activeScope = state.activePatientScope?.workspace === selectedScope ? state.activePatientScope : null;
+        if (Number.isInteger(activeScope?.summary?.workspace_patient_count)) workspaceTotal = activeScope.summary.workspace_patient_count;
         if (!state.activePatientScope && Number.isInteger(data.total)) workspaceTotal = data.total;
-        if (Number.isInteger(data.total)) matchCount = `${data.total.toLocaleString()}${workspaceTotal !== null ? ` of ${workspaceTotal.toLocaleString()}` : ''} patients in scope`;
+        if (Number.isInteger(data.total)) matchCount = patientScopeLabel(data.total, workspaceTotal);
         saveLabel = Number.isInteger(data.total) ? `Save ${data.total.toLocaleString()} ${data.total === 1 ? 'patient' : 'patients'} as cohort` : 'Save filtered patients as cohort';
         nextPage = data.next || null;
         status = matches.length ? `Page ${pageIndex + 1} · ${matches.length} ${matches.length === 1 ? 'patient' : 'patients'}` : 'No matching patients in the active datasets.';

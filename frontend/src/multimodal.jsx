@@ -1,4 +1,7 @@
 import { ModalitySelector } from './shared/modality-selector.jsx';
+import { SelectField } from './shared/select-field';
+import { ViewStatus } from './shared/view-status';
+import { FilterPanel } from './shared/filter-panel';
 import { createRoot } from 'react-dom/client';
 import { PatientInventory } from './patient-inventory.jsx';
 import { ScopeBar, DiseaseChips, SaveIcon } from './cohort-controls.jsx';
@@ -8,7 +11,7 @@ import { modalityColor } from '../../static/js/modalities.js';
 function Combinations({ groups, modalities, labels, onSelect }) {
   const maximum = Math.max(1, ...groups.map((group) => group.patients.length));
   if (!groups.length)
-    return <p className="empty">No matches. Broaden the cohort, disease or data-type filters.</p>;
+    return <ViewStatus>No matches. Broaden the cohort, disease or data-type filters.</ViewStatus>;
   return (
     <table className="assay-table">
       <thead>
@@ -117,15 +120,13 @@ function MatchingPatients({ patients, page, onPage, onInspect }) {
 }
 
 function Multimodal({ model, actions, scopeUi }) {
-  if (model.phase === 'loading') return <p className="section-note">Loading patient coverage…</p>;
+  if (model.phase === 'loading')
+    return <ViewStatus kind="loading">Loading patient coverage…</ViewStatus>;
   if (model.phase === 'error')
     return (
-      <>
-        <p>{model.error}</p>
-        <button className="query-chip" type="button" onClick={actions.retry}>
-          Retry coverage
-        </button>
-      </>
+      <ViewStatus kind="error" onRetry={actions.retry} retryLabel="Retry coverage">
+        {model.error}
+      </ViewStatus>
     );
   const {
     draft,
@@ -150,44 +151,41 @@ function Multimodal({ model, actions, scopeUi }) {
           model.dirty
             ? model.preview == null
               ? 'Apply filters to count matches'
-              : `${model.preview} patients match selected data types`
-            : `${patients.length} patients match selected data types`
+              : `Preview: ${model.preview} matching patients`
+            : undefined
         }
       />
-      <section className="coverage-filter-section">
-        <h3>Filter patients</h3>
+      <FilterPanel className="coverage-filter-section">
         <div className="coverage-filter-row">
-          <label className="coverage-match-mode">
-            <span>Patient group</span>
-            <select
-              className="coverage-cohort"
-              aria-label="Patient group"
-              disabled={!cohorts.length && draft.base_members === null}
-              value={draft.base_members !== null ? '__selection__' : draft.cohort_id}
-              onChange={(event) => actions.cohort(event.target.value)}
-            >
-              <option value="">All patients in this workspace</option>
-              {cohorts.map((cohort) => (
-                <option key={cohort.id} value={cohort.id}>
-                  {cohort.name} · {cohort.patient_count} patients
-                </option>
-              ))}
-              {draft.base_members !== null && (
-                <option value="__selection__">{draft.base_members.length} selected patients</option>
-              )}
-            </select>
-          </label>
-          <label className="coverage-match-mode">
-            <span>Match</span>
-            <select
-              className="coverage-mode"
-              value={draft.exact ? 'exact' : 'includes'}
-              onChange={(event) => actions.mode(event.target.value)}
-            >
-              <option value="includes">At least these types</option>
-              <option value="exact">Only these types</option>
-            </select>
-          </label>
+          <SelectField
+            label="Patient group"
+            inline
+            className="coverage-cohort"
+            aria-label="Patient group"
+            disabled={!cohorts.length && draft.base_members === null}
+            value={draft.base_members !== null ? '__selection__' : draft.cohort_id}
+            onChange={(event) => actions.cohort(event.target.value)}
+          >
+            <option value="">All patients in this workspace</option>
+            {cohorts.map((cohort) => (
+              <option key={cohort.id} value={cohort.id}>
+                {cohort.name} · {cohort.patient_count} patients
+              </option>
+            ))}
+            {draft.base_members !== null && (
+              <option value="__selection__">{draft.base_members.length} selected patients</option>
+            )}
+          </SelectField>
+          <SelectField
+            label="Match"
+            inline
+            className="coverage-mode"
+            value={draft.exact ? 'exact' : 'includes'}
+            onChange={(event) => actions.mode(event.target.value)}
+          >
+            <option value="includes">At least these types</option>
+            <option value="exact">Only these types</option>
+          </SelectField>
         </div>
         <div className="coverage-start-description">
           <button
@@ -228,7 +226,7 @@ function Multimodal({ model, actions, scopeUi }) {
             onChange={actions.modality}
           />
         </div>
-      </section>
+      </FilterPanel>
       <div className="coverage-result" aria-live="polite">
         <button
           type="button"

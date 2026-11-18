@@ -1,9 +1,14 @@
 /* Interface hierarchy, without scaling tables, plots or conversation content. */
 .app-content {
+  --control-line: #dce1e7;
   --workspace-title-size: 1.125rem;
   --workspace-section-size: 0.9375rem;
   --workspace-description-size: 0.875rem;
 }
+:root[data-theme="dark"] .app-content { --control-line: #354253; }
+.app-content .dashboard-view-heading { min-height: 38px; }
+.app-content .dashboard-view-heading > h2 { margin: 0; }
+:is(#dashboardPatientsPanel, #dashboardMultimodalPanel) .dashboard-view-heading > h2 { flex: 0 0 7rem; }
 .app-content h2:not(.query-thread-turn *, .analysis-turn-body *) {
   color: var(--ink);
   font-size: var(--workspace-title-size);
@@ -69,6 +74,20 @@
 
 /* Native dropdowns share one text/control scale across views and settings.
    Keep native keyboard behaviour and the platform's option picker. */
+.ui-select-field { display: grid; gap: 5px; min-width: 0; max-width: 100%; }
+.app-content .ui-select-field > label { margin: 0; font-size: .8rem; font-weight: 500; line-height: 1.4; color: var(--muted); text-transform: none; letter-spacing: normal; }
+.ui-select-field--inline { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.app-content .ui-select-field > select { width: 100%; height: auto; min-height: 38px; margin: 0; text-overflow: ellipsis; }
+.app-content .ui-select-field--inline > select { width: auto; }
+.ui-filter-panel { min-width: 0; padding: 18px; border: 1px solid var(--control-line, var(--line)); border-radius: 10px; background: var(--theme-surface, #fff); }
+.app-content .ui-filter-panel > h3 { margin: 0 0 14px; font-size: .9375rem; }
+.ui-filter-panel > .patient-lookup:not(:first-of-type) { margin-top: 16px; }
+.ui-filter-panel > .patient-clinical-filters { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.ui-view-status { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px; border: 1px solid var(--control-line, var(--line)); border-radius: 8px; background: var(--theme-surface, #fff); color: var(--muted); font-size: .8125rem; line-height: 1.5; text-align: left; }
+.ui-view-status > svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.ui-view-status > span { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.ui-view-status--error > svg { color: var(--theme-red-ink, #b91c1c); }
+.app-content .ui-view-status > button { width: auto; margin: 0; }
 :is(.app-content, .user-settings-content, dialog) select {
   box-sizing: border-box;
   max-width: 100%;

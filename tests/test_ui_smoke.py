@@ -3894,6 +3894,8 @@ def test_timeline_displays_modalities_including_undated_without_selection_contro
             const padding = parseFloat(css.paddingTop) + parseFloat(css.paddingBottom);
             return el.clientHeight >= textHeight + padding - 1;
         }''')
+    expect(page.get_by_role('combobox', name='Dataset', exact=True)).to_have_id('timelineDatasetFilter')
+    expect(page.get_by_role('combobox', name='Time axis', exact=True)).to_have_id('timelineTimeMode')
     expect(page.locator('#timelineHasData')).to_have_count(0)
     expect(page.locator('#dashboardTimeline input[type="checkbox"]')).to_have_count(0)
     expect(page.locator('#timelineAvailability')).to_contain_text('P1 · beta')

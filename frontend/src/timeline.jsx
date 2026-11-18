@@ -1,6 +1,8 @@
 import { renderSupplemental, resetSupplementalView } from './shared/view-root.js';
 import { useLayoutEffect, useRef } from 'react';
 import { ModalityIcon } from './shared/modality-icon.jsx';
+import { SelectField } from './shared/select-field';
+import { ViewStatus } from './shared/view-status';
 import { modalityLabel, modalityColor } from '../../static/js/modalities.js';
 
 const label = (value) => (value === 'imaging' ? 'Imaging-derived' : modalityLabel(value));
@@ -52,40 +54,36 @@ function Timeline({ model }) {
         <details className="inline-view-help">
           <summary aria-label="About timeline">?</summary>
           <p>
-            Data availability over time for the current scope. Use Patients or Multimodal to
-            build a selection and apply it to scope.
+            Data availability over time for the current scope. Use Patients or Multimodal to build a
+            selection and apply it to scope.
           </p>
         </details>
       </div>
       <div className="timeline-scope-controls">
-        <label>
-          <span>Dataset</span>
-          <select
-            id="timelineDatasetFilter"
-            disabled={loading || !!error}
-            value={model.dataset || ''}
-            onChange={(event) => actions.dataset(event.target.value)}
-          >
-            <option value="">All workspace datasets</option>
-            {datasets.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Time axis</span>
-          <select
-            id="timelineTimeMode"
-            disabled={loading || !!error}
-            value={model.timeMode || 'calendar'}
-            onChange={(event) => actions.time(event.target.value)}
-          >
-            <option value="calendar">Calendar dates</option>
-            <option value="relative">Study days</option>
-          </select>
-        </label>
+        <SelectField
+          label="Dataset"
+          id="timelineDatasetFilter"
+          disabled={loading || !!error}
+          value={model.dataset || ''}
+          onChange={(event) => actions.dataset(event.target.value)}
+        >
+          <option value="">All workspace datasets</option>
+          {datasets.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Time axis"
+          id="timelineTimeMode"
+          disabled={loading || !!error}
+          value={model.timeMode || 'calendar'}
+          onChange={(event) => actions.time(event.target.value)}
+        >
+          <option value="calendar">Calendar dates</option>
+          <option value="relative">Study days</option>
+        </SelectField>
         <button
           id="timelineShowAll"
           className="query-chip"
@@ -134,14 +132,11 @@ function Timeline({ model }) {
           </details>
         )}
       </div>
-      {loading && <p role="status">Loading data availability…</p>}
+      {loading && <ViewStatus kind="loading">Loading data availability…</ViewStatus>}
       {error && (
-        <div role="status">
-          <p>{error}</p>
-          <button type="button" id="timelineRetry" onClick={actions.retry}>
-            Retry
-          </button>
-        </div>
+        <ViewStatus kind="error" onRetry={actions.retry} retryId="timelineRetry">
+          {error}
+        </ViewStatus>
       )}
       <TimelinePlot model={model} />
       <div id="timelineAvailability" className="dashboard-timeline-table-wrap">
